@@ -107,4 +107,11 @@ These are ordered in layers of flexibility. The vanilla SCM is the most restrict
 H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
-or, that the optimal weighting scheme is the convex hull. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM.
+or, that the optimal weighting scheme is the convex hull. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM. One day perhaps, I'll go into the finer details of the procedure (it uses subsampling in order to test the null hypotheses). But for now, I'll simply demonstrate the applicability of TSSC.
+
+# Marketing Application: Opening a Showroom for an Online Retail Company
+Suppose an online retailer opens a showroom in Brooklyn, and we have 10 donors to choose from. A plot for this is below (note that I don't know the names of the donors, but the point is that it doesn't matter).
+
+<p align="center">
+  <img src="TrvDonors.png" width="90%">
+</p>
