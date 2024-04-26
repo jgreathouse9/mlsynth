@@ -1,9 +1,11 @@
-A Tutorial on the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878) Synthetic Control Method 
+Paso Doble: A Tutorial on the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878) Synthetic Control Method 
 ==============
 
-***A Marketing Application***
-
 **Author:** *Jared Greathouse*
+
+> **Note**
+>
+> This is an ongoing project; any feedback or comments are most welcome! In particular, someday I will add in the confidence intervals as well as do deeper explication of the subsampling routine for method selection.
 
 # Introduction
 This tutorial uses publicly available data to demonstrate the utility of the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878) Synthetic Control Method (TSSCM). The Python code is based on MATLAB code by [Kathleen Li](https://sites.utexas.edu/kathleenli/). The tutorial is also intended to give social scientists a more precise idea of the parallel trends assumptions underlying difference-in-differences (DID) and SCM, as these designs are increasingly popular for policy analysts, economists, marketers, and other fields. As a sort of prerequisite, I presumse that the reader is familiar with the basics of causal inference as well as the estimation of these designs. I begin with the mathematical preliminaries:
@@ -107,7 +109,7 @@ These are ordered in layers of flexibility. The vanilla SCM is the most restrict
 H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
-or, that the optimal weighting scheme is the convex hull. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM. One day perhaps, I'll go into the finer details of the procedure (it uses subsampling in order to test the null hypotheses). But for now, I'll simply demonstrate the applicability of TSSC.
+or, that the optimal weighting scheme is the convex hull. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM. After we test the null hypothesis, we can then estimate the counterfactual using that method. One day perhaps, I'll go into the finer details of the first step (it uses subsampling in order to test the null hypotheses). But for now, I'll simply demonstrate the applicability of TSSC.
 
 # Opening a Showroom for an Online Retail Company
 Suppose an online retailer opens a showroom in Brooklyn, and we have 10 donors to choose from. A plot for this is below (note that I don't know the names of the donors, but the point is that it doesn't matter). The black line is the sales trends for Brooklyn, and the blue lines are the donor trends. The red dashed line is the the treatment point, or $t=76$
@@ -117,10 +119,22 @@ Suppose an online retailer opens a showroom in Brooklyn, and we have 10 donors t
 </p>
 
 
-Here, we can get a sense of how the quasi-experiment may be set up, where we have the sole treated unit as Brooklyn, and $N_0 = 10$.
+Here, we can get a sense of how the quasi-experiment may be set up, where we have the sole treated unit as Brooklyn, and $N_0 = 10$. Now we can plot the counterfactuals against each other. In our case, MSC(b) is the one of interest as it was the one selected by the first-step.
 
 
 <p align="center">
   <img src="MSCTEs.png" width="90%">
 </p>
+
+A few observations are clear from this: firstly, DID performs terribly. It cannot fit the pre-intervention period at all, with a RMSE of 834.89. Its ATT is 3258, and its percentage ATT is 130 (or that absent the showroom, the sales in Brooklyn would be 130% lower than they in fact were.) Even Forward DID, [which I've detailed elsewhere](https://github.com/jgreathouse9/FDIDTutorial/blob/main/Vignette.md) performs poorly, selecting only one unit (this means that it selected the closest one possible, and that all the other units made the predictions *worse* than the even the DID average). This highlights one of the limitations of the DID methods more generally. If the treatment unit itself as an outlier, then we need a more flexible method to estimate the counterfactual, as even with the "best" donors, it still is not enough to satisfy the parallel pre-trends assumption for any DID method. Its ATT and percent ATT are 2192.79 and 61.6, respectively. Its pre-RMSE is 573.87. Convex SCM performs only slightly better (its pre-RMSE is identical to FDID), giving weight to only one unit (it weighs the same unit that FDID selected). This makes sense, since in cases like this, SCM also selects the only weight that it can select (we can see this if in [the Prop 99 example](https://www.tandfonline.com/doi/abs/10.1198/jasa.2009.ap08746) example we treat New Hampshire as the treated unit. New Hampshire has the highest tobacco consumption trends per capita, and the only state that even can fit it is the next highest state, Kentucky). Convex SCM'S ATT is 2704, or a percentage ATT of 88.7%. A massive reduction from DID and FDID, but still biased.
+
+In contrast, Modified SCM(b) which has no intercept but allows for positive weights gets a pretreatment RMSE of 434.43. Its absolute and percentage ATTs are 1131.97 and 24.5. So, even though the MSC(b) estimator agrees that the ATT of the showroom is positive, the ATT it returns is 2.878 times lower than the DID and 2.38 times lower than Convex SCM!
+
+# Conclusion
+
+The reason this matters, from a very practical standpoint, goes beyond econometrics. Policies and business decisions made by governments and companies are usually costly and have the capability to affect thousands, sometimes tens of millions of people (depending on the government or corporation). In order to know if our policies are having the effect sizes we desire, we need to use estimators of the effect size that are robust to different kinds of circumstances. Otherwise, we'll sometimes find that our policies are twice as effective as they in fact are. Particularly if we are rolling out a policy to other areas of a business or policies to other areas if a state or city or nation, we can end up taking actions that are ineffective at the very best, or harmful at worst. The benefit of newer, cutting edge estimators in econometrics is not simply that they are advanced. They also improve the accuracy of our estimates.
+
+# Contact
+- Jared Greathouse: <jgreathouse3@student.gsu.edu>
+- Kathy Li: <kathleen.li@mccombs.utexas.edu>
 
