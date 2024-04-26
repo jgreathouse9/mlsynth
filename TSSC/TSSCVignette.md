@@ -70,33 +70,41 @@ From earlier, recall that our weight vector $\mathbf{w} \coloneqq \lbrace{w_2 \l
 Note here that even if we were to assign a weight of 1 to Catalunya, it still would not fit as closely with the Basque Country as perhaps we'd like (indeed from [the original paper](https://www.aeaweb.org/articles?id=10.1257/000282803321455188), Madrid (a wealthier region than the Basque Country) and Catalunya received weight. This means, analytically, we have two options. Either we can add an intercept (say $\mu$, which simply shifts the counterfactual vertically depending on the sign), or we can allow the summation of weights to be greater than 1 (or we could do both).
 
 # Two Step Synthetic Controls
-We may have different SCMs however. After all, we are the econometricians, we are the ones who have say over what objectuve functions we optimize. With the idea of the intercept, we can restate classic SCM from above 
+We may have different SCMs however. After all, we are the econometricians, we are the ones who have say over what objective functions we optimize. With the idea of the intercept, we can restate classic SCM from above 
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j -\mu ||_{2}^2 \\
     \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w}, \|_{1} = 1} \quad \mu = 0
 \end{align}
 ```
-Consider three modifications, call them Modified Synthetic Controls (MSC). Here is MSCa
+Consider three modifications, call them Modified Synthetic Controls (MSC).
 
+MSCa
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j -\mu||_{2}^2 \\
     \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}, \quad \mu \neq 0
 \end{align}
 ```
 MSCb
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}, \quad, \quad \mu = 0
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j -\mu||_{2}^2 \\
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}, \quad \mu = 0
 \end{align}
 ```
-
-MSCb
+MSCc
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{0 \geq}, \quad, \quad \mu \neq 0
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j -\mu||_{2}^2 \\
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}, \quad \mu \neq 0
 \end{align}
 ```
+These are ordered in layers of flexibility. The vanilla SCM is the most restrictive. MSCa still forces the convex hull restrictions, however, it does allow for an intercept in case it is needed to allow for better pre-intervention fit. MSCb gets rid of the intercept like vanilla SCM, but now allows the weights to be anywhere on the positive real line. The latter SCM allows for both an intercept and unrestricted positive weights. Given these different options, it makes sense for analysts to care about which set of restrictions are the most plausible. The point of TSSC is to first test the viability of the parallel pre-trends assumption for vanilla SCM. Precisely, we make a null hypothesis
+
+```math
+\begin{align}
+H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
+\end{align}
+```
+or, that the optimal weighting scheme is the convex hull. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM.
