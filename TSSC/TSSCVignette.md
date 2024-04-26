@@ -33,7 +33,7 @@ While this may seem complicated, it is simple OLS. Here, we seek the line that m
 SCM however has a different weighting scheme. In the SCM world, one of the primary innovations is that we are explicitly saying that the weights are not meant to be constant. Generically, we may express classic SCM as
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
     \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
@@ -68,3 +68,20 @@ Suppose now we wish to construct a synthetic control for the Basque, using only 
 From earlier, recall that our weight vector $\mathbf{w} \coloneqq \lbrace{w_2 \ldots w_N  \rbrace}$ is simply a collection of scalar values determined by OLS. They serve as the coefficients of importance for our donors. Precisely, we multiply our donor units by these weights. The counterfactual here for vanilla SCM is just $\mathbf{y}^{\text{SCM}}=w_2\mathbf{y}^{\text{CAT}} + w_3\mathbf{y}^{\text{EXT}}$. To illustrate this, suppose $w_2=1$, meaning $w_3=0$. What does this mean for our counterfactual? Well, it just means that our counterfactual IS Catalunya. Why?  Let's plug it in to our formula for the counterfactual to verify this result. $\mathbf{y}^{\text{SCM}}=1\mathbf{y}^{\text{CAT}} + 0\mathbf{y}^{\text{EXT}}$. We know that anything multiplied by 1 is itself. The second term from the above optimization, $w_3\mathbf{y}^{\text{EXT}}$, simply vanishes when $w_3=0$. The reverse is true for Extremadura, where the coutnerfactual simply IS Extremadura if its weight is 1. So, the convex hull is actually better thought of as a constraint on our counterfactual overall. Because of Jensen's Inequality (the idea that the output of our function at the average input is less than or equal to the function at the average of our ouputs), the convex hull restriction, in the simplest of terms, says "Our counterfactual will not be greater than the maximum value of the donor pool, or lower than the minimum value of the donor pool. We, in effect, are *constraining* our counterfactual predictions to lie within a certain range of outcomes. This idea is easily extended to higher dimensions, and is also why we drop donors we think are irrelevant before estimating the counterfactual, typically, since including them in the pool risks interpolation biases induced by non-linearities of our control group relative to the treated unit. Imagine if above the optimal solution were $w_2 =.3$ and $w_3=.7$. Our counterfactual would massively undershoot that of the Basque Country, because Extremadura is simply too dissimilar to the Basque Country.
 
 Note here that even if we were to assign a weight of 1 to Catalunya, it still would not fit as closely with the Basque Country as perhaps we'd like (indeed from [the original paper](https://www.aeaweb.org/articles?id=10.1257/000282803321455188), Madrid (a wealthier region than the Basque Country) and Catalunya received weight. This means, analytically, we have two options. Either we can add an intercept (say $\mu$, which simply shifts the counterfactual vertically depending on the sign), or we can allow the summation of weights to be greater than 1 (or we could do both).
+
+# Two Step Synthetic Controls
+We may have different SCMs however. After all, we are the econometricians, we are the ones who have say over what objectuve functions we optimize. With the idea of the intercept, we can restate classic SCM from above 
+```math
+\begin{align}
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1} \quad \mu = 0
+\end{align}
+```
+Consider three modifications.
+
+```math
+\begin{align}
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1} \quad \mu \neq 0
+\end{align}
+```
