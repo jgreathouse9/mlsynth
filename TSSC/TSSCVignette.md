@@ -45,3 +45,7 @@ Where $\mathbb{I}$ is the unit interval. Much as above, the unit weights must al
 > The idea of summation constraints and convex hulls has **direct implications** for the Two-Step Method. I deviate here to give it a more extended discussion.
 >
 Before I continue, I will be as precise as possible about what we mean when the convex hull condition is mentioned. Oftentimes it is invoked in econometrics, but it rarely explained in the simplest possible terms.
+
+<p align="center">
+  <img src="Basqueex.png" width="90%">
+</p>
