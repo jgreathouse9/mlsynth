@@ -1,5 +1,7 @@
+# Note that you need my Forward DID method (linked in the tutorial) to run this. I will not post the full mlsynth code until it is ready.
+
 import pandas as pd
-from mlsynth import TSSC, FMA, FDID
+from mlsynth import TSSC, FDID
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
