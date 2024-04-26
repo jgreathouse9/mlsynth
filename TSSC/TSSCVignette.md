@@ -118,3 +118,9 @@ Suppose an online retailer opens a showroom in Brooklyn, and we have 10 donors t
 
 
 Here, we can get a sense of how the quasi-experiment may be set up, where we have the sole treated unit as Brooklyn, and $N_0 = 10$.
+
+
+<p align="center">
+  <img src="MSCTEs.png" width="90%">
+</p>
+
