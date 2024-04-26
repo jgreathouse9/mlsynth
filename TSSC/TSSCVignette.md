@@ -33,7 +33,7 @@ While this may seem complicated, it is simple OLS. Here, we seek the line that m
 SCM however has a different weighting scheme. In the SCM world, one of the primary innovations is that we are explicitly saying that the weights are not meant to be constant. Generically, we may express classic SCM as
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad & ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \underset{w}{\text{argmin}} & ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
     \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
@@ -42,18 +42,29 @@ Where $\mathbb{I}$ is the unit interval. Much as above, the unit weights must al
 
 > **Note**
 >
-> The idea of summation constraints and convex hulls has **direct implications** for the Two-Step Method. I deviate here to give it a more extended discussion.
+> The idea of summation constraints and convex hulls has **direct implications** for the Two-Step Method. I pause here to give it a more extended discussion.
 >
+> 
 Before I continue, I will be as precise as possible about what we mean when the convex hull condition is mentioned. Oftentimes it is invoked in econometrics, but it rarely explained in the simplest possible terms.
 
 <p align="center">
   <img src="Basqueex.png" width="90%">
 </p>
 
-Here I plot the GDP per Capita of the Spanish states from 1955 to 1997. The blue reference line we see here denotes the onset of terrorist attacks in the Basque country in 1975. Suppose we wish to use DID to construct the counterfactual. We will simply add an intercept plus the pre-intervention average of controls. In this setup, all units get the weight of $\frac{1}{16}$. But as we can see here, the Basque Country is kind of an outlier among the donors, with Madrid, Cataluna, and the Balearic Islands being the competitors (in terms of pre-1975 levels) of GDPs per Capita. Here is an explicit illustration of the convex hull, using only two donors.
+Here I plot the GDP per Capita of the Spanish states from 1955 to 1997. The blue reference line denotes the onset of terrorist attacks in the Basque country in 1975. Suppose we wish to use DID to construct the counterfactual, or the GDP trends of the Basque Country had terrorism never happened. We will simply add an intercept plus the pre-intervention average of controls. In this setup, all units get the weight of $\frac{1}{16}$. But as we can see here, the Basque Country is kind of an outlier among the donors, with Madrid, Cataluna, and the Balearic Islands being the main competitors (in terms of pre-1975 levels) of GDPs per Capita. Here is an *explicit* illustration of the convex hull restriction, using only two donors.
 
 <p align="center">
   <img src="Basque_vs_Catalunavec_vs_Extremevec.png" width="90%">
 </p>
 
-Suppose now we wish to construct a synthetic control for the Basque, using only Catalunya and Extremadura. From earlier, recall our weight vector $\mathbf{w} \coloneqq \lbrace{w_2 \ldots w_N  \rbrace}$ as a collection of scalar values we multiply our donors by. Suppose $w_2$ (Catalunya) is 1, meaning $w_3$ for Extremadura is 0. What does this mean for our counterfactual? Well, it just means that our counterfactual IS Catalunya, because anything multiplied by 1 is itself. Suppose the counterfactual were 1 for Extremadura and 0 for Catalunya. This just means that our counterfactual, in this case, IS Extremadura (the poorest region in Spain). So, when we say the convex hull, what we are really saying about out counterfactual is that because of Jensen's Inequality (the idea that the output of our function at the average input is less than or equal to the function at the average of our ouputs), "Our counterfactual will not be greater than the maximum value of the donor pool, or lower than the minimum value of the donor pool. We, in effect, are *constraining* our counterfactual predictions to lie within a certain range of outcomes, with those constraints defined by the values taken by our donor pool. This is why we drop donors we think are irrelevant before estimating the counterfactual, typically, since including them in the pool risks interpolation biases induced by non-linearities of our control group relative to the treated unit.
+Suppose now we wish to construct a synthetic control for the Basque, using only Catalunya and Extremadura (index them respectively as the second and third units). 
+
+```math
+\begin{align}
+    (\mathbf{w}) = \underset{w_{2},w_{3}}{\text{arg\,min}} & \quad (\mathbf{y}_{1} - w_2\mathbf{y}^{\text{CAT}}- w_3\mathbf{y}^{\text{EXT}})^{2} \:\forall \: t \in \mathcal{T}_1.
+\end{align}
+```
+
+From earlier, recall that our weight vector $\mathbf{w} \coloneqq \lbrace{w_2 \ldots w_N  \rbrace}$ is simply a collection of scalar values determined by OLS. They serve as the coefficients of importance for our donors. Precisely, we multiply our donor units by these weights. The counterfactual here for vanilla SCM is just $\mathbf{y}^{\text{SCM}}=w_2\mathbf{y}^{\text{CAT}} + w_3\mathbf{y}^{\text{EXT}}$. From herer, we can consider how the convex hull restriction is actually better thought of as a constraint on our counterfactual overall. To illustrate this, suppose $w_2=1$, meaning $w_3=0$. What does this mean for our counterfactual? Well, it just means that our counterfactual IS Catalunya. Why? Anything multiplied by 1 is itself. The second term from the above optimization, $ w_3\mathbf{y}^{\text{EXT}}$, simply vanishes when $w_3=0$. The reverse is true for Extremadura. So, when we say the convex hull, what we are really saying about our counterfactual is that because of Jensen's Inequality (the idea that the output of our function at the average input is less than or equal to the function at the average of our ouputs), "Our counterfactual will not be greater than the maximum value of the donor pool, or lower than the minimum value of the donor pool. We, in effect, are *constraining* our counterfactual predictions to lie within a certain range of outcomes, with those constraints defined by the values taken by our donor pool. This is why we drop donors we think are irrelevant before estimating the counterfactual, typically, since including them in the pool risks interpolation biases induced by non-linearities of our control group relative to the treated unit.
+
+Note here that even if we were to assign a weight of 1 to Catalunya, it still would not fit as closely with the Basque Country as perhaps we'd like. This means, analytically, we have two options. Either we can add an intercept (which simply shifts the counterfactual vertically depending on the sign), or we can allow the summation of weights to be greater than 1 (or we could do both).
