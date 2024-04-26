@@ -49,3 +49,5 @@ Before I continue, I will be as precise as possible about what we mean when the 
 <p align="center">
   <img src="Basqueex.png" width="90%">
 </p>
+
+Here I plot the GDP per Capita of the Spanish states from 1955 to 1997. The blue reference line we see here denotes the onset of terrorist attacks in the Basque country in 1975. Suppose we wish to use DID to construct the counterfactual. We will simply add an intercept plus the pre-intervention average of controls. In this setup, all units get the weight of $\frac{1}{16}$. But as we can see here, the Basque Country is kind of an outlier among the donors, with Madrid, Cataluna, and the Balearic Islands being the competitors (in terms of pre-1975 levels) of GDPs per Capita.
