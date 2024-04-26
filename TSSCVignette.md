@@ -1,13 +1,9 @@
-A Tutorial on Forward and Augmented Difference-in-Differences 
+A Tutorial on the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878) Synthetic Control Method 
 ==============
 
-***Revisiting Hong Kong's Economic Integration and Hubei's Lockdown***
+***A Marketing Application***
 
 **Author:** *Jared Greathouse*
-
-> **Note**
->
-> This is an ongoing project; any feedback or comments are most welcome!
 
 # Introduction
 This tutorial uses publicly available data to demonstrate the utility of the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878) Synthetic Control Method (TSSCM). The Python code is based on MATLAB code by [Kathleen Li](https://sites.utexas.edu/kathleenli/). The tutorial is also intended to give social scientists a more precise idea of the parallel trends assumptions underlying difference-in-differences (DID) and SCM, as these designs are increasingly popular for policy analysts, economists, marketers, and other fields. As a sort of prerequisite, I presumse that the reader is familiar with the basics of causal inference as well as the estimation of these designs. I begin with the mathematical preliminaries:
