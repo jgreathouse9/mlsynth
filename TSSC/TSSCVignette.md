@@ -56,4 +56,4 @@ Here I plot the GDP per Capita of the Spanish states from 1955 to 1997. The blue
   <img src="Basque_vs_Catalunavec_vs_Extremevec.png" width="90%">
 </p>
 
-Suppose now we wish to construct a synthetic control for the Basque, using only Catalunya and Extremadura. From earlier, recall our weight vector $\mathbf{w} \coloneqq {w_1 \ldots N}$
+Suppose now we wish to construct a synthetic control for the Basque, using only Catalunya and Extremadura. From earlier, recall our weight vector $\mathbf{w} \coloneqq \{w_2 \ldots w_N \}$
