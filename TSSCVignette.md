@@ -30,4 +30,11 @@ We have a single treated unit which along with the donors follows a certain data
 ```
 While this may seem complicated, it is simple OLS. Here, we seek the line that minimizes the differences between the treated vector $\mathbf{y}\_{1}$ and the weighted average of controls $\mathbf{w}^\top -\mathbf{Y}\_{\mathcal{N}_{0}}$. There are constraints placed on the weigths however, for DID. Here, they must be constant and add up to 1, or proportionality $\mathbf{w}= N^{-1}\_{0}$. This makes sense; in our intro to causal inference courses, we learn that DID posits that our counterfactual to the treated unit would be the average of our control units plus some intercept, $\mu$. Well, the only way we may have this is if we are implicitly giving every control unit as much as weight as all of the other control units. This means that for objective causal inference, we must compare the treated unit to a set of controls that are as similar to the treated unit in every way but for the treatment. This leaves analysts with a few paths to take: we either discard dissimilar donors, or we adjust the weighting scheme for our units. As I've mentioned [elsewhere](https://github.com/jgreathouse9/FDIDTutorial/blob/main/Vignette.md), we may use methods such as forward selection to obtain the correct donor pool, under certain instances. In the case of DID, we may discard units.
 
-SCM however has a different weighting scheme
+SCM however has a different weighting scheme. In the SCM world, one of the primary innovations is that we are explicitly saying that the weights are not meant to be constant. Generically, we may express classic SCM as
+```math
+\begin{align}
+    \underset{w}{\text{argmin}} & \quad & ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1}
+\end{align}
+```
+Where $\mathbb{I}$ is the unit interval. Much as above, the unit weights must also add up to 1. However in SCM, the weights may vary. This makes sense: SCM simply asks us to assume that some units matter more than others. In this case though, we ask the weights to lie on the convex hull.
