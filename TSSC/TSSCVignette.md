@@ -74,14 +74,29 @@ We may have different SCMs however. After all, we are the econometricians, we ar
 ```math
 \begin{align}
     \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
-    \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1} \quad \mu = 0
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w}, \|_{1} = 1} \quad \mu = 0
 \end{align}
 ```
-Consider three modifications.
+Consider three modifications, call them Modified Synthetic Controls (MSC). Here is MSCa
 
 ```math
 \begin{align}
     \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
-    \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1} \quad \mu \neq 0
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}, \quad \mu \neq 0
+\end{align}
+```
+MSCb
+```math
+\begin{align}
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}, \quad, \quad \mu = 0
+\end{align}
+```
+
+MSCb
+```math
+\begin{align}
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{0 \geq}, \quad, \quad \mu \neq 0
 \end{align}
 ```
