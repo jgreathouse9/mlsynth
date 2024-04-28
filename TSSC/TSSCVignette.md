@@ -45,7 +45,7 @@ SCM however has a different weighting scheme. In the SCM world, one of the prima
     \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
-Where $\mathbb{I}$ is the unit interval. Much as above, the unit weights must also add up to 1. However in SCM, the weights may vary. This makes sense: SCM simply asks us to assume that some units matter more than others, abs that in doing so (in absence of an intercept), our counterfactual would be the weighted average of controls. We use the convex hull constraints to build our synthetic control.
+Where $\mathbb{I}$ is the unit interval. Much as above, the unit weights must also add up to 1. However in SCM, the weights may vary. This makes sense: SCM simply asks us to assume that some units matter more than others, and that in doing so (in absence of an intercept), our counterfactual would be the weighted average of controls. We use convex hull constraints to build our synthetic control.
 ## Interlude: Convex Hulls and Intercepts
 
 > **Note**
@@ -53,7 +53,7 @@ Where $\mathbb{I}$ is the unit interval. Much as above, the unit weights must al
 > The idea of summation constraints and convex hulls has **direct implications** for the Two-Step Method. I pause here to give it a more extended discussion.
 >
 > 
-Before I continue, I will be as precise as possible about what we mean when the convex hull condition is mentioned. Oftentimes it is invoked by researchers using SCM, but it rarely explained in the simplest possible terms. Typically, it's explained in the framework of geometry, but I think framing the issue from am optimization offers a more explicit picture as to what's going on.
+Before I continue, I will be as precise as possible about what we mean when the convex hull condition is mentioned. Oftentimes it is invoked by researchers using SCM, but it rarely explained in the simplest possible terms. Typically, it's explained in the framework of geometry, but I think framing the issue from an optimization offers a more explicit picture as to what's going on.
 
 <p align="center">
   <img src="Basqueex.png" width="90%">
