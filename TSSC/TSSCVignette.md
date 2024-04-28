@@ -26,7 +26,7 @@ We have a single treated unit which, along with the donors, follows a certain da
 
 $$ ATT = \frac{1}{T\_1 - T\_0} \sum_{T\_0 +1}^{T} (y_{1t} - \hat{y}_{1t}) $$
 
-where $(y_{1t} - \hat{y}_{j1})$ is the treatment effect. Next, we can think about how to model this.
+where $(y_{1t} - \hat{y}_{1t})$ is the treatment effect. Next, we can think about how to model this.
 
 Consider $$\mathbf{M}^{\ast}\_{jt} = \sum\_{k=1}^{r} \boldsymbol{\lambda}\_{jk}\boldsymbol{\gamma}\_{tk},$$ a model known as a factor model in the econometrics literature. The DID method assumes the outcomes we observe are byproduct of a time specific effect and a unit specific effect, $\mathbf{M}^{\ast}\_{jt} = a_j + b_t$. This means, from the above, that $r=2$ and $\boldsymbol{\lambda}\_{j1}=a_j, \boldsymbol{\lambda}\_{j2}=1, \boldsymbol{\gamma}\_{t1}=1, \boldsymbol{\gamma}\_{t2}=b_t$. This means we may use the average of controls as a proxy for the unit-specific coefficient (in the pre and post period). The time-specific coefficient must be estimated. Accordingly, think about DID as a weighting estimator which solves
 ```math
