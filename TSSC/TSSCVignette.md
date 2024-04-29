@@ -65,11 +65,11 @@ Here I plot the GDP per Capita of the Spanish states from 1955 to 1997. The blue
   <img src="Basque_vs_Catalunavec_vs_Extremevec.png" width="90%">
 </p>
 
-Suppose now we wish to construct a synthetic control for the Basque Country, using *only* Catalunya and Extremadura (index them respectively as the second and third units). 
+Suppose now we wish to construct a synthetic control for the Basque Country, using *only* Catalunya and Extremadura (index them respectively as the second and third units).
 
 ```math
 \begin{align}
-    (\mathbf{w}) = \underset{w_{2},w_{3}}{\text{arg\,min}} & \quad (\mathbf{y}_{1} - w_2\mathbf{y}^{\text{CAT}}- w_3\mathbf{y}^{\text{EXT}})^{2} \:\forall \: t \in \mathcal{T}_1.
+    (\mathbf{w}) = \underset{w_{2},w_{3}}{\text{arg\,min}} & \quad (\mathbf{y}_{1} - w_2\mathbf{y}^{\text{CAT}}- w_3\mathbf{y}^{\text{EXT}})^{2} \:\forall \: t \in \mathcal{T}_0.
 \end{align}
 ```
 
@@ -79,33 +79,28 @@ Note here that even if we were to assign a weight of 1 to Catalunya, it still wo
 
 # Two Step Synthetic Controls
 We may have different SCMs however. After all, we are the econometricians, we are the ones who have say over what objective functions we optimize. With the idea of the intercept, we can restate classic SCM from above 
-```math
-\begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j -\mu ||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w}, \|_{1} = 1} \quad \mu = 0
-\end{align}
-```
+
 Consider three modifications, call them Modified Synthetic Controls (MSC).
 
 MSCa
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j -\mu||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}, \quad \mu \neq 0
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - [\mathbf{Y}_{\mathcal{N}_{0}}, \mathbf{1}_T]w_{j}||_{2}^2 \\
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
 MSCb
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j -\mu||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}, \quad \mu = 0
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_{j}||_{2}^2 \\
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
 \end{align}
 ```
 MSCc
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j -\mu||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}, \quad \mu \neq 0
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - [\mathbf{Y}_{\mathcal{N}_{0}}, \mathbf{1}_T]w_{j}||_{2}^2 \\
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
 \end{align}
 ```
 These are ordered in layers of flexibility. The vanilla SCM is the most restrictive. MSCa still forces the convex hull restrictions, however, it does allow for an intercept in case it is needed to allow for better pre-intervention fit. MSCb gets rid of the intercept like vanilla SCM, but now allows the weights to be anywhere on the positive real line. The latter SCM allows for both an intercept and unrestricted positive weights. Given these different options, it makes sense for analysts to care about which set of restrictions are the most plausible. The point of TSSC is to first test the viability of the parallel pre-trends assumption for vanilla SCM. Precisely, we make a null hypothesis
