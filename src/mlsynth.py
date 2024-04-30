@@ -175,6 +175,8 @@ from toolz import reduce, partial
 import matplotlib.ticker as ticker
 
 
+
+
 class TSSC:
     def __init__(self, df, unitid, time, outcome, treat,
                  figsize=(12, 6),
@@ -213,7 +215,7 @@ class TSSC:
         donor_names = donor_df[self.unitid].unique()
         Xbar = Ywide[donor_names].values
 
-        nb =5000
+        nb =500
         t = y.shape[0]
         t1 = len(
                     self.df[
@@ -282,9 +284,18 @@ class TSSC:
 
                 # Define constraints based on method
                 constraints = []
-                if method in ["SC", "MSC_a"]:
-                    constraints.append(cp.sum(b_cvx) == 1)
-                constraints.append(b_cvx >= 0)
+                if method == "SC":
+                    constraints.append(cp.sum(b_cvx) == 1)  # Sum constraint for all coefficients
+                    constraints.append(b_cvx >= 0)  # Non-negativity constraint for all coefficients
+                elif method == "MSC_a":
+                    constraints.append(cp.sum(b_cvx[1:]) == 1)  # Exclude the intercept from the sum constraint
+                    constraints.append(b_cvx[1:] >= 0)  # Non-negativity constraint for coefficients excluding intercept
+                    constraints.append(b_cvx[0] == 0)  # No constraint on the intercept
+                elif method == "MSC_b":
+                    constraints.append(b_cvx >= 0)  # Non-negativity constraint for all coefficients
+                elif method == "MSC_c":
+                    constraints.append(b_cvx[1:] >= 0)  # Non-negativity constraint for coefficients excluding intercept
+                    constraints.append(b_cvx[0] == 0)  # No constraint on the intercept
 
                 # Solve the problem
                 problem = cp.Problem(objective, constraints)
@@ -293,7 +304,7 @@ class TSSC:
                 # Extract the solution
                 b = b_cvx.value
 
-                weights_dict = {donor: weight for donor, weight in zip(donornames, np.round(b,3))  if weight > 0.001}
+                weights_dict = {donor: weight for donor, weight in zip(donornames, np.round(b,4))  if weight > 0.001}
 
                 # Calculate the counterfactual outcome
                 y_counterfactual = x_.dot(b)
@@ -341,9 +352,20 @@ class TSSC:
                     objective = cp.Minimize(cp.norm(xm @ b_cvx2 - ym, 2))
 
                     constraints2 = []
-                    if method in ["SC", "MSC_a"]:
-                        constraints2.append(cp.sum(b_cvx2) == 1)
-                    constraints2.append(b_cvx2 >= 0)
+                    if method == "SC":
+                        constraints2.append(cp.sum(b_cvx2) == 1)  # Sum constraint for all coefficients
+                        constraints2.append(b_cvx2 >= 0)  # Non-negativity constraint for all coefficients
+                    elif method == "MSC_a":
+                        constraints2.append(cp.sum(b_cvx2[1:]) == 1)  # Exclude the intercept from the sum constraint
+                        constraints2.append(
+                            b_cvx2[1:] >= 0)  # Non-negativity constraint for coefficients excluding intercept
+                        constraints2.append(b_cvx2[0] == 0)  # No constraint on the intercept
+                    elif method == "MSC_b":
+                        constraints2.append(b_cvx2 >= 0)  # Non-negativity constraint for all coefficients
+                    elif method == "MSC_c":
+                        constraints2.append(
+                            b_cvx2[1:] >= 0)  # Non-negativity constraint for coefficients excluding intercept
+                        constraints2.append(b_cvx2[0] == 0)  # No constraint on the intercept
 
                     # Define the problem
                     problem = cp.Problem(objective, constraints2)
@@ -385,7 +407,7 @@ class TSSC:
                     "ATT": round(att, 3),
                     "Percent ATT": round(att_percentage, 3),
                     "SATT": round(att_std_predicted, 3),
-                    "95% CI": cr_025_0975
+                    "95% CI": [round(val, 3) for val in cr_025_0975]
                 }
 
                 gap = y - y_counterfactual
@@ -409,8 +431,8 @@ class TSSC:
                 # Create Fit_dict for the specific method
                 fit_dict = {
                     "Fit": {
-                        "T0 RMSE": t0_rmse,
-                        "T1 RMSE": t1_rmse,
+                        "T0 RMSE":  round(t0_rmse,3),
+                        "T1 RMSE":  round(t1_rmse,3),
                         "Pre-Periods": t1,
                         "Post-Periods": len(y[t1:])
                     },
@@ -448,7 +470,7 @@ class TSSC:
         test2_s = np.zeros(nb)
 
         for g in range(nb):
-            m = t1*2
+            m = t1
             zm = z1[np.random.choice(z1.shape[0], m, replace=True), :]
             ym = zm[:, -1]
             xm = zm[:, :-1]
@@ -528,6 +550,9 @@ class TSSC:
         plt.show()
 
         return result
+
+
+
 
 
 
