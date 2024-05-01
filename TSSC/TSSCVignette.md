@@ -53,13 +53,19 @@ Where $\mathbb{I}$ is the unit interval. Much as above, the unit weights must al
 > The idea of summation constraints and convex hulls has **direct implications** for the Two-Step Method. I pause here to give it a more extended discussion.
 >
 > 
-Before I continue, I will be as precise as possible about what we mean when the convex hull condition is mentioned. Oftentimes it is invoked by researchers using SCM, but it rarely explained in the simplest possible terms. Typically, it's explained in the framework of geometry, but I think framing the issue from an optimization offers a more explicit picture as to what's going on.
+Before I continue, I will be as precise as possible about what the convex hull means in the context of. Oftentimes it is invoked by researchers using SCM, but it rarely explained in the simplest possible terms (or at least, it sure was never explained like this in my three causal inference courses. Intuition for this is critical to understanding how the convex hull's relaxation implies for estimation. To begin, let's consider the geometric definition of
+
+```math
+\text{conv}(U) = \left\{ \sum_{j=1}^n w_j \mathbf{y}_j : n \in \mathbb{N}, \, \mathbf{y}_j \in U \text{ and } w_j \in \mathbb{R}_{> 0} \text{ for each } j, \, \sum_{j=1}^n w_j = 1 \right\}
+
+```
+This represents the smallest possible convex set that wraps around a set of points. But what really does this mean anyways, and why do we care? Let's think about the very first SCM paper which studies the impact of terrorism on GDP in the Basque Country.
 
 <p align="center">
   <img src="Basqueex.png" width="90%">
 </p>
 
-Here I plot the GDP per Capita of the Spanish states from 1955 to 1997. The blue reference line denotes the onset of terrorist attacks in the Basque country in 1975. This of course is the original case study for synthetic controls. Suppose we wish to use DID to construct the counterfactual GDP trends of the Basque Country. We will simply add an intercept plus the pre-intervention average of controls. In this setup, all 16 control units get the weight of $\frac{1}{16}$. But as we can see here, the Basque Country is kind of an outlier among the donors, with Madrid, Cataluna, and the Balearic Islands being the main competitors (in terms of pre-1975 levels) of GDPs per Capita. Here is an *explicit* illustration of the convex hull restriction, using only two donors.
+Here I plot the GDP per Capita of the Spanish states from 1955 to 1997. The blue reference line denotes the onset of terrorist attacks in the Basque Country in 1975. Suppose we wish to use DID to construct the counterfactual GDP trends of the Basque Country. We will simply add an intercept plus the pre-intervention average of controls. In this setup, all 16 control units get the weight of $\frac{1}{16}$. But as we can see here, the Basque Country is kind of an outlier among the donors, with Madrid, Cataluna, and the Balearic Islands being the main competitors (in terms of pre-1975 levels) of GDPs per Capita. As we've mentioned already, classic SCM projects the treated unit on to the convex hull of the donor set. Here is an *explicit* illustration. For simplicity, I only use two donors.
 
 <p align="center">
   <img src="Basque_vs_Catalunavec_vs_Extremevec.png" width="90%">
