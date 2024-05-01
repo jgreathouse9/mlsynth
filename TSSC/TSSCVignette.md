@@ -46,7 +46,7 @@ SCM however has a different weighting scheme. In the SCM world, one of the prima
 \end{align}
 ```
 Where $\mathbb{I}$ is the unit interval. Much as above, the unit weights must also add up to 1. However in SCM, the weights may vary. This makes sense: SCM simply asks us to assume that some units matter more than others, and that in doing so (in absence of an intercept), our counterfactual would be the weighted average of controls. We use convex hull constraints to build our synthetic control.
-## Interlude: Convex Hulls and Intercepts
+# Interlude: Convex Hulls and Intercepts
 
 > **Note**
 >
@@ -127,7 +127,19 @@ MSCc allows for both an intercept and unrestricted positive weights. Given these
 H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
-or, that we've violated the pre-intervention trend convex hull restriction. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM. After we test the null hypothesis, we can then estimate the counterfactual using that method. One day perhaps, I'll go into the finer details of the first step (it uses subsampling in order to test the null hypotheses). But for now, I'll simply demonstrate the applicability of TSSC.
+or, that we've violated the pre-intervention trend convex hull restriction. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM. After we test the null hypothesis, we can then estimate the counterfactual using that method.
+
+## Step 1: Testing the Relevant Hypotheses
+Our null hypothesis is $H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}$, or, $R\beta_0 - q=\mathbf{0}_{2}$. A matrix 
+```math
+\left(
+\begin{bmatrix}
+    0 & \mathbf{1}^{\top}_{N-1} \\
+    1 & \mathbf{0}^{\top}_{N-1}
+\end{bmatrix}
+\right)
+
+```
 
 # Opening a Showroom for an Online Retail Company
 Suppose an online retailer opens a showroom in Brooklyn, and we have 10 donors to choose from. A plot for this is below (note that I don't know the names of the donors, but the point is that it doesn't matter). The black line is the sales trends for Brooklyn, and the blue lines are the donor trends. The red dashed line is the the treatment point, or $t=76$
