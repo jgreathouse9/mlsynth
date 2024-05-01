@@ -97,35 +97,37 @@ We may have different SCMs however. After all, we are the econometricians, we ar
 
 Consider three modifications, call them Modified Synthetic Controls (MSC).
 
-MSCa
+## MSCa
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - [\mathbf{Y}_{\mathcal{N}_{0}}, \mathbf{1}_T]w_{j}||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - [\mathbf{Y}_{\mathcal{N}_{0}}w_{j}, \mu\mathbf{1}_T]||_{2}^2 \\
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}, \mu \neq 0.
 \end{align}
 ```
-MSCb
+MSCa shifts the counterfactual within the convex hull using the vector of 1s with its corresponding coefficient being $\mu$ (which is unconstrained). It is the first relaxation of the assumption of SCM (not systemic differences betweem the donors and treated unit).
+## MSCb
 ```math
 \begin{align}
     \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_{j}||_{2}^2 \\
     \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
 \end{align}
 ```
-MSCc
+MSCb gets rid of the intercept and forces the weights to only be postitive.
+## MSCc
 ```math
 \begin{align}
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - [\mathbf{Y}_{\mathcal{N}_{0}}, \mathbf{1}_T]w_{j}||_{2}^2 \\
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - [\mathbf{Y}_{\mathcal{N}_{0}}w_{j}, \mu\mathbf{1}_T]||_{2}^2 \\
     \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
 \end{align}
 ```
-These are ordered in layers of flexibility. The vanilla SCM is the most restrictive. MSCa still forces the convex hull restrictions, however, it does allow for an intercept in case it is needed to allow for better pre-intervention fit. MSCb gets rid of the intercept like vanilla SCM, but now allows the weights to be anywhere on the positive real line. The latter SCM allows for both an intercept and unrestricted positive weights. Given these different options, it makes sense for analysts to care about which set of restrictions are the most plausible. The point of TSSC is to first test the viability of the parallel pre-trends assumption for vanilla SCM. Precisely, we make a null hypothesis
+MSCc allows for both an intercept and unrestricted positive weights. Given these different options, it makes sense for analysts to care about which set of restrictions are the most plausible. If a convex combination is enough, then we simply use SC as ti was orifinally formulated. If not, we must select the proper set of constraints to use. The point of TSSC is to first test the viability of the parallel pre-trends assumption for vanilla SCM, which chooses between the original model and the other three presented. Precisely, we make a null hypothesis
 
 ```math
 \begin{align}
 H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
-or, that the optimal weighting scheme is the convex hull. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM. After we test the null hypothesis, we can then estimate the counterfactual using that method. One day perhaps, I'll go into the finer details of the first step (it uses subsampling in order to test the null hypotheses). But for now, I'll simply demonstrate the applicability of TSSC.
+or, that we've violated the pre-intervention trend convex hull restriction. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM. After we test the null hypothesis, we can then estimate the counterfactual using that method. One day perhaps, I'll go into the finer details of the first step (it uses subsampling in order to test the null hypotheses). But for now, I'll simply demonstrate the applicability of TSSC.
 
 # Opening a Showroom for an Online Retail Company
 Suppose an online retailer opens a showroom in Brooklyn, and we have 10 donors to choose from. A plot for this is below (note that I don't know the names of the donors, but the point is that it doesn't matter). The black line is the sales trends for Brooklyn, and the blue lines are the donor trends. The red dashed line is the the treatment point, or $t=76$
