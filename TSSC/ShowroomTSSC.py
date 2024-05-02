@@ -57,7 +57,7 @@ Xbar = Ywide[donor_names].values
 plt.axvline(x=t1, color='red', linestyle='--', label='Showroom', linewidth=2)
 # Plot donor units as vectors
 for donor_name in donor_names:
-    plt.plot(Xbar, color='#26619c', linewidth=2.5)
+    plt.plot(Xbar, color='#7DF9FF', linewidth=2.5)
 
 # Plot treated unit (Brooklyn) as a vector
 plt.plot(y, color='black', label='Brooklyn', linewidth=2)
@@ -71,7 +71,7 @@ plt.title('Treated Unit vs. Donors')
 plt.legend()
 
 # Show plot
-#plt.savefig("TrvDonors.png")
+plt.savefig("TrvDonors.png")
 plt.show()
 
 model = FDID(df=df, treat=treat, time=time,
@@ -101,8 +101,8 @@ model2 = TSSC(df=df, treat=treat, time=time,
 
 SCMDICT = model2.fit()
 
-MSCB = SCMDICT[2]['Vectors']['Counterfactual']
-SC = SCMDICT[0]['Vectors']['Counterfactual']
+MSCB = SCMDICT[1]["MSC_b"]['Vectors']['Counterfactual']
+SC = SCMDICT[0]["SC"]['Vectors']['Counterfactual']
 # Plotting
 plt.figure(figsize=(10, 6))
 plt.plot(DID_unit, label='DID Brooklyn',
@@ -131,4 +131,3 @@ plt.axvline(x=treatdate, color='black', linestyle='--',
 plt.legend()
 
 plt.savefig("MSCTEs.png")
-print("me")
