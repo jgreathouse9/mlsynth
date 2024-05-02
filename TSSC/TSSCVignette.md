@@ -157,6 +157,17 @@ To do this, we can use a subsampling routine. We begin by taking random draws of
 ```math
 \hat V = \mathbf R\sigma^{\ast}(\sqrt{T_0}\hat{\mathbf{w}}_{T_0}^{\text{MSC}})\mathbf{R}^{\top}
 ```
+where $\sigma^{\ast}(\sqrt{T_0}\hat{\mathbf{w}}_{T_0}^{\text{MSC}})$ is
+
+```math
+\frac{m}{B} \sum_{b=1}^{B}(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}})(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}})^{\top}
+```
+with $b$ being the number of draws. The sub-sampling statistic itself is
+```math
+S^{\ast}_{m,b} = (\sqrt{m}(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}})^{\top})\mathbf V^{-1} (\sqrt{m}(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}}))
+```
+
+and, after sorting these in ascending order, the confidence interval is $\[\hat{S}\_{m,(\alpha B/2)}, \hat{S}\_{m,((1-\alpha/2)B)}\]$. Should $\tilde{S}\_{T_1}$ fall within the confidence interval, we reject the joint null hypothesis. If this fails, we then proceed to test the summing to 1 and intercept constraints individually. For each, we make null hypotheses using the row vectors of $\mathbf R$ above, with the respective nulls for summation and the zero intercept being $H_{0_{a}} : || \mathbf w||=1$ and $H_{0_{b}} : \mu =0$. For each, we can write them as $\mathbf R_{a}\mathbf{w}}^{\text{MSC}}- \mathbf q_{a}$ and $\mathbf R_{b}\mathbf{w}}^{\text{MSC}}- \mathbf q_{b}$. For summation and the intercept respectively, $\mathbf q_a = 1$ and $\mathbf q_b = 0$, with $\mathbf R_a = (0, \mathbf{1}\_{N-1}^{\top})$ and $\mathbf R_b = (0, \mathbf{0}_{N-1}^{\top})$.
 
 # Opening a Showroom for an Online Retail Company
 Suppose an online retailer opens a showroom in Brooklyn, and we have 10 donors to choose from. A plot for this is below (note that I don't know the names of the donors, but the point is that it doesn't matter). The black line is the sales trends for Brooklyn, and the blue lines are the donor trends. The red dashed line is the the treatment point, or $t=76$
