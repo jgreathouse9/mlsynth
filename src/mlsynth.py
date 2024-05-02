@@ -127,23 +127,23 @@ Each Class below takes the following:
 # To Do list:
 # 1: At Minimum, standardize plotting
 # via using a utilities .py file.
-# This inludes the obserbed vs predited plots
+# This includes the observed vs predicted plots
 # and the gap plot.
 
 
 # 2: Standardize the reshaping of the data.
-# With a few exeptions, the way we reshape
-# all these datasets is the exat same and
-# pretty muh does not hange aross all the methods
+# With a few exceptions, the way we reshape
+# all these datasets is the exact same and
+# pretty much does not change aross all the methods
 # we have. This inludes the standardizing of notations aross
 # methods.
 
-# 3: Inlude stati methods for ATT and other stats that are reported
-# aross all methods. Maybe, in a helper file.
+# 3: Inlude static methods for ATT and other stats that are reported
+# aross all methods (the fit Fict, ATTs Dict, etc).
 
 # Wish list:
 
-# 2: Add plaebo tests where appliable and relevant (e.g, in time)
+# 2: Add plaCebo tests where appliCable and relevant (e.g, in time)
 
 # 3: Extend at least 1 estimator to staggered adoption
 
@@ -214,7 +214,7 @@ class TSSC:
         donor_names = donor_df[self.unitid].unique()
         Xbar = Ywide[donor_names].values
 
-        nb =500
+        nb =10000
         t = y.shape[0]
         t1 = len(
                     self.df[
