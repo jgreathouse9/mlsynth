@@ -176,7 +176,6 @@ import matplotlib.ticker as ticker
 
 
 
-
 class TSSC:
     def __init__(self, df, unitid, time, outcome, treat,
                  figsize=(12, 6),
@@ -254,7 +253,7 @@ class TSSC:
             fit_dicts_list = []
             fit_results = {}
             # List of methods to loop over
-            methods = ["SC", "MSC_a", "MSC_b", "MSC_c"]
+            methods = ["SC", "MSC_b",  "MSC_a", "MSC_c"]
 
             for method in methods:
                 # Determine if intercept should be included
@@ -550,6 +549,7 @@ class TSSC:
         plt.show()
 
         return result
+
 
 
 
