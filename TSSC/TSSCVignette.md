@@ -116,7 +116,7 @@ MSCb gets rid of the intercept and forces the weights to only be postitive.
     \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
 \end{align}
 ```
-MSCc allows for both an intercept and unrestricted positive weights. We now are projecting the treated unit (as with MSCb) on to a convex cone, instead of the convex hull. Given these different options, it makes sense for analysts to care about which set of restrictions are the most plausible. If a convex combination is enough, then we simply use SC as it was originally formulated. If not, we must select the proper set of constraints to use.
+MSCc allows for both an intercept and unrestricted positive weights. We now are projecting the treated unit (as with MSCb) on to a convex cone, instead of the convex hull. We typically would want to use these latter estimatros if the treated unit has a particularly higher slope or trend compared to the donor units. Given these different options, it makes sense for analysts to care about which set of restrictions are the most plausible. If a convex combination is enough, then we simply use SC as it was originally formulated. If not, we must select the proper set of constraints to use.
 
 ## Step 1: Testing the Relevant Hypotheses
 
