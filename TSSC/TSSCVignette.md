@@ -8,7 +8,7 @@ Paso Doble: A Tutorial on the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878)
 > This is an ongoing project; any feedback or comments are most welcome! In particular, someday I will add in the confidence intervals as well as do deeper explication of the subsampling routine for method selection.
 
 # Introduction
-This tutorial uses publicly available data to demonstrate the utility of the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878) Synthetic Control Method (TSSCM). The Python code is based on MATLAB code by [Kathleen Li](https://sites.utexas.edu/kathleenli/). The tutorial is also intended to give social scientists a more precise idea of the parallel trends assumptions underlying difference-in-differences (DID) and SCM, as these designs are increasingly popular for policy analysts, economists, marketers, and other fields. As a sort of prerequisite, I presumse that the reader is familiar with the basics of causal inference as well as the estimation of these designs. I begin with the mathematical preliminaries:
+This tutorial uses publicly available data to demonstrate the utility of the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878) Synthetic Control Method (TSSCM). The Python code is based on MATLAB code by [Kathleen Li](https://sites.utexas.edu/kathleenli/) and [Venkatesh Shankar](https://mays.tamu.edu/directory/venkatesh-shankar/). The tutorial is also intended to give social scientists a more precise idea of the parallel trends assumptions underlying SCM, as the design is increasingly popular for policy analysts, economists, marketers, and other fields. As a sort of prerequisite, I presumse that the reader is familiar with the basics of causal inference as well as the estimation of SCM and DID. I still, however, begin with the preliminaries.
 # Model Primitives
 Here, we have $\mathcal{N} \coloneqq \lbrace{1 \ldots N \rbrace}$ units across $t \in \left(1, T\right) \cap \mathbb{N}$ time periods, where $j=1$ is our sole treated unit. This leaves us with $\mathcal{N}\_{0} \coloneqq \lbrace{2 \ldots N\rbrace}$ control units, with the cardinality of this set being the number of controls. We have two sets of time series $\mathcal{T}\coloneqq \mathcal{T}\_{0} \cup \mathcal{T}\_{1}$, where $\mathcal{T}\_{0}\coloneqq  \lbrace{1\ldots T_0 \rbrace}$ is the pre-intervention period and $\mathcal{T}\_{1}\coloneqq \lbrace{T_0+1\ldots T \rbrace}$ denotes the post-intervention period, each with their respective cardinalities. Let $\mathbf{w} \coloneqq \lbrace{w_2 \ldots w\_N  \rbrace}$ be a generic weight vector we assign to untreated units. We observe
 ```math
@@ -45,7 +45,7 @@ SCM however has a different weighting scheme. In the SCM world, one of the prima
     \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
-Where $\mathbb{I}$ is the unit interval. Much as above, the unit weights must also add up to 1. However in SCM, the weights may vary. This makes sense: SCM simply asks us to assume that some units matter more than others, and that in doing so (in absence of an intercept), our counterfactual would be the weighted average of controls. We use convex hull constraints to build our synthetic control.
+Where $\mathbb{I}$ is the unit interval. Much as with DID, the unit weights must also add up to 1. In fact, we can plug these exact weights into standard regression software like Stata and get the exact synthetic control we predict using standard DID regression techniques!. However in SCM, the weights may vary. SCM simply asks us to assume that some units matter more than others, and that in doing so (in absence of an intercept), our counterfactual would be the weighted average of controls. We use convex hull constraints to build our synthetic control.
 # Interlude: Convex Hulls and Intercepts
 
 > **Note**
@@ -194,5 +194,6 @@ The reason this matters, from a very practical standpoint, has significance beyo
 
 # Contact
 - Jared Greathouse: <jgreathouse3@student.gsu.edu>
-- Kathy Li: <kathleen.li@mccombs.utexas.edu>
+- Kathleen Li: <kathleen.li@mccombs.utexas.edu>
+- Venkatesh Shankar: <vshankar@mays.tamu.edu>
 
