@@ -5,7 +5,7 @@ Paso Doble: A Tutorial on the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878)
 
 > **Note**
 >
-> This is an ongoing project; any feedback or comments are most welcome! In particular, someday I will add in the confidence intervals as well as do deeper explication of the subsampling routine for method selection.
+> **mlsynth** is an ongoing project; any feedback or comments are most welcome! See the ShowroomTSSC.py file for my replication code of the empirical example.
 
 # Introduction
 This tutorial uses publicly available data to demonstrate the utility of the [Two-Step](https://doi.org/10.1287/mnsc.2023.4878) Synthetic Control Method (TSSCM). The Python code is based on MATLAB code by [Kathleen Li](https://sites.utexas.edu/kathleenli/) and [Venkatesh Shankar](https://mays.tamu.edu/directory/venkatesh-shankar/). The tutorial is also intended to give social scientists a more precise idea of the parallel trends assumptions underlying SCM, as the design is increasingly popular for policy analysts, economists, marketers, and other fields. As a sort of prerequisite, I presumse that the reader is familiar with the basics of causal inference as well as the estimation of SCM and DID. I still, however, begin with the preliminaries.
