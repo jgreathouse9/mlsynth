@@ -129,7 +129,7 @@ H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
 ```
 or, that we've violated the pre-intervention trend convex hull restriction. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM.
 
-We first test a joint null hypotthesis (namely, that the convex hull constraint is violated). We may write our null hypothesis as $H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|\_{1} = 1}$, or, $\mathbf R\beta_0 - \mathbf q=\mathbf{0}_{2}$. $\mathbf R$ is a matrix where the first and second rows of the first column are 0 and 1 respectively with the latter columns being 1 and 0 respectively.
+We first test a joint null hypotthesis (namely, that the convex hull constraint is violated). We may write our null hypothesis as $H_0 : \mu = 0, \quad   {||\mathbf{w}||\_{1} = 1}$, or, $\mathbf R\beta_0 - \mathbf q=\mathbf{0}_{2}$, or in words, that the intercept os 0 and the weigths should add to 1. $\mathbf R$ is a matrix where the first and second rows of the first column are 0 and 1 respectively with the latter columns being 1 and 0 respectively.
 ```math
 \left(
 \begin{bmatrix}
