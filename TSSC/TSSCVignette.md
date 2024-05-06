@@ -116,7 +116,7 @@ MSCb gets rid of the intercept and forces the weights to only be postitive.
     \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
 \end{align}
 ```
-MSCc allows for both an intercept and unrestricted positive weights. We now are projecting the treated unit (as with MSCb) on to a convex cone, instead of the convex hull. We typically would want to use these latter estimatros if the treated unit has a particularly higher slope or trend compared to the donor units. Given these different options, it makes sense for analysts to care about which set of restrictions are the most plausible. If a convex combination is enough, then we simply use SC as it was originally formulated. If not, we must select the proper set of constraints to use.
+MSCc allows for both an intercept and unrestricted positive weights. We now are projecting the treated unit (as with MSCb) on to a convex cone, instead of the convex hull. We typically would want to use these latter estimators if the treated unit has a particularly higher slope or trend compared to the donor units. Given these different options, it makes sense for analysts to care about which set of restrictions are the most plausible. If a convex combination is enough, then we simply use SC as it was originally formulated. If not, we must select the proper set of constraints to use.
 
 ## Step 1: Testing the Relevant Hypotheses
 
@@ -129,7 +129,7 @@ H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
 ```
 or, that we've violated the pre-intervention trend convex hull restriction. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM.
 
-We first test a joint null hypotthesis (namely, that the convex hull constraint is violated). We may write our null hypothesis as $H_0 : \mu = 0, \quad   {||\mathbf{w}||\_{1} = 1}$, or, $\mathbf R\beta_0 - \mathbf q=\mathbf{0}_{2}$, or in words, that the intercept os 0 and the weigths should add to 1. $\mathbf R$ is a matrix where the first and second rows of the first column are 0 and 1 respectively with the latter columns being 1 and 0 respectively.
+We first test a joint null hypotthesis. We may write our null hypothesis as $H_0 : \mu = 0, \quad   {||\mathbf{w}||\_{1} = 1}$, or, $\mathbf R\beta_0 - \mathbf q=\mathbf{0}_{2}$, or in words, that the intercept is 0 and the unit weights should add to 1. $\mathbf R$ is a matrix where the first and second rows of the first column are 0 and 1 respectively with the latter columns being 1 and 0 respectively.
 ```math
 \left(
 \begin{bmatrix}
