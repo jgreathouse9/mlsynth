@@ -112,6 +112,8 @@ autores = model.fit()
 
 ```
 
+And here is the plot of our results.
+
 <p align="center">
   <img src="PCRCalifornia" alt="Alt Text" width="50%">
 </p>
