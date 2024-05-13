@@ -126,6 +126,26 @@ The plot shows the observed values of the treated unit, California, and the coun
 
 The unit weights we get with Convex PCR are Connecticut: 0.1168, Nevada: 0.1327, New Hampshire: 0.1469, Utah: 0.6017, Wyoming: 0.0019. We get slightly less fit, but as we can see, we shouldn't care. The fit is still so similar and the practical conclusions are not changed very much. We can also do in-spalce placebo tests, where we reassign the treatment to all donors and estimate their respective synthetic controls. Since California is treated, we drop it from the donor pool of the in-space placebo tests.
 
+<details>
+    
+  <summary>Doing in-space placebos...</summary>
+  
+```python
+model = PCR(
+    df=df,
+    treat=treat,
+    time=time,
+    outcome=outcome,
+    unitid=unitid,
+    figsize=(10, 6),
+    grid=True,
+    treated_color='black',
+    counterfactual_color='blue',
+    display_graphs=True, objective="OLS", save=True, placebo="Unit")
+```
+
+</details>
+
 > **Note**
 >
 > I'm aware the the in-space placebo plot could be better labeled (with a legend and such). I am also aware that we can do the p-value inference which ranks the post to pre ratios, making bar plots to show how extreme the deviation is with respect to the pre-period fit.  These functionalities will come. 
