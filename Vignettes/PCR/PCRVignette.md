@@ -1,4 +1,4 @@
-A Tutorial on [Principal Componenet Regression](https://doi.org/10.1080/01621459.2021.1928513) for Synthetic Controls 
+A Tutorial on [Principal Component Regression](https://doi.org/10.1080/01621459.2021.1928513) for Synthetic Controls 
 ==============
 
 **Author:** *Jared Greathouse*
