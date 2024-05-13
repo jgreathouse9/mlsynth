@@ -112,6 +112,10 @@ autores = model.fit()
 
 ```
 
+<p align="center">
+  <img src="PCRCalifornia" alt="Alt Text" width="50%">
+</p>
+
 
 # Conclusion
 
