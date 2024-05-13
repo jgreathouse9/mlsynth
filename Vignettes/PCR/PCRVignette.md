@@ -118,6 +118,11 @@ And here is the plot of our results.
   <img src="PCRCalifornia.png" alt="PCR Analysis" width="90%">
 </p>
 
+The plot shows the observed values of the treated unit, California, and the counterfactual estimates for California. We see a high fidelity between the counterfactual predictions before 1989 (the first full year that Prop 99 was active for) and the real California. In the post-intervention period, we see Prop 99 decreased the amount of cigarettes per pack smoked between California and its counterfactual, an average difference of 18.23. Notice how we used unconstrained OLS to compute the unit weights. The practical effect of this is that every donor gets weight. However, we can also add Convex Hull constraints to the objective function, for a more sparse/interpretable solution. We do this by changing OLS to "SC".
+
+<p align="center">
+  <img src="ConvexPCRCalifornia.png" alt="Convex PCR Analysis" width="90%">
+</p>
 
 # Conclusion
 
