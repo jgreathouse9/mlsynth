@@ -126,6 +126,15 @@ The plot shows the observed values of the treated unit, California, and the coun
 
 The unit weights we get with Convex PCR are Connecticut: 0.1168, Nevada: 0.1327, New Hampshire: 0.1469, Utah: 0.6017, Wyoming: 0.0019. We get slightly less fit, but as we can see, we shouldn't care. The fit is still so similar and the practical conclusions are not changed very much. We can also do in-spalce placebo tests, where we reassign the treatment to all donors and estimate its syntehtic control. Since California is treated, we drop it from the donor pool of the in-space placebo tests.
 
+> **Note**
+>
+> I'm aware the the in-space placebo plot could be better labeled (with a legend and such). That functionality will come.
+
+<p align="center">
+  <img src="PlaceboPCRCalifornia.png" alt="Convex PCR Analysis" width="90%">
+</p>
+
+
 # Conclusion
 
 The reason this matters, from a very practical standpoint, has significance beyond econometrics. Policies and business decisions made by governments and companies are usually costly and have the capability to affect thousands, sometimes tens of millions of people (depending on the government or corporation). If a government wishes to try a new policy intervention or a company decides to do a new kind of advertising in one of their higher sales volume cities, presumably these interventions will be logistically and financially costly. In order to know if our policies are having the effect sizes we desire, we need to use estimators of the effect size that are robust to different kinds of circumstances. Otherwise, we'll sometimes find that our policies are twice as effective as they in fact are, as we did with the simulated dataset here. Particularly if we are rolling out a policy to other areas of a business or policies to other areas if a state or city or nation, we can end up taking actions that are ineffective at the very best, or harmful at worst, because our priors are founded on wrong or at elast inaccurate information. The benefit of newer, cutting edge estimators in econometrics is not simply that they are advanced. They also improve the accuracy of our estimates. TSSC is a one of the ways to do this. It would be nice to see how the method plays in an experimental setting. Recently, such methods [were derived](https://doi.org/10.48550/arXiv.2108.02196) for penalized SCMs; to extend them to the world of A/B testing (in the industry setup) would be quite helpful for future researchers using SCM.
