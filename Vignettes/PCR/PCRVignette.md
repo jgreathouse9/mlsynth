@@ -115,7 +115,7 @@ autores = model.fit()
 And here is the plot of our results.
 
 <p align="center">
-  <img src="PCRCalifornia.png" alt="PCR Analysis" width="50%">
+  <img src="PCRCalifornia.png" alt="PCR Analysis" width="90%">
 </p>
 
 
