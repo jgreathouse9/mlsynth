@@ -59,70 +59,7 @@ Marketing Science, 42(4), 746-767. https://doi.org/10.1287/mksc.2022.1406
 
 Each Class below takes the following:
 
-    Parameters:
-    ----------
-    - df: pandas.DataFrame
-        Any dataframe the user specifies.
-
-    - treat: str
-        The column name in df representing the treatment variable.
-        Must be 0 or 1, with only one treatment unit (for now).
-
-    - time: str
-        The column name in df representing the time variable.
-
-    - outcome: str
-        The column name in df representing the outcome variable.
-
-    - unitid: str
-        The column name in df representing the unit identifier.
-        The string identifier, specifically.
-
-    - figsize: tuple, optional
-        The size of the figure (width, height) in inches.
-        Default is (10, 8).
-
-    - graph_style: str, optional
-        The style of the graph.
-        Default is 'default'.
-
-    - grid: bool, optional
-        Whether to display grid lines on the graph.
-        Default is False.
-
-    - counterfactual_color: str, optional
-        The color of the counterfactual line on the graph.
-        Default is 'blue'.
-
-    - treated_color: str, optional
-        The color of the treated line on the graph.
-        Default is 'black'.
-
-    - filetype: str, optional
-        The file type for saving the graph. Default is None.
-        Users may specify pdf, png, or any other file Python accepts.
-
-    - display_graphs: bool, optional
-        Whether to display the generated graphs.
-        Default is True. Note, most of the above options
-        are only relvant if you choose to display graphs.
-  
-    Returned Objects:
-    ----------
-    - Each class returns a results_df, comprised of the real value,
-    the predicted counterfactual, the time values themselves as well
-    as the difference which defines our treatment effects.
-    
-    - As of now, only MSC returns a weights dictionary. Including a
-    dictionary for PCR which doesn't assign sparsity to weights would
-    make a dictionary less meaningful.
-    
-    - All classes return a statistics_dict, which contatain (at least)
-    the ATT (both absolute and percentage) as well as the T0 RMSE.
-    In the future, confidence intervals and additional diagnostics
-    will be included.
-    
-"""
+# Edit this dicstring in the future!!
 
 # To Do list:
 # 1: At Minimum, standardize plotting
@@ -241,6 +178,125 @@ class TSSC:
                        rmse=RMSE, att=ATT)
 
         return result
+
+
+
+
+class PCR:
+    """
+    Implements Principal Component Regression.
+
+    Here, we estimate the low rank structure of the donor matrix using singular
+    value thresholding, and then learning the pre-intervention period with
+    OLS regression. Then, we predict the post-intervention counterfacutal
+    using the learnt weights.
+    """
+
+    def __init__(
+        self,
+        df,
+        treat,
+        time,
+        outcome,
+        unitid,
+        figsize=(12, 6),
+        graph_style="default",
+        grid=True,
+        counterfactual_color="red",
+        treated_color="black",
+        filetype="png",
+        display_graphs=True,
+        objective="OLS", placebo=None, save=False
+    ):
+        self.df = df
+        self.objective = objective
+        self.save = save
+        self.treat = treat
+        self.time = time
+        self.outcome = outcome
+        self.unitid = unitid
+        self.figsize = figsize
+        self.graph_style = graph_style
+        self.grid = grid
+        self.counterfactual_color = counterfactual_color
+        self.treated_color = treated_color
+
+        self.filetype = filetype
+        self.display_graphs = display_graphs
+
+        self.placebo = placebo
+
+    def fit(self):
+
+        def get_PlaceboGaps(Y0, t, t1, t2, pcr, objective, donor_names, effects):
+            PlaceboGaps = np.empty((t, 0))  # Initialize an empty matrix to store Gap columns
+
+            for i in range(Y0.shape[1]):
+                ypla = Y0[:, i].copy()  # Copy the ith column of Y0
+                Y0pla = np.delete(Y0, i, axis=1)  # Remove the ith column from Y0
+                weights2 = pcr(Y0pla[:t1], ypla, objective, donor_names)
+                attdictplacebo, fitdictplacebo, Vectorsplacebo = effects.calculate(ypla, np.dot(Y0pla, weights2),
+                                                                                   t1, t2)
+                PlaceboGaps = np.concatenate((PlaceboGaps, Vectorsplacebo["Gap"][:, 0][:, np.newaxis]),
+                                             axis=1)  # Concatenate the first column of Gap to PlaceboGaps
+                Y0 = np.insert(Y0pla, i, ypla, axis=1)  # Insert the modified column back into Y0
+
+            return PlaceboGaps
+
+        # Extracts our data characteristics
+        treated_unit_name, Ywide, y, donor_names, Y0, t, t1, t2 = prepare_data(self.df, self.unitid, self.time,
+                                                                                 self.outcome, self.treat)
+
+        weights = pcr(Y0[:t1], y, self.objective, donor_names)
+        attdict, fitdict, Vectors = effects.calculate(y, np.dot(Y0, weights), t1, t2)
+
+        if self.placebo=="Unit":
+            gapreal = Vectors["Gap"][:, 0][:, np.newaxis]
+            Y0pla = get_PlaceboGaps(Y0, t, t1, t2, pcr, self.objective, donor_names, effects)
+            # Plotting
+            plt.figure(figsize=(10, 6))
+            for i in range(Y0pla.shape[1]):
+                plt.plot(range(t), Y0pla[:, i], color="grey", alpha=.45, linewidth=1)
+
+            plt.plot(range(t), gapreal, color="black", linewidth=2.5)
+            plt.axvline(x=t1, color='r', linestyle='--')
+            plt.xlabel('Time')
+            plt.ylabel('Treatment Effect')
+            plt.title('In-Space Placebo Tests')
+            plt.grid(True)
+            if self.save == True:
+                plt.savefig("Placebo" + "PCR" + treated_unit_name + ".png")
+            else:
+                plt.show()
+
+            gapmat = np.concatenate((gapreal, Y0pla), axis=1)
+
+            PreRMSEs = np.sqrt(np.mean(gapmat[:t1] ** 2, axis=0))
+
+            PostRMSEs = np.sqrt(np.mean(gapmat[t1:] ** 2, axis=0))
+
+            RMSEs = np.vstack((PreRMSEs, PostRMSEs,PostRMSEs/PreRMSEs)).T
+
+            info = {"Gaps": gapmat, "RMSEs": RMSEs}
+
+            return info
+        else:
+            plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
+                           treated_unit_name, y, np.dot(Y0, weights), method="PCR",
+                           treatedcolor=self.treated_color, counterfactualcolor=self.counterfactual_color,
+                           rmse=fitdict["T0 RMSE"], att=attdict["ATT"], save=self.save)
+
+            weights_dict = {}
+            for unit, weight in zip(Ywide.columns[Ywide.columns != treated_unit_name], weights):
+                weights_dict[unit] = round(weight, 4)
+
+            PCR_dict = {
+                "Effects": attdict,
+                "Vectors": Vectors,
+                "Fit": fitdict,
+                "Weights": weights_dict
+            }
+            return PCR_dict
 
 
 
