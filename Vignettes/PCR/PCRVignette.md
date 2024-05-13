@@ -91,7 +91,26 @@ df.sort_values(by=["State", "Year"], ascending=True)
 
 </details>
 
-Here we import the data from the synthdid github repo. I used it because it already has the requirements that any **mlsynth** package needs, that is, a unit, time, treatment dummy, and outcome variable. We define them accordingly and pass them to the PCR class.
+Here we import the data from the synthdid github repo. I used it because it already has the requirements that any **mlsynth** package needs, that is, a unit, time, treatment dummy, and outcome variable. We define them accordingly and pass them to the PCR class. Now we can estimate the model.
+
+```python
+
+model = PCR(
+    df=df,
+    treat=treat,
+    time=time,
+    outcome=outcome,
+    unitid=unitid,
+    figsize=(10, 8),
+    grid=True,
+    treated_color='black',
+    counterfactual_color='blue',
+    display_graphs=True, objective="OLS")
+
+# Run the PCR analysis
+autores = model.fit()
+
+```
 
 
 # Conclusion
