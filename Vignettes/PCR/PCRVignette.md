@@ -1,11 +1,11 @@
-A Tutorial on [Principal Component Regression](https://doi.org/10.1080/01621459.2021.1928513) for Synthetic Controls 
+A Short Tutorial on [Principal Component Regression](https://doi.org/10.1080/01621459.2021.1928513) for Synthetic Controls 
 ==============
 
 **Author:** *Jared Greathouse*
 
 > **Note**
 >
-> **mlsynth** is an ongoing project; any feedback or comments are most welcome! See the Cali.py file for my replication code of the empirical example.
+> **mlsynth** is an ongoing project; any feedback or comments are most welcome!
 
 # Introduction
 This tutorial uses publicly available data to demonstrate the utility of Principal Component Regression (PCR). As a sort of prerequisite, I presume that the reader is familiar with synthetic control methods (SCM). Precisely, I show how we may use the syntax to estimate the causal impact of interventions.
@@ -118,29 +118,28 @@ And here is the plot of our results.
   <img src="PCRCalifornia.png" alt="PCR Analysis" width="90%">
 </p>
 
-The plot shows the observed values of the treated unit, California, and the counterfactual estimates for California. We see a high fidelity between the counterfactual predictions before 1989 (the first full year that Prop 99 was active for) and the real California. In the post-intervention period, we see Prop 99 decreased the amount of cigarettes per pack smoked between California and its counterfactual, an average difference of 18.23. Notice how we used unconstrained OLS to compute the unit weights. The practical effect of this is that every donor gets weight. However, we can also add Convex Hull constraints to the objective function, for a more sparse/interpretable solution. We do this by changing OLS to "SC".
+The plot shows the observed values of the treated unit, California, and the counterfactual estimates for California. With the optimal threshold of 5 singular values, we see a high fidelity between the counterfactual predictions before 1989 (the first full year that Prop 99 was active for) and the real California. In the post-intervention period, we see Prop 99 decreased the amount of cigarettes per pack smoked between California and its counterfactual, an average difference of 18.23. Notice how we used unconstrained OLS to compute the unit weights. The practical effect of this is that every donor gets weight. However, we can [also, as Dennis Shen suggested in his master's thesis](https://core.ac.uk/download/pdf/158415279.pdf), add Convex Hull constraints to the objective function, for a more sparse/interpretable solution. We do this by changing OLS to "SC".
 
 <p align="center">
   <img src="ConvexPCRCalifornia.png" alt="Convex PCR Analysis" width="90%">
 </p>
 
-The unit weights we get with Convex PCR are Connecticut: 0.1168, Nevada: 0.1327, New Hampshire: 0.1469, Utah: 0.6017, Wyoming: 0.0019. We get slightly less fit, but as we can see, we shouldn't care. The fit is still so similar and the practical conclusions are not changed very much. We can also do in-spalce placebo tests, where we reassign the treatment to all donors and estimate its syntehtic control. Since California is treated, we drop it from the donor pool of the in-space placebo tests.
+The unit weights we get with Convex PCR are Connecticut: 0.1168, Nevada: 0.1327, New Hampshire: 0.1469, Utah: 0.6017, Wyoming: 0.0019. We get slightly less fit, but as we can see, we shouldn't care. The fit is still so similar and the practical conclusions are not changed very much. We can also do in-spalce placebo tests, where we reassign the treatment to all donors and estimate their respective synthetic controls. Since California is treated, we drop it from the donor pool of the in-space placebo tests.
 
 > **Note**
 >
-> I'm aware the the in-space placebo plot could be better labeled (with a legend and such). That functionality will come.
+> I'm aware the the in-space placebo plot could be better labeled (with a legend and such). I am also aware that we can do the p-value inference which ranks the post to pre ratios, making bar plots to show how extreme the deviation is with respect to the pre-period fit.  These functionalities will come. 
 
 <p align="center">
   <img src="PlaceboPCRCalifornia.png" alt="Convex PCR Analysis" width="90%">
 </p>
 
+We see that California, estimated with OLS, has the most extreme deviation in the post-intervention period compared to its donors (it has the second/third most deviation when we use the Convex Hull). This is also confirmed by looking at the post to preintervention RMSE ratio, which is returned if the user specified ```placebo="Unit"```. Another thing I would like to highlight is how we get very similar to the original results of Abadie's 2010 paper, while also not needing to incorporate any covariates in the analysis. This is another benefit of the denoising algorithm as discussed in [Amjad, Shah, and Shen, 2018](https://www.jmlr.org/papers/volume19/17-777/17-777.pdf). I would also like to note that there's a cousin estimator to PCR called [multidimensional Robust SCM](https://doi.org/10.1145/3341617.3326152) which does incorporate additional metrics. Perhaps I will incorporate this into **mlsynth** in the future, but this estimator here tends to do as good as normal SCM if not better, assuming we have a long enough pre-intervention period.
 
 # Conclusion
 
-The reason this matters, from a very practical standpoint, has significance beyond econometrics. Policies and business decisions made by governments and companies are usually costly and have the capability to affect thousands, sometimes tens of millions of people (depending on the government or corporation). If a government wishes to try a new policy intervention or a company decides to do a new kind of advertising in one of their higher sales volume cities, presumably these interventions will be logistically and financially costly. In order to know if our policies are having the effect sizes we desire, we need to use estimators of the effect size that are robust to different kinds of circumstances. Otherwise, we'll sometimes find that our policies are twice as effective as they in fact are, as we did with the simulated dataset here. Particularly if we are rolling out a policy to other areas of a business or policies to other areas if a state or city or nation, we can end up taking actions that are ineffective at the very best, or harmful at worst, because our priors are founded on wrong or at elast inaccurate information. The benefit of newer, cutting edge estimators in econometrics is not simply that they are advanced. They also improve the accuracy of our estimates. TSSC is a one of the ways to do this. It would be nice to see how the method plays in an experimental setting. Recently, such methods [were derived](https://doi.org/10.48550/arXiv.2108.02196) for penalized SCMs; to extend them to the world of A/B testing (in the industry setup) would be quite helpful for future researchers using SCM.
+PCR facilitates the estimation of synthetic control method treatment effects. I illustrate how the simple denoising algorithm applied to the donors can get very similar fit as well as practical conclusion to the original SC estimator without needing to rely on predictors. There are, however, a few caveats: PCR in its current iteration is not robust to outliers! PCA/SVD like methods perform poorly in such settings. As a result, [other methods](https://academicworks.cuny.edu/cgi/viewcontent.cgi?article=6069&context=gc_etds) have been developed to attenuate for this issue, such as Robust PCA methods. This estimator, developed by my friend and coworked Mani Bayani, will be the subject of subsequent tutorials.
 
 # Contact
 - Jared Greathouse: <jgreathouse3@student.gsu.edu>
-- Kathleen Li: <kathleen.li@mccombs.utexas.edu>
-- Venkatesh Shankar: <vshankar@mays.tamu.edu>
 
