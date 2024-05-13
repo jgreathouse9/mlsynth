@@ -136,10 +136,10 @@ Each Class below takes the following:
 # all these datasets is the exact same and
 # pretty much does not change aross all the methods
 # we have. This inludes the standardizing of notations aross
-# methods.
+# methods. - Done!
 
 # 3: Inlude static methods for ATT and other stats that are reported
-# aross all methods (the fit Fict, ATTs Dict, etc).
+# aross all methods (the fit Fict, ATTs Dict, etc) - Done!
 
 # Wish list:
 
@@ -173,7 +173,10 @@ import cvxpy as cp
 from scipy.optimize import fmin_slsqp, minimize
 from toolz import reduce, partial
 import matplotlib.ticker as ticker
-
+from mlsynth.utils.datautils import prepare_data, balance
+from mlsynth.utils.resultutils import effects, plot_estimates
+from mlsynth.utils.estutils import Opt, pcr, TSEST
+from mlsynth.utils.inferutils import step2
 
 
 class TSSC:
@@ -184,9 +187,10 @@ class TSSC:
                  counterfactual_color="red",
                  treated_color="black",
                  filetype="png",
-                 display_graphs=True
+                 display_graphs=True, draws=1000,
                  ):
         self.df = df
+        self.draws = draws
         self.unitid = unitid
         self.time = time
         self.outcome = outcome
@@ -202,354 +206,41 @@ class TSSC:
 
     def fit(self):
 
-        treated_unit_name = self.df.loc[self.df[self.treated] == 1, self.unitid].values[0]
+        nb =self.draws
+        treated_unit_name, Ywide, y, donor_names, Xbar, t, t1, t2 = prepare_data(self.df, self.unitid, self.time,
+                                                                                 self.outcome, self.treated)
 
-        # Pivot the DataFrame
-        Ywide = self.df.pivot(index=self.time, columns=self.unitid, values=self.outcome)
+        x = np.concatenate((np.ones((t, 1)), Xbar), axis=1)
 
-
-
-        y = Ywide[treated_unit_name].values
-        donor_df = self.df[self.df[self.unitid] != treated_unit_name]
-        donor_names = donor_df[self.unitid].unique()
-        Xbar = Ywide[donor_names].values
-
-        nb =10000
-        t = y.shape[0]
-        t1 = len(
-                    self.df[
-                        (self.df[self.unitid] == treated_unit_name)
-                        & (self.df[self.treated] == 0)
-                    ]
-                )
-        t2 = t - t1
-
-        y1 = y[:t1]
-        y2 = y[t1 + 1:t]
-        control = Xbar
-
-        const = np.ones((t, 1))
-        x = np.concatenate((const, Xbar), axis=1)
-        x1 = x[:t1, :]
-        x2 = x[t1 + 1:t, :]
-
+        result = TSEST(Xbar, y, t1, nb, donor_names,t2)
 
         n = x.shape[1]
-        bm_MSC_c = np.zeros((n, nb))
 
-        Rt = np.array([[0] + list(np.ones(n - 1)), [1] + list(np.zeros(n - 1))])
-
-        qt = np.array([[1], [0]])
-        R1t = np.array([[0] + list(np.ones(n - 1))])
-
-        R2t = np.array([[1] + list(np.zeros(n - 1))])
-
-        q1t = 1
-        q2t = 0
-
-        def solve_optimization(x, y, t1, donornames):
-
-            # Define a list to store dictionaries for each method
-            fit_dicts_list = []
-            fit_results = {}
-            # List of methods to loop over
-            methods = ["SC", "MSC_b",  "MSC_a", "MSC_c"]
-
-            for method in methods:
-                # Determine if intercept should be included
-                if method == "MSC_a":
-                    x_ = np.concatenate((np.ones((x.shape[0], 1)), x), axis=1)
-                    is_ones_vector = np.all(x_[:, 0] == 1)
-
-                    # Assert to check if it's true
-                    assert is_ones_vector, "The first column is not a vector of 1s."
-                    donornames = ["Intercept"] + list(donornames)
-                elif method in ["MSC_c"]:
-                    x_ = np.concatenate((np.ones((x.shape[0], 1)), x), axis=1)
-                    is_ones_vector = np.all(x_[:, 0] == 1)
-
-                    # Assert to check if it's true
-                    assert is_ones_vector, "The first column is not a vector of 1s."
-                elif method not in ["SC", "MSC_b"]:
-                    x_ = x  # No intercept added
-                else:
-                    x_ = x
-                t2 = len(y) - t1
-                # Define optimization variables
-                b_cvx = cp.Variable(x_.shape[1])
-
-                # Define objective function
-                objective = cp.Minimize(cp.norm(x_[:t1] @ b_cvx - y[:t1], 2))
-
-                # Define constraints based on method
-                constraints = []
-                if method == "SC":
-                    constraints.append(cp.sum(b_cvx) == 1)  # Sum constraint for all coefficients
-                    constraints.append(b_cvx >= 0)  # Non-negativity constraint for all coefficients
-                elif method == "MSC_a":
-                    constraints.append(cp.sum(b_cvx[1:]) == 1)  # Exclude the intercept from the sum constraint
-                    constraints.append(b_cvx[1:] >= 0)  # Non-negativity constraint for coefficients excluding intercept
-                    constraints.append(b_cvx[0] == 0)  # No constraint on the intercept
-                elif method == "MSC_b":
-                    constraints.append(b_cvx >= 0)  # Non-negativity constraint for all coefficients
-                elif method == "MSC_c":
-                    constraints.append(b_cvx[1:] >= 0)  # Non-negativity constraint for coefficients excluding intercept
-                    constraints.append(b_cvx[0] == 0)  # No constraint on the intercept
-
-                # Solve the problem
-                problem = cp.Problem(objective, constraints)
-                problem.solve(solver=cp.CLARABEL)
-
-                # Extract the solution
-                b = b_cvx.value
-
-                weights_dict = {donor: weight for donor, weight in zip(donornames, np.round(b,4))  if weight > 0.001}
-
-                # Calculate the counterfactual outcome
-                y_counterfactual = x_.dot(b)
-
-                # Calculate the ATT
-                att = np.mean(y[t1:] - y_counterfactual[t1:])
-                att_percentage = 100 * att / np.mean(y_counterfactual[t1:])
-
-                # Calculate omega hat values
-                u1_rpc = y[:t1] - y_counterfactual[:t1]
-                omega_1_hat_rpc = (t2 / t1) * np.mean(u1_rpc ** 2)
-                omega_2_hat_predicted = np.mean(u1_rpc ** 2)
-                std_omega_hat_predicted = np.sqrt(omega_1_hat_rpc + omega_2_hat_predicted)
-
-                # Calculate the SATT
-                att_std_predicted = np.sqrt(t2) * att / std_omega_hat_predicted
-
-                m = t1
-
-                zz1 = np.concatenate((x_[:t1], y[:t1].reshape(-1,1)), axis=1)
-                # Confidence Intervals
-                sigma_MSC = np.sqrt(np.mean(( y[:t1] -  y_counterfactual[:t1]) ** 2))
-
-                sigma2_v = np.mean((y[t1:]  - y_counterfactual[t1:] - np.mean(y[t1:] - y_counterfactual[t1:])) ** 2)  # \hat \Sigma_v
-
-                e1_star = np.sqrt(sigma2_v) * np.random.randn(t2, nb)  # e_{1t}^* iid N(0, \Sigma^2_v)
-                A_star = np.zeros(nb)
-
-                x2 = x_[t1 + 1: t, :]
-
-                np.random.seed(1476)
-
-                for g in range(nb):
-
-                    np.random.shuffle(zz1)  # the random generator does not repeat the same number
-
-                    zm = zz1[:m, :]  # randomly select m rows from z1_{T_1 by (N+1)}
-                    xm = zm[:, :-1]  # it uses the last m observation
-                    ym = np.dot(xm, b) + sigma_MSC * np.random.randn(m)
-
-                    # Define optimization variables
-                    b_cvx2 = cp.Variable(xm.shape[1])
-
-                    # Define objective function
-                    objective = cp.Minimize(cp.norm(xm @ b_cvx2 - ym, 2))
-
-                    constraints2 = []
-                    if method == "SC":
-                        constraints2.append(cp.sum(b_cvx2) == 1)  # Sum constraint for all coefficients
-                        constraints2.append(b_cvx2 >= 0)  # Non-negativity constraint for all coefficients
-                    elif method == "MSC_a":
-                        constraints2.append(cp.sum(b_cvx2[1:]) == 1)  # Exclude the intercept from the sum constraint
-                        constraints2.append(
-                            b_cvx2[1:] >= 0)  # Non-negativity constraint for coefficients excluding intercept
-                        constraints2.append(b_cvx2[0] == 0)  # No constraint on the intercept
-                    elif method == "MSC_b":
-                        constraints2.append(b_cvx2 >= 0)  # Non-negativity constraint for all coefficients
-                    elif method == "MSC_c":
-                        constraints2.append(
-                            b_cvx2[1:] >= 0)  # Non-negativity constraint for coefficients excluding intercept
-                        constraints2.append(b_cvx2[0] == 0)  # No constraint on the intercept
-
-                    # Define the problem
-                    problem = cp.Problem(objective, constraints2)
-
-                    # Solve the problem
-                    problem.solve(solver=cp.CLARABEL)
-
-                    # Extract the solution
-                    bm = b_cvx2.value
-
-                    A1_star = -np.mean(np.dot(x2, (bm - b))) * np.sqrt((t2 * m) / t1)  # A_1^*
-                    A2_star = np.sqrt(t2) * np.mean(e1_star[:, g])
-                    A_star[g] = A1_star + A2_star  # A^* = A_1^* + A_2^*
-
-                # end of the subsampling-bootstrap loop
-                ATT_order = np.sort(A_star / np.sqrt(t2))  # sort subsampling ATT by ascending order
-
-                c005 = ATT_order[int(0.005 * nb)]  # compute critical values
-                c025 = ATT_order[int(0.025 * nb)]
-                c05 = ATT_order[int(0.05 * nb)]
-                c10 = ATT_order[int(0.10 * nb)]
-                c25 = ATT_order[int(0.25 * nb)]
-                c75 = ATT_order[int(0.75 * nb)]
-                c90 = ATT_order[int(0.90 * nb)]
-                c95 = ATT_order[int(0.95 * nb)]
-                c975 = ATT_order[int(0.975 * nb)]
-                c995 = ATT_order[int(0.995 * nb)]
-                cr_min = att - ATT_order[nb - 1]  # ATT_order[nb] is the maximum A^* value
-                cr_max = att - ATT_order[0]  # ATT_order[1] is the maximum A^* value
-
-                # 95% confidence interval of ATT is [cr_025, cr_975]
-                # 90% confidence interval of ATT is [cr_05, cr_95], etc.
-                cr_005_995 = [att - c995, att - c005]
-
-                cr_025_0975 = [att - c975, att - c025]
-
-                # Create effects dictionary
-                effects_dict = {
-                    "ATT": round(att, 3),
-                    "Percent ATT": round(att_percentage, 3),
-                    "SATT": round(att_std_predicted, 3),
-                    "95% CI": [round(val, 3) for val in cr_025_0975]
-                }
-
-                gap = y - y_counterfactual
-
-                # Create a second column representing time periods
-                second_column = np.arange(gap.shape[0]) - t1 + 1
-
-                # Stack the gap and second column horizontally to create the gap matrix
-                gap_matrix = np.column_stack((gap, second_column))
-
-                # Create vectors dictionary for the current method
-                vectors_dict = {
-                    "Observed Unit": np.round(y.reshape(-1, 1), 3),
-                    "Counterfactual": np.round(y_counterfactual.reshape(-1, 1), 3),
-                    "Gap": np.round(gap_matrix, 3)
-                }
-
-                t0_rmse = np.sqrt(np.mean((y[:t1] - y_counterfactual[:t1]) ** 2))
-                t1_rmse = np.sqrt(np.mean((y[t1:] - y_counterfactual[t1:]) ** 2))
-
-                # Create Fit_dict for the specific method
-                fit_dict = {
-                    "Fit": {
-                        "T0 RMSE":  round(t0_rmse,3),
-                        "T1 RMSE":  round(t1_rmse,3),
-                        "Pre-Periods": t1,
-                        "Post-Periods": len(y[t1:])
-                    },
-                    "Effects": effects_dict,
-                    "Vectors": vectors_dict,
-                    "WeightV": np.round(b, 3),
-                    "Weights": weights_dict
-                }
-
-                # Append fit_dict to the list
-                fit_dicts_list.append({method: fit_dict})
-
-            return fit_dicts_list
-
-
-        result = solve_optimization(Xbar, y, t1, donor_names)
-
-        b_MSC_c = next((method_dict["MSC_c"]["WeightV"] for method_dict in result if "MSC_c" in method_dict), None)
+        b_MSC_c = next((method_dict["MSCc"]["WeightV"] for method_dict in result if "MSCc" in method_dict), None)
         b_SC = next((method_dict["SC"]["WeightV"] for method_dict in result if "SC" in method_dict), None)
-        b_MSC_a = next((method_dict["MSC_a"]["WeightV"] for method_dict in result if "MSC_a" in method_dict), None)
-        b_MSC_b = next((method_dict["MSC_b"]["WeightV"] for method_dict in result if "MSC_b" in method_dict), None)
+        b_MSC_a = next((method_dict["MSCa"]["WeightV"] for method_dict in result if "MSCa" in method_dict), None)
+        b_MSC_b = next((method_dict["MSCb"]["WeightV"] for method_dict in result if "MSCb" in method_dict), None)
 
-        d1t = np.dot(R1t, b_MSC_c) - q1t
-        d2t = np.dot(R2t, b_MSC_c) - q2t
-        dt = np.dot(Rt, b_MSC_c) - qt
-        test1 = t1 * np.dot(d1t.T, d1t)
-        test2 = t1 * np.dot(d2t.T, d2t)
-
-        z1 = np.hstack((x1, y1.reshape(-1, 1)))
-        bm_MSC_c_sum0 = np.zeros(nb)
-        V_hatI = np.zeros((2, 2))
-        d1t_s = np.zeros(nb)
-        d2t_s = np.zeros(nb)
-        test1_s = np.zeros(nb)
-        test2_s = np.zeros(nb)
-
-        for g in range(nb):
-            m = t1
-            zm = z1[np.random.choice(z1.shape[0], m, replace=True), :]
-            ym = zm[:, -1]
-            xm = zm[:, :-1]
-
-            lb = np.zeros(n)
-            lb[0] = -np.inf
-            bm_MSC_c[:, g] = lsq_linear(xm, ym, bounds=(lb, np.inf), method='trf', lsmr_tol='auto').x
-
-            bm_MSC_c_g = bm_MSC_c[:, g]
-            bm_MSC_c_sum0[g] = np.sum(bm_MSC_c_g[1:])
-
-            dt_s = np.dot(Rt, bm_MSC_c_g) - qt
-            dt_ss = np.dot(Rt, (bm_MSC_c_g - b_MSC_c))
-            V_hatI += (m / nb) * np.outer(dt_ss, dt_ss)
-
-            d1t_s[g] = np.dot(R1t, (bm_MSC_c_g - b_MSC_c))[0]
-            d2t_s[g] = np.dot(R2t, (bm_MSC_c_g - b_MSC_c))[0]
-
-            test1_s[g] = m * np.dot(d1t_s[g].T, d1t_s[g])
-            test2_s[g] = m * np.dot(d2t_s[g].T, d2t_s[g])
-
-        V_hat = np.linalg.inv(V_hatI)
-
-        Js_test = np.zeros(nb)
-        for ggg in range(nb):
-            ds = np.dot(Rt, (bm_MSC_c[:, ggg] - b_MSC_c))
-            Js_test[ggg] = m * np.dot(ds.T, np.dot(V_hat, ds))
-
-        dt = np.dot(Rt, b_MSC_c.reshape(-1, 1)) - qt
-        J_test = t1 * np.dot(dt.T, np.dot(V_hat, dt))
-
-        # Calculate p-values
-        pJ = np.mean(J_test < Js_test)  # p-value for joint hypothesis H0. If fail to reject, use Original SC in Step 2. If reject, then look at p1
-        p1 = np.mean(test1 < test1_s)   # p-value for single restriction hypothesis test of sum to one H0a. If fail to reject, use MSCa in Step 2. If reject, then look at p2
-        p2 = np.mean(test2 < test2_s)   # p-value for single restriction hypothesis test of zero intercept H0b. If fail to reject, use MSCb in step 2. Otherwise, use MSC in step 2.
-        # Check p-values and recommend SCM model
-        if pJ >= 0.05:
-            recommended_model = "MSC_c"
-        elif pJ < 0.05 and p1 >= 0.05 and p2 >= 0.05:
-            recommended_model = "MSC_a"
-        elif pJ < 0.05 and (p1 < 0.05 or p2 < 0.05):
-            recommended_model = "MSC_b"
-        else:
-            recommended_model = "No recommendation due to inconclusive p-values"
-
-        print("Recommended SCM model:", recommended_model)
+        recommended_model = step2(np.array([[0] + list(np.ones(n - 1))]),
+                                  np.array([[1] + list(np.zeros(n - 1))]),
+                                  np.array([[0] + list(np.ones(n - 1)),
+                                            [1] + list(np.zeros(n - 1))]),
+                                  b_MSC_c, 1, 0, np.array([[1], [0]]), t1, x[:t1, :], y[:t1],
+                                  nb, x.shape[1], np.zeros((n, nb)))
 
         recommended_variable = next(
             (method_dict[recommended_model]["Vectors"]["Counterfactual"] for method_dict in result if
              recommended_model in method_dict), None)
+        ATT, RMSE = next(
+            ((method_dict[recommended_model]["Effects"]["ATT"], method_dict[recommended_model]["Fit"]["T0 RMSE"]) for
+             method_dict in result if recommended_model in method_dict), (None, None))
 
-        intervention_point = self.df.loc[
-            self.df[self.treated] == 1, self.time
-        ].min()
-
-        time_axis = self.df[self.df[self.unitid] == treated_unit_name][
-            self.time
-        ].values
-
-        # Plotting recommended SCM model
-        plt.figure(figsize=(10, 6))  # Adjust size as needed
-
-        # Plot the recommended model
-        plt.plot(time_axis, recommended_variable, label=f'{recommended_model}  {treated_unit_name}', linestyle='-', color=self.counterfactual_color, linewidth=2)
-        plt.plot(time_axis, y, label='Observed '+treated_unit_name, color=self.treated_color, linewidth=2)
-        plt.xlabel(self.time)
-        plt.ylabel(self.outcome)
-        plt.title('Two-Step Synthetic Control')
-        plt.axvline(
-            x=intervention_point,
-            color="black",
-            linestyle="--",
-            linewidth=2,
-            label=self.treated + ", " + str(intervention_point)
-        )
-        plt.legend()  # Show legend
-        plt.show()
+        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treated,
+                       treated_unit_name, y, recommended_variable, method=recommended_model,
+                       treatedcolor=self.treated_color, counterfactualcolor=self.counterfactual_color,
+                       rmse=RMSE, att=ATT)
 
         return result
-
 
 
 
