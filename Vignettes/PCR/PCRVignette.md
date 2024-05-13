@@ -26,9 +26,14 @@ We have a single treated unit which, along with the donors, follows a certain da
 
 $$ ATT = \frac{1}{T\_1 - T\_0} \sum_{T\_0 +1}^{T} (y_{1t} - \hat{y}_{1t}) $$
 
-where $(y_{1t} - \hat{y}_{1t})$ is the treatment effect. Next, we can think about how to model this.
-
-Consider $$\mathbf{M}^{\ast}\_{jt} = \sum\_{k=1}^{r} \boldsymbol{\lambda}\_{jk}\boldsymbol{\gamma}\_{tk},$$ a model known as a factor model in the econometrics literature. 
+where $(y_{1t} - \hat{y}_{1t})$ is the treatment effect. In SCM, we exploit the cross-sectional linear relation between untreated units and the target/treated unit to estimate the counterfactual for a given intervention. That is, as some [researchers](https://doi.org/10.3982/ECTA21248) have succinctly said, "similar units behave similarly". Normal SCM, therefore, is estimated like
+```math
+\begin{align}
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2 \\
+    \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1}
+\end{align}
+```
+where the treated unit is projected on to the convex hull of the donor pool. [Elsewhere](https://github.com/jgreathouse9/mlsynth/blob/main/Vignettes/TSSC/TSSCVignette.md), I've discusssed the convex hull idea and why it matters to SCM. However, this may break down in settings where we have noisy outcome trends; in such settings, the units we match to may be idiosyncratically similar to the treated unit instead of being actually similar on latent factors. One key feature of real datasets in economics, policy, marketing, and statistics is that datasets are most often noisily observed. We mean "noisily" observed in the sense that we do not see the real data generating process. Oftentimes, a variety of factors will influence the values GDP will take on for a given time point. Thus, researchers benefit from having a causal estimator that can adjust for noise and debias our estimates. Another appealin property of this is that we do not always need additional covairates in order to estimate causal effects, as discussed in [Amjad, Shah, and Shen, 2018](https://www.jmlr.org/papers/volume19/17-777/17-777.pdf). Precisely
 
 # Conclusion
 
