@@ -3,8 +3,7 @@ A Short Tutorial on [Principal Component Regression](https://doi.org/10.1080/016
 
 **Author:** *Jared Greathouse*
 
-> **Note**
->
+> [!IMPORTANT]
 > **mlsynth** is an ongoing project; any feedback or comments are most welcome!
 
 # Introduction
@@ -50,11 +49,14 @@ where the weights may be any value on the real line. The $\mathbf L$ matrix in t
 # Empirical Example: Proposition 99
 Let's replicate the Proposition 99 example, the classic SCM case study.
 
-<details>
-    
-  <summary>We begin with the Python code to import the data.</summary>
-  
-```python
+<table>
+  <tr>
+    <th>Importing</th>
+    <th>Estimation</th>
+  </tr>
+  <tr>
+    <td>
+    <pre><code>
 import pandas as pd
 from mlsynth.mlsynth import PCR
 import matplotlib
@@ -84,17 +86,15 @@ treat = "Prop 99"
 file = 'https://raw.githubusercontent.com/synth-inference/synthdid/master/data/california_prop99.csv'
 df = pd.read_csv(file, sep=';')
 
-df = df.rename(columns={'year': 'Year', 'treated': 'Prop 99', 'PacksPerCapita': 'Cigarette Consumption per Capita'})
+df = df.rename(columns={'year': 'Year', 
+'treated': 'Prop 99', 
+'PacksPerCapita': 'Cigarette Consumption per Capita'})
 
 df.sort_values(by=["State", "Year"], ascending=True)
-```
-
-</details>
-
-Here we import the data from the synthdid github repo. I used it because it already has the requirements that any **mlsynth** package needs, that is, a unit, time, treatment dummy, and outcome variable. We define them accordingly and pass them to the PCR class. Now we can estimate the model.
-
-```python
-
+    </pre></code>
+    </td>
+    <td>
+    <pre><code>
 model = PCR(
     df=df,
     treat=treat,
@@ -107,12 +107,13 @@ model = PCR(
     counterfactual_color='blue',
     display_graphs=True, objective="OLS")
 
-# Run the PCR analysis
 autores = model.fit()
+    </pre></code>
+    </td>
+  </tr>
+</table>
 
-```
-
-And here is the plot of our results.
+Here we import the data from the synthdid github repo. I used it because it already has the requirements that any **mlsynth** package needs, that is, a unit, time, treatment dummy, and outcome variable. We define them accordingly and pass them to the PCR class. Now we can estimate the model. And here is the plot of our results.
 
 <p align="center">
   <img src="PCRCalifornia.png" alt="PCR Analysis" width="90%">
@@ -146,8 +147,7 @@ model = PCR(
 
 </details>
 
-> **Note**
->
+> [!IMPORTANT]
 > I'm aware the the in-space placebo plot could be better labeled (with a legend and such). I am also aware that we can do the p-value inference which ranks the post to pre ratios, making bar plots to show how extreme the deviation is with respect to the pre-period fit.  These functionalities will come. 
 
 <p align="center">
