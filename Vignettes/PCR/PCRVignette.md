@@ -150,7 +150,7 @@ model = PCR(
 </details>
 
 > [!IMPORTANT]
-> I'm aware the the in-space placebo plot could be better labeled (with a legend and such). I am also aware that we can do the p-value inference which ranks the post to pre ratios, making bar plots to show how extreme the deviation is with respect to the pre-period fit.  These functionalities will come. 
+> I'm aware the the in-space placebo plot could be better labeled (with a legend and such). I am also aware that we can do the p-value inference which ranks the post to pre RMSE ratios, making bar plots to show how extreme the post-intervention deviation is with respect to the pre-period fit.  These functionalities will come and be designated as options, likely via a dictionary.
 
 <p align="center">
   <img src="PlaceboPCRCalifornia.png" alt="Convex PCR Analysis" width="90%">
