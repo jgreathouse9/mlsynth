@@ -21,11 +21,11 @@ y_{jt} =
 
 \end{equation*}
 ```
-We have a single treated unit which, along with the donors, follows a certain data generating process for all time periods until $T_0$. Afterwards, the control units follow the same process. The change of the outcomes $j=1,  \forall t \in \mathcal{T}_1$ is whatever that process was, plus some treatment effect.  To this end, we are concerned with $\hat{y}\_{j1}$, or the values we would have observed absent treatment. The statistic we are concerned with is the average treatment effect on the treated
+We have a single treated unit which, along with the donors (the set of untreated units), follows a certain data generating process for all time periods until $T_0$. Afterwards, the control units follow the same process. The change of the outcomes $j=1,  \forall t \in \mathcal{T}_1$ is whatever that process was, plus some treatment effect.  To this end, we are concerned with $\hat{y}\_{j1}$, or the values we would have observed absent treatment. The statistic we are concerned with is the average treatment effect on the treated
 
 $$ ATT = \frac{1}{T\_1 - T\_0} \sum_{T\_0 +1}^{T} (y_{1t} - \hat{y}_{1t}) $$
 
-where $(y_{1t} - \hat{y}_{1t})$ is the treatment effect. In SCM, we exploit the cross-sectional linear relation between untreated units and the target/treated unit to estimate the counterfactual for a given intervention. That is, as some [researchers](https://doi.org/10.3982/ECTA21248) have succinctly said, "similar units behave similarly".
+where $(y_{1t} - \hat{y}_{1t})$ is the treatment effect. In SCM, we exploit the linear relation between untreated units and the treated unit to estimate its counterfactual.
 ## SCM and SVD
 Normal SCM is estimated like
 ```math
@@ -34,7 +34,9 @@ Normal SCM is estimated like
     \text{s.t.} & \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1}
 \end{align}
 ```
-where the treated unit is projected on to the convex hull of the donor pool. [Elsewhere](https://github.com/jgreathouse9/mlsynth/blob/main/Vignettes/TSSC/TSSCVignette.md), I've discusssed the convex hull idea and why it matters to SCM. However, this may break down in settings where we have noisy outcome trends; in such settings, the units we match to may be idiosyncratically similar to the treated unit instead of being actually similar on latent factors. One key feature of real datasets in economics, policy, marketing, and statistics is that datasets are most often noisily observed. We mean "noisily" observed in the sense that we do not see the real data generating process. Oftentimes, a variety of factors will influence the values GDP will take on for a given time point. Thus, researchers benefit from having a causal estimator that can adjust for noise and debias our estimates. Precisely, we use a linear algebra technique called singular value decomposition (SVD) to denoise our donor matrix of outcomes
+where the treated unit is projected on to the convex hull of the donor pool. [Elsewhere](https://github.com/jgreathouse9/mlsynth/blob/main/Vignettes/TSSC/TSSCVignette.md), I've discusssed the convex hull idea and why it matters to SCM. However, this idea may break down in settings where we have noisy outcome trends; in such settings, the units we match to may be *idiosyncratically* similar to the treated unit instead of being actually similar on latent factors. Another key feature of real datasets in economics, policy, marketing, and statistics is that datasets are most often noisily observed. We mean "noisily" observed in the sense that we do not see the real data generating process, and oftentimes, we will have corrupted data. For example, many counties may be similar in terms of the unemployment rate, but just because they have similar values does not make them similar *overall*. In instances where we have a naturally small donor pool, we can attenuate for this by restricting our donors only to units that are already very similar in terms of their preintervention values. However, modern datasets frequently have many donors, sometimes $N_0 >> T_0$.So, overfitting to covariate idiosyncrasies can be a problem.
+
+Also, data corruption exists. For example, with COVID-19 datasets, we may oftentimes have reporting errors on the part of health departments, or other noisy/anomalous trends in reporting. The classic SCM was created for situations where we have minimal noise (usually in an aggregated setting). Thus, researchers benefit from having a causal estimator that can adjust for noise and debias our donor matrix. Precisely, we use a linear algebra technique called singular value decomposition (SVD) to denoise our donor matrix of outcomes
 ```math
 \mathbf{L} \coloneqq \mathbf{Y}=\mathbf{U}\mathbf{S}\mathbf{V}^{\top}
 ```
