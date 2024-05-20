@@ -6,6 +6,13 @@ A Short Tutorial on [Principal Component Regression](https://doi.org/10.1080/016
 > [!IMPORTANT]
 > **mlsynth** is an ongoing project; any feedback or comments are most welcome!
 
+#### Sections
++ [Introduction](#introduction)
++ [Model Primitives](#model-primitives)
+  - [SCM and SVD](#scm-and-svd)
+  - [Proposition 99](#proposition-99)
+  - [Conclusion](#conclusion)
+
 # Introduction
 This tutorial uses publicly available data to demonstrate the utility of Principal Component Regression (PCR). As a sort of prerequisite, I presume that the reader is familiar with synthetic control methods (SCM). Precisely, I show how we may use the syntax to estimate the causal impact of interventions.
 # Model Primitives
@@ -50,7 +57,7 @@ In SVD, we have as many singular values as we do variables (38 in the below exam
 \end{align}
 ```
 where the weights may be any value on the real line. The $\mathbf L$ matrix in this optimization, as I mentioned above, is truncated by the USVT method.
-# Empirical Example: Proposition 99
+# Proposition 99
 Let's replicate the Proposition 99 example, the classic SCM case study.
 
 <table>
