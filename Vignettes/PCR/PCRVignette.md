@@ -9,9 +9,9 @@ A Short Tutorial on [Principal Component Regression](https://doi.org/10.1080/016
 #### Sections
 + [Introduction](#introduction)
 + [Model Primitives](#model-primitives)
-  - [SCM and SVD](#scm-and-svd)
-  - [Proposition 99](#proposition-99)
-  - [Conclusion](#conclusion)
++ [SCM and SVD](#scm-and-svd)
++ [Proposition 99](#proposition-99)
++ [Conclusion](#conclusion)
 
 # Introduction
 This tutorial uses publicly available data to demonstrate the utility of Principal Component Regression (PCR). As a sort of prerequisite, I presume that the reader is familiar with synthetic control methods (SCM). Precisely, I show how we may use the syntax to estimate the causal impact of interventions.
