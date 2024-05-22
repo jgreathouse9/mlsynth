@@ -7,3 +7,5 @@ To use **mlsynth**, *at minimum* you need a Python dataframe with
 - One column for time (indexed to the unit variable, these must form a balanced panel).
 - A numerical outcome column of interest, and
 - One column that is an indicator denoting treatment status. At this time, **mlsynth** only accepts binary interventions and one treated unit per df (this does NOT MEAN that you can't use the current functionality in settings of staggered adoption, but it *does mean* that you, the user, must be mindful about things like event-time and averaging your ATTs accordingly). In time, staggered adoption settings will come.
+
+In addition, you must have standard libraries installed, namely cvxpy for optimization, scipy, numpy, pandas, matplotlib, and sklearn.
