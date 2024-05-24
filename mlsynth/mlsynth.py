@@ -830,3 +830,279 @@ class FDID:
         else:
             return estimators_results
 
+
+
+
+class PCASC:
+    def __init__(
+        self,
+        df,
+        treat,
+        time,
+        outcome,
+        unitid,
+        method="RPCA",  # Add an argument for specifying the method
+        figsize=(12, 6),
+        graph_style="default",
+        grid=True,
+        counterfactual_color="red",
+        treated_color="black",
+        filetype=".png",
+        display_graphs=True,
+        diagnostics=False,
+        save=False, vallamb=1
+    ):
+        self.df = df
+        self.outcome = outcome
+        self.treat = treat
+        self.unitid = unitid
+        self.time = time
+        self.weighted_units_dict = None
+        self.statistics_dict = None
+        self.result_df = None
+        self.counterfactual_color = counterfactual_color
+        self.treated_color = treated_color
+        self.graph_style = graph_style
+        self.grid = grid
+        self.figsize = figsize
+        self.filetype = filetype
+        self.display_graphs = display_graphs
+        self.diagnostics = diagnostics
+        self.save = save
+        self.method = method  # Store the method choice
+        self.vallamb = vallamb
+
+    def default_mu(self, data_mat, sigma=10):
+        return 1.0 / ((2 * np.max(data_mat.shape) ** 0.5 * sigma))
+        # return ((2 * np.max(data_mat.shape) ** .5 * sigma))
+
+    def term_criteria(self, L, S, L_prev, S_prev, tol=1e-7):
+        diff = (
+                np.linalg.norm(L - L_prev, ord="fro") ** 2 + np.linalg.norm(S - S_prev, ord="fro") ** 2
+        )
+        if diff < tol:
+            return True, diff
+        else:
+            return False, diff
+
+    def shrinkage(self, mat: np.ndarray, thresh: Union[np.ndarray, float]) -> np.ndarray:
+        return np.sign(mat) * np.maximum(np.abs(mat) - thresh, np.zeros(mat.shape))
+
+    def sv_thresholding(self, mat: np.ndarray, thresh: float) -> np.ndarray:
+        U, s, V = sp.linalg.svd(mat, full_matrices=False)
+        s = self.shrinkage(s, thresh)
+        return U @ np.diag(s) @ V
+
+    def decompose(self, data_mat, mu, max_iter=1e5, tol=1e-7, verbose=False):
+        n, m = data_mat.shape
+        lamda = 1.0 / (max(n, m)) ** 0.5
+        mu_inv = mu ** (-1)
+        S = np.zeros(data_mat.shape)
+        L = np.zeros(data_mat.shape)
+
+        L_prev = L
+        S_prev = S
+
+        it = 0
+        while (
+                not self.term_criteria(L, S, L_prev, S_prev, tol=tol)[0] and it < max_iter
+        ) or it == 0:
+            L_prev = L
+            S_prev = S
+
+            L = self.sv_thresholding(data_mat - S, mu_inv)
+            S = self.shrinkage(data_mat - L, lamda * mu_inv)
+            it += 1
+
+        if verbose:
+            print(
+                f"Iteration: {it}, diff: {term_criteria(L, S, L_prev, S_prev, tol=tol)[1]}, terminating alg."
+            )
+
+        return L, S
+
+    def HQF(self, M_noise, maxiter=1000, ip=2, lam_1=0.001):
+
+        rak = universal_rank(M_noise)
+
+        # https://doi.org/10.1016/j.sigpro.2022.108816
+        m, n = M_noise.shape
+        U = np.random.rand(m, rak)
+        Ip = 2
+        inn = 0
+        RMSE = []
+        RRMSE = []
+        peaksnr = []
+        lam_2 = lam_1
+
+        for iter in range(Ip):
+            PINV_U = np.linalg.pinv(U)
+            V = np.dot(PINV_U, M_noise)
+            PIMV_V = np.linalg.pinv(V)
+            U = np.dot(M_noise, PIMV_V)
+
+        X = np.dot(U, V)
+        T = M_noise - X
+        t_m_n = T.ravel()
+        scale = 10 * 1.4815 * np.median(np.abs(t_m_n - np.median(t_m_n)))
+        sigma = np.full((m, n), scale)  # Use np.full to create a 2D array
+        ONE_1 = np.ones((m, n))
+        ONE_1[np.abs(T - np.median(t_m_n)) - sigma < 0] = 0
+        N = T * ONE_1
+        U_p = U
+        V_p = V
+
+        for iter in range(maxiter):
+            D = M_noise - N
+            U = np.dot((D.dot(V.T) - lam_1 * U_p), np.linalg.inv(V.dot(V.T) - lam_1))
+            V = np.linalg.inv(U.T.dot(U) - lam_2).dot(U.T.dot(D) - lam_2 * V_p)
+            U_p = U
+            V_p = V
+            X = U.dot(V)
+            T = M_noise - X
+            t_m_n = T.ravel()
+            scale = min([scale, ip * 1.4815 * np.median(np.abs(t_m_n - np.median(t_m_n)))])
+            sigma = np.ones((m, n)) * scale
+            ONE_1 = np.ones((m, n))
+            ONE_1[np.abs(T - np.median(t_m_n)) - sigma < 0] = 0
+            N = T * ONE_1
+            RMSE.append(np.linalg.norm(M_noise - X, 'fro') / np.sqrt(m * n))
+
+            if iter != 0:
+                step_MSE = RMSE[iter - 1] - RMSE[iter]
+                if step_MSE < 0.000001:
+                    inn += 1
+                if inn > 1:
+                    break
+
+        Out_X = X
+        return Out_X, N
+
+        # Count the number of singular values above the threshold
+        num_components = np.sum(S > threshold)
+
+        return num_components
+
+    def fit(self):
+        """
+        Main workhorse for estimating the effects- likely can be
+        improved by making functions for reshaping the data.
+        """
+
+        self.df = self.df.copy()
+        timevar = self.time
+        unit = self.unitid
+        balance(self.df, unit, timevar)
+
+        treated_unit_name = self.df.loc[self.df[self.treat] == 1, self.unitid].iloc[0]
+
+        t1 = len(
+            self.df[
+                (self.df[self.treat] == 0) & (self.df[self.unitid] == treated_unit_name)
+            ]
+        )
+        if t1 < 3:
+            raise ValueError("You need at least 3 pre-periods")
+        self.df.reset_index(drop=True, inplace=True)
+
+        trainframe = self.df.pivot_table(
+            index=self.unitid, columns=self.time, values=self.outcome, sort=False
+        )
+
+        X = trainframe.iloc[:, 0:t1]
+
+        optimal_clusters, cluster_x, numvals = fpca(X)
+
+        kmeans = KMeans(n_clusters=optimal_clusters, random_state=0, init='k-means++', algorithm='elkan')
+        cluster_labels = kmeans.fit_predict(cluster_x)
+
+        trainframe["cluster"] = cluster_labels
+        treat_cluster = trainframe.loc[
+            trainframe.index == treated_unit_name, "cluster"
+        ].iloc[0]
+
+        self.clustered_units = trainframe[trainframe["cluster"] == treat_cluster].copy()
+        # self.clustered_units.reset_index(drop=True, inplace=True)
+
+        self.clustered_units.drop("cluster", axis=1, inplace=True)
+
+        treated_row = self.clustered_units.index.get_loc(treated_unit_name)
+        # Makes our wide data into a matrix
+        Y = self.clustered_units.iloc[:, 0:].to_numpy()
+
+        y = Y[treated_row]
+        # Our observed values
+        Y0 = np.delete(Y, (treated_row), axis=0)
+
+        Nco =np.shape(Y0)[0]
+
+        L = RPCA(Y0, self.vallamb)
+
+
+        if self.diagnostics:
+            timeind = [col for col in self.clustered_units.columns]
+
+            reference_time = timeind[t1]
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
+            ax1.grid(True)
+            fig.tight_layout()
+            fig.subplots_adjust(wspace=0.3)
+            ax1.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
+            ax1.plot(timeind, L.transpose(), color='#1F4788', alpha=.8)
+            ax1.set_xlabel(self.time)
+            ax1.set_ylabel(self.outcome)
+            ax1.set_title('Low-Rank Component')
+            ax1.axvline(x=reference_time, color="#2E211B", linestyle="-",
+                        label=str(reference_time), linewidth=1.5)
+            ax2.plot(timeind, S.transpose(), color='#1F4788', alpha=.4)
+            ax2.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
+            ax2.set_xlabel(self.time)
+            ax2.axvline(x=reference_time, color="#2E211B", linestyle="-",
+                        label=str(reference_time), linewidth=1.5)
+            ax2.set_title('Noise Component')
+            ax2.set_ylabel('Difference from Target Unit')
+            ax2.grid(True)
+            plt.show()
+
+        beta_value = Opt.SCopt(Nco, y[:t1], t1, L[:, 0:t1].T, model="CONVEX")
+        y_RPCA = np.dot(L.T, beta_value)
+
+        t2 = len(y)-t1
+
+        beta_value = np.round(beta_value, 3)
+
+        # Extract unit names excluding treated unit name
+        unit_names = [index for index in self.clustered_units.index if index != treated_unit_name]
+
+        # Create a dictionary of non-zero weights
+        weights_dict = {key: value for key, value in zip(unit_names, beta_value) if value > 0}
+
+        attdict, fitdict, Vectors = effects.calculate(y, y_RPCA, t1, t2)
+
+        # List of regionnames you want to include in the subframe
+        selected_regions = self.clustered_units.index
+
+        # Create the subframe using the isin() method
+        clustered_units_long = self.df[self.df[self.unitid].isin(self.clustered_units.index)]
+
+        stats = { "Number of Clusters": len(set(cluster_labels)),
+            "Donors in Cluster": len(self.clustered_units) - 1,
+                       "ClusterFrame": clustered_units_long,
+                       "Treated Unit": treated_unit_name,
+                       "Treatment Name": self.treat,
+                       "Outcome": self.outcome}
+
+        # Main dictionary
+        RPCA_dict = {
+            "Effects": attdict,
+            "Vectors": Vectors,
+            "Fit": fitdict,
+            "stats": stats,
+            "Weights": weights_dict
+        }
+        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
+                       treated_unit_name, y, y_RPCA, method="RPCA-SYNTH",
+                       treatedcolor=self.treated_color, counterfactualcolor=self.counterfactual_color, rmse=fitdict["T0 RMSE"], att=attdict["ATT"], save=self.save)
+
+        return RPCA_dict
+
