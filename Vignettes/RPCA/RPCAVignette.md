@@ -245,3 +245,7 @@ autores = model.fit()
 </details>
 
 The left panel of the table imports the West Germany dataset. In accordance with the requirements of **mlsynth**, it defines the treatment variable "Reunification" to be equal to 1 if the unit is West Germany and the year is greter than 1990, else 0. We then pass these values off to the ```PCASC``` class which uses the method described above to select our donors, conduct RPCA, and estimate our counterfactual.
+
+<p align="center">
+  <img src="RPCA-SYNTH_West Germany.png" alt="Robust PCA SC" width="90%">
+</p>
