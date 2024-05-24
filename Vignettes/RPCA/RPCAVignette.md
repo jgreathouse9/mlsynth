@@ -264,7 +264,7 @@ The central conclusion from these results is that donor selection is important f
 \mathbf{Y}_{k+1} &=\mathbf{Y}_{k}+\rho\left(\mathbf{X}-\mathbf{L}_{k+1}-\mathbf{S}^{k+1}\right)
 \end{aligned}
 ```
-we can see that the singular value thresholding operator $\mathrm{SVT}\_{\tau}(\mathbf{X})=\mathbf{U} \mathcal{S}_{\tau}(\mathbf{\Sigma}) \mathbf{V}^{*}$ is controlled by the lambda, $\lambda$ parameter. In [the original RPCA paper](https://dl.acm.org/doi/abs/10.1145/1970392.1970395), the authors advocate for this parameter to be set to
+we can see that the soft-thresholding operator $\mathcal{S}_{\tau}(x)=\operatorname{sgn}(x)\max(\mid x \mid-\tau, 0)$ is controlled by the lambda, $\lambda$ parameter. In [the original RPCA paper](https://dl.acm.org/doi/abs/10.1145/1970392.1970395), the authors advocate for this parameter to be set to
 
 ```math
 \lambda = \frac{1}{\sqrt{\mathrm{max}(m,n)}}
