@@ -64,5 +64,6 @@ Now that we have our new donor pool, we may finally estimate our counterfactual.
 however this program is NP-hard due to the rank portion of the objective function. As a workaround, we use the nuclear norm and $\ell_1$ norm on the low-rank matrix and sparse matrix respectively
 
 ```math
-\begin{align*}&\mathop {{\mathrm{minimize}}}\limits _{{\mathbf{L}},{\mathbf{S}}} ~{\left \|{ {\mathbf{L}} }\right \|_{*}} + \lambda {\left \|{ {\mathbf{S}} }\right \|_{1}} \\&\textrm {subject to } ~~{\mathbf{M}} = {\mathbf{L}} + {\mathbf{S}},\end{align*}
+\begin{align*}&\mathop {{\mathrm{minimize}}}\limits _{{\mathbf{L}},{\mathbf{S}}} ~{\left \|{ {\mathbf{L}} }\right \|_{*}} + \lambda {\left \|{ {\mathbf{S}} }\right \|_{1}} \\&\textrm {subject to } ~~{\mathbf{Y}} = {\mathbf{L}} + {\mathbf{S}},\end{align*}
 ```
+using [the singular value thresholding operator](https://soulpageit.com/ai-glossary/singular-value-thresholding-explained/) to extract the singular values and the shrinkage operator on the $\mathbf{S}$ outlier matrix (because the shrink operator reduces the influence of the outliers closer to 0, fitting with the $\ell_1$ norm.
