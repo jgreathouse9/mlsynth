@@ -10,6 +10,7 @@ A Short Tutorial on [Robust Principal Componenet Synthetic Control](https://acad
 + [Introduction](#introduction)
 + [Model Primitives](#model-primitives)
 + [On Donor Selection](#on-donor-selection)
++ [Why PCR Will Not Work](##why-pcr-will-not-work)
 + [RobustPCA](#robustpca)
 + [West Germany](#west-germany)
 + [Conclusion](#conclusion)
@@ -41,3 +42,7 @@ One of the main aspects of SCM that users have lots of control over is the donor
 A practical consequence of this is that the donors should be as similar to the treated unit in the pre-intervention period as possible. As Abadie [says](https://dspace.mit.edu/bitstream/handle/1721.1/144417/jel.20191450.pdf?sequence=2&isAllowed=y),
 
 >  each of the units in the donor pool have to be chosen judiciously to provide a reasonable control for the treated unit. Including in the donor pool units that are regarded by the analyst to be unsuitable controls (because of large discrepancies in the values of their observed attributes or because of suspected large differences in the values of the unobserved attributes relative to the treated unit) is a recipe for bias.
+
+In settings with very few controls (say, under 10), this is readily satisfied, and there's [pretty good work](https://www.urban.org/research/publication/update-synthetic-control-method-tool-understand-state-policy) on how we might trim down our pool of controls assuming one or two are obviously irrelevant. However, this breaks down in high-dimensions. Suppose we have 90 controls and one treated unit-- how do we know which of these 90 are relevant? What about in cases [where we don't know](https://doi.org/10.1080/13504851.2021.1927958) the names of our donors in our dataset for privacy reasons? A donor pool of many controls and few pre-intervention periods can lead to overfitting and/or the weighing of donors that are not actually reflective of the *unobserved* factors which drive our outcome. Thus, some regularization method is needed to choose the donors before we estimate any weights at all.
+
+## Why PCR Will Not Work
