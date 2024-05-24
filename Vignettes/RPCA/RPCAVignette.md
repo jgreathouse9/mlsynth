@@ -1,4 +1,4 @@
-A Short Tutorial on [Robust Principal Componenet Synthetic Control](https://academicworks.cuny.edu/cgi/viewcontent.cgi?article=6069&context=gc_etds) 
+A Short Tutorial on [Robust Principal Component Synthetic Control](https://academicworks.cuny.edu/cgi/viewcontent.cgi?article=6069&context=gc_etds) 
 ==============
 
 **Author:** *Jared Greathouse*
@@ -53,3 +53,16 @@ To those who read my PCR tutorial, one may ask why not simply use PCR. After all
 ## Tandem Clustering
 
 As a solution to this problem, Mani used an approach called "tandem clustering" ([also](https://www.youtube.com/watch?v=ISD8OvuQasY&t=75) called partitional clustering in machine learning). Tandem clustering is based on the idea that first we find a low dimensional representation of our dataset before we perform clustering upon it. In this case, we use functional PCA and k-means to select the donors. This post would be very, very long if I went into fPCA and k-means, so I refer the interested readers to [these](https://doi.org/10.1016/j.jbiomech.2020.110106) [sources](https://bradleyboehmke.github.io/HOML/kmeans.html) on the details for both, or Mani's dissertation. The central pitch for fPCA is that we cluster over the functional PCA scores. The main difference between fPCA and normal PCA for our purposes [is](https://www.tandfonline.com/doi/full/10.1080/14763141.2017.1392594) "In PCA ... the data points on each curve are assumed to be independent of each other, but in reality it is known that any point on a continuous time-series is correlated with the data points that precede and follow that point." After we have our low-dimensional representation of our pre-intervention time series $\forall j \in \mathcal N$, we then apply the k-means algorithm to select our donor pool. The idea is that the cluster that contains our treated unit will be much more similar to the donors in its own cluster than donors outside of its cluster. To select the number of clusters, we use a method called [the Silhouette method](https://scikit-learn.org/stable/auto_examples/cluster/plot_kmeans_silhouette_analysis.html). Our new control group, after clustering, is $\widetilde{\mathcal{N}}\_{0}$. As an aside, there are other ways we could've done this (such as [this way](https://link.springer.com/article/10.1007/s00357-017-9232-z) which clusters AND reduces dimensionality all in one objective function), however this would demand more formal theoretical justification.
+
+# RobustPCA
+
+Now that we have our new donor pool, we may finally estimate our counterfactual. To do this, we use Robust PCA, [which is](https://freshprinceofstandarderror.com/ai/robust-principal-component-analysis/) a form of PCA that is robust against outliers. Formally, we can think of our observed outcomes matrix ${\mathbf{Y}}$ as a low-rank component plus outlier observations, ${\mathbf{L}} + {\mathbf{S}}$. As before, if we can extract this low-rank component, we can use this to learn which donors matter most for the construction of our counterfactual. A natural formulation of this is
+
+```math
+\begin{align*}&\mathop {{\mathrm{minimize}}}\limits _{{\mathbf{L}},{\mathbf{S}}} ~{\mathrm{ rank}}({\mathbf{L}}) + \lambda {\left \|{ {\mathbf{S}} }\right \|_{0}} \\&\textrm {subject to } ~~{\mathbf{Y}} = {\mathbf{L}} + {\mathbf{S}},\end{align*}
+```
+however this program is NP-hard due to the rank portion of the objective function. As a workaround, we use the nuclear norm and $\ell_1$ norm on the low-rank matrix and sparse matrix respectively
+
+```math
+\begin{align*}&\mathop {{\mathrm{minimize}}}\limits _{{\mathbf{L}},{\mathbf{S}}} ~{\left \|{ {\mathbf{L}} }\right \|_{*}} + \lambda {\left \|{ {\mathbf{S}} }\right \|_{1}} \\&\textrm {subject to } ~~{\mathbf{M}} = {\mathbf{L}} + {\mathbf{S}},\end{align*}
+```
