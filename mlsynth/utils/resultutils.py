@@ -1,28 +1,27 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_estimates(df, time, unitid, outcome, treatmentname, treated_unit_name, y, cf, method, treatedcolor, counterfactualcolor,  rmse=None, att=None):
+def plot_estimates(df, time, unitid, outcome, treatmentname, treated_unit_name, y, cf, method, treatedcolor, counterfactualcolor,  rmse=None, att=None, save=False):
     intervention_point = df.loc[df[treatmentname] == 1, time].min()
     time_axis = df[df[unitid] == treated_unit_name][time].values
 
-    plt.figure(figsize=(10, 10))
-    plt.axvline(x=intervention_point, color="black", linestyle="--", linewidth=2,
+    plt.axvline(x=intervention_point, color="black", linestyle="-", linewidth=2.5,
                 label=treatmentname + ", " + str(intervention_point))
-    plt.plot(time_axis, y, label=f'Observed {treated_unit_name}', linewidth=2.5,
+    plt.plot(time_axis, y, label=f'Observed {treated_unit_name}', linewidth=3,
              color=treatedcolor, marker='o')
     plt.plot(time_axis, cf, label=f'Synthetic {treated_unit_name}', color=counterfactualcolor,
-             linestyle="--", linewidth=1.5, marker='o')
+             linestyle="--", linewidth=1, marker='o', markersize=6)
 
-    plt.xlabel('Time')
+    plt.xlabel(time)
     plt.ylabel(outcome)
     plt.title(fr'{method}, $\bar{{\tau}}$ = {att:.3f}, RMSE = {rmse:.3f}')
-
-    # Adding entries to the legend separately
     plt.legend()  # Adjust the location of the legend as needed
     plt.grid(True)
-    plt.show()
 
-
+    if save:
+        plt.savefig(f"{method}_{treated_unit_name}.png")
+    else:
+        plt.show()
 
 
 class effects:

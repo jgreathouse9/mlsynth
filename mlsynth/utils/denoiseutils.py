@@ -36,3 +36,47 @@ def svt(self, X, max_rank=None, t=None):
     Hv_perp = np.eye(n2) - Hv
 
     return (Y0_rank, Hu, Hv, Hu_perp, Hv_perp)
+
+
+def shrink(X, tau):
+    """
+    Gets our optimal singular values (shrinks) to optimal number,
+    'soft impute'
+    """
+    # 'Soft' Impute
+    Y = np.abs(X) - tau
+    return np.sign(X) * np.maximum(Y, np.zeros_like(Y))
+
+def SVT(X, tau):
+    """
+    Does the Singular Value thresholding (the matrix operation)
+    """
+    # Does Singular Value Thresholding
+    U, S, VT = np.linalg.svd(X, full_matrices=0)
+    out = U @ np.diag(shrink(S, tau)) @ VT
+    return out
+
+def RPCA(X, vallamb=1):
+    """
+    Gets our low-rank representation into
+    Low rank structure, common patterns and noise
+    """
+
+    n1, n2 = X.shape
+    mu = n1 * n2 / (4 * np.sum(np.abs(X.reshape(-1))))
+
+    thresh = 10 ** (-9) * np.linalg.norm(X)
+
+    S = np.zeros_like(X)  # Individual effects
+    Y = np.zeros_like(X)  # Encourages convergence (updates)
+    L = np.zeros_like(X)  # Low Rank structure
+
+    count = 0
+    lambd = vallamb / np.sqrt(np.maximum(n1, n2))
+    while (np.linalg.norm(X - L - S) > thresh) and (count < 1000):
+        L = SVT(X - S + (1 / mu) * Y, 1 / mu)
+        S = shrink(X - L + (1 / mu) * Y, lambd / mu)
+        Y = Y + mu * (X - L - S)
+        count += 1
+    return L
+

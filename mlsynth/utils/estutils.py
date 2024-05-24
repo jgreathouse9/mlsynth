@@ -85,7 +85,7 @@ def TSEST(x, y, t1, nb, donornames, t2):
     fit_dicts_list = []
     fit_results = {}
     # List of methods to loop over
-    methods = ["SC", "MSCb", "MSCa", "MSCc"]
+    methods = ["SIMPLEX", "MSCb", "MSCa", "MSCc"]
 
     for method in methods:
 
@@ -182,7 +182,7 @@ class Opt:
         objective = cp.Minimize(cp.norm(y[:t1] - X @ beta, 2))
 
         # Define the constraints based on the selected method
-        if model == "SC":
+        if model == "SIMPLEX":
             constraints.append(cp.sum(beta) == 1)  # Sum constraint for all coefficients
         elif model == "MSCa":
             constraints.append(cp.sum(beta[1:]) == 1)  # Sum constraint for coefficients excluding intercept
