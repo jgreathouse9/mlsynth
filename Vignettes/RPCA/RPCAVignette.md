@@ -48,7 +48,7 @@ In settings with very few controls (say, under 10), this is readily satisfied, a
 
 ## Why PCR Will Not Work
 
-To those who read my PCR tutorial, one may ask why not simply use PCR. After all, it exrtacts the low-rank structure of the donor matrix and projects this on to the treated unit, shaving off the irreelvant singular values. Well... It does, however it is sensitive to outliers. The reason for this is because of the optimization of PCA: PCA [uses](https://onefishy.github.io/ML_notes/the-math-of-principal-component-analysis.html) the covariance matrix to calculate our principal componenets. As we know from Bill Gates walking into a bar, the presence of outliers will skew the mean and covariance matrix, meaning outliers can dominate the influence of principal componenets. Thus, PCA will not always be a viable solution to the donor selection problem in the case of outlier donors.
+To those who read my PCR tutorial, one may ask why not simply use PCR. After all, it exrtacts the low-rank structure of the donor matrix and projects this on to the treated unit, shaving off the irreelvant singular values. Well... It does, however it is sensitive to outliers. The reason for this is because of the optimization of PCA: PCA [uses](https://onefishy.github.io/ML_notes/the-math-of-principal-component-analysis.html) the covariance matrix to calculate our principal components. As we know from Bill Gates walking into a bar, the presence of outliers will skew the mean and covariance matrix, meaning outliers can dominate the influence of principal components. Thus, PCA will not always be a viable solution to the donor selection problem in the case of outlier donors.
 
 ## Tandem Clustering
 
