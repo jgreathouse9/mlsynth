@@ -4,7 +4,7 @@ A Short Tutorial on [Robust Principal Component Synthetic Control](https://acade
 **Author:** *Jared Greathouse*
 
 > [!IMPORTANT]
-> **mlsynth** is an ongoing project; any feedback or comments are most welcome!
+> ```mlsynth``` is an ongoing project; any feedback or comments are most welcome!
 
 #### Sections
 + [Introduction](#introduction)
@@ -244,8 +244,30 @@ autores = model.fit()
 
 </details>
 
-The left panel of the table imports the West Germany dataset. In accordance with the requirements of **mlsynth**, it defines the treatment variable "Reunification" to be equal to 1 if the unit is West Germany and the year is greter than 1990, else 0. We then pass these values off to the ```PCASC``` class which uses the method described above to select our donors, conduct RPCA, and estimate our counterfactual.
+The left panel of the table imports the West Germany dataset. In accordance with the requirements of ```mlsynth```, it defines the treatment variable "Reunification" to be equal to 1 if the unit is West Germany and the year is greter than 1990, else 0. We then pass these values off to the ```PCASC``` class which uses the method described above to select our donors, conduct RPCA, and estimate our counterfactual.
 
 <p align="center">
   <img src="RPCA-SYNTH_West Germany.png" alt="Robust PCA SC" width="90%">
 </p>
+
+Based on this, there are some immediate conclusions we can draw: the RPCA method is quite effective in learning the pre-intervention period. It returns the exact same donor matrix as Mani's did in his dissertation (United Kingdom, Belgium, Denmark, France, Italy, Netherlands, Norway, Japan, Australia, New Zealand, Austria). Also, it returns the same weighting matrix (Austria: 0.023, France: 0.354, Norway: 0.485, New Zealand: 0.296). Quantitatively, it has a lower pre-treatment RMSE than PCR (whose ```OLS``` option gives us an RMSE of 93.35), while also being more interpretable than PCR due to the constraints on the RPCA weights. We also get quantitatively similar results to the orignal SCM (whose ATT was around -1600). The fact that we get very similar results and adequate pre-treatment fit *without* using the same addtitional predictors that ADH relied on suggests that RPCA-SYNTH is an improvement over the original method. Furthermore, as Mani demonstrated in his dissertation, RPCA-SYNTH is generally more robust to in-time placebo tests, in space placebo tests, and leave-one-out analyses than the orignal SCM and PCR, further suggesting its utility in applied causal inference.
+
+# Conclusion
+
+The central conclusion from these results is that donor selection is important for SCM studies, with the ```PCASC``` class of ```mlsynth``` offering a way to systematically choose the donor pool we use along with robust algorithms to denoise our observed outcomes to generate counterfactuals. In cases where we cannot obtain coviarates (the inclusion of which is also a subjective decision in SCM work) or we have many potential controls, ```PCASC``` can filter the most relevant controls out from a pool of irrelvant ones. I do not wish to present this as the final word on the matter, however. There is indeed room for extension. For example, to restate the iterative optimization (where $\mathbf X$ if our observed data matrix),
+
+```math
+
+\begin{aligned}
+\mathbf{L}_{k+1} &=\mathrm{SVT}_{1/\rho}\left(\mathbf{X}-\mathbf{S}_{k}+\frac{1}{\rho} \mathbf{Y}_{k}\right) \\
+\mathbf{S}_{k+1} &=\mathcal{S}_{\lambda/\rho}\left(\mathbf{X}-\mathbf{L}_{k+1}+\frac{1}{\rho} \mathbf{Y}_{k}\right) \\
+\mathbf{Y}_{k+1} &=\mathbf{Y}_{k}+\rho\left(\mathbf{X}-\mathbf{L}_{k+1}-\mathbf{S}^{k+1}\right)
+\end{aligned}
+```
+we can see that the singular value thresholding operator $\mathrm{SVT}\_{\tau}(\mathbf{X})=\mathbf{U} \mathcal{S}_{\tau}(\mathbf{\Sigma}) \mathbf{V}^{*}$ is controlled by the lambda, $\lambda$ parameter. In [the original RPCA paper](https://dl.acm.org/doi/abs/10.1145/1970392.1970395), the authors advocate for this parameter to be set to
+
+```math
+\lambda = \frac{1}{\sqrt{\mathrm{max}(m,n)}}
+```
+
+as a universal value. In our case, lambda controls the sparsity of the low-rank matrix. Increasing the value of the numerator may, in some cases where there are many outliers, be optimal to fit the pre-intervention period better (another time, I'll demonstrate this below using the Basque data). It is unclear (at present to me anyways) how we may better fine tune this parameter, possibly with cross validation or some better herustic. Also, we can note that the RPCA method I detail above (known as principal component pursuit) is a convex relaxation of the original problem. Other methods like [half-quadratic regularization](https://doi.org/10.1016/j.sigpro.2022.108816) may be used as a nonconvex optimization method.
