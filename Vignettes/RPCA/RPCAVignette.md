@@ -66,4 +66,182 @@ however this program is NP-hard due to the rank portion of the objective functio
 ```math
 \begin{align*}&\mathop {{\mathrm{minimize}}}\limits _{{\mathbf{L}},{\mathbf{S}}} ~{\left \|{ {\mathbf{L}} }\right \|_{*}} + \lambda {\left \|{ {\mathbf{S}} }\right \|_{1}} \\&\textrm {subject to } ~~{\mathbf{Y}} = {\mathbf{L}} + {\mathbf{S}},\end{align*}
 ```
-using [the singular value thresholding operator](https://soulpageit.com/ai-glossary/singular-value-thresholding-explained/) to extract the singular values and the shrinkage operator on the $\mathbf{S}$ outlier matrix (because the shrink operator reduces the influence of the outliers closer to 0, fitting with the $\ell_1$ norm.
+using [the singular value thresholding operator](https://soulpageit.com/ai-glossary/singular-value-thresholding-explained/) to extract the singular values and the shrinkage operator on the $\mathbf{S}$ outlier matrix (because the shrink operator reduces the influence of the outliers closer to 0, fitting with the $\ell_1$ norm. With the $\mathbf{L}$ matrix computed (which again simply represents the "pattern" portion of our donor matrix in the pre-intervention period), we may now use the pre-intervention portion of this matrix to learn our donor weights
+
+```math
+\begin{align}
+    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{L} w_{\widetilde{\mathcal{N}}_{0}}||_{2}^2 \\\
+    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
+\end{align}
+```
+The counterfactual is the dot product of our low-rank matrix and the computed donor weights. We can then calculate the ATT and other relevant statistics as we usually would.
+
+# West Germany
+
+In what is by now one of the classical SCM papers, Abadie, Diamond, and Hainmuller [sought](https://economics.mit.edu/sites/default/files/publications/Comparative%20Politics%20and%20the%20Synthetic%20Control.pdf) to investigate the casual impact of West German reunification on the GDP per Capita of West Germany. To do this, they compare West Germany to 16 other donor nations, employing a list of five covariate measures to construct the synthetic control for West Germany. The intervention happened in 1990, and the dataset they use ranges from 1960 to 2003.
+
+<details>
+    
+  <summary>Let's replicate their results using the RPCA estimator.</summary>
+
+<table>
+  <tr>
+    <th>Importing</th>
+    <th>Estimation</th>
+  </tr>
+  <tr>
+    <td>
+    <pre><code>
+from mlsynth.mlsynth import PCASC
+import matplotlib.pyplot as plt
+import matplotlib
+import pandas as pd
+# matplotlib theme
+jared_theme = {'axes.grid': True,
+              'grid.linestyle': '-',
+              'legend.framealpha': 1,
+              'legend.facecolor': 'white',
+              'legend.shadow': True,
+              'legend.fontsize': 14,
+              'legend.title_fontsize': 16,
+              'xtick.labelsize': 14,
+              'ytick.labelsize': 14,
+              'axes.labelsize': 16,
+              'axes.titlesize': 20,
+              'figure.dpi': 100,
+               'axes.facecolor': 'white',
+               'figure.figsize': (10, 8)}
+
+matplotlib.rcParams.update(jared_theme)
+
+
+def get_edited_frames(stub_url, urls, base_dict):
+    edited_frames = []
+
+    for url, (key, params) in zip(urls, base_dict.items()):
+        subdf = pd.read_csv(stub_url + url)
+
+        # Keep only the specified columns
+        subdf = subdf[params['Columns']]
+
+        # Ensure the time column is of integer type
+        subdf[params['Time']] = subdf[params['Time']].astype(int)
+
+        # Generate the treatment variable
+        subdf[params["Treatment Name"]] = (subdf[params["Panel"]].str.contains(params["Treated Unit"])) & \
+                                          (subdf[params["Time"]] >= params["Treatment Time"])
+
+        # Handle specific case for Basque dataset
+        if key == "Basque" and "Spain (Espana)" in subdf[params["Panel"]].values:
+            subdf = subdf[~subdf[params["Panel"]].str.contains("Spain \(Espana\)")]
+            subdf.loc[subdf['regionname'].str.contains('Vasco'), 'regionname'] = 'Basque'
+
+        # Append the edited DataFrame to the list
+        edited_frames.append(subdf)
+
+    return edited_frames
+
+stub_url = 'https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/'
+
+base_dict = {
+    "Basque": {
+        "Columns": ['regionname', 'year', 'gdpcap'],
+        "Treatment Time": 1975,
+        "Treatment Name": "Terrorism",
+        "Treated Unit": "Vasco",
+        "Time": "year",
+        "Panel": 'regionname',
+        "Outcome": "gdpcap"
+    },
+    "Germany": {
+        "Columns": ['country', 'year', 'gdp'],
+        "Treatment Time": 1990,
+        "Treatment Name": "Reunification",
+        "Treated Unit": "Germany",
+        "Time": "year",
+        "Panel": 'country',
+        "Outcome": "gdp"
+    },
+    "Smoking": {
+        "Columns": ['state', 'year', 'cigsale'],
+        "Treatment Time": 1989,
+        "Treatment Name": "Proposition 99",
+        "Treated Unit": "California",
+        "Time": "year",
+        "Panel": 'state',
+        "Outcome": "cigsale"
+    }
+}
+
+edited_frames = get_edited_frames(stub_url, ['basque_data.csv', 'german_reunification.csv', 'smoking_data.csv'], base_dict)
+
+
+df = edited_frames[1]
+
+def plot_gdp_outcomes(df, countries, time_column, gdp_column, save=False, filename="gdp_outcomes.png"):
+    """
+    Plot GDP outcomes for specified countries over time.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing the data.
+    countries (list of str): List of country names to plot.
+    time_column (str): Name of the column representing time (e.g., 'year').
+    gdp_column (str): Name of the column representing GDP.
+    save (bool): Whether to save the plot as a file. Default is False.
+    filename (str): The filename to save the plot. Default is 'gdp_outcomes.png'.
+    """
+    plt.figure(figsize=(10, 6))
+
+    for country in countries:
+        country_data = df[df['country'] == country]
+        if country in ["USA", "Switzerland"]:
+            plt.plot(country_data[time_column], country_data[gdp_column], label=country, color='grey', linewidth=3)
+        elif country in ["Spain", "Portugal", "Greece"]:
+            plt.plot(country_data[time_column], country_data[gdp_column], label=country, color='#7DF9FF', linewidth=2)
+        else:
+            plt.plot(country_data[time_column], country_data[gdp_column], label=country, color="black", linewidth=3)
+
+    plt.xlabel(time_column)
+    plt.ylabel(gdp_column)
+    plt.title("Germany versus Excluded Donors")
+    plt.legend()
+    plt.grid(True)
+
+    plt.show()
+
+stub_url = 'https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/'
+german_reunification_url = 'german_reunification.csv'
+
+countries_to_plot = ["West Germany", "USA", "Spain", "Portugal", "Switzerland", "Greece"]
+    </pre></code>
+    </td>
+    <td>
+    <pre><code>
+
+unitid = "country"
+time = "year"
+outcome = "gdp"
+treat = "Reunification"
+
+model = PCASC(
+    df=df,
+    treat=treat,
+    time=time,
+    outcome=outcome,
+    unitid=unitid,
+    figsize=(10, 6),
+    grid=True,
+    treated_color='black',
+    counterfactual_color='red',
+    display_graphs=True, save=False)
+
+
+autores = model.fit()
+    </pre></code>
+    </td>
+  </tr>
+</table>
+
+</details>
+
+The left panel...
