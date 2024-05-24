@@ -9,8 +9,9 @@ A Short Tutorial on [Robust Principal Componenet Synthetic Control](https://acad
 #### Sections
 + [Introduction](#introduction)
 + [Model Primitives](#model-primitives)
-+ [On Donor Selection](#on-donor-selection)
++ [On Donor Selection](##on-donor-selection)
 + [Why PCR Will Not Work](##why-pcr-will-not-work)
++ [Tandem Clustering](#tandem-clustering)
 + [RobustPCA](#robustpca)
 + [West Germany](#west-germany)
 + [Conclusion](#conclusion)
@@ -36,7 +37,7 @@ $$ ATT = \frac{1}{T\_1 - T\_0} \sum_{T\_0 +1}^{T} (y_{1t} - \hat{y}_{1t}) $$
 
 where $(y_{1t} - \hat{y}_{1t})$ is the treatment effect. In SCM, we exploit the linear relation between untreated units and the treated unit to estimate its counterfactual.
 
-# On Donor Selection
+## On Donor Selection
 One of the main aspects of SCM that users have lots of control over is the donors included in the estimation. The donors directly influence the counterfactual we get as a result of our estimation. This of course is not new. A randomized controlled trial, for example, randomly assigns units to being treated or not. Assuming a large enough sample (among other things), the randomization balances our treated and control units in terms of covairates because in the experimental setting, only a random process determines treatment, not other covariates. A natural principle of quasi-experimental design, then, is that our treatment assignment mechanism is *as good as random* conditional on some set of metrics (parallel trends, in our case). For SCM, the parallel trends assumption is that the counterfactual would be the weighted average of donors in the post-intervention period absent treatment.
 
 A practical consequence of this is that the donors should be as similar to the treated unit in the pre-intervention period as possible. As Abadie [says](https://dspace.mit.edu/bitstream/handle/1721.1/144417/jel.20191450.pdf?sequence=2&isAllowed=y),
@@ -46,3 +47,7 @@ A practical consequence of this is that the donors should be as similar to the t
 In settings with very few controls (say, under 10), this is readily satisfied, and there's [pretty good work](https://www.urban.org/research/publication/update-synthetic-control-method-tool-understand-state-policy) on how we might trim down our pool of controls assuming one or two are obviously irrelevant. However, this breaks down in high-dimensions. Suppose we have 90 controls and one treated unit-- how do we know which of these 90 are relevant? What about in cases [where we don't know](https://doi.org/10.1080/13504851.2021.1927958) the names of our donors in our dataset for privacy reasons? A donor pool of many controls and few pre-intervention periods can lead to overfitting and/or the weighing of donors that are not actually reflective of the *unobserved* factors which drive our outcome. Thus, some regularization method is needed to choose the donors before we estimate any weights at all.
 
 ## Why PCR Will Not Work
+
+To those who read my PCR tutorial, one may ask why not simply use PCR. After all, it exrtacts the low-rank structure of the donor matrix and projects this on to the treated unit, shaving off the irreelvant singular values. Well... It does, however it is sensitive to outliers. The reason for this is because of the optimization of PCA: PCA [uses](https://onefishy.github.io/ML_notes/the-math-of-principal-component-analysis.html) the covariance matrix to calculate our principal componenets. As we know from Bill Gates walking into a bar, the presence of outliers will skew the mean and covariance matrix, meaning outliers can dominate the influence of principal componenets. Thus, PCA will not always be a viable solution to the donor selection problem in the case of outlier donors.
+
+# Tandem Clustering
