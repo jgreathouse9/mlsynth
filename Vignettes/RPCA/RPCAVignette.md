@@ -254,7 +254,7 @@ Based on this, there are some immediate conclusions we can draw: the RPCA method
 
 # Conclusion
 
-The central conclusion from these results is that donor selection is important for SCM studies, with the ```PCASC``` class of ```mlsynth``` offering a way to systematically choose the donor pool we use along with robust algorithms to denoise our observed outcomes to generate counterfactuals. In cases where we cannot obtain coviarates (the inclusion of which is also a subjective decision in SCM work) or we have many potential controls, ```PCASC``` can filter the most relevant controls out from a pool of irrelvant ones. I do not wish to present this as the final word on the matter, however. There is indeed room for extension. For example, to restate the iterative optimization (where $\mathbf X$ if our observed data matrix),
+The central conclusion from these results is that donor selection is important for SCM studies, with the ```PCASC``` class of ```mlsynth``` offering a way to systematically choose the donor pool we use along with robust algorithms to denoise our observed outcomes to generate counterfactuals. In cases where we cannot obtain covariates (the inclusion of which is also a subjective decision in SCM work) or we have many potential controls, ```PCASC``` can filter the most relevant controls out from a pool of irrelvant ones. I do not wish to present this as the final word on the matter, however. There is indeed room for extension. For example, to restate the iterative optimization (where $\mathbf X$ is our observed data matrix),
 
 ```math
 
@@ -264,10 +264,10 @@ The central conclusion from these results is that donor selection is important f
 \mathbf{Y}_{k+1} &=\mathbf{Y}_{k}+\rho\left(\mathbf{X}-\mathbf{L}_{k+1}-\mathbf{S}^{k+1}\right)
 \end{aligned}
 ```
-we can see that the soft-thresholding operator $\mathcal{S}_{\tau}(x)=\operatorname{sgn}(x)\max(\mid x \mid-\tau, 0)$ is controlled by the lambda, $\lambda$ parameter. In [the original RPCA paper](https://dl.acm.org/doi/abs/10.1145/1970392.1970395), the authors advocate for this parameter to be set to
+we can see that the soft-thresholding operator $\mathcal{S}_{\tau}(x)=\mathrm{sgn}(x)\max(\mid x \mid-\tau, 0)$ performed upon the sparsity matrix is controlled by the lambda ($\lambda$) parameter. In [the original RPCA paper](https://dl.acm.org/doi/abs/10.1145/1970392.1970395), the authors advocate for this parameter to be set to
 
 ```math
 \lambda = \frac{1}{\sqrt{\mathrm{max}(m,n)}}
 ```
 
-as a universal value. In our case, lambda controls the sparsity of the low-rank matrix. Increasing the value of the numerator may, in some cases where there are many outliers, be optimal to fit the pre-intervention period better (another time, I'll demonstrate this below using the Basque data). It is unclear (at present to me anyways) how we may better fine tune this parameter, possibly with cross validation or some better herustic. Also, we can note that the RPCA method I detail above (known as principal component pursuit) is a convex relaxation of the original problem. Other methods like [half-quadratic regularization](https://doi.org/10.1016/j.sigpro.2022.108816) may be used as a nonconvex optimization method.
+as a universal value. In our case, lambda controls the sparsity of the low-rank matrix. Increasing the value of the numerator may, in some cases where there are many outliers, be optimal to fit the pre-intervention period better (another time, I'll demonstrate this below using the Basque data). It is unclear (at present to me anyways) how we may better fine tune this parameter, possibly with cross-validation or some better herustic. Also, we can note that the RPCA method I detail above (known as principal component pursuit) is a convex relaxation of the original problem. Other methods like [half-quadratic regularization](https://doi.org/10.1016/j.sigpro.2022.108816) may be used as a nonconvex optimization method.
