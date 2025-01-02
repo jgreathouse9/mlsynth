@@ -1,11 +1,31 @@
 # mlsynth
-This is the repository containing the code for the Python library ```mlsynth```. I provide detailed tutorials for each estimator in the package. As of May 24, 2024, we have the two-step SCM, linking to my Forward DID package (which will someday be moved here and integrated), as well as the Principal Component Regression estimator and Robust PCA SCM. One day, I will learn how to make the full thing installable from here to facilitate use, but for now I provide the code piece by piece until it is finished.
+ mlsynth is a python package for doing policy evaluation using panel data estimators. 
 
-To use ```mlsynth```, *at minimum* you need a Python dataframe with
 
-- One column for the Unit ID (these must be unique, but they may be string values or numerical values).
-- One column for time (indexed to the unit variable, these must form a balanced panel).
-- A numerical outcome column of interest, and
-- One column that is an indicator denoting treatment status. At this time, ```mlsynth``` only accepts binary interventions and one treated unit per df (this does NOT MEAN that you can't use the current functionality in settings of staggered adoption, but it *does mean* that you, the user, must be mindful about things like event-time and averaging your ATTs accordingly). In time, staggered adoption settings will come.
+## What is mlsynth
+As the name suggests, it employs synthetic control methods, also includes difference-in-differences, panel data approaches, and factor modeling. mlsynth is a suite of tools for addressing questions like "How does Policy X affect some outcome Y" given a panel data structure across more than one time point (ideally many).
 
-In addition, you must have standard libraries installed, namely cvxpy for optimization, scipy, numpy, pandas, matplotlib, and sklearn.
+## Installing CausalTensor
+CausalTensor is compatible with Python 3 or later and also depends on numpy. The simplest way to install CausalTensor and its dependencies is from PyPI with pip, Python's preferred package installer.
+
+    $ pip install causaltensor
+
+Note that CausalTensor is an active project and routinely publishes new releases. In order to upgrade CausalTensor to the latest version, use pip as follows.
+
+    $ pip install -U causaltensor
+    
+## Using CausalTensor
+We have implemented the following estimators including the traditional method Difference-in-Difference and recent proposed methods such as Synthetic Difference-in-Difference, Matrix Completion with Nuclear Norm Minimization, and De-biased Convex Panel Regression.  
+
+| Estimator      | Reference |
+| ----------- | ----------- |
+| [Difference-in-Difference (DID)](https://en.wikipedia.org/wiki/Difference_in_differences) | [Implemented through two-way fixed effects regression.](http://web.mit.edu/insong/www/pdf/FEmatch-twoway.pdf)       |
+| [De-biased Convex Panel Regression (DC-PR)](https://arxiv.org/abs/2106.02780) | Vivek Farias, Andrew Li, and Tianyi Peng. "Learning treatment effects in panels with general intervention patterns." Advances in Neural Information Processing Systems 34 (2021): 14001-14013. |
+| [Synthetic Difference-in-Difference (SDID)](https://arxiv.org/pdf/1812.09970.pdf)   | Dmitry Arkhangelsky, Susan Athey, David A. Hirshberg, Guido W. Imbens, and Stefan Wager. "Synthetic difference-in-differences." American Economic Review 111, no. 12 (2021): 4088-4118. |
+| [Matrix Completion with Nuclear Norm Minimization (MC-NNM)](https://arxiv.org/abs/1710.10251)| Susan Athey, Mohsen Bayati, Nikolay Doudchenko, Guido Imbens, and Khashayar Khosravi. "Matrix completion methods for causal panel data models." Journal of the American Statistical Association 116, no. 536 (2021): 1716-1730. |
+
+Please visit our [documentation](https://causaltensor.readthedocs.io/) for the usage instructions. Or check the following simple demo as a tutorial:
+
+- [Panel Data Example](https://colab.research.google.com/github/TianyiPeng/causaltensor/blob/main/tutorials/Panel%20Data%20Example.ipynb)
+- [Panel Data with Multiple Treatments](https://colab.research.google.com/github/TianyiPeng/causaltensor/blob/main/tutorials/Panel_Regression_with_Multiple_Interventions.ipynb)
+- [MC-NNM with covariates and missing data](https://colab.research.google.com/github/TianyiPeng/causaltensor/blob/main/tests/MCNNM_test.ipynb)
