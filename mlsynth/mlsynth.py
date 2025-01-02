@@ -147,35 +147,28 @@ Each Class below takes the following:
 
 # 3: Extend at least 1 estimator to staggered adoption
 
-import warnings
-warnings.filterwarnings("ignore", category=Warning, module="cvxpy")
 import pandas as pd
 import numpy as np
-import os
-import math
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
 import matplotlib
-import warnings
 from numpy.linalg import inv
 from scipy.stats import norm
 import scipy.stats as stats
-from typing import Union
-import scipy as sp
 from sklearn.cluster import KMeans
-from scipy.optimize import lsq_linear
-#import cvxpy as cp
-from toolz import reduce, partial
-import matplotlib.ticker as ticker
-import numpy.linalg as la
-from sklearn.linear_model import LassoCV
 from mlsynth.utils.datautils import prepare_data, balance, dataprep
 from mlsynth.utils.resultutils import effects, plot_estimates
-from mlsynth.utils.estutils import Opt, pcr, TSEST, l2_relax, cross_validate_l2, pda
+from mlsynth.utils.estutils import Opt, pcr, TSEST, pda
 from mlsynth.utils.inferutils import step2
-from mlsynth.utils.selectorsutils import fpca, determine_optimal_clusters, make_interp_spline, PDAfs
-from mlsynth.utils.denoiseutils import RPCA, spectral_rank, RPCA_HQF, DC_PR_with_suggested_rank, standardize, nbpiid, demean_matrix
-
+from mlsynth.utils.selectorsutils import fpca
+from mlsynth.utils.denoiseutils import (
+    RPCA,
+    spectral_rank,
+    RPCA_HQF,
+    DC_PR_with_suggested_rank,
+    standardize,
+    nbpiid,
+    demean_matrix,
+)
 
 class TSSC:
     def __init__(self, config):
