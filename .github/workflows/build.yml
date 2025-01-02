@@ -1,0 +1,37 @@
+name: Build Source
+
+on:
+  push:
+    branches:
+      - main  # Trigger this action when you push to the 'main' branch
+  pull_request:
+    branches:
+      - main  # Trigger this action for pull requests to the 'main' branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Use an Ubuntu runner (or change to another OS like macOS or Windows)
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2  # This checks out your code
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'  # Use the desired Python version
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt  # Install your dependencies
+
+    - name: Build source distribution
+      run: |
+        python setup.py sdist  # Run the build
+
+    - name: Upload distribution artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: mlsynth-dist
+        path: dist/  # Uploads the 'dist' folder
