@@ -198,9 +198,6 @@ class TSSC:
         self.treat = config.get("treat")
         self.unitid = config.get("unitid")
         self.time = config.get("time")
-        self.weighted_units_dict = None
-        self.statistics_dict = None
-        self.result_df = None
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
         self.graph_style = config.get("graph_style", "default")
@@ -208,10 +205,10 @@ class TSSC:
         self.figsize = config.get("figsize", (12, 6))
         self.filetype = config.get("filetype", ".png")
         self.display_graphs = config.get("display_graphs", True)
-        self.diagnostics = config.get("diagnostics", False)
+        
         self.save = config.get("save", False)
         self.method = config.get("method", "RPCA")
-        self.vallamb = config.get("vallamb", 1)
+        
         self.objective = config.get("objective", "OLS")
         self.cluster = config.get("cluster", False)
         self.draws = config.get("draws", 500)
@@ -1148,10 +1145,10 @@ class CLUSTERSC:
         self.figsize = config.get("figsize", (12, 6))
         self.filetype = config.get("filetype", ".png")
         self.display_graphs = config.get("display_graphs", True)
-        self.diagnostics = config.get("diagnostics", False)
+        
         self.save = config.get("save", False)
         self.method = config.get("method", "RPCA")
-        self.vallamb = config.get("vallamb", 1)
+        
         self.objective = config.get("objective", "OLS")
         self.cluster = config.get("cluster", False)  # Add cluster parameter
 
