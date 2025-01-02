@@ -8,6 +8,9 @@ on:
     branches:
       - main  # Trigger this action for pull requests to the 'main' branch
 
+permissions:
+  contents: write  # This grants GitHub Actions bot permission to push to the repository
+
 jobs:
   build:
     runs-on: ubuntu-latest  # Use an Ubuntu runner (or change to another OS like macOS or Windows)
