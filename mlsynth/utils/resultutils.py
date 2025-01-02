@@ -1,27 +1,64 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_estimates(df, time, unitid, outcome, treatmentname, treated_unit_name, y, cf, method, treatedcolor, counterfactualcolor,  rmse=None, att=None, save=False):
+def plot_estimates(
+        df, time, unitid, outcome, treatmentname, treated_unit_name, y, cf_list,
+        method, treatedcolor, counterfactualcolors, counterfactual_names=None,
+        rmse=None, att=None, save=False
+):
+    """
+    Plots observed and multiple counterfactual estimates.
+
+    Parameters:
+    - df: DataFrame containing the dataset.
+    - time: Column name for time variable.
+    - unitid: Column name for unit identifier.
+    - outcome: Outcome variable name (y-axis label).
+    - treatmentname: Column name for treatment indicator.
+    - treated_unit_name: The treated unit identifier.
+    - y: Observed outcome for the treated unit.
+    - cf_list: List of counterfactual predictions (one series per method).
+    - method: Method name for title or file saving.
+    - treatedcolor: Color for the observed line.
+    - counterfactualcolors: List of colors for each counterfactual.
+    - counterfactual_names: List of custom names for counterfactuals (optional).
+    - rmse: Root Mean Square Error (optional, for display).
+    - att: Average Treatment Effect on the Treated (optional, for display).
+    - save: If True, saves the plot as a PNG file.
+    """
+    # Identify the intervention point
     intervention_point = df.loc[df[treatmentname] == 1, time].min()
     time_axis = df[df[unitid] == treated_unit_name][time].values
 
-    plt.axvline(x=intervention_point, color="black", linestyle="-", linewidth=2.5,
-                label=treatmentname + ", " + str(intervention_point))
+    # Plot intervention point
+    plt.axvline(x=intervention_point, color="black", linestyle="--", linewidth=1.25,
+                label=f"{treatmentname}, {intervention_point}")
+
+    # Plot observed outcomes
     plt.plot(time_axis, y, label=f'Observed {treated_unit_name}', linewidth=3,
              color=treatedcolor, marker='o')
-    plt.plot(time_axis, cf, label=f'Synthetic {treated_unit_name}', color=counterfactualcolor,
-             linestyle="--", linewidth=1, marker='o', markersize=6)
 
+    # Plot each counterfactual
+    for idx, cf in enumerate(cf_list):
+        # Use custom names if provided, otherwise default to "Counterfactual <index>"
+        label = counterfactual_names[idx] if counterfactual_names else f'Counterfactual {idx + 1}'
+        color = counterfactualcolors[idx % len(counterfactualcolors)]
+        plt.plot(time_axis, cf, label=label, color=color, linestyle="--",
+                 linewidth=1, marker='D', markersize=3)
+
+    # Add labels, title, legend, and grid
     plt.xlabel(time)
     plt.ylabel(outcome)
-    plt.title(fr'{method}, $\bar{{\tau}}$ = {att:.3f}, RMSE = {rmse:.3f}')
+    plt.title("Counterfactual Analysis")
     plt.legend()  # Adjust the location of the legend as needed
     plt.grid(True)
 
+    # Save or display the plot
     if save:
         plt.savefig(f"{method}_{treated_unit_name}.png")
     else:
         plt.show()
+
 
 
 class effects:
