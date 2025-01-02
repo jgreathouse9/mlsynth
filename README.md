@@ -6,7 +6,7 @@
 As the name suggests, it employs synthetic control methods, also includes difference-in-differences, panel data approaches, and factor modeling. mlsynth is a suite of tools for addressing questions like "How does Policy X affect some outcome Y" given a panel data structure across more than one time point (ideally many).
 
 ## Installing CausalTensor
-CausalTensor is compatible with Python 3 or later and also depends on numpy. The simplest way to install CausalTensor and its dependencies is from PyPI with pip, Python's preferred package installer.
+mlsynth is compatible with Python 3.6 or later.
 
     $ pip install causaltensor
 
