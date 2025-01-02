@@ -1,5 +1,5 @@
 """
-mlsynth
+mlsynthtwo
 ==========
 
 This module provides a convenient apporach to estimating various synthetic
@@ -7,21 +7,21 @@ control estimators
 
 Classes:
 -------
-- FMA: Implements the Factor Model Approach as discussed in 
+- FMA: Implements the Factor Model Approach as discussed in
 
-Li, K. T., & Sonnier, G. P. (2023). 
-Statistical Inference for the Factor Model Approach to Estimate 
-Causal Effects in Quasi-Experimental Settings. 
-Journal of Marketing Research, 60(3), 449–472. 
+Li, K. T., & Sonnier, G. P. (2023).
+Statistical Inference for the Factor Model Approach to Estimate
+Causal Effects in Quasi-Experimental Settings.
+Journal of Marketing Research, 60(3), 449–472.
 https://doi.org/10.1177/00222437221137533.
 
 - PCR: Implements Principal Component Regression as discussed in
 
-Agarwal, A., Shah, D., Shen, D., & Song, D. (2021). 
-On robustness of principal component regression. 
+Agarwal, A., Shah, D., Shen, D., & Song, D. (2021).
+On robustness of principal component regression.
 J. Am. Stat. Assoc., 116(536), 1731-1745.
-https://doi.org/10.1080/01621459.2021.1928513 
- 
+https://doi.org/10.1080/01621459.2021.1928513
+
 - TSSC: Two-Step Synthetic Control Metho
 
 This implements the vanilla SCM, as well as 3 forms of SCM which
@@ -59,28 +59,91 @@ Marketing Science, 42(4), 746-767. https://doi.org/10.1287/mksc.2022.1406
 
 Each Class below takes the following:
 
-# Edit this dicstring in the future!!
+    Parameters:
+    ----------
+    - df: pandas.DataFrame
+        Any dataframe the user specifies.
+
+    - treat: str
+        The column name in df representing the treatment variable.
+        Must be 0 or 1, with only one treatment unit (for now).
+
+    - time: str
+        The column name in df representing the time variable.
+
+    - outcome: str
+        The column name in df representing the outcome variable.
+
+    - unitid: str
+        The column name in df representing the unit identifier.
+        The string identifier, specifically.
+
+    - figsize: tuple, optional
+        The size of the figure (width, height) in inches.
+        Default is (10, 8).
+
+    - graph_style: str, optional
+        The style of the graph.
+        Default is 'default'.
+
+    - grid: bool, optional
+        Whether to display grid lines on the graph.
+        Default is False.
+
+    - counterfactual_color: str, optional
+        The color of the counterfactual line on the graph.
+        Default is 'blue'.
+
+    - treated_color: str, optional
+        The color of the treated line on the graph.
+        Default is 'black'.
+
+    - filetype: str, optional
+        The file type for saving the graph. Default is None.
+        Users may specify pdf, png, or any other file Python accepts.
+
+    - display_graphs: bool, optional
+        Whether to display the generated graphs.
+        Default is True. Note, most of the above options
+        are only relvant if you choose to display graphs.
+
+    Returned Objects:
+    ----------
+    - Each class returns a results_df, comprised of the real value,
+    the predicted counterfactual, the time values themselves as well
+    as the difference which defines our treatment effects.
+
+    - As of now, only MSC returns a weights dictionary. Including a
+    dictionary for PCR which doesn't assign sparsity to weights would
+    make a dictionary less meaningful.
+
+    - All classes return a statistics_dict, which contatain (at least)
+    the ATT (both absolute and percentage) as well as the T0 RMSE.
+    In the future, confidence intervals and additional diagnostics
+    will be included.
+
+"""
 
 # To Do list:
 # 1: At Minimum, standardize plotting
 # via using a utilities .py file.
-# This includes the observed vs predicted plots
+# This inludes the obserbed vs predited plots
 # and the gap plot.
 
 
 # 2: Standardize the reshaping of the data.
-# With a few exceptions, the way we reshape
-# all these datasets is the exact same and
-# pretty much does not change aross all the methods
+# With a few exeptions, the way we reshape
+# all these datasets is the exat same and
+# pretty muh does not hange aross all the methods
 # we have. This inludes the standardizing of notations aross
-# methods. - Done!
+# methods.
 
-# 3: Inlude static methods for ATT and other stats that are reported
-# aross all methods (the fit Fict, ATTs Dict, etc) - Done!
+# 3: Inlude stati methods for ATT and other stats that are reported
+# aross all methods. Maybe, in a helper file.
 
 # Wish list:
 
-# 2: Add plaCebo tests where appliCable and relevant (e.g, in time)
+# 2: Add placebo tests where appliable and relevant (e.g, in time)
 
 # 3: Extend at least 1 estimator to staggered adoption
 
@@ -88,7 +151,6 @@ import warnings
 warnings.filterwarnings("ignore", category=Warning, module="cvxpy")
 import pandas as pd
 import numpy as np
-from scipy.optimize import nnls
 import os
 import math
 import matplotlib.pyplot as plt
@@ -96,65 +158,86 @@ from matplotlib.ticker import MaxNLocator
 import matplotlib
 import warnings
 from numpy.linalg import inv
-#from sklearn.linear_model import LassoCV
 from scipy.stats import norm
 import scipy.stats as stats
 from typing import Union
 import scipy as sp
-from scipy.optimize import lsq_linear
-from sklearn.decomposition import PCA
-from scipy.interpolate import make_interp_spline
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-import cvxpy as cp
-from scipy.optimize import fmin_slsqp, minimize
+from scipy.optimize import lsq_linear
+#import cvxpy as cp
 from toolz import reduce, partial
 import matplotlib.ticker as ticker
-from mlsynth.utils.datautils import prepare_data, balance
+import numpy.linalg as la
+from sklearn.linear_model import LassoCV
+from mlsynth.utils.datautils import prepare_data, balance, dataprep
 from mlsynth.utils.resultutils import effects, plot_estimates
-from mlsynth.utils.estutils import Opt, pcr, TSEST
+from mlsynth.utils.estutils import Opt, pcr, TSEST, l2_relax, cross_validate_l2, pda
 from mlsynth.utils.inferutils import step2
+from mlsynth.utils.selectorsutils import fpca, determine_optimal_clusters, make_interp_spline, PDAfs
+from mlsynth.utils.denoiseutils import RPCA, spectral_rank, RPCA_HQF, DC_PR_with_suggested_rank, standardize, nbpiid, demean_matrix
 
 
 class TSSC:
-    def __init__(self, df, unitid, time, outcome, treat,
-                 figsize=(12, 6),
-                 graph_style="default",
-                 grid=True,
-                 counterfactual_color="red",
-                 treated_color="black",
-                 filetype="png",
-                 display_graphs=True, draws=1000,
-                 ):
-        self.df = df
-        self.draws = draws
-        self.unitid = unitid
-        self.time = time
-        self.outcome = outcome
-        self.treated = treat
-        self.figsize = figsize
-        self.graph_style = graph_style
-        self.grid = grid
-        self.counterfactual_color = counterfactual_color
-        self.treated_color = treated_color
-
-        self.filetype = filetype
-        self.display_graphs = display_graphs
+    def __init__(self, config):
+        """
+        Args:
+            config (dict): A dictionary containing the necessary parameters. Expected keys are:
+                - df: DataFrame containing the data.
+                - treat: Treated unit identifier.
+                - time: Time variable.
+                - outcome: Outcome variable.
+                - unitid: Identifier for units.
+                - method: (optional) Estimation method, default is "RPCA".
+                - cluster: (optional) Boolean to toggle clustering, default is False.
+                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
+                - graph_style: (optional) Style of the graph, default is "default".
+                - grid: (optional) Boolean to toggle grid, default is True.
+                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
+                - treated_color: (optional) Color for treated line, default is "black".
+                - filetype: (optional) File type for saving plots, default is ".png".
+                - display_graphs: (optional) Boolean to toggle graph display, default is True.
+                - diagnostics: (optional) Boolean to toggle diagnostics, default is False.
+                - save: (optional) Boolean to toggle saving plots, default is False.
+                - vallamb: (optional) Regularization parameter, default is 1.
+        """
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.weighted_units_dict = None
+        self.statistics_dict = None
+        self.result_df = None
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.graph_style = config.get("graph_style", "default")
+        self.grid = config.get("grid", True)
+        self.figsize = config.get("figsize", (12, 6))
+        self.filetype = config.get("filetype", ".png")
+        self.display_graphs = config.get("display_graphs", True)
+        self.diagnostics = config.get("diagnostics", False)
+        self.save = config.get("save", False)
+        self.method = config.get("method", "RPCA")
+        self.vallamb = config.get("vallamb", 1)
+        self.objective = config.get("objective", "OLS")
+        self.cluster = config.get("cluster", False)
+        self.draws = config.get("draws", 500)
 
     def fit(self):
 
         nb =self.draws
-        treated_unit_name, Ywide, y, donor_names, Xbar, t, t1, t2 = prepare_data(self.df, self.unitid, self.time,
-                                                                                 self.outcome, self.treated)
+        prepped = dataprep(self.df,
+                           self.unitid, self.time,
+                           self.outcome, self.treat)
 
-        x = np.concatenate((np.ones((t, 1)), Xbar), axis=1)
+        x = np.concatenate((np.ones((prepped['total_periods'], 1)), prepped['donor_matrix']), axis=1)
 
-        result = TSEST(Xbar, y, t1, nb, donor_names,t2)
+        result = TSEST(prepped['donor_matrix'], prepped['y'], prepped['pre_periods'], nb, prepped['donor_names'],prepped['post_periods'])
 
         n = x.shape[1]
 
         b_MSC_c = next((method_dict["MSCc"]["WeightV"] for method_dict in result if "MSCc" in method_dict), None)
-        b_SC = next((method_dict["SC"]["WeightV"] for method_dict in result if "SC" in method_dict), None)
+        b_SC = next((method_dict["SIMPLEX"]["WeightV"] for method_dict in result if "SIMPLEX" in method_dict), None)
         b_MSC_a = next((method_dict["MSCa"]["WeightV"] for method_dict in result if "MSCa" in method_dict), None)
         b_MSC_b = next((method_dict["MSCb"]["WeightV"] for method_dict in result if "MSCb" in method_dict), None)
 
@@ -162,7 +245,7 @@ class TSSC:
                                   np.array([[1] + list(np.zeros(n - 1))]),
                                   np.array([[0] + list(np.ones(n - 1)),
                                             [1] + list(np.zeros(n - 1))]),
-                                  b_MSC_c, 1, 0, np.array([[1], [0]]), t1, x[:t1, :], y[:t1],
+                                  b_MSC_c, 1, 0, np.array([[1], [0]]), prepped['pre_periods'], x[:prepped['pre_periods'], :], prepped['y'][:prepped['pre_periods']],
                                   nb, x.shape[1], np.zeros((n, nb)))
 
         recommended_variable = next(
@@ -171,185 +254,287 @@ class TSSC:
         ATT, RMSE = next(
             ((method_dict[recommended_model]["Effects"]["ATT"], method_dict[recommended_model]["Fit"]["T0 RMSE"]) for
              method_dict in result if recommended_model in method_dict), (None, None))
-
-        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treated,
-                       treated_unit_name, y, recommended_variable, method=recommended_model,
-                       treatedcolor=self.treated_color, counterfactualcolor=self.counterfactual_color,
-                       rmse=RMSE, att=ATT)
+        
+        plot_estimates(
+            df=self.df,
+            time=self.time,
+            unitid=self.unitid,
+            outcome=self.outcome,
+            treatmentname=self.treat,
+            treated_unit_name=prepped["treated_unit_name"],
+            y=prepped["y"],
+            cf_list=[recommended_variable],
+            counterfactual_names=[recommended_model],
+            method=r'$\ell_2$ relaxation',
+            treatedcolor=self.treated_color,
+            counterfactualcolors=[self.counterfactual_color]
+        )
 
         return result
 
+# Method 4: Factor Model Approach
 
 
-
-class PCR:
-    """
-    Implements Principal Component Regression.
-
-    Here, we estimate the low rank structure of the donor matrix using singular
-    value thresholding, and then learning the pre-intervention period with
-    OLS regression. Then, we predict the post-intervention counterfacutal
-    using the learnt weights.
-    """
-
-    def __init__(
-        self,
-        df,
-        treat,
-        time,
-        outcome,
-        unitid,
-        figsize=(12, 6),
-        graph_style="default",
-        grid=True,
-        counterfactual_color="red",
-        treated_color="black",
-        filetype="png",
-        display_graphs=True,
-        objective="OLS", placebo=None, save=False
-    ):
-        self.df = df
-        self.objective = objective
-        self.save = save
-        self.treat = treat
-        self.time = time
-        self.outcome = outcome
-        self.unitid = unitid
-        self.figsize = figsize
-        self.graph_style = graph_style
-        self.grid = grid
-        self.counterfactual_color = counterfactual_color
-        self.treated_color = treated_color
-
-        self.filetype = filetype
-        self.display_graphs = display_graphs
-
-        self.placebo = placebo
+class FMA:
+    def __init__(self, config):
+        """
+        Args:
+            config (dict): A dictionary containing the necessary parameters. Expected keys are:
+                - df: DataFrame containing the data.
+                - treat: Treated unit identifier.
+                - time: Time variable.
+                - outcome: Outcome variable.
+                - unitid: Identifier for units.
+                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
+                - graph_style: (optional) Style of the graph, default is "default".
+                - grid: (optional) Boolean to toggle grid, default is True.
+                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
+                - treated_color: (optional) Color for treated line, default is "black".
+                - filetype: (optional) File type for saving plots, default is ".png".
+                - display_graphs: (optional) Boolean to toggle graph display, default is True.
+                - save: (optional) Boolean to toggle saving plots, default is False.
+                - train_periods: (optional) Number of periods to train with for the rolling origin CV, default is 4.
+        """
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.figsize = config.get("figsize", (12, 6))
+        self.graph_style = config.get("graph_style", "default")
+        self.grid = config.get("grid", True)
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.filetype = config.get("filetype", ".png")
+        self.display_graphs = config.get("display_graphs", True)
+        self.save = config.get("save", False)
+        self.criti = 10
 
     def fit(self):
+        prepped = dataprep(self.df,
+                           self.unitid, self.time,
+                           self.outcome, self.treat)
+        t = prepped["total_periods"]
+        t1 = prepped["pre_periods"]
+        
+        t2 = prepped["post_periods"]
+        datax = prepped["donor_matrix"]
+        y1 = prepped["y"][:prepped["pre_periods"]]
+        y2 = prepped["y"][prepped["post_periods"]:]
+        y = prepped["y"]
+        N_co = datax.shape[1]
+        n_cutoff = 70
+        m_N = max(0, n_cutoff - N_co)
+        m_T = max(0, n_cutoff - t)
+        const = np.ones((t, 1))
+        x = np.hstack((const, datax))
+        x1 = x[:t1, :]
+        x2 = x[t1:, :]
+        X = demean_matrix(datax)
+        XX = np.dot(X, X.T)
+        eigval, Fhat0 = np.linalg.eigh(XX)
+        Fhat0 = Fhat0[:, ::-1]
+        t1_one = np.ones((t1, 1))
+        t2_one = np.ones((t2, 1))
+        rmax = 10
+        DEMEAN = 0
+        MSE = np.zeros(rmax)
+        for r in range(1, rmax + 1):
+            Fhat_1 = np.hstack((t1_one, Fhat0[:t1, :r]))
+            u1_hat_xu = np.zeros(t)
+            for s in range(t1):
+                Fhat_1_xu = Fhat_1.copy()
+                Fhat_1_xu = np.delete(Fhat_1_xu, s, axis=0)
+                y1_xu = np.delete(y1, s)
+                lambda_hat_xu = (
+                    inv(np.dot(Fhat_1_xu.T, Fhat_1_xu)).dot(Fhat_1_xu.T).dot(y1_xu)
+                )
+                u1_hat_xu[s] = y1[s] - np.dot(Fhat_1[s, :], lambda_hat_xu)
+            MSE[r - 1] = np.mean(u1_hat_xu**2)
+        mse_min, nfactor_xu = np.min(MSE), np.argmin(MSE) + 1
 
-        def get_PlaceboGaps(Y0, t, t1, t2, pcr, objective, donor_names, effects):
-            PlaceboGaps = np.empty((t, 0))  # Initialize an empty matrix to store Gap columns
+        if self.criti == 11:
+            nfactor_Bai, _, _ = nbpiid(X, rmax, self.criti, DEMEAN, m_N, m_T)
+            nfactor = min(nfactor_Bai, nfactor_xu)
+        elif self.criti == 10:
+            nfactor_MBN, _, _ = nbpiid(X, rmax, self.criti, DEMEAN, m_N, m_T)
+            nfactor = min(nfactor_MBN, nfactor_xu)
+        F_hat1 = np.hstack((t1_one, Fhat0[:t1, :nfactor]))
+        F_hat2 = np.hstack((t2_one, Fhat0[t1:t, :nfactor]))
 
-            for i in range(Y0.shape[1]):
-                ypla = Y0[:, i].copy()  # Copy the ith column of Y0
-                Y0pla = np.delete(Y0, i, axis=1)  # Remove the ith column from Y0
-                weights2 = pcr(Y0pla[:t1], ypla, objective, donor_names)
-                attdictplacebo, fitdictplacebo, Vectorsplacebo = effects.calculate(ypla, np.dot(Y0pla, weights2),
-                                                                                   t1, t2)
-                PlaceboGaps = np.concatenate((PlaceboGaps, Vectorsplacebo["Gap"][:, 0][:, np.newaxis]),
-                                             axis=1)  # Concatenate the first column of Gap to PlaceboGaps
-                Y0 = np.insert(Y0pla, i, ypla, axis=1)  # Insert the modified column back into Y0
+        b_hat = inv(np.dot(F_hat1.T, F_hat1)).dot(F_hat1.T).dot(y1)
+        y1_hat = np.dot(F_hat1, b_hat)
+        y2_hat = np.dot(F_hat2, b_hat)
+        y_hat = np.concatenate((y1_hat, y2_hat))
+        attdict, fitdict, Vectors = effects.calculate(prepped["y"], y_hat, prepped["pre_periods"], prepped["post_periods"])
+        e1_hat = y1 - np.dot(F_hat1, b_hat)
+    
+        # Create the dictionary of statistics
+        sigma2_e_hat = np.mean(e1_hat**2)  # \hat sigma^2_e
+        hat_eta = np.mean(F_hat2, axis=0)[:, np.newaxis]
+        e1_2 = e1_hat**2
+        E_FF = np.dot(F_hat1.T, F_hat1) / t1
+        hat_Psi = (
+            np.linalg.inv(E_FF)
+            .dot(np.dot(F_hat1.T, np.diag(e1_2)).dot(F_hat1) / t1)
+            .dot(np.linalg.inv(E_FF))
+        )
+        Omega_1_hat = (t2 / t1) * np.dot(np.dot(hat_eta.T, hat_Psi), hat_eta)
+        Omega_2_hat = sigma2_e_hat
+        # variance of sqrt(t2)(\hat \Delta_1 - \Delta_1)
+        Omega_hat = Omega_1_hat + Omega_2_hat
 
-            return PlaceboGaps
+        AA = np.sqrt(Omega_hat) / np.sqrt(t2)
 
-        # Extracts our data characteristics
-        treated_unit_name, Ywide, y, donor_names, Y0, t, t1, t2 = prepare_data(self.df, self.unitid, self.time,
-                                                                                 self.outcome, self.treat)
+        def calculate_cr(perc, att, AA):
+            return att - norm.ppf(perc) * AA
 
-        weights = pcr(Y0[:t1], y, self.objective, donor_names)
-        attdict, fitdict, Vectors = effects.calculate(y, np.dot(Y0, weights), t1, t2)
+        # ATT and AA values
+        ATT = attdict["ATT"]
 
-        if self.placebo=="Unit":
-            gapreal = Vectors["Gap"][:, 0][:, np.newaxis]
-            Y0pla = get_PlaceboGaps(Y0, t, t1, t2, pcr, self.objective, donor_names, effects)
-            # Plotting
-            plt.figure(figsize=(10, 6))
-            for i in range(Y0pla.shape[1]):
-                plt.plot(range(t), Y0pla[:, i], color="grey", alpha=.45, linewidth=1)
+        # Calculate the bounds in one line each
+        cr005, cr995 = calculate_cr(0.005, ATT, AA), calculate_cr(0.995, ATT, AA)
+        cr025, cr975 = calculate_cr(0.025, ATT, AA), calculate_cr(0.975, ATT, AA)
+        cr05, cr95 = calculate_cr(0.05, ATT, AA), calculate_cr(0.95, ATT, AA)
 
-            plt.plot(range(t), gapreal, color="black", linewidth=2.5)
-            plt.axvline(x=t1, color='r', linestyle='--')
-            plt.xlabel('Time')
-            plt.ylabel('Treatment Effect')
-            plt.title('In-Space Placebo Tests')
-            plt.grid(True)
-            if self.save == True:
-                plt.savefig("Placebo" + "PCR" + treated_unit_name + ".png")
-            else:
-                plt.show()
+        # 95% CI and 90% CI
+        c90FM = [cr05, cr95, cr95 - cr05]
+        c95FM = [cr025, cr975, cr975 - cr025]
+        
+        confidence_interval = (c95FM[1].item(), c95FM[2].item())
+        t_stat = ATT / AA  # t-statistic
+        # Calculate p-value using the t-statistic
+        p_value = 2 * (1 - norm.cdf(abs(t_stat)))
 
-            gapmat = np.concatenate((gapreal, Y0pla), axis=1)
-
-            PreRMSEs = np.sqrt(np.mean(gapmat[:t1] ** 2, axis=0))
-
-            PostRMSEs = np.sqrt(np.mean(gapmat[t1:] ** 2, axis=0))
-
-            RMSEs = np.vstack((PreRMSEs, PostRMSEs,PostRMSEs/PreRMSEs)).T
-
-            info = {"Gaps": gapmat, "RMSEs": RMSEs}
-
-            return info
-        else:
-            plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
-                           treated_unit_name, y, np.dot(Y0, weights), method="PCR",
-                           treatedcolor=self.treated_color, counterfactualcolor=self.counterfactual_color,
-                           rmse=fitdict["T0 RMSE"], att=attdict["ATT"], save=self.save)
-
-            weights_dict = {}
-            for unit, weight in zip(Ywide.columns[Ywide.columns != treated_unit_name], weights):
-                weights_dict[unit] = round(weight, 4)
-
-            PCR_dict = {
-                "Effects": attdict,
-                "Vectors": Vectors,
-                "Fit": fitdict,
-                "Weights": weights_dict
-            }
-            return PCR_dict
-
+        Inference = {
+            "SE": AA,
+            "tstat": t_stat,
+            "95% CI": confidence_interval,
+            "p_value": p_value
+        }
+        
+        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
+                       prepped["treated_unit_name"], prepped["y"], [y_hat], method="FMA",
+                       treatedcolor=self.treated_color, 
+                       counterfactualcolors=["red"],
+                       counterfactual_names=[f"FMA {prepped['treated_unit_name']}"])
+        
+        
+        return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference}
 
 
 
+# Method 7: Panel Data Approaches (LASSO, FSPDA, L2)
 
+
+class PDA:
+    def __init__(self, config):
+        """
+        Args:
+            config (dict): A dictionary containing the necessary parameters. Expected keys are:
+                - df: DataFrame containing the data.
+                - treat: Treated unit identifier.
+                - time: Time variable.
+                - outcome: Outcome variable.
+                - unitid: Identifier for units.
+                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
+                - graph_style: (optional) Style of the graph, default is "default".
+                - grid: (optional) Boolean to toggle grid, default is True.
+                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
+                - treated_color: (optional) Color for treated line, default is "black".
+                - filetype: (optional) File type for saving plots, default is ".png".
+                - display_graphs: (optional) Boolean to toggle graph display, default is True.
+                - save: (optional) Boolean to toggle saving plots, default is False.
+                - train_periods: (optional) Number of periods to train with for the rolling origin CV, default is 4.
+        """
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.figsize = config.get("figsize", (12, 6))
+        self.graph_style = config.get("graph_style", "default")
+        self.grid = config.get("grid", True)
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.filetype = config.get("filetype", ".png")
+        self.display_graphs = config.get("display_graphs", True)
+        self.save = config.get("save", False)
+        self.method = config.get("method", "fs")
+
+    def fit(self):
+        # Preprocess the data
+        prepped = dataprep(self.df,
+                           self.unitid, self.time,
+                           self.outcome, self.treat)
+
+        pdaest = pda(prepped,  len(prepped["donor_names"]), method=self.method)
+        attdict, fitdict, Vectors = effects.calculate(prepped["y"], pdaest['Vectors']['Counterfactual'], prepped["pre_periods"],
+                                                         prepped["post_periods"])
+        method = pdaest.get("method", "default_method")  # Use "default_method" as fallback
+
+        counterfactual_name = f'{method} {prepped["treated_unit_name"]}'
+        
+        if self.display_graphs:
+
+            plot_estimates(
+                df=self.df,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname=self.treat,
+                treated_unit_name=prepped["treated_unit_name"],
+                y=prepped["y"],
+                cf_list=[pdaest['Vectors']['Counterfactual']],
+                counterfactual_names=[counterfactual_name],
+                method=r'$\ell_2$ relaxation',
+                treatedcolor=self.treated_color,
+                counterfactualcolors=[self.counterfactual_color]
+            )
+
+        return pdaest
+
+
+# Method 8: Forward Selected DD
 
 class FDID:
-    def __init__(self, df, unitid, time, outcome, treat,
-                 figsize=(12, 6),
-                 graph_style="default",
-                 grid=True,
-                 counterfactual_color="red",
-                 treated_color="black",
-                 filetype="png",
-                 display_graphs=True,
-                 placebo=None
-                 ):
-        self.df = df
-        self.unitid = unitid
-        self.time = time
-        self.outcome = outcome
-        self.treated = treat
-        self.figsize = figsize
-        self.graph_style = graph_style
-        self.grid = grid
-        self.counterfactual_color = counterfactual_color
-        self.treated_color = treated_color
+    def __init__(self, config):
+        """
+        Initialize the FDID class with configuration options provided as a dictionary.
 
-        self.filetype = filetype
-        self.display_graphs = display_graphs
+        Args:
+            config (dict): Dictionary containing the configuration options.
+                Expected keys:
+                    - df (pd.DataFrame): Dataframe containing the data.
+                    - unitid (str): Column name for unit IDs.
+                    - time (str): Column name for time periods.
+                    - outcome (str): Column name for outcomes.
+                    - treat (str): Column name for treatment indicator.
+                    - figsize (tuple): Figure size for plots. Default: (12, 6).
+                    - graph_style (str): Matplotlib style for plots. Default: "default".
+                    - grid (bool): Whether to display grid lines. Default: True.
+                    - counterfactual_color (str): Color for counterfactual lines. Default: "red".
+                    - treated_color (str): Color for treated lines. Default: "black".
+                    - filetype (str): File type for saving plots. Default: "png".
+                    - display_graphs (bool): Whether to display graphs. Default: True.
+                    - placebo (any): Optional placebo parameter.
+        """
+        # Required parameters
+        self.df = config.get("df")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.outcome = config.get("outcome")
+        self.treated = config.get("treat")
 
-        # Check for the "placebo" option
-        if placebo is not None:
-            self.validate_placebo_option(placebo)
-            self.placebo_option = placebo
+        # Optional parameters with defaults
+        self.figsize = config.get("figsize", (12, 6))
+        self.graph_style = config.get("graph_style", "default")
+        self.grid = config.get("grid", True)
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.filetype = config.get("filetype", "png")
+        self.display_graphs = config.get("display_graphs", True)
 
-    def validate_placebo_option(self, placebo):
-        # Check if the provided placebo option is a dictionary
-        if not isinstance(placebo, dict):
-            raise ValueError("The 'placebo' option must be a dictionary.")
-
-        # Check for the first key in the dictionary
-        first_key = next(iter(placebo), None)
-        if first_key not in ["Time", "Space"]:
-            raise ValueError(
-                "The first key in the 'placebo' option must be either 'Time' or 'Space'.")
-
-        # If the first key is "Time", check if the associated value is a list of positive integers
-        if first_key == "Time":
-            values = placebo[first_key]
-            if not (isinstance(values, list) and all(isinstance(num, int) and num > 0 for num in values)):
-                raise ValueError(
-                    "If the first key in the 'placebo' option is 'Time', the associated value must be a list of positive integers.")
 
     def DID(self, y, datax, t1, itp=0):
         t = len(y)
@@ -387,6 +572,8 @@ class FDID:
         t2 = t - t1
 
         Omega_1_hat_DID = (t2 / t1) * np.mean(u1_DID**2)
+
+        #print(f'({t2} / {t1}) * {np.mean(u1_DID ** 2)}')
         Omega_2_hat_DID = np.mean(u1_DID**2)
 
         # \hat Sigma_{DID}
@@ -408,7 +595,11 @@ class FDID:
         # 95% Confidence Interval for DID ATT estimate
 
         z_critical = norm.ppf(0.975)  # 1.96 for a two-tailed test
+
+        #print(z_critical * std_Omega_hat_DID / np.sqrt(t2))
+
         CI_95_DID_left = ATT_DID - z_critical * std_Omega_hat_DID / np.sqrt(t2)
+        #print(f"{ATT_DID} - {z_critical} * {std_Omega_hat_DID} / np.sqrt({t2})")
         CI_95_DID_right = ATT_DID + z_critical * std_Omega_hat_DID / np.sqrt(t2)
         CI_95_DID_width = [
             CI_95_DID_left,
@@ -438,7 +629,11 @@ class FDID:
             "95 LB": round(CI_95_DID_left, 3),
             "95 UB": round(CI_95_DID_right, 3),
             "Width": CI_95_DID_right - CI_95_DID_left,
-            "Intercept":  np.round(b_DID, 3)
+            "stdhat": std_Omega_hat_DID,
+            "Intercept":  np.round(b_DID, 3),
+            "Omega Hat 1": Omega_1_hat_DID,
+            "Omega Hat 2": Omega_2_hat_DID,
+            "STD Omega Hat": std_Omega_hat_DID
         }
 
         gap = y - y_DID
@@ -589,520 +784,478 @@ class FDID:
 
         return FDID_dict, DID_dict, AUGDID_dict, y_FDID
 
-    def selector(self, no_control, t1, t, y, y1, y2, datax, control_ID, df):
-
-
-        R2 = np.zeros(no_control)
+    def selector(self, no_control, t1, t, y, datax, control_ID):
+        # Preallocate R-squared arrays and select array
         R2final = np.zeros(no_control)
         control_ID_adjusted = np.array(control_ID) - 1
         select_c = np.zeros(no_control, dtype=int)
 
-        for j in range(no_control):
-            ResultDict = self.DID(y.reshape(-1, 1), datax[:t, j].reshape(-1, 1), t1)
-            R2[j] = ResultDict["Fit"]["R-Squared"]
-        R2final[0] = np.max(R2)
-        first_c = np.argmax(R2)
-        select_c[0] = control_ID_adjusted[first_c]
+        # Reshape y just once
+        y_reshaped = y.reshape(-1, 1)
 
-        for k in range(2, no_control + 1):
-            left = np.setdiff1d(control_ID_adjusted, select_c[: k - 1])
-            control_left = datax[:, left]
+        # Initialize the selected control matrix
+        selected_controls = np.empty((t, 0))
+
+        for k in range(no_control):
+            # Find the best control to add at the current step
+            left = np.setdiff1d(control_ID_adjusted, select_c[:k])
             R2 = np.zeros(len(left))
 
-            for jj in range(len(left)):
-                combined_control = np.concatenate(
-                    (
-                        datax[:t1, np.concatenate((select_c[: k - 1], [left[jj]]))],
-                        datax[t1:t, np.concatenate((select_c[: k - 1], [left[jj]]))]
-                    ),
-                    axis=0
-                )
-                ResultDict = self.DID(y.reshape(-1, 1), combined_control, t1)
+            for jj, control_idx in enumerate(left):
+                # Combine previously selected controls with the current candidate
+                combined_control = np.hstack((selected_controls[:t, :], datax[:, control_idx].reshape(-1, 1)))
+
+                # Estimate DiD and compute R-squared for this combination
+                ResultDict = self.DID(y_reshaped, combined_control, t1)
                 R2[jj] = ResultDict["Fit"]["R-Squared"]
 
-            R2final[k - 1] = np.max(R2)
-            select = left[np.argmax(R2)]
-            select_c[k - 1] = select
+            # Update R-squared and the best control
+            R2final[k] = np.max(R2)
 
-        return select_c, R2final
+            best_new_control = left[np.argmax(R2)]
+            select_c[k] = best_new_control
+
+
+            # Update the selected controls matrix with the new control
+            selected_controls = np.hstack((selected_controls, datax[:, best_new_control].reshape(-1, 1)))
+        # Get the index of the model with the highest R2
+        best_model_idx = R2final.argmax()
+        Uhat = datax[:, select_c[:best_model_idx + 1]]
+
+        return select_c[:best_model_idx + 1], R2final, Uhat
 
     def fit(self):
-        Ywide = self.df.pivot_table(
-            values=self.outcome, index=self.time, columns=self.unitid, sort=False
+        prepped = dataprep(self.df,
+                           self.unitid, self.time,
+                           self.outcome, self.treated)
+
+        y1 = np.ravel(prepped["y"][:prepped["pre_periods"]])
+        y2 = np.ravel(prepped["y"][-prepped["post_periods"]:])
+
+        print(prepped["donor_matrix"].shape[1])
+
+        selected, R2_final, Uhat = self.selector(
+            prepped["donor_matrix"].shape[1], prepped["pre_periods"], prepped["total_periods"], prepped["y"], prepped["donor_matrix"],  np.arange(1, prepped["donor_matrix"].shape[1] + 1)
         )
 
-        treated_unit_name = self.df.loc[self.df[self.treated] == 1, self.unitid].values[0]
-        Ywide = Ywide[[treated_unit_name] +
-                      [col for col in Ywide.columns if col != treated_unit_name]]
-        y = Ywide[treated_unit_name].values.reshape(-1, 1)
-        donor_df = self.df[self.df[self.unitid] != treated_unit_name]
-        donor_names = donor_df[self.unitid].unique()
-        datax = Ywide[donor_names].values
-        no_control = datax.shape[1]
-        control_ID = np.arange(1, no_control + 1)  # 1 row vector from 1 to no_control
+        selected_controls = prepped["donor_names"].take(selected.tolist()).tolist()
 
-        t = np.shape(y)[0]
-        assert t > 5, "You have less than 5 total periods."
-
-        results = []  # List to store results
-
-        self.realt1 = len(
-            self.df[
-                (self.df[self.unitid] == treated_unit_name)
-                & (self.df[self.treated] == 0)
-            ]
+        FDID_dict, DID_dict, AUGDID_dict, y_FDID = self.est(
+            Uhat, prepped["total_periods"], prepped["pre_periods"], prepped["post_periods"], prepped["y"], y1, y2, prepped["donor_matrix"]
         )
 
-        if hasattr(self, 'placebo_option'):
-            print("Placebo Option in fit method:", self.placebo_option)
-            placebo_list = self.placebo_option.get("Time")
-            placebo_list = [0] + self.placebo_option.get("Time")
-            for i, itp in enumerate(placebo_list):
-                t1 = len(
-                    self.df[
-                        (self.df[self.unitid] == treated_unit_name)
-                        & (self.df[self.treated] == 0)
-                    ]
-                ) - itp
+        estimators_results = []
 
-                t2 = t - t1
+        # Calculate the weight
+        weight = 1 / len(selected_controls)
 
-                y1 = np.ravel(y[:t1])
-                y2 = np.ravel(y[-t2:])
+        # Create the dictionary
+        unit_weights = {unit: weight for unit in selected_controls}
 
-                control_order, R2_final = self.selector(
-                    no_control, t1, t, y, y1, y2, datax, control_ID, Ywide
-                )
-                selected_control_indices = control_order[:R2_final.argmax() + 1]
-
-                copy_wide_copy = Ywide.iloc[:, 1:].copy()
-                selected_controls = [copy_wide_copy.columns[i] for i in selected_control_indices]
-
-                control = datax[:, control_order[: R2_final.argmax() + 1]]
-
-                FDID_dict, DID_dict, AUGDID_dict, y_FDID = self.est(
-                    control, t, t1, t - t1, y, y1, y2, datax
-                )
-
-                placebo_results = []  # Initialize an empty list for each placebo iteration
-                FDID_dict['Selected Units'] = selected_controls
-                placebo_results.append({"FDID": FDID_dict})
-
-                # Append the normal DID dictionary to the list
-                placebo_results.append({"DID": DID_dict})
-                placebo_results.append({"AUGDID": AUGDID_dict})
-
-                def round_dict_values(input_dict, decimal_places=3):
-                    rounded_dict = {}
-                    for key, value in input_dict.items():
-                        if isinstance(value, dict):
-                            # Recursively round nested dictionaries
-                            rounded_dict[key] = round_dict_values(value, decimal_places)
-                        elif isinstance(value, (int, float, np.float64)):
-                            # Round numeric values
-                            rounded_dict[key] = round(value, decimal_places)
-                        else:
-                            rounded_dict[key] = value
-                    return rounded_dict
-
-                # Round all values in the placebo_results list of dictionaries
-                placebo_results = [
-                    round_dict_values(result) for result in placebo_results
-                ]
-
-                # Add the placebo results to the overall results list with a labeled key
-                results.append({"Placebo" + str(i): placebo_results})
-
-        else:
-
-            t1 = len(
-                self.df[
-                    (self.df[self.unitid] == treated_unit_name)
-                    & (self.df[self.treated] == 0)
-                ]
-            )
-
-            t2 = t - t1
-            y1 = np.ravel(y[:t1])
-            y2 = np.ravel(y[-t2:])
-
-            control_order, R2_final = self.selector(
-                no_control, t1, t, y, y1, y2, datax, control_ID, Ywide
-            )
-            selected_control_indices = control_order[:R2_final.argmax() + 1]
-            copy_wide_copy = Ywide.iloc[:, 1:].copy()
-            selected_controls = [copy_wide_copy.columns[i] for i in selected_control_indices]
-
-            control = datax[:, control_order[: R2_final.argmax() + 1]]
-
-            FDID_dict, DID_dict, AUGDID_dict, y_FDID = self.est(
-                control, t, t1, t - t1, y, y1, y2, datax
-            )
-
-            estimators_results = []
-
-            # Calculate the weight
-            weight = 1 / len(selected_controls)
-
-            # Create the dictionary
-            unit_weights = {unit: weight for unit in selected_controls}
-
-            FDID_dict['Weights'] = unit_weights
+        FDID_dict['Weights'] = unit_weights
 
 
-            estimators_results.append({"FDID": FDID_dict})
+        estimators_results.append({"FDID": FDID_dict})
 
-            # Append the normal DID dictionary to the list
-            estimators_results.append({"DID": DID_dict})
-            estimators_results.append({"AUGDID": AUGDID_dict})
+        # Append the normal DID dictionary to the list
+        estimators_results.append({"DID": DID_dict})
+        estimators_results.append({"AUGDID": AUGDID_dict})
 
-            def round_dict_values(input_dict, decimal_places=3):
-                rounded_dict = {}
-                for key, value in input_dict.items():
-                    if isinstance(value, dict):
-                        # Recursively round nested dictionaries
-                        rounded_dict[key] = round_dict_values(value, decimal_places)
-                    elif isinstance(value, (int, float, np.float64)):
-                        # Round numeric values
-                        rounded_dict[key] = round(value, decimal_places)
-                    else:
-                        rounded_dict[key] = value
-                return rounded_dict
+        def round_dict_values(input_dict, decimal_places=3):
+            rounded_dict = {}
+            for key, value in input_dict.items():
+                if isinstance(value, dict):
+                    # Recursively round nested dictionaries
+                    rounded_dict[key] = round_dict_values(value, decimal_places)
+                elif isinstance(value, (int, float, np.float64)):
+                    # Round numeric values
+                    rounded_dict[key] = round(value, decimal_places)
+                else:
+                    rounded_dict[key] = value
+            return rounded_dict
 
             # Round all values in the estimators_results list of dictionaries
-            estimators_results = [
-                round_dict_values(result) for result in estimators_results
-            ]
+            #estimators_results = [
+                #round_dict_values(result) for result in estimators_results
+            #]
 
             # Add the estimators results to the overall results list
             # results.append({"Estimators": estimators_results})
 
-            if self.display_graphs:
-                time_axis = self.df[self.df[self.unitid] == treated_unit_name][self.time].values
-                intervention_point = self.df.loc[self.df[self.treated] == 1, self.time].min()
-                n = np.arange(1, t+1)
-                fig = plt.figure(figsize=self.figsize)
+        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treated,
+                       prepped["treated_unit_name"], prepped["y"], [y_FDID], method="FDID",
+                       treatedcolor=self.treated_color, counterfactualcolors=["red"],
+                       rmse=FDID_dict["Fit"]["T0 RMSE"], att=FDID_dict["Effects"]["ATT"])
 
-                plt.plot(
-                    n,
-                    y,
-                    color=self.treated_color,
-                    label="Observed {}".format(treated_unit_name),
-                    linewidth=2
-                )
-                plt.plot(
-                    n[: t1],
-                    y_FDID[: t1],
-                    color=self.counterfactual_color,
-                    linewidth=2,
-                    label="FDID {}".format(treated_unit_name),
-                )
-                plt.plot(
-                    n[t1-1:],
-                    y_FDID[t1-1:],
-                    color=self.counterfactual_color,
-                    linestyle="--",
-                    linewidth=2,
-                )
-                plt.axvline(
-                    x=t1+1,
-                    color="grey",
-                    linestyle="--", linewidth=1.5,
-                    label=self.treated + ", " + str(intervention_point),
-                )
-                upb = max(max(y), max(y_FDID))
-                lpb = min(0.5 * min(min(y), min(y_FDID)), 1 * min(min(y), min(y_FDID)))
+        return estimators_results
 
-                error_value = FDID_dict["Fit"]["T0 RMSE"]
-                ATT = FDID_dict["Effects"]["ATT"]
-
-                # Set y-axis limits
-                # plt.ylim(lpb, upb)
-                plt.xlabel(self.time)
-                plt.ylabel(self.outcome)
-                plt.title(fr'Forward DID, $\bar{{\tau}}$ = {ATT:.3f}, RMSE = {error_value:.3f}')
-                plt.grid(self.grid)
-                plt.legend()
-                plt.show()
-
-        if hasattr(self, 'placebo_option'):
-            return results
-        else:
-            return estimators_results
-
-
-
-
-class PCASC:
-    def __init__(
-        self,
-        df,
-        treat,
-        time,
-        outcome,
-        unitid,
-        method="RPCA",  # Add an argument for specifying the method
-        figsize=(12, 6),
-        graph_style="default",
-        grid=True,
-        counterfactual_color="red",
-        treated_color="black",
-        filetype=".png",
-        display_graphs=True,
-        diagnostics=False,
-        save=False, vallamb=1
-    ):
+class RSL:
+    def __init__(self, df, unitid, time, outcome, treat,
+                 figsize=(12, 6),
+                 graph_style="default",
+                 grid=True,
+                 counterfactual_color="red",
+                 treated_color="black",
+                 filetype="png",
+                 display_graphs=True,
+                 method = "RPCA", vallamb=1
+                 ):
         self.df = df
-        self.outcome = outcome
-        self.treat = treat
         self.unitid = unitid
         self.time = time
+        self.outcome = outcome
+        self.treated = treat
+        self.vallamb = vallamb
+        self.figsize = figsize
+        self.graph_style = graph_style
+        self.grid = grid
+        self.counterfactual_color = counterfactual_color
+        self.treated_color = treated_color
+        self.method = method
+
+        self.filetype = filetype
+        self.display_graphs = display_graphs
+
+    def fit(self):
+        SCmodel = PCASC(
+            df=self.df,
+            treat=self.treated,
+            time=self.time,
+            outcome=self.outcome,
+            unitid=self.unitid,
+            display_graphs=False, method=self.method, vallamb=self.vallamb
+        )
+
+        SCMResult = SCmodel.fit()
+
+        FDIDmodel = FDID(
+            df=self.df,
+            treat=self.treated,
+            time=self.time,
+            outcome=self.outcome,
+            unitid=self.unitid,
+            display_graphs=False
+        )
+
+        FDIDResults = FDIDmodel.fit()
+
+        ensdict = {
+            "real": SCMResult['Vectors']['Observed Unit'],
+            "scm": SCMResult['Vectors']['Counterfactual'],
+            "DID": FDIDResults[0]['FDID']['Vectors']['Counterfactual'],
+            "T0": FDIDResults[0]['FDID']['Fit']['Pre-Periods'],
+            "treatedunit": SCMResult['stats']['Treated Unit'],
+            "Treatment Name": SCMResult['stats']['Treatment Name'],
+            "Outcome": SCMResult['stats']['Outcome'],
+            "SCMW": SCMResult['Weights'],
+            "DIDW": FDIDResults[0]["FDID"]["Weights"],
+            "SCM MSE":  SCMResult['Fit']["T0 RMSE"],
+            "DID MSE": FDIDResults[1]["DID"]["Fit"]["T0 RMSE"],
+            "FDID MSE": FDIDResults[0]["FDID"]["Fit"]["T0 RMSE"],
+            "FDID Intercept": FDIDResults[0]["FDID"]["Inference"]["Intercept"]
+        }
+
+        def ensemble_predictions(ensdict):
+            observed = ensdict['real']
+            scm = ensdict['scm']
+            did = ensdict['DID']
+            T0 = t1 = ensdict['T0']
+            t2 = len(observed-T0)
+            treatedunit = ensdict['treatedunit']
+            trname = ensdict["Treatment Name"]
+            outname = ensdict["Outcome"]
+            SCM_weights = ensdict['SCMW']
+
+            DID_weights = ensdict["DIDW"]
+
+            SCMFIT = ensdict["SCM MSE"]
+
+            DIDFIT = ensdict["DID MSE"]
+
+            FDIDFIT =ensdict["FDID MSE"]
+
+            Intercept = ensdict["FDID Intercept"]
+
+            Y0 = np.concatenate((scm, did), axis=1)
+
+            weights = Opt.SCopt(Y0.shape[1], np.ravel(observed[:t1]), t1, Y0[:T0, :], model="CONVEX")
+
+            y_RSL = np.dot(Y0, weights)
+
+            attdict, fitdict, Vectors = effects.calculate(observed, y_RSL.reshape(-1, 1), t1, t2)
+
+            plot_estimates(self.df, self.time, self.unitid, outname, trname,
+                           treatedunit, observed, y_RSL, method="RSL",
+                           treatedcolor=self.treated_color, counterfactualcolor=self.counterfactual_color,
+                           rmse=fitdict["T0 RMSE"], att=attdict["ATT"])
+
+            # Combine weights
+            ensemble_weights = {}
+
+            # SCM weights (weights[0])
+            for unit, weight in SCM_weights.items():
+                ensemble_weights[unit] = weights[0] * weight
+
+            # DID weights (weights[1])
+            for unit, weight in DID_weights.items():
+                if unit in ensemble_weights:
+                    ensemble_weights[unit] += weights[1] * weight
+                    # if both were selected as donors
+                else:
+                    ensemble_weights[unit] = weights[1] * weight
+                    # If only FDID selected it
+
+            ensemble_weights = {unit: round(weight, 3) for unit, weight in ensemble_weights.items()}
+
+            betas = {"SCM":  round(weights[0],3), "FDID":  round(weights[1],3)}
+
+            weights_dict = {"Unit Weights": ensemble_weights, "Model Weights": betas,
+                            "Intercept": np.round((weights[1]) * Intercept, 3)}
+            # Compute percent change for SCMFIT
+            percent_change_SCM = ((fitdict["T0 RMSE"] - SCMFIT) / fitdict["T0 RMSE"]) * 100
+
+            # Compute percent change for DIDFIT
+            percent_change_DID = ((fitdict["T0 RMSE"] - DIDFIT) / fitdict["T0 RMSE"]) * 100
+
+            percent_change_FDID = ((fitdict["T0 RMSE"] - FDIDFIT) / fitdict["T0 RMSE"]) * 100
+
+            # Construct the dictionary for improvements
+            Improvements = {
+                "SCM Improvement (%)": round(percent_change_SCM, 3),
+                "DID Improvement (%)": round(percent_change_DID, 3),
+                "FDID Improvement (%)": round(percent_change_FDID)
+            }
+
+            RSL_dict = {
+                "Effects": attdict,
+                "Vectors": Vectors,
+                "Fit": fitdict,
+                "Weights": weights_dict,
+                "Error Reduction": Improvements
+            }
+
+            return RSL_dict
+
+        dict = ensemble_predictions(ensdict)
+        return dict
+
+
+
+
+class GSC:
+    def __init__(self, config):
+        """
+        Args:
+            config (dict): A dictionary containing the necessary parameters. Expected keys are:
+                - df: DataFrame containing the data.
+                - treat: Treated unit identifier.
+                - time: Time variable.
+                - outcome: Outcome variable.
+                - unitid: Identifier for units.
+                - method: (optional) Estimation method, default is "RPCA".
+                - cluster: (optional) Boolean to toggle clustering, default is False.
+                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
+                - graph_style: (optional) Style of the graph, default is "default".
+                - grid: (optional) Boolean to toggle grid, default is True.
+                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
+                - treated_color: (optional) Color for treated line, default is "black".
+                - filetype: (optional) File type for saving plots, default is ".png".
+                - display_graphs: (optional) Boolean to toggle graph display, default is True.
+                - diagnostics: (optional) Boolean to toggle diagnostics, default is False.
+                - save: (optional) Boolean to toggle saving plots, default is False.
+                - vallamb: (optional) Regularization parameter, default is 1.
+        """
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.graph_style = config.get("graph_style", "default")
+        self.grid = config.get("grid", True)
+        self.figsize = config.get("figsize", (12, 6))
+        self.filetype = config.get("filetype", ".png")
+        self.display_graphs = config.get("display_graphs", True)
+
+    def fit(self):
+        prepped = dataprep(self.df,
+                           self.unitid, self.time,
+                           self.outcome, self.treat)
+        treatedunit = set(self.df.loc[self.df[self.treat] == 1, self.unitid])
+        
+        Ywide = prepped["Ywide"].T
+
+        # Filter the row indices of Ywide using treatedunit
+        row_indices_of_treatedunit = Ywide.index[Ywide.index == prepped["treated_unit_name"]]
+
+        # Get the row index numbers corresponding to the treated units
+        treatrow = [Ywide.index.get_loc(idx) for idx in row_indices_of_treatedunit][0]
+
+        Z = np.zeros_like(Ywide.to_numpy())
+
+        Z[treatrow, -prepped["post_periods"]:] = 1
+        result = DC_PR_with_suggested_rank(Ywide.to_numpy(), Z, suggest_r=2, method='non-convex')
+
+
+        plot_estimates(
+            df=self.df,
+            time=self.time,
+            unitid=self.unitid,
+            outcome=self.outcome,
+            treatmentname=self.treat,
+            treated_unit_name=prepped["treated_unit_name"],
+            y=prepped["y"],
+            cf_list=[result['Vectors']['Counterfactual']],
+            counterfactual_names=["GSC"],
+            method=r'$\ell_2$ relaxation',
+            treatedcolor=self.treated_color,
+            counterfactualcolors=[self.counterfactual_color]
+        )
+        
+
+        return result
+
+
+class CLUSTERSC:
+    def __init__(self, config):
+        """
+        Args:
+            config (dict): A dictionary containing the necessary parameters. Expected keys are:
+                - df: DataFrame containing the data.
+                - treat: Treated unit identifier.
+                - time: Time variable.
+                - outcome: Outcome variable.
+                - unitid: Identifier for units.
+                - method: (optional) Estimation method, default is "RPCA".
+                - cluster: (optional) Boolean to toggle clustering, default is False.
+                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
+                - graph_style: (optional) Style of the graph, default is "default".
+                - grid: (optional) Boolean to toggle grid, default is True.
+                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
+                - treated_color: (optional) Color for treated line, default is "black".
+                - filetype: (optional) File type for saving plots, default is ".png".
+                - display_graphs: (optional) Boolean to toggle graph display, default is True.
+                - diagnostics: (optional) Boolean to toggle diagnostics, default is False.
+                - save: (optional) Boolean to toggle saving plots, default is False.
+                - vallamb: (optional) Regularization parameter, default is 1.
+        """
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
         self.weighted_units_dict = None
         self.statistics_dict = None
         self.result_df = None
-        self.counterfactual_color = counterfactual_color
-        self.treated_color = treated_color
-        self.graph_style = graph_style
-        self.grid = grid
-        self.figsize = figsize
-        self.filetype = filetype
-        self.display_graphs = display_graphs
-        self.diagnostics = diagnostics
-        self.save = save
-        self.method = method  # Store the method choice
-        self.vallamb = vallamb
-
-    def default_mu(self, data_mat, sigma=10):
-        return 1.0 / ((2 * np.max(data_mat.shape) ** 0.5 * sigma))
-        # return ((2 * np.max(data_mat.shape) ** .5 * sigma))
-
-    def term_criteria(self, L, S, L_prev, S_prev, tol=1e-7):
-        diff = (
-                np.linalg.norm(L - L_prev, ord="fro") ** 2 + np.linalg.norm(S - S_prev, ord="fro") ** 2
-        )
-        if diff < tol:
-            return True, diff
-        else:
-            return False, diff
-
-    def shrinkage(self, mat: np.ndarray, thresh: Union[np.ndarray, float]) -> np.ndarray:
-        return np.sign(mat) * np.maximum(np.abs(mat) - thresh, np.zeros(mat.shape))
-
-    def sv_thresholding(self, mat: np.ndarray, thresh: float) -> np.ndarray:
-        U, s, V = sp.linalg.svd(mat, full_matrices=False)
-        s = self.shrinkage(s, thresh)
-        return U @ np.diag(s) @ V
-
-    def decompose(self, data_mat, mu, max_iter=1e5, tol=1e-7, verbose=False):
-        n, m = data_mat.shape
-        lamda = 1.0 / (max(n, m)) ** 0.5
-        mu_inv = mu ** (-1)
-        S = np.zeros(data_mat.shape)
-        L = np.zeros(data_mat.shape)
-
-        L_prev = L
-        S_prev = S
-
-        it = 0
-        while (
-                not self.term_criteria(L, S, L_prev, S_prev, tol=tol)[0] and it < max_iter
-        ) or it == 0:
-            L_prev = L
-            S_prev = S
-
-            L = self.sv_thresholding(data_mat - S, mu_inv)
-            S = self.shrinkage(data_mat - L, lamda * mu_inv)
-            it += 1
-
-        if verbose:
-            print(
-                f"Iteration: {it}, diff: {term_criteria(L, S, L_prev, S_prev, tol=tol)[1]}, terminating alg."
-            )
-
-        return L, S
-
-    def HQF(self, M_noise, maxiter=1000, ip=2, lam_1=0.001):
-
-        rak = universal_rank(M_noise)
-
-        # https://doi.org/10.1016/j.sigpro.2022.108816
-        m, n = M_noise.shape
-        U = np.random.rand(m, rak)
-        Ip = 2
-        inn = 0
-        RMSE = []
-        RRMSE = []
-        peaksnr = []
-        lam_2 = lam_1
-
-        for iter in range(Ip):
-            PINV_U = np.linalg.pinv(U)
-            V = np.dot(PINV_U, M_noise)
-            PIMV_V = np.linalg.pinv(V)
-            U = np.dot(M_noise, PIMV_V)
-
-        X = np.dot(U, V)
-        T = M_noise - X
-        t_m_n = T.ravel()
-        scale = 10 * 1.4815 * np.median(np.abs(t_m_n - np.median(t_m_n)))
-        sigma = np.full((m, n), scale)  # Use np.full to create a 2D array
-        ONE_1 = np.ones((m, n))
-        ONE_1[np.abs(T - np.median(t_m_n)) - sigma < 0] = 0
-        N = T * ONE_1
-        U_p = U
-        V_p = V
-
-        for iter in range(maxiter):
-            D = M_noise - N
-            U = np.dot((D.dot(V.T) - lam_1 * U_p), np.linalg.inv(V.dot(V.T) - lam_1))
-            V = np.linalg.inv(U.T.dot(U) - lam_2).dot(U.T.dot(D) - lam_2 * V_p)
-            U_p = U
-            V_p = V
-            X = U.dot(V)
-            T = M_noise - X
-            t_m_n = T.ravel()
-            scale = min([scale, ip * 1.4815 * np.median(np.abs(t_m_n - np.median(t_m_n)))])
-            sigma = np.ones((m, n)) * scale
-            ONE_1 = np.ones((m, n))
-            ONE_1[np.abs(T - np.median(t_m_n)) - sigma < 0] = 0
-            N = T * ONE_1
-            RMSE.append(np.linalg.norm(M_noise - X, 'fro') / np.sqrt(m * n))
-
-            if iter != 0:
-                step_MSE = RMSE[iter - 1] - RMSE[iter]
-                if step_MSE < 0.000001:
-                    inn += 1
-                if inn > 1:
-                    break
-
-        Out_X = X
-        return Out_X, N
-
-        # Count the number of singular values above the threshold
-        num_components = np.sum(S > threshold)
-
-        return num_components
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.graph_style = config.get("graph_style", "default")
+        self.grid = config.get("grid", True)
+        self.figsize = config.get("figsize", (12, 6))
+        self.filetype = config.get("filetype", ".png")
+        self.display_graphs = config.get("display_graphs", True)
+        self.diagnostics = config.get("diagnostics", False)
+        self.save = config.get("save", False)
+        self.method = config.get("method", "RPCA")
+        self.vallamb = config.get("vallamb", 1)
+        self.objective = config.get("objective", "OLS")
+        self.cluster = config.get("cluster", False)  # Add cluster parameter
 
     def fit(self):
-        """
-        Main workhorse for estimating the effects- likely can be
-        improved by making functions for reshaping the data.
-        """
+        # Preprocess the data
+        prepped = dataprep(self.df,
+                           self.unitid, self.time,
+                           self.outcome, self.treat)
 
-        self.df = self.df.copy()
-        timevar = self.time
-        unit = self.unitid
-        balance(self.df, unit, timevar)
-
-        treated_unit_name = self.df.loc[self.df[self.treat] == 1, self.unitid].iloc[0]
-
-        t1 = len(
-            self.df[
-                (self.df[self.treat] == 0) & (self.df[self.unitid] == treated_unit_name)
-            ]
+        # Run PCR with the cluster parameter
+        RSCweight, synth = pcr(
+            prepped["donor_matrix"],
+            prepped["y"],
+            self.objective,
+            prepped["donor_names"],
+            prepped["donor_matrix"],
+            pre = prepped["pre_periods"],
+            cluster=self.cluster  # Use the cluster parameter
         )
-        if t1 < 3:
-            raise ValueError("You need at least 3 pre-periods")
-        self.df.reset_index(drop=True, inplace=True)
+        RSCweight = {key: round(value, 3) for key, value in RSCweight.items()}
 
+        # Calculate effects
+        attdict, fitdict, Vectors = effects.calculate(
+            prepped["y"], synth, prepped["pre_periods"], prepped["post_periods"]
+        )
+
+        RSCdict = {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Weights": RSCweight}
+
+        # Pivot the DataFrame to wide format
         trainframe = self.df.pivot_table(
             index=self.unitid, columns=self.time, values=self.outcome, sort=False
         )
 
-        X = trainframe.iloc[:, 0:t1]
+        # Extract pre-treatment period data
+        X = trainframe.iloc[:, :prepped["pre_periods"]]
 
+        # Perform functional PCA and clustering
         optimal_clusters, cluster_x, numvals = fpca(X)
+        kmeans = KMeans(n_clusters=optimal_clusters, random_state=0, init="k-means++", algorithm="elkan")
+        trainframe["cluster"] = kmeans.fit_predict(cluster_x)
 
-        kmeans = KMeans(n_clusters=optimal_clusters, random_state=0, init='k-means++', algorithm='elkan')
-        cluster_labels = kmeans.fit_predict(cluster_x)
+        # Identify treated unit's cluster and filter corresponding units
+        treat_cluster = trainframe.at[prepped["treated_unit_name"], "cluster"]
+        clustered_units = trainframe[trainframe["cluster"] == treat_cluster].drop("cluster", axis=1)
 
-        trainframe["cluster"] = cluster_labels
-        treat_cluster = trainframe.loc[
-            trainframe.index == treated_unit_name, "cluster"
-        ].iloc[0]
+        # Extract treated unit row and control group matrix
+        treated_row_idx = clustered_units.index.get_loc(prepped["treated_unit_name"])
+        Y = clustered_units.to_numpy()
+        y = Y[treated_row_idx]
+        Y0 = np.delete(Y, treated_row_idx, axis=0)
 
-        self.clustered_units = trainframe[trainframe["cluster"] == treat_cluster].copy()
-        # self.clustered_units.reset_index(drop=True, inplace=True)
+        # Perform RPCA on the control group matrix
+        L = RPCA(Y0)
 
-        self.clustered_units.drop("cluster", axis=1, inplace=True)
+        m, n = Y0.shape
+        lambda_1 = 1 / np.sqrt(max(m, n))
 
-        treated_row = self.clustered_units.index.get_loc(treated_unit_name)
-        # Makes our wide data into a matrix
-        Y = self.clustered_units.iloc[:, 0:].to_numpy()
+        #L = RPCA_HQF(Y0, rank, maxiter=3000, ip=2, lam_1=lambda_1)
 
-        y = Y[treated_row]
-        # Our observed values
-        Y0 = np.delete(Y, (treated_row), axis=0)
+        # Optimize synthetic control weights using pre-period data
+        beta_value = Opt.SCopt(
+            len(Y0),
+            prepped["y"][:prepped["pre_periods"]],
+            prepped["pre_periods"],
+            L[:, :prepped["pre_periods"]].T,
+            model="MSCb"
+        )
 
-        Nco =np.shape(Y0)[0]
-
-        L = RPCA(Y0, self.vallamb)
-
-
-        if self.diagnostics:
-            timeind = [col for col in self.clustered_units.columns]
-
-            reference_time = timeind[t1]
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
-            ax1.grid(True)
-            fig.tight_layout()
-            fig.subplots_adjust(wspace=0.3)
-            ax1.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
-            ax1.plot(timeind, L.transpose(), color='#1F4788', alpha=.8)
-            ax1.set_xlabel(self.time)
-            ax1.set_ylabel(self.outcome)
-            ax1.set_title('Low-Rank Component')
-            ax1.axvline(x=reference_time, color="#2E211B", linestyle="-",
-                        label=str(reference_time), linewidth=1.5)
-            ax2.plot(timeind, S.transpose(), color='#1F4788', alpha=.4)
-            ax2.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6))
-            ax2.set_xlabel(self.time)
-            ax2.axvline(x=reference_time, color="#2E211B", linestyle="-",
-                        label=str(reference_time), linewidth=1.5)
-            ax2.set_title('Noise Component')
-            ax2.set_ylabel('Difference from Target Unit')
-            ax2.grid(True)
-            plt.show()
-
-        beta_value = Opt.SCopt(Nco, y[:t1], t1, L[:, 0:t1].T, model="CONVEX")
+        # Calculate synthetic control predictions
         y_RPCA = np.dot(L.T, beta_value)
-
-        t2 = len(y)-t1
-
         beta_value = np.round(beta_value, 3)
 
-        # Extract unit names excluding treated unit name
-        unit_names = [index for index in self.clustered_units.index if index != treated_unit_name]
-
         # Create a dictionary of non-zero weights
-        weights_dict = {key: value for key, value in zip(unit_names, beta_value) if value > 0}
+        unit_names = clustered_units.index.difference([prepped["treated_unit_name"]])
+        Rweights_dict = {name: weight for name, weight in zip(unit_names, beta_value) if weight > 0}
 
-        attdict, fitdict, Vectors = effects.calculate(y, y_RPCA, t1, t2)
+        Rattdict, Rfitdict, RVectors = effects.calculate(prepped["y"], y_RPCA, prepped["pre_periods"], prepped["post_periods"])
 
-        # List of regionnames you want to include in the subframe
-        selected_regions = self.clustered_units.index
+        RPCAdict = {"Effects": Rattdict, "Fit": Rfitdict, "Vectors": RVectors, "Weights": Rweights_dict}
 
-        # Create the subframe using the isin() method
-        clustered_units_long = self.df[self.df[self.unitid].isin(self.clustered_units.index)]
+        # Call the function
+        plot_estimates(
+            df=self.df,
+            time=self.time,
+            unitid=self.unitid,
+            outcome=self.outcome,
+            treatmentname=self.treat,
+            treated_unit_name=prepped["treated_unit_name"],
+            y=prepped["y"],
+            cf_list=[y_RPCA, synth],
+            counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
+            method="Synthetic Control",
+            treatedcolor="black",
+            counterfactualcolors=["blue", "red"]
+        )
 
-        stats = { "Number of Clusters": len(set(cluster_labels)),
-            "Donors in Cluster": len(self.clustered_units) - 1,
-                       "ClusterFrame": clustered_units_long,
-                       "Treated Unit": treated_unit_name,
-                       "Treatment Name": self.treat,
-                       "Outcome": self.outcome}
+        ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
 
-        # Main dictionary
-        RPCA_dict = {
-            "Effects": attdict,
-            "Vectors": Vectors,
-            "Fit": fitdict,
-            "stats": stats,
-            "Weights": weights_dict
-        }
-        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
-                       treated_unit_name, y, y_RPCA, method="RPCA-SYNTH",
-                       treatedcolor=self.treated_color, counterfactualcolor=self.counterfactual_color, rmse=fitdict["T0 RMSE"], att=attdict["ATT"], save=self.save)
-
-        return RPCA_dict
+        return ClustSCdict
 
