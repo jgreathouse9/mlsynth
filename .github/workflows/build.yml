@@ -28,10 +28,20 @@ jobs:
 
     - name: Build source distribution
       run: |
-        python setup.py sdist  # Run the build
+        python setup.py sdist  # Run the build command
 
     - name: Upload distribution artifact
       uses: actions/upload-artifact@v3
       with:
         name: mlsynth-dist
-        path: dist/  # Uploads the 'dist' folder
+        path: dist/  # Upload the 'dist' folder containing your .tar.gz file
+
+    - name: Commit dist/ directory
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add dist/
+        git commit -m "Add generated source distribution"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Automatically provided by GitHub Actions
