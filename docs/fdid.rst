@@ -1,6 +1,8 @@
 Forward DID Method
 ==================
 
+This is the documentation for the Forward DID method.
+
 .. autoclass:: mlsynth.mlsynth.FDID
     :members: __init__, fit
     :undoc-members:  # Optional: Use if you want undocumented parts of __init__ or fit
@@ -8,11 +10,25 @@ Forward DID Method
 
 
 
+Here is the algorithm
+
+.. math::
+
+   \begin{algorithm}
+   \caption{Forward DID Estimation Algorithm}
+   \begin{algorithmic}[1]
+   \REQUIRE Dataframe with columns: unitid, time, outcome, treat
+   \ENSURE Estimated treatment effects over time
+   \STATE Partition the data into treated and control groups
+   \FOR{each time period}
+      \STATE Compute difference-in-differences
+   \ENDFOR
+   \RETURN Treatment effect estimates
+   \end{algorithmic}
+   \end{algorithm}
 
 
-This is the documentation for the Forward DID method.
 
-This is an optimization problem:
 
 .. math::
 
