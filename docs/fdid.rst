@@ -9,31 +9,31 @@ This is the documentation for the Forward DID method.
     :show-inheritance:
 
 
-fDID proceeds iteratively over \( k \) total candidate iterations. Like fsPDA, we begin with an empty set of controls.
+fDID proceeds iteratively over $k$ total candidate iterations. Like fsPDA, we begin with an empty set of controls.
 
-Let \( \mathcal{U} \coloneqq \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\} \) represent the set of candidate control groups.
+Let $\mathcal{U} \coloneqq \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}$ represent the set of candidate control groups.
 
-For \( k = 1 \):
+For $k = 1$:
 
 .. math::
 
    i^\ast_1 = \operatorname*{argmax}_{i \in \mathcal{N}_0} R^2_i, \quad \widehat{U}_1 = \{i^\ast_1\}
 
-For \( k = 2 \):
+For $k = 2$:
 
 .. math::
 
    i^\ast_2 = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \{i^\ast_1\}} R^2_{\{i^\ast_1, i\}}, 
    \quad \widehat{U}_2 = \{i^\ast_1, i^\ast_2\}
 
-For each \( k \), a DID model is estimated for each remaining control unit:
+For each $k$, a DID model is estimated for each remaining control unit:
 
 .. math::
 
    i^\ast_k = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \widehat{U}_{k-1}} R^2_{\widehat{U}_{k-1} \cup \{i\}}, 
    \quad \widehat{U}_k = \widehat{U}_{k-1} \cup \{i^\ast_k\}
 
-These candidate sets are added to \( \mathcal{U} \) until \( k = N_0 \).
+These candidate sets are added to $\mathcal{U}$ until $k = N_0$.
 
 Finally, the control group returned by fDID is:
 
