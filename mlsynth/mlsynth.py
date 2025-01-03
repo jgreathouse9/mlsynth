@@ -23,6 +23,7 @@ from numpy.linalg import inv
 from scipy.stats import norm
 import scipy.stats as stats
 from sklearn.cluster import KMeans
+from screenot.ScreeNOT import adaptiveHardThresholding
 from mlsynth.utils.datautils import prepare_data, balance, dataprep
 from mlsynth.utils.resultutils import effects, plot_estimates
 from mlsynth.utils.estutils import Opt, pcr, TSEST, pda
@@ -41,19 +42,51 @@ from mlsynth.utils.denoiseutils import (
 class TSSC:
     def __init__(self, config):
         """
-        Args:
-            config (dict): A dictionary containing the necessary parameters. Expected keys are:
-                - df: DataFrame containing the data.
-                - treat: Treated unit identifier.
-                - time: Time variable.
-                - outcome: Outcome variable.
-                - unitid: Identifier for units.
-                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
-                - treated_color: (optional) Color for treated line, default is "black".
-                - display_graphs: (optional) Boolean to toggle graph display, default is True.
-                - save: (optional) Boolean to toggle saving plots, default is False.
-                - draws: (optional) subsample replications, default is 500.
+        Generate estimates for SIMPLEX, MSCa, MSCb, and MSCc methods.
+
+        TSSC computes the two step SCM as described in:
+
+        https://doi.org/10.1287/mnsc.2023.4878
+
+        Parameters
+        ----------
+        config : dict
+            A dictionary containing the necessary parameters. The following keys are expected:
+            df : pandas.DataFrame
+                User-specified dataframe containing the data.
+            treat : str
+                Column name identifying the treated unit (must be a 0 or 1 dummy).
+            time : str
+                Column name for the time variable (must be numeric).
+            outcome : str
+                Column name for the outcome variable.
+            unitid : str
+                Column name identifying the units.
+            counterfactual_color : str, optional
+                Color for the counterfactual line in the plots, by default "red".
+            treated_color : str, optional
+                Color for the treated line in the plots, by default "black".
+            display_graphs : bool, optional
+                Whether to display the plots, by default True.
+            save : bool, optional
+                Whether to save the generated plots, by default False.
+            draws : int, optional
+                Number of subsample replications, by default 500.
+
+        Returns
+        -------
+        dict
+            A dictionary with the following keys:
+            'SIMPLEX' : float
+                Estimates and inference from the SIMPLEX method.
+            'MSCa' : float
+                Estimates and inference from the MSCa method.
+            'MSCb' : float
+                Estimates and inference from the MSCb method.
+            'MSCc' : float
+                Estimates and inference from the MSCc method.
         """
+
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
@@ -114,24 +147,56 @@ class TSSC:
 
         return result
 
-# Method 4: Factor Model Approach
-
-
 class FMA:
     def __init__(self, config):
         """
-        Args:
-            config (dict): A dictionary containing the necessary parameters. Expected keys are:
-                - df: DataFrame containing the data.
-                - treat: Treated unit identifier.
-                - time: Time variable.
-                - outcome: Outcome variable.
-                - unitid: Identifier for units.
-                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
-                - treated_color: (optional) Color for treated line, default is "black".
-                - display_graphs: (optional) Boolean to toggle graph display, default is True.
-                - save: (optional) Boolean to toggle saving plots, default is False.
+        Compute estimates and inference using the Factor Model Approach (FMA).
+
+        This function implements the Factor Model Approach described in
+        Li and Sonnier (2023) and returns a dictionary containing the estimated
+        effects, model fit, factor vectors, and inference results.
+
+        Parameters
+        ----------
+        config : dict
+            A dictionary containing the necessary parameters. The following keys are expected:
+            df : pandas.DataFrame
+                DataFrame containing the data.
+            treat : str
+                Column name identifying the treated unit.
+            time : str
+                Column name for the time variable.
+            outcome : str
+                Column name for the outcome variable.
+            unitid : str
+                Column name identifying the units.
+            counterfactual_color : str, optional
+                Color for the counterfactual line in the plots, by default "red".
+            treated_color : str, optional
+                Color for the treated line in the plots, by default "black".
+            display_graphs : bool, optional
+                Whether to display the plots, by default True.
+            save : bool, optional
+                Whether to save the generated plots, by default False.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the following keys:
+            'Effects' : dict
+                Estimated treatment effects for the treated unit over time.
+            'Fit' : dict
+                Goodness-of-fit metrics for the model.
+            'Vectors' : dict
+                Observed, Counterfatual, and treatment effect vectors
+            'Inference' : dict
+                Inference results, including confidence intervals and p-values.
+
+        References
+        ----------
+        Li, K. T. & Sonnier, G. P. (2023). "Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings." *Journal of Marketing Research*, Volume 60, Issue 3.
         """
+
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
@@ -256,27 +321,61 @@ class FMA:
         return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference}
 
 
-
-# Method 7: Panel Data Approaches (LASSO, FSPDA, L2)
-
-
 class PDA:
     def __init__(self, config):
         """
-        Args:
-            config (dict): A dictionary containing the necessary parameters. Expected keys are:
-                - df: DataFrame containing the data.
-                - treat: Treated unit identifier.
-                - time: Time variable.
-                - outcome: Outcome variable.
-                - unitid: Identifier for units.
-                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
-                - treated_color: (optional) Color for treated line, default is "black".
-                - display_graphs: (optional) Boolean to toggle graph display, default is True.
-                - save: (optional) Boolean to toggle saving plots, default is False.
-                - train_periods: (optional) Number of periods to train with for the rolling origin CV, default is 4.
-                - method: type of PDA to use. default is forward selection, "fs".
+        Causal inference via the Panel Data Approach (PDA).
+
+        This class implements PDA as described in
+        Shi and Huang (2023), Hsiao et al. (2012), and Shi and Wang (2024).
+        It supports different methods including LASSO, forward selection (fs),
+        and L2-relaxation.
+
+        Parameters
+        ----------
+        config : dict
+            A dictionary containing the necessary parameters. The following keys are expected:
+            df : pandas.DataFrame
+                DataFrame containing the data.
+            treat : str
+                Column name identifying the treated unit.
+            time : str
+                Column name for the time variable.
+            outcome : str
+                Column name for the outcome variable.
+            unitid : str
+                Column name identifying the units.
+            counterfactual_color : str, optional
+                Color for the counterfactual line in the plots, by default "red".
+            treated_color : str, optional
+                Color for the treated line in the plots, by default "black".
+            display_graphs : bool, optional
+                Whether to display the plots, by default True.
+            save : bool, optional
+                Whether to save the generated plots, by default False.
+            method : str, optional
+                Type of PDA to use, either "LASSO", "fs" (forward selection), or "l2" (L2-relaxation),
+                by default "fs" (forward selection).
+
+        Returns
+        -------
+        dict
+            A dictionary containing the estimated treatment effects, fit metrics,
+            and inference results depending on the selected PDA method.
+
+        References
+        ----------
+        Shi, Z. & Huang, J. (2023). "Forward-selected panel data approach for program evaluation."
+        *Journal of Econometrics*, Volume 234, Issue 2, Pages 512-535.
+
+        Hsiao, C., Ching, H. S., & Wan, S. K. (2012). "A Panel Data Approach for Program Evaluation:
+        Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China."
+        *J. Appl. Econ.*, 27:705-740.
+
+        Shi, Z. & Wang, Y. (2024). "L2-relaxation for Economic Prediction."
+        DOI: 10.13140/RG.2.2.11670.97609.
         """
+
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
@@ -321,25 +420,57 @@ class PDA:
         return pdaest
 
 
-# Method 8: Forward Selected DD
-
 class FDID:
     def __init__(self, config):
         """
-        Initialize the FDID class.
+        Compute Forward DID, Augmented DID, and standard DID estimates.
 
-        Args:
-            config (dict): Dictionary containing the configuration options.
-                Expected keys:
-                    - df (pd.DataFrame): Dataframe containing the data.
-                    - unitid (str): Column name for unit IDs.
-                    - time (str): Column name for time periods.
-                    - outcome (str): Column name for outcomes.
-                    - treat (str): Column name for treatment indicator.
-                    - counterfactual_color (str): Color for counterfactual lines. Default: "red".
-                    - treated_color (str): Color for treated lines. Default: "black".
-                    - display_graphs (bool): Whether to display graphs. Default: True.
+        This function implements the Forward Difference-in-Differences (FDID) method,
+        the Augmented Difference-in-Differences (ADID) method, and the standard Difference-in-Differences (DID) method,
+        as described in Li (2023) and Li & Van den Bulte (2023).
+        It returns estimates for all three methods, including effects, model fit, and inference results.
+
+        Parameters
+        ----------
+        config : dict
+            Dictionary containing the configuration options. The following keys are expected:
+            df : pandas.DataFrame
+                Dataframe containing the data.
+            unitid : str
+                Column name for unit IDs.
+            time : str
+                Column name for time periods.
+            outcome : str
+                Column name for outcomes.
+            treat : str
+                Column name for the treatment indicator.
+            counterfactual_color : str, optional
+                Color for the counterfactual lines, by default "red".
+            treated_color : str, optional
+                Color for the treated lines, by default "black".
+            display_graphs : bool, optional
+                Whether to display the graphs, by default True.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the following keys for each method (FDID, ADID, DID):
+            'Effects' : dict
+                Estimated treatment effects over time.
+            'Fit' : dict
+                Goodness-of-fit metrics for the model.
+            'Inference' : dict
+                Inference results, including confidence intervals and p-values.
+
+        References
+        ----------
+        Li, K. T. (2023). "Frontiers: A Simple Forward Difference-in-Differences Method."
+        *Marketing Science* 43(2):267-279.
+
+        Li, K. T. & Van den Bulte, C. (2023). "Augmented Difference-in-Differences."
+        *Marketing Science* 42:4, 746-767.
         """
+
         # Required parameters
         self.df = config.get("df")
         self.unitid = config.get("unitid")
@@ -444,11 +575,8 @@ class FDID:
             "95 LB": round(CI_95_DID_left, 3),
             "95 UB": round(CI_95_DID_right, 3),
             "Width": CI_95_DID_right - CI_95_DID_left,
-            "stdhat": std_Omega_hat_DID,
+            "SE": std_Omega_hat_DID,
             "Intercept":  np.round(b_DID, 3),
-            "Omega Hat 1": Omega_1_hat_DID,
-            "Omega Hat 2": Omega_2_hat_DID,
-            "STD Omega Hat": std_Omega_hat_DID
         }
 
         gap = y - y_DID
@@ -689,197 +817,71 @@ class FDID:
                     rounded_dict[key] = value
             return rounded_dict
 
-            # Round all values in the estimators_results list of dictionaries
-            #estimators_results = [
-                #round_dict_values(result) for result in estimators_results
-            #]
+        if self.display_graphs:
 
-            # Add the estimators results to the overall results list
-            # results.append({"Estimators": estimators_results})
-
-        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treated,
-                       prepped["treated_unit_name"], prepped["y"], [y_FDID], method="FDID",
-                       treatedcolor=self.treated_color, counterfactualcolors=["red"],
-                       rmse=FDID_dict["Fit"]["T0 RMSE"], att=FDID_dict["Effects"]["ATT"])
+            plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treated,
+                           prepped["treated_unit_name"], prepped["y"], [y_FDID], method="FDID",
+                           treatedcolor=self.treated_color, counterfactualcolors=[self.counterfactual_color])
 
         return estimators_results
-
-class RSL:
-    def __init__(self, df, unitid, time, outcome, treat,
-                 figsize=(12, 6),
-                 graph_style="default",
-                 grid=True,
-                 counterfactual_color="red",
-                 treated_color="black",
-                 filetype="png",
-                 display_graphs=True,
-                 method = "RPCA", vallamb=1
-                 ):
-        self.df = df
-        self.unitid = unitid
-        self.time = time
-        self.outcome = outcome
-        self.treated = treat
-        self.vallamb = vallamb
-        self.figsize = figsize
-        self.graph_style = graph_style
-        self.grid = grid
-        self.counterfactual_color = counterfactual_color
-        self.treated_color = treated_color
-        self.method = method
-
-        self.filetype = filetype
-        self.display_graphs = display_graphs
-
-    def fit(self):
-        SCmodel = PCASC(
-            df=self.df,
-            treat=self.treated,
-            time=self.time,
-            outcome=self.outcome,
-            unitid=self.unitid,
-            display_graphs=False, method=self.method, vallamb=self.vallamb
-        )
-
-        SCMResult = SCmodel.fit()
-
-        FDIDmodel = FDID(
-            df=self.df,
-            treat=self.treated,
-            time=self.time,
-            outcome=self.outcome,
-            unitid=self.unitid,
-            display_graphs=False
-        )
-
-        FDIDResults = FDIDmodel.fit()
-
-        ensdict = {
-            "real": SCMResult['Vectors']['Observed Unit'],
-            "scm": SCMResult['Vectors']['Counterfactual'],
-            "DID": FDIDResults[0]['FDID']['Vectors']['Counterfactual'],
-            "T0": FDIDResults[0]['FDID']['Fit']['Pre-Periods'],
-            "treatedunit": SCMResult['stats']['Treated Unit'],
-            "Treatment Name": SCMResult['stats']['Treatment Name'],
-            "Outcome": SCMResult['stats']['Outcome'],
-            "SCMW": SCMResult['Weights'],
-            "DIDW": FDIDResults[0]["FDID"]["Weights"],
-            "SCM MSE":  SCMResult['Fit']["T0 RMSE"],
-            "DID MSE": FDIDResults[1]["DID"]["Fit"]["T0 RMSE"],
-            "FDID MSE": FDIDResults[0]["FDID"]["Fit"]["T0 RMSE"],
-            "FDID Intercept": FDIDResults[0]["FDID"]["Inference"]["Intercept"]
-        }
-
-        def ensemble_predictions(ensdict):
-            observed = ensdict['real']
-            scm = ensdict['scm']
-            did = ensdict['DID']
-            T0 = t1 = ensdict['T0']
-            t2 = len(observed-T0)
-            treatedunit = ensdict['treatedunit']
-            trname = ensdict["Treatment Name"]
-            outname = ensdict["Outcome"]
-            SCM_weights = ensdict['SCMW']
-
-            DID_weights = ensdict["DIDW"]
-
-            SCMFIT = ensdict["SCM MSE"]
-
-            DIDFIT = ensdict["DID MSE"]
-
-            FDIDFIT =ensdict["FDID MSE"]
-
-            Intercept = ensdict["FDID Intercept"]
-
-            Y0 = np.concatenate((scm, did), axis=1)
-
-            weights = Opt.SCopt(Y0.shape[1], np.ravel(observed[:t1]), t1, Y0[:T0, :], model="CONVEX")
-
-            y_RSL = np.dot(Y0, weights)
-
-            attdict, fitdict, Vectors = effects.calculate(observed, y_RSL.reshape(-1, 1), t1, t2)
-
-            plot_estimates(self.df, self.time, self.unitid, outname, trname,
-                           treatedunit, observed, y_RSL, method="RSL",
-                           treatedcolor=self.treated_color, counterfactualcolor=self.counterfactual_color,
-                           rmse=fitdict["T0 RMSE"], att=attdict["ATT"])
-
-            # Combine weights
-            ensemble_weights = {}
-
-            # SCM weights (weights[0])
-            for unit, weight in SCM_weights.items():
-                ensemble_weights[unit] = weights[0] * weight
-
-            # DID weights (weights[1])
-            for unit, weight in DID_weights.items():
-                if unit in ensemble_weights:
-                    ensemble_weights[unit] += weights[1] * weight
-                    # if both were selected as donors
-                else:
-                    ensemble_weights[unit] = weights[1] * weight
-                    # If only FDID selected it
-
-            ensemble_weights = {unit: round(weight, 3) for unit, weight in ensemble_weights.items()}
-
-            betas = {"SCM":  round(weights[0],3), "FDID":  round(weights[1],3)}
-
-            weights_dict = {"Unit Weights": ensemble_weights, "Model Weights": betas,
-                            "Intercept": np.round((weights[1]) * Intercept, 3)}
-            # Compute percent change for SCMFIT
-            percent_change_SCM = ((fitdict["T0 RMSE"] - SCMFIT) / fitdict["T0 RMSE"]) * 100
-
-            # Compute percent change for DIDFIT
-            percent_change_DID = ((fitdict["T0 RMSE"] - DIDFIT) / fitdict["T0 RMSE"]) * 100
-
-            percent_change_FDID = ((fitdict["T0 RMSE"] - FDIDFIT) / fitdict["T0 RMSE"]) * 100
-
-            # Construct the dictionary for improvements
-            Improvements = {
-                "SCM Improvement (%)": round(percent_change_SCM, 3),
-                "DID Improvement (%)": round(percent_change_DID, 3),
-                "FDID Improvement (%)": round(percent_change_FDID)
-            }
-
-            RSL_dict = {
-                "Effects": attdict,
-                "Vectors": Vectors,
-                "Fit": fitdict,
-                "Weights": weights_dict,
-                "Error Reduction": Improvements
-            }
-
-            return RSL_dict
-
-        dict = ensemble_predictions(ensdict)
-        return dict
-
-
 
 
 class GSC:
     def __init__(self, config):
         """
-        Args:
-            config (dict): A dictionary containing the necessary parameters. Expected keys are:
-                - df: DataFrame containing the data.
-                - treat: Treated unit identifier.
-                - time: Time variable.
-                - outcome: Outcome variable.
-                - unitid: Identifier for units.
-                - method: (optional) Estimation method, default is "RPCA".
-                - cluster: (optional) Boolean to toggle clustering, default is False.
-                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
-                - graph_style: (optional) Style of the graph, default is "default".
-                - grid: (optional) Boolean to toggle grid, default is True.
-                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
-                - treated_color: (optional) Color for treated line, default is "black".
-                - filetype: (optional) File type for saving plots, default is ".png".
-                - display_graphs: (optional) Boolean to toggle graph display, default is True.
-                - diagnostics: (optional) Boolean to toggle diagnostics, default is False.
-                - save: (optional) Boolean to toggle saving plots, default is False.
-                - vallamb: (optional) Regularization parameter, default is 1.
+        Compute estimates and inference using the Generalized Synthetic Control (GSC) method.
+
+        This function implements the Generalized Synthetic Control method as described in
+        Costa et al. (2023). It returns a dictionary containing the estimated effects,
+        model fit, factor vectors, and inference results, including t-statistics,
+        standard errors, and 95% confidence intervals.
+
+        Parameters
+        ----------
+        config : dict
+            A dictionary containing the necessary parameters. The following keys are expected:
+            df : pandas.DataFrame
+                DataFrame containing the data.
+            treat : str
+                Column name identifying the treated unit.
+            time : str
+                Column name for the time variable.
+            outcome : str
+                Column name for the outcome variable.
+            unitid : str
+                Column name identifying the units.
+            counterfactual_color : str, optional
+                Color for the counterfactual line in the plots, by default "red".
+            treated_color : str, optional
+                Color for the treated line in the plots, by default "black".
+            display_graphs : bool, optional
+                Whether to display the plots, by default True.
+            save : bool, optional
+                Whether to save the generated plots, by default False.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the following keys:
+            'Effects' : dict
+                Estimated treatment effects for the treated unit over time.
+            'Fit' : dict
+                Goodness-of-fit metrics for the model.
+            'Vectors' : dict
+                Factor model vectors, including factor loadings and common factors.
+            'Inference' : dict
+                Inference results, including:
+                - 't_stat' : t-statistics for the estimated effects.
+                - 'se' : Standard errors of the estimates.
+                - '95% ci' : 95% confidence intervals for the estimated effects.
+
+        References
+        ----------
+        Costa, L., Farias, V. F., Foncea, P., Gan, J. (D.), Garg, A., Montenegro, I. R.,
+        Pathak, K., Peng, T., & Popovic, D. (2023). "Generalized Synthetic Control for TestOps at ABI:
+        Models, Algorithms, and Infrastructure." *INFORMS Journal on Applied Analytics* 53(5):336-349.
         """
+
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
@@ -887,10 +889,6 @@ class GSC:
         self.time = config.get("time")
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
-        self.graph_style = config.get("graph_style", "default")
-        self.grid = config.get("grid", True)
-        self.figsize = config.get("figsize", (12, 6))
-        self.filetype = config.get("filetype", ".png")
         self.display_graphs = config.get("display_graphs", True)
 
     def fit(self):
@@ -909,24 +907,29 @@ class GSC:
 
         Z = np.zeros_like(Ywide.to_numpy())
 
+        n, p = prepped["donor_matrix"][:prepped["pre_periods"]].shape
+        k = (min(n, p) - 1) // 2
+
+        Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(prepped["donor_matrix"][:prepped["pre_periods"]], k, strategy='i')
+
         Z[treatrow, -prepped["post_periods"]:] = 1
-        result = DC_PR_with_suggested_rank(Ywide.to_numpy(), Z, suggest_r=2, method='non-convex')
+        result = DC_PR_with_suggested_rank(Ywide.to_numpy(), Z, suggest_r=rank, method='non-convex')
 
-
-        plot_estimates(
-            df=self.df,
-            time=self.time,
-            unitid=self.unitid,
-            outcome=self.outcome,
-            treatmentname=self.treat,
-            treated_unit_name=prepped["treated_unit_name"],
-            y=prepped["y"],
-            cf_list=[result['Vectors']['Counterfactual']],
-            counterfactual_names=["GSC"],
-            method=r'$\ell_2$ relaxation',
-            treatedcolor=self.treated_color,
-            counterfactualcolors=[self.counterfactual_color]
-        )
+        if self.display_graphs:
+            plot_estimates(
+                df=self.df,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname=self.treat,
+                treated_unit_name=prepped["treated_unit_name"],
+                y=prepped["y"],
+                cf_list=[result['Vectors']['Counterfactual']],
+                counterfactual_names=["GSC"],
+                method=r'$\ell_2$ relaxation',
+                treatedcolor=self.treated_color,
+                counterfactualcolors=[self.counterfactual_color]
+            )
         
 
         return result
@@ -935,26 +938,64 @@ class GSC:
 class CLUSTERSC:
     def __init__(self, config):
         """
-        Args:
-            config (dict): A dictionary containing the necessary parameters. Expected keys are:
-                - df: DataFrame containing the data.
-                - treat: Treated unit identifier.
-                - time: Time variable.
-                - outcome: Outcome variable.
-                - unitid: Identifier for units.
-                - method: (optional) Estimation method, default is "RPCA".
-                - cluster: (optional) Boolean to toggle clustering, default is False.
-                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
-                - graph_style: (optional) Style of the graph, default is "default".
-                - grid: (optional) Boolean to toggle grid, default is True.
-                - counterfactual_color: (optional) Color for counterfactual line, default is "red".
-                - treated_color: (optional) Color for treated line, default is "black".
-                - filetype: (optional) File type for saving plots, default is ".png".
-                - display_graphs: (optional) Boolean to toggle graph display, default is True.
-                - diagnostics: (optional) Boolean to toggle diagnostics, default is False.
-                - save: (optional) Boolean to toggle saving plots, default is False.
-                - vallamb: (optional) Regularization parameter, default is 1.
+        Estimate the Average Treatment Effect on the Treated (ATT) using Robust Synthetic Control (RSC) 
+        and Principal Component Regression (PCR) methods.
+
+        This function provides ATT estimates using two robust methods: Robust PCA Synthetic Control (RPCA SCM) 
+        and Principal Component Regression (PCR). The methods are designed to handle high-dimensional 
+        and noisy data settings. It returns a dictionary containing weights, estimated effects, 
+        and factor vectors for both methods.
+
+        Parameters
+        ----------
+        config : dict
+            A dictionary containing the necessary parameters. The following keys are expected:
+            df : pandas.DataFrame
+                DataFrame containing the data.
+            treat : str
+                Column name identifying the treated unit.
+            time : str
+                Column name for the time variable.
+            outcome : str
+                Column name for the outcome variable.
+            unitid : str
+                Column name identifying the units.
+            cluster : bool, optional
+                Whether to apply clustering for PCR. Default is True.
+            objective : str, optional
+                Objective function for PCR. Options are "SIMPLEX" and "OLS".
+            counterfactual_color : str, optional
+                Color for the counterfactual line in the plots. Default is "red".
+            treated_color : str, optional
+                Color for the treated line in the plots. Default is "black".
+            display_graphs : bool, optional
+                Whether to display the plots. Default is True.
+            save : bool, optional
+                Whether to save the generated plots. Default is False.
+
+        Returns
+        -------
+        dict
+            A dictionary containing results for both RPCA-SC and PCR methods, with the following keys:
+            'Weights' : dict
+                Weights assigned to control units in the synthetic control model.
+            'Effects' : dict
+                Estimated treatment effects for the treated unit over time.
+            'Vectors' : dict
+                Observed, predicted, and treatment effects for both methods.
+
+        References
+        ----------
+        Amjad, M., Shah, D., & Shen, D. (2018). "Robust synthetic control." 
+        *Journal of Machine Learning Research*, 19(22), 1-51.
+
+        Agarwal, A., Shah, D., Shen, D., & Song, D. (2021). "On Robustness of Principal Component Regression." 
+        *Journal of the American Statistical Association*, 116(536), 1731–45.
+
+        Bayani, M. (2022). "Essays on Machine Learning Methods in Economics." Chapter 1. 
+        *CUNY Academic Works*.
         """
+
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
@@ -967,7 +1008,7 @@ class CLUSTERSC:
         self.save = config.get("save", False)
         self.method = config.get("method", "RPCA")
         self.objective = config.get("objective", "OLS")
-        self.cluster = config.get("cluster", False)  # Add cluster parameter
+        self.cluster = config.get("cluster", True)  # Add cluster parameter
 
     def fit(self):
         # Preprocess the data
@@ -1046,21 +1087,23 @@ class CLUSTERSC:
 
         RPCAdict = {"Effects": Rattdict, "Fit": Rfitdict, "Vectors": RVectors, "Weights": Rweights_dict}
 
-        # Call the function
-        plot_estimates(
-            df=self.df,
-            time=self.time,
-            unitid=self.unitid,
-            outcome=self.outcome,
-            treatmentname=self.treat,
-            treated_unit_name=prepped["treated_unit_name"],
-            y=prepped["y"],
-            cf_list=[y_RPCA, synth],
-            counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
-            method="Synthetic Control",
-            treatedcolor="black",
-            counterfactualcolors=["blue", "red"]
-        )
+        if self.display_graphs:
+
+            # Call the function
+            plot_estimates(
+                df=self.df,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname=self.treat,
+                treated_unit_name=prepped["treated_unit_name"],
+                y=prepped["y"],
+                cf_list=[y_RPCA, synth],
+                counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
+                method="Synthetic Control",
+                treatedcolor="black",
+                counterfactualcolors=["blue", "red"]
+            )
 
         ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
 
