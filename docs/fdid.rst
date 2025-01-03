@@ -29,7 +29,7 @@ For each :math:`k=1`, a DID model is estimated for each remaining control unit:
    i^\ast_k = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \widehat{U}_{k-1}} R^2_{\widehat{U}_{k-1} \cup \{i\}}, 
    \quad \widehat{U}_k = \widehat{U}_{k-1} \cup \{i^\ast_k\}
 
-These candidate sets are added to $\mathcal{U}$ until $k = N_0$.
+These candidate sets are added to :math:`\mathcal{U}` until :math:`k = N_0`.
 
 Finally, the control group returned by fDID is:
 
