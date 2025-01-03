@@ -5,13 +5,17 @@ Forward DID Method
 
 This is the documentation for the Forward DID method.
 
+\[
+\underset{\mathbf{w} \in \mathcal{W}_{\text{SC}}} \argmin \; \| \mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w} \|_\mathbf{V} = \sqrt{ (\mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w})^\top \mathbf{V} (\mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w}) }
+\]
+
 .. code-block:: python
 
     from mlsynth.mlsynth import FDID
     import matplotlib
     import pandas as pd
     # matplotlib theme
-    jared_theme = {{
+    jared_theme = {
         'axes.grid': True,
         'grid.linestyle': '-',
         'grid.color': 'black',
@@ -27,7 +31,7 @@ This is the documentation for the Forward DID method.
         'figure.dpi': 100,
         'axes.facecolor': '#b2beb5',
         'figure.figsize': (10, 6)
-    }}
+    }
 
     matplotlib.rcParams.update(jared_theme)
 
@@ -62,8 +66,8 @@ This is the documentation for the Forward DID method.
     # Example usage
     stub_url = 'https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/'
 
-    base_dict = {{
-        "Basque": {{
+    base_dict = {
+        "Basque": {
             "Columns": ['regionname', 'year', 'gdpcap'],
             "Treatment Time": 1975,
             "Treatment Name": "Terrorism",
@@ -71,8 +75,8 @@ This is the documentation for the Forward DID method.
             "Time": "year",
             "Panel": 'regionname',
             "Outcome": "gdpcap"
-        }},
-        "Germany": {{
+        },
+        "Germany": {
             "Columns": ['country', 'year', 'gdp'],
             "Treatment Time": 1978,
             "Treatment Name": "Reunification",
@@ -80,8 +84,8 @@ This is the documentation for the Forward DID method.
             "Time": "year",
             "Panel": 'country',
             "Outcome": "gdp"
-        }},
-        "Smoking": {{
+        },
+        "Smoking": {
             "Columns": ['state', 'year', 'cigsale'],
             "Treatment Time": 1989,
             "Treatment Name": "Proposition 99",
@@ -89,8 +93,8 @@ This is the documentation for the Forward DID method.
             "Time": "year",
             "Panel": 'state',
             "Outcome": "cigsale"
-        }}
-    }}
+        }
+    }
 
     edited_frames = get_edited_frames(stub_url, ['basque_data.csv', 'german_reunification.csv', 'smoking_data.csv'], base_dict)
 
@@ -117,7 +121,7 @@ This is the documentation for the Forward DID method.
     outcome = df.columns[2]
     treat =  selected_dict["Treatment Name"]
 
-    config = {{
+    config = {
         "df": df,
         "treat": treat,
         "time": time,
@@ -126,7 +130,7 @@ This is the documentation for the Forward DID method.
         "counterfactual_color": "#7DF9FF",  # Optional, defaults to "red"
         "treated_color": "red",  # Optional, defaults to "black"
         "display_graphs": True  # Optional, defaults to True
-    }}
+    }
 
     model = FDID(config)
 
