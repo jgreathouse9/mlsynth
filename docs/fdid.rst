@@ -58,8 +58,8 @@ def get_edited_frames(stub_url, urls, base_dict):
 # Example usage
 stub_url = 'https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/'
 
-base_dict = {
-    "Basque": {
+base_dict = {{
+    "Basque": {{
         "Columns": ['regionname', 'year', 'gdpcap'],
         "Treatment Time": 1975,
         "Treatment Name": "Terrorism",
@@ -67,8 +67,8 @@ base_dict = {
         "Time": "year",
         "Panel": 'regionname',
         "Outcome": "gdpcap"
-    },
-    "Germany": {
+    }},
+    "Germany": {{
         "Columns": ['country', 'year', 'gdp'],
         "Treatment Time": 1978,
         "Treatment Name": "Reunification",
@@ -76,8 +76,8 @@ base_dict = {
         "Time": "year",
         "Panel": 'country',
         "Outcome": "gdp"
-    },
-    "Smoking": {
+    }},
+    "Smoking": {{
         "Columns": ['state', 'year', 'cigsale'],
         "Treatment Time": 1989,
         "Treatment Name": "Proposition 99",
@@ -85,8 +85,8 @@ base_dict = {
         "Time": "year",
         "Panel": 'state',
         "Outcome": "cigsale"
-    }
-}
+    }}
+}}
 
 edited_frames = get_edited_frames(stub_url, ['basque_data.csv', 'german_reunification.csv', 'smoking_data.csv'], base_dict)
 
@@ -113,7 +113,7 @@ time = df.columns[1]
 outcome = df.columns[2]
 treat =  selected_dict["Treatment Name"]
 
-config = {
+config = {{
     "df": df,
     "treat": treat,
     "time": time,
@@ -122,11 +122,9 @@ config = {
     "counterfactual_color": "#7DF9FF",  # Optional, defaults to "red"
     "treated_color": "red",  # Optional, defaults to "black"
     "display_graphs": True  # Optional, defaults to True
-}
+}}
 
 model = FDID(config)
 
 # Run the FDID analysis
 autores = model.fit()
-
-Next.
