@@ -2,7 +2,7 @@ Forward DID Method
 ==================
 
 .. autoclass:: mlsynth.mlsynth.FDID
-    :members:
+    :members: fit
     :undoc-members:
     :show-inheritance:
 
