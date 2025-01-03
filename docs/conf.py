@@ -26,7 +26,11 @@ extensions = [
     'sphinx.ext.napoleon'
 ]
 
-mathjax_path = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML'
+mathjax_config = {
+    "TeX": {
+        "extensions": ["AMSmath"]
+    }
+}
 
 
 intersphinx_mapping = {
