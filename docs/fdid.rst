@@ -16,13 +16,13 @@ FDID proceeds iteratively over :math:`k` total candidate iterations. The main re
             \quad \text{s.t. } \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1}} = \frac{1}{U_{k-1}}, \quad \forall t \in \mathcal{T}_1
 
 
-We begin with an empty control group of selectd variables. Let :math:`\mathcal{U} \operatorname*{=:} \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups. For :math:`k=1`, we estimate :math:`N_0` one unit DID models, using the pre-intervention outcomes of our treaated unit as the dependent variable and the outcomes of the control units as predictors. Of these, we select the control unit which produces the highest R-squared statistic,
+We begin with an empty control group of selectd variables. Let :math:`\mathcal{U} \operatorname*{:=} \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups. For :math:`k=1`, we estimate :math:`N_0` one unit DID models, using the pre-intervention outcomes of our treaated unit as the dependent variable and the outcomes of the control units as predictors. Of these, we select the control unit which produces the highest R-squared statistic,
 
 .. math::
 
    i^\ast_1 = \operatorname*{argmax}_{i \in \mathcal{N}_0} R^2_i, \quad \widehat{U}_1 = \{i^\ast_1\}
 
-We add this to our set :math:`\mathcal{U} \operatorname*{=:} U_1 \}` as our first selected control unit. For :math:`k=2`,
+We add this to our set :math:`\mathcal{U} \operatorname*{:=} U_1 \}` as our first selected control unit. For :math:`k=2`,
 
 .. math::
 
@@ -36,7 +36,7 @@ we repeat this again, except now instead now we have two control units in our mo
    i^\ast_k = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \widehat{U}_{k-1}} R^2_{\widehat{U}_{k-1} \cup \{i\}}, 
    \quad \widehat{U}_k = \widehat{U}_{k-1} \cup \{i^\ast_k\}
 
-These candidate sets are added to :math:`\mathcal{U}` until :math:`k = N_0`. The control group returned by FDID is :math:`\widehat{U} \operatorname*{=:} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`.
+These candidate sets are added to :math:`\mathcal{U}` until :math:`k = N_0`. The control group returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`.
 
 
 .. code-block:: python
