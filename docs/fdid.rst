@@ -9,7 +9,7 @@ from mlsynth.mlsynth import FDID
 import matplotlib
 import pandas as pd
 # matplotlib theme
-jared_theme = {'axes.grid': True,
+jared_theme = {{'axes.grid': True,
               'grid.linestyle': '-',
                'grid.color': 'black',
               'legend.framealpha': 1,
@@ -23,7 +23,7 @@ jared_theme = {'axes.grid': True,
               'axes.titlesize': 20,
               'figure.dpi': 100,
                'axes.facecolor': '#b2beb5',
-               'figure.figsize': (10, 6)}
+               'figure.figsize': (10, 6)}}
 
 matplotlib.rcParams.update(jared_theme)
 
@@ -124,10 +124,9 @@ config = {
     "display_graphs": True  # Optional, defaults to True
 }
 
-model = FDID(config) #, placebo=placebo_option
+model = FDID(config)
 
-# Run the PCR analysis
+# Run the FDID analysis
 autores = model.fit()
 
-
-Boop.
+Next.
