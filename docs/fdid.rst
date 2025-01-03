@@ -1,10 +1,11 @@
 Forward DID Method
 ==================
 
-.. automodule:: mlsynth.mlsynth
+.. autoclass:: mlsynth.mlsynth.FDID
     :members:
     :undoc-members:
     :show-inheritance:
+
 
 
 This is the documentation for the Forward DID method.
