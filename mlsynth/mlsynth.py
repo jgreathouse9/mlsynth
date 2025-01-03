@@ -1,127 +1,6 @@
 """
-mlsynthtwo
+mlsynth
 ==========
-
-This module provides a convenient apporach to estimating various synthetic
-control estimators
-
-Classes:
--------
-- FMA: Implements the Factor Model Approach as discussed in
-
-Li, K. T., & Sonnier, G. P. (2023).
-Statistical Inference for the Factor Model Approach to Estimate
-Causal Effects in Quasi-Experimental Settings.
-Journal of Marketing Research, 60(3), 449–472.
-https://doi.org/10.1177/00222437221137533.
-
-- PCR: Implements Principal Component Regression as discussed in
-
-Agarwal, A., Shah, D., Shen, D., & Song, D. (2021).
-On robustness of principal component regression.
-J. Am. Stat. Assoc., 116(536), 1731-1745.
-https://doi.org/10.1080/01621459.2021.1928513
-
-- TSSC: Two-Step Synthetic Control Metho
-
-This implements the vanilla SCM, as well as 3 forms of SCM which
-imposes different constraints on the objective function, namely,
-whether to have summation or intercept constraints.
-
-Li, K. T., & Shankar, V. (2023).
-A two-step synthetic control approach for estimating causal effects of
-marketing events. Management Science, in press(0), null.
-https://doi.org/10.1287/mnsc.2023.4878
-
-- AUGDID: Implements Augmented DID as discussed in
-Li, K. T., & Bulte, C. V. d. (2022).
-Augmented difference-in-differences.
-Marketing Science, in press,
-https://doi.org/10.1287/mksc.2022.1406
-
-- fsPDA: Implements the Forward Selection Algorithm as discussed in
-Shi, Z., & Huang, J. (2023).
-Forward-selected panel data approach for program evaluation.
-J. Econom., 234(2), 512-535.
-https://doi.org/10.1016/j.jeconom.2021.04.009
-
-- PCASC: Implements Robust Principal Component Analysis Synthetic Control
-as discussed in "Essays on Machine Learning Mehtods in Economics"
-by Mani Bayani.
-
-- FDID: Implements Forward DID and AUGDID by
-
-Li, K. T. (2024). Frontiers: A simple forward difference-in-differences method.
-Marketing Science, 43(2), 267-279. https://doi.org/10.1287/mksc.2022.0212
-
-Li, K. T., & Van den Bulte, C. (2023). Augmented difference-in-differences.
-Marketing Science, 42(4), 746-767. https://doi.org/10.1287/mksc.2022.1406
-
-Each Class below takes the following:
-
-    Parameters:
-    ----------
-    - df: pandas.DataFrame
-        Any dataframe the user specifies.
-
-    - treat: str
-        The column name in df representing the treatment variable.
-        Must be 0 or 1, with only one treatment unit (for now).
-
-    - time: str
-        The column name in df representing the time variable.
-
-    - outcome: str
-        The column name in df representing the outcome variable.
-
-    - unitid: str
-        The column name in df representing the unit identifier.
-        The string identifier, specifically.
-
-    - figsize: tuple, optional
-        The size of the figure (width, height) in inches.
-        Default is (10, 8).
-
-    - graph_style: str, optional
-        The style of the graph.
-        Default is 'default'.
-
-    - grid: bool, optional
-        Whether to display grid lines on the graph.
-        Default is False.
-
-    - counterfactual_color: str, optional
-        The color of the counterfactual line on the graph.
-        Default is 'blue'.
-
-    - treated_color: str, optional
-        The color of the treated line on the graph.
-        Default is 'black'.
-
-    - filetype: str, optional
-        The file type for saving the graph. Default is None.
-        Users may specify pdf, png, or any other file Python accepts.
-
-    - display_graphs: bool, optional
-        Whether to display the generated graphs.
-        Default is True. Note, most of the above options
-        are only relvant if you choose to display graphs.
-
-    Returned Objects:
-    ----------
-    - Each class returns a results_df, comprised of the real value,
-    the predicted counterfactual, the time values themselves as well
-    as the difference which defines our treatment effects.
-
-    - As of now, only MSC returns a weights dictionary. Including a
-    dictionary for PCR which doesn't assign sparsity to weights would
-    make a dictionary less meaningful.
-
-    - All classes return a statistics_dict, which contatain (at least)
-    the ATT (both absolute and percentage) as well as the T0 RMSE.
-    In the future, confidence intervals and additional diagnostics
-    will be included.
-
 """
 
 # To Do list:
@@ -129,17 +8,6 @@ Each Class below takes the following:
 # via using a utilities .py file.
 # This inludes the obserbed vs predited plots
 # and the gap plot.
-
-
-# 2: Standardize the reshaping of the data.
-# With a few exeptions, the way we reshape
-# all these datasets is the exat same and
-# pretty muh does not hange aross all the methods
-# we have. This inludes the standardizing of notations aross
-# methods.
-
-# 3: Inlude stati methods for ATT and other stats that are reported
-# aross all methods. Maybe, in a helper file.
 
 # Wish list:
 
@@ -180,18 +48,11 @@ class TSSC:
                 - time: Time variable.
                 - outcome: Outcome variable.
                 - unitid: Identifier for units.
-                - method: (optional) Estimation method, default is "RPCA".
-                - cluster: (optional) Boolean to toggle clustering, default is False.
-                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
-                - graph_style: (optional) Style of the graph, default is "default".
-                - grid: (optional) Boolean to toggle grid, default is True.
                 - counterfactual_color: (optional) Color for counterfactual line, default is "red".
                 - treated_color: (optional) Color for treated line, default is "black".
-                - filetype: (optional) File type for saving plots, default is ".png".
                 - display_graphs: (optional) Boolean to toggle graph display, default is True.
-                - diagnostics: (optional) Boolean to toggle diagnostics, default is False.
                 - save: (optional) Boolean to toggle saving plots, default is False.
-                - vallamb: (optional) Regularization parameter, default is 1.
+                - draws: (optional) subsample replications, default is 500.
         """
         self.df = config.get("df")
         self.outcome = config.get("outcome")
@@ -200,17 +61,8 @@ class TSSC:
         self.time = config.get("time")
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
-        self.graph_style = config.get("graph_style", "default")
-        self.grid = config.get("grid", True)
-        self.figsize = config.get("figsize", (12, 6))
-        self.filetype = config.get("filetype", ".png")
         self.display_graphs = config.get("display_graphs", True)
-        
         self.save = config.get("save", False)
-        self.method = config.get("method", "RPCA")
-        
-        self.objective = config.get("objective", "OLS")
-        self.cluster = config.get("cluster", False)
         self.draws = config.get("draws", 500)
 
     def fit(self):
@@ -255,7 +107,7 @@ class TSSC:
             y=prepped["y"],
             cf_list=[recommended_variable],
             counterfactual_names=[recommended_model],
-            method=r'$\ell_2$ relaxation',
+            method=f'{recommended_model}',
             treatedcolor=self.treated_color,
             counterfactualcolors=[self.counterfactual_color]
         )
@@ -275,27 +127,18 @@ class FMA:
                 - time: Time variable.
                 - outcome: Outcome variable.
                 - unitid: Identifier for units.
-                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
-                - graph_style: (optional) Style of the graph, default is "default".
-                - grid: (optional) Boolean to toggle grid, default is True.
                 - counterfactual_color: (optional) Color for counterfactual line, default is "red".
                 - treated_color: (optional) Color for treated line, default is "black".
-                - filetype: (optional) File type for saving plots, default is ".png".
                 - display_graphs: (optional) Boolean to toggle graph display, default is True.
                 - save: (optional) Boolean to toggle saving plots, default is False.
-                - train_periods: (optional) Number of periods to train with for the rolling origin CV, default is 4.
         """
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
         self.unitid = config.get("unitid")
         self.time = config.get("time")
-        self.figsize = config.get("figsize", (12, 6))
-        self.graph_style = config.get("graph_style", "default")
-        self.grid = config.get("grid", True)
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
-        self.filetype = config.get("filetype", ".png")
         self.display_graphs = config.get("display_graphs", True)
         self.save = config.get("save", False)
         self.criti = 10
@@ -427,27 +270,20 @@ class PDA:
                 - time: Time variable.
                 - outcome: Outcome variable.
                 - unitid: Identifier for units.
-                - figsize: (optional) Tuple specifying figure size, default is (12, 6).
-                - graph_style: (optional) Style of the graph, default is "default".
-                - grid: (optional) Boolean to toggle grid, default is True.
                 - counterfactual_color: (optional) Color for counterfactual line, default is "red".
                 - treated_color: (optional) Color for treated line, default is "black".
-                - filetype: (optional) File type for saving plots, default is ".png".
                 - display_graphs: (optional) Boolean to toggle graph display, default is True.
                 - save: (optional) Boolean to toggle saving plots, default is False.
                 - train_periods: (optional) Number of periods to train with for the rolling origin CV, default is 4.
+                - method: type of PDA to use. default is forward selection, "fs".
         """
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
         self.unitid = config.get("unitid")
         self.time = config.get("time")
-        self.figsize = config.get("figsize", (12, 6))
-        self.graph_style = config.get("graph_style", "default")
-        self.grid = config.get("grid", True)
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
-        self.filetype = config.get("filetype", ".png")
         self.display_graphs = config.get("display_graphs", True)
         self.save = config.get("save", False)
         self.method = config.get("method", "fs")
@@ -477,7 +313,7 @@ class PDA:
                 y=prepped["y"],
                 cf_list=[pdaest['Vectors']['Counterfactual']],
                 counterfactual_names=[counterfactual_name],
-                method=r'$\ell_2$ relaxation',
+                method=f'{method}',
                 treatedcolor=self.treated_color,
                 counterfactualcolors=[self.counterfactual_color]
             )
@@ -490,7 +326,7 @@ class PDA:
 class FDID:
     def __init__(self, config):
         """
-        Initialize the FDID class with configuration options provided as a dictionary.
+        Initialize the FDID class.
 
         Args:
             config (dict): Dictionary containing the configuration options.
@@ -500,14 +336,9 @@ class FDID:
                     - time (str): Column name for time periods.
                     - outcome (str): Column name for outcomes.
                     - treat (str): Column name for treatment indicator.
-                    - figsize (tuple): Figure size for plots. Default: (12, 6).
-                    - graph_style (str): Matplotlib style for plots. Default: "default".
-                    - grid (bool): Whether to display grid lines. Default: True.
                     - counterfactual_color (str): Color for counterfactual lines. Default: "red".
                     - treated_color (str): Color for treated lines. Default: "black".
-                    - filetype (str): File type for saving plots. Default: "png".
                     - display_graphs (bool): Whether to display graphs. Default: True.
-                    - placebo (any): Optional placebo parameter.
         """
         # Required parameters
         self.df = config.get("df")
@@ -515,14 +346,8 @@ class FDID:
         self.time = config.get("time")
         self.outcome = config.get("outcome")
         self.treated = config.get("treat")
-
-        # Optional parameters with defaults
-        self.figsize = config.get("figsize", (12, 6))
-        self.graph_style = config.get("graph_style", "default")
-        self.grid = config.get("grid", True)
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
-        self.filetype = config.get("filetype", "png")
         self.display_graphs = config.get("display_graphs", True)
 
 
@@ -1135,20 +960,12 @@ class CLUSTERSC:
         self.treat = config.get("treat")
         self.unitid = config.get("unitid")
         self.time = config.get("time")
-        self.weighted_units_dict = None
-        self.statistics_dict = None
-        self.result_df = None
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
-        self.graph_style = config.get("graph_style", "default")
-        self.grid = config.get("grid", True)
-        self.figsize = config.get("figsize", (12, 6))
-        self.filetype = config.get("filetype", ".png")
         self.display_graphs = config.get("display_graphs", True)
         
         self.save = config.get("save", False)
         self.method = config.get("method", "RPCA")
-        
         self.objective = config.get("objective", "OLS")
         self.cluster = config.get("cluster", False)  # Add cluster parameter
 
