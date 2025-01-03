@@ -4,16 +4,10 @@ mlsynth
 """
 
 # To Do list:
-# 1: At Minimum, standardize plotting
-# via using a utilities .py file.
-# This inludes the obserbed vs predited plots
-# and the gap plot.
 
-# Wish list:
+# 1: Add placebo tests where appliable and relevant (e.g, in time)
 
-# 2: Add placebo tests where appliable and relevant (e.g, in time)
-
-# 3: Extend at least 1 estimator to staggered adoption
+# 2: Extend at least 1 estimator to staggered adoption
 
 import pandas as pd
 import numpy as np
@@ -130,20 +124,22 @@ class TSSC:
             ((method_dict[recommended_model]["Effects"]["ATT"], method_dict[recommended_model]["Fit"]["T0 RMSE"]) for
              method_dict in result if recommended_model in method_dict), (None, None))
         
-        plot_estimates(
-            df=self.df,
-            time=self.time,
-            unitid=self.unitid,
-            outcome=self.outcome,
-            treatmentname=self.treat,
-            treated_unit_name=prepped["treated_unit_name"],
-            y=prepped["y"],
-            cf_list=[recommended_variable],
-            counterfactual_names=[recommended_model],
-            method=f'{recommended_model}',
-            treatedcolor=self.treated_color,
-            counterfactualcolors=[self.counterfactual_color]
-        )
+        if self.display_graphs:
+        
+            plot_estimates(
+                df=self.df,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname=self.treat,
+                treated_unit_name=prepped["treated_unit_name"],
+                y=prepped["y"],
+                cf_list=[recommended_variable],
+                counterfactual_names=[recommended_model],
+                method=f'{recommended_model}',
+                treatedcolor=self.treated_color,
+                counterfactualcolors=[self.counterfactual_color]
+            )
 
         return result
 
@@ -311,11 +307,13 @@ class FMA:
             "p_value": p_value
         }
         
-        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
-                       prepped["treated_unit_name"], prepped["y"], [y_hat], method="FMA",
-                       treatedcolor=self.treated_color, 
-                       counterfactualcolors=["red"],
-                       counterfactual_names=[f"FMA {prepped['treated_unit_name']}"])
+        if self.display_graphs:
+        
+            plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
+                           prepped["treated_unit_name"], prepped["y"], [y_hat], method="FMA",
+                           treatedcolor=self.treated_color, 
+                           counterfactualcolors=["red"],
+                           counterfactual_names=[f"FMA {prepped['treated_unit_name']}"])
         
         
         return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference}
@@ -938,12 +936,12 @@ class GSC:
 class CLUSTERSC:
     def __init__(self, config):
         """
-        Estimate the Average Treatment Effect on the Treated (ATT) using Robust Synthetic Control (RSC) 
+        Estimate the Average Treatment Effect on the Treated (ATT) using Robust Synthetic Control (RSC)
         and Principal Component Regression (PCR) methods.
 
-        This function provides ATT estimates using two robust methods: Robust PCA Synthetic Control (RPCA SCM) 
-        and Principal Component Regression (PCR). The methods are designed to handle high-dimensional 
-        and noisy data settings. It returns a dictionary containing weights, estimated effects, 
+        This function provides ATT estimates using two robust methods: Robust PCA Synthetic Control (RPCA SCM)
+        and Principal Component Regression (PCR). The methods are designed to handle high-dimensional
+        and noisy data settings. It returns a dictionary containing weights, estimated effects,
         and factor vectors for both methods.
 
         Parameters
@@ -986,13 +984,13 @@ class CLUSTERSC:
 
         References
         ----------
-        Amjad, M., Shah, D., & Shen, D. (2018). "Robust synthetic control." 
+        Amjad, M., Shah, D., & Shen, D. (2018). "Robust synthetic control."
         *Journal of Machine Learning Research*, 19(22), 1-51.
 
-        Agarwal, A., Shah, D., Shen, D., & Song, D. (2021). "On Robustness of Principal Component Regression." 
+        Agarwal, A., Shah, D., Shen, D., & Song, D. (2021). "On Robustness of Principal Component Regression."
         *Journal of the American Statistical Association*, 116(536), 1731–45.
 
-        Bayani, M. (2022). "Essays on Machine Learning Methods in Economics." Chapter 1. 
+        Bayani, M. (2022). "Essays on Machine Learning Methods in Economics." Chapter 1.
         *CUNY Academic Works*.
         """
 
@@ -1087,23 +1085,21 @@ class CLUSTERSC:
 
         RPCAdict = {"Effects": Rattdict, "Fit": Rfitdict, "Vectors": RVectors, "Weights": Rweights_dict}
 
-        if self.display_graphs:
-
-            # Call the function
-            plot_estimates(
-                df=self.df,
-                time=self.time,
-                unitid=self.unitid,
-                outcome=self.outcome,
-                treatmentname=self.treat,
-                treated_unit_name=prepped["treated_unit_name"],
-                y=prepped["y"],
-                cf_list=[y_RPCA, synth],
-                counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
-                method="Synthetic Control",
-                treatedcolor="black",
-                counterfactualcolors=["blue", "red"]
-            )
+        # Call the function
+        plot_estimates(
+            df=self.df,
+            time=self.time,
+            unitid=self.unitid,
+            outcome=self.outcome,
+            treatmentname=self.treat,
+            treated_unit_name=prepped["treated_unit_name"],
+            y=prepped["y"],
+            cf_list=[y_RPCA, synth],
+            counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
+            method="Synthetic Control",
+            treatedcolor="black",
+            counterfactualcolors=["blue", "red"]
+        )
 
         ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
 
