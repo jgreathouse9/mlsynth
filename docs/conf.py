@@ -26,11 +26,7 @@ extensions = [
     'sphinx.ext.napoleon'
 ]
 
-mathjax_config = {
-    "tex2jax": {
-        "inlineMath": [["$", "$"], ["\\(", "\\)"]]
-    }
-}
+mathjax_path = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js'
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
