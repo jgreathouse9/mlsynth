@@ -1,7 +1,7 @@
 Forward DID Method
 ==================
 .. autoclass:: mlsynth.mlsynth.FDID
-   :no-members:
+    :no-members:
 
 This is the documentation for the Forward DID method.
 
