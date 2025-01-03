@@ -8,7 +8,8 @@ This is the documentation for the Forward DID method.
 This is an optimization problem:
 
 .. math::
-\underset{\mathbf{w} \in \mathcal{W}_{\text{SC}}} \argmin \; \| \mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w} \|_\mathbf{V} = \sqrt{ (\mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w})^\top \mathbf{V} (\mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w}) }
+
+    \underset{\mathbf{w} \in \mathcal{W}_{\text{SC}}} \argmin \; \| \mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w} \|_\mathbf{V} = \sqrt{ (\mathbf{y}_1 -     \mathbf{Y}_{0}\mathbf{w})^\top \mathbf{V} (\mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w}) }
 
 
 
