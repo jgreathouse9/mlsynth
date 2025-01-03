@@ -5,9 +5,12 @@ Forward DID Method
 
 This is the documentation for the Forward DID method.
 
-.. math::
-    I(\phi, \phi_l, \phi_r) = H(\frac{n_t(\phi)} {n(\phi)}, \frac{n_c(\phi)}{n(\phi)}) * 2 \frac{1+\Delta\Delta P^*}{3} + \frac{n_t(\phi)}{n(\phi)} H(\frac{n_t(\phi_l)}{n(\phi)}, \frac{n_t(\phi_r)}{n(\phi)}) \\
-    + \frac{n_c(\phi)}{n(\phi)} * H(\frac{n_c(\phi_l)}{n(\phi)}, \frac{n_c(\phi_r)}{n(\phi)}) + \frac{1}{2}
+This is an optimization problem:
+
+$$
+\underset{\mathbf{w} \in \mathcal{W}_{\text{SC}}} \argmin \; \| \mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w} \|_\mathbf{V} = \sqrt{ (\mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w})^\top \mathbf{V} (\mathbf{y}_1 - \mathbf{Y}_{0}\mathbf{w}) }
+$$
+
 
 .. code-block:: python
 
