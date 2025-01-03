@@ -29,14 +29,14 @@ We add this one unit set to :math:`\{\mathcal{U} \operatorname*{:=} U_1 \}` as o
    i^\ast_2 = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \{i^\ast_1\}} R^2_{\{i^\ast_1, i\}}, 
    \quad \widehat{U}_2 = \{i^\ast_1, i^\ast_2\}.
 
-This candidate set set, :math:`U_2`, is added to :math:`\mathcal{U}`. We then repeat this a third time. For each iteration :math:`k`, we loop over the remaining set of control units and add the first one, first two, and first three best control untis, selecting the optimal set of control units per model:
+This candidate set set, :math:`U_2`, is added to :math:`\mathcal{U}`. We then repeat this a third time. For each iteration :math:`k`, we loop over the remaining set of control units, selecting the optimal control unit and adding it to the previous set of added units:
 
 .. math::
 
    i^\ast_k = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \widehat{U}_{k-1}} R^2_{\widehat{U}_{k-1} \cup \{i\}}, 
    \quad \widehat{U}_k = \widehat{U}_{k-1} \cup \{i^\ast_k\}.
 
-These candidate sets of optimal controls are added to :math:`\mathcal{U}` until :math:`k = N_0`. The control group ultimately returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`, or the control group that has the highest R-squared statistic of them all.
+These candidate sets of optimal controls are added to :math:`\mathcal{U}` until :math:`k = N_0`, or until there are no more controls to loop through. The control group ultimately returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`, or the control group that has the highest R-squared statistic of them all.
 
 
 .. code-block:: python
