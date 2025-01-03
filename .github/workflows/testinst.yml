@@ -1,0 +1,30 @@
+name: Test mlsynth Installation
+
+on:
+  push:
+    branches:
+      - main  # Trigger this action when you push to the 'main' branch
+  pull_request:
+    branches:
+      - main  # Trigger this action for pull requests to the 'main' branch
+
+jobs:
+  install_and_test:
+    runs-on: ubuntu-latest  # Use an Ubuntu runner
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2  # Checkout your code
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'  # Use the desired Python version
+
+    - name: Install mlsynth from GitHub
+      run: |
+        pip install git+https://github.com/jgreathouse9/mlsynth.git  # Install from GitHub
+
+    - name: Verify mlsynth installation
+      run: |
+        python -c "import mlsynth; print('mlsynth installed and working!')"  # Test import
