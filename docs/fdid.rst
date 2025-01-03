@@ -1,7 +1,11 @@
-FDID Class Documentation
-========================
+Forward DID Method
+==================
 
-.. autoclass:: mlsynth.FDID
-    :members:
-    :undoc-members:
-    :show-inheritance:
+This is the documentation for the Forward DID method.
+
+.. code-block:: python
+
+   # Example code snippet
+   from mlsynth import ForwardDID
+   did_model = ForwardDID(data)
+   did_model.fit()
