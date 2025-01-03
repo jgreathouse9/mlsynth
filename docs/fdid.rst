@@ -16,20 +16,20 @@ FDID proceeds iteratively over :math:`k` total candidate iterations. The main re
             \quad \text{s.t. } \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1}} = \frac{1}{U_{k-1}}, \quad \forall t \in \mathcal{T}_1,
 
 
-where we have a pre-intervention vector of outcomes for the treated unit and a matrix of outcomes for our control group. We are interested in, however, the subset of these controls, but are agnostic as to which units we should use or how many we should use. We begin with an empty control group. Let :math:`\mathcal{U} \operatorname*{:=} \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups, where each element of the set contains some discrete subset of control units. For :math:`k=1`, we estimate :math:`N_0` one unit DID models, using the pre-intervention outcomes of our treaated unit as the dependent variable and the outcomes of the control units as predictors. Of these, we select the control unit which produces the highest R-squared statistic,
+where we have a pre-intervention vector of outcomes for the treated unit and a matrix of outcomes for our control group. We are in fact, however, concerned with the subset of these controls that satisfies the parallel pre-trends assumption. By design, we are agnostic as to which sub-matrix of units we should use or how even many controls we should use. We begin with an empty control group. Let :math:`\mathcal{U} \operatorname*{:=} \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups, where each element of :math:`\mathcal{U}` is a discrete subset of control units. For :math:`k=1`, we estimate :math:`N_0` one unit DID models. Our dependent variable, in this case, is the pre-intervention outcome vector of our treaated unit. The outcomes of the control units serve as predictors. Of these :math:`N_0` DID models, we select the single control unit which produces the highest R-squared statistic,
 
 .. math::
 
    i^\ast_1 = \operatorname*{argmax}_{i \in \mathcal{N}_0} R^2_i, \quad \widehat{U}_1 = \{i^\ast_1\}
 
-We add this one unit set to :math:`\{\mathcal{U} \operatorname*{:=} U_1 \}` as our first selected control unit. For :math:`k=2`, we repeat this again, except now we include the first selected control one of the remaining control units, estimating :math:`N_0 - 1` DID models in total. After this, we choose the optimal two control unit combination (optimal in the sense that the DID model maximizes R-squared in the pre-intervention period)
+We add this one unit set to :math:`\{\mathcal{U} \operatorname*{:=} U_1 \}` as our first selected candidate set. For :math:`k=2`, we repeat this again. Except now, we include the first selected control alongside each one of the remaining control units. This results in us estimating :math:`N_0 - 1` DID models in total. After this, we choose the optimal two control unit combination (optimal in the sense that the DID model maximizes R-squared in the pre-intervention period)
 
 .. math::
 
    i^\ast_2 = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \{i^\ast_1\}} R^2_{\{i^\ast_1, i\}}, 
    \quad \widehat{U}_2 = \{i^\ast_1, i^\ast_2\}.
 
-We then repeat this a third time. For each iteration :math:`k`, we loop over the remaining set of control units and add the first one, first two, and first three best control untis, selecting the optimal set of control units per model:
+This candidate set set, :math:`U_2`, is added to :math:`\mathcal{U}. We then repeat this a third time. For each iteration :math:`k`, we loop over the remaining set of control units and add the first one, first two, and first three best control untis, selecting the optimal set of control units per model:
 
 .. math::
 
