@@ -1,7 +1,7 @@
 Forward DID Method
 ==================
 
-.. automodule:: mlsynth.mlsynth.FDID
+.. automodule:: mlsynth.mlsynth
     :members:
     :undoc-members:
     :show-inheritance:
