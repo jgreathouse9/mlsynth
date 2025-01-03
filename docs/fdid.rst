@@ -3,8 +3,9 @@ Forward DID Method
 
 .. autoclass:: mlsynth.mlsynth.FDID
     :members: __init__, fit
-    :undoc-members:
+    :undoc-members:  # Optional: Use if you want undocumented parts of __init__ or fit
     :show-inheritance:
+
 
 
 
