@@ -432,6 +432,7 @@ class FDID:
         ----------
         config : dict
             Dictionary containing the configuration options. The following keys are expected:
+            
             df : pandas.DataFrame
                 Dataframe containing the data.
             unitid : str
