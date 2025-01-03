@@ -25,6 +25,13 @@ extensions = [
     'sphinx.ext.mathjax',
 ]
 
+latex_elements = {
+    'preamble': r'''
+        \usepackage{amsmath}  # Ensure the amsmath package is loaded
+        \DeclareMathOperator{\argmin}{argmin}
+    ''',
+}
+
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
     'sphinx': ('https://www.sphinx-doc.org/en/master/', None),
