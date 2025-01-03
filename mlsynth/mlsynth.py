@@ -454,12 +454,13 @@ class FDID:
         -------
         dict
             A dictionary containing the following keys for each method (FDID, ADID, DID):
+            
             'Effects' : dict
-                Estimated treatment effects over time.
+                ATTs: ATT, percent ATT, Standardized Effect Size
             'Fit' : dict
-                Goodness-of-fit metrics for the model.
+                Goodness-of-fit metrics for the model: R-Squared, Pre-RMSE
             'Inference' : dict
-                Inference results, including confidence intervals and p-values.
+                Inference results, including 95% confidence intervals and p-values.
 
         References
         ----------
