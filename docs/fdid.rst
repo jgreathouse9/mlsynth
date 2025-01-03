@@ -1,7 +1,7 @@
-Forward DID Method
+FDID Syntax
 ==================
 
-This is the documentation for the Forward Difference-in-Differences (DID) method. Consider the panel data setting where we have :math:`N` units indexed by :math:`i`, over at least two time periods, indexed by :math:`t`. However, in this instance, we are unsure if the parallel trends assumption, or the idea that the average difference between the treated unit and control group would be constant if the treatment did not happen, holds. This in practice is usually due to poor controls, "poor" in the sense that the pre-intervention trends some controls may be too dissimilar to the treated unit of interest. Forward DID is predicated on us using forward selection to choose the control group for a standard DID model.
+This is the documentation for the Forward Difference-in-Differences (DID) method. Consider the panel data setting where we have :math:`N` units indexed by :math:`i`, over at least two time periods, indexed by :math:`t`. However, in this instance, we are unsure if the parallel trends assumption, or the idea that the average difference between the treated unit and control group would be constant if the treatment did not happen, holds. This in practice is usually due to poor controls, "poor" in the sense that the pre-intervention trends for some controls may be too dissimilar to the treated unit of interest. Forward DID is predicated on us using forward selection to choose the control group for a standard DID model, making it a natural compliment to similar methods such as Synthetic Control Methods.
 
 .. autoclass:: mlsynth.mlsynth.FDID
     :members: __init__, fit
@@ -13,10 +13,10 @@ FDID proceeds iteratively over :math:`k` total candidate iterations. The main re
 
 .. math::
     \mathbf{y}_{1} = \widehat{\boldsymbol{\beta}}_{0} + \mathbf{Y}^{\prime}_{\widehat{U}_{k-1} \cup \{i\}} \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1} \cup \{i\}} 
-            \quad \text{s.t. } \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1}} = \frac{1}{U_{k-1}}, \quad \forall t \in \mathcal{T}_1
+            \quad \text{s.t. } \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1}} = \frac{1}{U_{k-1}}, \quad \forall t \in \mathcal{T}_1,
 
 
-We begin with an empty control group. Forward DID proceeds in the manner of forward-selection. Let :math:`\mathcal{U} \operatorname*{:=} \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups. For :math:`k=1`, we estimate :math:`N_0` one unit DID models, using the pre-intervention outcomes of our treaated unit as the dependent variable and the outcomes of the control units as predictors. Of these, we select the control unit which produces the highest R-squared statistic,
+where we have a pre-intervention vector of outcomes for the treated unit and a matrix of outcomes for our control group. We are interested in, however, the subset of these controls, but are agnostic as to which units we should use or how many we should use. We begin with an empty control group. Let :math:`\mathcal{U} \operatorname*{:=} \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups, where each element of the set contains some discrete subset of control units. For :math:`k=1`, we estimate :math:`N_0` one unit DID models, using the pre-intervention outcomes of our treaated unit as the dependent variable and the outcomes of the control units as predictors. Of these, we select the control unit which produces the highest R-squared statistic,
 
 .. math::
 
