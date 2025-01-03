@@ -1,0 +1,31 @@
+name: Black Formatter
+
+on:
+  push:
+    branches:
+      - main  # Trigger on pushes to the 'main' branch
+  pull_request:
+    branches:
+      - main  # Trigger on pull requests targeting the 'main' branch
+
+jobs:
+  black:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'  # Adjust the version based on your needs
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black  # Install black
+
+    - name: Auto-format code with Black
+      run: |
+        black .  # This will autoformat your code
