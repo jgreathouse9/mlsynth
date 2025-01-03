@@ -16,7 +16,7 @@ Class Documentation
 
 .. toctree::
    :maxdepth: 2
-   :caption: FDID Class
+   :caption: FDID
 
    fdid
 
