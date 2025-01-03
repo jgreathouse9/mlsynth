@@ -1,0 +1,13 @@
+# Sphhinx dependencies
+sphinx
+sphinx_rtd_theme
+sphinxcontrib-bibtex<2.0.0
+
+# mlsynth dependencies
+pandas
+numpy
+matplotlib
+scipy
+scikit-learn
+cvxpy
+screenot
