@@ -1,7 +1,7 @@
 .. mlsynth documentation master file, created by
    sphinx-quickstart on Thu Jan 3 2025.
 
-Welcome to mlsynth's documentation!
+Welcome to mlsynth's documentation! mlsynth is short for "Machine-Learning Synthetic Control" methods, due to it implementing various Synthetic Control based methodologies for program evaluation. The library also includes difference-in-differences, panel data approaches, and factor modeling.
 
 Contents:
 
