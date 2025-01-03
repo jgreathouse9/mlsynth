@@ -27,9 +27,8 @@ extensions = [
 
 latex_elements = {
     'preamble': r'''
-        \usepackage{amsmath}  # Ensure the amsmath package is loaded
-        \DeclareMathOperator{\argmin}{argmin}
-    ''',
+\DeclareMathOperator{\argmin}{argmin}
+''',
 }
 
 intersphinx_mapping = {
