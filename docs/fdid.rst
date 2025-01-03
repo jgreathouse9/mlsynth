@@ -29,7 +29,7 @@ We add this one unit set to :math:`\{\mathcal{U} \operatorname*{:=} U_1 \}` as o
    i^\ast_2 = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \{i^\ast_1\}} R^2_{\{i^\ast_1, i\}}, 
    \quad \widehat{U}_2 = \{i^\ast_1, i^\ast_2\}.
 
-This candidate set set, :math:`U_2`, is added to :math:`\mathcal{U}. We then repeat this a third time. For each iteration :math:`k`, we loop over the remaining set of control units and add the first one, first two, and first three best control untis, selecting the optimal set of control units per model:
+This candidate set set, :math:`U_2`, is added to :math:`\mathcal{U}`. We then repeat this a third time. For each iteration :math:`k`, we loop over the remaining set of control units and add the first one, first two, and first three best control untis, selecting the optimal set of control units per model:
 
 .. math::
 
