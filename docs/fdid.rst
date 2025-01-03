@@ -1,7 +1,7 @@
 Forward DID Method
 ==================
 
-This is the documentation for the Forward DID method.
+This is the documentation for the Forward Difference-in-Differences (DID) method. Consider the panel data setting where we have :math:`N` units indexed by :math:`i`, over at least two time periods, indexed by :math:`t`. However, in this instance, we are unsure if the parallel trends assumption, or the idea that the average difference between the treated unit and control group would be constant if the treatment did not happen, holds. This in practice is usually due to poor controls, "poor" in the sense that the pre-intervention trends some controls may be too dissimilar to the treated unit of interest. Forward DID is predicated on us using forward selection to choose the control group for a standard DID model.
 
 .. autoclass:: mlsynth.mlsynth.FDID
     :members: __init__, fit
