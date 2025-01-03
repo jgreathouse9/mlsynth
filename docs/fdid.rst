@@ -9,24 +9,37 @@ This is the documentation for the Forward DID method.
     :show-inheritance:
 
 
+fDID proceeds iteratively over \( k \) total candidate iterations. Like fsPDA, we begin with an empty set of controls.
 
-Here is the algorithm
+Let \( \mathcal{U} \coloneqq \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\} \) represent the set of candidate control groups.
+
+For \( k = 1 \):
 
 .. math::
 
-   \begin{algorithm}
-   \caption{Forward DID Estimation Algorithm}
-   \begin{algorithmic}[1]
-   \REQUIRE Dataframe with columns: unitid, time, outcome, treat
-   \ENSURE Estimated treatment effects over time
-   \STATE Partition the data into treated and control groups
-   \FOR{each time period}
-      \STATE Compute difference-in-differences
-   \ENDFOR
-   \RETURN Treatment effect estimates
-   \end{algorithmic}
-   \end{algorithm}
+   i^\ast_1 = \operatorname*{argmax}_{i \in \mathcal{N}_0} R^2_i, \quad \widehat{U}_1 = \{i^\ast_1\}
 
+For \( k = 2 \):
+
+.. math::
+
+   i^\ast_2 = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \{i^\ast_1\}} R^2_{\{i^\ast_1, i\}}, 
+   \quad \widehat{U}_2 = \{i^\ast_1, i^\ast_2\}
+
+For each \( k \), a DID model is estimated for each remaining control unit:
+
+.. math::
+
+   i^\ast_k = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \widehat{U}_{k-1}} R^2_{\widehat{U}_{k-1} \cup \{i\}}, 
+   \quad \widehat{U}_k = \widehat{U}_{k-1} \cup \{i^\ast_k\}
+
+These candidate sets are added to \( \mathcal{U} \) until \( k = N_0 \).
+
+Finally, the control group returned by fDID is:
+
+.. math::
+
+   \widehat{U} \coloneqq \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)
 
 
 
