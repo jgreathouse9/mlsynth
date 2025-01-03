@@ -8,13 +8,12 @@ As the name suggests, it employs synthetic control methods, also includes differ
 ## Installing CausalTensor
 mlsynth is compatible with Python 3.6 or later.
 
-    $ pip install causaltensor
+    $ pip install -U git+https://github.com/jgreathouse9/mlsynth.git
 
-Note that CausalTensor is an active project and routinely publishes new releases. In order to upgrade CausalTensor to the latest version, use pip as follows.
 
-    $ pip install -U causaltensor
+Note that mlsynth is an active project. New estimators, such as [this one](https://doi.org/10.48550/arXiv.2006.07691), will soon join the toolkit.
     
-## Using CausalTensor
+## Using mlsynth
 We have implemented the following estimators for mlsynth  
 
  | Estimator                                | Reference | Class in mlsynth |
@@ -31,10 +30,3 @@ We have implemented the following estimators for mlsynth
 | [Robust PCA Synthetic Control](https://academicworks.cuny.edu/gc_etds/4984) | Mani Bayani. "Essays on Machine Learning Methods in Economics." CUNY Academic Works, 2022. | CLUSTERSC |
 | [Synthetic Control Method (Vanilla SCM)](https://doi.org/10.1198/jasa.2009.ap08746) | Abadie, Alberto; Diamond, Alexis; Hainmueller, Jens. "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California's Tobacco Control Program." *Journal of the American Statistical Association* 105 (490): 493–505, 2010. | TSSC |
 | [Two Step Synthetic Control](https://doi.org/10.1287/mnsc.2023.4878) | Kathleen T. Li, Venkatesh Shankar. "A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events." *Management Science* 70(6):3734-3747, 2023. | TSSC |
-
-
-Please visit our [documentation](https://causaltensor.readthedocs.io/) for the usage instructions. Or check the following simple demo as a tutorial:
-
-- [Panel Data Example](https://colab.research.google.com/github/TianyiPeng/causaltensor/blob/main/tutorials/Panel%20Data%20Example.ipynb)
-- [Panel Data with Multiple Treatments](https://colab.research.google.com/github/TianyiPeng/causaltensor/blob/main/tutorials/Panel_Regression_with_Multiple_Interventions.ipynb)
-- [MC-NNM with covariates and missing data](https://colab.research.google.com/github/TianyiPeng/causaltensor/blob/main/tests/MCNNM_test.ipynb)
