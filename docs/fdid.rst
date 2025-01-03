@@ -9,7 +9,14 @@ This is the documentation for the Forward DID method.
     :show-inheritance:
 
 
-fDID proceeds iteratively over :math:`k` total candidate iterations. We begin with an empty control group of selectd variables. Let :math:`\mathcal{U} \coloneqq \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups. For :math:`k=1`,
+fDID proceeds iteratively over :math:`k` total candidate iterations. The main regression specification is
+
+.. math::
+    \mathbf{y}_{1} = \widehat{\boldsymbol{\beta}}_{0} + \mathbf{Y}^{\prime}_{\widehat{U}_{k-1} \cup \{i\}} \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1} \cup \{i\}} 
+            \quad \text{s.t. } \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1}} = \frac{1}{U_{k-1}}, \quad \forall t \in \mathcal{T}_1
+
+
+We begin with an empty control group of selectd variables. Let :math:`\mathcal{U} \coloneqq \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups. For :math:`k=1`,
 
 .. math::
 
