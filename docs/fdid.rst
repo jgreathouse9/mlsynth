@@ -168,9 +168,11 @@ The user needs a dictionary.
         "time": time,
         "outcome": outcome,
         "unitid": unitid,
-        "counterfactual_color": "#7DF9FF",  # Optional, defaults to "red"
-        "treated_color": "red",  # Optional, defaults to "black"
-        "display_graphs": True  # Optional, defaults to True
+        "counterfactual_color": "red",  # Optional, defaults to "red"
+        "treated_color": "black",  # Optional, defaults to "black"
+        "display_graphs": True,
+        "save": True
+
     }
 
     model = FDID(config)
@@ -178,3 +180,10 @@ The user needs a dictionary.
     # Run the FDID analysis
     autores = model.fit()
 
+
+This code produces this plot
+
+.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/examples/fdid/FDID_Basque.png
+   :alt: FDID Basque Plot
+   :align: center
+   :width: 600px
