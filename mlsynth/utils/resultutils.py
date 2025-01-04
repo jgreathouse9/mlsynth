@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 def plot_estimates(
         df, time, unitid, outcome, treatmentname, treated_unit_name, y, cf_list,
@@ -50,11 +51,11 @@ def plot_estimates(
 
     # Save or display the plot
     if save:
-        plt.savefig(f"{method}_{treated_unit_name}.png")
+        filename = f"{method}_{treated_unit_name}.png"
+        plt.savefig(filename)
+        print(f"Plot saved to: {os.path.join(os.getcwd(), filename)}")
     else:
         plt.show()
-
-
 
 class effects:
     @staticmethod
