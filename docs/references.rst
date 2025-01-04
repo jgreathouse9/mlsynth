@@ -33,6 +33,9 @@ References
     *Journal of Econometrics*, 235(2): 2218-2244, 2023. 
     DOI: https://doi.org/10.1016/j.jeconom.2023.03.008
 
+.. [Shi2024] Zhentao Shi and Yishu Wang. *"L2-relaxation for Economic Prediction."* November 2024. `doi:10.13140/RG.2.2.11670.97609 <https://doi.org/10.13140/RG.2.2.11670.97609>`_.
+
+
 .. [SHI2023512]
     Shi, Zhentao and Huang, Jingyi. 
     "Forward-selected panel data approach for program evaluation." 
