@@ -1,31 +1,23 @@
 About mlsynth
 ===========================
 
-``CausalML`` is a Python package that provides a suite of uplift modeling and causal inference methods using machine learning algorithms based on recent research.
-It provides a standard interface that allows user to estimate the **Conditional Average Treatment Effect** (CATE), also known as **Individual Treatment Effect** (ITE), from experimental or observational data.
-Essentially, it estimates the causal impact of intervention **W** on outcome **Y** for users with observed features **X**, without strong assumptions on the model form.
+``mlsynth`` is a Python package that provides a suite of causal inference methods using machine learning techniques. Most of these emthodologies come from the synthetic control family of methods. ``mlsynth`` calculates Average Treatment Effects on the Treated (ATTS) and oftentimes, when possible, computes confidence intervals and inference statistics. ``mlsynth`` also conveniently returns these, as well as the observed versus fitted values, as well as a host of metrics of fit.
 
 GitHub Repo
 -----------
 
-https://github.com/uber/causalml
+https://github.com/jgreathouse9/mlsynth
 
 Mission
 -------
 
-From the CausalML `Charter <https://github.com/uber/causalml/blob/master/CHARTER.md>`_:
+The first reason I created this library can be summarized from the CausalML `Charter <https://github.com/uber/causalml/blob/master/CHARTER.md>`_, as I am:
 
-    CausalML is committed to democratizing causal machine learning through accessible, innovative, and well-documented open-source tools that empower data scientists, researchers, and organizations. At our core, we embrace inclusivity and foster a vibrant community where members exchange ideas, share knowledge, and collaboratively shape a future where CausalML drives advancements across diverse domains.
+    committed to democratizing causal machine learning through accessible, innovative, and well-documented open-source tools that empower data scientists, researchers, and organizations.
 
-Contributing
-------------
-`Contributing.md <https://github.com/uber/causalml/blob/master/CONTRIBUTING.md>`_
+However, there is a slightly more practical reason as well. Frequently in public policy, we are concerned with estimation of casual impacts of some intervention on an outcome we care about. The longstanding traditional workhorses in this field are Difference-in-Differences methodologies and synthetic control methods, and for good reason. Difference-in-Differences is very simple to compute. Numerous advances have been made for the methodology in recent years, both in terms of econometric theory and practical implementation .. cite:: whatstrending.
 
-Governance
-----------
-* `Charter <https://github.com/uber/causalml/blob/master/CHARTER.md>`_
-* `Contributors <https://github.com/uber/causalml/graphs/contributors>`_
-* `Maintainers <https://github.com/uber/causalml/blob/master/MAINTAINERS.md>`_
+
 
 Intro to Causal Machine Learning
 ================================
