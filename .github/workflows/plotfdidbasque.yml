@@ -31,32 +31,20 @@ jobs:
       run: |
         python examples/fdidbasque.py
 
-    - name: Find and commit the generated plot
+    - name: Commit FDID_Basque.png
       run: |
-        # Find the most recently saved PNG file in the root directory
-        plot_file=$(ls -t *.png | head -n 1)
-        echo "Found plot file: $plot_file"
+        # Stage FDID_Basque.png if it exists and should be committed
+        if [ -f "FDID_Basque.png" ]; then
+          echo "Staging FDID_Basque.png"
+          git add "FDID_Basque.png"
+        else
+          echo "No FDID_Basque.png file to commit."
+        fi
         
-        # Commit and push the plot to the root directory
+        # Ensure the FDID_Basque.png file is committed if it is staged
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
-        
-        # Stage the most recent plot file if it exists
-        if [ -f "$plot_file" ]; then
-          git add "$plot_file"
-          echo "Staged plot file: $plot_file"
-        else
-          echo "No plot file found to commit."
-        fi
-
-        # Clean up any unnecessary untracked files (like build/ and egg-info) after staging
-        git clean -f  # Only remove untracked files that are not ignored
-        
-        # Ensure the plot file is committed if it was staged
-        git diff --exit-code --quiet || git commit -m "Add generated FDID analysis plot: $plot_file"
-        
-        # Ensure the working directory is clean before pulling
-        git reset --hard
+        git diff --exit-code --quiet || git commit -m "Add FDID_Basque plot"
         
         # Pull the latest changes from the remote to avoid non-fast-forward error
         git pull origin main --rebase
