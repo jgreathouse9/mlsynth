@@ -65,3 +65,8 @@ jobs:
         
         # Push changes using personal access token (PAT) for authentication
         git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main
+
+    - name: Push changes
+      run: |
+        # Push the changes to the repository
+        git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main
