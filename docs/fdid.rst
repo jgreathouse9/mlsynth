@@ -1,15 +1,12 @@
 FDID Syntax
 ==================
 
-This is the documentation for the Forward Difference-in-Differences (DID) method. Consider the panel data setting where we have :math:`N` units indexed by :math:`i`, over at least two time periods, indexed by :math:`t`. However, in this instance, we are unsure if the parallel trends assumption, or the idea that the average difference between the treated unit and control group would be constant if the treatment did not happen, holds. This in practice is usually due to poor controls, "poor" in the sense that the pre-intervention trends for some controls may be too dissimilar to the treated unit of interest. Forward DID is predicated on using forward selection to choose the control group for a standard DID model. In many ways it is a natural compliment to similar methods such as Synthetic Control Methods.
+This is the documentation for the Forward Difference-in-Differences (DID) method. With DID, we may be unsure if the parallel trends assumption, or the idea that the average difference between the treated unit and control group would be constant if the treatment did not happen, holds. This in practice is usually due to poor controls, "poor" in the sense that the pre-intervention trends for some controls may be too dissimilar to the treated unit of interest.
 
-.. autoclass:: mlsynth.mlsynth.FDID
-    :members: __init__, fit
-    :undoc-members:  # Optional: Use if you want undocumented parts of __init__ or fit
-    :show-inheritance:
+Formally, I lay out the notations. Indexed by :math:`j`, we observe :math:`\mathcal{N} \coloneqq \{1, 2, \ldots, N\}` units where the set :math:`\mathcal{N}` has cardinality :math:`N = |\mathcal{N}|`. :math:`j = 1` is the treated unit with the controls being :math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` whose cardinality is :math:`N_0 = |\mathcal{N}_0|`. Let :math:`\widehat{U} \subset \mathcal{N}_0` be a subset of controls, with cardinality :math:`U = |\widehat{U}|`. Time periods are indexed by :math:`t`. Let :math:`\mathcal{T}_1 \coloneqq \{1, 2, \ldots, T_0\}` represent the pre-intervention periods, where :math:`T_0` is the final pre-intervention period, and :math:`\mathcal{T}_2 \coloneqq \{T_0 + 1, \ldots, T\}` represents the post-intervention periods. Both of these sets have cardinalities :math:`T_1 = |\mathcal{T}_1|` and :math:`T_2 = |\mathcal{T}_2|`. Let :math:`\mathcal{T} \coloneqq \mathcal{T}_1 \cup \mathcal{T}_2` represent the full time series, with cardinality :math:`T = |\mathcal{T}|`.
 
 
-FDID proceeds iteratively over :math:`k` total candidate iterations. The main regression specification is
+With this in mind, we may describe the algorithm. FDID proceeds iteratively over :math:`k` total candidate iterations. The main regression specification is
 
 .. math::
     \mathbf{y}_{1} = \widehat{\boldsymbol{\beta}}_{0} + \mathbf{Y}^{\prime}_{\widehat{U}_{k-1} \cup \{i\}} \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1} \cup \{i\}} 
@@ -43,6 +40,14 @@ These candidate sets of optimal controls are added to :math:`\mathcal{U}` until 
 Implemented via mlsynth
 ----------------
 
+Here is the input FDID accepts:
+
+.. autoclass:: mlsynth.mlsynth.FDID
+    :members: __init__, fit
+    :undoc-members:  # Optional: Use if you want undocumented parts of __init__ or fit
+    :show-inheritance:
+
+The user needs a dictionary.
 
 
 .. code-block:: python
