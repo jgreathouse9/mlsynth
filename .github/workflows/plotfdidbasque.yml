@@ -40,5 +40,8 @@ jobs:
         git add fdid_analysis_plot.png
         git commit -m "Add generated FDID analysis plot"
         
-        # Push changes using GitHub token for authentication
-        git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main
+        # Pull the latest changes from the remote to avoid non-fast-forward error
+        git pull origin main --rebase
+        
+        # Push changes using personal access token (PAT) for authentication
+        git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main
