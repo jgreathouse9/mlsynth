@@ -3,7 +3,8 @@
 
 .. note::
 
-   This project is under active development. As you can see, most of the material is not yet documented. This project would not be possible without the kind assistance/efforts of and/or discussions with Jason Coupet, Kathy Li, Mani Bayani, Zhentao Shi, and Jaume Vives-i-Bastida.
+   This project is under active development. As you can see, most of the material is not yet documented. This project would not be possible without the kind assistance/efforts of and/or discussions with `Jason Coupet <https://aysps.gsu.edu/profile/jason-coupet/>`_, `Kathy Li <https://sites.utexas.edu/kathleenli/>`_, `Mani Bayani <https://www.linkedin.com/in/mani-bayani?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app>`_, `Zhentao Shi <https://zhentaoshi.github.io/>`_, and `Jaume Vives-i-Bastida <https://jvivesb.github.io/>`_.
+
 
 Hi, I'm `Jared <https://jgreathouse9.github.io/>`_. Welcome to mlsynth's documentation! mlsynth is short for "Machine-Learning Synthetic Control" methods, due to it implementing various Synthetic Control based methodologies for program evaluation. The library also includes difference-in-differences, panel data approaches, and factor modeling.
 
