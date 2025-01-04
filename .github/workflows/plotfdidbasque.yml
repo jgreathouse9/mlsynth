@@ -50,17 +50,17 @@ jobs:
           echo "FDID_Basque.png not found, nothing to commit"
         fi
         
-        # Commit only if there are changes
+        # Commit the file only if it was staged
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         
-        # Commit if there are staged changes
+        # Commit only if there are staged changes
         git diff --exit-code --quiet || git commit -m "Add FDID_Basque plot"
         
         # Check the status to ensure the file is committed
         git status
 
-    - name: Push changes
+    - name: Push the changes to the repository
       run: |
-        # Force push changes to the remote repository, use the right ref
-        git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main --force
+        # Push the changes to the remote repository
+        git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main
