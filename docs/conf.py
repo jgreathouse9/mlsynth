@@ -24,7 +24,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
-    'sphinx-copybutton'
+    'sphinx_copybutton'
 ]
 
 mathjax_config = {
