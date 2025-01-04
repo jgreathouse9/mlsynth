@@ -3,3 +3,4 @@ sphinx
 sphinx_rtd_theme
 sphinxcontrib-bibtex<2.0.0
 sphinx-copybutton
+sphinxcontrib-bibtex
