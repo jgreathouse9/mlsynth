@@ -37,10 +37,6 @@ jobs:
         plot_file=$(ls -t *.png | head -n 1)
         echo "Found plot file: $plot_file"
         
-        # Commit and push the plot to the root directory
-        git config --global user.name "github-actions"
-        git config --global user.email "github-actions@github.com"
-        
         # Move the file to the root if it's not already there
         mv $plot_file ./fdid_analysis_plot.png
 
