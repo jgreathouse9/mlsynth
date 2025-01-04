@@ -776,8 +776,6 @@ class FDID:
         y1 = np.ravel(prepped["y"][:prepped["pre_periods"]])
         y2 = np.ravel(prepped["y"][-prepped["post_periods"]:])
 
-        print(prepped["donor_matrix"].shape[1])
-
         selected, R2_final, Uhat = self.selector(
             prepped["donor_matrix"].shape[1], prepped["pre_periods"], prepped["total_periods"], prepped["y"], prepped["donor_matrix"],  np.arange(1, prepped["donor_matrix"].shape[1] + 1)
         )
