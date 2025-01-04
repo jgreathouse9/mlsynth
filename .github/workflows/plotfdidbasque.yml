@@ -50,9 +50,9 @@ jobs:
         fi
 
         # Clean up any unnecessary untracked files (like build/ and egg-info) after staging
-        git clean -fdx
+        git clean -f  # Only remove untracked files that are not ignored
         
-        # Check if there are any changes and commit them if necessary
+        # Ensure the plot file is committed if it was staged
         git diff --exit-code --quiet || git commit -m "Add generated FDID analysis plot: $plot_file"
         
         # Ensure the working directory is clean before pulling
