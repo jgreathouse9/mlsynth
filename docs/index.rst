@@ -24,7 +24,7 @@ Classes
 
 .. toctree::
    :maxdepth: 1
-   :caption: FDID
+   :caption: Forward Difference-in-Differences
 
    fdid
 
