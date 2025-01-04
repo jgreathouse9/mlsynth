@@ -41,17 +41,19 @@ jobs:
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         
-        # Avoid cleaning files that should be tracked
-        git clean -fdx  # Cleans only untracked files, not ignored ones (like build artifacts)
-        
         # Stage the most recent plot file if it exists
         if [ -f "$plot_file" ]; then
           git add "$plot_file"
-          # Commit the plot file if changes are detected
-          git commit -m "Add generated FDID analysis plot: $plot_file"
+          echo "Staged plot file: $plot_file"
         else
           echo "No plot file found to commit."
         fi
+
+        # Clean up any unnecessary untracked files (like build/ and egg-info) after staging
+        git clean -fdx
+        
+        # Check if there are any changes and commit them if necessary
+        git diff --exit-code --quiet || git commit -m "Add generated FDID analysis plot: $plot_file"
         
         # Ensure the working directory is clean before pulling
         git reset --hard
