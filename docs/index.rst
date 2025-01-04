@@ -24,7 +24,7 @@ Contents:
    about
    references
 
-Classes
+MLSYNTH
 --------
 
 .. toctree::
