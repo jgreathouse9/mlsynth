@@ -821,7 +821,7 @@ class FDID:
         if self.display_graphs:
 
             plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treated,
-                           prepped["treated_unit_name"], prepped["y"], [y_FDID], method="FDID", counterfactual_names=[f"FDID"],
+                           prepped["treated_unit_name"], prepped["y"], [y_FDID], method="FDID", counterfactual_names=["FDID "+prepped["treated_unit_name"]],
                            treatedcolor=self.treated_color, save=self.save, counterfactualcolors=[self.counterfactual_color])
 
         return estimators_results
