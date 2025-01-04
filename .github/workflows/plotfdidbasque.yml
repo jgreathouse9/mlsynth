@@ -45,6 +45,11 @@ jobs:
           exit 1
         fi
 
+    - name: Resolve merge conflict for binary file
+      run: |
+        git checkout --theirs dist/mlsynth-0.1.0.tar.gz  # Keep the remote version
+        git add dist/mlsynth-0.1.0.tar.gz
+
     - name: Commit FDID_Basque.png
       run: |
         # Ensure that FDID_Basque.png exists in the target directory
