@@ -17,10 +17,11 @@ Contents:
    :maxdepth: 2
    :caption: Contents:
 
+   about
    classes
 
 Classes
-==================
+--------
 
 .. toctree::
    :maxdepth: 1
@@ -57,9 +58,3 @@ Classes
    :caption: TSSC Class
 
    tssc
-
-.. toctree::
-   :maxdepth: 2
-   :caption: CLUSTERSC Class
-
-   clustersc
