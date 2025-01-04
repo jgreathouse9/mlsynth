@@ -1,4 +1,4 @@
-FDID Syntax
+FDID Explained
 ==================
 
 With Difference-in-Differences (DID) designs, we may be unsure if the parallel trends assumption holds. Under parallel-trends, we posit that the average difference between the treated unit and control group would be constant if the treatment did not happen, holds. In practice, parallel trends may not hold due to poor controls, "poor" in the sense that the pre-intervention outcome trends for some controls may be too dissimilar to the treated unit of interest.
@@ -37,7 +37,7 @@ This candidate set set, :math:`U_2`, is added to :math:`\mathcal{U}`. We then re
 
 These candidate sets of optimal controls are added to :math:`\mathcal{U}` until :math:`k = N_0`, or until there are no more controls to loop through. The control group ultimately returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`, or the candidate set of control units that has the highest R-squared statistic of all the candidate sets.
 
-Implemented via mlsynth
+Implementinf FDID via mlsynth
 ----------------
 
 Here is the input FDID accepts:
@@ -47,7 +47,7 @@ Here is the input FDID accepts:
     :undoc-members:  # Optional: Use if you want undocumented parts of __init__ or fit
     :show-inheritance:
 
-The user needs to supply a dictionary.
+The user needs to supply a dictionary. The dictionary must contain a dataframe with at least four columns: a string identifier for each unit, a numeric time identifier for each time period, a numeric outcome variable, and an indicator variable that is equal to one when the unit is treated and 0 for all other units. Note, that the data must be a long form panel dataset, where we have one observation per unit per time period.
 
 
 .. code-block:: python
