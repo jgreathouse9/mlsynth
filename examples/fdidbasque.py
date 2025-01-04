@@ -127,8 +127,3 @@ model = FDID(config)
 # Run the FDID analysis
 autores = model.fit()
 
-# Save the plot if the "save" parameter is set to True
-if config["save"]:
-    plt.savefig("fdid_analysis_plot.png")
-    print("Plot saved as fdid_analysis_plot.png")
-
