@@ -31,8 +31,8 @@ jobs:
       run: |
         python examples/fdidbasque.py
         # Check if FDID_Basque.png was generated
-        if [ -f "FDID_Basque.png" ]; then
-          echo "FDID_Basque.png generated in root directory"
+        if [ -f "examples/FDID_Basque.png" ]; then
+          echo "FDID_Basque.png generated in examples directory"
         else
           echo "FDID_Basque.png not found, checking other directories"
           find . -name "FDID_Basque.png"
@@ -40,15 +40,15 @@ jobs:
 
     - name: Commit FDID_Basque.png
       run: |
-        # Stage FDID_Basque.png if it exists and should be committed
-        if [ -f "FDID_Basque.png" ]; then
-          echo "Staging FDID_Basque.png"
-          git add "FDID_Basque.png"
-        elif [ -f "path/to/FDID_Basque.png" ]; then
-          echo "FDID_Basque.png not in root, staging from subdirectory"
-          git add "path/to/FDID_Basque.png"
+        # Check the status of the repository
+        git status
+        
+        # Force add FDID_Basque.png from examples/ directory if it exists
+        if [ -f "examples/FDID_Basque.png" ]; then
+          echo "Staging FDID_Basque.png from examples/ directory"
+          git add -f "examples/FDID_Basque.png"
         else
-          echo "No FDID_Basque.png file to commit."
+          echo "No FDID_Basque.png file found."
         fi
         
         # Commit FDID_Basque.png if it was staged
@@ -56,7 +56,10 @@ jobs:
         git config --global user.email "github-actions@github.com"
         git diff --exit-code --quiet || git commit -m "Add FDID_Basque plot"
         
-        # Now that the file is committed, we can pull changes safely
+        # Check the status again to ensure the file is committed
+        git status
+        
+        # Pull changes from the main branch to avoid conflicts
         git pull origin main
         
         # Push changes using personal access token (PAT) for authentication
