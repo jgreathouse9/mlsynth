@@ -1,4 +1,4 @@
-name: Run FDID, Basque
+name: Run FDID
 
 on:
   push:
@@ -30,35 +30,32 @@ jobs:
     - name: Run FDID
       run: |
         python examples/fdidbasque.py
-        # Check if FDID_Basque.png was generated
-        if [ -f "./FDID_Basque.png" ]; then
-          echo "FDID_Basque.png generated in the root directory"
+        # Check if the plot was generated
+        if [ -f "./example/fdid/FDID_Basque.png" ]; then
+          echo "FDID_Basque.png generated in example/fdid/"
         else
-          echo "FDID_Basque.png not found, checking other directories"
-          find . -name "FDID_Basque.png"
+          echo "FDID_Basque.png not found"
+          exit 1
         fi
 
     - name: Commit FDID_Basque.png
       run: |
-        # Ensure that FDID_Basque.png exists in the root directory
-        if [ -f "./FDID_Basque.png" ]; then
-          echo "Staging FDID_Basque.png from the root directory"
+        # Ensure that FDID_Basque.png exists in the specified directory
+        if [ -f "./example/fdid/FDID_Basque.png" ]; then
+          echo "Staging FDID_Basque.png from example/fdid/"
           
-          # Force add the FDID_Basque.png file even if it's ignored in .gitignore
-          git add -f "./FDID_Basque.png"
+          # Force add the file even if it's ignored by .gitignore
+          git add -f "./example/fdid/FDID_Basque.png"
         else
           echo "FDID_Basque.png not found, nothing to commit"
         fi
         
-        # Commit the file only if it was staged
+        # Configure Git for committing
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         
-        # Commit only if there are staged changes (not including build/ or egg-info)
+        # Commit only if there are staged changes
         git diff --exit-code --quiet || git commit -m "Add FDID_Basque plot"
-        
-        # Check the status to ensure the file is committed
-        git status
 
     - name: Pull changes from the remote repository before pushing
       run: |
