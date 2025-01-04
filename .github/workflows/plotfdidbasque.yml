@@ -39,4 +39,6 @@ jobs:
         # Stage and commit the plot image
         git add fdid_analysis_plot.png
         git commit -m "Add generated FDID analysis plot"
-        git push
+        
+        # Push changes using GitHub token for authentication
+        git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main
