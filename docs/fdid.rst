@@ -147,14 +147,12 @@ The user needs to supply a dictionary.
     position = number  # For "Basque"
     selected_key = keys_list[position]
 
-    # Access the corresponding dictionary
+    # Access the Basque dictionary
     selected_dict = base_dict[selected_key]
 
-    # Example: Accessing specific values
     columns = selected_dict["Columns"]
     treatment_name = selected_dict["Treatment Name"]
 
-    # Example usage
     unitid = df.columns[0]
     time = df.columns[1]
     outcome = df.columns[2]
@@ -166,8 +164,8 @@ The user needs to supply a dictionary.
         "time": time,
         "outcome": outcome,
         "unitid": unitid,
-        "counterfactual_color": "red",  # Optional, defaults to "red"
-        "treated_color": "black",  # Optional, defaults to "black"
+        "counterfactual_color": "red",
+        "treated_color": "black",
         "display_graphs": True,
         "save": True
 
