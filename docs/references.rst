@@ -1,6 +1,9 @@
 References
 ==========
 
+.. [Abadie2021] Abadie, Alberto. *"Using Synthetic Controls: Feasibility, Data Requirements, and Methodological Aspects."* Journal of Economic Literature, vol. 59, no. 2, 2021, pp. 391–425. https://doi.org/10.1257/jel.20191450.
+
+
 .. [chaisesurvey]
     de Chaisemartin, Clément and D'Haultfoeuille, Xavier. 
     "Two-way fixed effects and differences-in-differences with heterogeneous treatment effects: a survey." 
