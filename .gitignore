@@ -1,6 +1,5 @@
 # Ignore build directories
 build/
-dist/
 
 # Ignore egg-info
 *.egg-info
