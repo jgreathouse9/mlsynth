@@ -1,15 +1,5 @@
-# Sphhinx dependencies
+# Sphinx dependencies
 sphinx
 sphinx_rtd_theme
 sphinxcontrib-bibtex<2.0.0
 sphinx-copybutton
-
-# mlsynth dependencies
-pandas
-numpy
-matplotlib
-scipy
-scikit-learn
-cvxpy
-screenot
-statsmodels
