@@ -43,8 +43,8 @@ At present (though undocumented at present), ``mlsynth`` supports the following 
    * - `Forward Selected Panel Data Approach <https://doi.org/10.1016/j.jeconom.2021.04.009>`_
      - Zhentao Shi, Jingyi Huang. "Forward-selected panel data approach for program evaluation." *Journal of Econometrics*, Volume 234, Issue 2, 2023, Pages 512-535.
      - PDA
-   * - `HCW <https://doi.org/10.1002/jae.1230>`_
-     - Cheng Hsiao, H. Steve Ching, Shui Ki Wan. "A Panel Data Approach for Program Evaluation: Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China." *J. Appl. Econ.*, 27:705-740, 2012.
+   * - `L1PDA <https://doi.org/10.1002/jae.1230>`_
+     - Kathleen T. Li, David R. Bell. "Estimation of average treatment effects with panel data: Asymptotic theory and implementation." *Journal of Econometrics*, Volume 197, Issue 1, March 2017, Pages 65-75.
      - PDA
    * - `L2-relaxation for Economic Prediction <https://doi.org/10.13140/RG.2.2.11670.97609>`_
      - Zhentao Shi, Yishu Wang. "L2-relaxation for Economic Prediction." November 2024. DOI: `10.13140/RG.2.2.11670.97609 <https://doi.org/10.13140/RG.2.2.11670.97609>`_.
