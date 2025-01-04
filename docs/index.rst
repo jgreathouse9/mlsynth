@@ -25,36 +25,11 @@ Classes
 
 .. toctree::
    :maxdepth: 1
-   :caption: Forward Difference-in-Differences
+   :caption: Classes
 
    fdid
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Clustered Synthetic Control
-
    clustersc
-
-.. toctree::
-   :maxdepth: 2
-   :caption: GSC Class
-
    gsc
-
-.. toctree::
-   :maxdepth: 2
-   :caption: FMA Class
-
    fma
-
-.. toctree::
-   :maxdepth: 2
-   :caption: PDA Class
-
    pda
-
-.. toctree::
-   :maxdepth: 2
-   :caption: TSSC Class
-
    tssc
