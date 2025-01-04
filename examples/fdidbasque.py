@@ -115,8 +115,8 @@ config = {
     "time": time,
     "outcome": outcome,
     "unitid": unitid,
-    "counterfactual_color": "#7DF9FF",  # Optional, defaults to "red"
-    "treated_color": "black",  # Optional, defaults to "black"
+    "counterfactual_color": "red",
+    "treated_color": "black",
     "display_graphs": True,
     "save": True
 
