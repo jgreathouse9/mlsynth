@@ -181,7 +181,11 @@ The user needs a dictionary.
     autores = model.fit()
 
 
+
+
 This code produces this plot
+
+
 
 .. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/examples/fdid/FDID_Basque.png
    :alt: FDID Basque Plot
