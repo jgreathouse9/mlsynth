@@ -6,7 +6,7 @@
 As the name suggests, it employs synthetic control methods, also includes difference-in-differences, panel data approaches, and factor modeling. mlsynth is a suite of tools for addressing questions like "How does Policy X affect some outcome Y" given a panel data structure across more than one time point (ideally many).
 
 ## Installing mlsynth
-mlsynth is compatible with Python 3.8 or later. To install it, please do
+mlsynth is compatible with Python 3.9 or later. To install it, please do
 
     $ pip install -U git+https://github.com/jgreathouse9/mlsynth.git
 
