@@ -24,6 +24,9 @@ References
     *The Econometrics Journal*, 26(3): C1-C30, 2022. 
     DOI: https://doi.org/10.1093/ectj/utac017
 
+.. [Li2024] Li, Kathleen T. *"Frontiers: A Simple Forward Difference-in-Differences Method."* Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. `doi:10.1287/mksc.2022.0212 <https://doi.org/10.1287/mksc.2022.0212>`_.
+
+
 .. [ROTH20232218]
     Roth, Jonathan, Sant'Anna, Pedro H.C., Bilinski, Alyssa, and Poe, John. 
     "What's trending in difference-in-differences? A synthesis of the recent econometrics literature." 
