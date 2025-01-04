@@ -112,7 +112,6 @@ def fpca(X):
 
     # Determine the optimal number of clusters
     optimal_clusters = determine_optimal_clusters(cluster_x)
-    print("USVT RANK is:", rank)
 
     return optimal_clusters, cluster_x, spectral_rank(S,t=.90)
 
