@@ -18,7 +18,7 @@ Contents:
    :caption: Overview:
 
    about
-   classes
+   references
 
 Classes
 --------
