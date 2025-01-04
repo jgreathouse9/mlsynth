@@ -25,5 +25,5 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.8",  # Specify Python version compatibility
+    python_requires=">=3.9",  # Specify Python version compatibility
 )
