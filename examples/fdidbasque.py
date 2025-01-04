@@ -17,7 +17,7 @@ jared_theme = {
     'axes.labelsize': 16,
     'axes.titlesize': 20,
     'figure.dpi': 100,
-    'axes.facecolor': '#b2beb5',
+    'axes.facecolor': 'white',
     'figure.figsize': (10, 6)
 }
 
