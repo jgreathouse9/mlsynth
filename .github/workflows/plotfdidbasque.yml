@@ -31,11 +31,19 @@ jobs:
       run: |
         python examples/fdidbasque.py
 
-    - name: Commit and push plot to repository
+    - name: Find and commit the generated plot
       run: |
+        # Find the most recently saved PNG file in the root directory
+        plot_file=$(ls -t *.png | head -n 1)
+        echo "Found plot file: $plot_file"
+        
+        # Commit and push the plot to the root directory
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         
+        # Move the file to the root if it's not already there
+        mv $plot_file ./fdid_analysis_plot.png
+
         # Stage and commit the plot image
         git add fdid_analysis_plot.png
         git commit -m "Add generated FDID analysis plot"
