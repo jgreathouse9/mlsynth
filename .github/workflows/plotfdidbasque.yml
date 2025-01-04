@@ -27,7 +27,7 @@ jobs:
         pip install -r requirements.txt
         pip install .  # Install the mlsynth module from your local repository
 
-    - name: Run FDID analysis and save the plot
+    - name: Run FDID
       run: |
         python examples/fdidbasque.py
 
@@ -36,9 +36,6 @@ jobs:
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         
-        # Move the generated plot to the root directory (if needed)
-        mv fdid_analysis_plot.png ./
-
         # Stage and commit the plot image
         git add fdid_analysis_plot.png
         git commit -m "Add generated FDID analysis plot"
