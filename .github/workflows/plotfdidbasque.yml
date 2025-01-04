@@ -62,6 +62,11 @@ jobs:
 
     - name: Pull changes from the remote repository before pushing
       run: |
+        # Commit any staged changes before pulling
+        git add .  # Make sure all changes are staged
+        git commit -m "Committing staged changes before pull" || echo "No changes to commit"
+
+        # Pull the latest changes from the remote repository
         git pull https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git main --rebase
 
     - name: Push the changes to the repository
