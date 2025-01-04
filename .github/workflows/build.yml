@@ -39,23 +39,14 @@ jobs:
         name: mlsynth-dist
         path: dist/  # Upload the 'dist' folder containing your .tar.gz file
 
-    - name: Commit dist/ directory
+    - name: Push changes to GitHub (optional)
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
         
-        # Stash any unstaged changes temporarily
-        git stash
-        
-        # Pull the latest changes to prevent conflicts
-        git pull origin main --rebase
-        
-        # Pop the stashed changes back
-        git stash pop
-        
-        # Stage, commit, and push the dist directory
-        git add dist/
-        git commit -m "Add generated source distribution"
+        # Only commit if there are changes
+        git add .
+        git diff --cached --exit-code || git commit -m "Add build artifacts"
         git push
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Automatically provided by GitHub Actions
