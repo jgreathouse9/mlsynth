@@ -28,7 +28,7 @@ jobs:
 
     - name: Run FDID analysis and save the plot
       run: |
-        python mlsynth/examples/fdidbasque.py
+        python "examples/fdidbasque.py
 
     - name: Upload plot to GitHub
       uses: actions/upload-artifact@v3
