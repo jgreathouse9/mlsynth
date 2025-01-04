@@ -4,6 +4,8 @@ build/
 # Ignore egg-info
 *.egg-info
 
+*.tar.gz
+
 # Ignore Python bytecode files
 *.pyc
 *.pyo
