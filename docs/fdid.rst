@@ -37,7 +37,7 @@ This candidate set set, :math:`U_2`, is added to :math:`\mathcal{U}`. We then re
 
 These candidate sets of optimal controls are added to :math:`\mathcal{U}` until :math:`k = N_0`, or until there are no more controls to loop through. The control group ultimately returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`, or the candidate set of control units that has the highest R-squared statistic of all the candidate sets.
 
-Implementinf FDID via mlsynth
+Implementing FDID via mlsynth
 ----------------
 
 Here is the input FDID accepts:
@@ -49,13 +49,17 @@ Here is the input FDID accepts:
 
 The user needs to supply a dictionary. The dictionary must contain a dataframe with at least four columns: a string identifier for each unit, a numeric time identifier for each time period, a numeric outcome variable, and an indicator variable that is equal to one when the unit is treated and 0 for all other units. Note, that the data must be a long form panel dataset, where we have one observation per unit per time period.
 
+The code below automates this process for the three standard datasets in the synthetic control literature. Users need simply change the :python:`number` outside of the function to run the results for Basque, West Germany, or California's Prop 99 example, from 0, to 1 and 2, respectively. In this case, we use the Basque dataset. We begin with importing the libraries. I use my own custom plot, but naturally you can do this or not.
+
 
 .. code-block:: python
 
     from mlsynth.mlsynth import FDID
     import matplotlib
     import pandas as pd
+
     # matplotlib theme
+
     jared_theme = {
         'axes.grid': True,
         'grid.linestyle': '-',
@@ -117,7 +121,7 @@ The user needs to supply a dictionary. The dictionary must contain a dataframe w
         },
         "Germany": {
             "Columns": ['country', 'year', 'gdp'],
-            "Treatment Time": 1978,
+            "Treatment Time": 1990,
             "Treatment Name": "Reunification",
             "Treated Unit": "Germany",
             "Time": "year",
@@ -222,4 +226,7 @@ Here is the raw output:
     Weights:
     {'Cataluna': 0.5, 'Aragon': 0.5}
 
-    
+
+Importance of Results
+~~~~~~~~~~~~~~~~~~
+coming soon.
