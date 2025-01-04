@@ -54,8 +54,11 @@ jobs:
         # Stage the plot file explicitly (even if it's the same file, ensure it's added)
         git add fdid_analysis_plot.png
 
-        # Check if there are changes before committing
+        # Check if there are any changes and commit them if necessary
         git diff --exit-code --quiet || git commit -m "Add generated FDID analysis plot"
+        
+        # Ensure the working directory is clean before pulling
+        git reset --hard
         
         # Pull the latest changes from the remote to avoid non-fast-forward error
         git pull origin main --rebase
