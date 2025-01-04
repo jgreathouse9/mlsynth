@@ -40,23 +40,24 @@ jobs:
 
     - name: Commit FDID_Basque.png
       run: |
-        # Check the status of the repository
-        git status
-        
-        # Force add FDID_Basque.png from examples/ directory if it exists
+        # Ensure that FDID_Basque.png exists in examples/
         if [ -f "examples/FDID_Basque.png" ]; then
           echo "Staging FDID_Basque.png from examples/ directory"
+          
+          # Force add the file even if it's ignored in .gitignore
           git add -f "examples/FDID_Basque.png"
         else
-          echo "No FDID_Basque.png file found."
+          echo "FDID_Basque.png not found, nothing to commit"
         fi
         
-        # Commit FDID_Basque.png if it was staged
+        # Commit the file if it's staged
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
+        
+        # Commit only if there are changes
         git diff --exit-code --quiet || git commit -m "Add FDID_Basque plot"
         
-        # Check the status again to ensure the file is committed
+        # Check the status to ensure the file is committed
         git status
         
         # Pull changes from the main branch to avoid conflicts
