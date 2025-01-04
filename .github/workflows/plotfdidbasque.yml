@@ -31,7 +31,7 @@ jobs:
         python generate_plot.py
 
     - name: Upload plot to GitHub
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: fdid-analysis-plot
         path: fdid_analysis_plot.png
