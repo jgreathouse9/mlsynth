@@ -28,13 +28,25 @@ Why ``mlsynth``?
 
 Particularly in the field of public policy and to a much lesser degree economics, synthetic control methods have existed and been used for a long while. However, the more recent developments in the literature have not been as widely used (certainly by public policy scholars) as they perhaps ought to be (with notable exceptions for Difference-in-Differences, and SCMs such as augmented synthetic controls and the synthetic Difference-in-Differences method).
 
-While generalizing for why this might be is hard, I believe this is due to a host of sociological and historical reasons. Speaking for the public policy field, I believe there are a few reasons for why this is.
+While generalizing for why this might be is hard, I believe this is primarily due to a host of sociological and historical reasons. Speaking for the public policy field, I believe there are a few reasons for why this is (of course, there may be others)
+
+- Accessibility
+
+For one, lots of these new developments simply appear in journals/conferences that many applied economists and public policy scholars do not frequent, such as *Journal of Machine Learning Research*, *Journal of Econometrics*, *Marketing Science*, *Journal of Marketing Research*, and other outlets. On one hand, scholars may not take advantage of them because they do not know of them.
+
+- Software
+
+Another barrier to entry is software many of these advances are written for/in (again, speaking only for the public policy field). Not a majority, but many, of the classes which appear in ``mlsynth`` had implementations only/mostly in MATLAB. As Zhentao Shi `writes <https://zhentaoshi.github.io/econ5170/intro.html>`_:
+
+   "MATLAB [JG: and to a lesser degree Stata] may still linger in some areas in engineering, but it will be a dinosaur fossil buried under the wonderland of big data."
+
+Beyond this, even if the software were written for a software more typical in public policy (Stata) or economics (Stata, R, and increasingly Python), the vast majority of the methods ``mlsynth`` implements were not wrapped into packages that provided straightforward and off the shelf use without much modification. For example, the Two Step Synthetic Control Method [TSSC]_ Forward Difference-in-Differences [Li2024]_ , Robust Synthetic Control [Amjad2018]_ , or the Factor Model Approach [li2023statistical]_ have publicly available code, but are not very user friendly. All of the public software for these approaches just listed either assumes a very specific data structure (e.g., a wide shaped data frame) or does not automate away data characteristics simply. For example, in the public versions of the code for the estimators just discussed, users oftentimes must manually change things like the names of the control group, the number of pre and post-intervention periods, or even critical things such as the number of factors is singular values to specify in the regression analysis. Robust PCA Synthetic Control by [Bayani2021]_ had no public implementation, and the code for it (provided to me by my friend and coworker, Mani Bayani) was written for both R and Python. These qualities, amongst others, make actually *using* these econometric methods to answer questions applied economists, policy analysts, and business scientists difficult at best.
 
 
 Why use ``mlsynth``?
 --------------------------------
 
-Plenty of writing exists in the academic literature [causeimben]_ and popular press on the various advances in machine learning more broadly and how it may be applied for a host of scenarios, so I will not iterate it here. Instead, some may ask why ``mlsynth`` is useful, especially given that code exists for lots of code exists in/for the papers cited so far. I believe ``mlsynth`` is useful for
+Plenty of writing exists in the academic literature [causeimben]_ and popular press on the various advances in machine learning more broadly and how it may be applied for a host of scenarios, so I will not iterate it here. Why is ``mlsynth``  useful, then? I believe ``mlsynth`` is useful because it is an answer to the problems posed above. ``mlsynth`` has a universal and consistent syntax. It requires only a single long dataframe (where every unit is indexed to one row per time period), which consists of a unit column (a string), a numeric column for time, a numeric outcome variable, and a dummy variable denoting a unit as treated or not (1 if and when treated, else 0). In addition to its simplicity of use, it also provides all of the relevant causal effects, fit statistics, and (where applicable) inferential statistics for hypothesis testing. 
 
 Causal machine learning is a branch of machine learning that focuses on understanding the cause and effect relationships in data. It goes beyond just predicting outcomes based on patterns in the data, and tries to understand how changing one variable can affect an outcome.
 Suppose we are trying to predict a student’s test score based on how many hours they study and how much sleep they get. Traditional machine learning models would find patterns in the data, like students who study more or sleep more tend to get higher scores.
