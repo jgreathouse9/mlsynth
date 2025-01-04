@@ -25,7 +25,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx_copybutton',
-    'sphinx.ext.bibtex',
+    'sphinx.ext.bibtex'
 ]
 
 # Path to your .bib file
