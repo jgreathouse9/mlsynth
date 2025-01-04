@@ -1,6 +1,10 @@
 .. mlsynth documentation master file, created by
    sphinx-quickstart on Thu Jan 3 2025.
 
+.. note::
+
+   This project is under active development. As you can see, most of the material is not yet documented
+
 Hi, I'm `Jared <https://jgreathouse9.github.io/>`_. Welcome to mlsynth's documentation! mlsynth is short for "Machine-Learning Synthetic Control" methods, due to it implementing various Synthetic Control based methodologies for program evaluation. The library also includes difference-in-differences, panel data approaches, and factor modeling.
 
 The way you install mlsynth is by doing, from the command line,
