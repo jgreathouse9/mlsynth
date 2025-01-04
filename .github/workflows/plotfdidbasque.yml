@@ -1,4 +1,4 @@
-name: Run FDID
+name: Run FDID, Basque
 
 on:
   push:
@@ -30,17 +30,23 @@ jobs:
     - name: Run FDID
       run: |
         python examples/fdidbasque.py
-        # Check if the plot was generated
-        if [ -f "./example/fdid/FDID_Basque.png" ]; then
-          echo "FDID_Basque.png generated in example/fdid/"
+        # Check if FDID_Basque.png was generated in the example directory
+        if [ -f "./example/FDID_Basque.png" ]; then
+          echo "FDID_Basque.png generated in example/"
+          
+          # Create example/fdid directory if it doesn't exist
+          mkdir -p "./example/fdid"
+          
+          # Move the plot to example/fdid
+          mv "./example/FDID_Basque.png" "./example/fdid/FDID_Basque.png"
         else
-          echo "FDID_Basque.png not found"
+          echo "FDID_Basque.png not found in example/"
           exit 1
         fi
 
     - name: Commit FDID_Basque.png
       run: |
-        # Ensure that FDID_Basque.png exists in the specified directory
+        # Ensure that FDID_Basque.png exists in example/fdid
         if [ -f "./example/fdid/FDID_Basque.png" ]; then
           echo "Staging FDID_Basque.png from example/fdid/"
           
