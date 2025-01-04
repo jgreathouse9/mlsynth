@@ -37,10 +37,18 @@ jobs:
         plot_file=$(ls -t *.png | head -n 1)
         echo "Found plot file: $plot_file"
         
-        # Move the file to the root if it's not already there
-        mv $plot_file ./fdid_analysis_plot.png
+        # Commit and push the plot to the root directory
+        git config --global user.name "github-actions"
+        git config --global user.email "github-actions@github.com"
+        
+        # Check if the plot file is already named fdid_analysis_plot.png, and only move if necessary
+        if [ "$plot_file" != "fdid_analysis_plot.png" ]; then
+          mv $plot_file fdid_analysis_plot.png
+        else
+          echo "Plot file is already named fdid_analysis_plot.png, overwriting it."
+        fi
 
-        # Stage and commit the plot image
+        # Stage and commit the plot image (force overwrite if necessary)
         git add fdid_analysis_plot.png
         git commit -m "Add generated FDID analysis plot"
         
