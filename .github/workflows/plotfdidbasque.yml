@@ -41,21 +41,14 @@ jobs:
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         
-        # Check if the plot file is already named fdid_analysis_plot.png, and only move if necessary
-        if [ "$plot_file" != "fdid_analysis_plot.png" ]; then
-          mv $plot_file fdid_analysis_plot.png
-        else
-          echo "Plot file is already named fdid_analysis_plot.png, overwriting it."
-        fi
-
         # Clean up any unnecessary untracked files (like build/ and egg-info)
         git clean -fd
         
-        # Stage the plot file explicitly (even if it's the same file, ensure it's added)
-        git add fdid_analysis_plot.png
+        # Stage the most recent plot file
+        git add "$plot_file"
 
         # Check if there are any changes and commit them if necessary
-        git diff --exit-code --quiet || git commit -m "Add generated FDID analysis plot"
+        git diff --exit-code --quiet || git commit -m "Add generated FDID analysis plot: $plot_file"
         
         # Ensure the working directory is clean before pulling
         git reset --hard
