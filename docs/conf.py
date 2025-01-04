@@ -23,8 +23,7 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.plot'
+    'sphinx.ext.napoleon'
 ]
 
 mathjax_config = {
