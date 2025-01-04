@@ -51,9 +51,11 @@ jobs:
         # Clean up any unnecessary untracked files (like build/ and egg-info)
         git clean -fd
         
-        # Stage and commit the plot image (force overwrite if necessary)
+        # Stage the plot file explicitly (even if it's the same file, ensure it's added)
         git add fdid_analysis_plot.png
-        git commit -m "Add generated FDID analysis plot"
+
+        # Check if there are changes before committing
+        git diff --exit-code --quiet || git commit -m "Add generated FDID analysis plot"
         
         # Pull the latest changes from the remote to avoid non-fast-forward error
         git pull origin main --rebase
