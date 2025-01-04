@@ -1,0 +1,8 @@
+pandas
+numpy
+matplotlib
+scipy
+scikit-learn
+statsmodels
+cvxpy
+screenot
