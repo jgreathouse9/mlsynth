@@ -3,6 +3,17 @@ References
 
 .. [Abadie2021] Abadie, Alberto. *"Using Synthetic Controls: Feasibility, Data Requirements, and Methodological Aspects."* Journal of Economic Literature, vol. 59, no. 2, 2021, pp. 391–425. https://doi.org/10.1257/jel.20191450.
 
+.. [Amjad2018] Amjad, Muhammad, Devavrat Shah, and Dennis Shen. *"Robust Synthetic Control."* Journal of Machine Learning Research, vol. 19, no. 1, 2018, pp. 802–852.
+
+.. [Agarwal2021] Agarwal, Anish, Devavrat Shah, Dennis Shen, and Dogyoon Song. *"On Robustness of Principal Component Regression."* Journal of the American Statistical Association, vol. 116, no. 536, 2021, pp. 1731–1745. doi:10.1080/01621459.2021.1928513.
+
+
+.. [Bayani2021] Bayani, Mani. *"Robust PCA Synthetic Control."* Working paper, arXiv, 2021. doi:10.48550/ARXIV.2108.12542.
+
+
+
+
+
 .. [Costa2023] Luis Costa, Vivek F. Farias, Patricio Foncea, Jingyuan (Donna) Gan, Ayush Garg, Ivo Rosa Montenegro, Kumarjit Pathak, Tianyi Peng, Dusan Popovic. *"Generalized Synthetic Control for TestOps at ABI: Models, Algorithms, and Infrastructure."* INFORMS Journal on Applied Analytics, vol. 53, no. 5, 2023, pp. 336–349.
 
 
