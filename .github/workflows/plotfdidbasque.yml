@@ -44,7 +44,7 @@ jobs:
         if [ -f "./FDID_Basque.png" ]; then
           echo "Staging FDID_Basque.png from the root directory"
           
-          # Force add the file even if it's ignored in .gitignore
+          # Force add the FDID_Basque.png file even if it's ignored in .gitignore
           git add -f "./FDID_Basque.png"
         else
           echo "FDID_Basque.png not found, nothing to commit"
@@ -54,7 +54,7 @@ jobs:
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         
-        # Commit only if there are staged changes
+        # Commit only if there are staged changes (not including build/ or egg-info)
         git diff --exit-code --quiet || git commit -m "Add FDID_Basque plot"
         
         # Check the status to ensure the file is committed
