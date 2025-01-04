@@ -23,11 +23,18 @@ As a result, many developments in the causal inference literature have commonly 
 
 
 
-Intro to Causal Machine Learning
+Why ``mlsynth``?
 ================================
 
-What is Causal Machine Learning?
+Particularly in the field of public policy and to a much lesser degree economics, synthetic control methods have existed and been used for a long while. However, the more recent developments in the literature have not been as widely used (certainly by public policy scholars) as they perhaps ought to be (with notable exceptions for Difference-in-Differences, and SCMs such as augmented synthetic controls and the synthetic Difference-in-Differences method).
+
+While generalizing for why this might be is hard, I believe this is due to a host of sociological and historical reasons. Speaking for the public policy field, I believe there are a few reasons for why this is.
+
+
+Why use ``mlsynth``?
 --------------------------------
+
+Plenty of writing exists in the academic literature [causeimben]_ and popular press on the various advances in machine learning more broadly and how it may be applied for a host of scenarios, so I will not iterate it here. Instead, some may ask why ``mlsynth`` is useful, especially given that code exists for lots of code exists in/for the papers cited so far. I believe ``mlsynth`` is useful for
 
 Causal machine learning is a branch of machine learning that focuses on understanding the cause and effect relationships in data. It goes beyond just predicting outcomes based on patterns in the data, and tries to understand how changing one variable can affect an outcome.
 Suppose we are trying to predict a student’s test score based on how many hours they study and how much sleep they get. Traditional machine learning models would find patterns in the data, like students who study more or sleep more tend to get higher scores.
