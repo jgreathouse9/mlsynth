@@ -24,9 +24,12 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
-    'sphinx_copybutton'
+    'sphinx_copybutton',
+    'sphinx.ext.bibtex',
 ]
 
+# Path to your .bib file
+bibtex_bibfiles = ['references.bib']  # Ensure the path is correct
 mathjax_config = {
     "TeX": {
         "extensions": ["AMSmath"]
