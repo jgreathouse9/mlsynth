@@ -179,4 +179,34 @@ The user needs a dictionary.
     autores = model.fit()
 
 
-Next.
+Running FDID Analysis with Online Data
+--------------------------------------
+
+This example demonstrates how to use the :class:`FDID` class by downloading a dataset and running an analysis.
+
+.. plot::
+
+   import pandas as pd
+   from mlsynth.mlsynth import FDID
+
+   # URL for the dataset
+   url = 'https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/basque_data.csv'
+
+   # Load the dataset directly from the URL
+   df = pd.read_csv(url)
+
+   # Configure the FDID model
+   config = {
+       "df": df,
+       "treat": "Terrorism",
+       "time": "year",
+       "outcome": "gdpcap",
+       "unitid": "regionname",
+       "counterfactual_color": "#7DF9FF",
+       "treated_color": "red",
+       "display_graphs": True
+   }
+
+   model = FDID(config)
+   autores = model.fit()
+
