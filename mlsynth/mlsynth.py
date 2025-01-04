@@ -480,6 +480,7 @@ class FDID:
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
         self.display_graphs = config.get("display_graphs", True)
+        self.save= config.get("save", False)
 
 
     def DID(self, y, datax, t1, itp=0):
@@ -821,7 +822,7 @@ class FDID:
 
             plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treated,
                            prepped["treated_unit_name"], prepped["y"], [y_FDID], method="FDID",
-                           treatedcolor=self.treated_color, counterfactualcolors=[self.counterfactual_color])
+                           treatedcolor=self.treated_color, save=self.save, counterfactualcolors=[self.counterfactual_color])
 
         return estimators_results
 
