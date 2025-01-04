@@ -41,13 +41,13 @@ jobs:
           echo "No FDID_Basque.png file to commit."
         fi
         
-        # Ensure the FDID_Basque.png file is committed if it is staged
+        # Commit FDID_Basque.png if it was staged
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         git diff --exit-code --quiet || git commit -m "Add FDID_Basque plot"
         
-        # Pull the latest changes from the remote to avoid non-fast-forward error
-        git pull origin main --rebase
+        # Now that the file is committed, we can pull changes safely
+        git pull origin main
         
         # Push changes using personal access token (PAT) for authentication
         git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main
