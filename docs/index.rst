@@ -30,7 +30,7 @@ Classes
 
 .. toctree::
    :maxdepth: 2
-   :caption: CLUSTERSC Class
+   :caption: Clustered Synthetic Control
 
    clustersc
 
