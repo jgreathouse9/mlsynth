@@ -31,8 +31,8 @@ jobs:
       run: |
         python examples/fdidbasque.py
         # Check if FDID_Basque.png was generated
-        if [ -f "examples/FDID_Basque.png" ]; then
-          echo "FDID_Basque.png generated in examples directory"
+        if [ -f "./FDID_Basque.png" ]; then
+          echo "FDID_Basque.png generated in the root directory"
         else
           echo "FDID_Basque.png not found, checking other directories"
           find . -name "FDID_Basque.png"
@@ -40,12 +40,12 @@ jobs:
 
     - name: Commit FDID_Basque.png
       run: |
-        # Ensure that FDID_Basque.png exists in examples/
-        if [ -f "examples/FDID_Basque.png" ]; then
-          echo "Staging FDID_Basque.png from examples/ directory"
+        # Ensure that FDID_Basque.png exists in the root directory
+        if [ -f "./FDID_Basque.png" ]; then
+          echo "Staging FDID_Basque.png from the root directory"
           
           # Force add the file even if it's ignored in .gitignore
-          git add -f "examples/FDID_Basque.png"
+          git add -f "./FDID_Basque.png"
         else
           echo "FDID_Basque.png not found, nothing to commit"
         fi
