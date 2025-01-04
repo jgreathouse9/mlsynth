@@ -3,8 +3,7 @@ import matplotlib.pyplot as plt
 
 def plot_estimates(
         df, time, unitid, outcome, treatmentname, treated_unit_name, y, cf_list,
-        method, treatedcolor, counterfactualcolors, counterfactual_names=None,
-        rmse=None, att=None, save=False
+        method, treatedcolor, counterfactualcolors, counterfactual_names=None, save=False
 ):
     """
     Plots observed and multiple counterfactual estimates.
@@ -22,9 +21,6 @@ def plot_estimates(
     - treatedcolor: Color for the observed line.
     - counterfactualcolors: List of colors for each counterfactual.
     - counterfactual_names: List of custom names for counterfactuals (optional).
-    - rmse: Root Mean Square Error (optional, for display).
-    - att: Average Treatment Effect on the Treated (optional, for display).
-    - save: If True, saves the plot as a PNG file.
     """
     # Identify the intervention point
     intervention_point = df.loc[df[treatmentname] == 1, time].min()
@@ -50,8 +46,7 @@ def plot_estimates(
     plt.xlabel(time)
     plt.ylabel(outcome)
     plt.title("Counterfactual Analysis")
-    plt.legend()  # Adjust the location of the legend as needed
-    plt.grid(True)
+    plt.legend()
 
     # Save or display the plot
     if save:
