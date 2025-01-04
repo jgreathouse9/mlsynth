@@ -13,7 +13,7 @@ FDID proceeds iteratively over :math:`k` total candidate iterations. The main re
 
 .. math::
     \mathbf{y}_{1} = \widehat{\boldsymbol{\beta}}_{0} + \mathbf{Y}^{\prime}_{\widehat{U}_{k-1} \cup \{i\}} \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1} \cup \{i\}} 
-            \quad \text{s.t. } \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1}} = \frac{1}{U_{k-1}}, \quad \forall t \in \mathcal{T}_1,
+            \quad \text{s.t. } \widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1}} = \frac{1}{|U_{k-1}|}, \quad \forall t \in \mathcal{T}_1,
 
 
 where we have a pre-intervention vector of outcomes for the treated unit and a matrix of outcomes for our control group. We are in fact, however, concerned with the subset of these controls that satisfies the parallel pre-trends assumption. By design, we are agnostic as to which sub-matrix of units we should use or how even many controls we should use. We begin with an empty control group. Let :math:`\mathcal{U} \operatorname*{:=} \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups, where each element of :math:`\mathcal{U}` is a discrete subset of control units. For :math:`k=1`, we estimate :math:`N_0` one unit DID models. Our dependent variable, in this case, is the pre-intervention outcome vector of our treaated unit. The outcomes of the control units serve as predictors. Of these :math:`N_0` DID models, we select the single control unit which produces the highest R-squared statistic,
