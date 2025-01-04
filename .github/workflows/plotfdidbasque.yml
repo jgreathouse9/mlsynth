@@ -30,38 +30,42 @@ jobs:
     - name: Run FDID
       run: |
         python examples/fdidbasque.py
-        # Check if FDID_Basque.png was generated in the example directory
-        if [ -f "./examples/FDID_Basque.png" ]; then
-          echo "FDID_Basque.png generated in examples/"
+        # Check if FDID_Basque.png was generated in the root directory
+        if [ -f "./FDID_Basque.png" ]; then
+          echo "FDID_Basque.png generated in root directory"
           
-          # Create examples/fdid directory if it doesn't exist
+          # Create the target directory if it doesn't exist
           mkdir -p "./examples/fdid"
           
-          # Move the plot to examples/fdid
-          mv "./examples/FDID_Basque.png" "./examples/fdid/FDID_Basque.png"
+          # Move the plot to examples/fdid/
+          mv "./FDID_Basque.png" "./examples/fdid/FDID_Basque.png"
+          echo "Plot moved to examples/fdid/ directory"
         else
-          echo "FDID_Basque.png not found in examples/"
+          echo "FDID_Basque.png not found"
           exit 1
         fi
 
     - name: Commit FDID_Basque.png
       run: |
-        # Ensure that FDID_Basque.png exists in examples/fdid
+        # Ensure that FDID_Basque.png exists in the target directory
         if [ -f "./examples/fdid/FDID_Basque.png" ]; then
-          echo "Staging FDID_Basque.png from examples/fdid/"
+          echo "Staging FDID_Basque.png from examples/fdid/ directory"
           
-          # Force add the file even if it's ignored by .gitignore
+          # Force add the FDID_Basque.png file even if it's ignored in .gitignore
           git add -f "./examples/fdid/FDID_Basque.png"
         else
           echo "FDID_Basque.png not found, nothing to commit"
         fi
         
-        # Configure Git for committing
+        # Commit the file only if it was staged
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         
-        # Commit only if there are staged changes
+        # Commit only if there are staged changes (not including build/ or egg-info)
         git diff --exit-code --quiet || git commit -m "Add FDID_Basque plot"
+        
+        # Check the status to ensure the file is committed
+        git status
 
     - name: Pull changes from the remote repository before pushing
       run: |
