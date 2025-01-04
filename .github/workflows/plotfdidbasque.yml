@@ -30,6 +30,13 @@ jobs:
     - name: Run FDID
       run: |
         python examples/fdidbasque.py
+        # Check if FDID_Basque.png was generated
+        if [ -f "FDID_Basque.png" ]; then
+          echo "FDID_Basque.png generated in root directory"
+        else
+          echo "FDID_Basque.png not found, checking other directories"
+          find . -name "FDID_Basque.png"
+        fi
 
     - name: Commit FDID_Basque.png
       run: |
@@ -37,6 +44,9 @@ jobs:
         if [ -f "FDID_Basque.png" ]; then
           echo "Staging FDID_Basque.png"
           git add "FDID_Basque.png"
+        elif [ -f "path/to/FDID_Basque.png" ]; then
+          echo "FDID_Basque.png not in root, staging from subdirectory"
+          git add "path/to/FDID_Basque.png"
         else
           echo "No FDID_Basque.png file to commit."
         fi
