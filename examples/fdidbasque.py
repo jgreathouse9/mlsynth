@@ -4,7 +4,7 @@ import matplotlib
 import pandas as pd
 # matplotlib theme
 jared_theme = {
-    'axes.grid': True,
+    'axes.grid': False,
     'grid.linestyle': '-',
     'grid.color': 'black',
     'legend.framealpha': 1,
