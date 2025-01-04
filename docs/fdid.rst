@@ -47,7 +47,7 @@ Here is the input FDID accepts:
     :undoc-members:  # Optional: Use if you want undocumented parts of __init__ or fit
     :show-inheritance:
 
-The user needs a dictionary.
+The user needs to supply a dictionary.
 
 
 .. code-block:: python
@@ -103,8 +103,6 @@ The user needs a dictionary.
 
         return edited_frames
 
-
-    # Example usage
     stub_url = 'https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/'
 
     base_dict = {
@@ -191,3 +189,39 @@ This code produces this plot
    :alt: FDID Basque Plot
    :align: center
    :width: 600px
+
+
+Now suppose we wish to access the results. We can do this by printing the keys
+
+
+.. code-block:: python
+
+    fdidresult = model.fit()
+    
+    fdid_info = fdidresult[0]['FDID']
+    
+    keys = ['Effects', 'Fit', 'Inference', 'Weights']
+    
+    for key in keys:
+        print(f"\n{key}:")
+        print(fdid_info[key])
+
+
+
+Here is the raw output:
+
+.. code-block:: text
+
+    Effects:
+    {'ATT': -0.875, 'Percent ATT': -10.035, 'SATT': -37.587}
+
+    Fit:
+    {'T0 RMSE': 0.076, 'R-Squared': 0.994, 'Pre-Periods': 20}
+
+    Inference:
+    {'P-Value': 0.0, '95 LB': -0.921, '95 UB': -0.829, 'Width': 0.09125913731952662, 'SE': 0.1116508902713375, 'Intercept': array([0.84])}
+
+    Weights:
+    {'Cataluna': 0.5, 'Aragon': 0.5}
+
+    
