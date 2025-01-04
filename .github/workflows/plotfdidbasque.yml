@@ -60,6 +60,10 @@ jobs:
         # Check the status to ensure the file is committed
         git status
 
+    - name: Pull changes from the remote repository before pushing
+      run: |
+        git pull https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git main --rebase
+
     - name: Push the changes to the repository
       run: |
         # Push the changes to the remote repository
