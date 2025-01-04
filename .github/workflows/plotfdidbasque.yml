@@ -1,0 +1,37 @@
+name: Run FDID Analysis and Save Plot
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  generate_plot:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run FDID analysis and save the plot
+      run: |
+        python generate_plot.py
+
+    - name: Upload plot to GitHub
+      uses: actions/upload-artifact@v2
+      with:
+        name: fdid-analysis-plot
+        path: fdid_analysis_plot.png
