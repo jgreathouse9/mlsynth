@@ -41,14 +41,15 @@ jobs:
     - name: Run GermanyCLUSTERSC and move plot
       run: |
         python examples/GermanyCLUSTERSC.py
-        latest_plot=$(ls -t *.png | head -n 1)  # Get the most recently saved .png file
+        latest_plot=$(ls -t *.png 2>/dev/null | head -n 1)  # Get the most recently saved .png file
         if [ -n "$latest_plot" ]; then
           mkdir -p "./examples/clustersc"
           mv "./$latest_plot" "./examples/clustersc/$latest_plot"
           echo "$latest_plot moved to examples/clustersc/"
         else
-          echo "No .png file found"
+          echo "No .png file found after running GermanyCLUSTERSC.py"
           exit 1
+        fi
 
     - name: Commit plots
       run: |
