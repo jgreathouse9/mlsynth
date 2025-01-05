@@ -96,7 +96,7 @@ This is done via taking the augmented Lagrangian, solved with proximal gradeint 
    \end{aligned}
 
 
-In the above, all this means is that we iteratively estimate the rank of the matix via the SVT operator, and we use the :math:`\ell_1` norm to extract to the noise component, and the :math:`\rho` (the proximal gradeint operator) encourages updates. With this low-rank structure, we estimate our weights by solving the following optimization problem:
+In the above, all this means is that we iteratively estimate the rank of the donor matrix via the SVT operator, and we use the :math:`\ell_1` norm to extract to the noise component, and the :math:`\rho` (the proximal gradeint operator) encourages updates. With this low-rank structure, we estimate our weights by solving the following optimization problem:
 
 .. math::
 
