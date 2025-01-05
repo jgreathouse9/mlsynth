@@ -237,4 +237,35 @@ We can now turn to an empirical example, namely the reanalysis of West Germany' 
    :width: 600px
 
 
-Here we plot the West Germany Synthetic Control predictions.
+Here we plot the West Germany Synthetic Control predictions. Here are the weights as produced by RPCA-SC
+
+.. list-table:: Data Table
+   :header-rows: 1
+
+   * - Country
+     - Value
+   * - UK
+     - 0.0
+   * - Austria
+     - 0.023
+   * - Belgium
+     - 0.0
+   * - Denmark
+     - 0.0
+   * - France
+     - 0.354
+   * - Italy
+     - 0.0
+   * - Netherlands
+     - 0.0
+   * - Norway
+     - 0.485
+   * - Japan
+     - 0.0
+   * - Australia
+     - 0.0
+   * - New Zealand
+     - 0.296
+
+
+These are the same results Mani gets in his dissertation. The Root Mean Squared Error for RPCA-SC is 88.60, which is not quite as tight as the original SCM, but better than the RSC (98.69).
