@@ -27,10 +27,8 @@ extensions = [
     'sphinx_copybutton'
 ]
 
-mathjax_config = {
-    "TeX": {
-        "extensions": ["AMSmath"]
-    }
+latex_elements = {
+    'preamble': r'\usepackage{mathtools}'
 }
 
 
