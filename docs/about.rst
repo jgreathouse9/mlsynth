@@ -1,11 +1,11 @@
 .. note::
 
-   This project is under active development.
+   This project is under active development. Email the author with questions, comments, or bug reports.
 
 About mlsynth
 ===========================
 
-``mlsynth`` is a Python package that provides a suite of causal inference methods using machine learning techniques. Most of these emthodologies come from the synthetic control family of methods. ``mlsynth`` calculates Average Treatment Effects on the Treated (ATTS) and oftentimes, when possible, computes confidence intervals and inference statistics. ``mlsynth`` also conveniently returns these, as well as the observed versus fitted values, as well as a host of metrics of fit.
+``mlsynth`` is a Python package that provides a suite of causal inference methods using machine learning techniques. Most of these emthodologies come from the synthetic control family of methods. ``mlsynth`` calculates Average Treatment Effects on the Treated (ATTS) and, when possible, computes confidence intervals and inference statistics. ``mlsynth`` also conveniently returns the observed versus predicted values, and metrics of fit.
 
 GitHub Repo
 -----------
@@ -21,26 +21,23 @@ The first reason I created this library can be summarized from the CausalML `Cha
 
 However, there is a slightly more practical reason as well. Frequently in public policy, we are concerned with estimation of casual impacts of some intervention on an outcome we care about. The longstanding traditional workhorses in this field are Difference-in-Differences methodologies and synthetic control methods, and for good reason. Difference-in-Differences is very simple to compute. Numerous advances have been made for the methodology in recent years, both in terms of econometric theory and practical implementation ([ROTH20232218]_ , [chaisesurvey]_). Equally, synthetic control methods have also become very popular amongst economists and policy analysts ([ABADIE2010]_ , [Abadie2021]_), most likely for their interpretability and ease of use in modern statistical software such as Stata or R.
 
-However, as influential as the base toolkit had become, some important problems persist with them. For Difference-in-Differences, frequently the parallel trends assumption is impractical in a variety of real-world applications [Costa2023]_. For synthetic control methods, it is now known that computational issues with standard solvers are a bigger problem than first realized ([BECKER20181]_ , [albalate2021decoupling]_, [malo2023computing]_). Furthermore, synthetic control methods are known to be intractable in high dimensional settings, noisy outcomes, missing data, or where we are unsure on the donors pool to use ([KINN2018]_, [microsynth]_, [scmdisagg]_, [Amjad2018]_, [Agarwal2021]_, [Bayani2021]_). Of course, many exciting developments already exist on this front ([aersdid], [FECT2024]).
-
-As a result, many developments in the causal inference literature have commonly employed machine learning methods to tackle these issues
-
+However, as influential as the base toolkit had become, some important problems persist with them. For Difference-in-Differences, frequently the parallel trends assumption is impractical in a variety of real-world applications [Costa2023]_. For synthetic control methods, it is now known that computational issues with standard solvers are a bigger problem than first realized ([BECKER20181]_ , [albalate2021decoupling]_, [malo2023computing]_). Furthermore, synthetic control methods are known to be intractable in high dimensional settings, noisy outcomes, missing data, or where we are unsure on the donors pool to use ([KINN2018]_, [microsynth]_, [scmdisagg]_, [Amjad2018]_, [Agarwal2021]_, [Bayani2021]_). As a result, many developments in the causal inference literature have commonly employed machine learning methods to tackle these issues. Of course, many exciting developments already exist on this front ([aersdid], [FECT2024]).
 
 
 Why ``mlsynth``?
 ================================
 
-Particularly in the field of public policy and to a much lesser degree economics, synthetic control methods have existed and been used for a long while. However, the more recent developments in the literature have not been as widely used (certainly by public policy scholars) as they perhaps ought to be (with notable exceptions for Difference-in-Differences, and SCMs such as augmented synthetic controls and the synthetic Difference-in-Differences method).
+Particularly in the field of public policy and to a much lesser degree economics, synthetic control methods have existed and been used for a long while for empirical researchers. However, the more recent developments in this literature have not been as widely used (certainly by public policy scholars) as they perhaps ought to be. Of course, there are notable exceptions for Difference-in-Differences, and SCMs such as augmented synthetic controls and the synthetic Difference-in-Differences method.
 
-While generalizing for why this might be is hard, I believe this is primarily due to a host of sociological and historical reasons. Speaking for the public policy field, I believe there are a few reasons for why this is (of course, there may be others)
+Generalizing as to why this might be is hard. However, I believe this lack of use is primarily due to a host of sociological and historical reasons. Speaking for the public policy field, I believe there are a few reasons for why this is.
 
 - Accessibility
 
-For one, lots of these new developments simply appear in journals/conferences that many applied economists and public policy scholars do not frequent, such as *Journal of Machine Learning Research*, *Journal of Econometrics*, *Marketing Science*, *Journal of Marketing Research*, and other outlets. On one hand, scholars may not take advantage of them because they do not know of them.
+For one, lots of these new developments simply appear in journals/conferences that many applied economists and public policy scholars do not frequent, such as *Journal of Machine Learning Research*, *Journal of Econometrics*, *Marketing Science*, *Journal of Marketing Research*, and other outlets. Thus, scholars may not take advantage of them because they do not know of them.
 
 - Software
 
-Another barrier to entry is software many of these advances are written for/in (again, speaking only for the public policy field). Not a majority, but many, of the classes which appear in ``mlsynth`` had implementations only/mostly in MATLAB. As Zhentao Shi `writes <https://zhentaoshi.github.io/econ5170/intro.html>`_:
+Another barrier to entry is the software many of these advances are written for/in (again, speaking only for the public policy field). Not a majority, but many, of the classes which appear in ``mlsynth`` had implementations only/mostly in MATLAB. As Zhentao Shi `writes <https://zhentaoshi.github.io/econ5170/intro.html>`_:
 
    "MATLAB [JG: and to a lesser degree Stata] may still linger in some areas in engineering, but it will be a dinosaur fossil buried under the wonderland of big data."
 
