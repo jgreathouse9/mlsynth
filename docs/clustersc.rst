@@ -37,10 +37,10 @@ After the final pre-treatment period, the control units follow the same process 
 is our main statistic of interest, where :math:`(y_{1t} - \hat{y}_{1t})` is the treatment effect at some given time point. 
 
 Estimation
-==================
+-----------
 
 PCR
-----------------
+~~~~~~~~~~~
 
 In SCM, we exploit the linear relation 
 between untreated and the treated unit to estimate its counterfactual. Typically, this is done like
@@ -68,7 +68,7 @@ The final objective function is
 where we simply use the reconstructed, denoised version of the control group to learn the values of the treated unit in the preintervention period. Then, we take the dot product of our control group to estimate the post intervention counterfactual.
 
 Robust PCA SYNTH
-----------------
+~~~~~~~~~~~~~~~~~
 
 The next method :class:`CLUSTERSC` implements is the Robust PCA SC method by [Bayani2021]_. [Bayani2021]_ argues that the PCR/Robust Synthetic Control method described above is senstive to gross data corruptions and noisy outcomes. Furthermore, [Amjad2018]_ notes that even with the denoisign procedure, there still typically needs to be an expert in the field to determine an appropriate donor pool. To solve this issue, Robust PCA SYNTH  begins with a donor selection step. [Bayani2021]_ advocates for applying functional PCA to the fully observed outcome matrix in the pre-intervention period and applying k-means clustering. Given the set of outcome trajectories for all units during the pre-intervention period, denote the outcome matrix as :math:`\mathbf{Y} \in \mathbb{R}^{N \times T_0}`, where :math:`N` is the number of units and :math:`T_0` is the length of the pre-intervention period. Each unit's trajectory, :math:`\mathbf{y}_j(t)` for :math:`j \in \{1, \ldots, N\}`, can be modeled as a smooth function :math:`f_j(t)` by projecting onto a set of functional principal components:
 
