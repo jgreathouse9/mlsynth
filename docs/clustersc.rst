@@ -87,7 +87,17 @@ Now that we know the number of clusters, we now can apply the k-means method. Th
 .. math::
    \underset{\mathcal{C}}{\mathrm{argmin}} \sum_{k=1}^{K} \sum_{j \in \mathcal{C}_k} \|\boldsymbol{x}_j - \mathbf{c}_k\|_2^2,
 
-where :math:`\mathcal{C} = \{\mathcal{C}_1, \ldots, \mathcal{C}_K\}` is the set of clusters and :math:`\mathbf{c}_k` is the centroid of cluster :math:`k`. The cluster containing the treated unit is selected as the donor pool for constructing the synthetic control. With this brand new donor pool, we now can get to the estimation of the weights, which we do via Robust PCA.
+where :math:`\mathcal{C} = \{\mathcal{C}_1, \ldots, \mathcal{C}_K\}` is the set of clusters and :math:`\mathbf{c}_k` is the centroid of cluster :math:`k`. The cluster containing the treated unit is selected as the donor pool for constructing the synthetic control
+
+.. math::
+
+    \mathbf{1}\left( j \in \mathcal{C}_k \right) =
+    \begin{cases}
+    1, & \text{if } j \in \mathcal{C}_k \\
+    0, & \text{otherwise}
+    \end{cases}
+
+With this brand new donor pool, we now can get to the estimation of the weights, which we do via Robust PCA.
 
 
 Robust PCA asks the user to accept the very simple premise that the observed outcomes are byproducts of a low-rank structure with occasional/sparse outliers, :math:`\mathbf{L} + \mathbf{S}`, where both matrices respectively are of :math:`N \times T` dimensions. As before with PCR/Robust SC, if we can extract this low-rank component for our donor pool, we can use it to learn which combination of donors matters most for the construction of our counterfactual. This problem is written as:
