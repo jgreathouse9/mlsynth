@@ -91,7 +91,7 @@ where :math:`\mathcal{C} = \{\mathcal{C}_1, \ldots, \mathcal{C}_K\}` is the set 
 
 .. math::
 
-    \mathbf{1}\left( j \in \mathcal{C}_k \right) =
+    \mathbf{1}\left( 1 \in \mathcal{C}_k \right) =
     \begin{cases}
     1, & \text{if } j \in \mathcal{C}_k \\
     0, & \text{otherwise}
