@@ -1,22 +1,24 @@
-from mlsynth.mlsynth import PDA, GSC, CLUSTERSC
+from mlsynth.mlsynth import CLUSTERSC
 import matplotlib
 import pandas as pd
 # matplotlib theme
-jared_theme = {'axes.grid': True,
-              'grid.linestyle': '-',
-               'grid.color': 'black',
-              'legend.framealpha': 1,
-              'legend.facecolor': 'white',
-              'legend.shadow': True,
-              'legend.fontsize': 14,
-              'legend.title_fontsize': 16,
-              'xtick.labelsize': 14,
-              'ytick.labelsize': 14,
-              'axes.labelsize': 16,
-              'axes.titlesize': 20,
-              'figure.dpi': 100,
-               'axes.facecolor': '#b2beb5',
-               'figure.figsize': (10, 6)}
+jared_theme = {
+    'axes.grid': False,
+    'grid.linestyle': '-',
+    'grid.color': 'black',
+    'legend.framealpha': 1,
+    'legend.facecolor': 'white',
+    'legend.shadow': True,
+    'legend.fontsize': 14,
+    'legend.title_fontsize': 16,
+    'xtick.labelsize': 14,
+    'ytick.labelsize': 14,
+    'axes.labelsize': 16,
+    'axes.titlesize': 20,
+    'figure.dpi': 100,
+    'axes.facecolor': 'white',
+    'figure.figsize': (10, 6)
+}
 
 matplotlib.rcParams.update(jared_theme)
 
@@ -63,7 +65,7 @@ base_dict = {
     },
     "Germany": {
         "Columns": ['country', 'year', 'gdp'],
-        "Treatment Time": 1978,
+        "Treatment Time": 1990,
         "Treatment Name": "Reunification",
         "Treated Unit": "Germany",
         "Time": "year",
@@ -83,7 +85,7 @@ base_dict = {
 
 edited_frames = get_edited_frames(stub_url, ['basque_data.csv', 'german_reunification.csv', 'smoking_data.csv'], base_dict)
 
-number = 0
+number = 1
 df = edited_frames[number]
 
 # Get the keys as a list
@@ -110,17 +112,23 @@ config = {
     "df": df,
     "treat": treat,
     "time": time,
-    "objective": "OLS",
     "outcome": outcome,
     "unitid": unitid,
-    "counterfactual_color": "#7DF9FF",
-    "treated_color": "red",
+    "counterfactual_color": "red",
+    "treated_color": "black",
     "display_graphs": True,
-    "cluster": True,
-    "train_period": 5
+    "save": False,
+    "cluster": True
+
 }
 
-model = CLUSTERSC(config) #, placebo=placebo_option
+model = CLUSTERSC(config)
 
-# Run the PCR analysis
-autores = model.fit()
+asc = model.fit()
+
+keys = ['Effects', 'Fit', 'Weights']
+
+for key in keys:
+    print(f"\n{key}:")
+    print(asc["RPCASC"][key])
+
