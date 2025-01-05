@@ -24,16 +24,9 @@ def SVDCluster(X, y, donor_names):
     """
     # Stack treated unit with donor matrix and perform SVD
     fully = np.hstack((y[:X.shape[0]].reshape(-1, 1), X)).T
-    n, p = fully.shape
-    k = (min(n, p) // 2) - 1
-    print("The compted k is:", k)
-    Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(fully, k, strategy='0')
-    _, _, u_rank, s_rank, _ = svt(fully)
-    U_est, s_est, Vt_est = svd(Y0_rank, full_matrices=False)
-
+    Y0_rank, _, u_rank, s_rank, _ = svt(fully)
     # Compute embeddings for clustering
     u_embeddings = u_rank * s_rank  # Scale rows by singular values
-    u_embeddings = U_est[:, :rank]* s_est[:rank]
 
     # Determine the optimal number of clusters using silhouette scores
     max_clusters = len(donor_names)
@@ -101,11 +94,9 @@ def fpca(X):
 
     (n1, n2) = Xfun.T.shape
     ratio = min(n1, n2) / max(n1, n2)
-
-    rank = universal_rank(S,ratio =ratio)
-    specrank = spectral_rank(S,t=.90)
-
-    X_pca = X_pca[:, :spectral_rank(S,t=.90)]
+    usvtrank = universal_rank(S,ratio =ratio)
+    specrank = spectral_rank(S,t=.95)
+    X_pca = X_pca[:, : specrank]
 
     # Scale PCA scores
     cluster_x = (X_pca - np.mean(X_pca, axis=0)) / np.std(X_pca, axis=0)
@@ -113,7 +104,7 @@ def fpca(X):
     # Determine the optimal number of clusters
     optimal_clusters = determine_optimal_clusters(cluster_x)
 
-    return optimal_clusters, cluster_x, spectral_rank(S,t=.90)
+    return optimal_clusters, cluster_x,  specrank
 
 
 def PDAfs(y, donormatrix, t1, t, N):

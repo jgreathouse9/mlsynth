@@ -91,7 +91,7 @@ def RPCA(X):
     L = np.zeros_like(X)  # Low Rank structure
 
     count = 0
-    lambd = 1.8 / np.sqrt(np.maximum(n1, n2))
+    lambd = 1 / np.sqrt(np.maximum(n1, n2))
     while (np.linalg.norm(X - L - S) > thresh) and (count < 1000):
         L = SVT(X - S + (1 / mu) * Y, 1 / mu)
         S = shrink(X - L + (1 / mu) * Y, lambd / mu)

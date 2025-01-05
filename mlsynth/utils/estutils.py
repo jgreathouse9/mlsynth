@@ -93,7 +93,7 @@ def l2_relax(time_periods, treated_unit, X, tau):
     beta = cp.Variable(p)
 
     # Objective: minimize 1/2 * ||beta||_2^2
-    objective = cp.Minimize(cp.norm(beta, 2)**2)
+    objective = cp.Minimize(cp.norm(0.5*beta, 2)**2)
 
     # Constraint: ||eta - Sigma @ beta||_inf <= tau
     constraint = [cp.norm(eta - Sigma @ beta, "inf") <= tau]
@@ -102,7 +102,7 @@ def l2_relax(time_periods, treated_unit, X, tau):
     problem = cp.Problem(objective, constraint)
 
     # Solve the problem
-    problem.solve(solver=cp.ECOS)
+    problem.solve(solver=cp.CLARABEL)
 
     # Check if optimization was successful
     if problem.status not in ["optimal", "optimal_inaccurate"]:
@@ -137,7 +137,7 @@ def compute_fold_mse(train_index, test_index, treated_unit, X, tau, time_periods
     return np.mean((test_treated - predictions) ** 2)
 
 # Refactored cross-validation function
-def cross_validate_l2(time_periods, treated_unit, X, tau_values, k_folds=10):
+def cross_validate_l2(time_periods, treated_unit, X, tau_values, k_folds=5):
     """
     Cross-validation to tune tau for L2-relaxation using map.
     """
@@ -288,21 +288,16 @@ def TSEST(x, y, t1, nb, donornames, t2):
 
 
 def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False):
-    n, p = X[:pre].shape
-    k = (min(n, p) - 1) // 2
-    Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(X[:pre], k, strategy='w')
+    #n, p = X[:pre].shape
+    #k = (min(n, p) - 1) // 2
+    #Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(X[:pre], k, strategy='0')
+
     # Perform SVT on the original donor matrix
-    _, n2, u_rank, s_rank, v_rank = svt(X[:pre])
+    Y0_rank, n2, u_rank, s_rank, v_rank = svt(X[:pre])
 
     if cluster:
         X_sub, selected_donor_names, indices = SVDCluster(X[:pre], y, donor_names)
-        # Perform SVT on the subset matrix
-        #Y0_rank, n2, u_rank, s_rank, v_rank = svt(X_sub)
-        n, p = X_sub[:pre].shape
-        k = (min(n, p) - 1) // 2
-        Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(X_sub[:pre], 1, strategy='w')
-        
-
+        Y0_rank, n2, u_rank, s_rank, v_rank = svt(X_sub[:pre])
         # Estimate synthetic control weights
         weights = Opt.SCopt(Y0_rank.shape[1], y[:pre], X_sub.shape[0], Y0_rank, model=objective, donor_names=donor_names)
 
@@ -568,6 +563,7 @@ def pda(prepped, N, method="fs"):
                 "confidence_interval": (ci_low, ci_high)
             }
         
+
         if prepped["post_periods"] > prepped["donor_matrix"].shape[1]:
             tau_values = np.logspace(-2, 1, 10)
         else:
