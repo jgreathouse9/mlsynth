@@ -1098,8 +1098,9 @@ class CLUSTERSC:
             cf_list=[y_RPCA, synth],
             counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
             method="Synthetic Control",
-            treatedcolor="black",
-            counterfactualcolors=["blue", "red"]
+            treatedcolor=self.treated_color,
+            counterfactualcolors=["blue", "red"],
+            save=self.save
         )
 
         ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
