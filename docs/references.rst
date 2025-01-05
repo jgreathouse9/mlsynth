@@ -10,19 +10,18 @@ References
 
 .. [Bayani2021] Bayani, Mani. *"Robust PCA Synthetic Control."* Working paper, arXiv, 2021. doi:10.48550/ARXIV.2108.12542.
 
-
-
-
-
-.. [Costa2023] Luis Costa, Vivek F. Farias, Patricio Foncea, Jingyuan (Donna) Gan, Ayush Garg, Ivo Rosa Montenegro, Kumarjit Pathak, Tianyi Peng, Dusan Popovic. *"Generalized Synthetic Control for TestOps at ABI: Models, Algorithms, and Infrastructure."* INFORMS Journal on Applied Analytics, vol. 53, no. 5, 2023, pp. 336–349.
-
-
-
 .. [chaisesurvey]
     de Chaisemartin, Clément and D'Haultfoeuille, Xavier. 
     "Two-way fixed effects and differences-in-differences with heterogeneous treatment effects: a survey." 
     *The Econometrics Journal*, 26(3): C1-C30, 2022. 
     DOI: https://doi.org/10.1093/ectj/utac017
+
+.. [Costa2023] Luis Costa, Vivek F. Farias, Patricio Foncea, Jingyuan (Donna) Gan, Ayush Garg, Ivo Rosa Montenegro, Kumarjit Pathak, Tianyi Peng, Dusan Popovic. *"Generalized Synthetic Control for TestOps at ABI: Models, Algorithms, and Infrastructure."* INFORMS Journal on Applied Analytics, vol. 53, no. 5, 2023, pp. 336–349.
+
+.. [Chatterjee2015] Sourav Chatterjee. "Matrix estimation by Universal Singular Value Thresholding." *The Annals of Statistics*, Ann. Statist. 43(1), 177-214, (February 2015).
+
+.. [Donoho2023] David Donoho, Matan Gavish, Elad Romanov. "ScreeNOT: Exact MSE-optimal singular value thresholding in correlated noise." *The Annals of Statistics*, Ann. Statist. 51(1), 122-148, (February 2023).
+
 
 .. [Li2024] Li, Kathleen T. *"Frontiers: A Simple Forward Difference-in-Differences Method."* Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. `doi:10.1287/mksc.2022.0212 <https://doi.org/10.1287/mksc.2022.0212>`_.
 
