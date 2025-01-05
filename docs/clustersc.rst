@@ -85,7 +85,18 @@ However, this program is NP-hard due to the rank portion of the objective functi
    &\textrm {subject to } ~~{\mathbf{Y}} = {\mathbf{L}} + {\mathbf{S}},
    \end{align*}
 
-With this low-rank structure, we estimate our weights by solving the following optimization problem:
+This is done via taking the augmented Lagrangian, solved with proximal gradeint descent
+
+.. math::
+
+   \begin{aligned}
+   \mathbf{L}_{k+1} &= \mathrm{SVT}_{1/\rho}\left(\mathbf{X} - \mathbf{S}_{k} + \frac{1}{\rho} \mathbf{Y}_{k}\right) \\
+   \mathbf{S}_{k+1} &= \mathcal{S}_{\lambda/\rho}\left(\mathbf{X} - \mathbf{L}_{k+1} + \frac{1}{\rho} \mathbf{Y}_{k}\right) \\
+   \mathbf{Y}_{k+1} &= \mathbf{Y}_{k} + \rho\left(\mathbf{X} - \mathbf{L}_{k+1} - \mathbf{S}^{k+1}\right)
+   \end{aligned}
+
+
+In the above, all this means is that we iteratively estimate the rank of the matix via the SVT operator, and we use the :math:`\ell_1` norm to extract to the noise component, and the :math:`\rho` (the proximal gradeint operator) encourages updates. With this low-rank structure, we estimate our weights by solving the following optimization problem:
 
 .. math::
 
