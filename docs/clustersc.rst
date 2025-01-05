@@ -66,6 +66,26 @@ The final objective function is
 
 where we simply use the reconstructed, denoised version of the control group to learn the values of the treated unit in the preintervention period. Then, we take the dot product of our control group to estimate the post intervention counterfactual.
 
+Robust PCA
+----------------
+
+The next method :class:`CLUSTERSC` implements is the Robust PCA SC method by [Bayani2021]_. Robust PCA asks the user to accept the very simple premise that our outcomes that we observe are byproducts of a low-rank structure with occasional/sparse outliers, :math:`\mathbf{L} + \mathbf{S}`, where both matrices respectively are of :math:`N \times T` dimensions. As before with PCR/Robust SC, if we can extract this low-rank component for our donor pool, we can use this to learn which convex combination of donors matters most for the construction of our counterfactual. This problem is written as:
+
+.. math::
+
+   \begin{align*}
+   &\mathop {{\mathrm{minimize}}}\limits _{{\mathbf{L}},{\mathbf{S}}} ~{\mathrm{rank}}({\mathbf{L}}) + \lambda {\left \|{ {\mathbf{S}} }\right \|_{0}} \\
+   &\textrm {subject to } ~~{\mathbf{Y}} = {\mathbf{L}} + {\mathbf{S}},
+   \end{align*}
+
+However, this program is NP-hard due to the rank portion of the objective function. Instead, we use the nuclear norm and :math:`\ell_1` norm on the low-rank matrix and sparse matrix respectively:
+
+.. math::
+
+   \begin{align*}
+   &\mathop {{\mathrm{minimize}}}\limits _{{\mathbf{L}},{\mathbf{S}}} ~{\left \|{ {\mathbf{L}} }\right \|_{*}} + \lambda {\left \|{ {\mathbf{S}} }\right \|_{1}} \\
+   &\textrm {subject to } ~~{\mathbf{Y}} = {\mathbf{L}} + {\mathbf{S}},
+   \end{align*}
 
 
 
