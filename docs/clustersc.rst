@@ -34,6 +34,16 @@ After the final pre-treatment period, the control units follow the same process 
 is our main statistic of interest, where :math:`(y_{1t} - \hat{y}_{1t})` is the treatment effect at some given time point. In SCM, we exploit the linear relation 
 between untreated and the treated unit to estimate its counterfactual.
 
+Given the donor pool outcome matrix :math:`\mathbf{Y}_{\mathcal{N}_0} \in \mathbb{R}^{(N-1) \times T}`, we seek a low-rank approximation :math:`\widehat{\mathbf{Y}}_{\mathcal{N}_0} = \mathbf{U} \mathbf{S} \mathbf{V}^\top`, where :math:`\mathbf{U} \in \mathbb{R}^{(N-1) \times k}`, :math:`\mathbf{S} \in \mathbb{R}^{k \times k}`, and :math:`\mathbf{V} \in \mathbb{R}^{T \times k}` with rank :math:`k \ll \min(N-1, T)`.
+
+The objective function is:
+
+.. math::
+
+   \underset{\mathbf{U}, \mathbf{S}, \mathbf{V}}{\text{argmin}} \quad \|\mathbf{Y}_{\mathcal{N}_0} - \mathbf{U} \mathbf{S} \mathbf{V}^\top\|_F^2
+
+where :math:`\|\cdot\|_F` denotes the Frobenius norm. This minimizes the reconstruction error, ensuring that the approximation captures the dominant low-rank structure of the donor pool.
+
 SCM and SVD
 -----------
 
