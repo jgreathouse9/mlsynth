@@ -50,7 +50,6 @@ between untreated and the treated unit to estimate its counterfactual. Typically
 where the weights are constrained to lie on the unit interval and add up to 1, which we refer to as the *convex hull constraint*. Geometrically, and practically, this has some good properties; it means that we will never extrapolate beyond the support of the control group and allows for an interpretable solution. However, it also suffers from computational issues stemming from the (often) bilevel optimization ([BECKER20181]_ , [albalate2021decoupling]_, [malo2023computing]_). Instead, [Amjad2018]_ proposes a different solution, using low-rank matrix  techniques. Given the donor pool outcome matrix :math:`\mathbf{Y}_{\mathcal{N}_0} \in \mathbb{R}^{(N-1) \times T}`, we seek a low-rank approximation :math:`\widehat{\mathbf{Y}}_{\mathcal{N}_0} = \mathbf{U} \mathbf{S} \mathbf{V}^\top` of our control group. Here, :math:`\mathbf{U} \in \mathbb{R}^{(N-1) \times k}`, :math:`\mathbf{S} \in \mathbb{R}^{k \times k}`, and :math:`\mathbf{V} \in \mathbb{R}^{T \times k}` with rank :math:`k \ll \min(N-1, T)`. We learn this low-rank approximation, :math:`\mathbf{L}`,  by minimizing the reconstruction error *in the preintervention period*. Here is the objective function
 
 .. math::
-
    \mathbf{L}=\underset{\mathbf{U}, \mathbf{S}, \mathbf{V}}{\text{argmin}} \quad \|\mathbf{Y}_{\mathcal{N}_0} - \mathbf{U} \mathbf{S} \mathbf{V}^\top\|_F^2
 
 where :math:`\|\cdot\|_F` denotes the Frobenius norm. When we do this, we are left with the singular values, and how much of the total variance they explain. Selecting too few singular values/principal components means our synthetic control will underfit the pre-intervention time series of the treated unit. Selecting too many singular values means we will overft the pre-intervention time series. The benefits of this approach, as [Amjad2018]_ and [Agarwal2021]_ show, is that it implicitly performs regularization our donor pool, and has a denoising effect. Original PCR used Universal Singular Value Thresholding to choose the optimal numver of principal componenets to retain [Chatterjee2015]_. However, :class:`CLUSTERSC` instead uses the SCREENOT method by Donoho et al. [Donoho2023]_.
@@ -58,7 +57,6 @@ where :math:`\|\cdot\|_F` denotes the Frobenius norm. When we do this, we are le
 The final objective function is
 
 .. math::
-
    \begin{align}
        \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{L} w_j||_{2}^2 \\
        \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}
@@ -72,7 +70,6 @@ Robust PCA
 The next method :class:`CLUSTERSC` implements is the Robust PCA SC method by [Bayani2021]_. Robust PCA asks the user to accept the very simple premise that our outcomes that we observe are byproducts of a low-rank structure with occasional/sparse outliers, :math:`\mathbf{L} + \mathbf{S}`, where both matrices respectively are of :math:`N \times T` dimensions. As before with PCR/Robust SC, if we can extract this low-rank component for our donor pool, we can use this to learn which combination of donors matters most for the construction of our counterfactual. This problem is written as:
 
 .. math::
-
    \begin{align*}
    &\mathop {{\mathrm{minimize}}}\limits _{{\mathbf{L}},{\mathbf{S}}} ~{\mathrm{rank}}({\mathbf{L}}) + \lambda {\left \|{ {\mathbf{S}} }\right \|_{0}} \\
    &\textrm {subject to } ~~{\mathbf{Y}} = {\mathbf{L}} + {\mathbf{S}},
@@ -81,7 +78,6 @@ The next method :class:`CLUSTERSC` implements is the Robust PCA SC method by [Ba
 However, this program is NP-hard due to the rank portion of the objective function. Instead, we use the nuclear norm and :math:`\ell_1` norm on the low-rank matrix and sparse matrix respectively:
 
 .. math::
-
    \begin{align*}
    &\mathop {{\mathrm{minimize}}}\limits _{{\mathbf{L}},{\mathbf{S}}} ~{\left \|{ {\mathbf{L}} }\right \|_{*}} + \lambda {\left \|{ {\mathbf{S}} }\right \|_{1}} \\
    &\textrm {subject to } ~~{\mathbf{Y}} = {\mathbf{L}} + {\mathbf{S}},
@@ -90,7 +86,6 @@ However, this program is NP-hard due to the rank portion of the objective functi
 With this low rank structure, we estimate our weights
 
 .. math::
-
    \begin{align}
        \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{L} w_{j}||_{2}^2 \\
        \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
