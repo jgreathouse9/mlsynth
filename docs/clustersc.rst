@@ -7,10 +7,10 @@ Here, we have :math:`\mathcal{N} \operatorname*{:=} \lbrace{1 \ldots N \rbrace}`
 :math:`t \in \left(1, T\right) \cap \mathbb{N}` time periods, where :math:`j=1` is our sole treated unit. 
 This leaves us with :math:`\mathcal{N}_0 \operatorname*{:=} \lbrace{2 \ldots N \rbrace}` control units, 
 with the cardinality of this set being the number of controls. We have two sets of time series 
-:math:`\mathcal{T} mathrel{:=} \mathcal{T}_0 \cup \mathcal{T}_1`, where 
-:math:`\mathcal{T}_0 mathrel{:=} \lbrace{1 \ldots T_0 \rbrace}` is the pre-intervention period and 
+:math:`\mathcal{T} \operatorname*{:=}\mathcal{T}_0 \cup \mathcal{T}_1`, where 
+:math:`\mathcal{T}_0 \operatorname*{:=} \lbrace{1 \ldots T_0 \rbrace}` is the pre-intervention period and 
 :math:`\mathcal{T}_1 \operatorname*{:=}\lbrace{T_0+1 \ldots T \rbrace}` denotes the post-intervention period, 
-each with their respective cardinalities. Let :math:`\mathbf{w} mathrel{:=} \lbrace{w_2 \ldots w_N \rbrace}` 
+each with their respective cardinalities. Let :math:`\mathbf{w} \operatorname*{:=}\lbrace{w_2 \ldots w_N \rbrace}` 
 be a generic weight vector we assign to untreated units. We observe
 
 .. math::
