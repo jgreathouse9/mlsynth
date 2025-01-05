@@ -1,7 +1,7 @@
 Cluster SC Explained
 ==================
 
-With Synthetic Control Methods, we may be unsure if the control group we use will be a good countrefactual for the treated unit-- even if we are relying on a weighted average of the controls instead of using all of them. Outcome trajectories may be noisy, have missing data, or have an extremely large number of control units, epsecially in modern settings where data are frequently disaggregated. [Amjad2018]_ developed a SVD version of the synthetic control method, Robust Synthetic Control  this is what the :class:`CLUSTERSC` class implements, and more.
+With Synthetic Control Methods, we may be unsure if the control group we use will be a good countrefactual for the treated unit-- even if we are relying on a weighted average of the controls instead of using all of them. Outcome trajectories may be noisy, have missing data, or have an extremely large number of control units, epsecially in modern settings where data are frequently disaggregated. To address this, [Amjad2018]_ developed a SVD version of the synthetic control method, Robust Synthetic Control. This is what the :class:`CLUSTERSC` class implements, and more. I begin with notations.
 
 Here, we have :math:`\mathcal{N} \coloneq \lbrace{1 \ldots N \rbrace}` units across 
 :math:`t \in \left(1, T\right) \cap \mathbb{N}` time periods, where :math:`j=1` is our sole treated unit. 
