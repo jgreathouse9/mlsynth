@@ -85,7 +85,7 @@ However, this program is NP-hard due to the rank portion of the objective functi
    &\textrm {subject to } ~~{\mathbf{Y}} = {\mathbf{L}} + {\mathbf{S}},
    \end{align*}
 
-This is done via taking the augmented Lagrangian, solved with proximal gradeint descent
+This is done via taking the augmented Lagrangian, solved with proximal gradient descent
 
 .. math::
 
