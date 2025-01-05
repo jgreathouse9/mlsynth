@@ -43,9 +43,20 @@ where the weights are constrained to lie on the unit interval and add up to 1, w
 
 .. math::
 
-   \underset{\mathbf{U}, \mathbf{S}, \mathbf{V}}{\text{argmin}} \quad \|\mathbf{Y}_{\mathcal{N}_0} - \mathbf{U} \mathbf{S} \mathbf{V}^\top\|_F^2
+   \mathbf{L}=\underset{\mathbf{U}, \mathbf{S}, \mathbf{V}}{\text{argmin}} \quad \|\mathbf{Y}_{\mathcal{N}_0} - \mathbf{U} \mathbf{S} \mathbf{V}^\top\|_F^2
 
 where :math:`\|\cdot\|_F` denotes the Frobenius norm. When we do this, we are left with the singular values, and how much of the total variance they explain. Selecting too few singular values/principal components means our synthetic control will underfit the pre-intervention time series of the treated unit. Selecting too many singular values means we will overft the pre-intervention time series. The benefits of this approach, as [Amjad2018]_ and [Agarwal2021]_ show, is that it implicitly performs regularization our donor pool, and has a denoising effect. Original PCR used Universal Singular Value Thresholding to choose the optimal numver of principal componenets to retain [Chatterjee2015]_. However, :class:`CLUSTERSC` instead uses the SCREENOT method by Donoho et al. [Donoho2023]_.
+
+The final objective function is
+
+.. math::
+
+   \begin{align}
+       \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{L} w_j||_{2}^2 \\
+       \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}
+   \end{align}
+
+where we simply use the reconstructed, denoised version of the control group to learn the values of the treated unit in the preintervention period. Then, we take the dot product of our control group to estimate the post intervention counterfactual.
 
 
 
