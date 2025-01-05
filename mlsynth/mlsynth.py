@@ -1079,8 +1079,8 @@ class CLUSTERSC:
         beta_value = np.round(beta_value, 3)
 
         # Create a dictionary of non-zero weights
-        unit_names = clustered_units.index.difference([prepped["treated_unit_name"]])
-        Rweights_dict = {name: weight for name, weight in zip(unit_names, beta_value) if weight > 0}
+        unit_names = [name for name in clustered_units.index if name != prepped["treated_unit_name"]]
+        Rweights_dict = {name: weight for name, weight in zip(unit_names, beta_value)}
 
         Rattdict, Rfitdict, RVectors = effects.calculate(prepped["y"], y_RPCA, prepped["pre_periods"], prepped["post_periods"])
 
