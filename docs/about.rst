@@ -5,7 +5,7 @@
 About mlsynth
 ===========================
 
-``mlsynth`` is a Python package that provides a suite of causal inference methods using machine learning techniques. Most of these emthodologies come from the synthetic control family of methods. ``mlsynth`` calculates Average Treatment Effects on the Treated (ATTS) and, when possible, computes confidence intervals and inference statistics. ``mlsynth`` also conveniently returns the observed versus predicted values, and metrics of fit.
+``mlsynth`` is a Python package that provides a suite of causal inference methods using machine learning techniques. Most of these methodologies come from the synthetic control family of methods. ``mlsynth`` calculates Average Treatment Effects on the Treated (ATTS) and, when possible, computes confidence intervals and inference statistics. ``mlsynth`` also conveniently returns the observed versus predicted values, and metrics of fit.
 
 GitHub Repo
 -----------
