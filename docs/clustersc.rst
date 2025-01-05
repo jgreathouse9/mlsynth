@@ -138,3 +138,12 @@ In the above, all this means is that we iteratively estimate the rank of the don
        \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
    \end{align}
 
+
+
+.. image:: https://github.com/jgreathouse9/mlsynth/examples/clustersc/Synthetic%20Control_West%20Germany.png
+   :alt: CLUSTERSC Plot
+   :align: center
+   :width: 600px
+
+
+Here we plot the West Germany Synthetic Control predictions.
