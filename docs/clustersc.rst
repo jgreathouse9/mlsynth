@@ -37,6 +37,9 @@ After the final pre-treatment period, the control units follow the same process 
 is our main statistic of interest, where :math:`(y_{1t} - \hat{y}_{1t})` is the treatment effect at some given time point. 
 
 Estimation
+==================
+
+PCR
 ----------------
 
 In SCM, we exploit the linear relation 
@@ -64,10 +67,23 @@ The final objective function is
 
 where we simply use the reconstructed, denoised version of the control group to learn the values of the treated unit in the preintervention period. Then, we take the dot product of our control group to estimate the post intervention counterfactual.
 
-Robust PCA
+Robust PCA SYNTH
 ----------------
 
-The next method :class:`CLUSTERSC` implements is the Robust PCA SC method by [Bayani2021]_. Robust PCA asks the user to accept the very simple premise that the observed outcomes are byproducts of a low-rank structure with occasional/sparse outliers, :math:`\mathbf{L} + \mathbf{S}`, where both matrices respectively are of :math:`N \times T` dimensions. As before with PCR/Robust SC, if we can extract this low-rank component for our donor pool, we can use it to learn which combination of donors matters most for the construction of our counterfactual. This problem is written as:
+The next method :class:`CLUSTERSC` implements is the Robust PCA SC method by [Bayani2021]_. Robust PCA  begins with a donor selection step. [Bayani2021]_ advocates for applying functional PCA to the fully observed outcome matrix in the pre-intervention period and applying k-means clustering. Given the set of outcome trajectories for all units during the pre-intervention period, denote the outcome matrix as :math:`\mathbf{Y} \in \mathbb{R}^{N \times T_0}`, where :math:`N` is the number of units and :math:`T_0` is the length of the pre-intervention period. Each unit's trajectory, :math:`\mathbf{y}_i(t)` for :math:`i \in \{1, \ldots, N\}`, can be modeled as a smooth function :math:`f_i(t)` by projecting onto a set of functional principal components:
+
+.. math::
+   f_i(t) \approx \mu(t) + \sum_{k=1}^{K} \xi_{ik} \phi_k(t),
+
+where :math:`\mu(t)` is the mean function, math:`\phi_k(t)` are the eigenfunctions, :math:`\xi_{ik}` are the corresponding functional principal component scores for unit :math:`i`. After, we can either apply SCREENOT as described above to provide us with the number of functional PC scores to use, or use the elbow method to select the number of scores that explain at least 90% of the preintervention data. Once the FPCA scores :math:`\boldsymbol{\xi}_i = (\xi_{i1}, \ldots, \xi_{iK})` are obtained, :class:`CLUSTERSC` uses the k-means algorithm to group units with similar temporal patterns during the pre-intervention period. The objective of K-Means clustering is to partition the units into :math:`K` clusters by minimizing the within-cluster variance:
+
+.. math::
+   \underset{\mathcal{C}}{\mathrm{argmin}} \sum_{k=1}^{K} \sum_{i \in \mathcal{C}_k} \|\boldsymbol{\xi}_i - \mathbf{c}_k\|_2^2,
+
+where :math:`\mathcal{C} = \{\mathcal{C}_1, \ldots, \mathcal{C}_K\}` is the set of clusters and :math:`\mathbf{c}_k` is the centroid of cluster :math:`k`. The cluster containing the treated unit is selected as the donor pool for constructing the synthetic control.
+
+
+Robust PCA asks the user to accept the very simple premise that the observed outcomes are byproducts of a low-rank structure with occasional/sparse outliers, :math:`\mathbf{L} + \mathbf{S}`, where both matrices respectively are of :math:`N \times T` dimensions. As before with PCR/Robust SC, if we can extract this low-rank component for our donor pool, we can use it to learn which combination of donors matters most for the construction of our counterfactual. This problem is written as:
 
 .. math::
 
