@@ -10,7 +10,11 @@ with its cardinality being :math:`|N_0|`. We have two sets of time series
 :math:`\mathcal{T} \operatorname*{:=}\mathcal{T}_1 \cup \mathcal{T}_2`, where 
 :math:`\mathcal{T}_1 \operatorname*{:=} \lbrace{1 \ldots T_0 \rbrace}` is the pre-intervention period and 
 :math:`\mathcal{T}_2 \operatorname*{:=}\lbrace{T_0+1 \ldots T \rbrace}` denotes the post-intervention period, 
-each with their respective cardinalities :math:`|T_1|` and :math:`|T_2|`. Let :math:`\mathbf{w} \operatorname*{:=}\lbrace{w_2 \ldots w_N \rbrace}` 
+each with their respective cardinalities :math:`|T_1|` and :math:`|T_2|`. 
+
+We represent the outcomes of all units over time as matrices and vectors. Let :math:`\mathbf{Y} \in \mathbb{R}^{N \times T}` denote the outcome matrix for all units across all time periods, where each row corresponds to a unit and each column corresponds to a time period. Specifically, let: :math:`\mathbf{Y}_{\mathcal{N}_0} \in \mathbb{R}^{(N-1) \times T}` denote the outcome matrix for the control units, :math:`\mathbf{y}_1 \in \mathbb{R}^{1 \times T}` denote the outcome vector for the treated unit.
+
+Let :math:`\mathbf{w} \operatorname*{:=}\lbrace{w_2 \ldots w_N \rbrace}` 
 be a weight vector learnt by regression. The basic problem with causal inference is that we see our units as being treated or untreated, never both.
 
 .. math::
