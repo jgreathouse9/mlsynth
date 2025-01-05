@@ -78,6 +78,7 @@ MLSYNTH
 .. toctree::
    :maxdepth: 2
    :caption: Classes
+   :titlesonly:
 
    fdid
    clustersc
