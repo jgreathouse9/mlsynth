@@ -1,4 +1,4 @@
-name: Run FDID, Basque
+name: Test MLSYNTH
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  generate_plot:
+  generate_plots:
     runs-on: ubuntu-latest
     
     steps:
@@ -27,56 +27,42 @@ jobs:
         pip install -r requirements.txt
         pip install .  # Install the mlsynth module from your local repository
 
-    - name: Run FDID
+    - name: Run FDID Basque and move plot
       run: |
         python examples/fdidbasque.py
-        # Check if FDID_Basque.png was generated in the root directory
         if [ -f "./FDID_Basque.png" ]; then
-          echo "FDID_Basque.png generated in root directory"
-          
-          # Create the target directory if it doesn't exist
           mkdir -p "./examples/fdid"
-          
-          # Move the plot to examples/fdid/
           mv "./FDID_Basque.png" "./examples/fdid/FDID_Basque.png"
-          echo "Plot moved to examples/fdid/ directory"
+          echo "FDID_Basque.png moved to examples/fdid/"
         else
           echo "FDID_Basque.png not found"
           exit 1
-        fi
 
-    - name: Commit FDID_Basque.png
+    - name: Run GermanyCLUSTERSC and move plot
       run: |
-        # Ensure that FDID_Basque.png exists in the target directory
-        if [ -f "./examples/fdid/FDID_Basque.png" ]; then
-          echo "Staging FDID_Basque.png from examples/fdid/ directory"
-          
-          # Force add the FDID_Basque.png file even if it's ignored in .gitignore
-          git add -f "./examples/fdid/FDID_Basque.png"
+        python examples/GermanyCLUSTERSC.py
+        latest_plot=$(ls -t *.png | head -n 1)  # Get the most recently saved .png file
+        if [ -n "$latest_plot" ]; then
+          mkdir -p "./examples/clustersc"
+          mv "./$latest_plot" "./examples/clustersc/$latest_plot"
+          echo "$latest_plot moved to examples/clustersc/"
         else
-          echo "FDID_Basque.png not found, nothing to commit"
-        fi
-        
-        # Commit the file only if it was staged
+          echo "No .png file found"
+          exit 1
+
+    - name: Commit plots
+      run: |
+        git add -f "./examples/fdid/FDID_Basque.png" "./examples/clustersc/*"
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
-        
-        # Commit only if there are staged changes (not including build/ or egg-info)
-        git diff --exit-code --quiet || git commit -m "Add FDID_Basque plot"
-        
-        # Check the status to ensure the file is committed
-        git status
+        git diff --exit-code --quiet || git commit -m "Add plots for FDID Basque and Germany ClusterSC"
 
     - name: Pull changes from the remote repository before pushing
       run: |
-        # Commit any staged changes before pulling
-        git add .  # Make sure all changes are staged
+        git add . 
         git commit -m "Committing staged changes before pull" || echo "No changes to commit"
-
-        # Pull the latest changes from the remote repository
         git pull https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git main --rebase
 
     - name: Push the changes to the repository
       run: |
-        # Push the changes to the remote repository
         git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main
