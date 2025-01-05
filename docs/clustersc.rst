@@ -77,7 +77,7 @@ The next method :class:`CLUSTERSC` implements is the Robust PCA SC method by [Ba
 
 where :math:`\mu(t)` is the mean function, :math:`\phi_k(t)` are the eigenfunctions, :math:`x_{jk}` are the corresponding functional principal component scores for unit :math:`j`. After, we can either apply SCREENOT as described above to provide us with the number of functional PC scores to use, or use the elbow method to select the number of scores that explain at least 90% of the preintervention data.
 
-Once the FPCA scores :math:`\boldsymbol{x}_j = (x_{j1}, \ldots, x_{jK})` are obtained and the topfew scores retained, :class:`CLUSTERSC` uses the k-means algorithm to group units with similar temporal patterns during the pre-intervention period. [Bayani2021]_ advocates the silhouette score to choose the number of clustes For each unit :math:`j`, the silhouette score :math:`s(j)` is defined as :math:`s(j) = \frac{b(j) - a(j)}{\max\{a(j), b(j)\}}`, where :math:`a(j)` is the average distance from unit :math:`j` to all other units in its own cluster and :math:`b(j)` is the minimum average distance from unit :math:`j` to units in any other cluster (the closest neighboring cluster). To determine the best number of clusters, we compute the silhouette coefficient for each potential number of clusters :math:`K`. The silhouette coefficient, denoted by :math:`SC(K)`, is the average silhouette score across all units in the dataset for a given value of :math:`K`: :math:`SC(K) = \frac{1}{N} \sum_{j=1}^{N} s(j)`. We then select the number of clusters :math:`K^*` that maximizes the silhouette coefficient:
+After we retain the top few FPC scores, :class:`CLUSTERSC` uses the k-means algorithm to group units with similar temporal patterns during the pre-intervention period. The idea is that units in the same cluster based on their low dimensional representation will be superior controls to these that are not. [Bayani2021]_ advocates the silhouette score to choose the number of clustes For each unit :math:`j`, the silhouette score :math:`s(j)` is defined as :math:`s(j) = \frac{b(j) - a(j)}{\max\{a(j), b(j)\}}`, where :math:`a(j)` is the average distance from unit :math:`j` to all other units in its own cluster and :math:`b(j)` is the minimum average distance from unit :math:`j` to units in any other cluster (the closest neighboring cluster). To determine the best number of clusters, we compute the silhouette coefficient for each potential number of clusters :math:`K`. The silhouette coefficient, denoted by :math:`SC(K)`, is the average silhouette score across all units in the dataset for a given value of :math:`K`: :math:`SC(K) = \frac{1}{N} \sum_{j=1}^{N} s(j)`. We then select the number of clusters :math:`K^\ast` that maximizes the silhouette coefficient:
 
 .. math::
    K^\ast = \underset{K}{\mathrm{argmax}} \; SC(K).
@@ -97,10 +97,10 @@ where :math:`\mathcal{C} = \{\mathcal{C}_1, \ldots, \mathcal{C}_K\}` is the set 
     0, & \text{otherwise}
     \end{cases}
 
-With this brand new donor pool, we now can get to the estimation of the weights, which we do via Robust PCA.
+With this brand new donor pool, we now can get to the estimation of the synthetic control weights, which we do via Robust PCA.
 
 
-Robust PCA asks the user to accept the very simple premise that the observed outcomes are byproducts of a low-rank structure with occasional/sparse outliers, :math:`\mathbf{L} + \mathbf{S}`, where both matrices respectively are of :math:`N \times T` dimensions. As before with PCR/Robust SC, if we can extract this low-rank component for our donor pool, we can use it to learn which combination of donors matters most for the construction of our counterfactual. This problem is written as:
+Robust PCA is advocated by [Bayani2021]_ because it is less sensitive to noise, corruption in the data, and outliers than standard PCA. Robust PCA asks the user to accept the very simple premise that the observed outcomes are byproducts of a low-rank structure with occasional/sparse outliers, :math:`\mathbf{L} + \mathbf{S}`, where both matrices respectively are of :math:`N \times T` dimensions. As before with PCR/Robust SC, if we can extract this low-rank component for our donor pool, we can use it to learn which combination of donors matters most for the construction of our counterfactual. This problem is written as:
 
 .. math::
 
