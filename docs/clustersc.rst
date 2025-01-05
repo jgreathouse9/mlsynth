@@ -85,7 +85,7 @@ Once the FPCA scores :math:`\boldsymbol{x}_j = (x_{j1}, \ldots, x_{jK})` are obt
 Now that we know the number of clusters, we now can apply the k-means method. The objective of K-Means clustering is to partition the units into :math:`K` clusters by minimizing the within-cluster variance:
 
 .. math::
-   \underset{\mathcal{C}}{\mathrm{argmin}} \sum_{k=1}^{K} \sum_{j \in \mathcal{C}_k} \|\boldsymbol{\xj}_j - \mathbf{c}_k\|_2^2,
+   \underset{\mathcal{C}}{\mathrm{argmin}} \sum_{k=1}^{K} \sum_{j \in \mathcal{C}_k} \|\boldsymbol{x}_j - \mathbf{c}_k\|_2^2,
 
 where :math:`\mathcal{C} = \{\mathcal{C}_1, \ldots, \mathcal{C}_K\}` is the set of clusters and :math:`\mathbf{c}_k` is the centroid of cluster :math:`k`. The cluster containing the treated unit is selected as the donor pool for constructing the synthetic control. With this brand new donor pool, we now can get to the estimation of the weights, which we do via Robust PCA.
 
