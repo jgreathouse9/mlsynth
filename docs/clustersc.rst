@@ -138,6 +138,97 @@ In the above, all this means is that we iteratively estimate the rank of the don
        \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
    \end{align}
 
+Estimating ``CLUSTERSC``
+--------
+
+We can now turn to an empirical example, namely the reanalysis of West Germany' Reunification with East Germany and its effect upon West Germany's GDP per Capita.
+
+
+
+.. code-block:: python
+
+    from mlsynth.mlsynth import CLUSTERSC
+    import matplotlib
+    import pandas as pd
+
+    # matplotlib theme
+    jared_theme = {
+        'axes.grid': False,
+        'grid.linestyle': '-',
+        'grid.color': 'black',
+        'legend.framealpha': 1,
+        'legend.facecolor': 'white',
+        'legend.shadow': True,
+        'legend.fontsize': 14,
+        'legend.title_fontsize': 16,
+        'xtick.labelsize': 14,
+        'ytick.labelsize': 14,
+        'axes.labelsize': 16,
+        'axes.titlesize': 20,
+        'figure.dpi': 100,
+        'axes.facecolor': 'white',
+        'figure.figsize': (10, 6)
+    }
+
+    matplotlib.rcParams.update(jared_theme)
+
+    # URL for the dataset
+    stub_url = 'https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/'
+
+    # Define configuration for Germany dataset
+    germany_config = {
+        "Columns": ['country', 'year', 'gdp'],
+        "Treatment Time": 1990,
+        "Treatment Name": "Reunification",
+        "Treated Unit": "Germany",
+        "Time": "year",
+        "Panel": 'country',
+        "Outcome": "gdp"
+    }
+
+    # Load and edit the Germany dataset
+    germany_df = pd.read_csv(stub_url + 'german_reunification.csv')
+
+    # Keep only the specified columns
+    germany_df = germany_df[germany_config['Columns']]
+
+    # Ensure the time column is of integer type
+    germany_df[germany_config['Time']] = germany_df[germany_config['Time']].astype(int)
+
+    # Generate the treatment variable
+    germany_df[germany_config["Treatment Name"]] = (germany_df[germany_config["Panel"]].str.contains(germany_config["Treated Unit"])) & \
+                                                   (germany_df[germany_config["Time"]] >= germany_config["Treatment Time"])
+
+    # Define the model configuration
+    unitid = germany_df.columns[0]
+    time = germany_df.columns[1]
+    outcome = germany_df.columns[2]
+    treat = germany_config["Treatment Name"]
+
+    config = {
+        "df": germany_df,
+        "treat": treat,
+        "time": time,
+        "outcome": outcome,
+        "unitid": unitid,
+        "counterfactual_color": "red",
+        "treated_color": "black",
+        "display_graphs": True,
+        "save": True,
+        "cluster": False
+    }
+
+    # Instantiate and fit the CLUSTERSC model
+    model = CLUSTERSC(config)
+    asc = model.fit()
+
+    # Print results
+    keys = ['Effects', 'Fit', 'Weights']
+    for key in keys:
+        print(f"\n{key}:")
+        print(asc["RPCASC"][key])
+
+
 
 
 .. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/clustersc/Synthetic%20Control_West%20Germany.png
