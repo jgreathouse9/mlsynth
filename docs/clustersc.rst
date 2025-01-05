@@ -7,9 +7,9 @@ Here, we have :math:`\mathcal{N} \operatorname*{:=} \lbrace{1 \ldots N \rbrace}`
 :math:`t \in \left(1, T\right) \cap \mathbb{N}` time periods, where :math:`j=1` is our sole treated unit. 
 This leaves us with :math:`\mathcal{N}_0 \operatorname*{:=} \lbrace{2 \ldots N \rbrace}` control units, 
 with its cardinality being :math:`|N_0|`. We have two sets of time series 
-:math:`\mathcal{T} \operatorname*{:=}\mathcal{T}_0 \cup \mathcal{T}_1`, where 
-:math:`\mathcal{T}_0 \operatorname*{:=} \lbrace{1 \ldots T_0 \rbrace}` is the pre-intervention period and 
-:math:`\mathcal{T}_1 \operatorname*{:=}\lbrace{T_0+1 \ldots T \rbrace}` denotes the post-intervention period, 
+:math:`\mathcal{T} \operatorname*{:=}\mathcal{T}_1 \cup \mathcal{T}_2`, where 
+:math:`\mathcal{T}_1 \operatorname*{:=} \lbrace{1 \ldots T_0 \rbrace}` is the pre-intervention period and 
+:math:`\mathcal{T}_2 \operatorname*{:=}\lbrace{T_0+1 \ldots T \rbrace}` denotes the post-intervention period, 
 each with their respective cardinalities :math:`|T_1|` and :math:`|T_2|`. Let :math:`\mathbf{w} \operatorname*{:=}\lbrace{w_2 \ldots w_N \rbrace}` 
 be a weight vector learnt by regression. The basic problem with causal inference is that we see our units as being treated or untreated, never both.
 
@@ -21,8 +21,7 @@ be a weight vector learnt by regression. The basic problem with causal inference
         y^{1}_{1t} & \text{if } j = 1 \text{ and } t \in \mathcal{T}_1
     \end{cases}
 
-In the synthetic control method, we (typically) have a single treated unit which, along with the donors, 
-follows a certain data generating process for all time periods until :math:`T_0`. 
+In the synthetic control method, we (typically) have a single treated unit which, along with the donors, follows a certain data generating process for all time periods until :math:`T_0`. 
 After the final pre-treatment period, the control units follow the same process because they are unaffected by the intervention. However for unit :math:`j=1`, the outcomes we see are that pre-intervention DGP plus some treatment effect. To this end, we are concerned with :math:`\hat{y}_{1t}`, or the out of sample values we would have observed for the treated unit absent treatment. The average treatment effect on the treated
 
 .. math::
