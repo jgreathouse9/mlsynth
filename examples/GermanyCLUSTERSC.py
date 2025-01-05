@@ -117,8 +117,8 @@ config = {
     "counterfactual_color": "red",
     "treated_color": "black",
     "display_graphs": True,
-    "save": False,
-    "cluster": True
+    "save": True,
+    "cluster": False
 
 }
 
