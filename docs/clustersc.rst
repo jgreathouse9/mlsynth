@@ -21,15 +21,15 @@ be a weight vector learnt by regression. The basic problem with causal inference
     y_{jt} = 
     \begin{cases}
         y^{0}_{jt} & \forall \: j \in \mathcal{N}_0 \\
-        y^{0}_{1t} & \text{if } j = 1 \text{ and } t \in \mathcal{T}_0 \\
-        y^{1}_{1t} & \text{if } j = 1 \text{ and } t \in \mathcal{T}_1
+        y^{0}_{1t} & \text{if } j = 1 \text{ and } t \in \mathcal{T}_1 \\
+        y^{1}_{1t} & \text{if } j = 1 \text{ and } t \in \mathcal{T}_2
     \end{cases}
 
 In the synthetic control method, we (typically) have a single treated unit which, along with the donors, follows a certain data generating process for all time periods until :math:`T_0`. 
 After the final pre-treatment period, the control units follow the same process because they are unaffected by the intervention. However for unit :math:`j=1`, the outcomes we see are that pre-intervention DGP plus some treatment effect. To this end, we are concerned with :math:`\hat{y}_{1t}`, or the out of sample values we would have observed for the treated unit absent treatment. The average treatment effect on the treated
 
 .. math::
-    ATT = \frac{1}{T_1 - T_0} \sum_{T_0 +1}^{T} (y_{1t} - \hat{y}_{1t})
+    ATT = \frac{1}{T_2 - T_1} \sum_{T_0 +1}^{T} (y_{1t} - \hat{y}_{1t})
 
 is our main statistic of interest, where :math:`(y_{1t} - \hat{y}_{1t})` is the treatment effect at some given time point. In SCM, we exploit the linear relation 
 between untreated and the treated unit to estimate its counterfactual.
