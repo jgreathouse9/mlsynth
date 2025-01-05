@@ -24,6 +24,7 @@ jobs:
           pip install .  # Install the mlsynth module from your local repository
       - name: Run FDID Basque and move plot
         run: |
+          set -x
           python examples/fdidbasque.py
           if [ -f "./FDID_Basque.png" ]; then
             mkdir -p "./examples/fdid"
@@ -32,8 +33,10 @@ jobs:
           else
             echo "FDID_Basque.png not found"
             exit 1
+          fi
       - name: Run GermanyCLUSTERSC and move plot
         run: |
+          set -x
           python examples/GermanyCLUSTERSC.py
           latest_plot=$(ls -t *.png 2>/dev/null | head -n 1)  # Get the most recently saved .png file
           if [ -n "$latest_plot" ]; then
