@@ -3,6 +3,9 @@ Cluster SC Explained
 
 With Synthetic Control Methods, we may be unsure if the control group we use will be a good countrefactual for the treated unit-- even if we are relying on a weighted average of the controls instead of using all of them. Outcome trajectories may be noisy, have missing data, or have an extremely large number of control units, epsecially in modern settings where data are frequently disaggregated. To address this, [Amjad2018]_ developed a SVD version of the synthetic control method, Robust Synthetic Control. This is what the :class:`CLUSTERSC` class implements, and more. I begin with notations.
 
+Notations
+----------------
+
 Here, we have :math:`\mathcal{N} \operatorname*{:=} \lbrace{1 \ldots N \rbrace}` units across 
 :math:`t \in \left(1, T\right) \cap \mathbb{N}` time periods, where :math:`j=1` is our sole treated unit. 
 This leaves us with :math:`\mathcal{N}_0 \operatorname*{:=} \lbrace{2 \ldots N \rbrace}` control units, 
@@ -31,7 +34,12 @@ After the final pre-treatment period, the control units follow the same process 
 .. math::
     ATT = \frac{1}{T_2 - T_1} \sum_{T_0 +1}^{T} (y_{1t} - \hat{y}_{1t})
 
-is our main statistic of interest, where :math:`(y_{1t} - \hat{y}_{1t})` is the treatment effect at some given time point. In SCM, we exploit the linear relation 
+is our main statistic of interest, where :math:`(y_{1t} - \hat{y}_{1t})` is the treatment effect at some given time point. 
+
+Estimation
+----------------
+
+In SCM, we exploit the linear relation 
 between untreated and the treated unit to estimate its counterfactual. Typically, this is done like
 
 .. math::
