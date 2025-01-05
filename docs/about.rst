@@ -27,7 +27,7 @@ However, as influential as the base toolkit had become, some important problems 
 Why ``mlsynth``?
 ================================
 
-Particularly in the field of public policy and to a much lesser degree economics, synthetic control methods have existed and been used for a long while for empirical researchers. However, the more recent developments in this literature have not been as widely used (certainly by public policy scholars) as they perhaps ought to be. Of course, there are notable exceptions for Difference-in-Differences, and SCMs such as augmented synthetic controls and the synthetic Difference-in-Differences method.
+Particularly in the fields of public policy and economics, synthetic control methods have existed and been used for a long while for empirical researchers. However, the more recent developments in this literature have not been as widely used (certainly by public policy scholars) as they perhaps ought to be. Of course, there are notable exceptions for Difference-in-Differences, and SCMs such as augmented synthetic controls and the synthetic Difference-in-Differences method.
 
 Generalizing as to why this might be is hard. However, I believe this lack of use is primarily due to a host of sociological and historical reasons. Speaking for the public policy field, I believe there are a few reasons for why this is.
 
