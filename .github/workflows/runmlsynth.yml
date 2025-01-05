@@ -1,5 +1,5 @@
+---
 name: Test MLSYNTH
-
 on:
   push:
     branches:
@@ -7,63 +7,62 @@ on:
   pull_request:
     branches:
       - main
-
 jobs:
   generate_plots:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-    
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.11'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install .  # Install the mlsynth module from your local repository
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install .  # Install the mlsynth module from your local repository
+      - name: Run FDID Basque and move plot
+        run: |
+          python examples/fdidbasque.py
+          if [ -f "./FDID_Basque.png" ]; then
+            mkdir -p "./examples/fdid"
+            mv "./FDID_Basque.png" "./examples/fdid/FDID_Basque.png"
+            echo "FDID_Basque.png moved to examples/fdid/"
+          else
+            echo "FDID_Basque.png not found"
+            exit 1
+      - name: Run GermanyCLUSTERSC and move plot
+        run: >
+          python examples/GermanyCLUSTERSC.py
 
-    - name: Run FDID Basque and move plot
-      run: |
-        python examples/fdidbasque.py
-        if [ -f "./FDID_Basque.png" ]; then
-          mkdir -p "./examples/fdid"
-          mv "./FDID_Basque.png" "./examples/fdid/FDID_Basque.png"
-          echo "FDID_Basque.png moved to examples/fdid/"
-        else
-          echo "FDID_Basque.png not found"
-          exit 1
+          latest_plot=$(ls -t *.png 2>/dev/null | head -n 1)  # Get the most recently saved .png file
 
-    - name: Run GermanyCLUSTERSC and move plot
-      run: |
-        python examples/GermanyCLUSTERSC.py
-        latest_plot=$(ls -t *.png 2>/dev/null | head -n 1)  # Get the most recently saved .png file
-        if [ -n "$latest_plot" ]; then
-          mkdir -p "./examples/clustersc"
-          mv "./$latest_plot" "./examples/clustersc/$latest_plot"
-          echo "$latest_plot moved to examples/clustersc/"
-        else
-          echo "No .png file found after running GermanyCLUSTERSC.py"
-          exit 1
-        fi
+          if [ -n "$latest_plot" ]; then
+            mkdir -p "./examples/clustersc"
+            mv "./$latest_plot" "./examples/clustersc/$latest_plot"
+            echo "$latest_plot moved to examples/clustersc/"
+          else
+            echo "No .png file found after running GermanyCLUSTERSC.py"
+            exit 1
+          fi
+      - name: Commit plots
+        run: >
+          git add -f "./examples/fdid/FDID_Basque.png" "./examples/clustersc/*"
 
-    - name: Commit plots
-      run: |
-        git add -f "./examples/fdid/FDID_Basque.png" "./examples/clustersc/*"
-        git config --global user.name "github-actions"
-        git config --global user.email "github-actions@github.com"
-        git diff --exit-code --quiet || git commit -m "Add plots for FDID Basque and Germany ClusterSC"
+          git config --global user.name "github-actions"
 
-    - name: Pull changes from the remote repository before pushing
-      run: |
-        git add . 
-        git commit -m "Committing staged changes before pull" || echo "No changes to commit"
-        git pull https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git main --rebase
+          git config --global user.email "github-actions@github.com"
 
-    - name: Push the changes to the repository
-      run: |
-        git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git HEAD:main
+          git diff --exit-code --quiet || git commit -m "Add plots for FDID Basque and Germany ClusterSC"
+      - name: Pull changes from the remote repository before pushing
+        run: >
+          git add . 
+
+          git commit -m "Committing staged changes before pull" || echo "No changes to commit"
+
+          git pull https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/jgreathouse9/mlsynth.git main --rebase
+      - name: Push the changes to the repository
+        run: >
+          git push https://x-access-token:${{ secrets.GH_TOKEN
+          }}@github.com/jgreathouse9/mlsynth.git HEAD:main
