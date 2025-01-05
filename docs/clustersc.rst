@@ -140,7 +140,7 @@ In the above, all this means is that we iteratively estimate the rank of the don
 
 
 
-.. image:: https://github.com/jgreathouse9/mlsynth/examples/clustersc/Synthetic%20Control_West%20Germany.png
+.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/clustersc/Synthetic%20Control_West%20Germany.png
    :alt: CLUSTERSC Plot
    :align: center
    :width: 600px
