@@ -239,7 +239,7 @@ We can now turn to an empirical example, namely the reanalysis of West Germany' 
 
 Here we plot the West Germany Synthetic Control predictions. Here are the weights as produced by RPCA-SC
 
-.. list-table:: Data Table
+.. list-table:: Weights
    :header-rows: 1
 
    * - Country
