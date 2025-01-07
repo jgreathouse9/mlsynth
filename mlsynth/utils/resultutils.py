@@ -22,7 +22,14 @@ def plot_estimates(
     - treatedcolor: Color for the observed line.
     - counterfactualcolors: List of colors for each counterfactual.
     - counterfactual_names: List of custom names for counterfactuals (optional).
+    - save: Boolean or dictionary for saving the plot. Defaults to False.
+            If a dictionary, keys can include:
+                - 'filename': Custom file name (without extension).
+                - 'extension': File format (e.g., 'png', 'pdf').
+                - 'directory': Directory to save the plot.
     """
+    import os
+
     # Identify the intervention point
     intervention_point = df.loc[df[treatmentname] == 1, time].min()
     time_axis = df[df[unitid] == treated_unit_name][time].values
@@ -37,7 +44,6 @@ def plot_estimates(
 
     # Plot each counterfactual
     for idx, cf in enumerate(cf_list):
-        # Use custom names if provided, otherwise default to "Counterfactual <index>"
         label = counterfactual_names[idx] if counterfactual_names else f'Counterfactual {idx + 1}'
         color = counterfactualcolors[idx % len(counterfactualcolors)]
         plt.plot(time_axis, cf, label=label, color=color, linestyle="--",
@@ -51,11 +57,31 @@ def plot_estimates(
 
     # Save or display the plot
     if save:
-        filename = f"{method}_{treated_unit_name}.png"
-        plt.savefig(filename)
-        print(f"Plot saved to: {os.path.join(os.getcwd(), filename)}")
-    else:
+        if isinstance(save, dict):
+            # Extract options from the dictionary
+            filename = save.get('filename', f"{method}_{treated_unit_name}")
+            extension = save.get('extension', 'png')
+            directory = save.get('directory', os.getcwd())
+        else:
+            # Use default filename and extension
+            filename = f"{method}_{treated_unit_name}"
+            extension = 'png'
+            directory = os.getcwd()
+
+        # Ensure the directory exists
+        os.makedirs(directory, exist_ok=True)
+
+        # Construct the full file path
+        filepath = os.path.join(directory, f"{filename}.{extension}")
+        plt.savefig(filepath)
+        print(f"Plot saved to: {filepath}")
+
+    if not save or (isinstance(save, dict) and 'display' in save and save['display']):
         plt.show()
+
+    # Clear the plot to avoid overlap in subsequent plots
+    plt.clf()
+
 
 class effects:
     @staticmethod
