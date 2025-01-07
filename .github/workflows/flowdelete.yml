@@ -1,0 +1,28 @@
+name: Delete Old Workflow Runs
+
+on:
+  workflow_dispatch:  # Trigger manually
+
+jobs:
+  delete-runs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install GitHub CLI
+        uses: actions/setup-gh@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List and delete oldest 500 runs
+        run: |
+          # Get the database IDs of the oldest 500 runs
+          gh run list --limit 500 --json databaseId -q '.[].databaseId' > runs_to_delete.txt
+          
+          # Loop through each ID and delete the corresponding run
+          while read -r ID; do
+            gh api "repos/${{ github.repository }}/actions/runs/${ID}" -X DELETE
+            echo "Deleted run with ID: ${ID}"
+          done < runs_to_delete.txt
