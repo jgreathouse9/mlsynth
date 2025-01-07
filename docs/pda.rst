@@ -24,7 +24,7 @@ where we seek the coefficients which minimize the predictions between the sample
 
 .. math::
 
-    \operatorname*{argmin}_{\tau} \left( \frac{1}{T_0^{\text{val}}} \| \mathbf{y}^{\ell_2} - \mathbf{y}_1 \|_F^2 \right)
+    \tau^{\ast} = \operatorname*{argmin}_{\tau} \left( \frac{1}{T_0^{\text{val}}} \| \mathbf{y}^{\ell_2} - \mathbf{y}_1 \|_F^2 \right)
 
 
 
