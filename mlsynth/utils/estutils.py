@@ -585,7 +585,7 @@ def pda(prepped, N, method="fs"):
 
         eta = (prepped["donor_matrix"][:prepped["pre_periods"], :].T @ prepped["y"][:prepped["pre_periods"]]) / n
 
-        optimal_tau, min_mse = cross_validate_tau(prepped["y"][:prepped["pre_periods"]], prepped["donor_matrix"][:prepped["pre_periods"]], np.linalg.norm(eta, ord=np.inf))
+        optimal_tau, min_mse = cross_validate_tau(prepped["y"][:prepped["pre_periods"]], prepped["donor_matrix"][:prepped["pre_periods"]], 2)
 
         # Step 2: Re-fit the model using the optimal tau
         beta_hat, yl2 = l2_relax(prepped["pre_periods"], prepped["y"], prepped["donor_matrix"], optimal_tau)
