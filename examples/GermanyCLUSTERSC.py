@@ -140,7 +140,7 @@ for key in keys:
     print(f"\n{key}:")
     print(asc["RPCASC"][key])
 
-save["filename"] = "Cluster_Germany"  # Update filename in one line
-config["cluster"] = True              # Update cluster parameter
-
-wclust = model.fit()
+save["filename"] = "Cluster_Germany"
+config["cluster"] = True
+clustmodel = CLUSTERSC{config}
+wclust = clustmodel.fit()
