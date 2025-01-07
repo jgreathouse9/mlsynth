@@ -18,7 +18,6 @@ Let :math:`\mathbf{y}_1 \in \mathbb{R}^T` be the vector for the treated unit and
    \text{subject to} \quad & \|\boldsymbol{\eta} - \boldsymbol{\Sigma} \boldsymbol{\beta}\|_\infty \leq \tau \\
    \boldsymbol{\eta} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{y}_1 \\
    \boldsymbol{\Sigma} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{Y}_0 \in \mathbb{R}^{N_0 \times N_0}
-
    \end{aligned}
 
 Forward Selected Approach
