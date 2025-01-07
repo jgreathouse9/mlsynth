@@ -102,7 +102,7 @@ def l2_relax(time_periods, treated_unit, X, tau):
     problem = cp.Problem(objective, constraint)
 
     # Solve the problem
-    problem.solve(solver=cp.CLARABEL)
+    problem.solve(solver=cp.ECOS)
 
     # Check if optimization was successful
     if problem.status not in ["optimal", "optimal_inaccurate"]:
@@ -161,7 +161,7 @@ def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
     X_val = X[half_n:, :]
 
     # Generate tau values in logspace from a small positive number to tau_init
-    tau_values = np.logspace(-6, np.log10(tau_init), num=num_tau)
+    tau_values = np.logspace(-4, np.log10(tau_init), num=num_tau)
 
     # Use map to compute MSE for each tau
     mse_errors = list(map(cvmapper, tau_values))
@@ -585,6 +585,8 @@ def pda(prepped, N, method="fs"):
 
         eta = (prepped["donor_matrix"][:prepped["pre_periods"], :].T @ prepped["y"][:prepped["pre_periods"]]) / n
 
+        tau1 = np.linalg.norm(eta, ord=np.inf)
+
         optimal_tau, min_mse = cross_validate_tau(prepped["y"][:prepped["pre_periods"]], prepped["donor_matrix"][:prepped["pre_periods"]], 2)
 
         # Step 2: Re-fit the model using the optimal tau
@@ -604,7 +606,7 @@ def pda(prepped, N, method="fs"):
         inference_results = compute_t_stat_and_ci(attdict["ATT"], Vectors["Gap"][-prepped["post_periods"]:, 0], h)
 
         return {
-            "method": r'$\ell_2$ relaxation',
+            "method": r'l2 relaxation',
             "optimal_tau": optimal_tau,
             "Betas": donor_coefficients,
             "Inference": inference_results,

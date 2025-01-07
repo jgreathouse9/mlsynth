@@ -83,6 +83,7 @@ def plot_estimates(
     plt.clf()
 
 
+
 class effects:
     @staticmethod
     def calculate(y, y_counterfactual, t1, t2):
