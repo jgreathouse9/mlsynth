@@ -102,7 +102,7 @@ def l2_relax(time_periods, treated_unit, X, tau):
     problem = cp.Problem(objective, constraint)
 
     # Solve the problem
-    problem.solve(solver=cp.ECOS)
+    problem.solve(solver=cp.CLARABEL)
 
     # Check if optimization was successful
     if problem.status not in ["optimal", "optimal_inaccurate"]:
