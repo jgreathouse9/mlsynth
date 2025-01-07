@@ -114,51 +114,64 @@ def l2_relax(time_periods, treated_unit, X, tau):
     return beta.value, counterfactuals
 
 
-
-
-# Helper function to compute MSE for a single fold and tau
-def compute_fold_mse(train_index, test_index, treated_unit, X, tau, time_periods):
+def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
     """
-    Compute the MSE for a single fold and tau.
+    Cross-validation for L2-relaxation to select the optimal tau by splitting
+    the training data into two halves.
+
+    Parameters:
+        treated_unit (numpy.ndarray): Outcome vector for the treated unit (n x 1).
+        X (numpy.ndarray): Design matrix with rows as time periods and columns as control units (n x p).
+        tau_init (float): Upper bound for tau values (derived from initial computation).
+        num_tau (int): Number of tau values to evaluate (default: 1000).
+
+    Returns:
+        float: Optimal tau value.
+        float: Minimum out-of-sample MSE.
     """
-    # Training and validation splits
-    train_treated = treated_unit[train_index]
-    train_X = X[train_index, :]
-    test_treated = treated_unit[test_index]
-    test_X = X[test_index, :]
 
-    # Estimate coefficients using the training set
-    beta, _ = l2_relax(len(train_treated), train_treated, train_X, tau)
+    def cvmapper(tau):
+        """
+        Computes the MSE for a given tau by training on the first half and validating on the second half.
 
-    # Predict on the validation set
-    predictions = test_X @ beta
+        Parameters:
+            tau (float): Regularization parameter for L2-relaxation.
 
-    # Compute and return MSE
-    return np.mean((test_treated - predictions) ** 2)
+        Returns:
+            float: MSE on the validation set.
+        """
+        # Train L2-relaxation on the first half of the data
+        beta, _ = l2_relax(half_n, treated_train, X_train, tau)
 
-# Refactored cross-validation function
-def cross_validate_l2(time_periods, treated_unit, X, tau_values, k_folds=5):
-    """
-    Cross-validation to tune tau for L2-relaxation using map.
-    """
-    n = treated_unit.shape[0]
-    kf = KFold(n_splits=k_folds, shuffle=False)  # No shuffle to preserve time order
-    mse_per_tau = []
+        # Predict on the second half of the data
+        predictions = X_val @ beta
 
-    # Loop over tau values
-    for tau in tau_values:
-        # Prepare a partial function for map
-        fold_mse_calculator = partial(compute_fold_mse, treated_unit=treated_unit, X=X, tau=tau, time_periods=time_periods)
+        # Compute Mean Squared Error (MSE) on the validation set
+        mse = np.mean((treated_val - predictions) ** 2)
+        return mse
 
-        # Compute MSE for all folds using map
-        fold_mse = list(map(lambda indices: fold_mse_calculator(*indices), kf.split(np.arange(time_periods))))
 
-        # Average MSE across folds for the current tau
-        mse_per_tau.append(np.mean(fold_mse))
+    n = len(treated_unit)
+    half_n = n // 2
 
-    # Find the tau with the minimum MSE
-    optimal_tau = tau_values[np.argmin(mse_per_tau)]
-    return optimal_tau, mse_per_tau
+    # Split data into first and second halves
+    treated_train = treated_unit[:half_n]
+    X_train = X[:half_n, :]
+    treated_val = treated_unit[half_n:]
+    X_val = X[half_n:, :]
+
+    # Generate tau values in logspace from a small positive number to tau_init
+    tau_values = np.logspace(-6, np.log10(tau_init), num=num_tau)
+
+    # Use map to compute MSE for each tau
+    mse_errors = list(map(cvmapper, tau_values))
+
+    # Find the tau with the minimum validation error
+    optimal_tau_idx = np.argmin(mse_errors)
+    optimal_tau = tau_values[optimal_tau_idx]
+    min_mse = mse_errors[optimal_tau_idx]
+
+    return optimal_tau, min_mse
 
 
 
@@ -523,6 +536,9 @@ def pda(prepped, N, method="fs"):
     
     
     elif method == "l2":
+        # To do: upper bound of sup norm
+        # Learn the first 40 percent of the data best using the range of tau
+        # then predict with that
 
         def compute_t_stat_and_ci(att, treatment_effects, truncation_lag, confidence_level=0.95):
             """
@@ -562,15 +578,14 @@ def pda(prepped, N, method="fs"):
                 "p_value": p_value,
                 "confidence_interval": (ci_low, ci_high)
             }
-        
 
-        if prepped["post_periods"] > prepped["donor_matrix"].shape[1]:
-            tau_values = np.logspace(-2, 1, 10)
-        else:
-            tau_values = np.logspace(-4, 1, 10)
-            
-        # Step 1: Cross-validate to find the optimal tau
-        optimal_tau, mse_per_tau = cross_validate_l2(prepped["pre_periods"], prepped["y"], prepped["donor_matrix"], tau_values)
+        # Compute initial components
+        n, p = prepped["donor_matrix"][:prepped["pre_periods"], :].shape
+        Sigma = (prepped["donor_matrix"][:prepped["pre_periods"], :].T @ prepped["donor_matrix"][:prepped["pre_periods"], :]) / n
+
+        eta = (prepped["donor_matrix"][:prepped["pre_periods"], :].T @ prepped["y"][:prepped["pre_periods"]]) / n
+
+        optimal_tau, min_mse = cross_validate_tau(prepped["y"][:prepped["pre_periods"]], prepped["donor_matrix"][:prepped["pre_periods"]], np.linalg.norm(eta, ord=np.inf))
 
         # Step 2: Re-fit the model using the optimal tau
         beta_hat, yl2 = l2_relax(prepped["pre_periods"], prepped["y"], prepped["donor_matrix"], optimal_tau)
