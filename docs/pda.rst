@@ -18,6 +18,15 @@ Let :math:`\mathbf{y}_1 \in \mathbb{R}^T` be the vector for the treated unit and
    &\boldsymbol{\eta} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{y}_1, \: \boldsymbol{\Sigma} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{Y}_0 \in \mathbb{R}^{N_0 \times N_0}
    \end{aligned}
 
+
+When we estimate the counterfactual, we get
+
+.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/examples/l2relax/HK_Integration.png
+   :alt: Counterfactual Hong Kong
+   :width: 600px  # Optional, if you want to set the width
+
+which is a simple plot.
+
 Forward Selected Approach
 -------------------------
 
