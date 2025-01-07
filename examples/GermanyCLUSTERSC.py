@@ -142,5 +142,5 @@ for key in keys:
 
 save["filename"] = "Cluster_Germany"
 config["cluster"] = True
-clustmodel = CLUSTERSC{config}
+clustmodel = CLUSTERSC(config)
 wclust = clustmodel.fit()
