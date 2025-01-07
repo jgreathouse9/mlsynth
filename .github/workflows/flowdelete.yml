@@ -3,6 +3,10 @@ name: Delete Old Workflow Runs
 on:
   workflow_dispatch:  # Trigger manually
 
+permissions:
+  actions: write  # Grant write permissions for actions
+  contents: read  # Grant read permissions for contents
+
 jobs:
   delete-runs:
     runs-on: ubuntu-latest
@@ -19,7 +23,7 @@ jobs:
 
       - name: List and delete oldest 500 runs
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Provide the GitHub token
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use the token with appropriate permissions
         run: |
           # Get the database IDs of the oldest 500 runs
           gh run list --limit 500 --json databaseId -q '.[].databaseId' > runs_to_delete.txt
