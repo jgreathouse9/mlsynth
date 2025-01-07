@@ -65,12 +65,10 @@ unitid = "Country"
 time = "Time"
 
 
-new_directory = os.path.join(os.getcwd(), "mlsynth", "examples")
+new_directory = os.path.join(os.getcwd(), "examples")
+os.chdir(new_directory)
 
-if not os.path.exists(new_directory):
-    os.makedirs(new_directory)
-
-# Define save path with a new directory 'l2relax'
+# Define the 'l2relax' directory
 save_directory = os.path.join(os.getcwd(), "l2relax")
 
 # Create the directory if it doesn't exist
