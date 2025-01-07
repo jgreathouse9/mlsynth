@@ -12,9 +12,10 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install GitHub CLI
-        uses: actions/setup-gh@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Install GitHub CLI
+          curl -fsSL https://cli.github.com/packages/install.sh | sudo bash
+          gh --version  # Check if the installation was successful
 
       - name: List and delete oldest 500 runs
         run: |
