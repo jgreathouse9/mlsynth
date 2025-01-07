@@ -1,4 +1,4 @@
-name: Build mlsynth code
+name: Build MLSYNTH Source Code
 
 on:
   push:
@@ -43,6 +43,9 @@ jobs:
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
+        
+        # Pull the latest changes from remote to avoid push rejection
+        git pull origin main --rebase
         
         # Only commit if there are changes
         git add .
