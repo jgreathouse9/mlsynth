@@ -394,26 +394,26 @@ class PDA:
         pdaest = pda(prepped,  len(prepped["donor_names"]), method=self.method)
         attdict, fitdict, Vectors = effects.calculate(prepped["y"], pdaest['Vectors']['Counterfactual'], prepped["pre_periods"],
                                                          prepped["post_periods"])
-        method = pdaest.get("method", "default_method")  # Use "default_method" as fallback
+        est_method = pdaest.get("method")
 
-        counterfactual_name = f'{method} {prepped["treated_unit_name"]}'
-        
-        if self.display_graphs:
+        counterfactual_name = f'{est_method} {prepped["treated_unit_name"]}'
 
-            plot_estimates(
-                df=self.df,
-                time=self.time,
-                unitid=self.unitid,
-                outcome=self.outcome,
-                treatmentname=self.treat,
-                treated_unit_name=prepped["treated_unit_name"],
-                y=prepped["y"],
-                cf_list=[pdaest['Vectors']['Counterfactual']],
-                counterfactual_names=[counterfactual_name],
-                method=f'{method}',
-                treatedcolor=self.treated_color,
-                counterfactualcolors=[self.counterfactual_color]
-            )
+        # Call the function
+        plot_estimates(
+            df=self.df,
+            time=self.time,
+            unitid=self.unitid,
+            outcome=self.outcome,
+            treatmentname=self.treat,
+            treated_unit_name=prepped["treated_unit_name"],
+            y=prepped["y"],
+            cf_list=[pdaest['Vectors']['Counterfactual']],
+            counterfactual_names=[counterfactual_name],
+            method=est_method,
+            treatedcolor=self.treated_color,
+            counterfactualcolors=[self.counterfactual_color],
+            save=self.save
+        )
 
         return pdaest
 
