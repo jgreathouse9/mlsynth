@@ -76,7 +76,7 @@ if not os.path.exists(save_directory):
     os.makedirs(save_directory)
 
 save={
-        "filename": "HK_Integreation",
+        "filename": "HK_Integration",
         "extension": "png",
         "directory": save_directory
 }
