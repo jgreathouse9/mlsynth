@@ -20,13 +20,12 @@ Panel data approaches generally assume that there are a common set of factors th
    &\boldsymbol{\eta} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{y}_1, \: \boldsymbol{\Sigma} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{Y}_0 \in \mathbb{R}^{N_0 \times N_0}
    \end{aligned}
 
-where we seek the coefficients which minimize the predictions between the sample covariance vector and the covariance matrix of the control units. In other words, we are projecting the treated unit on to the control units. We are doing this with the sep-norm, which in this case simply places an upper bound on the deviation from the covariance vector, using the constant tau. There is a key problem here, though: as tau shrinks to 0, we approach the OLS estimator, which seeks to totally minimize the discrepancies. Of course, this will result in overfitting. So to mitigate this, Shi and Wang employ cross validation to select tau [l2relax]_, and I follow them here.
+where we seek the coefficients which minimize the predictions between the sample covariance vector and the covariance matrix of the control units. In other words, we are projecting the treated unit on to the control units. We are doing this with the sep-norm, which in this case simply places an upper bound on the deviation from the covariance vector, using the constant tau. There is a key problem here, though: as tau shrinks to 0, we approach the OLS estimator, which seeks to totally minimize the discrepancies. Of course, this will result in overfitting. So to mitigate this, Shi and Wang employ cross validation to select tau [l2relax]_, and I follow them here. I divide the data into the training period and the out-of-sample validation periods (that is, the post-intervention period). I further divide the training period into :math:`\mathcal{T}_1^{\text{train}} = \{1, 2, \ldots, \left\lfloor \frac{T_1}{2} \right\rfloor\}` for training, and the validation period :math:`\mathcal{T}_1^{\text{val}}` for out-of-sample testing. For our purposes, we are concerned with the value for tau that minimizes the MSE for the valiation period
 
 .. math::
 
     \operatorname*{argmin}_{\tau} \left( \frac{1}{T_0^{\text{val}}} \| \mathbf{y}^{\ell_2} - \mathbf{y}_1 \|_F^2 \right)
 
-In this case, I divide the data into the training period and the out-of-sample validation periods (that is, the post-intervention period). I further divide the training period into :math:`\mathcal{T}_1^{\text{train}} = \{1, 2, \ldots, \left\lfloor \frac{T_1}{2} \right\rfloor\}` for training, and the validation period :math:` \mathcal{T}_1^{\text{val}}` for out-of-sample testing.
 
 
 Here is the code for the PDA:
