@@ -26,33 +26,20 @@ jobs:
         run: |
           set -x
           python examples/fdidbasque.py
-          if [ -f "./FDID_Basque.png" ]; then
-            mkdir -p "./examples/fdid"
-            mv "./FDID_Basque.png" "./examples/fdid/FDID_Basque.png"
-            echo "FDID_Basque.png moved to examples/fdid/"
-          else
-            echo "FDID_Basque.png not found"
-            exit 1
-          fi
       - name: Run GermanyCLUSTERSC and move plot
         run: |
           set -x
           python examples/GermanyCLUSTERSC.py
-          latest_plot=$(ls -t *.png 2>/dev/null | head -n 1)  # Get the most recently saved .png file
-          if [ -n "$latest_plot" ]; then
-            mkdir -p "./examples/clustersc"
-            mv "./$latest_plot" "./examples/clustersc/$latest_plot"
-            echo "$latest_plot moved to examples/clustersc/"
-          else
-            echo "No .png file found after running GermanyCLUSTERSC.py"
-            exit 1
-          fi
+      - name: Run PanelData
+        run: |
+          set -x
+          python examples/paneldata.py
       - name: Commit plots
         run: |
           git add -f "./examples/fdid/FDID_Basque.png" "./examples/clustersc/*"
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git diff --exit-code --quiet || git commit -m "Add plots for FDID Basque and Germany ClusterSC"
+          git diff --exit-code --quiet || git commit -m "Add plots for FDID Basque, Germany ClusterSC, and PanelData"
       - name: Pull changes from the remote repository before pushing
         run: |
           git add . 
