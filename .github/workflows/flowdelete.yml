@@ -18,7 +18,8 @@ jobs:
       - name: Install GitHub CLI
         run: |
           # Install GitHub CLI
-          curl -fsSL https://cli.github.com/packages/install.sh | sudo bash
+          sudo apt-get update
+          sudo apt-get install gh
           gh --version  # Check if the installation was successful
 
       - name: List and delete oldest 500 runs
@@ -30,6 +31,6 @@ jobs:
           
           # Loop through each ID and delete the corresponding run
           while read -r ID; do
-            gh api "repos/${{ github.repository }}/actions/runs/${ID}" -X DELETE --header "Authorization: Bearer $GH_TOKEN"
+            gh api "repos/${{ github.repository }}/actions/runs/${ID}" -X DELETE --header "Authorization: Bearer $GH_TOKEN" --token $GH_TOKEN
             echo "Deleted run with ID: ${ID}"
           done < runs_to_delete.txt
