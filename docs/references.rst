@@ -28,6 +28,9 @@ References
 
 .. [Donoho2023] David Donoho, Matan Gavish, Elad Romanov. "ScreeNOT: Exact MSE-optimal singular value thresholding in correlated noise." *The Annals of Statistics*, Ann. Statist. 51(1), 122-148, (February 2023).
 
+.. [HCW] Hsiao, Cheng, H. Steve Ching, and Shui Ki Wan. "A Panel Data Approach for Program Evaluation: Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China." *Journal of Applied Econometrics* 27, no. 5 (2012): 705-40. DOI: 10.1002/jae.1230.
+
+
 
 .. [Li2024] Li, Kathleen T. *"Frontiers: A Simple Forward Difference-in-Differences Method."* Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. `doi:10.1287/mksc.2022.0212 <https://doi.org/10.1287/mksc.2022.0212>`_.
 
