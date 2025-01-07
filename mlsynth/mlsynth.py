@@ -1097,8 +1097,8 @@ class CLUSTERSC:
             y=prepped["y"],
             cf_list=[y_RPCA, synth],
             counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
-            method="Synthetic Control",
-            treatedcolor=self.treated_color,
+            method="CLUSTERSC",
+            treatedcolor="black",
             counterfactualcolors=["blue", "red"],
             save=self.save
         )
