@@ -231,7 +231,7 @@ We can now turn to an empirical example, namely the reanalysis of West Germany' 
 
 
 
-.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/clustersc/Synthetic%20Control_West%20Germany.png
+.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/clustersc/German.png
    :alt: CLUSTERSC Plot
    :align: center
    :width: 600px
