@@ -32,7 +32,7 @@ jobs:
           # Loop through each ID and delete the corresponding run
           while read -r ID; do
             # Use the PAT (Personal Access Token) for the Authorization header
-            if gh api "repos/${{ github.repository }}/actions/runs/${ID}" -X DELETE --header "Authorization: Bearer $GH_TOKEN"; then
+            if gh api "repos/${{ github.repository }}/actions/runs/${ID}" -X DELETE; then
               echo "Deleted run with ID: ${ID}"
             else
               echo "Failed to delete run with ID: ${ID}. Stopping the deletion process."
