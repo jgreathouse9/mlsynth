@@ -1,6 +1,8 @@
 from mlsynth.mlsynth import CLUSTERSC
 import matplotlib
 import pandas as pd
+import os
+
 # matplotlib theme
 jared_theme = {
     'axes.grid': False,
@@ -108,6 +110,12 @@ time = df.columns[1]
 outcome = df.columns[2]
 treat =  selected_dict["Treatment Name"]
 
+save={
+        "filename": "German",
+        "extension": "png",
+        "directory": os.getcwd()
+}
+
 config = {
     "df": df,
     "treat": treat,
@@ -117,7 +125,7 @@ config = {
     "counterfactual_color": "red",
     "treated_color": "black",
     "display_graphs": True,
-    "save": True,
+    "save": save,
     "cluster": False
 
 }
