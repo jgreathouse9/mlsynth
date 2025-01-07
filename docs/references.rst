@@ -3,6 +3,9 @@ References
 
 .. [Abadie2021] Abadie, Alberto. *"Using Synthetic Controls: Feasibility, Data Requirements, and Methodological Aspects."* Journal of Economic Literature, vol. 59, no. 2, 2021, pp. 391–425. https://doi.org/10.1257/jel.20191450.
 
+.. [ADID] Li, Kathleen T., and Christophe Van den Bulte. *"Augmented Difference-in-Differences."* Marketing Science, vol. 42, no. 4, 2023, pp. 746–767. https://doi.org/10.1287/mksc.2022.1406.
+
+
 .. [Amjad2018] Amjad, Muhammad, Devavrat Shah, and Dennis Shen. *"Robust Synthetic Control."* Journal of Machine Learning Research, vol. 19, no. 1, 2018, pp. 802–852.
 
 .. [Agarwal2021] Agarwal, Anish, Devavrat Shah, Dennis Shen, and Dogyoon Song. *"On Robustness of Principal Component Regression."* Journal of the American Statistical Association, vol. 116, no. 536, 2021, pp. 1731–1745. doi:10.1080/01621459.2021.1928513.
