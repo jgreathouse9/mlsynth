@@ -16,6 +16,13 @@ Formally, I lay out the notations. Indexed by :math:`j`, we observe :math:`\math
    &\boldsymbol{\eta} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{y}_1, \: \boldsymbol{\Sigma} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{Y}_0 \in \mathbb{R}^{N_0 \times N_0}
    \end{aligned}
 
+This depends on our choice of tau, which I do via
+
+.. math::
+
+    \operatorname*{argmin}_{\tau} \left( \frac{1}{T_0^{\text{val}}} \| \mathbf{y}^{\ell_2} - \mathbf{y}_1 \|_F^2 \right)
+
+
 Here is the code for the PDA:
 
 .. code-block:: python
