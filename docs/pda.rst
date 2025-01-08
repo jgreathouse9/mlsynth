@@ -234,3 +234,12 @@ returns this plot
    :align: center
    :width: 600px
 
+
+Additional Information
+----------------------
+
+All of these methods return fit statistics, effect size statistics, the units which received weight/the coefficients, as well as standard errors, 95% confidence intervals, and the relevant vectors of interest (the observed values, counterfactual values, and gap/treatment effect. In the future, the :math:`\ell_2` relaxation method will be extended to the multiple treated unit setting, as was done in the original paper. This way, it can be implemented in a wider set of scenarios.
+
+
+
+
