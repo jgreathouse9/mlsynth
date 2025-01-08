@@ -119,3 +119,25 @@ model_fs = PDA(config)
 # Fit the model using forward selection
 fs_est = model_fs.fit()
 
+
+# Update the method to "LASSO" for LASSO based PDA
+config["method"] = "LASSO"
+
+# Create the 'fsPDA' directory for saving results
+save_directory = os.path.join(os.getcwd(), "L1PDA")
+if not os.path.exists(save_directory):
+    os.makedirs(save_directory)
+
+# Update the save configuration
+config["save"] = {
+    "filename": "HK_Integration",
+    "extension": "png",
+    "directory": save_directory
+}
+
+# Initialize the model with forward selection
+model_fs = PDA(config)
+
+# Fit the model using forward selection
+LASSO_est = model_fs.fit()
+
