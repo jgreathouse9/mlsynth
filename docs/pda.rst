@@ -188,7 +188,7 @@ Here is the example repeated above, except with the forward selection PDA. Note 
    :width: 600px
 
 
-LASSO Approach
+LASSO PDA
 --------------
 
 The objective function for LASSO's PDA is given by:
@@ -198,4 +198,39 @@ The objective function for LASSO's PDA is given by:
     \hat{\boldsymbol{\beta}} = \arg\min_{\boldsymbol{\beta}} \frac{1}{2T_1} \|\mathbf{y}_1 - \mathbf{Y}_0 \boldsymbol{\beta}\|_2^2 + \lambda \|\boldsymbol{\beta}\|_1,
 
 In this PDA, we simply use the LASSO to choose the control units, as implemented by ``sklearn``.
+
+This code, implemented like
+
+.. code-block:: python
+
+    # Update the method to "LASSO" for LASSO-based PDA
+    config["method"] = "LASSO"
+
+    # Create the 'L1PDA' directory for saving results
+    save_directory = os.path.join(os.getcwd(), "L1PDA")
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+
+    # Update the save configuration
+    config["save"] = {
+        "filename": "HK_Integration",
+        "extension": "png",
+        "directory": save_directory
+    }
+
+    # Initialize the model with LASSO-based PDA
+    model_fs = PDA(config)
+
+    # Fit the model using LASSO-based PDA
+    LASSO_est = model_fs.fit()
+
+
+
+returns this plot
+
+
+.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/examples/L1PDA/HK_Integration.png
+   :alt: Counterfactual Hong Kong
+   :align: center
+   :width: 600px
 
