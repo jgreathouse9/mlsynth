@@ -96,4 +96,26 @@ config = {
 
 model = PDA(config)
 
-autores = model.fit()
+l2est = model.fit()
+
+# Update the method to "fs" for forward selection
+config["method"] = "fs"
+
+# Create the 'fsPDA' directory for saving results
+save_directory = os.path.join(os.getcwd(), "fsPDA")
+if not os.path.exists(save_directory):
+    os.makedirs(save_directory)
+
+# Update the save configuration
+config["save"] = {
+    "filename": "HK_Integration_fs",
+    "extension": "png",
+    "directory": save_directory
+}
+
+# Initialize the model with forward selection
+model_fs = PDA(config)
+
+# Fit the model using forward selection
+fs_est = model_fs.fit()
+
