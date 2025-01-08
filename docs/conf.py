@@ -31,6 +31,10 @@ latex_elements = {
     'preamble': r'\usepackage{mathtools}'
 }
 
+def setup(app):
+    app.add_js_file('static/custom_mathjax.js')
+
+
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
