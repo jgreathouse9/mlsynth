@@ -152,8 +152,8 @@ After selecting the control group, the counterfactual for the treated unit is pr
 
 .. math::
 
-    (\hat{\alpha}, \hat{\boldsymbol{\beta}}_{\hat{U}_R}) = \arg\min_{\alpha, \boldsymbol{\beta}} 
-    \|\mathbf{y}_1 - \alpha - \mathbf{Y}_{\hat{U}_R} \boldsymbol{\beta}\|_2^2.
+    (\hat{\alpha}, \hat{\boldsymbol{\beta}}_{\hat{U}_R}) = \operatorname*{argmin}_{\alpha, \boldsymbol{\beta}} 
+    \|\mathbf{y}_1 - \mathbf{Y}_{\hat{U}- \alpha} \boldsymbol{\beta}\|_2^2.
 
 
 LASSO Approach
