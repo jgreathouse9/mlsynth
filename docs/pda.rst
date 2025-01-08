@@ -144,5 +144,17 @@ When we estimate the counterfactual, we get
 Forward Selected Approach
 -------------------------
 
+Next I describe the forward-selection PDA. In fsPDA, the control group is selected using a greedy forward selection algorithm, which exploits the pre-intervention relation between the treated unit and the control units. The selection method iteratively chooses control units to maximize the model's explanatory power based on the :math:`R^2` statistic.
+
+We begin with an empty set of selected control units :math:`\hat{U}_0 = \emptyset`. Our iterations span from :math:`r` (where :math:`r = 1, 2, \ldots, R`). For the first iteration, we estimate a single OLS regression model per each control unit :math:`j \in \mathcal{N}_0 \setminus \hat{U}_{r-1}`. Specifically, our dependent variable  :math:`\mathbf{y}_1` its predicted by the set of previously selected controls :math:`\mathbf{Y}_{\hat{U}_{r-1}}` plus the candidate control unit :math:`\mathbf{y}_j`. After our first iteration, we select the control unit :math:`j_r` that maximizes the :math:`R^2` of the regression. We then update the selected set: :math:`\hat{U}_r = \hat{U}_{r-1} \cup \{j_r\}`. The next model proceeds the same way, including the originally selected unit. The process stops after :math:`R` iterations, where :math:`R` is chosen by a modified Bayesian Information Criterion as described in [fsPDA].
+
+After selecting the control group, the counterfactual for the treated unit is predicted using the following regression model:
+
+.. math::
+
+    (\hat{\alpha}, \hat{\boldsymbol{\beta}}_{\hat{U}_R}) = \arg\min_{\alpha, \boldsymbol{\beta}} 
+    \|\mathbf{y}_1 - \alpha - \mathbf{Y}_{\hat{U}_R} \boldsymbol{\beta}\|_2^2.
+
+
 LASSO Approach
 --------------
