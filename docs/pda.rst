@@ -152,8 +152,8 @@ After selecting the control group, the counterfactual for the treated unit is pr
 
 .. math::
 
-    (\hat{\alpha}, \hat{\boldsymbol{\beta}}_{\hat{U}_R}) = \operatorname*{argmin}_{\alpha, \boldsymbol{\beta}} 
-    \|\mathbf{y}_1 - \mathbf{Y}_{\hat{U}} \boldsymbol{\beta}- \alpha\|_2^2.
+    (\hat{\alpha}, \hat{\boldsymbol{\beta}}_{\hat{U}_r}) = \operatorname*{argmin}_{\alpha, \boldsymbol{\beta}_{\hat{U}_r}} 
+    \|\mathbf{y}_1 - \mathbf{Y}_{\hat{U}_r} \boldsymbol{\beta}_{\hat{U}_r}- \alpha\|_2^2.
 
 Here is the example repeated above, except with the forward selection PDA. Note that all we needed to do is just change around a few parameters, instead of needing to switch softwares or learn a new syntax.
 
