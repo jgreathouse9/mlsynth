@@ -156,5 +156,42 @@ After selecting the control group, the counterfactual for the treated unit is pr
     \|\mathbf{y}_1 - \mathbf{Y}_{\hat{U}} \boldsymbol{\beta}- \alpha\|_2^2.
 
 
+.. code-block:: python
+
+# Update the method
+config["method"] = "fs"
+
+# Create the 'fsPDA' directory
+
+save_directory = os.path.join(os.getcwd(), "fsPDA")
+if not os.path.exists(save_directory):
+    os.makedirs(save_directory)
+
+# Update the save file
+config["save"] = {
+    "filename": "HK_Integration_fs",
+    "extension": "png",
+    "directory": save_directory
+}
+
+# Initialize the model with forward selection
+model_fs = PDA(config)
+
+# Fit the fsPDA model
+autores_fs = model_fs.fit()
+
+
+
+
+
+
+.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/examples/fsPDA/HK_Integration_fs.png
+   :alt: Counterfactual Hong Kong
+   :align: center
+   :width: 600px
+
+
+
+
 LASSO Approach
 --------------
