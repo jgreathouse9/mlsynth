@@ -34,7 +34,7 @@ jobs:
         python setup.py sdist  # Run the build command
 
     - name: Upload distribution artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: mlsynth-dist
         path: dist/  # Upload the 'dist' folder containing your .tar.gz file
