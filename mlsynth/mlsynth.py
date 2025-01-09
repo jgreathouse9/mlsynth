@@ -174,6 +174,11 @@ class FMA:
                 Whether to display the plots, by default True.
             save : bool, optional
                 Whether to save the generated plots, by default False.
+            criti : int, optional
+                Whether we presume stationarity or not in the time series, defaults
+                to 11 (stationary), else 10
+            DEMEAN : int, optional
+                Whether we demean or standardize the data. Default is demean, = 1
 
         Returns
         -------
@@ -202,7 +207,8 @@ class FMA:
         self.treated_color = config.get("treated_color", "black")
         self.display_graphs = config.get("display_graphs", True)
         self.save = config.get("save", False)
-        self.criti = 10
+        self.criti = config.get("criti", 11)
+        self.DEMEAN = config.get("DEMEAN", 1)
 
     def fit(self):
         prepped = dataprep(self.df,
@@ -224,14 +230,14 @@ class FMA:
         x = np.hstack((const, datax))
         x1 = x[:t1, :]
         x2 = x[t1:, :]
-        X = demean_matrix(datax)
+        X = demean_matrix(datax) # For Xu's method
         XX = np.dot(X, X.T)
         eigval, Fhat0 = np.linalg.eigh(XX)
         Fhat0 = Fhat0[:, ::-1]
         t1_one = np.ones((t1, 1))
         t2_one = np.ones((t2, 1))
         rmax = 10
-        DEMEAN = 0
+        DEMEAN = self.DEMEAN
         MSE = np.zeros(rmax)
         for r in range(1, rmax + 1):
             Fhat_1 = np.hstack((t1_one, Fhat0[:t1, :r]))
