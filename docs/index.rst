@@ -87,11 +87,5 @@ MLSYNTH
    pda
    tssc
 
-FMA
----
 
-.. autoclass:: mlsynth.mlsynth.FMA
-   :members: __init__
-   :undoc-members:
-   :show-inheritance:
 
