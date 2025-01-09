@@ -13,6 +13,9 @@ References
 
 .. [Agarwal2021] Agarwal, Anish, Devavrat Shah, Dennis Shen, and Dogyoon Song. *"On Robustness of Principal Component Regression."* Journal of the American Statistical Association, vol. 116, no. 536, 2021, pp. 1731–1745. doi:10.1080/01621459.2021.1928513.
 
+.. [BaiNg2002] Bai, Jushan and Serena Ng (2002), “Determining the Number of Factors in Approximate Factor Models,” *Econometrica*, 70 (1), 191–222.
+
+
 
 .. [Bayani2021] Bayani, Mani. *"Robust PCA Synthetic Control."* Working paper, arXiv, 2021. doi:10.48550/ARXIV.2108.12542.
 
