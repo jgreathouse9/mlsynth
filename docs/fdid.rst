@@ -15,27 +15,23 @@ With this in mind, we may describe the algorithm. FDID proceeds iteratively over
 
 where we have a :math:`T_1 \times 1` pre-intervention vector of outcomes for the treated unit, :math:`\mathbf{y}_1`, and a :math:`T_1 \times N_0` matrix of outcomes for our control group, :math:`\mathbf{Y}_0`. We are in fact, however, concerned with the subset of these controls that satisfies the parallel pre-trends assumption.
 
-By design, we are agnostic as to which sub-matrix of units we should use or how even many controls we should use. The Forward DID method is an iterative, data driven algorithm which chooses the controls. We begin with an empty control group. Let :math:`\mathcal{U} \operatorname*{:=} \{\widehat{U}_1, \widehat{U}_2, \ldots, \widehat{U}_{N_0}\}` represent the set of candidate control groups, where each element of :math:`\mathcal{U}` is a discrete subset of control units. For :math:`k=1`, we estimate :math:`N_0` one unit DID models, one per control unit. Our dependent variable, then, is :math:`\mathbf{y}_{1t \in \mathcal{T}_1}`. The outcomes of the control units serve as predictors. Of these :math:`N_0` DID models, we select the single control unit which produces the highest R-squared statistic,
+By design, we are agnostic as to which sub-matrix of units we should use or how even many controls we should use. The Forward DID method is an iterative, data driven algorithm which chooses the controls. The Forward DID method updates the selected control set :math:`\widehat{U}_k` iteratively over :math:`k = 1, 2, \ldots, N_0`. The process begins with an empty control set :math:`\widehat{U}_0 = \emptyset` and an empty candidate set :math:`\mathcal{U} = \emptyset`. For :math:`k = 1`, we estimate :math:`N_0` DID models using the outcome vector of each control unit as a predictor, computing the :math:`R^2` statistic for each control unit. We then select the control unit that maximizes the pre-intervention :math:`R^2`:  
 
 .. math::
 
-   i^\ast_1 = \operatorname*{argmax}_{i \in \mathcal{N}_0} R^2_i, \quad \widehat{U}_1 = \{i^\ast_1\}
+    i^\ast_1 = \operatorname*{argmax}_{i \in \mathcal{N}_0} R^2_i, 
+    \quad \widehat{U}_1 = \{i^\ast_1\}, 
+    \quad \mathcal{U} = \{\widehat{U}_1\}.
 
-We add this one unit set to :math:`\{\mathcal{U} \operatorname*{:=} U_1 \}` as our first selected candidate set. For :math:`k=2`, we repeat this again. Except now, we include the first selected control alongside each one of the remaining control units, uniformly weighting them and solving for :math:`\boldsymbol{\beta}_0`. This results in us estimating :math:`N_0 - 1` DID models in total. As before, we calculate :math:`R^2` for each of these submodels. We choose the two-control unit DID model which maximizes R-squared in the pre-intervention period.
-
-.. math::
-
-   i^\ast_2 = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \{i^\ast_1\}} R^2_{\{i^\ast_1, i\}}, 
-   \quad \widehat{U}_2 = \{i^\ast_1, i^\ast_2\}.
-
-This candidate set set, :math:`U_2`, is added to :math:`\mathcal{U}`. We then repeat this a third time. For each iteration :math:`k`, we loop over the remaining set of control units, selecting the optimal control unit and adding it to the previous set of added units:
+For subsequent iterations :math:`k = 2, 3, \ldots, N_0`, we construct :math:`N_0 - k + 1` DID models by combining the previously selected set :math:`\widehat{U}_{k-1}` with each remaining control unit :math:`i \notin \widehat{U}_{k-1}`. The combined set :math:`\widehat{U}_{k-1} \cup \{i\}` is, along with the new candidate unit,  uniformly weighted in the regression model :math:`\widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1} \cup \{i\}}`. We then select the model, per the k-th iteration, with the highest :math:`R^2`:
 
 .. math::
 
-   i^\ast_k = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \widehat{U}_{k-1}} R^2_{\widehat{U}_{k-1} \cup \{i\}}, 
-   \quad \widehat{U}_k = \widehat{U}_{k-1} \cup \{i^\ast_k\}.
+    i^\ast_k = \operatorname*{argmax}_{i \in \mathcal{N}_0 \setminus \widehat{U}_{k-1}} R^2_{\widehat{U}_{k-1} \cup \{i\}}, 
+    \quad \widehat{U}_k = \widehat{U}_{k-1} \cup \{i^\ast_k\}, 
+    \quad \mathcal{U} = \mathcal{U} \cup \{\widehat{U}_k\}.
 
-These candidate sets of optimal controls are added to :math:`\mathcal{U}` until :math:`k = N_0`, or until there are no more controls to loop through. The control group ultimately returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`, or the candidate set of control units that has the highest R-squared statistic of all the candidate sets.
+At the end of each iteration, we add a new control unit. This process continues until iteration :math:`k = N_0`. The control group ultimately returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`, or the candidate set of control units that has the highest R-squared statistic of all the candidate sets.
 
 Implementing FDID via mlsynth
 -----------------------------
