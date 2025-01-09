@@ -1,5 +1,5 @@
 ---
-name: Test MLSYNTH
+name: Test MLSYNTH Estimation
 on:
   push:
     branches:
@@ -39,6 +39,11 @@ jobs:
         run: |
           set -x
           python examples/paneldata.py
+
+      - name: Run FMA
+        run: |
+          set -x
+          python examples/fma.py  # Add this line to run fma.py
 
       - name: Commit plots
         run: |
