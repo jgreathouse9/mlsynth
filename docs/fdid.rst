@@ -43,8 +43,6 @@ Implementing FDID via mlsynth
 Here is the input FDID accepts:
 
 .. autoclass:: mlsynth.mlsynth.FDID
-   :members:
-   :undoc-members:
    :show-inheritance:
    :special-members: __init__
 
