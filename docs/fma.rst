@@ -51,6 +51,15 @@ The optimal number of factors in this case is the number that minimizes the one-
 Estimating FMA in ``mlsynth``
 -----------------------------
 
+
+.. autoclass:: mlsynth.FMA
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
+
+
+
 .. code-block:: python
    :linenos:
 
