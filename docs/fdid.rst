@@ -224,6 +224,7 @@ Here is the raw output:
     {'Cataluna': 0.5, 'Aragon': 0.5}
 
 
-Importance of Results
-~~~~~~~~~~~~~~~~~~
-coming soon.
+To-Do List
+----------------
+
+- Extend both to staggered adoption (including inference)
