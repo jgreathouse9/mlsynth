@@ -1,14 +1,3 @@
-"""
-mlsynth
-==========
-"""
-
-# To Do list:
-
-# 1: Add placebo tests where appliable and relevant (e.g, in time)
-
-# 2: Extend at least 1 estimator to staggered adoption
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
