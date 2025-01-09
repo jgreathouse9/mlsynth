@@ -5,13 +5,17 @@ Oftentimes we assume that our truly observed data are a byproduct of a latent fa
 
 As ususal, we denote our units as indexed by :math:`j`, we observe :math:`\mathcal{N} \operatorname*{:=} \{1, 2, \ldots, N\}` units where the set of all units, :math:`\mathcal{N}`, has cardinality :math:`N = |\mathcal{N}|`. :math:`j = 1` is the treated unit with the controls being :math:`\mathcal{N}_0 \operatorname*{:=} \mathcal{N} \setminus \{1\}` whose cardinality is :math:`N_0 = |\mathcal{N}_0|`. Time periods are indexed by :math:`t`. Let :math:`\mathcal{T}_1 \operatorname*{:=} \{1, 2, \ldots, T_0\}` represent the pre-intervention periods, where :math:`T_0` is the final pre-intervention period, and :math:`\mathcal{T}_2 \operatorname*{:=} \{T_0 + 1, \ldots, T\}` represents the post-intervention periods. Both of these sets have cardinalities :math:`T_1 = |\mathcal{T}_1|` and :math:`T_2 = |\mathcal{T}_2|`. Let :math:`\mathcal{T} \operatorname*{:=} \mathcal{T}_1 \cup \mathcal{T}_2` represent the full time series, with cardinality :math:`T = |\mathcal{T}|`. Let :math:`\mathbf{y}_1 \in \mathbb{R}^T` be the vector for the treated unit and :math:`\mathbf{Y}_0 \in \mathbb{R}^{T \times N_0}` be the matrix for the control units that were unexposed.
 
-Li and Sonnier [li2023statistical]_ advocate for using PCA upon the control group to estimate the latent factor matrix. There are one of two ways they advocate for doing this. The first is a modified criteron and the second is a leave-one-out cross validation procedure
+Li and Sonnier [li2023statistical]_ advocate for using PCA upon the control group to estimate the latent factor matrix. There are one of two ways they advocate for doing this. The first is a modified criteron and the second is a leave-one-out cross validation procedure.
+
+The modified factor selection by Bai and Ng basically adds a penalty term to the originally proposed method (see page 457 and 470 of [li2023statistical]_ for more). It penalizes the number of factors selected based on the number of units and time periods in the data.
+
+**Modified Bai and Ng Procedure**
 
 .. math::
 
-   \text{PCBN}(r) = \frac{1}{N_{0} T} \sum_{i=2}^{N} \sum_{t=1}^{T} 
+   \text{MBN}(r) = \frac{1}{N_{0} T} \sum_{i=2}^{N} \sum_{t=1}^{T} 
    \left( y_{it} - \hat{\lambda}_{i}^{(r)\prime} \hat{F}_t^{(r)} \right)^2 
-   + r \hat{\sigma}^2 \left( \frac{N_{0} + T}{N_{0} T} \right) 
+   + c_{N,T}r \hat{\sigma}^2 \left( \frac{N_{0} + T}{N_{0} T} \right) 
    \log \left( \frac{N_{0} + T}{N_{0} T} \right)
 
 
@@ -20,7 +24,7 @@ Li and Sonnier [li2023statistical]_ advocate for using PCA upon the control grou
 
 Xu's method is derivied from an iterative cross validation algorithm. It proceeds along these steps:
 
-1. **De-Mean the Data**: Naturally, we subtract the mean of the outcomes across time to remove unit-fixed effects across time.
+1. **De-Mean the Data**: Naturally, we subtract the mean of the outcome matrix across time to remove unit-fixed effects.
 
    .. math::
 
@@ -30,25 +34,25 @@ Xu's method is derivied from an iterative cross validation algorithm. It proceed
 
    .. math::
 
-      \tilde{\mathbf{Y}}_0 \tilde{\mathbf{Y}}_0' = \mathbf{U} \boldsymbol{\Sigma} \mathbf{U}'
+      \tilde{\mathbf{Y}}_0 \tilde{\mathbf{Y}}_0' = \mathbf{U} \boldsymbol{\Sigma} \mathbf{U}'.
 
    Select the first :math:`r` columns of :math:`\mathbf{U}` to form the factor matrix.
 
-3. **Cross-Validation**: For each candidate number of factors  :math:`r`, and each pre-intervention time period :math:`s`, estimate the factor loadings using the remaining time periods and use OLS to predict one-step ahead out of sample.
+3. **Cross-Validation**: For each candidate number of factors  :math:`r`, and each pre-intervention time period :math:`s`, estimate the factor loadings using the remaining time periods. Then, use OLS to predict one-step ahead out of sample into the validation period
 
    .. math::
 
       \hat{\boldsymbol{\lambda}}^{(r)} = \left( \hat{\mathbf{F}}_{-s}^{(r)\prime} \hat{\mathbf{F}}_{-s}^{(r)} \right)^{-1} 
-      \hat{\mathbf{F}}_{-s}^{(r)\prime} \mathbf{y}_{-s}
+      \hat{\mathbf{F}}_{-s}^{(r)\prime} \mathbf{y}_{-s}.
 
-   The predicted outcome for the excluded time period is:
+   The predicted outcome for the validation time period is:
 
    .. math::
 
       \hat{y}_s = \hat{\mathbf{F}}_s^{(r)\prime} \hat{\boldsymbol{\lambda}}^{(r)}
 
 4. **Compute the Validation MSE**: Compute the MSE for :math:`r` factors 
-   across all excluded time periods.
+   across the validation period.
 
    .. math::
 
@@ -61,3 +65,4 @@ Xu's method is derivied from an iterative cross validation algorithm. It proceed
 
       \hat{r} = \arg \min_{r \in \{1, 2, \ldots, r_{\max}\}} \text{MSE}(r)
 
+Both of these methods are computed underneath the hood. ``mlsynth`` choses whichever method selects the least number of factors to avoid overfitting.
