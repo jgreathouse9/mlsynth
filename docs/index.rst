@@ -86,3 +86,21 @@ MLSYNTH
    fma
    pda
    tssc
+
+FMA
+---
+
+.. autoclass:: mlsynth.FMA
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+FDID
+----
+
+.. autoclass:: mlsynth.FDID
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+# Repeat for other classes
