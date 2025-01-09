@@ -90,7 +90,9 @@ config = {
     "counterfactual_color": "blue",
     "treated_color": "black",
     "display_graphs": True,
-    "save": save
+    "save": save,
+    "criti": 11,
+    "DEMEAN": 1
 }
 
 model = FMA(config)
