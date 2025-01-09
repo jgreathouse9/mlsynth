@@ -38,11 +38,11 @@ Xu's method is derivied from an iterative cross validation algorithm. It proceed
 
    Select the first :math:`r` columns of :math:`\mathbf{U}` to form the factor matrix.
 
-3. **Cross-Validation**: For each candidate number of factors  :math:`r`, and each pre-intervention time period :math:`s`, estimate the factor loadings using the remaining time periods. Then, use OLS to predict one-step ahead out of sample into the validation period
+3. **Cross-Validation**: For each candidate number of factors  :math:`r`, and each pre-intervention time period :math:`s`, estimate the number of factors. Then, use OLS to predict one-step ahead out of sample into the validation period, up until the end of the training/pre-intervention period
 
 .. math::
 
    r^\ast = \operatorname*{argmin}_{r \in \{1, 2, \ldots, r_{\max}\}} \sum_{s \in \mathcal{T}_1} \left( \mathbf{y}_1 - \hat{\mathbf{F}}_s^{(r)'} \hat{\boldsymbol{\lambda}}^{(r)} \right)^2
 
 
-Both of these methods are computed underneath the hood. ``mlsynth`` choses whichever method selects the least number of factors to avoid overfitting.
+The optimal numbrer of factors in this case is the number that minimizes the one-step out of sample validation error. Both of these methods are computed underneath the hood. ``mlsynth`` choses whichever method selects the least number of factors to avoid overfitting.
