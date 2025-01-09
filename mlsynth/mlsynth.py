@@ -311,7 +311,7 @@ class FMA:
                        prepped["treated_unit_name"], prepped["y"], [y_hat], method="FMA",
                        treatedcolor=self.treated_color, 
                        counterfactualcolors=["red"],
-                       counterfactual_names=[f"FMA {prepped['treated_unit_name']}"])
+                       counterfactual_names=[f"FMA {prepped['treated_unit_name']}"], save=self.save)
         
         
         return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference}
