@@ -323,12 +323,13 @@ class FMA:
             "95% CI": confidence_interval,
             "p_value": p_value
         }
+        if self.display_graphs:
         
-        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
-                       prepped["treated_unit_name"], prepped["y"], [y_hat], method="FMA",
-                       treatedcolor=self.treated_color, 
-                       counterfactualcolors=["red"],
-                       counterfactual_names=[f"FMA {prepped['treated_unit_name']}"], save=self.save)
+            plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
+                           prepped["treated_unit_name"], prepped["y"], [y_hat], method="FMA",
+                           treatedcolor=self.treated_color, 
+                           counterfactualcolors=["red"],
+                           counterfactual_names=[f"FMA {prepped['treated_unit_name']}"], save=self.save)
         
         
         return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference}
@@ -348,6 +349,7 @@ class PDA:
         ----------
         config : dict
             A dictionary containing the necessary parameters. The following keys are expected:
+            
             df : pandas.DataFrame
                 DataFrame containing the data.
             treat : str
@@ -414,24 +416,25 @@ class PDA:
                                                          prepped["post_periods"])
         est_method = pdaest.get("method")
 
-        counterfactual_name = f'{est_method} {prepped["treated_unit_name"]}'
+        counterfactual_name = f'{est_method} {prepped["treated_unit_name
 
-        # Call the function
-        plot_estimates(
-            df=self.df,
-            time=self.time,
-            unitid=self.unitid,
-            outcome=self.outcome,
-            treatmentname=self.treat,
-            treated_unit_name=prepped["treated_unit_name"],
-            y=prepped["y"],
-            cf_list=[pdaest['Vectors']['Counterfactual']],
-            counterfactual_names=[counterfactual_name],
-            method=est_method,
-            treatedcolor=self.treated_color,
-            counterfactualcolors=[self.counterfactual_color],
-            save=self.save
-        )
+        if self.display_graphs:
+
+            plot_estimates(
+                df=self.df,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname=self.treat,
+                treated_unit_name=prepped["treated_unit_name"],
+                y=prepped["y"],
+                cf_list=[pdaest['Vectors']['Counterfactual']],
+                counterfactual_names=[counterfactual_name],
+                method=est_method,
+                treatedcolor=self.treated_color,
+                counterfactualcolors=[self.counterfactual_color],
+                save=self.save
+            )
 
         return pdaest
 
@@ -1111,21 +1114,22 @@ class CLUSTERSC:
         RPCAdict = {"Effects": Rattdict, "Fit": Rfitdict, "Vectors": RVectors, "Weights": Rweights_dict}
 
         # Call the function
-        plot_estimates(
-            df=self.df,
-            time=self.time,
-            unitid=self.unitid,
-            outcome=self.outcome,
-            treatmentname=self.treat,
-            treated_unit_name=prepped["treated_unit_name"],
-            y=prepped["y"],
-            cf_list=[y_RPCA, synth],
-            counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
-            method="CLUSTERSC",
-            treatedcolor="black",
-            counterfactualcolors=["blue", "red"],
-            save=self.save
-        )
+        if self.display_graphs:
+            plot_estimates(
+                df=self.df,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname=self.treat,
+                treated_unit_name=prepped["treated_unit_name"],
+                y=prepped["y"],
+                cf_list=[y_RPCA, synth],
+                counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
+                method="CLUSTERSC",
+                treatedcolor="black",
+                counterfactualcolors=["blue", "red"],
+                save=self.save
+            )
 
         ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
 
