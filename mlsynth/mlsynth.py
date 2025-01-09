@@ -7,7 +7,7 @@ from scipy.stats import norm
 import scipy.stats as stats
 from sklearn.cluster import KMeans
 from screenot.ScreeNOT import adaptiveHardThresholding
-from mlsynth.utils.datautils import prepare_data, balance, dataprep
+from mlsynth.utils.datautils import balance, dataprep
 from mlsynth.utils.resultutils import effects, plot_estimates
 from mlsynth.utils.estutils import Opt, pcr, TSEST, pda
 from mlsynth.utils.inferutils import step2
