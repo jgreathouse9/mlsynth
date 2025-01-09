@@ -52,7 +52,7 @@ Estimating FMA in ``mlsynth``
 -----------------------------
 
 
-.. autoclass:: mlsynth.FMA
+.. autoclass:: mlsynth.mlsynth.FMA
    :members:
    :undoc-members:
    :show-inheritance:
