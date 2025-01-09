@@ -195,7 +195,7 @@ The objective function for LASSO's PDA is given by:
 
 .. math::
 
-    \hat{\boldsymbol{\beta}} = \operatorname*{argmin}_{\boldsymbol{\beta}} \frac{1}{2T_1} \|\mathbf{y}_1 - \mathbf{Y}_0 \boldsymbol{\beta}\|_2^2 + \lambda \|\boldsymbol{\beta}\|_1,
+    \hat{\boldsymbol{\beta}} = \operatorname*{argmin}_{\boldsymbol{\beta}} \|\mathbf{y}_1 - \mathbf{Y}_0 \boldsymbol{\beta}\|_2^2 + \lambda \|\boldsymbol{\beta}\|_1,
 
 In this PDA, we simply use the LASSO to choose the control units, as implemented by ``sklearn``.
 
