@@ -172,6 +172,16 @@ class FMA:
                 
             save : bool, optional
                 Whether to save the generated plots, by default False.
+            
+            criti : int, optional
+                A value to indicate whether the data is assumed to be stationary or nonstationary.
+                If criti = 11, nonstationarity is assumed; if criti = 10, stationarity is assumed. Default is 11.
+            
+            DEMEAN : int, optional
+                A value that determines how the data is processed:
+                - If DEMEAN = 1, the data is demeaned.
+                - If DEMEAN = 2, the data is standardized.
+                Default is 1.
 
         Returns
         -------
@@ -194,18 +204,6 @@ class FMA:
         ----------
         Li, K. T. & Sonnier, G. P. (2023). "Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings." *Journal of Marketing Research*, Volume 60, Issue 3.
         """
-
-        self.df = config.get("df")
-        self.outcome = config.get("outcome")
-        self.treat = config.get("treat")
-        self.unitid = config.get("unitid")
-        self.time = config.get("time")
-        self.counterfactual_color = config.get("counterfactual_color", "red")
-        self.treated_color = config.get("treated_color", "black")
-        self.display_graphs = config.get("display_graphs", True)
-        self.save = config.get("save", False)
-        self.criti = config.get("criti", 11)
-        self.DEMEAN = config.get("DEMEAN", 1)
 
     def fit(self):
         prepped = dataprep(self.df,
