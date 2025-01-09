@@ -1,6 +1,10 @@
 Panel Data Approach
 =====================
 
+.. autoclass:: mlsynth.mlsynth.PDA
+   :show-inheritance:
+   :special-members: __init__
+
 As with any causal study, the results we get depend on how we choose or give weight to units in the control group. Many recent developments in the causal inference literature focus on developing some linear/convex combination of untreated units to approximate the pre-intervention values of a treated unit, such  that we may learn their out of sample counterfactuals had the unit never been treated. Synthetic control methods are probably the most prevalent formulation of that idea, typically taking the form of a convex combination of donor/control units. The basic idea of the panel data approach, essentially, is that we may use unconstrained regression methods such as OLS, LASSO, or others to construct the counterfactual using (mainly) pre-intervention data. Part of the upshoot of this, as Li and van den Bulte [ADID]_ document in their paper, is that panel data approaches are a lot more flexible than synthetic control methods, both in terms of their estimation and (occasionally) inference.  ``mlsynth`` implements three such implementations of the panel data approach, and there are certainly more to choose from. ``mlsynth`` estimates the LASSO method [LASSOPDA]_, the forward selection method [fsPDA]_, and the :math:`\ell_2`-relaxation method by [l2relax]_. The main difference between these methods is in how they select or weigh the control units. The LASSO, for example, assumes that a sparse set of coefficients driven by some common factors will be a good proxy for the out-of-sample counterfactual. Forward selection presumes the same, using a forward selection algorithm to choose the control units for the treated unit with a modified Bayesian Information Criterion to stop selection. the :math:`\ell_2` relaxation method, instead, assumes a dense data generating process, instead minimizing the upper bound of the deviation between the treated unit and the donor pool/control group.
 
 Formally, I lay out the notations. Indexed by :math:`j`, we observe :math:`\mathcal{N} \operatorname*{:=} \{1, 2, \ldots, N\}` units where the set :math:`\mathcal{N}` has cardinality :math:`N = |\mathcal{N}|`. :math:`j = 1` is the treated unit with the controls being :math:`\mathcal{N}_0 \operatorname*{:=} \mathcal{N} \setminus \{1\}` whose cardinality is :math:`N_0 = |\mathcal{N}_0|`. Time periods are indexed by :math:`t`. Let :math:`\mathcal{T}_1 \operatorname*{:=} \{1, 2, \ldots, T_0\}` represent the pre-intervention periods, where :math:`T_0` is the final pre-intervention period, and :math:`\mathcal{T}_2 \operatorname*{:=} \{T_0 + 1, \ldots, T\}` represents the post-intervention periods. Both of these sets have cardinalities :math:`T_1 = |\mathcal{T}_1|` and :math:`T_2 = |\mathcal{T}_2|`. Let :math:`\mathcal{T} \operatorname*{:=} \mathcal{T}_1 \cup \mathcal{T}_2` represent the full time series, with cardinality :math:`T = |\mathcal{T}|`. Let :math:`\mathbf{y}_1 \in \mathbb{R}^T` be the vector for the treated unit and :math:`\mathbf{Y}_0 \in \mathbb{R}^{T \times N_0}` be the matrix for the control units that were unexposed. Furthermore, let :math:`\boldsymbol{\beta} \in \mathbb{R}^{N_0}` be the coefficients for some controls. The sup norm of a vector :math:`\mathbf{y} \in \mathbb{R}^N` is defined as the maximum absolute value of its components, :math:`\|\mathbf{y}\|_\infty = \max_{j = 1, \ldots, N} |y_j|`. The floor function of a real number :math:`x \in \mathbb{R}`, denoted :math:`\lfloor x \rfloor`, returns :math:`\lfloor x \rfloor = \max \{k \in \mathbb{N}_+ : k \leq x\}`.
@@ -23,22 +27,11 @@ Panel data approaches generally assume that there are a common set of factors th
 
 where we seek the coefficients which minimize the predictions between the sample covariance vector and the covariance matrix of the control units. In other words, we are projecting the treated unit on to the control units. We are doing this with the sup-norm, which in this case simply places an upper bound on the deviation from the covariance vector, using the constant tau. There is a key problem here, though: as tau shrinks to 0, we approach the OLS estimator, which seeks to totally minimize the discrepancies. Of course, this will result in overfitting. So to mitigate this, Shi and Wang employ cross validation to select tau [l2relax]_, and I follow them here. I divide the data into the training period and the out-of-sample validation periods (that is, the post-intervention period). I further divide the training period into :math:`\mathcal{T}_1^{\text{train}} = \{1, 2, \ldots, \left\lfloor \frac{T_1}{2} \right\rfloor\}` for training, and the validation period :math:`\mathcal{T}_2^{\text{val}} = \{\left\lfloor \frac{T_1}{2} \right\rfloor\ +1, \ldots, T_0\}` for out-of-sample testing. For our purposes, we are concerned with the value for tau that minimizes the MSE for the valiation period
 
-
-
 .. math::
 
     \tau^{\ast} = \operatorname*{argmin}_{\tau} \left( \frac{1}{|\mathcal{T}_2^{\text{val}}|} \| \mathbf{y}^{\ell_2} - \mathbf{y}_1 \|_2^2 \right)
 
-
-
-.. autoclass:: mlsynth.mlsynth.PDA
-   :show-inheritance:
-   :special-members: __init__
-
-
-
-
-The code below replicates [l2relax]_ who themselves are replicating [HCW]_. The goal is to see how the economic year over year growth rate of Hong King would have evolved had it not become economically integrated with the mainland of China.
+The code below replicates [l2relax]_ who themselves are replicating [HCW]_. The goal is to see how the year over year growth rate of Hong Kong's GDP would have evolved had it not become economically integrated with the mainland of China.
 
 .. code-block:: python
 
@@ -151,7 +144,7 @@ When we estimate the counterfactual, we get
 Forward Selected Approach
 -------------------------
 
-Next I describe the forward-selection PDA implemented by ``mlsynth``. In fsPDA, the control group is selected using forward selection. The algorithm exploits the pre-intervention relation between the treated unit and the control units. The selection method iteratively chooses control units to maximize the model's explanatory power based on the :math:`R^2` statistic.
+Next I describe the forward-selection PDA implemented by ``mlsynth``. In fsPDA, the control group is selected using forward selection. The selection method iteratively chooses control units to maximize the model's explanatory power based on the :math:`R^2` statistic.
 
 We begin with an empty set of selected control units :math:`\hat{U}_0 = \emptyset`. Our iterations span :math:`r = {1, 2, \ldots, R}`. For the first iteration, we estimate a single OLS regression model per each control unit :math:`j \in \mathcal{N}_0 \setminus \hat{U}_{r-1}`. In this instance,  :math:`\mathbf{y}_1` is predicted by the set of previously selected controls :math:`\mathbf{Y}_{\hat{U}_{r-1}}` plus the candidate control unit :math:`\mathbf{y}_j`. After our first iteration, we select the control unit :math:`j_r` that maximizes the :math:`R^2` of the regression. We then update the selected set: :math:`\hat{U}_r = \hat{U}_{r-1} \cup \{j_r\}`. The next model proceeds the same way, including the originally selected unit. The process stops after :math:`R` iterations, where :math:`R` is chosen by a modified Bayesian Information Criterion as described by Shi and Huang (2023) [fsPDA]_.
 
