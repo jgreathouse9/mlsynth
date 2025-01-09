@@ -964,7 +964,7 @@ class GSC:
 class CLUSTERSC:
     def __init__(self, config):
         """
-        This function provides ATT estimates using two robust methods: Robust PCA Synthetic Control (RPCA SCM)
+        This function provides ATT estimates ad weights using Robust PCA Synthetic Control (RPCA SCM)
         and Principal Component Regression (PCR).
 
         Parameters
