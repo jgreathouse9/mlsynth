@@ -9,10 +9,10 @@ Li and Sonnier [li2023statistical]_ advocate for using PCA upon the control grou
 
 .. math::
 
-   \text{PCBN}(r) = \frac{1}{N_{co} T} \sum_{i=2}^{N} \sum_{t=1}^{T} 
+   \text{PCBN}(r) = \frac{1}{N_{0} T} \sum_{i=2}^{N} \sum_{t=1}^{T} 
    \left( y_{it} - \hat{\lambda}_{i}^{(r)\prime} \hat{F}_t^{(r)} \right)^2 
-   + r \hat{\sigma}^2 \left( \frac{N_{co} + T}{N_{co} T} \right) 
-   \log \left( \frac{N_{co} + T}{N_{co} T} \right)
+   + r \hat{\sigma}^2 \left( \frac{N_{0} + T}{N_{0} T} \right) 
+   \log \left( \frac{N_{0} + T}{N_{0} T} \right)
 
 
 
@@ -34,7 +34,7 @@ Xu's method is derivied from an iterative cross validation algorithm. It proceed
 
    Select the first :math:`r` columns of :math:`\mathbf{U}` to form the factor matrix.
 
-3. **Cross-Validation**: For each candidate number of factors  :math:`r`, and each time period :math:`s`, estimate the factor loadings using the remaining time periods and use OLS to predict one-step ahead out of sample.
+3. **Cross-Validation**: For each candidate number of factors  :math:`r`, and each pre-intervention time period :math:`s`, estimate the factor loadings using the remaining time periods and use OLS to predict one-step ahead out of sample.
 
    .. math::
 
