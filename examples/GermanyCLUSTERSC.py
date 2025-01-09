@@ -110,10 +110,20 @@ time = df.columns[1]
 outcome = df.columns[2]
 treat =  selected_dict["Treatment Name"]
 
+new_directory = os.path.join(os.getcwd(), "examples")
+os.chdir(new_directory)
+
+# Define the 'FMA' directory
+save_directory = os.path.join(os.getcwd(), "clustersc")
+
+# Create the directory if it doesn't exist
+if not os.path.exists(save_directory):
+    os.makedirs(save_directory)
+
 save={
         "filename": "German",
         "extension": "png",
-        "directory": os.getcwd()
+        "directory": save_directory
 }
 
 config = {
