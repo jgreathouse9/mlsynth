@@ -1,6 +1,14 @@
 .. mlsynth documentation master file, created by
    sphinx-quickstart on Thu Jan 3 2025.
 
+
+To Do List:
+
+- Two-Step SCM
+- Generalized SCM
+- Implement Placebos (time and space), possibly as a helper
+
+
 .. note::
 
    This project is under active development. As you can see, some material is not yet documented. This project would not be possible without the kind assistance/efforts of and/or discussions with `Jason Coupet <https://aysps.gsu.edu/profile/jason-coupet/>`_, `Kathy Li <https://sites.utexas.edu/kathleenli/>`_, `Mani Bayani <https://www.linkedin.com/in/mani-bayani?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app>`_, `Zhentao Shi <https://zhentaoshi.github.io/>`_, and `Jaume Vives-i-Bastida <https://jvivesb.github.io/>`_.
