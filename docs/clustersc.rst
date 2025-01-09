@@ -140,7 +140,11 @@ In the above, all this means is that we iteratively estimate the rank of the don
    \end{align}
 
 Estimating ``CLUSTERSC``
---------
+------------------------
+
+.. autoclass:: mlsynth.mlsynth.CLUSTERSC
+   :show-inheritance:
+   :special-members: __init__
 
 We can now turn to an empirical example, namely the reanalysis of West Germany' Reunification with East Germany and its effect upon West Germany's GDP per Capita.
 
