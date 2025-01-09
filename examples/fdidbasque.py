@@ -2,6 +2,7 @@ from mlsynth.mlsynth import FDID
 import matplotlib.pyplot as plt
 import matplotlib
 import pandas as pd
+import os
 # matplotlib theme
 jared_theme = {
     'axes.grid': False,
@@ -109,6 +110,22 @@ time = df.columns[1]
 outcome = df.columns[2]
 treat =  selected_dict["Treatment Name"]
 
+new_directory = os.path.join(os.getcwd(), "examples")
+os.chdir(new_directory)
+
+# Define the 'FDID' directory
+save_directory = os.path.join(os.getcwd(), "fdid")
+
+# Create the directory if it doesn't exist
+if not os.path.exists(save_directory):
+    os.makedirs(save_directory)
+
+save={
+        "filename": "FDID_Basque",
+        "extension": "png",
+        "directory": save_directory
+}
+
 config = {
     "df": df,
     "treat": treat,
@@ -118,7 +135,7 @@ config = {
     "counterfactual_color": "red",
     "treated_color": "black",
     "display_graphs": True,
-    "save": True
+    "save": save
 
 }
 
