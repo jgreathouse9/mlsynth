@@ -529,9 +529,9 @@ def nbpiid(x, kmax, jj, demean_flag, m_N, m_T):
     elif jj == 7:
         CT = np.log(NT) * ii * NT1 / NT
     if demean_flag == 2:
-        X = self.standardize(x)
+        X = standardize(x)
     elif demean_flag == 1:
-        X = self.demean_matrix(x)
+        X = demean_matrix(x)
     else:
         X = x
     IC1 = np.zeros((len(CT), kmax + 1))
