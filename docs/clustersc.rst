@@ -275,3 +275,11 @@ Here we plot the West Germany Synthetic Control predictions. Here are the weight
 
 
 These are the same results Mani gets in his dissertation. The Root Mean Squared Error for RPCA-SC is 88.60, which is not quite as tight as the original SCM, but better than the RSC (98.69).
+
+
+To-Do List
+----------------
+
+- Implement Bayesian Inference from Amjad's Paper
+- Implement Cross Validation to choose lambda for ADMM
+- Maybe, allow users to choose between USVT and Spectral Rank
