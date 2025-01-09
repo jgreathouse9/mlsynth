@@ -307,13 +307,11 @@ class FMA:
             "p_value": p_value
         }
         
-        if self.display_graphs:
-        
-            plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
-                           prepped["treated_unit_name"], prepped["y"], [y_hat], method="FMA",
-                           treatedcolor=self.treated_color, 
-                           counterfactualcolors=["red"],
-                           counterfactual_names=[f"FMA {prepped['treated_unit_name']}"])
+        plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
+                       prepped["treated_unit_name"], prepped["y"], [y_hat], method="FMA",
+                       treatedcolor=self.treated_color, 
+                       counterfactualcolors=["red"],
+                       counterfactual_names=[f"FMA {prepped['treated_unit_name']}"])
         
         
         return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference}
