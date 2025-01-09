@@ -35,9 +35,14 @@ Xu's method is derivied from an iterative cross validation algorithm. It proceed
 
    .. math::
 
-      \tilde{\mathbf{Y}}_0 \tilde{\mathbf{Y}}_0' = \mathbf{U} \boldsymbol{\Sigma} \mathbf{U}'.
+\tilde{\mathbf{Y}}_0 = \mathbf{U} \boldsymbol{\Sigma} \mathbf{V}'
 
-   Select the first :math:`r` columns of :math:`\mathbf{U}` to form the factor matrix.
+.. math::
+
+   \tilde{\mathbf{Y}}_0 = \mathbf{U} \boldsymbol{\Sigma} \mathbf{V}'
+
+Select the first :math:`r` columns of :math:`\mathbf{U}` to form the estimated factor matrix. The corresponding rows of :math:`\mathbf{V}'` represent the factor loadings, and :math:`\boldsymbol{\Sigma}` contains the singular values. We now are concerned with the factor matrix so that way may select the number of them.
+
 
 3. **Cross-Validation**: For each candidate number of factors  :math:`r`, and each pre-intervention time period :math:`s`, estimate the number of factors. Then, use OLS to predict one-step ahead out of sample into the validation period, up until the end of the training/pre-intervention period
 
