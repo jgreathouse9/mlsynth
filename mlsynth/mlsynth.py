@@ -156,40 +156,48 @@ class FMA:
         ----------
         config : dict
             A dictionary containing the necessary parameters. The following keys are expected:
+            
             df : pandas.DataFrame
                 DataFrame containing the data.
+                
             treat : str
                 Column name identifying the treated unit.
+                
             time : str
                 Column name for the time variable.
+                
             outcome : str
                 Column name for the outcome variable.
+                
             unitid : str
                 Column name identifying the units.
+                
             counterfactual_color : str, optional
                 Color for the counterfactual line in the plots, by default "red".
+                
             treated_color : str, optional
                 Color for the treated line in the plots, by default "black".
+                
             display_graphs : bool, optional
                 Whether to display the plots, by default True.
+                
             save : bool, optional
                 Whether to save the generated plots, by default False.
-            criti : int, optional
-                Whether we presume stationarity or not in the time series, defaults
-                to 11 (stationary), else 10
-            DEMEAN : int, optional
-                Whether we demean or standardize the data. Default is demean, = 1
 
         Returns
         -------
         dict
             A dictionary containing the following keys:
+            
             'Effects' : dict
                 Estimated treatment effects for the treated unit over time.
+                
             'Fit' : dict
                 Goodness-of-fit metrics for the model.
+                
             'Vectors' : dict
-                Observed, Counterfatual, and treatment effect vectors
+                Observed, counterfactual, and treatment effect vectors.
+                
             'Inference' : dict
                 Inference results, including confidence intervals and p-values.
 
