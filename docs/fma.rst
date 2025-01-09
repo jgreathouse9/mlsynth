@@ -33,10 +33,6 @@ Xu's method is derivied from an iterative cross validation algorithm. It proceed
 
 2. **SVD**: Perform SVD upon the donor pool
 
-   .. math::
-
-\tilde{\mathbf{Y}}_0 = \mathbf{U} \boldsymbol{\Sigma} \mathbf{V}'
-
 .. math::
 
    \tilde{\mathbf{Y}}_0 = \mathbf{U} \boldsymbol{\Sigma} \mathbf{V}'
