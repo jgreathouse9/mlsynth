@@ -18,18 +18,15 @@ Li and Sonnier [li2023statistical]_ advocate for using PCA upon the control grou
 
 **Xu's Cross-Validation Procedure**
 
-Xu's method selects the number of factors by minimizing the leave-one-out 
-cross-validation (LOOCV) mean squared error (MSE) in the pre-intervention period.
+Xu's method is derivied from an iterative cross validation algorithm. It proceeds along these steps:
 
-Steps:
-
-1. **De-Mean the Data**: Remove the mean from the outcome matrix across time.
+1. **De-Mean the Data**: Naturally, we subtract the mean of the outcomes across time to remove unit-fixed effects across time.
 
    .. math::
 
       \tilde{\mathbf{Y}}_0 = \mathbf{Y}_0 - \frac{1}{T_0} \mathbf{1}_{T_0} \mathbf{1}_{T_0}' \mathbf{Y}_0
 
-2. **Singular Value Decomposition (SVD)**: Compute the SVD of the de-meaned data.
+2. **SVD**: Perform SVD upon the donor pool
 
    .. math::
 
@@ -37,9 +34,7 @@ Steps:
 
    Select the first :math:`r` columns of :math:`\mathbf{U}` to form the factor matrix.
 
-3. **Leave-One-Out Cross-Validation**: For each candidate number of factors 
-   :math:`r`, and each time period :math:`s`, estimate the factor loadings 
-   using the remaining time periods and predict the excluded time period's outcome.
+3. **Cross-Validation**: For each candidate number of factors  :math:`r`, and each time period :math:`s`, estimate the factor loadings using the remaining time periods and use OLS to predict one-step ahead out of sample.
 
    .. math::
 
@@ -52,7 +47,7 @@ Steps:
 
       \hat{y}_s = \hat{\mathbf{F}}_s^{(r)\prime} \hat{\boldsymbol{\lambda}}^{(r)}
 
-4. **Compute the Cross-Validation Error**: Compute the MSE for :math:`r` factors 
+4. **Compute the Validation MSE**: Compute the MSE for :math:`r` factors 
    across all excluded time periods.
 
    .. math::
