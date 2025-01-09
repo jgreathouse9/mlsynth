@@ -139,6 +139,7 @@ In the above, all this means is that we iteratively estimate the rank of the don
        \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
    \end{align}
 
+
 Estimating ``CLUSTERSC``
 ------------------------
 
