@@ -928,6 +928,9 @@ class GSC:
         self.display_graphs = config.get("display_graphs", True)
 
     def fit(self):
+
+        balance(self.df, self.unitid, self.time)
+        
         prepped = dataprep(self.df,
                            self.unitid, self.time,
                            self.outcome, self.treat)
@@ -1047,7 +1050,9 @@ class CLUSTERSC:
 
 
     def fit(self):
-        # Preprocess the data
+        
+        balance(self.df, self.unitid, self.time)
+        
         prepped = dataprep(self.df,
                            self.unitid, self.time,
                            self.outcome, self.treat)
