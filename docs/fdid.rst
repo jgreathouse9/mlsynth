@@ -38,16 +38,15 @@ This candidate set set, :math:`U_2`, is added to :math:`\mathcal{U}`. We then re
 These candidate sets of optimal controls are added to :math:`\mathcal{U}` until :math:`k = N_0`, or until there are no more controls to loop through. The control group ultimately returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`, or the candidate set of control units that has the highest R-squared statistic of all the candidate sets.
 
 Implementing FDID via mlsynth
-----------------
+-----------------------------
 
 Here is the input FDID accepts:
 
 .. autoclass:: mlsynth.mlsynth.FDID
-    :members: __init__, fit
-    :undoc-members:  # Optional: Use if you want undocumented parts of __init__ or fit
-    :show-inheritance:
-
-The user needs to supply a dictionary. The dictionary must contain a dataframe with at least four columns: a string identifier for each unit, a numeric time identifier for each time period, a numeric outcome variable, and an indicator variable that is equal to one when the unit is treated and 0 for all other units. Note, that the data must be a long form panel dataset, where we have one observation per unit per time period.
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :special-members: __init__
 
 The code below automates this process for the three standard datasets in the synthetic control literature. Users need simply change the :python:`number` outside of the function to run the results for Basque, West Germany, or California's Prop 99 example, from 0, to 1 and 2, respectively. In this case, we use the Basque dataset. We begin with importing the libraries. I use my own custom plot, but naturally you can do this or not.
 
