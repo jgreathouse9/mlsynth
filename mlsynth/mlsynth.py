@@ -82,6 +82,8 @@ class TSSC:
         self.draws = config.get("draws", 500)
 
     def fit(self):
+        
+        balance(self.df, self.unitid, self.time)
 
         nb =self.draws
         prepped = dataprep(self.df,
@@ -222,6 +224,9 @@ class FMA:
         self.DEMEAN = config.get("DEMEAN", 1)
 
     def fit(self):
+
+        balance(self.df, self.unitid, self.time)
+        
         prepped = dataprep(self.df,
                            self.unitid, self.time,
                            self.outcome, self.treat)
@@ -406,7 +411,9 @@ class PDA:
         self.method = config.get("method", "fs")
 
     def fit(self):
-        # Preprocess the data
+
+        balance(self.df, self.unitid, self.time)
+
         prepped = dataprep(self.df,
                            self.unitid, self.time,
                            self.outcome, self.treat)
@@ -796,6 +803,9 @@ class FDID:
         return select_c[:best_model_idx + 1], R2final, Uhat
 
     def fit(self):
+
+        balance(self.df, self.unitid, self.time)
+        
         prepped = dataprep(self.df,
                            self.unitid, self.time,
                            self.outcome, self.treated)
