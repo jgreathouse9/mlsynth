@@ -3,8 +3,7 @@
 
 .. note::
 
-   This project is under active development. As you can see, most of the material is not yet documented. This project would not be possible without the kind assistance/efforts of and/or discussions with `Jason Coupet <https://aysps.gsu.edu/profile/jason-coupet/>`_, `Kathy Li <https://sites.utexas.edu/kathleenli/>`_, `Mani Bayani <https://www.linkedin.com/in/mani-bayani?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app>`_, `Zhentao Shi <https://zhentaoshi.github.io/>`_, and `Jaume Vives-i-Bastida <https://jvivesb.github.io/>`_.
-
+   This project is under active development. As you can see, some material is not yet documented. This project would not be possible without the kind assistance/efforts of and/or discussions with `Jason Coupet <https://aysps.gsu.edu/profile/jason-coupet/>`_, `Kathy Li <https://sites.utexas.edu/kathleenli/>`_, `Mani Bayani <https://www.linkedin.com/in/mani-bayani?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app>`_, `Zhentao Shi <https://zhentaoshi.github.io/>`_, and `Jaume Vives-i-Bastida <https://jvivesb.github.io/>`_.
 
 Hi, I'm `Jared <https://jgreathouse9.github.io/>`_. Welcome to mlsynth's documentation! mlsynth is short for "Machine-Learning Synthetic Control" methods, due to it implementing various Synthetic Control based methodologies for program evaluation. The library also includes difference-in-differences, panel data approaches, and factor modeling.
 
@@ -61,6 +60,13 @@ At present, ``mlsynth`` supports the following estimators:
    * - `Two Step Synthetic Control <https://doi.org/10.1287/mnsc.2023.4878>`_
      - Kathleen T. Li, Venkatesh Shankar. "A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events." *Management Science* 70(6):3734-3747, 2023.
      - TSSC
+
+
+
+
+.. note::
+
+   At present, all designs are implemented with only a single treated unit, though this will change in the future.
 
 
 Contents:
