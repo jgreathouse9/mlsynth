@@ -90,7 +90,7 @@ MLSYNTH
 FMA
 ---
 
-.. autoclass:: mlsynth.mlsynth import FMA
+.. autoclass:: mlsynth.FMA
    :members: __init__
    :undoc-members:
    :show-inheritance:
