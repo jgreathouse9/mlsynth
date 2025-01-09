@@ -1,0 +1,68 @@
+Factor Model Approach
+=====================
+
+Oftentimes we assume that our truly observed data are a byproduct of a latent factor model, where there are a set of common factors across all units that influence the outcome of each unit differently, along perhaps with some set of covariates, :math:`\mathbf{Y} = \mathbf{Z} \boldsymbol{\beta} + \mathbf{F} \boldsymbol{\Lambda}^\top + \mathbf{E}`. Motivated by this apporach, Li and Sonnier [li2023statistical]_ argue that if we may estimate the number of factors that generate our outcomes in the pre-intervention period, we may use these factors to predict our counterfactual outcomes.
+
+As ususal, we denote our units as indexed by :math:`j`, we observe :math:`\mathcal{N} \operatorname*{:=} \{1, 2, \ldots, N\}` units where the set of all units, :math:`\mathcal{N}`, has cardinality :math:`N = |\mathcal{N}|`. :math:`j = 1` is the treated unit with the controls being :math:`\mathcal{N}_0 \operatorname*{:=} \mathcal{N} \setminus \{1\}` whose cardinality is :math:`N_0 = |\mathcal{N}_0|`. Time periods are indexed by :math:`t`. Let :math:`\mathcal{T}_1 \operatorname*{:=} \{1, 2, \ldots, T_0\}` represent the pre-intervention periods, where :math:`T_0` is the final pre-intervention period, and :math:`\mathcal{T}_2 \operatorname*{:=} \{T_0 + 1, \ldots, T\}` represents the post-intervention periods. Both of these sets have cardinalities :math:`T_1 = |\mathcal{T}_1|` and :math:`T_2 = |\mathcal{T}_2|`. Let :math:`\mathcal{T} \operatorname*{:=} \mathcal{T}_1 \cup \mathcal{T}_2` represent the full time series, with cardinality :math:`T = |\mathcal{T}|`. Let :math:`\mathbf{y}_1 \in \mathbb{R}^T` be the vector for the treated unit and :math:`\mathbf{Y}_0 \in \mathbb{R}^{T \times N_0}` be the matrix for the control units that were unexposed.
+
+Li and Sonnier [li2023statistical]_ advocate for using PCA upon the control group to estimate the latent factor matrix. There are one of two ways they advocate for doing this. The first is a modified criteron and the second is a leave-one-out cross validation procedure
+
+.. math::
+
+   \text{PCBN}(r) = \frac{1}{N_{co} T} \sum_{i=2}^{N} \sum_{t=1}^{T} 
+   \left( y_{it} - \hat{\lambda}_{i}^{(r)\prime} \hat{F}_t^{(r)} \right)^2 
+   + r \hat{\sigma}^2 \left( \frac{N_{co} + T}{N_{co} T} \right) 
+   \log \left( \frac{N_{co} + T}{N_{co} T} \right)
+
+
+
+**Xu's Cross-Validation Procedure**
+
+Xu's method selects the number of factors by minimizing the leave-one-out 
+cross-validation (LOOCV) mean squared error (MSE) in the pre-intervention period.
+
+Steps:
+
+1. **De-Mean the Data**: Remove the mean from the outcome matrix across time.
+
+   .. math::
+
+      \tilde{\mathbf{Y}}_0 = \mathbf{Y}_0 - \frac{1}{T_0} \mathbf{1}_{T_0} \mathbf{1}_{T_0}' \mathbf{Y}_0
+
+2. **Singular Value Decomposition (SVD)**: Compute the SVD of the de-meaned data.
+
+   .. math::
+
+      \tilde{\mathbf{Y}}_0 \tilde{\mathbf{Y}}_0' = \mathbf{U} \boldsymbol{\Sigma} \mathbf{U}'
+
+   Select the first :math:`r` columns of :math:`\mathbf{U}` to form the factor matrix.
+
+3. **Leave-One-Out Cross-Validation**: For each candidate number of factors 
+   :math:`r`, and each time period :math:`s`, estimate the factor loadings 
+   using the remaining time periods and predict the excluded time period's outcome.
+
+   .. math::
+
+      \hat{\boldsymbol{\lambda}}^{(r)} = \left( \hat{\mathbf{F}}_{-s}^{(r)\prime} \hat{\mathbf{F}}_{-s}^{(r)} \right)^{-1} 
+      \hat{\mathbf{F}}_{-s}^{(r)\prime} \mathbf{y}_{-s}
+
+   The predicted outcome for the excluded time period is:
+
+   .. math::
+
+      \hat{y}_s = \hat{\mathbf{F}}_s^{(r)\prime} \hat{\boldsymbol{\lambda}}^{(r)}
+
+4. **Compute the Cross-Validation Error**: Compute the MSE for :math:`r` factors 
+   across all excluded time periods.
+
+   .. math::
+
+      \text{MSE}(r) = \frac{1}{T_0} \sum_{s=1}^{T_0} \left( y_s - \hat{y}_s \right)^2
+
+5. **Select the Optimal Number of Factors**: Choose the number of factors 
+   that minimizes the cross-validation error.
+
+   .. math::
+
+      \hat{r} = \arg \min_{r \in \{1, 2, \ldots, r_{\max}\}} \text{MSE}(r)
+
