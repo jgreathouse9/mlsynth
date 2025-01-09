@@ -13,10 +13,9 @@ To begin, modified factor selection by Bai and Ng basically adds a penalty term 
 
 .. math::
 
-   \text{MBN}(r) = \frac{1}{N_{0} T} \sum_{i=2}^{N} \sum_{t=1}^{T} 
-   \left( y_{it} - \hat{\lambda}_{i}^{(r)\prime} \hat{F}_t^{(r)} \right)^2 
-   + c_{N,T}r \hat{\sigma}^2 \left( \frac{N_{0} + T}{N_{0} T} \right) 
-   \log \left( \frac{N_{0} + T}{N_{0} T} \right)
+   \text{MBN}(r) = \frac{1}{N_0 T} \left\| \mathbf{Y}_0 - \hat{\mathbf{F}}^{(r)} \hat{\boldsymbol{\Lambda}}^{(r)\top} \right\|_F^2 
+   + c_{N,T} r \hat{\sigma}^2 \left( \frac{N_0 + T}{N_0 T} \right) 
+   \log \left( \frac{N_0 + T}{N_0 T} \right)
 
 Li and Sonnier [li2023statistical]_ justify this method on the basis of the original criterion selecting too many factors, thus leading to poor out of sample performance.
 
