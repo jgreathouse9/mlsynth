@@ -46,7 +46,7 @@ Here is the input FDID accepts:
    :show-inheritance:
    :special-members: __init__
 
-The code below automates this process for the three standard datasets in the synthetic control literature. Users need simply change the :python:`number` outside of the function to run the results for Basque, West Germany, or California's Prop 99 example, from 0, to 1 and 2, respectively. In this case, we use the Basque dataset. We begin with importing the libraries. I use my own custom plot, but naturally you can do this or not.
+The code below automates this process for the three standard datasets in the synthetic control literature. Users need simply change the "number" outside of the function to run the results for Basque, West Germany, or California's Prop 99 example, from 0, to 1 and 2, respectively. In this case, we use the Basque dataset. We begin with importing the libraries. I use my own custom plot, but naturally you can do this or not.
 
 
 .. code-block:: python
