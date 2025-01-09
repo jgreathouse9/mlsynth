@@ -65,8 +65,8 @@ unitid = "Country"
 time = "Time"
 
 
-#new_directory = os.path.join(os.getcwd(), "examples")
-#os.chdir(new_directory)
+new_directory = os.path.join(os.getcwd(), "examples")
+os.chdir(new_directory)
 
 # Define the 'FMA' directory
 save_directory = os.path.join(os.getcwd(), "FMA")
