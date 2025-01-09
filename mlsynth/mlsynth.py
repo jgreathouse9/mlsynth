@@ -984,7 +984,7 @@ class CLUSTERSC:
             cluster : bool, optional
                 Whether to apply clustering for PCR. Default is True.
             objective : str, optional
-                Objective function for PCR. Options are "SIMPLEX" and "OLS".
+                Constraint for PCR. Defaul is "OLS", but user may specify "SIMPLEX"
             counterfactual_color : str, optional
                 Color for the counterfactual line in the plots. Default is "red".
             treated_color : str, optional
