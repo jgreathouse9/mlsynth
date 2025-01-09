@@ -1003,6 +1003,7 @@ class CLUSTERSC:
         -------
         dict
             A dictionary containing results for both RPCA-SC and PCR methods, with the following keys:
+            
             'Weights' : dict
                 Weights assigned to control units in the synthetic control model.
             'Effects' : dict
