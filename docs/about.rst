@@ -1,9 +1,3 @@
-To Do List:
-
-- Two-Step SCM
-- Generalized SCM
-- Implement Placebos (time and space), possibly as a helper
-
 .. note::
 
    This project is under active development. Email the author with questions, comments, or bug reports.
