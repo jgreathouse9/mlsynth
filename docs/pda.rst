@@ -31,6 +31,13 @@ where we seek the coefficients which minimize the predictions between the sample
 
 
 
+.. autoclass:: mlsynth.mlsynth.PDA
+   :show-inheritance:
+   :special-members: __init__
+
+
+
+
 The code below replicates [l2relax]_ who themselves are replicating [HCW]_. The goal is to see how the economic year over year growth rate of Hong King would have evolved had it not become economically integrated with the mainland of China.
 
 .. code-block:: python
