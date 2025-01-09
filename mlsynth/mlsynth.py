@@ -948,13 +948,8 @@ class GSC:
 class CLUSTERSC:
     def __init__(self, config):
         """
-        Estimate the Average Treatment Effect on the Treated (ATT) using Robust Synthetic Control (RSC)
-        and Principal Component Regression (PCR) methods.
-
         This function provides ATT estimates using two robust methods: Robust PCA Synthetic Control (RPCA SCM)
-        and Principal Component Regression (PCR). The methods are designed to handle high-dimensional
-        and noisy data settings. It returns a dictionary containing weights, estimated effects,
-        and factor vectors for both methods.
+        and Principal Component Regression (PCR).
 
         Parameters
         ----------
@@ -973,7 +968,7 @@ class CLUSTERSC:
             cluster : bool, optional
                 Whether to apply clustering for PCR. Default is True.
             objective : str, optional
-                Objective function for PCR. Options are "SIMPLEX" and "OLS".
+                Objective function for PCR. Options are "SIMPLEX" and "OLS". Default is "OLS".
             counterfactual_color : str, optional
                 Color for the counterfactual line in the plots. Default is "red".
             treated_color : str, optional
@@ -1014,11 +1009,10 @@ class CLUSTERSC:
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
         self.display_graphs = config.get("display_graphs", True)
-        
         self.save = config.get("save", False)
-        self.method = config.get("method", "RPCA")
         self.objective = config.get("objective", "OLS")
-        self.cluster = config.get("cluster", True)  # Add cluster parameter
+        self.cluster = config.get("cluster", True)
+
 
     def fit(self):
         # Preprocess the data
