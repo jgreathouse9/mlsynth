@@ -91,16 +91,7 @@ FMA
 ---
 
 .. autoclass:: mlsynth.mlsynth import FMA
-   :members:
+   :members: __init__
    :undoc-members:
    :show-inheritance:
 
-FDID
-----
-
-.. autoclass:: mlsynth.FDID
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-# Repeat for other classes
