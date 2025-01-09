@@ -16,7 +16,7 @@ The way you install mlsynth is by doing, from the command line,
 
 which simply installs the latest release from my GitHub.
 
-At present (though undocumented at present), ``mlsynth`` supports the following estimators:
+At present, ``mlsynth`` supports the following estimators:
 
 .. list-table:: Estimators in `mlsynth`
    :widths: 30 50 20
