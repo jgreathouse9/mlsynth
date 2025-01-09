@@ -170,8 +170,13 @@ class FMA:
             display_graphs : bool, optional
                 Whether to display the plots, by default True.
                 
-            save : bool, optional
-                Whether to save the generated plots, by default False.
+            save : bool or dict, optional
+                Whether to save the generated plots. Default is False.
+                If a dictionary, keys can include:
+                    - 'filename' : Custom file name (without extension).
+                    - 'extension' : File format (e.g., 'png', 'pdf').
+                    - 'directory' : Directory to save the plot.
+                    - 'display' : If False, prevents the plot from being displayed.
             
             criti : int, optional
                 A value to indicate whether the data is assumed to be stationary or nonstationary.
@@ -360,8 +365,13 @@ class PDA:
                 Color for the treated line in the plots, by default "black".
             display_graphs : bool, optional
                 Whether to display the plots, by default True.
-            save : bool, optional
-                Whether to save the generated plots, by default False.
+            save : bool or dict, optional
+                Whether to save the generated plots. Default is False.
+                If a dictionary, keys can include:
+                    - 'filename' : Custom file name (without extension).
+                    - 'extension' : File format (e.g., 'png', 'pdf').
+                    - 'directory' : Directory to save the plot.
+                    - 'display' : If False, prevents the plot from being displayed.
             method : str, optional
                 Type of PDA to use, either "LASSO", "fs" (forward selection), or "l2" (L2-relaxation),
                 by default "fs" (forward selection).
@@ -460,6 +470,13 @@ class FDID:
                 Color for the treated lines, by default "black".
             display_graphs : bool, optional
                 Whether to display the graphs, by default True.
+            save : bool or dict, optional
+                Whether to save the generated plots. Default is False.
+                If a dictionary, keys can include:
+                    - 'filename' : Custom file name (without extension).
+                    - 'extension' : File format (e.g., 'png', 'pdf').
+                    - 'directory' : Directory to save the plot.
+                    - 'display' : If False, prevents the plot from being displayed.
 
         Returns
         -------
@@ -968,16 +985,21 @@ class CLUSTERSC:
             cluster : bool, optional
                 Whether to apply clustering for PCR. Default is True.
             objective : str, optional
-                Objective function for PCR. Options are "SIMPLEX" and "OLS". Default is "OLS".
+                Objective function for PCR. Options are "SIMPLEX" and "OLS".
             counterfactual_color : str, optional
                 Color for the counterfactual line in the plots. Default is "red".
             treated_color : str, optional
                 Color for the treated line in the plots. Default is "black".
             display_graphs : bool, optional
                 Whether to display the plots. Default is True.
-            save : bool, optional
+            save : bool or dict, optional
                 Whether to save the generated plots. Default is False.
-
+                If a dictionary, keys can include:
+                    - 'filename' : Custom file name (without extension).
+                    - 'extension' : File format (e.g., 'png', 'pdf').
+                    - 'directory' : Directory to save the plot.
+                    - 'display' : If False, prevents the plot from being displayed.
+                
         Returns
         -------
         dict
@@ -1000,6 +1022,7 @@ class CLUSTERSC:
         Bayani, M. (2022). "Essays on Machine Learning Methods in Economics." Chapter 1.
         *CUNY Academic Works*.
         """
+
 
         self.df = config.get("df")
         self.outcome = config.get("outcome")
