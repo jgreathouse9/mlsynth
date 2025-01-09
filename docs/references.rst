@@ -202,3 +202,6 @@ References
     "synth2: Synthetic control method with placebo tests, robustness test, and visualization." 
     *The Stata Journal*, 23(3): 597-624, 2023. 
     URL: https://doi.org/10.1177/1536867X231195278
+
+
+.. [Xu2017] Xu, Yiqing. “Generalized Synthetic Control Method: Causal Inference with Interactive Fixed Effects Models.” *Political Analysis* 25, no. 1 (2017): 57–76. https://doi.org/10.1017/pan.2016.2.
