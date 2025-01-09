@@ -176,8 +176,7 @@ class FMA:
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-                    - 'display' : If False, prevents the plot from being displayed.
-            
+                    
             criti : int, optional
                 A value to indicate whether the data is assumed to be stationary or nonstationary.
                 If criti = 11, nonstationarity is assumed; if criti = 10, stationarity is assumed. Default is 11.
@@ -371,7 +370,6 @@ class PDA:
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-                    - 'display' : If False, prevents the plot from being displayed.
             method : str, optional
                 Type of PDA to use, either "LASSO", "fs" (forward selection), or "l2" (L2-relaxation),
                 by default "fs" (forward selection).
@@ -475,7 +473,6 @@ class FDID:
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-                    - 'display' : If False, prevents the plot from being displayed.
 
         Returns
         -------
@@ -952,7 +949,7 @@ class GSC:
                 y=prepped["y"],
                 cf_list=[result['Vectors']['Counterfactual']],
                 counterfactual_names=["GSC"],
-                method=r'$\ell_2$ relaxation',
+                method="GSC",
                 treatedcolor=self.treated_color,
                 counterfactualcolors=[self.counterfactual_color]
             )
@@ -997,7 +994,6 @@ class CLUSTERSC:
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-                    - 'display' : If False, prevents the plot from being displayed.
                 
         Returns
         -------
