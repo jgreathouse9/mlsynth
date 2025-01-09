@@ -341,7 +341,7 @@ class PDA:
         Causal inference via the Panel Data Approach (PDA).
 
         This class implements PDA as described in
-        Shi and Huang (2023), Hsiao et al. (2012), and Shi and Wang (2024).
+        Shi and Huang (2023), Li and Bell (2017), and Shi and Wang (2024).
         It supports different methods including LASSO, forward selection (fs),
         and L2-relaxation.
 
@@ -387,9 +387,8 @@ class PDA:
         Shi, Z. & Huang, J. (2023). "Forward-selected panel data approach for program evaluation."
         *Journal of Econometrics*, Volume 234, Issue 2, Pages 512-535.
 
-        Hsiao, C., Ching, H. S., & Wan, S. K. (2012). "A Panel Data Approach for Program Evaluation:
-        Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China."
-        *J. Appl. Econ.*, 27:705-740.
+        Li, Kathleen T., and David R. Bell. "Estimation of Average Treatment Effects with Panel Data: Asymptotic
+        Theory and Implementation." *Journal of Econometrics* 197, no. 1 (March, 2017): 65-75. DOI: 10.1016/j.jeconom.2016.01.011.
 
         Shi, Z. & Wang, Y. (2024). "L2-relaxation for Economic Prediction."
         DOI: 10.13140/RG.2.2.11670.97609.
