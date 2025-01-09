@@ -20,7 +20,7 @@ where we have a :math:`T_1 \times 1` pre-intervention vector of outcomes for the
     \quad \widehat{U}_1 = \{i^\ast_1\}, 
     \quad \mathcal{U} = \{\widehat{U}_1\}.
 
-For subsequent iterations :math:`k = 2, 3, \ldots, N_0`, we construct :math:`N_0 - k + 1` DID models by combining the previously selected set :math:`\widehat{U}_{k-1}` with each remaining control unit :math:`i \notin \widehat{U}_{k-1}`. The combined set :math:`\widehat{U}_{k-1} \cup \{i\}` is, along with the new candidate unit,  uniformly weighted in the regression model. This returns the betas :math:`\widehat{\boldsymbol{\beta}}_{\widehat{U}_{k-1} \cup \{i\}}`, meaning we only solve for the intercept each time. We then select the model, per the k-th iteration, with the highest :math:`R^2`:
+For subsequent iterations :math:`k = 2, 3, \ldots, N_0`, we construct :math:`N_0 - k + 1` DID models by combining the previously selected set :math:`\widehat{U}_{k-1}` with each remaining control unit :math:`i \notin \widehat{U}_{k-1}`. For each k-th iteration, we select the submodel/control unit with the highest :math:`R^2`:
 
 .. math::
 
@@ -28,7 +28,7 @@ For subsequent iterations :math:`k = 2, 3, \ldots, N_0`, we construct :math:`N_0
     \quad \widehat{U}_k = \widehat{U}_{k-1} \cup \{i^\ast_k\}, 
     \quad \mathcal{U} = \mathcal{U} \cup \{\widehat{U}_k\}.
 
-At the end of each iteration, we add a new control unit. This process continues until iteration :math:`k = N_0`. The control group ultimately returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`, or the candidate set of control units that has the highest R-squared statistic of all the candidate sets.
+This process continues until iteration :math:`k = N_0`. The control group ultimately returned by FDID is :math:`\widehat{U} \operatorname*{:=} \operatorname*{argmax}_{\widehat{U}_k \in \mathcal{U}} R^2(\widehat{U}_k)`, or the candidate set of control units that has the highest R-squared statistic of all the candidate sets.
 
 Implementing FDID via mlsynth
 -----------------------------
