@@ -9,7 +9,7 @@ Formally, I lay out the notations. Indexed by :math:`j`, we observe :math:`\math
 With this in mind, we may describe the algorithm. FDID proceeds iteratively over :math:`k` total candidate iterations. The main regression specification is
 
 .. math::
-    \operatorname*{argmin}{\boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}}} \left\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}_{k-1} \cup \{i\}} \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} \right\|_2^2,
+    \operatorname*{argmin}_{\boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}}} \left\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}_{k-1} \cup \{i\}} \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} \right\|_2^2,
     \quad \text{subject to } \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} = \frac{1}{|\widehat{U}_{k-1}| + 1}.
 
 where we have a :math:`T_1 \times 1` pre-intervention vector of outcomes for the treated unit, :math:`\mathbf{y}_1`, and a :math:`T_1 \times N_0` matrix of outcomes for our control group, :math:`\mathbf{Y}_0`. We are in fact, however, concerned with the subset of these controls that satisfies the parallel pre-trends assumption.
