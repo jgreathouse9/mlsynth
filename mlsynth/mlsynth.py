@@ -416,7 +416,7 @@ class PDA:
                                                          prepped["post_periods"])
         est_method = pdaest.get("method")
 
-        counterfactual_name = f'{est_method} {prepped["treated_unit_name]}
+        counterfactual_name = f'{est_method} {prepped["treated_unit_name"]}'
 
         if self.display_graphs:
 
