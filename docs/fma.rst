@@ -169,3 +169,11 @@ After we run this, we get this plot saved.
    :alt: Factor Model Plot
    :align: center
    :width: 600px
+
+
+
+
+To-Do List
+----------------
+
+- Staggered Adoption
