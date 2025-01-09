@@ -47,7 +47,7 @@ def test_treat(treatment_matrix: np.ndarray):
 
 
 def dataprep(df, unitid, time, outcome, treat):
-    test_results = test_treat2(df.pivot(index=time, columns=unitid, values=treat).to_numpy())
+    test_results = test_treat(df.pivot(index=time, columns=unitid, values=treat).to_numpy())
     t2 = test_results["Post Periods"]
     t1 = test_results["Pre Periods"]
     trcolnum = test_results["Treated Index"]
