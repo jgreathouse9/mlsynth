@@ -5,3 +5,10 @@ sphinxcontrib-bibtex<2.0.0
 sphinx-copybutton
 
 pandas
+numpy
+matplotlib
+scipy
+scikit-learn
+cvxpy
+screenot
+statsmodels
