@@ -46,7 +46,7 @@ Xu's method is derivied from an iterative cross validation algorithm. It proceed
    r^\ast = \operatorname*{argmin}_{r \in \{1, 2, \ldots, r_{\max}\}} \sum_{s \in \mathcal{T}_1} \left( \mathbf{y}_1 - \hat{\mathbf{F}}_s^{(r)'} \hat{\boldsymbol{\lambda}}^{(r)} \right)^2
 
 
-The optimal numbrer of factors in this case is the number that minimizes the one-step out of sample validation error. Both of these methods are computed underneath the hood. ``mlsynth`` choses whichever method selects the least number of factors to avoid overfitting.
+The optimal number of factors in this case is the number that minimizes the one-step out of sample validation error. Both of these methods are computed underneath the hood. ``mlsynth`` choses whichever method selects the least number of factors to avoid overfitting.
 
 Estimating FMA in ``mlsynth``
 -----------------------------
