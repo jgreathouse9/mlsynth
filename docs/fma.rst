@@ -40,29 +40,9 @@ Xu's method is derivied from an iterative cross validation algorithm. It proceed
 
 3. **Cross-Validation**: For each candidate number of factors  :math:`r`, and each pre-intervention time period :math:`s`, estimate the factor loadings using the remaining time periods. Then, use OLS to predict one-step ahead out of sample into the validation period
 
-   .. math::
+.. math::
 
-      \hat{\boldsymbol{\lambda}}^{(r)} = \left( \hat{\mathbf{F}}_{-s}^{(r)\prime} \hat{\mathbf{F}}_{-s}^{(r)} \right)^{-1} 
-      \hat{\mathbf{F}}_{-s}^{(r)\prime} \mathbf{y}_{-s}.
+   r^\ast = \operatorname*{argmin}_{r \in \{1, 2, \ldots, r_{\max}\}} \sum_{s \in \mathcal{T}_1} \left( \mathbf{y}_1 - \hat{\mathbf{F}}_s^{(r)'} \hat{\boldsymbol{\lambda}}^{(r)} \right)^2
 
-   The predicted outcome for the validation time period is:
-
-   .. math::
-
-      \hat{y}_s = \hat{\mathbf{F}}_s^{(r)\prime} \hat{\boldsymbol{\lambda}}^{(r)}
-
-4. **Compute the Validation MSE**: Compute the MSE for :math:`r` factors 
-   across the validation period.
-
-   .. math::
-
-      \text{MSE}(r) = \frac{1}{T_0} \sum_{s=1}^{T_0} \left( y_s - \hat{y}_s \right)^2
-
-5. **Select the Optimal Number of Factors**: Choose the number of factors 
-   that minimizes the cross-validation error.
-
-   .. math::
-
-      \hat{r} = \arg \min_{r \in \{1, 2, \ldots, r_{\max}\}} \text{MSE}(r)
 
 Both of these methods are computed underneath the hood. ``mlsynth`` choses whichever method selects the least number of factors to avoid overfitting.
