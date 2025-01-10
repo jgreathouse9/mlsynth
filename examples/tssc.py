@@ -88,6 +88,7 @@ plt.legend()
 # Save the plot
 output_path = os.path.join(save_directory, "treatedvsdonors.png")
 plt.savefig(output_path, bbox_inches='tight')
+plt.close()
 
 
 config = {
