@@ -3,10 +3,10 @@ name: Formatting
 on:
   push:
     branches:
-      - main
+      - main  # Trigger on pushes to the 'main' branch
   pull_request:
     branches:
-      - main
+      - main  # Trigger on pull requests targeting the 'main' branch
 
 jobs:
   formatting:
@@ -19,21 +19,25 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.9'  # Adjust the version based on your needs
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install black flake8 autopep8 docformatter  # Install Black, flake8, autopep8, and docformatter
+        pip install black flake8 autopep8 docformatter  # Install Black, Flake8, autopep8, and docformatter
 
     - name: Auto-format code with Black
       run: |
-        black . --line-length 79
+        black . --line-length 79  # Autoformat your code with a max line length of 79
 
     - name: Check code style with Flake8
       run: |
-        flake8 . --max-line-length=79 --exit-zero
+        flake8 . --max-line-length=79 --exit-zero  # Run Flake8 without failing the job
+
+    - name: Auto-format code with autopep8
+      run: |
+        autopep8 --in-place --aggressive --max-line-length 79 $(find . -name "*.py")  # Target Python files
 
     - name: Auto-format docstrings with docformatter
       run: |
-        docformatter --in-place --recursive .  # Format docstrings in place
+        docformatter --in-place --recursive **/*.py  # Format all Python docstrings in place
