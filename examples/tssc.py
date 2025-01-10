@@ -72,6 +72,8 @@ t = y.shape[0]
 donor_df = df[df[unitid] != treated_unit_name]
 donor_names = donor_df[unitid].unique()
 Xbar = Ywide[donor_names].values
+
+plt.figure()
 plt.axvline(x=t1, color='red', linestyle='--', label='Showroom', linewidth=2)
 # Plot donor units as vectors
 for donor_name in donor_names:
