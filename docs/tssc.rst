@@ -114,5 +114,10 @@ and, after sorting these in ascending order, the confidence interval is :math:`[
 Step 2: Estimation
 ~~~~~~~~~~~~~~~~~~
 
-After we choose the correct set of constraints, we then estimate the counterfactual. Below, I use TSSC in the provided empirical application.
+After we choose the correct set of constraints, we then estimate the counterfactual. Below, I use TSSC in the provided empirical application. Suppose an online retailer opens a showroom in Brooklyn, and we have 10 donors to choose from. A plot for this is below (note that I don't know the names of the donors, but it doesn't matter what their names are). The black line is the sales trends for Brooklyn, and the blue lines are the donor trends. The red dashed line is the treatment point, or :math:`t = 76`.
+
+Here, we can get a sense of how the quasi-experiment may be set up, where we have the sole treated unit as Brooklyn, and :math:`N_0 = 10`. 
+
+Now we can plot the counterfactuals against each other. In our case, MSC(b) is the counterfactual of interest as it was the one selected by the first step. Modified SCM(b) gets a pretreatment RMSE of 434.43. Its absolute and percentage ATTs are 1131.97 and 24.5.
+
 
