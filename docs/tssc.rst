@@ -112,7 +112,7 @@ The top row of :math:`\mathbf{R}` corresponds to the summation to one constraint
 
     \tilde{S}_{T_1}= (\sqrt{T_0}\mathbf{d} )\hat{V}^{-1} (\sqrt{T_0}\mathbf{d})
 
-where :math:`V` is the asymptotic variance of :math:`\sqrt{T_1}\mathbf{R}(\hat{\mathbf{w}}_{T_0}^{\text{MSC}}-\mathbf{w}_{T_0}^{\text{MSC}})`. The natural issue, then, is how to estimate the variance. To do this, we can use a subsampling routine. We begin by taking random draws of the pre-intervention period :math:`$m=1 \ldots T_0` for both the treated and control units and estimate the synthetic control :math:`\hat{\mathbf{w}}_{T_0}^{\text{MSC}}`, checking its differences versus the original weights :math:`\mathbf{w}_{T_0}^{\text{MSC}}`. We repeat this process many times (10000 in this case). We can then get a consistent estimator of the variance
+where :math:`V` is the asymptotic variance of :math:`\sqrt{T_1}\mathbf{R}(\hat{\mathbf{w}}_{T_0}^{\text{MSC}}-\mathbf{w}_{T_0}^{\text{MSC}})`. The natural issue, then, is how to estimate the variance. To do this, we can use a subsampling routine. We begin by taking random draws of the pre-intervention period :math:`m=1 \ldots T_0` for both the treated and control units and estimate the synthetic control :math:`\hat{\mathbf{w}}_{T_0}^{\text{MSC}}`, checking its differences versus the original weights :math:`\mathbf{w}_{T_0}^{\text{MSC}}`. We repeat this process many times (10000 in this case). We can then get a consistent estimator of the variance
 
 .. math::
 
