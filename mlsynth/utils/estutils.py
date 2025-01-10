@@ -66,9 +66,13 @@ def compute_t_stat_and_ci(att, treatment_effects, truncation_lag, confidence_lev
 
 
 # Define the L2-relaxation estimator function
+import cvxpy as cp
+import numpy as np
+
+
 def l2_relax(time_periods, treated_unit, X, tau):
     """
-    Implements the L2-relaxation estimator using cvxpy, for time-series panel data.
+    Implements the L2-relaxation estimator using cvxpy, for time-series panel data, including an intercept.
 
     Parameters:
         time_periods (int): Number of initial time periods to use for estimation.
@@ -78,22 +82,26 @@ def l2_relax(time_periods, treated_unit, X, tau):
 
     Returns:
         numpy.ndarray: Estimated coefficients (p x 1).
+        float: Estimated intercept.
         numpy.ndarray: Predicted counterfactual outcomes for the treated unit.
     """
     # Subset data for the first `time_periods` rows
     treated_unit_subset = treated_unit[:time_periods]
     X_subset = X[:time_periods, :]
 
-    # Calculate sample covariance components
-    n, p = X_subset.shape
-    Sigma = (X_subset.T @ X_subset) / n
-    eta = (X_subset.T @ treated_unit_subset) / n
+    # Add a column of ones to X_subset for the intercept
+    X_with_intercept = np.hstack((np.ones((time_periods, 1)), X_subset))
 
-    # Define the variable
+    # Calculate sample covariance components
+    n, p = X_with_intercept.shape
+    Sigma = (X_with_intercept.T @ X_with_intercept) / n
+    eta = (X_with_intercept.T @ treated_unit_subset) / n
+
+    # Define the variable (beta includes intercept as the first element)
     beta = cp.Variable(p)
 
     # Objective: minimize 1/2 * ||beta||_2^2
-    objective = cp.Minimize(cp.norm(0.5*beta, 2)**2)
+    objective = cp.Minimize(0.5 * cp.norm(beta, 2) ** 2)
 
     # Constraint: ||eta - Sigma @ beta||_inf <= tau
     constraint = [cp.norm(eta - Sigma @ beta, "inf") <= tau]
@@ -108,16 +116,20 @@ def l2_relax(time_periods, treated_unit, X, tau):
     if problem.status not in ["optimal", "optimal_inaccurate"]:
         raise ValueError(f"Optimization failed with status {problem.status}")
 
-    # Predict counterfactual outcomes for the treated unit
-    counterfactuals = X @ beta.value
+    # Extract intercept and coefficients
+    intercept = beta.value[0]
+    coefficients = beta.value[1:]
 
-    return beta.value, counterfactuals
+    # Predict counterfactual outcomes for the treated unit
+    counterfactuals = X_with_intercept @ beta.value + intercept
+
+    return coefficients, intercept, counterfactuals
 
 
 def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
     """
     Cross-validation for L2-relaxation to select the optimal tau by splitting
-    the training data into two halves.
+    the training data into two halves, including an intercept.
 
     Parameters:
         treated_unit (numpy.ndarray): Outcome vector for the treated unit (n x 1).
@@ -141,10 +153,10 @@ def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
             float: MSE on the validation set.
         """
         # Train L2-relaxation on the first half of the data
-        beta, _ = l2_relax(half_n, treated_train, X_train, tau)
+        coefficients, intercept, _ = l2_relax(half_n, treated_train, X_train, tau)
 
-        # Predict on the second half of the data
-        predictions = X_val @ beta
+        # Add intercept to the predictions on the validation set
+        predictions = X_val @ coefficients + intercept
 
         # Compute Mean Squared Error (MSE) on the validation set
         mse = np.mean((treated_val - predictions) ** 2)
@@ -160,6 +172,10 @@ def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
     treated_val = treated_unit[half_n:]
     X_val = X[half_n:, :]
 
+    # Add a column of ones to X_train and X_val for the intercept
+    X_train = np.hstack((np.ones((half_n, 1)), X_train))
+    X_val = np.hstack((np.ones((n - half_n, 1)), X_val))
+
     # Generate tau values in logspace from a small positive number to tau_init
     tau_values = np.logspace(-4, np.log10(tau_init), num=num_tau)
 
@@ -172,8 +188,6 @@ def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
     min_mse = mse_errors[optimal_tau_idx]
 
     return optimal_tau, min_mse
-
-
 
 
 def ci_bootstrap(b, Nco, x, y, t1, nb, att, method, y_counterfactual):
@@ -590,20 +604,24 @@ def pda(prepped, N, method="fs"):
         optimal_tau, min_mse = cross_validate_tau(prepped["y"][:prepped["pre_periods"]], prepped["donor_matrix"][:prepped["pre_periods"]], 2)
 
         # Step 2: Re-fit the model using the optimal tau
-        beta_hat, yl2 = l2_relax(prepped["pre_periods"], prepped["y"], prepped["donor_matrix"], optimal_tau)
+        beta_hat, intercept, _ = l2_relax(prepped["pre_periods"], prepped["y"], prepped["donor_matrix"], optimal_tau)
+
+        yl2 = prepped["donor_matrix"] @ beta_hat+ intercept
+
+
         
         attdict, fitdict, Vectors = effects.calculate(prepped["y"], yl2, prepped["pre_periods"],
                                                       prepped["post_periods"])
+
+        h = int(np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9)))
+
+        inference_results = compute_t_stat_and_ci(attdict["ATT"], Vectors["Gap"][-prepped["post_periods"]:, 0], h)
 
         # Step 3: Map donor names to their coefficients
         donor_coefficients = {
             donor: round(coef, 4)
             for donor, coef in zip(prepped["donor_names"].values, beta_hat)
         }
-
-        h = int(np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9)))
-
-        inference_results = compute_t_stat_and_ci(attdict["ATT"], Vectors["Gap"][-prepped["post_periods"]:, 0], h)
 
         return {
             "method": r'l2 relaxation',
