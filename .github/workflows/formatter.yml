@@ -38,12 +38,11 @@ jobs:
       run: |
         autopep8 --in-place --aggressive --max-line-length 79 **/*.py  # Automatically fix formatting issues, including long lines in Python files
 
-    - name: Commit and push changes
+    - name: Commit and push changes (if any)
       run: |
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         git add .
-        git commit -m "Auto-format code with Black and autopep8"
-        git push
+        git diff --exit-code || (git commit -m "Auto-format code with Black and autopep8" && git push)
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
