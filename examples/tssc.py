@@ -29,7 +29,7 @@ matplotlib.rcParams.update(jared_theme)
 new_directory = os.path.join(os.getcwd(), "examples")
 os.chdir(new_directory)
 
-# Define the 'l2relax' directory
+# Define the 'TSSC' directory
 save_directory = os.path.join(os.getcwd(), "TSSC")
 
 # Create the directory if it doesn't exist
