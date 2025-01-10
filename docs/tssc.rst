@@ -1,7 +1,8 @@
 Two-Step Synthetic Control
 ==========================
 
-# Model Primitives
+Sometimes with syntehtic control methods, treated units are a little too extreme relative to their donor pool. As a result, analysts amy sometimes need to use intecepts or relax the nonnegativiety constraint, but it's unclear, a priori, in which situations this is necessary or beneficial. The Two Step SCM is actually the only method in ``mlsynth`` that does not rely on machine-learning methods; it does, however, allow analysts to choose between these different modifications to SCM where it may be warranted.
+
 Here, we have :math:`\mathcal{N} \operatorname*{:=} \lbrace{1 \ldots N \rbrace}` units across :math:`t \in \left(1, T\right) \cap \mathbb{N}` time periods, where :math:`j=1` is our sole treated unit. This leaves us with :math:`\mathcal{N}_{0} \operatorname*{:=} \lbrace{2 \ldots N\rbrace}` control units, with the cardinality of this set being the number of controls. We have two sets of time series :math:`\mathcal{T} \operatorname*{:=} \mathcal{T}_{0} \cup \mathcal{T}_{1}`, where :math:`\mathcal{T}_{0} \operatorname*{:=}  \lbrace{1\ldots T_0 \rbrace}` is the pre-intervention period and :math:`\mathcal{T}_{1} \operatorname*{:=} \lbrace{T_0+1\ldots T \rbrace}` denotes the post-intervention period, each with their respective cardinalities. Let :math:`\mathbf{w} \operatorname*{:=} \lbrace{w_2 \ldots w_N  \rbrace}` be a generic weight vector we assign to untreated units. We observe
 
 .. math::
