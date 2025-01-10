@@ -2,7 +2,7 @@ Two-Step Synthetic Control
 ==========================
 
 # Model Primitives
-Here, we have :math:`\mathcal{N} \coloneqq \lbrace{1 \ldots N \rbrace}` units across :math:`t \in \left(1, T\right) \cap \mathbb{N}` time periods, where :math:`j=1` is our sole treated unit. This leaves us with :math:`\mathcal{N}_{0} \coloneqq \lbrace{2 \ldots N\rbrace}` control units, with the cardinality of this set being the number of controls. We have two sets of time series :math:`\mathcal{T} \coloneqq \mathcal{T}_{0} \cup \mathcal{T}_{1}`, where :math:`\mathcal{T}_{0} \coloneqq  \lbrace{1\ldots T_0 \rbrace}` is the pre-intervention period and :math:`\mathcal{T}_{1} \coloneqq \lbrace{T_0+1\ldots T \rbrace}` denotes the post-intervention period, each with their respective cardinalities. Let :math:`\mathbf{w} \coloneqq \lbrace{w_2 \ldots w_N  \rbrace}` be a generic weight vector we assign to untreated units. We observe
+Here, we have :math:`\mathcal{N} \operatorname*{:=} \lbrace{1 \ldots N \rbrace}` units across :math:`t \in \left(1, T\right) \cap \mathbb{N}` time periods, where :math:`j=1` is our sole treated unit. This leaves us with :math:`\mathcal{N}_{0} \operatorname*{:=} \lbrace{2 \ldots N\rbrace}` control units, with the cardinality of this set being the number of controls. We have two sets of time series :math:`\mathcal{T} \operatorname*{:=} \mathcal{T}_{0} \cup \mathcal{T}_{1}`, where :math:`\mathcal{T}_{0} \operatorname*{:=}  \lbrace{1\ldots T_0 \rbrace}` is the pre-intervention period and :math:`\mathcal{T}_{1} \operatorname*{:=} \lbrace{T_0+1\ldots T \rbrace}` denotes the post-intervention period, each with their respective cardinalities. Let :math:`\mathbf{w} \operatorname*{:=} \lbrace{w_2 \ldots w_N  \rbrace}` be a generic weight vector we assign to untreated units. We observe
 
 .. math::
     y_{jt} = 
@@ -27,7 +27,7 @@ Consider
 a model known as a factor model in the econometrics literature. The DID method assumes the outcomes we observe are byproduct of a time specific effect and a unit specific effect, :math:`\mathbf{M}^{\ast}_{jt} = a_j + b_t`. This means, from the above, that :math:`r=2` and :math:`\boldsymbol{\lambda}_{j1}=a_j, \boldsymbol{\lambda}_{j2}=1, \boldsymbol{\gamma}_{t1}=1, \boldsymbol{\gamma}_{t2}=b_t`. This means we may use the average of controls as a proxy for the unit-specific coefficient (in the pre and post period). The time-specific coefficient must be estimated. Accordingly, think about DID as a weighting estimator which solves
 
 .. math::
-    (\hat{\mu},\hat{w}) = \underset{\mu,w}{\text{arg\,min}} \quad (\mathbf{y}_{1} - \mu - \mathbf{w}^\top - \mathbf{Y}_{\mathcal{N}_{0}})^\top (\mathbf{y}_{1} - \mu - \mathbf{w}^\top - \mathbf{Y}_{\mathcal{N}_{0}})
+    (\hat{\mu},\hat{w}) = \underset{\mu,w}{\operatorname*{argmin}} \quad (\mathbf{y}_{1} - \mu - \mathbf{w}^\top - \mathbf{Y}_{\mathcal{N}_{0}})^\top (\mathbf{y}_{1} - \mu - \mathbf{w}^\top - \mathbf{Y}_{\mathcal{N}_{0}})
 
 .. math::
     \text{s.t.} \quad \mathbf{w}= N^{-1}_{0}
@@ -40,7 +40,7 @@ Here, we seek the line that minimizes the differences between the treated vector
 SCM, however, has a different weighting scheme. In the SCM world, one of the primary innovations is that we are explicitly saying that the weights are not meant to be constant. Generically, we may express classic SCM as
 
 .. math::
-    \underset{w}{\text{argmin}} \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2
+    \underset{w}{\operatorname*{argmin}} \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_j||_{2}^2
 
 .. math::
     \text{s.t.} \quad \mathbf{w}: w_{j} \in \mathbb{I} \quad  {\| \mathbf{w} \|_{1} = 1}
