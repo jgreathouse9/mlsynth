@@ -64,6 +64,7 @@ outcome = "GDP"
 unitid = "Country"
 time = "Time"
 
+df = df[df["Country"] != "China"].reset_index(drop=True)
 
 new_directory = os.path.join(os.getcwd(), "examples")
 os.chdir(new_directory)
@@ -87,10 +88,10 @@ config = {
     "time": time,
     "outcome": outcome,
     "unitid": unitid,
-    "counterfactual_color": "blue",  # Optional, defaults to "red"
-    "treated_color": "black",  # Optional, defaults to "black"
-    "display_graphs": True,  # Optional, defaults to True
-    "save": save,  # Optional, defaults to False
+    "counterfactual_color": "blue",
+    "treated_color": "black",
+    "display_graphs": True,
+    "save": save,
     "method": "l2"
 }
 
