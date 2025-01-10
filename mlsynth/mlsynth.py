@@ -138,7 +138,8 @@ class TSSC:
                 counterfactual_names=[recommended_model],
                 method=f'{recommended_model}',
                 treatedcolor=self.treated_color,
-                counterfactualcolors=[self.counterfactual_color]
+                counterfactualcolors=[self.counterfactual_color],
+                save=self.save
             )
 
         return result
