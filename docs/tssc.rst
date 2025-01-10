@@ -55,7 +55,7 @@ MSCa
     \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_{j}, - \mathbf{\beta}||_{2}^2 \\
     \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}, \mathbf{\beta} \neq 0.
 
-MSCa shifts the counterfactual within the convex hull using the $T \times 1$ vector of 1s with its corresponding coefficient being $\mu$ (which is unconstrained). It is the intercept.
+MSCa shifts the counterfactual within the convex hull using the :math:`T \times 1` vector of 1s with its corresponding coefficient being :math:`\mathbf{\beta}` (which is unconstrained). It is the intercept.
 
 MSCb
 -----
@@ -86,7 +86,7 @@ The point of TSSC is to first test the viability of the parallel pre-trends assu
 
 or, that we've violated the pre-intervention trend convex hull restriction. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM.
 
-We first test a joint null hypothesis. We may write our null hypothesis as :math:`H_0 : \mu = 0, \quad   {||\mathbf{w}||\_{1} = 1}`, or, :math:`\mathbf R\beta_0 - \mathbf q=\mathbf{0}_{2}`, or in words, that the intercept is 0 and the unit weights should add to 1. :math:`\mathbf R` is a matrix where the first and second rows of the first column are 0 and 1 respectively with the latter columns being 1 and 0 respectively.
+We first test a joint null hypothesis. We may write our null hypothesis as :math:`H_0 : \mu = 0, \quad   {||\mathbf{w}||_{1} = 1}`, or, :math:`\mathbf R\beta_0 - \mathbf q=\mathbf{0}_{2}`, or in words, that the intercept is 0 and the unit weights should add to 1. :math:`\mathbf R` is a matrix where the first and second rows of the first column are 0 and 1 respectively with the latter columns being 1 and 0 respectively.
 
 .. math::
 
@@ -112,7 +112,7 @@ The top row of :math:`\mathbf{R}` corresponds to the summation to one constraint
 
     \tilde{S}_{T_1}= (\sqrt{T_0}\mathbf{d} )\hat{V}^{-1} (\sqrt{T_0}\mathbf{d})
 
-where :math:`V` is the asymptotic variance of :math:`\sqrt{T_1}\mathbf{R}(\hat{\mathbf{w}}_{T_0}^{\text{MSC}}-\mathbf{w}\_{T_0}^{\text{MSC}})`. The natural issue, then, is how to estimate the variance. To do this, we can use a subsampling routine. We begin by taking random draws of the pre-intervention period :math:`$m=1 \ldots T_0` for both the treated and control units and estimate the synthetic control :math:`\hat{\mathbf{w}}\_{T_0}^{\text{MSC}}`, checking its differences versus the original weights :math:`\mathbf{w}\_{T_0}^{\text{MSC}}`. We repeat this process many times (10000 in this case). We can then get a consistent estimator of the variance
+where :math:`V` is the asymptotic variance of :math:`\sqrt{T_1}\mathbf{R}(\hat{\mathbf{w}}_{T_0}^{\text{MSC}}-\mathbf{w}_{T_0}^{\text{MSC}})`. The natural issue, then, is how to estimate the variance. To do this, we can use a subsampling routine. We begin by taking random draws of the pre-intervention period :math:`$m=1 \ldots T_0` for both the treated and control units and estimate the synthetic control :math:`\hat{\mathbf{w}}_{T_0}^{\text{MSC}}`, checking its differences versus the original weights :math:`\mathbf{w}_{T_0}^{\text{MSC}}`. We repeat this process many times (10000 in this case). We can then get a consistent estimator of the variance
 
 .. math::
 
@@ -124,7 +124,7 @@ where :math:`\sigma^{\ast}(\sqrt{T_0}\hat{\mathbf{w}}_{T_0}^{\text{MSC}})` is
 
     \frac{m}{B} \sum_{b=1}^{B}(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}})(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}})^{\top}
 
-with $b$ being the number of draws. The sub-sampling statistic itself is
+with :math:`b` being the number of draws. The sub-sampling statistic itself is
 
 .. math::
 
