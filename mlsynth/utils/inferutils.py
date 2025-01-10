@@ -2,7 +2,7 @@ from scipy.optimize import lsq_linear
 import numpy as np
 
 
-def step2(R1t, R2t, Rt, b_MSC_c, q1t, q2t, qt, t1, x1, y1, nb, n,bm_MSC_c):
+def step2(R1t, R2t, Rt, b_MSC_c, q1t, q2t, qt, t1, x1, y1, nb, n, bm_MSC_c):
 
     d1t = np.dot(R1t, b_MSC_c) - q1t
     d2t = np.dot(R2t, b_MSC_c) - q2t
@@ -26,7 +26,9 @@ def step2(R1t, R2t, Rt, b_MSC_c, q1t, q2t, qt, t1, x1, y1, nb, n,bm_MSC_c):
 
         lb = np.zeros(n)
         lb[0] = -np.inf
-        bm_MSC_c[:, g] = lsq_linear(xm, ym, bounds=(lb, np.inf), method='trf', lsmr_tol='auto').x
+        bm_MSC_c[:, g] = lsq_linear(
+            xm, ym, bounds=(lb, np.inf), method="trf", lsmr_tol="auto"
+        ).x
 
         bm_MSC_c_g = bm_MSC_c[:, g]
         bm_MSC_c_sum0[g] = np.sum(bm_MSC_c_g[1:])
@@ -52,9 +54,15 @@ def step2(R1t, R2t, Rt, b_MSC_c, q1t, q2t, qt, t1, x1, y1, nb, n,bm_MSC_c):
     J_test = t1 * np.dot(dt.T, np.dot(V_hat, dt))
 
     # Calculate p-values
-    pJ = np.mean(J_test < Js_test)  # p-value for joint hypothesis H0. If fail to reject, use Original SC in Step 2. If reject, then look at p1
-    p1 = np.mean(test1 < test1_s)   # p-value for single restriction hypothesis test of sum to one H0a. If fail to reject, use MSCa in Step 2. If reject, then look at p2
-    p2 = np.mean(test2 < test2_s)   # p-value for single restriction hypothesis test of zero intercept H0b. If fail to reject, use MSCb in step 2. Otherwise, use MSC in step 2.
+    pJ = np.mean(
+        J_test < Js_test
+    )  # p-value for joint hypothesis H0. If fail to reject, use Original SC in Step 2. If reject, then look at p1
+    p1 = np.mean(
+        test1 < test1_s
+    )  # p-value for single restriction hypothesis test of sum to one H0a. If fail to reject, use MSCa in Step 2. If reject, then look at p2
+    p2 = np.mean(
+        test2 < test2_s
+    )  # p-value for single restriction hypothesis test of zero intercept H0b. If fail to reject, use MSCb in step 2. Otherwise, use MSC in step 2.
     # Check p-values and recommend SCM model
     if pJ >= 0.05:
         recommended_model = "MSCc"
@@ -66,5 +74,3 @@ def step2(R1t, R2t, Rt, b_MSC_c, q1t, q2t, qt, t1, x1, y1, nb, n,bm_MSC_c):
         recommended_model = "SC"
 
     return recommended_model
-
-

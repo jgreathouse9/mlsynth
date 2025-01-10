@@ -2,9 +2,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
+
 def plot_estimates(
-        df, time, unitid, outcome, treatmentname, treated_unit_name, y, cf_list,
-        method, treatedcolor, counterfactualcolors, counterfactual_names=None, save=False
+    df,
+    time,
+    unitid,
+    outcome,
+    treatmentname,
+    treated_unit_name,
+    y,
+    cf_list,
+    method,
+    treatedcolor,
+    counterfactualcolors,
+    counterfactual_names=None,
+    save=False,
 ):
     """
     Plots observed and multiple counterfactual estimates.
@@ -35,19 +47,42 @@ def plot_estimates(
     time_axis = df[df[unitid] == treated_unit_name][time].values
 
     # Plot intervention point
-    plt.axvline(x=intervention_point, color="black", linestyle="--", linewidth=1.25,
-                label=f"{treatmentname}, {intervention_point}")
+    plt.axvline(
+        x=intervention_point,
+        color="black",
+        linestyle="--",
+        linewidth=1.25,
+        label=f"{treatmentname}, {intervention_point}",
+    )
 
     # Plot observed outcomes
-    plt.plot(time_axis, y, label=f'Observed {treated_unit_name}', linewidth=3,
-             color=treatedcolor, marker='o')
+    plt.plot(
+        time_axis,
+        y,
+        label=f"Observed {treated_unit_name}",
+        linewidth=3,
+        color=treatedcolor,
+        marker="o",
+    )
 
     # Plot each counterfactual
     for idx, cf in enumerate(cf_list):
-        label = counterfactual_names[idx] if counterfactual_names else f'Counterfactual {idx + 1}'
+        label = (
+            counterfactual_names[idx]
+            if counterfactual_names
+            else f"Counterfactual {idx + 1}"
+        )
         color = counterfactualcolors[idx % len(counterfactualcolors)]
-        plt.plot(time_axis, cf, label=label, color=color, linestyle="--",
-                 linewidth=1, marker='D', markersize=3)
+        plt.plot(
+            time_axis,
+            cf,
+            label=label,
+            color=color,
+            linestyle="--",
+            linewidth=1,
+            marker="D",
+            markersize=3,
+        )
 
     # Add labels, title, legend, and grid
     plt.xlabel(time)
@@ -59,13 +94,13 @@ def plot_estimates(
     if save:
         if isinstance(save, dict):
             # Extract options from the dictionary
-            filename = save.get('filename', f"{method}_{treated_unit_name}")
-            extension = save.get('extension', 'png')
-            directory = save.get('directory', os.getcwd())
+            filename = save.get("filename", f"{method}_{treated_unit_name}")
+            extension = save.get("extension", "png")
+            directory = save.get("directory", os.getcwd())
         else:
             # Use default filename and extension
             filename = f"{method}_{treated_unit_name}"
-            extension = 'png'
+            extension = "png"
             directory = os.getcwd()
 
         # Ensure the directory exists
@@ -76,12 +111,13 @@ def plot_estimates(
         plt.savefig(filepath)
         print(f"Plot saved to: {filepath}")
 
-    if not save or (isinstance(save, dict) and 'display' in save and save['display']):
+    if not save or (
+        isinstance(save, dict) and "display" in save and save["display"]
+    ):
         plt.show()
 
     # Clear the plot to avoid overlap in subsequent plots
     plt.clf()
-
 
 
 class effects:
@@ -90,8 +126,8 @@ class effects:
         ATT = np.mean(y[t1:] - y_counterfactual[t1:])
         ATT_percentage = 100 * ATT / np.mean(y_counterfactual[t1:])
         u1 = y[:t1] - y_counterfactual[:t1]
-        omega_1_hat = (t2 / t1) * np.mean(u1 ** 2)
-        omega_2_hat = np.mean(u1 ** 2)
+        omega_1_hat = (t2 / t1) * np.mean(u1**2)
+        omega_2_hat = np.mean(u1**2)
         std_omega_hat = np.sqrt(omega_1_hat + omega_2_hat)
         ATT_std = np.sqrt(t2) * ATT / std_omega_hat
 
@@ -105,11 +141,13 @@ class effects:
 
         # Fit dictionary
         Fit_dict = {
-            "T0 RMSE": round(np.sqrt(np.mean((y[:t1] - y_counterfactual[:t1]) ** 2)), 3),
+            "T0 RMSE": round(
+                np.sqrt(np.mean((y[:t1] - y_counterfactual[:t1]) ** 2)), 3
+            ),
             "T1 RMSE": round(np.std(y[t1:] - y_counterfactual[t1:]), 3),
             "R-Squared": round(R2, 3),
             "Pre-Periods": t1,
-            "Post-Periods": len(y[t1:])
+            "Post-Periods": len(y[t1:]),
         }
 
         # Effects dictionary
@@ -117,7 +155,7 @@ class effects:
             "ATT": round(ATT, 3),
             "Percent ATT": round(ATT_percentage, 3),
             "SATT": round(ATT_std, 3),
-            "TTE": round(TTE, 3)  # Add TTE to the returned dictionary
+            "TTE": round(TTE, 3),  # Add TTE to the returned dictionary
         }
 
         gap = y - y_counterfactual
@@ -130,7 +168,7 @@ class effects:
         Vector_dict = {
             "Observed Unit": np.round(y.reshape(-1, 1), 3),
             "Counterfactual": np.round(y_counterfactual.reshape(-1, 1), 3),
-            "Gap": np.round(gap_matrix, 3)
+            "Gap": np.round(gap_matrix, 3),
         }
 
         return Effects_dict, Fit_dict, Vector_dict

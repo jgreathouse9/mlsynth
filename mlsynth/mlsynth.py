@@ -22,6 +22,7 @@ from mlsynth.utils.denoiseutils import (
     demean_matrix,
 )
 
+
 class TSSC:
     def __init__(self, config):
         """
@@ -35,7 +36,7 @@ class TSSC:
         ----------
         config : dict
             A dictionary containing the necessary parameters. The following keys are expected:
-            
+
             df : pandas.DataFrame
                 User-specified dataframe containing the data.
             treat : str
@@ -65,16 +66,16 @@ class TSSC:
         -------
         dict
             A dictionary with the following keys:
-            
+
             'SIMPLEX' : dict
                 Estimates and inference from the SIMPLEX method.
-                
+
             'MSCa' : dict
                 Estimates and inference from the MSCa method.
-                
+
             'MSCb' : dict
                 Estimates and inference from the MSCb method.
-                
+
             'MSCc' : dict
                 Estimates and inference from the MSCc method.
         """
@@ -91,41 +92,103 @@ class TSSC:
         self.draws = config.get("draws", 500)
 
     def fit(self):
-        
+
         balance(self.df, self.unitid, self.time)
 
-        nb =self.draws
-        prepped = dataprep(self.df,
-                           self.unitid, self.time,
-                           self.outcome, self.treat)
+        nb = self.draws
+        prepped = dataprep(
+            self.df, self.unitid, self.time, self.outcome, self.treat
+        )
 
-        x = np.concatenate((np.ones((prepped['total_periods'], 1)), prepped['donor_matrix']), axis=1)
+        x = np.concatenate(
+            (np.ones((prepped["total_periods"], 1)), prepped["donor_matrix"]),
+            axis=1,
+        )
 
-        result = TSEST(prepped['donor_matrix'], prepped['y'], prepped['pre_periods'], nb, prepped['donor_names'],prepped['post_periods'])
+        result = TSEST(
+            prepped["donor_matrix"],
+            prepped["y"],
+            prepped["pre_periods"],
+            nb,
+            prepped["donor_names"],
+            prepped["post_periods"],
+        )
 
         n = x.shape[1]
 
-        b_MSC_c = next((method_dict["MSCc"]["WeightV"] for method_dict in result if "MSCc" in method_dict), None)
-        b_SC = next((method_dict["SIMPLEX"]["WeightV"] for method_dict in result if "SIMPLEX" in method_dict), None)
-        b_MSC_a = next((method_dict["MSCa"]["WeightV"] for method_dict in result if "MSCa" in method_dict), None)
-        b_MSC_b = next((method_dict["MSCb"]["WeightV"] for method_dict in result if "MSCb" in method_dict), None)
+        b_MSC_c = next(
+            (
+                method_dict["MSCc"]["WeightV"]
+                for method_dict in result
+                if "MSCc" in method_dict
+            ),
+            None,
+        )
+        b_SC = next(
+            (
+                method_dict["SIMPLEX"]["WeightV"]
+                for method_dict in result
+                if "SIMPLEX" in method_dict
+            ),
+            None,
+        )
+        b_MSC_a = next(
+            (
+                method_dict["MSCa"]["WeightV"]
+                for method_dict in result
+                if "MSCa" in method_dict
+            ),
+            None,
+        )
+        b_MSC_b = next(
+            (
+                method_dict["MSCb"]["WeightV"]
+                for method_dict in result
+                if "MSCb" in method_dict
+            ),
+            None,
+        )
 
-        recommended_model = step2(np.array([[0] + list(np.ones(n - 1))]),
-                                  np.array([[1] + list(np.zeros(n - 1))]),
-                                  np.array([[0] + list(np.ones(n - 1)),
-                                            [1] + list(np.zeros(n - 1))]),
-                                  b_MSC_c, 1, 0, np.array([[1], [0]]), prepped['pre_periods'], x[:prepped['pre_periods'], :], prepped['y'][:prepped['pre_periods']],
-                                  nb, x.shape[1], np.zeros((n, nb)))
+        recommended_model = step2(
+            np.array([[0] + list(np.ones(n - 1))]),
+            np.array([[1] + list(np.zeros(n - 1))]),
+            np.array(
+                [[0] + list(np.ones(n - 1)), [1] + list(np.zeros(n - 1))]
+            ),
+            b_MSC_c,
+            1,
+            0,
+            np.array([[1], [0]]),
+            prepped["pre_periods"],
+            x[: prepped["pre_periods"], :],
+            prepped["y"][: prepped["pre_periods"]],
+            nb,
+            x.shape[1],
+            np.zeros((n, nb)),
+        )
 
         recommended_variable = next(
-            (method_dict[recommended_model]["Vectors"]["Counterfactual"] for method_dict in result if
-             recommended_model in method_dict), None)
+            (
+                method_dict[recommended_model]["Vectors"]["Counterfactual"]
+                for method_dict in result
+                if recommended_model in method_dict
+            ),
+            None,
+        )
         ATT, RMSE = next(
-            ((method_dict[recommended_model]["Effects"]["ATT"], method_dict[recommended_model]["Fit"]["T0 RMSE"]) for
-             method_dict in result if recommended_model in method_dict), (None, None))
-        
+            (
+                (
+                    method_dict[recommended_model]["Effects"]["ATT"],
+                    method_dict[recommended_model]["Fit"]["T0 RMSE"],
+                )
+                for method_dict in result
+                if recommended_model in method_dict
+            ),
+            (None, None),
+        )
+
         if self.display_graphs:
-        
+
             plot_estimates(
                 df=self.df,
                 time=self.time,
@@ -136,13 +199,14 @@ class TSSC:
                 y=prepped["y"],
                 cf_list=[recommended_variable],
                 counterfactual_names=[recommended_model],
-                method=f'{recommended_model}',
+                method=f"{recommended_model}",
                 treatedcolor=self.treated_color,
                 counterfactualcolors=[self.counterfactual_color],
-                save=self.save
+                save=self.save,
             )
 
         return result
+
 
 class FMA:
     def __init__(self, config):
@@ -157,42 +221,42 @@ class FMA:
         ----------
         config : dict
             A dictionary containing the necessary parameters. The following keys are expected:
-            
+
             df : pandas.DataFrame
                 DataFrame containing the data.
-                
+
             treat : str
                 Column name identifying the treated unit.
-                
+
             time : str
                 Column name for the time variable.
-                
+
             outcome : str
                 Column name for the outcome variable.
-                
+
             unitid : str
                 Column name identifying the units.
-                
+
             counterfactual_color : str, optional
                 Color for the counterfactual line in the plots, by default "red".
-                
+
             treated_color : str, optional
                 Color for the treated line in the plots, by default "black".
-                
+
             display_graphs : bool, optional
                 Whether to display the plots, by default True.
-                
+
             save : bool or dict, optional
                 Whether to save the generated plots. Default is False.
                 If a dictionary, keys can include:
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-                    
+
             criti : int, optional
                 A value to indicate whether the data is assumed to be stationary or nonstationary.
                 If criti = 11, nonstationarity is assumed; if criti = 10, stationarity is assumed. Default is 11.
-            
+
             DEMEAN : int, optional
                 A value that determines how the data is processed:
                 - If DEMEAN = 1, the data is demeaned.
@@ -203,16 +267,16 @@ class FMA:
         -------
         dict
             A dictionary containing the following keys:
-            
+
             'Effects' : dict
                 Estimated treatment effects for the treated unit over time.
-                
+
             'Fit' : dict
                 Goodness-of-fit metrics for the model.
-                
+
             'Vectors' : dict
                 Observed, counterfactual, and treatment effect vectors.
-                
+
             'Inference' : dict
                 Inference results, including confidence intervals and p-values.
 
@@ -236,16 +300,16 @@ class FMA:
     def fit(self):
 
         balance(self.df, self.unitid, self.time)
-        
-        prepped = dataprep(self.df,
-                           self.unitid, self.time,
-                           self.outcome, self.treat)
+
+        prepped = dataprep(
+            self.df, self.unitid, self.time, self.outcome, self.treat
+        )
         t = prepped["total_periods"]
         t1 = prepped["pre_periods"]
-        
+
         t2 = prepped["post_periods"]
         datax = prepped["donor_matrix"]
-        y1 = prepped["y"][:prepped["pre_periods"]]
+        y1 = prepped["y"][: prepped["pre_periods"]]
         y2 = prepped["y"][prepped["post_periods"]:]
         y = prepped["y"]
         N_co = datax.shape[1]
@@ -256,7 +320,7 @@ class FMA:
         x = np.hstack((const, datax))
         x1 = x[:t1, :]
         x2 = x[t1:, :]
-        X = demean_matrix(datax) # For Xu's method
+        X = demean_matrix(datax)  # For Xu's method
         XX = np.dot(X, X.T)
         eigval, Fhat0 = np.linalg.eigh(XX)
         Fhat0 = Fhat0[:, ::-1]
@@ -273,7 +337,9 @@ class FMA:
                 Fhat_1_xu = np.delete(Fhat_1_xu, s, axis=0)
                 y1_xu = np.delete(y1, s)
                 lambda_hat_xu = (
-                    inv(np.dot(Fhat_1_xu.T, Fhat_1_xu)).dot(Fhat_1_xu.T).dot(y1_xu)
+                    inv(np.dot(Fhat_1_xu.T, Fhat_1_xu))
+                    .dot(Fhat_1_xu.T)
+                    .dot(y1_xu)
                 )
                 u1_hat_xu[s] = y1[s] - np.dot(Fhat_1[s, :], lambda_hat_xu)
             MSE[r - 1] = np.mean(u1_hat_xu**2)
@@ -292,9 +358,14 @@ class FMA:
         y1_hat = np.dot(F_hat1, b_hat)
         y2_hat = np.dot(F_hat2, b_hat)
         y_hat = np.concatenate((y1_hat, y2_hat))
-        attdict, fitdict, Vectors = effects.calculate(prepped["y"], y_hat, prepped["pre_periods"], prepped["post_periods"])
+        attdict, fitdict, Vectors = effects.calculate(
+            prepped["y"],
+            y_hat,
+            prepped["pre_periods"],
+            prepped["post_periods"],
+        )
         e1_hat = y1 - np.dot(F_hat1, b_hat)
-    
+
         # Create the dictionary of statistics
         sigma2_e_hat = np.mean(e1_hat**2)  # \hat sigma^2_e
         hat_eta = np.mean(F_hat2, axis=0)[:, np.newaxis]
@@ -319,14 +390,18 @@ class FMA:
         ATT = attdict["ATT"]
 
         # Calculate the bounds in one line each
-        cr005, cr995 = calculate_cr(0.005, ATT, AA), calculate_cr(0.995, ATT, AA)
-        cr025, cr975 = calculate_cr(0.025, ATT, AA), calculate_cr(0.975, ATT, AA)
+        cr005, cr995 = calculate_cr(0.005, ATT, AA), calculate_cr(
+            0.995, ATT, AA
+        )
+        cr025, cr975 = calculate_cr(0.025, ATT, AA), calculate_cr(
+            0.975, ATT, AA
+        )
         cr05, cr95 = calculate_cr(0.05, ATT, AA), calculate_cr(0.95, ATT, AA)
 
         # 95% CI and 90% CI
         c90FM = [cr05, cr95, cr95 - cr05]
         c95FM = [cr025, cr975, cr975 - cr025]
-        
+
         confidence_interval = (c95FM[1].item(), c95FM[2].item())
         t_stat = ATT / AA  # t-statistic
         # Calculate p-value using the t-statistic
@@ -336,18 +411,32 @@ class FMA:
             "SE": AA,
             "tstat": t_stat,
             "95% CI": confidence_interval,
-            "p_value": p_value
+            "p_value": p_value,
         }
         if self.display_graphs:
-        
-            plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treat,
-                           prepped["treated_unit_name"], prepped["y"], [y_hat], method="FMA",
-                           treatedcolor=self.treated_color, 
-                           counterfactualcolors=["red"],
-                           counterfactual_names=[f"FMA {prepped['treated_unit_name']}"], save=self.save)
-        
-        
-        return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference}
+
+            plot_estimates(
+                self.df,
+                self.time,
+                self.unitid,
+                self.outcome,
+                self.treat,
+                prepped["treated_unit_name"],
+                prepped["y"],
+                [y_hat],
+                method="FMA",
+                treatedcolor=self.treated_color,
+                counterfactualcolors=["red"],
+                counterfactual_names=[f"FMA {prepped['treated_unit_name']}"],
+                save=self.save,
+            )
+
+        return {
+            "Effects": attdict,
+            "Fit": fitdict,
+            "Vectors": Vectors,
+            "Inference": Inference,
+        }
 
 
 class PDA:
@@ -364,7 +453,7 @@ class PDA:
         ----------
         config : dict
             A dictionary containing the necessary parameters. The following keys are expected:
-            
+
             df : pandas.DataFrame
                 DataFrame containing the data.
             treat : str
@@ -388,7 +477,7 @@ class PDA:
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
             method : str, optional
-                Type of PDA to use, either 
+                Type of PDA to use, either
                 - "LASSO" (L1 Penalty),
                 - "l2" (L2-Relaxation),
                 - "fs" (Forward Selection), default.
@@ -399,7 +488,7 @@ class PDA:
             A dictionary containing the estimated treatment effects, fit metrics,
             and inference results depending on the selected PDA method.
 
-        References 
+        References
         ----------
         Shi, Z. & Huang, J. (2023). "Forward-selected panel data approach for program evaluation."
         *Journal of Econometrics*, Volume 234, Issue 2, Pages 512-535. DOI: https://doi.org/10.1016/j.jeconom.2021.04.009
@@ -426,13 +515,17 @@ class PDA:
 
         balance(self.df, self.unitid, self.time)
 
-        prepped = dataprep(self.df,
-                           self.unitid, self.time,
-                           self.outcome, self.treat)
+        prepped = dataprep(
+            self.df, self.unitid, self.time, self.outcome, self.treat
+        )
 
-        pdaest = pda(prepped,  len(prepped["donor_names"]), method=self.method)
-        attdict, fitdict, Vectors = effects.calculate(prepped["y"], pdaest['Vectors']['Counterfactual'], prepped["pre_periods"],
-                                                         prepped["post_periods"])
+        pdaest = pda(prepped, len(prepped["donor_names"]), method=self.method)
+        attdict, fitdict, Vectors = effects.calculate(
+            prepped["y"],
+            pdaest["Vectors"]["Counterfactual"],
+            prepped["pre_periods"],
+            prepped["post_periods"],
+        )
         est_method = pdaest.get("method")
 
         counterfactual_name = f'{est_method} {prepped["treated_unit_name"]}'
@@ -447,12 +540,12 @@ class PDA:
                 treatmentname=self.treat,
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
-                cf_list=[pdaest['Vectors']['Counterfactual']],
+                cf_list=[pdaest["Vectors"]["Counterfactual"]],
                 counterfactual_names=[counterfactual_name],
                 method=est_method,
                 treatedcolor=self.treated_color,
                 counterfactualcolors=[self.counterfactual_color],
-                save=self.save
+                save=self.save,
             )
 
         return pdaest
@@ -472,7 +565,7 @@ class FDID:
         ----------
         config : dict
             Dictionary containing the configuration options. The following keys are expected:
-            
+
             df : pandas.DataFrame
                 Dataframe containing the data.
             unitid : str
@@ -500,7 +593,7 @@ class FDID:
         -------
         dict
             A dictionary containing the following keys for each method (FDID, ADID, DID):
-            
+
             'Effects' : dict
                 ATTs: ATT, percent ATT, Standardized Effect Size
             'Fit' : dict
@@ -526,27 +619,28 @@ class FDID:
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
         self.display_graphs = config.get("display_graphs", True)
-        self.save= config.get("save", False)
-
+        self.save = config.get("save", False)
 
     def DID(self, y, datax, t1, itp=0):
         t = len(y)
 
-
-        x1, x2 = np.mean(datax[:t1], axis=1).reshape(-1,
-                                                     1), np.mean(datax[t1:t], axis=1).reshape(-1, 1)
+        x1, x2 = np.mean(datax[:t1], axis=1).reshape(-1, 1), np.mean(
+            datax[t1:t], axis=1
+        ).reshape(-1, 1)
         b_DID = np.mean(y[:t1] - x1, axis=0)  # DID intercept estimator
 
         y1_DID = b_DID + x1  # DID in-sample-fit
         y2_DID = b_DID + x2  # DID out-of-sample prediction
-        y_DID = np.vstack((y1_DID, y2_DID))  # Stack y1_DID and y2_DID vertically
+        y_DID = np.vstack(
+            (y1_DID, y2_DID)
+        )  # Stack y1_DID and y2_DID vertically
 
         y1_DID, y2_DID = y_DID[:t1], y_DID[t1:t]
 
-       # if hasattr(self, 'placebo_option'):
-           # t1 = self.realt1
+        # if hasattr(self, 'placebo_option'):
+        # t1 = self.realt1
         if itp > 0:
-            t1+itp
+            t1 + itp
 
         ATT_DID = np.mean(y[t1:t] - y_DID[t1:t])
         ATT_DID_percentage = 100 * ATT_DID / np.mean(y_DID[t1:t])
@@ -566,7 +660,7 @@ class FDID:
 
         Omega_1_hat_DID = (t2 / t1) * np.mean(u1_DID**2)
 
-        #print(f'({t2} / {t1}) * {np.mean(u1_DID ** 2)}')
+        # print(f'({t2} / {t1}) * {np.mean(u1_DID ** 2)}')
         Omega_2_hat_DID = np.mean(u1_DID**2)
 
         # \hat Sigma_{DID}
@@ -589,24 +683,26 @@ class FDID:
 
         z_critical = norm.ppf(0.975)  # 1.96 for a two-tailed test
 
-        #print(z_critical * std_Omega_hat_DID / np.sqrt(t2))
+        # print(z_critical * std_Omega_hat_DID / np.sqrt(t2))
 
         CI_95_DID_left = ATT_DID - z_critical * std_Omega_hat_DID / np.sqrt(t2)
-        #print(f"{ATT_DID} - {z_critical} * {std_Omega_hat_DID} / np.sqrt({t2})")
-        CI_95_DID_right = ATT_DID + z_critical * std_Omega_hat_DID / np.sqrt(t2)
+        # print(f"{ATT_DID} - {z_critical} * {std_Omega_hat_DID} / np.sqrt({t2})")
+        CI_95_DID_right = ATT_DID + z_critical * std_Omega_hat_DID / np.sqrt(
+            t2
+        )
         CI_95_DID_width = [
             CI_95_DID_left,
             CI_95_DID_right,
             CI_95_DID_right - CI_95_DID_left,
         ]
         if itp > 0:
-            t1-itp
+            t1 - itp
 
         # Metrics of fit subdictionary
         Fit_dict = {
             "T0 RMSE": round(np.std(y[:t1] - y_DID[:t1]), 3),
             "R-Squared": round(R2_DID, 3),
-            "Pre-Periods": t1
+            "Pre-Periods": t1,
         }
 
         # ATTS subdictionary
@@ -623,12 +719,12 @@ class FDID:
             "95 UB": round(CI_95_DID_right, 3),
             "Width": CI_95_DID_right - CI_95_DID_left,
             "SE": std_Omega_hat_DID,
-            "Intercept":  np.round(b_DID, 3),
+            "Intercept": np.round(b_DID, 3),
         }
 
         gap = y - y_DID
 
-        second_column = np.arange(gap.shape[0]) - t1+1
+        second_column = np.arange(gap.shape[0]) - t1 + 1
 
         gap_matrix = np.column_stack((gap, second_column))
 
@@ -636,7 +732,7 @@ class FDID:
         Vectors = {
             "Observed Unit": np.round(y, 3),
             "Counterfactual": np.round(y_DID, 3),
-            "Gap": np.round(gap_matrix, 3)
+            "Gap": np.round(gap_matrix, 3),
         }
 
         # Main dictionary
@@ -644,26 +740,32 @@ class FDID:
             "Effects": ATTS,
             "Vectors": Vectors,
             "Fit": Fit_dict,
-            "Inference": Inference
+            "Inference": Inference,
         }
 
         return DID_dict
 
     def AUGDID(self, datax, t, t1, t2, y, y1, y2):
 
-        const = np.ones(t)      # t by 1 vector of ones (for intercept)
+        const = np.ones(t)  # t by 1 vector of ones (for intercept)
         # add an intercept to control unit data matrix, t by N (N=11)
         x = np.column_stack([const, datax])
-        x1 = x[:t1, :]          # control units' pretreatment data matrix, t1 by N
-        x2 = x[t1:, :]          # control units' pretreatment data matrix, t2 by N
+        x1 = x[:t1, :]  # control units' pretreatment data matrix, t1 by N
+        x2 = x[t1:, :]  # control units' pretreatment data matrix, t2 by N
 
         # ATT estimation by ADID method
         x10 = datax[:t1, :]
         x20 = datax[t1:, :]
-        x1_ADID = np.column_stack([np.ones(x10.shape[0]), np.mean(x10, axis=1)])
-        x2_ADID = np.column_stack([np.ones(x20.shape[0]), np.mean(x20, axis=1)])
+        x1_ADID = np.column_stack(
+            [np.ones(x10.shape[0]), np.mean(x10, axis=1)]
+        )
+        x2_ADID = np.column_stack(
+            [np.ones(x20.shape[0]), np.mean(x20, axis=1)]
+        )
 
-        b_ADID = np.linalg.inv(x1_ADID.T @ x1_ADID) @ (x1_ADID.T @ y1)  # ADID estimate of delta
+        b_ADID = np.linalg.inv(x1_ADID.T @ x1_ADID) @ (
+            x1_ADID.T @ y1
+        )  # ADID estimate of delta
 
         y1_ADID = x1_ADID @ b_ADID  # t1 by 1 vector of ADID in-sample fit
         y2_ADID = x2_ADID @ b_ADID  # t2 by 1 vector of ADID prediction
@@ -682,7 +784,9 @@ class FDID:
         eta_ADID = np.mean(x2, axis=0).reshape(-1, 1)
         psi_ADID = x1.T @ x1 / t1
 
-        Omega_1_ADID = (sigma2_ADID * eta_ADID.T) @ np.linalg.pinv(psi_ADID) @ eta_ADID
+        Omega_1_ADID = (
+            (sigma2_ADID * eta_ADID.T) @ np.linalg.pinv(psi_ADID) @ eta_ADID
+        )
         Omega_2_ADID = sigma2_ADID
 
         Omega_ADID = (t2 / t1) * Omega_1_ADID + Omega_2_ADID  # Variance
@@ -697,7 +801,9 @@ class FDID:
         RMSE = np.sqrt(np.mean((y1 - y1_ADID) ** 2))
         RMSEPost = np.sqrt(np.mean((y2 - y2_ADID) ** 2))
 
-        R2_ADID = 1 - (np.mean((y1 - y1_ADID) ** 2)) / np.mean((y1 - np.mean(y1)) ** 2)
+        R2_ADID = 1 - (np.mean((y1 - y1_ADID) ** 2)) / np.mean(
+            (y1 - np.mean(y1)) ** 2
+        )
 
         # P-value for H0: ATT=0
 
@@ -713,7 +819,7 @@ class FDID:
         Fit_dict = {
             "T0 RMSE": round(np.std(y[:t1] - y_ADID[:t1]), 3),
             "R-Squared": round(R2_ADID, 3),
-            "T0": len(y[:t1])
+            "T0": len(y[:t1]),
         }
 
         # ATTS subdictionary
@@ -728,11 +834,11 @@ class FDID:
             "P-Value": round(p_value_aDID.item(), 3),
             "95 LB": round(CI_95_DID_left.item(), 3),
             "95 UB": round(CI_95_DID_right.item(), 3),
-            "Width": CI_95_DID_right - CI_95_DID_left
+            "Width": CI_95_DID_right - CI_95_DID_left,
         }
         gap = y - y_ADID
 
-        second_column = np.arange(gap.shape[0]) - t1+1
+        second_column = np.arange(gap.shape[0]) - t1 + 1
 
         gap_matrix = np.column_stack((gap, second_column))
 
@@ -740,7 +846,7 @@ class FDID:
         Vectors = {
             "Observed Unit": np.round(y, 3),
             "Counterfactual": np.round(y_ADID, 3),
-            "Gap": np.round(gap_matrix, 3)
+            "Gap": np.round(gap_matrix, 3),
         }
 
         # Main dictionary
@@ -748,7 +854,7 @@ class FDID:
             "Effects": ATTS,
             "Vectors": Vectors,
             "Fit": Fit_dict,
-            "Inference": Inference
+            "Inference": Inference,
         }
 
         return ADID_dict, y_ADID
@@ -757,7 +863,7 @@ class FDID:
 
         FDID_dict = self.DID(y.reshape(-1, 1), control, t1)
 
-        y_FDID = FDID_dict['Vectors']['Counterfactual']
+        y_FDID = FDID_dict["Vectors"]["Counterfactual"]
 
         DID_dict = self.DID(y.reshape(-1, 1), datax, t1)
 
@@ -765,8 +871,12 @@ class FDID:
         time_points = np.arange(1, len(y) + 1)
 
         # Calculate the ratio of widths for DID and AUGDID compared to FDID
-        ratio_DID = DID_dict["Inference"]["Width"] / FDID_dict["Inference"]["Width"]
-        ratio_AUGDID = AUGDID_dict["Inference"]["Width"] / FDID_dict["Inference"]["Width"]
+        ratio_DID = (
+            DID_dict["Inference"]["Width"] / FDID_dict["Inference"]["Width"]
+        )
+        ratio_AUGDID = (
+            AUGDID_dict["Inference"]["Width"] / FDID_dict["Inference"]["Width"]
+        )
 
         # Add the new elements to the Inference dictionaries
         DID_dict["Inference"]["WidthRFDID"] = ratio_DID
@@ -792,8 +902,14 @@ class FDID:
             R2 = np.zeros(len(left))
 
             for jj, control_idx in enumerate(left):
-                # Combine previously selected controls with the current candidate
-                combined_control = np.hstack((selected_controls[:t, :], datax[:, control_idx].reshape(-1, 1)))
+                # Combine previously selected controls with the current
+                # candidate
+                combined_control = np.hstack(
+                    (
+                        selected_controls[:t, :],
+                        datax[:, control_idx].reshape(-1, 1),
+                    )
+                )
 
                 # Estimate DiD and compute R-squared for this combination
                 ResultDict = self.DID(y_reshaped, combined_control, t1)
@@ -805,34 +921,49 @@ class FDID:
             best_new_control = left[np.argmax(R2)]
             select_c[k] = best_new_control
 
-
             # Update the selected controls matrix with the new control
-            selected_controls = np.hstack((selected_controls, datax[:, best_new_control].reshape(-1, 1)))
+            selected_controls = np.hstack(
+                (selected_controls, datax[:, best_new_control].reshape(-1, 1))
+            )
         # Get the index of the model with the highest R2
         best_model_idx = R2final.argmax()
-        Uhat = datax[:, select_c[:best_model_idx + 1]]
+        Uhat = datax[:, select_c[: best_model_idx + 1]]
 
-        return select_c[:best_model_idx + 1], R2final, Uhat
+        return select_c[: best_model_idx + 1], R2final, Uhat
 
     def fit(self):
 
         balance(self.df, self.unitid, self.time)
-        
-        prepped = dataprep(self.df,
-                           self.unitid, self.time,
-                           self.outcome, self.treated)
 
-        y1 = np.ravel(prepped["y"][:prepped["pre_periods"]])
+        prepped = dataprep(
+            self.df, self.unitid, self.time, self.outcome, self.treated
+        )
+
+        y1 = np.ravel(prepped["y"][: prepped["pre_periods"]])
         y2 = np.ravel(prepped["y"][-prepped["post_periods"]:])
 
         selected, R2_final, Uhat = self.selector(
-            prepped["donor_matrix"].shape[1], prepped["pre_periods"], prepped["total_periods"], prepped["y"], prepped["donor_matrix"],  np.arange(1, prepped["donor_matrix"].shape[1] + 1)
+            prepped["donor_matrix"].shape[1],
+            prepped["pre_periods"],
+            prepped["total_periods"],
+            prepped["y"],
+            prepped["donor_matrix"],
+            np.arange(1, prepped["donor_matrix"].shape[1] + 1),
         )
 
-        selected_controls = prepped["donor_names"].take(selected.tolist()).tolist()
+        selected_controls = (
+            prepped["donor_names"].take(selected.tolist()).tolist()
+        )
 
         FDID_dict, DID_dict, AUGDID_dict, y_FDID = self.est(
-            Uhat, prepped["total_periods"], prepped["pre_periods"], prepped["post_periods"], prepped["y"], y1, y2, prepped["donor_matrix"]
+            Uhat,
+            prepped["total_periods"],
+            prepped["pre_periods"],
+            prepped["post_periods"],
+            prepped["y"],
+            y1,
+            y2,
+            prepped["donor_matrix"],
         )
 
         estimators_results = []
@@ -843,8 +974,7 @@ class FDID:
         # Create the dictionary
         unit_weights = {unit: weight for unit in selected_controls}
 
-        FDID_dict['Weights'] = unit_weights
-
+        FDID_dict["Weights"] = unit_weights
 
         estimators_results.append({"FDID": FDID_dict})
 
@@ -857,7 +987,9 @@ class FDID:
             for key, value in input_dict.items():
                 if isinstance(value, dict):
                     # Recursively round nested dictionaries
-                    rounded_dict[key] = round_dict_values(value, decimal_places)
+                    rounded_dict[key] = round_dict_values(
+                        value, decimal_places
+                    )
                 elif isinstance(value, (int, float, np.float64)):
                     # Round numeric values
                     rounded_dict[key] = round(value, decimal_places)
@@ -867,9 +999,21 @@ class FDID:
 
         if self.display_graphs:
 
-            plot_estimates(self.df, self.time, self.unitid, self.outcome, self.treated,
-                           prepped["treated_unit_name"], prepped["y"], [y_FDID], method="FDID", counterfactual_names=["FDID "+prepped["treated_unit_name"]],
-                           treatedcolor=self.treated_color, save=self.save, counterfactualcolors=[self.counterfactual_color])
+            plot_estimates(
+                self.df,
+                self.time,
+                self.unitid,
+                self.outcome,
+                self.treated,
+                prepped["treated_unit_name"],
+                prepped["y"],
+                [y_FDID],
+                method="FDID",
+                counterfactual_names=["FDID " + prepped["treated_unit_name"]],
+                treatedcolor=self.treated_color,
+                save=self.save,
+                counterfactualcolors=[self.counterfactual_color],
+            )
 
         return estimators_results
 
@@ -942,29 +1086,35 @@ class GSC:
     def fit(self):
 
         balance(self.df, self.unitid, self.time)
-        
-        prepped = dataprep(self.df,
-                           self.unitid, self.time,
-                           self.outcome, self.treat)
+
+        prepped = dataprep(
+            self.df, self.unitid, self.time, self.outcome, self.treat
+        )
         treatedunit = set(self.df.loc[self.df[self.treat] == 1, self.unitid])
-        
+
         Ywide = prepped["Ywide"].T
 
         # Filter the row indices of Ywide using treatedunit
-        row_indices_of_treatedunit = Ywide.index[Ywide.index == prepped["treated_unit_name"]]
+        row_indices_of_treatedunit = Ywide.index[
+            Ywide.index == prepped["treated_unit_name"]
+        ]
 
         # Get the row index numbers corresponding to the treated units
-        treatrow = [Ywide.index.get_loc(idx) for idx in row_indices_of_treatedunit][0]
+        treatrow = [
+            Ywide.index.get_loc(idx) for idx in row_indices_of_treatedunit
+        ][0]
 
         Z = np.zeros_like(Ywide.to_numpy())
 
-        n, p = prepped["donor_matrix"][:prepped["pre_periods"]].shape
+        n, p = prepped["donor_matrix"][: prepped["pre_periods"]].shape
         k = (min(n, p) - 1) // 2
 
-        #Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(prepped["donor_matrix"][:prepped["pre_periods"]], k, strategy='i')
+        # Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(prepped["donor_matrix"][:prepped["pre_periods"]], k, strategy='i')
 
         Z[treatrow, -prepped["post_periods"]:] = 1
-        result = DC_PR_with_suggested_rank(Ywide.to_numpy(), Z, suggest_r=rank, method='non-convex')
+        result = DC_PR_with_suggested_rank(
+            Ywide.to_numpy(), Z, suggest_r=rank, method="non-convex"
+        )
 
         if self.display_graphs:
             plot_estimates(
@@ -975,13 +1125,12 @@ class GSC:
                 treatmentname=self.treat,
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
-                cf_list=[result['Vectors']['Counterfactual']],
+                cf_list=[result["Vectors"]["Counterfactual"]],
                 counterfactual_names=["GSC"],
                 method="GSC",
                 treatedcolor=self.treated_color,
-                counterfactualcolors=[self.counterfactual_color]
+                counterfactualcolors=[self.counterfactual_color],
             )
-        
 
         return result
 
@@ -1022,12 +1171,12 @@ class CLUSTERSC:
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-                
+
         Returns
         -------
         dict
             A dictionary containing results for both RPCA-SC and PCR methods, with the following keys:
-            
+
             'Weights' : dict
                 Weights assigned to control units in the synthetic control model.
             'Effects' : dict
@@ -1047,7 +1196,6 @@ class CLUSTERSC:
         *CUNY Academic Works*.
         """
 
-
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
@@ -1060,14 +1208,13 @@ class CLUSTERSC:
         self.objective = config.get("objective", "OLS")
         self.cluster = config.get("cluster", True)
 
-
     def fit(self):
-        
+
         balance(self.df, self.unitid, self.time)
-        
-        prepped = dataprep(self.df,
-                           self.unitid, self.time,
-                           self.outcome, self.treat)
+
+        prepped = dataprep(
+            self.df, self.unitid, self.time, self.outcome, self.treat
+        )
 
         # Run PCR with the cluster parameter
         RSCweight, synth = pcr(
@@ -1076,37 +1223,57 @@ class CLUSTERSC:
             self.objective,
             prepped["donor_names"],
             prepped["donor_matrix"],
-            pre = prepped["pre_periods"],
-            cluster=self.cluster  # Use the cluster parameter
+            pre=prepped["pre_periods"],
+            cluster=self.cluster,  # Use the cluster parameter
         )
         RSCweight = {key: round(value, 3) for key, value in RSCweight.items()}
 
         # Calculate effects
         attdict, fitdict, Vectors = effects.calculate(
-            prepped["y"], synth, prepped["pre_periods"], prepped["post_periods"]
+            prepped["y"],
+            synth,
+            prepped["pre_periods"],
+            prepped["post_periods"],
         )
 
-        RSCdict = {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Weights": RSCweight}
+        RSCdict = {
+            "Effects": attdict,
+            "Fit": fitdict,
+            "Vectors": Vectors,
+            "Weights": RSCweight,
+        }
 
         # Pivot the DataFrame to wide format
         trainframe = self.df.pivot_table(
-            index=self.unitid, columns=self.time, values=self.outcome, sort=False
+            index=self.unitid,
+            columns=self.time,
+            values=self.outcome,
+            sort=False,
         )
 
         # Extract pre-treatment period data
-        X = trainframe.iloc[:, :prepped["pre_periods"]]
+        X = trainframe.iloc[:, : prepped["pre_periods"]]
 
         # Perform functional PCA and clustering
         optimal_clusters, cluster_x, numvals = fpca(X)
-        kmeans = KMeans(n_clusters=optimal_clusters, random_state=0, init="k-means++", algorithm="elkan")
+        kmeans = KMeans(
+            n_clusters=optimal_clusters,
+            random_state=0,
+            init="k-means++",
+            algorithm="elkan",
+        )
         trainframe["cluster"] = kmeans.fit_predict(cluster_x)
 
         # Identify treated unit's cluster and filter corresponding units
         treat_cluster = trainframe.at[prepped["treated_unit_name"], "cluster"]
-        clustered_units = trainframe[trainframe["cluster"] == treat_cluster].drop("cluster", axis=1)
+        clustered_units = trainframe[
+            trainframe["cluster"] == treat_cluster
+        ].drop("cluster", axis=1)
 
         # Extract treated unit row and control group matrix
-        treated_row_idx = clustered_units.index.get_loc(prepped["treated_unit_name"])
+        treated_row_idx = clustered_units.index.get_loc(
+            prepped["treated_unit_name"]
+        )
         Y = clustered_units.to_numpy()
         y = Y[treated_row_idx]
         Y0 = np.delete(Y, treated_row_idx, axis=0)
@@ -1117,15 +1284,15 @@ class CLUSTERSC:
         m, n = Y0.shape
         lambda_1 = 1 / np.sqrt(max(m, n))
 
-        #L = RPCA_HQF(Y0, rank, maxiter=3000, ip=2, lam_1=lambda_1)
+        # L = RPCA_HQF(Y0, rank, maxiter=3000, ip=2, lam_1=lambda_1)
 
         # Optimize synthetic control weights using pre-period data
         beta_value = Opt.SCopt(
             len(Y0),
-            prepped["y"][:prepped["pre_periods"]],
+            prepped["y"][: prepped["pre_periods"]],
             prepped["pre_periods"],
-            L[:, :prepped["pre_periods"]].T,
-            model="MSCb"
+            L[:, : prepped["pre_periods"]].T,
+            model="MSCb",
         )
 
         # Calculate synthetic control predictions
@@ -1133,12 +1300,28 @@ class CLUSTERSC:
         beta_value = np.round(beta_value, 3)
 
         # Create a dictionary of non-zero weights
-        unit_names = [name for name in clustered_units.index if name != prepped["treated_unit_name"]]
-        Rweights_dict = {name: weight for name, weight in zip(unit_names, beta_value)}
+        unit_names = [
+            name
+            for name in clustered_units.index
+            if name != prepped["treated_unit_name"]
+        ]
+        Rweights_dict = {
+            name: weight for name, weight in zip(unit_names, beta_value)
+        }
 
-        Rattdict, Rfitdict, RVectors = effects.calculate(prepped["y"], y_RPCA, prepped["pre_periods"], prepped["post_periods"])
+        Rattdict, Rfitdict, RVectors = effects.calculate(
+            prepped["y"],
+            y_RPCA,
+            prepped["pre_periods"],
+            prepped["post_periods"],
+        )
 
-        RPCAdict = {"Effects": Rattdict, "Fit": Rfitdict, "Vectors": RVectors, "Weights": Rweights_dict}
+        RPCAdict = {
+            "Effects": Rattdict,
+            "Fit": Rfitdict,
+            "Vectors": RVectors,
+            "Weights": Rweights_dict,
+        }
 
         # Call the function
         if self.display_graphs:
@@ -1151,14 +1334,16 @@ class CLUSTERSC:
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
                 cf_list=[y_RPCA, synth],
-                counterfactual_names=["RPCA Synth", "Robust Synthetic Control"],
+                counterfactual_names=[
+                    "RPCA Synth",
+                    "Robust Synthetic Control",
+                ],
                 method="CLUSTERSC",
                 treatedcolor="black",
                 counterfactualcolors=["blue", "red"],
-                save=self.save
+                save=self.save,
             )
 
         ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
 
         return ClustSCdict
-

@@ -18,7 +18,7 @@ setup(
         "scikit-learn",
         "statsmodels",
         "cvxpy",
-        "screenot"
+        "screenot",
     ],
     classifiers=[  # Metadata about the package
         "Programming Language :: Python :: 3",

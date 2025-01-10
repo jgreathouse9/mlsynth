@@ -5,21 +5,21 @@ import os
 
 # matplotlib theme
 jared_theme = {
-    'axes.grid': False,
-    'grid.linestyle': '-',
-    'grid.color': 'black',
-    'legend.framealpha': 1,
-    'legend.facecolor': 'white',
-    'legend.shadow': True,
-    'legend.fontsize': 14,
-    'legend.title_fontsize': 16,
-    'xtick.labelsize': 14,
-    'ytick.labelsize': 14,
-    'axes.labelsize': 16,
-    'axes.titlesize': 20,
-    'figure.dpi': 100,
-    'axes.facecolor': 'white',
-    'figure.figsize': (10, 6)
+    "axes.grid": False,
+    "grid.linestyle": "-",
+    "grid.color": "black",
+    "legend.framealpha": 1,
+    "legend.facecolor": "white",
+    "legend.shadow": True,
+    "legend.fontsize": 14,
+    "legend.title_fontsize": 16,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14,
+    "axes.labelsize": 16,
+    "axes.titlesize": 20,
+    "figure.dpi": 100,
+    "axes.facecolor": "white",
+    "figure.figsize": (10, 6),
 }
 
 matplotlib.rcParams.update(jared_theme)
@@ -32,19 +32,27 @@ def get_edited_frames(stub_url, urls, base_dict):
         subdf = pd.read_csv(stub_url + url)
 
         # Keep only the specified columns
-        subdf = subdf[params['Columns']]
+        subdf = subdf[params["Columns"]]
 
         # Ensure the time column is of integer type
-        subdf[params['Time']] = subdf[params['Time']].astype(int)
+        subdf[params["Time"]] = subdf[params["Time"]].astype(int)
 
         # Generate the treatment variable
-        subdf[params["Treatment Name"]] = (subdf[params["Panel"]].str.contains(params["Treated Unit"])) & \
-                                          (subdf[params["Time"]] >= params["Treatment Time"])
+        subdf[params["Treatment Name"]] = (
+            subdf[params["Panel"]].str.contains(params["Treated Unit"])
+        ) & (subdf[params["Time"]] >= params["Treatment Time"])
 
         # Handle specific case for Basque dataset
-        if key == "Basque" and "Spain (Espana)" in subdf[params["Panel"]].values:
-            subdf = subdf[~subdf[params["Panel"]].str.contains("Spain \\(Espana\\)")]
-            subdf.loc[subdf['regionname'].str.contains('Vasco'), 'regionname'] = 'Basque'
+        if (
+            key == "Basque"
+            and "Spain (Espana)" in subdf[params["Panel"]].values
+        ):
+            subdf = subdf[
+                ~subdf[params["Panel"]].str.contains("Spain \\(Espana\\)")
+            ]
+            subdf.loc[
+                subdf["regionname"].str.contains("Vasco"), "regionname"
+            ] = "Basque"
 
         # Append the edited DataFrame to the list
         edited_frames.append(subdf)
@@ -53,39 +61,43 @@ def get_edited_frames(stub_url, urls, base_dict):
 
 
 # Example usage
-stub_url = 'https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/'
+stub_url = "https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/"
 
 base_dict = {
     "Basque": {
-        "Columns": ['regionname', 'year', 'gdpcap'],
+        "Columns": ["regionname", "year", "gdpcap"],
         "Treatment Time": 1975,
         "Treatment Name": "Terrorism",
         "Treated Unit": "Vasco",
         "Time": "year",
-        "Panel": 'regionname',
-        "Outcome": "gdpcap"
+        "Panel": "regionname",
+        "Outcome": "gdpcap",
     },
     "Germany": {
-        "Columns": ['country', 'year', 'gdp'],
+        "Columns": ["country", "year", "gdp"],
         "Treatment Time": 1990,
         "Treatment Name": "Reunification",
         "Treated Unit": "Germany",
         "Time": "year",
-        "Panel": 'country',
-        "Outcome": "gdp"
+        "Panel": "country",
+        "Outcome": "gdp",
     },
     "Smoking": {
-        "Columns": ['state', 'year', 'cigsale'],
+        "Columns": ["state", "year", "cigsale"],
         "Treatment Time": 1989,
         "Treatment Name": "Proposition 99",
         "Treated Unit": "California",
         "Time": "year",
-        "Panel": 'state',
-        "Outcome": "cigsale"
-    }
+        "Panel": "state",
+        "Outcome": "cigsale",
+    },
 }
 
-edited_frames = get_edited_frames(stub_url, ['basque_data.csv', 'german_reunification.csv', 'smoking_data.csv'], base_dict)
+edited_frames = get_edited_frames(
+    stub_url,
+    ["basque_data.csv", "german_reunification.csv", "smoking_data.csv"],
+    base_dict,
+)
 
 number = 1
 df = edited_frames[number]
@@ -108,7 +120,7 @@ treatment_name = selected_dict["Treatment Name"]
 unitid = df.columns[0]
 time = df.columns[1]
 outcome = df.columns[2]
-treat =  selected_dict["Treatment Name"]
+treat = selected_dict["Treatment Name"]
 
 new_directory = os.path.join(os.getcwd(), "examples")
 os.chdir(new_directory)
@@ -120,11 +132,7 @@ save_directory = os.path.join(os.getcwd(), "clustersc")
 if not os.path.exists(save_directory):
     os.makedirs(save_directory)
 
-save={
-        "filename": "German",
-        "extension": "png",
-        "directory": save_directory
-}
+save = {"filename": "German", "extension": "png", "directory": save_directory}
 
 config = {
     "df": df,
@@ -136,15 +144,14 @@ config = {
     "treated_color": "black",
     "display_graphs": True,
     "save": save,
-    "cluster": False
-
+    "cluster": False,
 }
 
 model = CLUSTERSC(config)
 
 asc = model.fit()
 
-keys = ['Effects', 'Fit', 'Weights']
+keys = ["Effects", "Fit", "Weights"]
 
 for key in keys:
     print(f"\n{key}:")

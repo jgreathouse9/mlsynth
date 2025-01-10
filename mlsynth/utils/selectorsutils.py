@@ -23,7 +23,7 @@ def SVDCluster(X, y, donor_names):
         selected_donor_names (list): Names of donors in the treated cluster.
     """
     # Stack treated unit with donor matrix and perform SVD
-    fully = np.hstack((y[:X.shape[0]].reshape(-1, 1), X)).T
+    fully = np.hstack((y[: X.shape[0]].reshape(-1, 1), X)).T
     Y0_rank, _, u_rank, s_rank, _ = svt(fully)
     # Compute embeddings for clustering
     u_embeddings = u_rank * s_rank  # Scale rows by singular values
@@ -31,13 +31,20 @@ def SVDCluster(X, y, donor_names):
     # Determine the optimal number of clusters using silhouette scores
     max_clusters = len(donor_names)
     silhouette_scores = [
-        silhouette_score(u_embeddings, KMeans(n_clusters=k, random_state=42).fit_predict(u_embeddings))
+        silhouette_score(
+            u_embeddings,
+            KMeans(n_clusters=k, random_state=42).fit_predict(u_embeddings),
+        )
         for k in range(2, max_clusters + 1)
     ]
-    optimal_clusters = silhouette_scores.index(max(silhouette_scores)) + 2  # Adjust index for minimum clusters
+    optimal_clusters = (
+        silhouette_scores.index(max(silhouette_scores)) + 2
+    )  # Adjust index for minimum clusters
 
     # Perform k-means clustering with the optimal number of clusters
-    kmeans = KMeans(n_clusters=optimal_clusters, random_state=42, init='k-means++').fit(u_embeddings)
+    kmeans = KMeans(
+        n_clusters=optimal_clusters, random_state=42, init="k-means++"
+    ).fit(u_embeddings)
     clusters = kmeans.labels_
 
     # Identify the cluster of the treated unit
@@ -45,14 +52,15 @@ def SVDCluster(X, y, donor_names):
 
     # Get donor indices and names for the treated cluster
     selected_indices = np.where(clusters == treated_cluster)[0]
-    selected_indices = selected_indices[selected_indices != 0] - 1  # Exclude treated unit
+    selected_indices = (
+        selected_indices[selected_indices != 0] - 1
+    )  # Exclude treated unit
     selected_donor_names = [donor_names[i] for i in selected_indices]
 
     # Subset the donor matrix
     X_sub = X[:, selected_indices]
 
     return X_sub, selected_donor_names, selected_indices
-
 
 
 def determine_optimal_clusters(X):
@@ -64,11 +72,13 @@ def determine_optimal_clusters(X):
     max_clusters = min(10, X.shape[0])
 
     for num_clusters in range(2, max_clusters + 1):
-        kmeans = KMeans(n_clusters=num_clusters, random_state=0, init='k-means++')  #
+        kmeans = KMeans(
+            n_clusters=num_clusters, random_state=0, init="k-means++"
+        )  #
         cluster_labels = kmeans.fit_predict(X)
         silhouette_avg = silhouette_score(X, cluster_labels)
         silhouette_scores.append(silhouette_avg)
-    optimal_clusters = np.argmax(silhouette_scores)+2
+    optimal_clusters = np.argmax(silhouette_scores) + 2
     return optimal_clusters
 
 
@@ -94,9 +104,9 @@ def fpca(X):
 
     (n1, n2) = Xfun.T.shape
     ratio = min(n1, n2) / max(n1, n2)
-    usvtrank = universal_rank(S,ratio =ratio)
-    specrank = spectral_rank(S,t=.95)
-    X_pca = X_pca[:, : specrank]
+    usvtrank = universal_rank(S, ratio=ratio)
+    specrank = spectral_rank(S, t=0.95)
+    X_pca = X_pca[:, :specrank]
 
     # Scale PCA scores
     cluster_x = (X_pca - np.mean(X_pca, axis=0)) / np.std(X_pca, axis=0)
@@ -104,7 +114,7 @@ def fpca(X):
     # Determine the optimal number of clusters
     optimal_clusters = determine_optimal_clusters(cluster_x)
 
-    return optimal_clusters, cluster_x,  specrank
+    return optimal_clusters, cluster_x, specrank
 
 
 def PDAfs(y, donormatrix, t1, t, N):
@@ -156,14 +166,18 @@ def PDAfs(y, donormatrix, t1, t, N):
 
         # Step 4: Calculate SSE for remaining donor units
         for j in range(len(left)):
-            X = np.column_stack((np.ones(t1), y0_t1[:, select], y0_t1_left[:, j]))
+            X = np.column_stack(
+                (np.ones(t1), y0_t1[:, select], y0_t1_left[:, j])
+            )
             b = inv(X.T @ X) @ X.T @ y1_t1
             SSE = (X @ b).T @ (X @ b)
             R2[j] = SSE
 
         # Step 5: Select the donor unit with the minimum SSE
         index = left[np.argmax(R2)]
-        select = np.append(select, index)  # Add selected donor unit to the list
+        select = np.append(
+            select, index
+        )  # Add selected donor unit to the list
 
         k = len(select)  # Number of selected donor units
 
@@ -182,6 +196,5 @@ def PDAfs(y, donormatrix, t1, t, N):
         "model_coefficients": b,
         "Q_new": Q_new,
         "sigma_sq": sigma_sq,
-        "y_hat": y_hat
+        "y_hat": y_hat,
     }
-

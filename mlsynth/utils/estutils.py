@@ -2,7 +2,11 @@ import numpy as np
 import cvxpy as cp
 from mlsynth.utils.denoiseutils import universal_rank, svt
 from mlsynth.utils.resultutils import effects
-from mlsynth.utils.selectorsutils import determine_optimal_clusters, SVDCluster, PDAfs
+from mlsynth.utils.selectorsutils import (
+    determine_optimal_clusters,
+    SVDCluster,
+    PDAfs,
+)
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.model_selection import KFold
@@ -39,7 +43,9 @@ def compute_hac_variance(treatment_effects, truncation_lag):
     return variance
 
 
-def compute_t_stat_and_ci(att, treatment_effects, truncation_lag, confidence_level=0.95):
+def compute_t_stat_and_ci(
+    att, treatment_effects, truncation_lag, confidence_level=0.95
+):
     """
     Compute the t-statistic and confidence interval for ATT.
 
@@ -153,7 +159,9 @@ def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
             float: MSE on the validation set.
         """
         # Train L2-relaxation on the first half of the data
-        coefficients, intercept, _ = l2_relax(half_n, treated_train, X_train, tau)
+        coefficients, intercept, _ = l2_relax(
+            half_n, treated_train, X_train, tau
+        )
 
         # Add intercept to the predictions on the validation set
         predictions = X_val @ coefficients + intercept
@@ -161,7 +169,6 @@ def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
         # Compute Mean Squared Error (MSE) on the validation set
         mse = np.mean((treated_val - predictions) ** 2)
         return mse
-
 
     n = len(treated_unit)
     half_n = n // 2
@@ -205,26 +212,37 @@ def ci_bootstrap(b, Nco, x, y, t1, nb, att, method, y_counterfactual):
     """
 
     t = len(y_counterfactual)
-    m = t1-5
+    m = t1 - 5
 
-    t2 =  t-t1
+    t2 = t - t1
 
     zz1 = np.concatenate((x[:t1], y[:t1].reshape(-1, 1)), axis=1)
     # Confidence Intervals
     sigma_MSC = np.sqrt(np.mean((y[:t1] - y_counterfactual[:t1]) ** 2))
 
-    sigma2_v = np.mean((y[t1:] - y_counterfactual[t1:] - np.mean(y[t1:] - y_counterfactual[t1:])) ** 2)  # \hat \Sigma_v
+    sigma2_v = np.mean(
+        (
+            y[t1:]
+            - y_counterfactual[t1:]
+            - np.mean(y[t1:] - y_counterfactual[t1:])
+        )
+        ** 2
+    )  # \hat \Sigma_v
 
-    e1_star = np.sqrt(sigma2_v) * np.random.randn(t2, nb)  # e_{1t}^* iid N(0, \Sigma^2_v)
+    e1_star = np.sqrt(sigma2_v) * np.random.randn(
+        t2, nb
+    )  # e_{1t}^* iid N(0, \Sigma^2_v)
     A_star = np.zeros(nb)
 
-    x2 = x[t1 + 1: t, :]
+    x2 = x[t1 + 1 : t, :]
 
     np.random.seed(1476)
 
     for g in range(nb):
 
-        np.random.shuffle(zz1)  # the random generator does not repeat the same number
+        np.random.shuffle(
+            zz1
+        )  # the random generator does not repeat the same number
 
         zm = zz1[:m, :]  # randomly select m rows from z1_{T_1 by (N+1)}
         xm = zm[:, :-1]  # it uses the last m observation
@@ -238,12 +256,16 @@ def ci_bootstrap(b, Nco, x, y, t1, nb, att, method, y_counterfactual):
 
         bm = Opt.SCopt(Nco, ym[:t1], t1, xm[:t1], model=method)
 
-        A1_star = -np.mean(np.dot(x2, (bm - b))) * np.sqrt((t2 * m) / t1)  # A_1^*
+        A1_star = -np.mean(np.dot(x2, (bm - b))) * np.sqrt(
+            (t2 * m) / t1
+        )  # A_1^*
         A2_star = np.sqrt(t2) * np.mean(e1_star[:, g])
         A_star[g] = A1_star + A2_star  # A^* = A_1^* + A_2^*
 
     # end of the subsampling-bootstrap loop
-    ATT_order = np.sort(A_star / np.sqrt(t2))  # sort subsampling ATT by ascending order
+    ATT_order = np.sort(
+        A_star / np.sqrt(t2)
+    )  # sort subsampling ATT by ascending order
 
     c005 = ATT_order[int(0.005 * nb)]  # compute critical values
     c025 = ATT_order[int(0.025 * nb)]
@@ -266,6 +288,7 @@ def ci_bootstrap(b, Nco, x, y, t1, nb, att, method, y_counterfactual):
 
     return cr_025_0975
 
+
 def TSEST(x, y, t1, nb, donornames, t2):
     # Define a list to store dictionaries for each method
     fit_dicts_list = []
@@ -282,7 +305,11 @@ def TSEST(x, y, t1, nb, donornames, t2):
 
         b = Opt.SCopt(Nco, y[:t1], t1, x[:t1], model=method)
 
-        weights_dict = {donor: weight for donor, weight in zip(donornames, np.round(b, 4)) if weight > 0.001}
+        weights_dict = {
+            donor: weight
+            for donor, weight in zip(donornames, np.round(b, 4))
+            if weight > 0.001
+        }
 
         if method in ["MSCa"]:
             x = np.c_[np.ones((x.shape[0], 1)), x]
@@ -293,20 +320,23 @@ def TSEST(x, y, t1, nb, donornames, t2):
         # Calculate the counterfactual outcome
         y_counterfactual = x.dot(b)
 
-        attdict, fitdict, Vectors = effects.calculate(y, y_counterfactual, t1, t2)
+        attdict, fitdict, Vectors = effects.calculate(
+            y, y_counterfactual, t1, t2
+        )
 
         att = attdict["ATT"]
 
         cis = ci_bootstrap(b, Nco, x, y, t1, nb, att, method, y_counterfactual)
 
         # Create Fit_dict for the specific method
-        fit_dict = {"Fit": fitdict,
-                    "Effects": attdict,
-                    "95% CI": cis,
-                    "Vectors": Vectors,
-                    "WeightV": np.round(b, 3),
-                    "Weights": weights_dict
-                    }
+        fit_dict = {
+            "Fit": fitdict,
+            "Effects": attdict,
+            "95% CI": cis,
+            "Vectors": Vectors,
+            "WeightV": np.round(b, 3),
+            "Weights": weights_dict,
+        }
 
         # Append fit_dict to the list
         fit_dicts_list.append({method: fit_dict})
@@ -315,28 +345,48 @@ def TSEST(x, y, t1, nb, donornames, t2):
 
 
 def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False):
-    #n, p = X[:pre].shape
-    #k = (min(n, p) - 1) // 2
-    #Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(X[:pre], k, strategy='0')
+    # n, p = X[:pre].shape
+    # k = (min(n, p) - 1) // 2
+    # Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(X[:pre], k, strategy='0')
 
     # Perform SVT on the original donor matrix
     Y0_rank, n2, u_rank, s_rank, v_rank = svt(X[:pre])
 
     if cluster:
-        X_sub, selected_donor_names, indices = SVDCluster(X[:pre], y, donor_names)
+        X_sub, selected_donor_names, indices = SVDCluster(
+            X[:pre], y, donor_names
+        )
         Y0_rank, n2, u_rank, s_rank, v_rank = svt(X_sub[:pre])
         # Estimate synthetic control weights
-        weights = Opt.SCopt(Y0_rank.shape[1], y[:pre], X_sub.shape[0], Y0_rank, model=objective, donor_names=donor_names)
+        weights = Opt.SCopt(
+            Y0_rank.shape[1],
+            y[:pre],
+            X_sub.shape[0],
+            Y0_rank,
+            model=objective,
+            donor_names=donor_names,
+        )
 
-        weights_dict = {selected_donor_names[i]: weights[i] for i in range(len(weights))}
+        weights_dict = {
+            selected_donor_names[i]: weights[i] for i in range(len(weights))
+        }
 
         return weights_dict, np.dot(X[:, indices], weights)
     else:
         # Default to the full low-rank approximation
-        #Y0_rank = np.dot(u_rank, np.dot(np.diag(s_rank), v_rank))
-        weights = Opt.SCopt(n2, y[:pre], X.shape[0], Y0_rank, model=objective, donor_names=donor_names)
+        # Y0_rank = np.dot(u_rank, np.dot(np.diag(s_rank), v_rank))
+        weights = Opt.SCopt(
+            n2,
+            y[:pre],
+            X.shape[0],
+            Y0_rank,
+            model=objective,
+            donor_names=donor_names,
+        )
 
-        weights_dict = {donor_names[i]: weights[i] for i in range(len(weights))}
+        weights_dict = {
+            donor_names[i]: weights[i] for i in range(len(weights))
+        }
         return weights_dict, np.dot(X, weights)
 
 
@@ -346,7 +396,9 @@ class Opt:
 
         # Check if matrix dimensions allow multiplication
         if X.shape[0] != y.shape[0]:
-            raise ValueError("Number of columns in X must be equal to the number of rows in y.")
+            raise ValueError(
+                "Number of columns in X must be equal to the number of rows in y."
+            )
 
         if model in ["MSCa", "MSCc"]:
             Nco += 1
@@ -368,9 +420,13 @@ class Opt:
 
         # Define the constraints based on the selected method
         if model == "SIMPLEX":
-            constraints.append(cp.sum(beta) == 1)  # Sum constraint for all coefficients
+            constraints.append(
+                cp.sum(beta) == 1
+            )  # Sum constraint for all coefficients
         elif model == "MSCa":
-            constraints.append(cp.sum(beta[1:]) == 1)  # Sum constraint for coefficients excluding intercept
+            constraints.append(
+                cp.sum(beta[1:]) == 1
+            )  # Sum constraint for coefficients excluding intercept
         elif model == "MSCc":
             constraints.append(beta[1:] >= 0)
 
@@ -402,16 +458,27 @@ def pda(prepped, N, method="fs"):
 
     if method == "fs":
         # Step 1: Select donor units using PDAfs method
-        result = PDAfs(prepped["y"], prepped["donor_matrix"], prepped["pre_periods"],
-                       prepped["total_periods"], N)
+        result = PDAfs(
+            prepped["y"],
+            prepped["donor_matrix"],
+            prepped["pre_periods"],
+            prepped["total_periods"],
+            N,
+        )
 
         # Step 2: Extract donor names using selected donor indices
-        donor_names_selected = prepped["donor_names"].values[result["selected_donors"]].tolist()
+        donor_names_selected = (
+            prepped["donor_names"].values[result["selected_donors"]].tolist()
+        )
 
         # Step 3: Map donor names to their coefficients (skip intercept)
         donor_coefficients = {
-            donor: round(coef, 2)  # Round coefficients for readability (skip intercept)
-            for donor, coef in zip(donor_names_selected, result["model_coefficients"][1:])
+            donor: round(
+                coef, 2
+            )  # Round coefficients for readability (skip intercept)
+            for donor, coef in zip(
+                donor_names_selected, result["model_coefficients"][1:]
+            )
         }
 
         # Step 4: Extract donor outcomes (both pre-treatment and post-treatment)
@@ -419,12 +486,19 @@ def pda(prepped, N, method="fs"):
 
         # Step 5: Calculate counterfactual using the model coefficients (excluding intercept)
         intercept = result["model_coefficients"][0]
-        weighted_donors = donor_outcomes.dot(result["model_coefficients"][1:])  # Dot product with coefficients
+        weighted_donors = donor_outcomes.dot(
+            result["model_coefficients"][1:]
+        )  # Dot product with coefficients
         y_fsPDA = intercept + weighted_donors  # Counterfactual outcome
 
-        d_hat = prepped["y"][prepped["pre_periods"]:]- y_fsPDA[prepped["pre_periods"]:]
+        d_hat = (
+            prepped["y"][prepped["pre_periods"] :]
+            - y_fsPDA[prepped["pre_periods"] :]
+        )
 
-        lrvar_lag = int(np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9)))
+        lrvar_lag = int(
+            np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9))
+        )
 
         # Assuming d_hat, lrvar_lag, and T2 are defined earlier
         if lrvar_lag > 0:
@@ -459,11 +533,15 @@ def pda(prepped, N, method="fs"):
             "t_stat": Z,
             "SE": lrse_ATE,
             "95% CI": CI,
-            "p_value": p_value
+            "p_value": p_value,
         }
 
-        attdict, fitdict, Vectors = effects.calculate(prepped["y"], y_fsPDA, prepped["pre_periods"],
-                                                      prepped["post_periods"])
+        attdict, fitdict, Vectors = effects.calculate(
+            prepped["y"],
+            y_fsPDA,
+            prepped["pre_periods"],
+            prepped["post_periods"],
+        )
 
         return {
             "method": "fs",
@@ -471,30 +549,50 @@ def pda(prepped, N, method="fs"):
             "Effects": attdict,
             "Fit": fitdict,
             "Vectors": Vectors,
-            "Inference": Inference
+            "Inference": Inference,
         }
 
     elif method == "LASSO":
         # Step 1: Calculate SST (total sum of squares)
-        SST = np.sum((prepped["y"][:prepped["pre_periods"]] - np.mean(prepped["y"][:prepped["pre_periods"]])) ** 2)
+        SST = np.sum(
+            (
+                prepped["y"][: prepped["pre_periods"]]
+                - np.mean(prepped["y"][: prepped["pre_periods"]])
+            )
+            ** 2
+        )
 
         # Step 2: Perform LassoCV for cross-validated Lasso regularization
         las = LassoCV(cv=prepped["pre_periods"])
-        las.fit(prepped["donor_matrix"][:prepped["pre_periods"], :], prepped["y"][:prepped["pre_periods"]])
+        las.fit(
+            prepped["donor_matrix"][: prepped["pre_periods"], :],
+            prepped["y"][: prepped["pre_periods"]],
+        )
         y_LHCW = las.predict(prepped["donor_matrix"])
 
         # Step 3: Get non-zero coefficients and their corresponding column names
         non_zero_coef_indices = np.where(las.coef_ != 0)[0]
         non_zero_coef_columns = prepped["donor_names"][non_zero_coef_indices]
 
-        non_zero_coef_dict = dict(zip(non_zero_coef_columns, np.round(las.coef_[non_zero_coef_indices], 3)))
+        non_zero_coef_dict = dict(
+            zip(
+                non_zero_coef_columns,
+                np.round(las.coef_[non_zero_coef_indices], 3),
+            )
+        )
 
         # Step 4: Compute ATT using the effects.calculate function
-        attdict, fitdict, Vectors = effects.calculate(prepped["y"], y_LHCW, prepped["pre_periods"],
-                                                      prepped["post_periods"])
+        attdict, fitdict, Vectors = effects.calculate(
+            prepped["y"],
+            y_LHCW,
+            prepped["pre_periods"],
+            prepped["post_periods"],
+        )
 
         # Step 5: Compute inference metrics (CI, t-stat, SE)
-        def compute_inference_metrics(y1, y_pred, datax, t1, t2, ATT, alpha=0.05):
+        def compute_inference_metrics(
+            y1, y_pred, datax, t1, t2, ATT, alpha=0.05
+        ):
             """
             Compute the 95% confidence interval, test statistic, and standard error for ATT.
 
@@ -512,10 +610,12 @@ def pda(prepped, N, method="fs"):
             """
             # Compute residuals and variance
             e1 = y1 - y_pred[:t1]
-            sigma2 = np.mean(e1 ** 2)  # Residual variance estimate
+            sigma2 = np.mean(e1**2)  # Residual variance estimate
 
             # Covariate-based variance components
-            eta = np.mean(datax[:t1, :], axis=0).reshape(-1, 1)  # Mean covariates
+            eta = np.mean(datax[:t1, :], axis=0).reshape(
+                -1, 1
+            )  # Mean covariates
             psi = datax[:t1, :].T @ datax[:t1, :] / t1  # Covariance structure
 
             # Variance components
@@ -535,9 +635,14 @@ def pda(prepped, N, method="fs"):
 
             return {"CI": CI, "t_stat": t_stat, "SE": SE}
 
-        results = compute_inference_metrics(prepped["y"][:prepped["pre_periods"]], y_LHCW,
-                                            prepped["donor_matrix"], prepped["pre_periods"],
-                                            prepped["post_periods"], attdict['ATT'])
+        results = compute_inference_metrics(
+            prepped["y"][: prepped["pre_periods"]],
+            y_LHCW,
+            prepped["donor_matrix"],
+            prepped["pre_periods"],
+            prepped["post_periods"],
+            attdict["ATT"],
+        )
 
         return {
             "method": "LASSO",
@@ -545,16 +650,17 @@ def pda(prepped, N, method="fs"):
             "Inference": results,
             "Effects": attdict,
             "Fit": fitdict,
-            "Vectors": Vectors
+            "Vectors": Vectors,
         }
-    
-    
+
     elif method == "l2":
         # To do: upper bound of sup norm
         # Learn the first 40 percent of the data best using the range of tau
         # then predict with that
 
-        def compute_t_stat_and_ci(att, treatment_effects, truncation_lag, confidence_level=0.95):
+        def compute_t_stat_and_ci(
+            att, treatment_effects, truncation_lag, confidence_level=0.95
+        ):
             """
             Compute the t-statistic, standard error, p-value, and confidence interval for ATT.
 
@@ -568,7 +674,9 @@ def pda(prepped, N, method="fs"):
                 dict: Dictionary containing t-statistic, standard error, p-value, and confidence interval.
             """
             T2 = len(treatment_effects)
-            hac_variance = compute_hac_variance(treatment_effects, truncation_lag)
+            hac_variance = compute_hac_variance(
+                treatment_effects, truncation_lag
+            )
             standard_error = np.sqrt(hac_variance / T2)
 
             # t-statistic
@@ -590,32 +698,48 @@ def pda(prepped, N, method="fs"):
                 "t_stat": t_stat,
                 "standard_error": standard_error,
                 "p_value": p_value,
-                "confidence_interval": (ci_low, ci_high)
+                "confidence_interval": (ci_low, ci_high),
             }
 
         # Compute initial components
-        n, p = prepped["donor_matrix"][:prepped["pre_periods"], :].shape
-        Sigma = (prepped["donor_matrix"][:prepped["pre_periods"], :].T @ prepped["donor_matrix"][:prepped["pre_periods"], :]) / n
+        n, p = prepped["donor_matrix"][: prepped["pre_periods"], :].shape
+        Sigma = (
+            prepped["donor_matrix"][: prepped["pre_periods"], :].T
+            @ prepped["donor_matrix"][: prepped["pre_periods"], :]
+        ) / n
 
-        eta = (prepped["donor_matrix"][:prepped["pre_periods"], :].T @ prepped["y"][:prepped["pre_periods"]]) / n
+        eta = (
+            prepped["donor_matrix"][: prepped["pre_periods"], :].T
+            @ prepped["y"][: prepped["pre_periods"]]
+        ) / n
 
         tau1 = np.linalg.norm(eta, ord=np.inf)
 
-        optimal_tau, min_mse = cross_validate_tau(prepped["y"][:prepped["pre_periods"]], prepped["donor_matrix"][:prepped["pre_periods"]], 2)
+        optimal_tau, min_mse = cross_validate_tau(
+            prepped["y"][: prepped["pre_periods"]],
+            prepped["donor_matrix"][: prepped["pre_periods"]],
+            2,
+        )
 
         # Step 2: Re-fit the model using the optimal tau
-        beta_hat, intercept, _ = l2_relax(prepped["pre_periods"], prepped["y"], prepped["donor_matrix"], optimal_tau)
+        beta_hat, intercept, _ = l2_relax(
+            prepped["pre_periods"],
+            prepped["y"],
+            prepped["donor_matrix"],
+            optimal_tau,
+        )
 
-        yl2 = prepped["donor_matrix"] @ beta_hat+ intercept
+        yl2 = prepped["donor_matrix"] @ beta_hat + intercept
 
-
-        
-        attdict, fitdict, Vectors = effects.calculate(prepped["y"], yl2, prepped["pre_periods"],
-                                                      prepped["post_periods"])
+        attdict, fitdict, Vectors = effects.calculate(
+            prepped["y"], yl2, prepped["pre_periods"], prepped["post_periods"]
+        )
 
         h = int(np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9)))
 
-        inference_results = compute_t_stat_and_ci(attdict["ATT"], Vectors["Gap"][-prepped["post_periods"]:, 0], h)
+        inference_results = compute_t_stat_and_ci(
+            attdict["ATT"], Vectors["Gap"][-prepped["post_periods"] :, 0], h
+        )
 
         # Step 3: Map donor names to their coefficients
         donor_coefficients = {
@@ -624,15 +748,16 @@ def pda(prepped, N, method="fs"):
         }
 
         return {
-            "method": r'l2 relaxation',
+            "method": r"l2 relaxation",
             "optimal_tau": optimal_tau,
             "Betas": donor_coefficients,
             "Inference": inference_results,
-            "Effects": attdict, 
-            "Fit": fitdict, 
-            "Vectors": Vectors
+            "Effects": attdict,
+            "Fit": fitdict,
+            "Vectors": Vectors,
         }
 
     else:
-        raise ValueError("Invalid method specified. Choose either 'fs', 'LASSO', or 'l2'.")
-
+        raise ValueError(
+            "Invalid method specified. Choose either 'fs', 'LASSO', or 'l2'."
+        )
