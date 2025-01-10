@@ -1,18 +1,17 @@
----
 name: Prune workflow runs
 on:
   schedule:
-    - cron: 0 0 1 * *
+    - cron: "0 6 * * *"  # Every day at 1 AM
   workflow_dispatch:
     inputs:
       days:
         description: Number of days.
         required: true
-        default: 30
+        default: 1
       minimum_runs:
         description: The minimum runs to keep for each workflow.
         required: true
-        default: 6
+        default: 2
       delete_workflow_pattern:
         description: The name or filename of the workflow. if not set then it will
           target all workflows.
