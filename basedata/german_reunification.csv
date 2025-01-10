@@ -1,0 +1,749 @@
+country,year,gdp,Reunification
+USA,1960,2879,False
+USA,1961,2929,False
+USA,1962,3103,False
+USA,1963,3227,False
+USA,1964,3420,False
+USA,1965,3667,False
+USA,1966,3974,False
+USA,1967,4154,False
+USA,1968,4494,False
+USA,1969,4805,False
+USA,1970,4999,False
+USA,1971,5362,False
+USA,1972,5838,False
+USA,1973,6464,False
+USA,1974,6951,False
+USA,1975,7519,False
+USA,1976,8300,False
+USA,1977,9146,False
+USA,1978,10229,False
+USA,1979,11306,False
+USA,1980,12186,False
+USA,1981,13533,False
+USA,1982,13940,False
+USA,1983,15008,False
+USA,1984,16549,False
+USA,1985,17600,False
+USA,1986,18439,False
+USA,1987,19407,False
+USA,1988,20711,False
+USA,1989,22047,False
+USA,1990,23064,False
+USA,1991,23507,False
+USA,1992,24509,False
+USA,1993,25409,False
+USA,1994,26670,False
+USA,1995,27574,False
+USA,1996,28814,False
+USA,1997,30262,False
+USA,1998,31519,False
+USA,1999,33028,False
+USA,2000,34603,False
+USA,2001,35341,False
+USA,2002,36180,False
+USA,2003,37548,False
+UK,1960,2158,False
+UK,1961,2216,False
+UK,1962,2276,False
+UK,1963,2386,False
+UK,1964,2534,False
+UK,1965,2660,False
+UK,1966,2794,False
+UK,1967,2923,False
+UK,1968,3173,False
+UK,1969,3391,False
+UK,1970,3615,False
+UK,1971,3854,False
+UK,1972,4149,False
+UK,1973,4683,False
+UK,1974,5036,False
+UK,1975,5481,False
+UK,1976,5953,False
+UK,1977,6489,False
+UK,1978,7176,False
+UK,1979,7973,False
+UK,1980,8502,False
+UK,1981,9161,False
+UK,1982,9917,False
+UK,1983,10669,False
+UK,1984,11336,False
+UK,1985,12068,False
+UK,1986,12795,False
+UK,1987,13717,False
+UK,1988,14864,False
+UK,1989,15716,False
+UK,1990,16397,False
+UK,1991,16681,False
+UK,1992,17069,False
+UK,1993,17845,False
+UK,1994,18975,False
+UK,1995,19860,False
+UK,1996,20923,False
+UK,1997,22280,False
+UK,1998,23206,False
+UK,1999,23959,False
+UK,2000,25583,False
+UK,2001,27026,False
+UK,2002,28969,False
+UK,2003,29609,False
+Austria,1960,1796,False
+Austria,1961,1899,False
+Austria,1962,1977,False
+Austria,1963,2074,False
+Austria,1964,2224,False
+Austria,1965,2336,False
+Austria,1966,2537,False
+Austria,1967,2668,False
+Austria,1968,2908,False
+Austria,1969,3239,False
+Austria,1970,3732,False
+Austria,1971,4100,False
+Austria,1972,4513,False
+Austria,1973,4969,False
+Austria,1974,5622,False
+Austria,1975,6147,False
+Austria,1976,6810,False
+Austria,1977,7588,False
+Austria,1978,8117,False
+Austria,1979,9288,False
+Austria,1980,10312,False
+Austria,1981,11242,False
+Austria,1982,12148,False
+Austria,1983,13048,False
+Austria,1984,13533,False
+Austria,1985,14296,False
+Austria,1986,14921,False
+Austria,1987,15549,False
+Austria,1988,16595,False
+Austria,1989,17768,False
+Austria,1990,19070,False
+Austria,1991,20172,False
+Austria,1992,20960,False
+Austria,1993,21220,False
+Austria,1994,22139,False
+Austria,1995,22976,False
+Austria,1996,24008,False
+Austria,1997,24472,False
+Austria,1998,25314,False
+Austria,1999,26558,False
+Austria,2000,28359,False
+Austria,2001,28855,False
+Austria,2002,29942,False
+Austria,2003,30796,False
+Belgium,1960,1782,False
+Belgium,1961,1883,False
+Belgium,1962,2018,False
+Belgium,1963,2122,False
+Belgium,1964,2288,False
+Belgium,1965,2414,False
+Belgium,1966,2559,False
+Belgium,1967,2719,False
+Belgium,1968,2958,False
+Belgium,1969,3308,False
+Belgium,1970,3797,False
+Belgium,1971,4129,False
+Belgium,1972,4512,False
+Belgium,1973,5039,False
+Belgium,1974,5707,False
+Belgium,1975,6146,False
+Belgium,1976,6854,False
+Belgium,1977,7326,False
+Belgium,1978,8056,False
+Belgium,1979,8921,False
+Belgium,1980,10156,False
+Belgium,1981,11079,False
+Belgium,1982,11827,False
+Belgium,1983,12334,False
+Belgium,1984,13113,False
+Belgium,1985,13735,False
+Belgium,1986,14292,False
+Belgium,1987,15013,False
+Belgium,1988,16209,False
+Belgium,1989,17345,False
+Belgium,1990,18526,False
+Belgium,1991,19453,False
+Belgium,1992,20123,False
+Belgium,1993,20308,False
+Belgium,1994,21340,False
+Belgium,1995,22248,False
+Belgium,1996,22687,False
+Belgium,1997,23416,False
+Belgium,1998,24164,False
+Belgium,1999,24792,False
+Belgium,2000,26631,False
+Belgium,2001,28001,False
+Belgium,2002,29330,False
+Belgium,2003,30082,False
+Denmark,1960,2329,False
+Denmark,1961,2485,False
+Denmark,1962,2665,False
+Denmark,1963,2700,False
+Denmark,1964,2980,False
+Denmark,1965,3177,False
+Denmark,1966,3377,False
+Denmark,1967,3580,False
+Denmark,1968,3892,False
+Denmark,1969,4352,False
+Denmark,1970,4541,False
+Denmark,1971,4858,False
+Denmark,1972,5262,False
+Denmark,1973,5719,False
+Denmark,1974,6121,False
+Denmark,1975,6565,False
+Denmark,1976,7371,False
+Denmark,1977,7901,False
+Denmark,1978,8585,False
+Denmark,1979,9566,False
+Denmark,1980,10362,False
+Denmark,1981,11106,False
+Denmark,1982,12115,False
+Denmark,1983,12822,False
+Denmark,1984,13777,False
+Denmark,1985,14698,False
+Denmark,1986,15608,False
+Denmark,1987,16024,False
+Denmark,1988,16766,False
+Denmark,1989,17418,False
+Denmark,1990,18237,False
+Denmark,1991,19070,False
+Denmark,1992,19829,False
+Denmark,1993,20199,False
+Denmark,1994,21691,False
+Denmark,1995,22693,False
+Denmark,1996,23781,False
+Denmark,1997,24878,False
+Denmark,1998,25669,False
+Denmark,1999,27113,False
+Denmark,2000,28798,False
+Denmark,2001,29837,False
+Denmark,2002,30318,False
+Denmark,2003,30853,False
+France,1960,1858,False
+France,1961,1959,False
+France,1962,2099,False
+France,1963,2205,False
+France,1964,2367,False
+France,1965,2526,False
+France,1966,2728,False
+France,1967,2915,False
+France,1968,3163,False
+France,1969,3531,False
+France,1970,3857,False
+France,1971,4203,False
+France,1972,4535,False
+France,1973,5008,False
+France,1974,5594,False
+France,1975,6077,False
+France,1976,6673,False
+France,1977,7292,False
+France,1978,8031,False
+France,1979,8948,False
+France,1980,9891,False
+France,1981,10929,False
+France,1982,11869,False
+France,1983,12518,False
+France,1984,13145,False
+France,1985,13746,False
+France,1986,14308,False
+France,1987,14940,False
+France,1988,16040,False
+France,1989,17193,False
+France,1990,18244,False
+France,1991,19021,False
+France,1992,19746,False
+France,1993,19920,False
+France,1994,20695,False
+France,1995,21545,False
+France,1996,22288,False
+France,1997,23370,False
+France,1998,24412,False
+France,1999,25111,False
+France,2000,26690,False
+France,2001,28043,False
+France,2002,28829,False
+France,2003,29210,False
+West Germany,1960,2284,False
+West Germany,1961,2388,False
+West Germany,1962,2527,False
+West Germany,1963,2610,False
+West Germany,1964,2806,False
+West Germany,1965,3005,False
+West Germany,1966,3168,False
+West Germany,1967,3241,False
+West Germany,1968,3571,False
+West Germany,1969,3998,False
+West Germany,1970,4367,False
+West Germany,1971,4686,False
+West Germany,1972,5055,False
+West Germany,1973,5553,False
+West Germany,1974,6074,False
+West Germany,1975,6603,False
+West Germany,1976,7367,False
+West Germany,1977,8090,False
+West Germany,1978,8928,False
+West Germany,1979,10067,False
+West Germany,1980,11083,False
+West Germany,1981,12115,False
+West Germany,1982,12761,False
+West Germany,1983,13519,False
+West Germany,1984,14481,False
+West Germany,1985,15291,False
+West Germany,1986,15998,False
+West Germany,1987,16679,False
+West Germany,1988,17786,False
+West Germany,1989,18994,False
+West Germany,1990,20465,True
+West Germany,1991,21602,True
+West Germany,1992,22154,True
+West Germany,1993,21878,True
+West Germany,1994,22371,True
+West Germany,1995,23035,True
+West Germany,1996,23742,True
+West Germany,1997,24156,True
+West Germany,1998,24931,True
+West Germany,1999,25755,True
+West Germany,2000,26943,True
+West Germany,2001,27449,True
+West Germany,2002,28348,True
+West Germany,2003,28855,True
+Italy,1960,1620,False
+Italy,1961,1763,False
+Italy,1962,1900,False
+Italy,1963,2021,False
+Italy,1964,2093,False
+Italy,1965,2205,False
+Italy,1966,2400,False
+Italy,1967,2624,False
+Italy,1968,2910,False
+Italy,1969,3227,False
+Italy,1970,3602,False
+Italy,1971,3834,False
+Italy,1972,4101,False
+Italy,1973,4594,False
+Italy,1974,5240,False
+Italy,1975,5601,False
+Italy,1976,6288,False
+Italy,1977,6821,False
+Italy,1978,7542,False
+Italy,1979,8594,False
+Italy,1980,9643,False
+Italy,1981,10593,False
+Italy,1982,11275,False
+Italy,1983,11812,False
+Italy,1984,12543,False
+Italy,1985,13285,False
+Italy,1986,13896,False
+Italy,1987,14688,False
+Italy,1988,15784,False
+Italy,1989,16875,False
+Italy,1990,17946,False
+Italy,1991,18845,False
+Italy,1992,19367,False
+Italy,1993,19778,False
+Italy,1994,20577,False
+Italy,1995,21532,False
+Italy,1996,22235,False
+Italy,1997,22810,False
+Italy,1998,23840,False
+Italy,1999,24402,False
+Italy,2000,25759,False
+Italy,2001,26586,False
+Italy,2002,27320,False
+Italy,2003,27537,False
+Netherlands,1960,2113,False
+Netherlands,1961,2111,False
+Netherlands,1962,2275,False
+Netherlands,1963,2360,False
+Netherlands,1964,2566,False
+Netherlands,1965,2739,False
+Netherlands,1966,2874,False
+Netherlands,1967,3078,False
+Netherlands,1968,3399,False
+Netherlands,1969,3951,False
+Netherlands,1970,4342,False
+Netherlands,1971,4705,False
+Netherlands,1972,4984,False
+Netherlands,1973,5475,False
+Netherlands,1974,6165,False
+Netherlands,1975,6699,False
+Netherlands,1976,7345,False
+Netherlands,1977,7959,False
+Netherlands,1978,8676,False
+Netherlands,1979,9504,False
+Netherlands,1980,10458,False
+Netherlands,1981,11304,False
+Netherlands,1982,11784,False
+Netherlands,1983,12419,False
+Netherlands,1984,13234,False
+Netherlands,1985,13938,False
+Netherlands,1986,14613,False
+Netherlands,1987,15197,False
+Netherlands,1988,16082,False
+Netherlands,1989,17387,False
+Netherlands,1990,18665,False
+Netherlands,1991,19626,False
+Netherlands,1992,20224,False
+Netherlands,1993,20679,False
+Netherlands,1994,21588,False
+Netherlands,1995,22585,False
+Netherlands,1996,23531,False
+Netherlands,1997,24692,False
+Netherlands,1998,25811,False
+Netherlands,1999,26654,False
+Netherlands,2000,28467,False
+Netherlands,2001,30359,False
+Netherlands,2002,31284,False
+Netherlands,2003,31792,False
+Norway,1960,1713,False
+Norway,1961,1823,False
+Norway,1962,1905,False
+Norway,1963,1991,False
+Norway,1964,2112,False
+Norway,1965,2268,False
+Norway,1966,2417,False
+Norway,1967,2620,False
+Norway,1968,2784,False
+Norway,1969,3035,False
+Norway,1970,3213,False
+Norway,1971,3523,False
+Norway,1972,3814,False
+Norway,1973,4138,False
+Norway,1974,4728,False
+Norway,1975,5458,False
+Norway,1976,6116,False
+Norway,1977,6742,False
+Norway,1978,7412,False
+Norway,1979,8354,False
+Norway,1980,9557,False
+Norway,1981,10548,False
+Norway,1982,11205,False
+Norway,1983,12022,False
+Norway,1984,13220,False
+Norway,1985,14354,False
+Norway,1986,15184,False
+Norway,1987,15823,False
+Norway,1988,16299,False
+Norway,1989,17043,False
+Norway,1990,18004,False
+Norway,1991,19212,False
+Norway,1992,20185,False
+Norway,1993,21088,False
+Norway,1994,22534,False
+Norway,1995,23874,False
+Norway,1996,26263,False
+Norway,1997,27776,False
+Norway,1998,27294,False
+Norway,1999,30011,False
+Norway,2000,36273,False
+Norway,2001,37078,False
+Norway,2002,36617,False
+Norway,2003,37245,False
+Switzerland,1960,3387,False
+Switzerland,1961,3625,False
+Switzerland,1962,3788,False
+Switzerland,1963,3946,False
+Switzerland,1964,4158,False
+Switzerland,1965,4360,False
+Switzerland,1966,4575,False
+Switzerland,1967,4790,False
+Switzerland,1968,5138,False
+Switzerland,1969,5645,False
+Switzerland,1970,6382,False
+Switzerland,1971,6938,False
+Switzerland,1972,7406,False
+Switzerland,1973,7998,False
+Switzerland,1974,8800,False
+Switzerland,1975,8934,False
+Switzerland,1976,9368,False
+Switzerland,1977,10240,False
+Switzerland,1978,11003,False
+Switzerland,1979,12189,False
+Switzerland,1980,13853,False
+Switzerland,1981,15338,False
+Switzerland,1982,15963,False
+Switzerland,1983,16611,False
+Switzerland,1984,17710,False
+Switzerland,1985,18812,False
+Switzerland,1986,19458,False
+Switzerland,1987,20120,False
+Switzerland,1988,21334,False
+Switzerland,1989,22965,False
+Switzerland,1990,24518,False
+Switzerland,1991,24840,False
+Switzerland,1992,25141,False
+Switzerland,1993,25427,False
+Switzerland,1994,26031,False
+Switzerland,1995,26485,False
+Switzerland,1996,26394,False
+Switzerland,1997,27850,False
+Switzerland,1998,28835,False
+Switzerland,1999,28887,False
+Switzerland,2000,30461,False
+Switzerland,2001,30806,False
+Switzerland,2002,32751,False
+Switzerland,2003,33516,False
+Japan,1960,1010,False
+Japan,1961,1143,False
+Japan,1962,1262,False
+Japan,1963,1374,False
+Japan,1964,1546,False
+Japan,1965,1647,False
+Japan,1966,1889,False
+Japan,1967,2133,False
+Japan,1968,2496,False
+Japan,1969,2917,False
+Japan,1970,3293,False
+Japan,1971,3575,False
+Japan,1972,3988,False
+Japan,1973,4491,False
+Japan,1974,4778,False
+Japan,1975,5300,False
+Japan,1976,5768,False
+Japan,1977,6344,False
+Japan,1978,7084,False
+Japan,1979,8027,False
+Japan,1980,8931,False
+Japan,1981,9986,False
+Japan,1982,10813,False
+Japan,1983,11346,False
+Japan,1984,12064,False
+Japan,1985,12978,False
+Japan,1986,13590,False
+Japan,1987,14425,False
+Japan,1988,15862,False
+Japan,1989,17269,False
+Japan,1990,18815,False
+Japan,1991,20055,False
+Japan,1992,20648,False
+Japan,1993,21122,False
+Japan,1994,21757,False
+Japan,1995,22551,False
+Japan,1996,23714,False
+Japan,1997,24478,False
+Japan,1998,24429,False
+Japan,1999,24709,False
+Japan,2000,26015,False
+Japan,2001,26619,False
+Japan,2002,27196,False
+Japan,2003,28071,False
+Greece,1960,707,False
+Greece,1961,1028,False
+Greece,1962,1049,False
+Greece,1963,1188,False
+Greece,1964,1316,False
+Greece,1965,1492,False
+Greece,1966,1634,False
+Greece,1967,1754,False
+Greece,1968,1967,False
+Greece,1969,2298,False
+Greece,1970,2631,False
+Greece,1971,2988,False
+Greece,1972,3383,False
+Greece,1973,3844,False
+Greece,1974,3907,False
+Greece,1975,4505,False
+Greece,1976,5024,False
+Greece,1977,5417,False
+Greece,1978,6138,False
+Greece,1979,6781,False
+Greece,1980,7374,False
+Greece,1981,7870,False
+Greece,1982,8204,False
+Greece,1983,8388,False
+Greece,1984,8834,False
+Greece,1985,9297,False
+Greece,1986,9525,False
+Greece,1987,9548,False
+Greece,1988,10277,False
+Greece,1989,11036,False
+Greece,1990,11405,False
+Greece,1991,11971,False
+Greece,1992,12198,False
+Greece,1993,12166,False
+Greece,1994,12566,False
+Greece,1995,12991,False
+Greece,1996,13418,False
+Greece,1997,14127,False
+Greece,1998,14665,False
+Greece,1999,15213,False
+Greece,2000,16272,False
+Greece,2001,17332,False
+Greece,2002,19119,False
+Greece,2003,20479,False
+Portugal,1960,728,False
+Portugal,1961,783,False
+Portugal,1962,848,False
+Portugal,1963,905,False
+Portugal,1964,979,False
+Portugal,1965,1084,False
+Portugal,1966,1170,False
+Portugal,1967,1293,False
+Portugal,1968,1475,False
+Portugal,1969,1592,False
+Portugal,1970,1916,False
+Portugal,1971,2153,False
+Portugal,1972,2420,False
+Portugal,1973,2845,False
+Portugal,1974,3048,False
+Portugal,1975,3045,False
+Portugal,1976,3407,False
+Portugal,1977,3784,False
+Portugal,1978,4120,False
+Portugal,1979,4663,False
+Portugal,1980,5263,False
+Portugal,1981,5812,False
+Portugal,1982,6263,False
+Portugal,1983,6479,False
+Portugal,1984,6570,False
+Portugal,1985,6959,False
+Portugal,1986,7414,False
+Portugal,1987,8126,False
+Portugal,1988,9057,False
+Portugal,1989,10042,False
+Portugal,1990,10894,False
+Portugal,1991,11783,False
+Portugal,1992,12219,False
+Portugal,1993,12236,False
+Portugal,1994,12614,False
+Portugal,1995,13413,False
+Portugal,1996,13974,False
+Portugal,1997,14804,False
+Portugal,1998,15401,False
+Portugal,1999,16363,False
+Portugal,2000,17353,False
+Portugal,2001,18071,False
+Portugal,2002,18799,False
+Portugal,2003,17603,False
+Spain,1960,1074,False
+Spain,1961,1201,False
+Spain,1962,1335,False
+Spain,1963,1467,False
+Spain,1964,1554,False
+Spain,1965,1678,False
+Spain,1966,1841,False
+Spain,1967,1954,False
+Spain,1968,2160,False
+Spain,1969,2447,False
+Spain,1970,2715,False
+Spain,1971,2951,False
+Spain,1972,3293,False
+Spain,1973,3710,False
+Spain,1974,4227,False
+Spain,1975,4600,False
+Spain,1976,4965,False
+Spain,1977,5364,False
+Spain,1978,5761,False
+Spain,1979,6188,False
+Spain,1980,6856,False
+Spain,1981,7447,False
+Spain,1982,7957,False
+Spain,1983,8378,False
+Spain,1984,8812,False
+Spain,1985,9259,False
+Spain,1986,9744,False
+Spain,1987,10542,False
+Spain,1988,11434,False
+Spain,1989,12417,False
+Spain,1990,13365,False
+Spain,1991,14152,False
+Spain,1992,14564,False
+Spain,1993,14699,False
+Spain,1994,15325,False
+Spain,1995,16032,False
+Spain,1996,16720,False
+Spain,1997,17420,False
+Spain,1998,18479,False
+Spain,1999,19817,False
+Spain,2000,21074,False
+Spain,2001,22257,False
+Spain,2002,23756,False
+Spain,2003,24812,False
+Australia,1960,2373,False
+Australia,1961,2346,False
+Australia,1962,2539,False
+Australia,1963,2717,False
+Australia,1964,2873,False
+Australia,1965,2973,False
+Australia,1966,3230,False
+Australia,1967,3404,False
+Australia,1968,3788,False
+Australia,1969,4162,False
+Australia,1970,4490,False
+Australia,1971,4677,False
+Australia,1972,5013,False
+Australia,1973,5595,False
+Australia,1974,6024,False
+Australia,1975,6683,False
+Australia,1976,7140,False
+Australia,1977,7482,False
+Australia,1978,8272,False
+Australia,1979,9174,False
+Australia,1980,10203,False
+Australia,1981,11513,False
+Australia,1982,11537,False
+Australia,1983,12300,False
+Australia,1984,13120,False
+Australia,1985,14019,False
+Australia,1986,14537,False
+Australia,1987,15554,False
+Australia,1988,16524,False
+Australia,1989,17255,False
+Australia,1990,17322,False
+Australia,1991,17652,False
+Australia,1992,18496,False
+Australia,1993,19432,False
+Australia,1994,20583,False
+Australia,1995,21773,False
+Australia,1996,22562,False
+Australia,1997,23649,False
+Australia,1998,24853,False
+Australia,1999,26283,False
+Australia,2000,27403,False
+Australia,2001,28492,False
+Australia,2002,29819,False
+Australia,2003,31273,False
+New Zealand,1960,2545,False
+New Zealand,1961,2659,False
+New Zealand,1962,2713,False
+New Zealand,1963,2866,False
+New Zealand,1964,3001,False
+New Zealand,1965,3224,False
+New Zealand,1966,3481,False
+New Zealand,1967,3360,False
+New Zealand,1968,3489,False
+New Zealand,1969,3969,False
+New Zealand,1970,4136,False
+New Zealand,1971,4438,False
+New Zealand,1972,4780,False
+New Zealand,1973,5335,False
+New Zealand,1974,6041,False
+New Zealand,1975,6382,False
+New Zealand,1976,6748,False
+New Zealand,1977,6867,False
+New Zealand,1978,7301,False
+New Zealand,1979,7915,False
+New Zealand,1980,8656,False
+New Zealand,1981,9736,False
+New Zealand,1982,10687,False
+New Zealand,1983,11262,False
+New Zealand,1984,12141,False
+New Zealand,1985,12556,False
+New Zealand,1986,13085,False
+New Zealand,1987,13402,False
+New Zealand,1988,13569,False
+New Zealand,1989,14124,False
+New Zealand,1990,14420,False
+New Zealand,1991,14252,False
+New Zealand,1992,14679,False
+New Zealand,1993,15605,False
+New Zealand,1994,16686,False
+New Zealand,1995,17402,False
+New Zealand,1996,17879,False
+New Zealand,1997,18510,False
+New Zealand,1998,18669,False
+New Zealand,1999,19937,False
+New Zealand,2000,20789,False
+New Zealand,2001,21825,False
+New Zealand,2002,22662,False
+New Zealand,2003,23728,False

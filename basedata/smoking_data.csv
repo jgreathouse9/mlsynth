@@ -1,0 +1,1210 @@
+state,year,cigsale,Proposition 99
+Alabama,1970,89.8,False
+Alabama,1971,95.4,False
+Alabama,1972,101.1,False
+Alabama,1973,102.9,False
+Alabama,1974,108.2,False
+Alabama,1975,111.7,False
+Alabama,1976,116.2,False
+Alabama,1977,117.1,False
+Alabama,1978,123.0,False
+Alabama,1979,121.4,False
+Alabama,1980,123.2,False
+Alabama,1981,119.6,False
+Alabama,1982,119.1,False
+Alabama,1983,116.3,False
+Alabama,1984,113.0,False
+Alabama,1985,114.5,False
+Alabama,1986,116.3,False
+Alabama,1987,114.0,False
+Alabama,1988,112.1,False
+Alabama,1989,105.6,False
+Alabama,1990,108.6,False
+Alabama,1991,107.9,False
+Alabama,1992,109.1,False
+Alabama,1993,108.5,False
+Alabama,1994,107.1,False
+Alabama,1995,102.6,False
+Alabama,1996,101.4,False
+Alabama,1997,104.9,False
+Alabama,1998,106.2,False
+Alabama,1999,100.7,False
+Alabama,2000,96.2,False
+Arkansas,1970,100.3,False
+Arkansas,1971,104.1,False
+Arkansas,1972,103.9,False
+Arkansas,1973,108.0,False
+Arkansas,1974,109.7,False
+Arkansas,1975,114.8,False
+Arkansas,1976,119.1,False
+Arkansas,1977,122.6,False
+Arkansas,1978,127.3,False
+Arkansas,1979,126.5,False
+Arkansas,1980,131.8,False
+Arkansas,1981,128.7,False
+Arkansas,1982,127.4,False
+Arkansas,1983,128.0,False
+Arkansas,1984,123.1,False
+Arkansas,1985,125.8,False
+Arkansas,1986,126.0,False
+Arkansas,1987,122.3,False
+Arkansas,1988,121.5,False
+Arkansas,1989,118.3,False
+Arkansas,1990,113.1,False
+Arkansas,1991,116.8,False
+Arkansas,1992,126.0,False
+Arkansas,1993,113.8,False
+Arkansas,1994,108.8,False
+Arkansas,1995,113.0,False
+Arkansas,1996,110.7,False
+Arkansas,1997,108.7,False
+Arkansas,1998,109.5,False
+Arkansas,1999,104.8,False
+Arkansas,2000,99.4,False
+California,1970,123.0,False
+California,1971,121.0,False
+California,1972,123.5,False
+California,1973,124.4,False
+California,1974,126.7,False
+California,1975,127.1,False
+California,1976,128.0,False
+California,1977,126.4,False
+California,1978,126.1,False
+California,1979,121.9,False
+California,1980,120.2,False
+California,1981,118.6,False
+California,1982,115.4,False
+California,1983,110.8,False
+California,1984,104.8,False
+California,1985,102.8,False
+California,1986,99.7,False
+California,1987,97.5,False
+California,1988,90.1,False
+California,1989,82.4,True
+California,1990,77.8,True
+California,1991,68.7,True
+California,1992,67.5,True
+California,1993,63.4,True
+California,1994,58.6,True
+California,1995,56.4,True
+California,1996,54.5,True
+California,1997,53.8,True
+California,1998,52.3,True
+California,1999,47.2,True
+California,2000,41.6,True
+Colorado,1970,124.8,False
+Colorado,1971,125.5,False
+Colorado,1972,134.3,False
+Colorado,1973,137.9,False
+Colorado,1974,132.8,False
+Colorado,1975,131.0,False
+Colorado,1976,134.2,False
+Colorado,1977,132.0,False
+Colorado,1978,129.2,False
+Colorado,1979,131.5,False
+Colorado,1980,131.0,False
+Colorado,1981,133.8,False
+Colorado,1982,130.5,False
+Colorado,1983,125.3,False
+Colorado,1984,119.7,False
+Colorado,1985,112.4,False
+Colorado,1986,109.9,False
+Colorado,1987,102.4,False
+Colorado,1988,94.6,False
+Colorado,1989,88.8,False
+Colorado,1990,87.4,False
+Colorado,1991,90.2,False
+Colorado,1992,88.3,False
+Colorado,1993,88.6,False
+Colorado,1994,89.1,False
+Colorado,1995,85.4,False
+Colorado,1996,83.1,False
+Colorado,1997,81.3,False
+Colorado,1998,81.2,False
+Colorado,1999,79.6,False
+Colorado,2000,73.0,False
+Connecticut,1970,120.0,False
+Connecticut,1971,117.6,False
+Connecticut,1972,110.8,False
+Connecticut,1973,109.3,False
+Connecticut,1974,112.4,False
+Connecticut,1975,110.2,False
+Connecticut,1976,113.4,False
+Connecticut,1977,117.3,False
+Connecticut,1978,117.5,False
+Connecticut,1979,117.4,False
+Connecticut,1980,118.0,False
+Connecticut,1981,116.4,False
+Connecticut,1982,114.7,False
+Connecticut,1983,114.1,False
+Connecticut,1984,112.5,False
+Connecticut,1985,111.0,False
+Connecticut,1986,108.5,False
+Connecticut,1987,109.0,False
+Connecticut,1988,104.8,False
+Connecticut,1989,100.6,False
+Connecticut,1990,91.5,False
+Connecticut,1991,86.7,False
+Connecticut,1992,83.5,False
+Connecticut,1993,79.1,False
+Connecticut,1994,76.6,False
+Connecticut,1995,79.3,False
+Connecticut,1996,76.0,False
+Connecticut,1997,75.9,False
+Connecticut,1998,75.5,False
+Connecticut,1999,73.4,False
+Connecticut,2000,71.4,False
+Delaware,1970,155.0,False
+Delaware,1971,161.1,False
+Delaware,1972,156.3,False
+Delaware,1973,154.7,False
+Delaware,1974,151.3,False
+Delaware,1975,147.6,False
+Delaware,1976,153.0,False
+Delaware,1977,153.3,False
+Delaware,1978,155.5,False
+Delaware,1979,150.2,False
+Delaware,1980,150.5,False
+Delaware,1981,152.6,False
+Delaware,1982,154.1,False
+Delaware,1983,149.6,False
+Delaware,1984,144.0,False
+Delaware,1985,144.5,False
+Delaware,1986,142.4,False
+Delaware,1987,141.0,False
+Delaware,1988,137.1,False
+Delaware,1989,131.7,False
+Delaware,1990,127.2,False
+Delaware,1991,118.8,False
+Delaware,1992,120.0,False
+Delaware,1993,123.8,False
+Delaware,1994,126.1,False
+Delaware,1995,127.2,False
+Delaware,1996,128.3,False
+Delaware,1997,124.1,False
+Delaware,1998,132.8,False
+Delaware,1999,139.5,False
+Delaware,2000,140.7,False
+Georgia,1970,109.9,False
+Georgia,1971,115.7,False
+Georgia,1972,117.0,False
+Georgia,1973,119.8,False
+Georgia,1974,123.7,False
+Georgia,1975,122.9,False
+Georgia,1976,125.9,False
+Georgia,1977,127.9,False
+Georgia,1978,130.6,False
+Georgia,1979,131.0,False
+Georgia,1980,134.0,False
+Georgia,1981,131.7,False
+Georgia,1982,131.2,False
+Georgia,1983,128.6,False
+Georgia,1984,126.3,False
+Georgia,1985,128.8,False
+Georgia,1986,129.0,False
+Georgia,1987,129.3,False
+Georgia,1988,124.1,False
+Georgia,1989,117.1,False
+Georgia,1990,113.8,False
+Georgia,1991,109.6,False
+Georgia,1992,109.2,False
+Georgia,1993,109.2,False
+Georgia,1994,107.8,False
+Georgia,1995,100.3,False
+Georgia,1996,102.7,False
+Georgia,1997,100.6,False
+Georgia,1998,100.5,False
+Georgia,1999,97.1,False
+Georgia,2000,88.4,False
+Idaho,1970,102.4,False
+Idaho,1971,108.5,False
+Idaho,1972,126.1,False
+Idaho,1973,121.8,False
+Idaho,1974,125.6,False
+Idaho,1975,123.3,False
+Idaho,1976,125.1,False
+Idaho,1977,125.0,False
+Idaho,1978,122.8,False
+Idaho,1979,117.5,False
+Idaho,1980,115.2,False
+Idaho,1981,114.1,False
+Idaho,1982,111.5,False
+Idaho,1983,111.3,False
+Idaho,1984,103.6,False
+Idaho,1985,100.7,False
+Idaho,1986,96.7,False
+Idaho,1987,95.0,False
+Idaho,1988,84.5,False
+Idaho,1989,78.4,False
+Idaho,1990,90.1,False
+Idaho,1991,85.4,False
+Idaho,1992,85.1,False
+Idaho,1993,86.7,False
+Idaho,1994,93.0,False
+Idaho,1995,78.2,False
+Idaho,1996,73.6,False
+Idaho,1997,75.0,False
+Idaho,1998,78.9,False
+Idaho,1999,75.1,False
+Idaho,2000,66.9,False
+Illinois,1970,124.8,False
+Illinois,1971,125.6,False
+Illinois,1972,126.6,False
+Illinois,1973,124.4,False
+Illinois,1974,131.9,False
+Illinois,1975,131.8,False
+Illinois,1976,134.4,False
+Illinois,1977,134.0,False
+Illinois,1978,136.7,False
+Illinois,1979,135.3,False
+Illinois,1980,135.2,False
+Illinois,1981,133.0,False
+Illinois,1982,130.7,False
+Illinois,1983,127.9,False
+Illinois,1984,124.0,False
+Illinois,1985,121.6,False
+Illinois,1986,118.2,False
+Illinois,1987,109.5,False
+Illinois,1988,107.6,False
+Illinois,1989,104.6,False
+Illinois,1990,94.1,False
+Illinois,1991,96.1,False
+Illinois,1992,94.8,False
+Illinois,1993,94.6,False
+Illinois,1994,85.7,False
+Illinois,1995,84.3,False
+Illinois,1996,81.8,False
+Illinois,1997,79.6,False
+Illinois,1998,80.3,False
+Illinois,1999,72.2,False
+Illinois,2000,70.0,False
+Indiana,1970,134.6,False
+Indiana,1971,139.3,False
+Indiana,1972,149.2,False
+Indiana,1973,156.0,False
+Indiana,1974,159.6,False
+Indiana,1975,162.4,False
+Indiana,1976,166.6,False
+Indiana,1977,173.0,False
+Indiana,1978,150.9,False
+Indiana,1979,148.9,False
+Indiana,1980,146.9,False
+Indiana,1981,148.5,False
+Indiana,1982,147.7,False
+Indiana,1983,143.0,False
+Indiana,1984,137.8,False
+Indiana,1985,135.3,False
+Indiana,1986,137.6,False
+Indiana,1987,134.0,False
+Indiana,1988,134.0,False
+Indiana,1989,132.5,False
+Indiana,1990,128.3,False
+Indiana,1991,127.2,False
+Indiana,1992,128.2,False
+Indiana,1993,126.8,False
+Indiana,1994,128.2,False
+Indiana,1995,135.4,False
+Indiana,1996,135.1,False
+Indiana,1997,135.3,False
+Indiana,1998,135.9,False
+Indiana,1999,133.3,False
+Indiana,2000,125.5,False
+Iowa,1970,108.5,False
+Iowa,1971,108.4,False
+Iowa,1972,109.4,False
+Iowa,1973,110.6,False
+Iowa,1974,116.1,False
+Iowa,1975,120.5,False
+Iowa,1976,124.4,False
+Iowa,1977,125.5,False
+Iowa,1978,127.1,False
+Iowa,1979,124.2,False
+Iowa,1980,124.6,False
+Iowa,1981,132.9,False
+Iowa,1982,116.2,False
+Iowa,1983,115.6,False
+Iowa,1984,111.2,False
+Iowa,1985,109.4,False
+Iowa,1986,104.1,False
+Iowa,1987,101.1,False
+Iowa,1988,100.2,False
+Iowa,1989,94.4,False
+Iowa,1990,95.4,False
+Iowa,1991,97.1,False
+Iowa,1992,95.2,False
+Iowa,1993,92.5,False
+Iowa,1994,93.4,False
+Iowa,1995,93.0,False
+Iowa,1996,94.0,False
+Iowa,1997,93.9,False
+Iowa,1998,94.0,False
+Iowa,1999,91.7,False
+Iowa,2000,88.9,False
+Kansas,1970,114.0,False
+Kansas,1971,102.8,False
+Kansas,1972,111.0,False
+Kansas,1973,115.2,False
+Kansas,1974,118.6,False
+Kansas,1975,123.4,False
+Kansas,1976,127.7,False
+Kansas,1977,127.9,False
+Kansas,1978,127.1,False
+Kansas,1979,126.4,False
+Kansas,1980,127.1,False
+Kansas,1981,132.0,False
+Kansas,1982,130.9,False
+Kansas,1983,127.6,False
+Kansas,1984,121.7,False
+Kansas,1985,115.7,False
+Kansas,1986,109.4,False
+Kansas,1987,105.2,False
+Kansas,1988,103.2,False
+Kansas,1989,96.5,False
+Kansas,1990,94.3,False
+Kansas,1991,91.8,False
+Kansas,1992,90.0,False
+Kansas,1993,89.9,False
+Kansas,1994,89.1,False
+Kansas,1995,90.1,False
+Kansas,1996,88.7,False
+Kansas,1997,89.2,False
+Kansas,1998,87.6,False
+Kansas,1999,83.3,False
+Kansas,2000,79.8,False
+Kentucky,1970,155.8,False
+Kentucky,1971,163.5,False
+Kentucky,1972,179.4,False
+Kentucky,1973,201.9,False
+Kentucky,1974,212.4,False
+Kentucky,1975,223.0,False
+Kentucky,1976,230.9,False
+Kentucky,1977,229.4,False
+Kentucky,1978,224.7,False
+Kentucky,1979,214.9,False
+Kentucky,1980,215.3,False
+Kentucky,1981,209.7,False
+Kentucky,1982,210.6,False
+Kentucky,1983,201.1,False
+Kentucky,1984,183.2,False
+Kentucky,1985,182.4,False
+Kentucky,1986,179.8,False
+Kentucky,1987,171.2,False
+Kentucky,1988,173.2,False
+Kentucky,1989,171.6,False
+Kentucky,1990,182.5,False
+Kentucky,1991,170.4,False
+Kentucky,1992,167.6,False
+Kentucky,1993,167.6,False
+Kentucky,1994,170.1,False
+Kentucky,1995,175.3,False
+Kentucky,1996,179.0,False
+Kentucky,1997,186.8,False
+Kentucky,1998,171.3,False
+Kentucky,1999,165.3,False
+Kentucky,2000,156.2,False
+Louisiana,1970,115.9,False
+Louisiana,1971,119.8,False
+Louisiana,1972,125.3,False
+Louisiana,1973,126.7,False
+Louisiana,1974,129.9,False
+Louisiana,1975,133.6,False
+Louisiana,1976,139.6,False
+Louisiana,1977,140.0,False
+Louisiana,1978,142.7,False
+Louisiana,1979,140.1,False
+Louisiana,1980,143.8,False
+Louisiana,1981,144.0,False
+Louisiana,1982,143.9,False
+Louisiana,1983,133.7,False
+Louisiana,1984,128.9,False
+Louisiana,1985,125.0,False
+Louisiana,1986,121.2,False
+Louisiana,1987,116.5,False
+Louisiana,1988,110.9,False
+Louisiana,1989,103.6,False
+Louisiana,1990,101.5,False
+Louisiana,1991,107.2,False
+Louisiana,1992,108.5,False
+Louisiana,1993,106.2,False
+Louisiana,1994,105.3,False
+Louisiana,1995,105.7,False
+Louisiana,1996,106.8,False
+Louisiana,1997,105.3,False
+Louisiana,1998,103.2,False
+Louisiana,1999,101.0,False
+Louisiana,2000,104.3,False
+Maine,1970,128.5,False
+Maine,1971,133.2,False
+Maine,1972,136.5,False
+Maine,1973,138.0,False
+Maine,1974,142.1,False
+Maine,1975,140.7,False
+Maine,1976,144.9,False
+Maine,1977,145.6,False
+Maine,1978,143.9,False
+Maine,1979,138.5,False
+Maine,1980,141.2,False
+Maine,1981,138.9,False
+Maine,1982,139.5,False
+Maine,1983,135.4,False
+Maine,1984,135.5,False
+Maine,1985,127.9,False
+Maine,1986,119.0,False
+Maine,1987,125.0,False
+Maine,1988,125.0,False
+Maine,1989,122.4,False
+Maine,1990,117.5,False
+Maine,1991,116.1,False
+Maine,1992,114.5,False
+Maine,1993,108.5,False
+Maine,1994,101.6,False
+Maine,1995,102.3,False
+Maine,1996,100.0,False
+Maine,1997,101.1,False
+Maine,1998,94.5,False
+Maine,1999,85.5,False
+Maine,2000,82.9,False
+Minnesota,1970,104.3,False
+Minnesota,1971,116.4,False
+Minnesota,1972,96.8,False
+Minnesota,1973,106.8,False
+Minnesota,1974,110.6,False
+Minnesota,1975,111.5,False
+Minnesota,1976,116.7,False
+Minnesota,1977,117.2,False
+Minnesota,1978,118.9,False
+Minnesota,1979,118.3,False
+Minnesota,1980,117.7,False
+Minnesota,1981,120.8,False
+Minnesota,1982,119.4,False
+Minnesota,1983,113.2,False
+Minnesota,1984,110.8,False
+Minnesota,1985,113.0,False
+Minnesota,1986,104.3,False
+Minnesota,1987,108.8,False
+Minnesota,1988,94.1,False
+Minnesota,1989,92.3,False
+Minnesota,1990,90.7,False
+Minnesota,1991,86.2,False
+Minnesota,1992,83.8,False
+Minnesota,1993,81.6,False
+Minnesota,1994,83.4,False
+Minnesota,1995,84.1,False
+Minnesota,1996,81.7,False
+Minnesota,1997,84.1,False
+Minnesota,1998,83.2,False
+Minnesota,1999,80.7,False
+Minnesota,2000,76.0,False
+Mississippi,1970,93.4,False
+Mississippi,1971,105.4,False
+Mississippi,1972,112.1,False
+Mississippi,1973,115.0,False
+Mississippi,1974,117.1,False
+Mississippi,1975,116.8,False
+Mississippi,1976,120.9,False
+Mississippi,1977,122.1,False
+Mississippi,1978,124.9,False
+Mississippi,1979,123.9,False
+Mississippi,1980,127.0,False
+Mississippi,1981,125.3,False
+Mississippi,1982,125.8,False
+Mississippi,1983,122.3,False
+Mississippi,1984,116.4,False
+Mississippi,1985,115.3,False
+Mississippi,1986,113.2,False
+Mississippi,1987,110.0,False
+Mississippi,1988,109.0,False
+Mississippi,1989,108.3,False
+Mississippi,1990,101.8,False
+Mississippi,1991,105.6,False
+Mississippi,1992,103.9,False
+Mississippi,1993,105.4,False
+Mississippi,1994,106.0,False
+Mississippi,1995,107.5,False
+Mississippi,1996,106.9,False
+Mississippi,1997,106.3,False
+Mississippi,1998,107.0,False
+Mississippi,1999,103.9,False
+Mississippi,2000,97.2,False
+Missouri,1970,121.3,False
+Missouri,1971,127.6,False
+Missouri,1972,130.0,False
+Missouri,1973,132.1,False
+Missouri,1974,135.4,False
+Missouri,1975,135.6,False
+Missouri,1976,139.5,False
+Missouri,1977,140.8,False
+Missouri,1978,141.8,False
+Missouri,1979,140.2,False
+Missouri,1980,142.1,False
+Missouri,1981,140.5,False
+Missouri,1982,139.7,False
+Missouri,1983,134.1,False
+Missouri,1984,130.0,False
+Missouri,1985,129.2,False
+Missouri,1986,128.8,False
+Missouri,1987,128.7,False
+Missouri,1988,127.4,False
+Missouri,1989,122.8,False
+Missouri,1990,119.1,False
+Missouri,1991,119.9,False
+Missouri,1992,122.3,False
+Missouri,1993,121.6,False
+Missouri,1994,119.4,False
+Missouri,1995,124.0,False
+Missouri,1996,124.1,False
+Missouri,1997,120.6,False
+Missouri,1998,120.1,False
+Missouri,1999,118.0,False
+Missouri,2000,113.8,False
+Montana,1970,111.2,False
+Montana,1971,115.6,False
+Montana,1972,122.2,False
+Montana,1973,119.9,False
+Montana,1974,121.9,False
+Montana,1975,123.7,False
+Montana,1976,124.9,False
+Montana,1977,127.0,False
+Montana,1978,127.2,False
+Montana,1979,120.3,False
+Montana,1980,122.0,False
+Montana,1981,121.1,False
+Montana,1982,122.4,False
+Montana,1983,113.7,False
+Montana,1984,110.1,False
+Montana,1985,103.6,False
+Montana,1986,97.8,False
+Montana,1987,91.7,False
+Montana,1988,87.1,False
+Montana,1989,86.2,False
+Montana,1990,84.7,False
+Montana,1991,82.9,False
+Montana,1992,86.6,False
+Montana,1993,86.0,False
+Montana,1994,88.2,False
+Montana,1995,90.5,False
+Montana,1996,87.3,False
+Montana,1997,88.9,False
+Montana,1998,89.1,False
+Montana,1999,82.6,False
+Montana,2000,75.5,False
+Nebraska,1970,108.1,False
+Nebraska,1971,108.6,False
+Nebraska,1972,104.9,False
+Nebraska,1973,106.6,False
+Nebraska,1974,110.5,False
+Nebraska,1975,114.1,False
+Nebraska,1976,118.1,False
+Nebraska,1977,117.7,False
+Nebraska,1978,117.4,False
+Nebraska,1979,116.1,False
+Nebraska,1980,116.3,False
+Nebraska,1981,117.0,False
+Nebraska,1982,117.1,False
+Nebraska,1983,110.8,False
+Nebraska,1984,107.7,False
+Nebraska,1985,105.1,False
+Nebraska,1986,103.1,False
+Nebraska,1987,101.3,False
+Nebraska,1988,92.9,False
+Nebraska,1989,93.8,False
+Nebraska,1990,89.9,False
+Nebraska,1991,92.4,False
+Nebraska,1992,90.6,False
+Nebraska,1993,91.1,False
+Nebraska,1994,85.9,False
+Nebraska,1995,88.5,False
+Nebraska,1996,86.2,False
+Nebraska,1997,85.5,False
+Nebraska,1998,83.1,False
+Nebraska,1999,86.6,False
+Nebraska,2000,77.6,False
+Nevada,1970,189.5,False
+Nevada,1971,190.5,False
+Nevada,1972,198.6,False
+Nevada,1973,201.5,False
+Nevada,1974,204.7,False
+Nevada,1975,205.2,False
+Nevada,1976,201.4,False
+Nevada,1977,190.8,False
+Nevada,1978,187.0,False
+Nevada,1979,183.3,False
+Nevada,1980,177.7,False
+Nevada,1981,171.9,False
+Nevada,1982,165.1,False
+Nevada,1983,159.2,False
+Nevada,1984,136.6,False
+Nevada,1985,146.7,False
+Nevada,1986,142.6,False
+Nevada,1987,147.7,False
+Nevada,1988,141.9,False
+Nevada,1989,137.9,False
+Nevada,1990,137.3,False
+Nevada,1991,115.5,False
+Nevada,1992,110.0,False
+Nevada,1993,108.1,False
+Nevada,1994,105.2,False
+Nevada,1995,100.9,False
+Nevada,1996,99.0,False
+Nevada,1997,95.6,False
+Nevada,1998,102.4,False
+Nevada,1999,103.9,False
+Nevada,2000,93.2,False
+New Hampshire,1970,265.7,False
+New Hampshire,1971,278.0,False
+New Hampshire,1972,296.2,False
+New Hampshire,1973,279.0,False
+New Hampshire,1974,269.8,False
+New Hampshire,1975,269.1,False
+New Hampshire,1976,290.5,False
+New Hampshire,1977,278.8,False
+New Hampshire,1978,269.6,False
+New Hampshire,1979,254.6,False
+New Hampshire,1980,247.8,False
+New Hampshire,1981,245.4,False
+New Hampshire,1982,239.8,False
+New Hampshire,1983,232.9,False
+New Hampshire,1984,215.1,False
+New Hampshire,1985,201.1,False
+New Hampshire,1986,195.9,False
+New Hampshire,1987,195.1,False
+New Hampshire,1988,180.4,False
+New Hampshire,1989,172.9,False
+New Hampshire,1990,152.4,False
+New Hampshire,1991,144.8,False
+New Hampshire,1992,143.7,False
+New Hampshire,1993,148.9,False
+New Hampshire,1994,153.8,False
+New Hampshire,1995,158.5,False
+New Hampshire,1996,158.0,False
+New Hampshire,1997,174.4,False
+New Hampshire,1998,173.8,False
+New Hampshire,1999,171.7,False
+New Hampshire,2000,147.3,False
+New Mexico,1970,90.0,False
+New Mexico,1971,92.6,False
+New Mexico,1972,99.3,False
+New Mexico,1973,98.9,False
+New Mexico,1974,100.3,False
+New Mexico,1975,103.1,False
+New Mexico,1976,102.4,False
+New Mexico,1977,102.4,False
+New Mexico,1978,103.1,False
+New Mexico,1979,101.0,False
+New Mexico,1980,102.7,False
+New Mexico,1981,103.0,False
+New Mexico,1982,97.5,False
+New Mexico,1983,96.3,False
+New Mexico,1984,88.9,False
+New Mexico,1985,88.0,False
+New Mexico,1986,88.2,False
+New Mexico,1987,82.3,False
+New Mexico,1988,77.7,False
+New Mexico,1989,74.4,False
+New Mexico,1990,70.8,False
+New Mexico,1991,69.9,False
+New Mexico,1992,71.4,False
+New Mexico,1993,69.0,False
+New Mexico,1994,68.2,False
+New Mexico,1995,67.0,False
+New Mexico,1996,65.7,False
+New Mexico,1997,61.8,False
+New Mexico,1998,62.6,False
+New Mexico,1999,59.7,False
+New Mexico,2000,53.8,False
+North Carolina,1970,172.4,False
+North Carolina,1971,187.6,False
+North Carolina,1972,214.1,False
+North Carolina,1973,226.5,False
+North Carolina,1974,227.3,False
+North Carolina,1975,226.0,False
+North Carolina,1976,230.2,False
+North Carolina,1977,217.0,False
+North Carolina,1978,205.5,False
+North Carolina,1979,197.3,False
+North Carolina,1980,187.8,False
+North Carolina,1981,179.3,False
+North Carolina,1982,179.0,False
+North Carolina,1983,169.8,False
+North Carolina,1984,160.6,False
+North Carolina,1985,156.3,False
+North Carolina,1986,154.4,False
+North Carolina,1987,150.5,False
+North Carolina,1988,146.0,False
+North Carolina,1989,139.3,False
+North Carolina,1990,133.7,False
+North Carolina,1991,132.7,False
+North Carolina,1992,128.9,False
+North Carolina,1993,129.7,False
+North Carolina,1994,112.7,False
+North Carolina,1995,124.9,False
+North Carolina,1996,129.7,False
+North Carolina,1997,125.6,False
+North Carolina,1998,126.0,False
+North Carolina,1999,113.1,False
+North Carolina,2000,109.0,False
+North Dakota,1970,93.8,False
+North Dakota,1971,98.5,False
+North Dakota,1972,103.8,False
+North Dakota,1973,108.7,False
+North Dakota,1974,110.5,False
+North Dakota,1975,117.9,False
+North Dakota,1976,125.4,False
+North Dakota,1977,122.2,False
+North Dakota,1978,121.9,False
+North Dakota,1979,121.3,False
+North Dakota,1980,123.7,False
+North Dakota,1981,125.7,False
+North Dakota,1982,126.8,False
+North Dakota,1983,119.6,False
+North Dakota,1984,109.4,False
+North Dakota,1985,103.2,False
+North Dakota,1986,99.8,False
+North Dakota,1987,92.3,False
+North Dakota,1988,87.1,False
+North Dakota,1989,84.1,False
+North Dakota,1990,77.1,False
+North Dakota,1991,85.2,False
+North Dakota,1992,74.3,False
+North Dakota,1993,83.0,False
+North Dakota,1994,81.0,False
+North Dakota,1995,80.6,False
+North Dakota,1996,80.8,False
+North Dakota,1997,77.5,False
+North Dakota,1998,79.1,False
+North Dakota,1999,74.7,False
+North Dakota,2000,72.5,False
+Ohio,1970,121.6,False
+Ohio,1971,124.6,False
+Ohio,1972,124.4,False
+Ohio,1973,120.5,False
+Ohio,1974,122.1,False
+Ohio,1975,122.5,False
+Ohio,1976,124.6,False
+Ohio,1977,127.3,False
+Ohio,1978,131.3,False
+Ohio,1979,130.9,False
+Ohio,1980,133.5,False
+Ohio,1981,132.8,False
+Ohio,1982,134.0,False
+Ohio,1983,130.0,False
+Ohio,1984,127.1,False
+Ohio,1985,126.7,False
+Ohio,1986,126.3,False
+Ohio,1987,124.6,False
+Ohio,1988,122.4,False
+Ohio,1989,118.6,False
+Ohio,1990,115.5,False
+Ohio,1991,113.2,False
+Ohio,1992,112.3,False
+Ohio,1993,108.9,False
+Ohio,1994,108.6,False
+Ohio,1995,111.7,False
+Ohio,1996,107.6,False
+Ohio,1997,108.6,False
+Ohio,1998,106.4,False
+Ohio,1999,104.0,False
+Ohio,2000,99.9,False
+Oklahoma,1970,108.4,False
+Oklahoma,1971,115.4,False
+Oklahoma,1972,121.7,False
+Oklahoma,1973,124.1,False
+Oklahoma,1974,130.5,False
+Oklahoma,1975,132.9,False
+Oklahoma,1976,138.6,False
+Oklahoma,1977,140.4,False
+Oklahoma,1978,143.6,False
+Oklahoma,1979,141.6,False
+Oklahoma,1980,141.6,False
+Oklahoma,1981,143.7,False
+Oklahoma,1982,147.0,False
+Oklahoma,1983,140.0,False
+Oklahoma,1984,128.1,False
+Oklahoma,1985,124.2,False
+Oklahoma,1986,119.9,False
+Oklahoma,1987,113.1,False
+Oklahoma,1988,103.6,False
+Oklahoma,1989,97.5,False
+Oklahoma,1990,88.4,False
+Oklahoma,1991,87.8,False
+Oklahoma,1992,86.3,False
+Oklahoma,1993,86.2,False
+Oklahoma,1994,104.8,False
+Oklahoma,1995,109.5,False
+Oklahoma,1996,110.8,False
+Oklahoma,1997,111.8,False
+Oklahoma,1998,112.2,False
+Oklahoma,1999,111.4,False
+Oklahoma,2000,108.9,False
+Pennsylvania,1970,107.3,False
+Pennsylvania,1971,106.3,False
+Pennsylvania,1972,109.0,False
+Pennsylvania,1973,110.7,False
+Pennsylvania,1974,114.2,False
+Pennsylvania,1975,114.6,False
+Pennsylvania,1976,118.8,False
+Pennsylvania,1977,120.1,False
+Pennsylvania,1978,122.3,False
+Pennsylvania,1979,122.6,False
+Pennsylvania,1980,124.0,False
+Pennsylvania,1981,125.2,False
+Pennsylvania,1982,123.3,False
+Pennsylvania,1983,125.3,False
+Pennsylvania,1984,115.3,False
+Pennsylvania,1985,115.8,False
+Pennsylvania,1986,113.9,False
+Pennsylvania,1987,110.6,False
+Pennsylvania,1988,107.6,False
+Pennsylvania,1989,107.1,False
+Pennsylvania,1990,101.3,False
+Pennsylvania,1991,102.5,False
+Pennsylvania,1992,96.2,False
+Pennsylvania,1993,94.7,False
+Pennsylvania,1994,95.4,False
+Pennsylvania,1995,95.4,False
+Pennsylvania,1996,93.3,False
+Pennsylvania,1997,92.9,False
+Pennsylvania,1998,92.1,False
+Pennsylvania,1999,91.1,False
+Pennsylvania,2000,87.9,False
+Rhode Island,1970,123.9,False
+Rhode Island,1971,123.2,False
+Rhode Island,1972,134.4,False
+Rhode Island,1973,142.0,False
+Rhode Island,1974,146.1,False
+Rhode Island,1975,154.7,False
+Rhode Island,1976,150.2,False
+Rhode Island,1977,148.8,False
+Rhode Island,1978,146.8,False
+Rhode Island,1979,145.8,False
+Rhode Island,1980,149.3,False
+Rhode Island,1981,151.2,False
+Rhode Island,1982,146.3,False
+Rhode Island,1983,135.8,False
+Rhode Island,1984,136.9,False
+Rhode Island,1985,133.4,False
+Rhode Island,1986,136.3,False
+Rhode Island,1987,124.4,False
+Rhode Island,1988,138.0,False
+Rhode Island,1989,120.8,False
+Rhode Island,1990,101.4,False
+Rhode Island,1991,103.6,False
+Rhode Island,1992,100.1,False
+Rhode Island,1993,94.1,False
+Rhode Island,1994,91.9,False
+Rhode Island,1995,90.8,False
+Rhode Island,1996,87.5,False
+Rhode Island,1997,90.0,False
+Rhode Island,1998,88.7,False
+Rhode Island,1999,86.9,False
+Rhode Island,2000,83.1,False
+South Carolina,1970,103.6,False
+South Carolina,1971,115.0,False
+South Carolina,1972,118.7,False
+South Carolina,1973,125.5,False
+South Carolina,1974,129.7,False
+South Carolina,1975,130.5,False
+South Carolina,1976,136.8,False
+South Carolina,1977,137.2,False
+South Carolina,1978,140.4,False
+South Carolina,1979,135.7,False
+South Carolina,1980,138.3,False
+South Carolina,1981,136.1,False
+South Carolina,1982,136.0,False
+South Carolina,1983,131.1,False
+South Carolina,1984,127.0,False
+South Carolina,1985,125.4,False
+South Carolina,1986,126.6,False
+South Carolina,1987,126.6,False
+South Carolina,1988,124.4,False
+South Carolina,1989,122.4,False
+South Carolina,1990,118.6,False
+South Carolina,1991,121.5,False
+South Carolina,1992,112.8,False
+South Carolina,1993,115.2,False
+South Carolina,1994,112.2,False
+South Carolina,1995,109.2,False
+South Carolina,1996,102.9,False
+South Carolina,1997,124.5,False
+South Carolina,1998,126.9,False
+South Carolina,1999,109.4,False
+South Carolina,2000,103.9,False
+South Dakota,1970,92.7,False
+South Dakota,1971,96.7,False
+South Dakota,1972,103.0,False
+South Dakota,1973,103.5,False
+South Dakota,1974,108.4,False
+South Dakota,1975,113.5,False
+South Dakota,1976,116.7,False
+South Dakota,1977,115.6,False
+South Dakota,1978,116.9,False
+South Dakota,1979,117.4,False
+South Dakota,1980,114.7,False
+South Dakota,1981,115.7,False
+South Dakota,1982,113.0,False
+South Dakota,1983,109.8,False
+South Dakota,1984,105.7,False
+South Dakota,1985,104.4,False
+South Dakota,1986,97.0,False
+South Dakota,1987,95.8,False
+South Dakota,1988,91.9,False
+South Dakota,1989,87.4,False
+South Dakota,1990,88.3,False
+South Dakota,1991,91.8,False
+South Dakota,1992,93.0,False
+South Dakota,1993,91.6,False
+South Dakota,1994,94.8,False
+South Dakota,1995,98.6,False
+South Dakota,1996,92.3,False
+South Dakota,1997,88.8,False
+South Dakota,1998,88.3,False
+South Dakota,1999,83.5,False
+South Dakota,2000,75.1,False
+Tennessee,1970,99.8,False
+Tennessee,1971,106.3,False
+Tennessee,1972,111.5,False
+Tennessee,1973,109.7,False
+Tennessee,1974,114.8,False
+Tennessee,1975,117.4,False
+Tennessee,1976,121.7,False
+Tennessee,1977,124.6,False
+Tennessee,1978,127.3,False
+Tennessee,1979,127.2,False
+Tennessee,1980,130.4,False
+Tennessee,1981,129.1,False
+Tennessee,1982,131.4,False
+Tennessee,1983,129.0,False
+Tennessee,1984,125.1,False
+Tennessee,1985,128.7,False
+Tennessee,1986,129.0,False
+Tennessee,1987,130.6,False
+Tennessee,1988,125.3,False
+Tennessee,1989,124.7,False
+Tennessee,1990,121.8,False
+Tennessee,1991,120.6,False
+Tennessee,1992,121.0,False
+Tennessee,1993,120.8,False
+Tennessee,1994,118.8,False
+Tennessee,1995,125.4,False
+Tennessee,1996,119.2,False
+Tennessee,1997,118.9,False
+Tennessee,1998,119.7,False
+Tennessee,1999,115.6,False
+Tennessee,2000,108.7,False
+Texas,1970,106.4,False
+Texas,1971,108.9,False
+Texas,1972,108.6,False
+Texas,1973,110.4,False
+Texas,1974,114.7,False
+Texas,1975,116.0,False
+Texas,1976,121.4,False
+Texas,1977,124.2,False
+Texas,1978,126.6,False
+Texas,1979,126.4,False
+Texas,1980,129.7,False
+Texas,1981,129.0,False
+Texas,1982,131.2,False
+Texas,1983,126.4,False
+Texas,1984,117.2,False
+Texas,1985,115.9,False
+Texas,1986,113.7,False
+Texas,1987,105.8,False
+Texas,1988,96.5,False
+Texas,1989,94.5,False
+Texas,1990,85.6,False
+Texas,1991,79.4,False
+Texas,1992,77.2,False
+Texas,1993,81.3,False
+Texas,1994,78.8,False
+Texas,1995,75.2,False
+Texas,1996,74.6,False
+Texas,1997,72.6,False
+Texas,1998,73.2,False
+Texas,1999,67.6,False
+Texas,2000,69.3,False
+Utah,1970,65.5,False
+Utah,1971,67.7,False
+Utah,1972,71.3,False
+Utah,1973,72.7,False
+Utah,1974,75.6,False
+Utah,1975,75.8,False
+Utah,1976,77.9,False
+Utah,1977,78.0,False
+Utah,1978,79.6,False
+Utah,1979,79.1,False
+Utah,1980,74.8,False
+Utah,1981,77.6,False
+Utah,1982,73.6,False
+Utah,1983,69.0,False
+Utah,1984,66.3,False
+Utah,1985,66.5,False
+Utah,1986,64.4,False
+Utah,1987,67.7,False
+Utah,1988,55.0,False
+Utah,1989,57.0,False
+Utah,1990,53.4,False
+Utah,1991,53.5,False
+Utah,1992,55.0,False
+Utah,1993,56.2,False
+Utah,1994,55.8,False
+Utah,1995,52.0,False
+Utah,1996,54.0,False
+Utah,1997,57.0,False
+Utah,1998,42.3,False
+Utah,1999,43.9,False
+Utah,2000,40.7,False
+Vermont,1970,122.6,False
+Vermont,1971,124.4,False
+Vermont,1972,138.0,False
+Vermont,1973,146.8,False
+Vermont,1974,151.8,False
+Vermont,1975,155.5,False
+Vermont,1976,171.1,False
+Vermont,1977,169.4,False
+Vermont,1978,162.4,False
+Vermont,1979,160.9,False
+Vermont,1980,161.6,False
+Vermont,1981,163.8,False
+Vermont,1982,162.3,False
+Vermont,1983,153.8,False
+Vermont,1984,144.3,False
+Vermont,1985,144.5,False
+Vermont,1986,131.2,False
+Vermont,1987,128.3,False
+Vermont,1988,128.7,False
+Vermont,1989,120.9,False
+Vermont,1990,124.3,False
+Vermont,1991,120.9,False
+Vermont,1992,126.5,False
+Vermont,1993,117.2,False
+Vermont,1994,120.3,False
+Vermont,1995,123.2,False
+Vermont,1996,102.5,False
+Vermont,1997,97.7,False
+Vermont,1998,97.0,False
+Vermont,1999,94.1,False
+Vermont,2000,88.9,False
+Virginia,1970,124.3,False
+Virginia,1971,128.4,False
+Virginia,1972,137.0,False
+Virginia,1973,143.1,False
+Virginia,1974,149.6,False
+Virginia,1975,152.7,False
+Virginia,1976,158.1,False
+Virginia,1977,157.7,False
+Virginia,1978,155.9,False
+Virginia,1979,151.8,False
+Virginia,1980,148.9,False
+Virginia,1981,149.9,False
+Virginia,1982,147.4,False
+Virginia,1983,144.7,False
+Virginia,1984,136.8,False
+Virginia,1985,134.6,False
+Virginia,1986,135.8,False
+Virginia,1987,133.0,False
+Virginia,1988,129.5,False
+Virginia,1989,122.5,False
+Virginia,1990,118.9,False
+Virginia,1991,109.1,False
+Virginia,1992,108.2,False
+Virginia,1993,105.4,False
+Virginia,1994,106.2,False
+Virginia,1995,106.7,False
+Virginia,1996,104.6,False
+Virginia,1997,108.0,False
+Virginia,1998,105.6,False
+Virginia,1999,102.1,False
+Virginia,2000,96.7,False
+West Virginia,1970,114.5,False
+West Virginia,1971,111.5,False
+West Virginia,1972,117.5,False
+West Virginia,1973,116.6,False
+West Virginia,1974,119.9,False
+West Virginia,1975,123.2,False
+West Virginia,1976,129.7,False
+West Virginia,1977,133.9,False
+West Virginia,1978,131.6,False
+West Virginia,1979,122.1,False
+West Virginia,1980,122.3,False
+West Virginia,1981,120.5,False
+West Virginia,1982,119.8,False
+West Virginia,1983,115.7,False
+West Virginia,1984,111.9,False
+West Virginia,1985,109.1,False
+West Virginia,1986,112.1,False
+West Virginia,1987,107.5,False
+West Virginia,1988,109.1,False
+West Virginia,1989,104.0,False
+West Virginia,1990,104.1,False
+West Virginia,1991,100.1,False
+West Virginia,1992,97.9,False
+West Virginia,1993,111.0,False
+West Virginia,1994,104.2,False
+West Virginia,1995,115.2,False
+West Virginia,1996,112.7,False
+West Virginia,1997,114.5,False
+West Virginia,1998,114.6,False
+West Virginia,1999,112.4,False
+West Virginia,2000,107.9,False
+Wisconsin,1970,106.4,False
+Wisconsin,1971,105.4,False
+Wisconsin,1972,108.8,False
+Wisconsin,1973,109.5,False
+Wisconsin,1974,111.8,False
+Wisconsin,1975,113.5,False
+Wisconsin,1976,115.4,False
+Wisconsin,1977,117.2,False
+Wisconsin,1978,116.7,False
+Wisconsin,1979,117.1,False
+Wisconsin,1980,117.6,False
+Wisconsin,1981,119.9,False
+Wisconsin,1982,115.6,False
+Wisconsin,1983,106.3,False
+Wisconsin,1984,105.6,False
+Wisconsin,1985,107.0,False
+Wisconsin,1986,105.4,False
+Wisconsin,1987,106.0,False
+Wisconsin,1988,102.6,False
+Wisconsin,1989,100.3,False
+Wisconsin,1990,94.0,False
+Wisconsin,1991,95.5,False
+Wisconsin,1992,96.2,False
+Wisconsin,1993,91.2,False
+Wisconsin,1994,91.8,False
+Wisconsin,1995,93.5,False
+Wisconsin,1996,92.1,False
+Wisconsin,1997,91.9,False
+Wisconsin,1998,88.7,False
+Wisconsin,1999,84.4,False
+Wisconsin,2000,80.1,False
+Wyoming,1970,132.2,False
+Wyoming,1971,131.7,False
+Wyoming,1972,140.0,False
+Wyoming,1973,141.2,False
+Wyoming,1974,145.8,False
+Wyoming,1975,160.7,False
+Wyoming,1976,161.5,False
+Wyoming,1977,160.4,False
+Wyoming,1978,160.3,False
+Wyoming,1979,168.6,False
+Wyoming,1980,158.1,False
+Wyoming,1981,163.1,False
+Wyoming,1982,157.7,False
+Wyoming,1983,141.2,False
+Wyoming,1984,128.9,False
+Wyoming,1985,125.7,False
+Wyoming,1986,124.8,False
+Wyoming,1987,110.4,False
+Wyoming,1988,114.3,False
+Wyoming,1989,111.4,False
+Wyoming,1990,96.9,False
+Wyoming,1991,109.1,False
+Wyoming,1992,110.8,False
+Wyoming,1993,108.4,False
+Wyoming,1994,111.2,False
+Wyoming,1995,115.0,False
+Wyoming,1996,110.3,False
+Wyoming,1997,108.8,False
+Wyoming,1998,102.9,False
+Wyoming,1999,104.8,False
+Wyoming,2000,90.5,False
