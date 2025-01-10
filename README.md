@@ -1,22 +1,22 @@
-# mlsynth
- mlsynth is a python package for doing policy evaluation using panel data estimators. Documentation coming soon.
+#  ``mlsynth``
+``mlsynth`` is a python package for doing policy evaluation using panel data estimators. See the [fuill documentation](https://mlsynth.readthedocs.io/) and the associated tutorials.
 
 
-## What is mlsynth
-As the name suggests, it employs synthetic control methods, also includes difference-in-differences, panel data approaches, and factor modeling. mlsynth is a suite of tools for addressing questions like "How does Policy X affect some outcome Y" given a panel data structure across more than one time point (ideally many).
+## What is  ``mlsynth``
+ ``mlsynth`` employs synthetic control methods, also includes difference-in-differences, panel data approaches, and factor modeling.  ``mlsynth`` is a suite of tools for addressing questions like "How does Policy X affect some outcome Y" given a panel data structure across more than one time point (ideally many).
 
-## Installing mlsynth
-mlsynth is compatible with Python 3.9 or later. To install it, please do
+## Installing  ``mlsynth``
+ ``mlsynth`` is compatible with Python 3.9 or later. To install it, please do
 
     $ pip install -U git+https://github.com/jgreathouse9/mlsynth.git
 
 
-Note that mlsynth is an active project. New estimators, such as [this one](https://doi.org/10.48550/arXiv.2006.07691), will soon join the toolkit.
+Note that  ``mlsynth`` is an active project. New estimators, such as [this one](https://doi.org/10.48550/arXiv.2006.07691), will soon join the toolkit.
     
-## Using mlsynth
-We have implemented the following estimators for mlsynth  
+## Using  ``mlsynth``
+We have implemented the following estimators for  ``mlsynth``  
 
- | Estimator                                | Reference | Class in mlsynth |
+ | Estimator                                | Reference | Class in  ``mlsynth`` |
 | ---------------------------------------- | --------- | ---------------- |
 | [Augmented Difference-in-Differences](https://doi.org/10.1287/mksc.2022.1406) | Kathleen T. Li and Christophe Van den Bulte. "Augmented Difference-in-Differences." *Marketing Science* 2023 42:4, 746-767. | FDID |
 | [CLUSTERSC](#) | Saeyoung Rho, Andrew Tang, Noah Bergam, Rachel Cummings, Vishal Misra. "CLUSTERSC: Advancing Synthetic Control with Donor Clustering for Disaggregate-Level Data." (2024). | CLUSTERSC |
