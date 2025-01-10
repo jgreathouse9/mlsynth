@@ -36,7 +36,7 @@ jobs:
 
     - name: Auto-format code with autopep8
       run: |
-        autopep8 --in-place --aggressive --max-line-length 79 .  # Automatically fix formatting issues, including long lines
+        autopep8 --in-place --aggressive --max-line-length 79 **/*.py  # Automatically fix formatting issues, including long lines in Python files
 
     - name: Commit and push changes
       run: |
