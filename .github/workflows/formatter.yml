@@ -24,7 +24,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install black flake8 autopep8 docformatter  # Install Black, Flake8, autopep8, and docformatter
+        pip install black flake8 autopep8  # Install black, flake8, and autopep8
 
     - name: Auto-format code with Black
       run: |
@@ -36,8 +36,4 @@ jobs:
 
     - name: Auto-format code with autopep8
       run: |
-        autopep8 --in-place --aggressive --max-line-length 79 $(find . -name "*.py")  # Target Python files
-
-    - name: Auto-format docstrings with docformatter
-      run: |
-        docformatter --in-place --recursive **/*.py  # Format all Python docstrings in place
+        autopep8 --in-place --aggressive --max-line-length 79 .  # Automatically fix formatting issues, including long lines
