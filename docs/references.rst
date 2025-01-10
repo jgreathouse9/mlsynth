@@ -37,6 +37,8 @@ References
 
 .. [Li2024] Li, Kathleen T. *"Frontiers: A Simple Forward Difference-in-Differences Method."* Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. `doi:10.1287/mksc.2022.0212 <https://doi.org/10.1287/mksc.2022.0212>`_.
 
+.. [TSSC] Li, K. T., & Shankar, V. (2023). A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events. *Management Science, 70*(6), 3734-3747. https://doi.org/10.1287/mnsc.2023.4878
+
 
 .. [ROTH20232218]
     Roth, Jonathan, Sant'Anna, Pedro H.C., Bilinski, Alyssa, and Poe, John. 
