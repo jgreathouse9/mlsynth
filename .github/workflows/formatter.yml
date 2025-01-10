@@ -28,12 +28,12 @@ jobs:
 
     - name: Auto-format code with Black
       run: |
-        black . --line-length 79
+        black . --line-length 50
 
     - name: Check code style with Flake8
       run: |
-        flake8 . --max-line-length=79 --exit-zero
+        flake8 . --max-line-length=50 --exit-zero
 
     - name: Auto-format code with autopep8
       run: |
-        autopep8 --in-place --aggressive --max-line-length 79 $(find . -name "*.py")
+        autopep8 --in-place --aggressive --max-line-length 50 $(find . -name "*.py")
