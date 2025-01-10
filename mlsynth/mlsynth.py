@@ -35,6 +35,7 @@ class TSSC:
         ----------
         config : dict
             A dictionary containing the necessary parameters. The following keys are expected:
+            
             df : pandas.DataFrame
                 User-specified dataframe containing the data.
             treat : str
@@ -51,8 +52,12 @@ class TSSC:
                 Color for the treated line in the plots, by default "black".
             display_graphs : bool, optional
                 Whether to display the plots, by default True.
-            save : bool, optional
-                Whether to save the generated plots, by default False.
+            save : bool or dict, optional
+                Whether to save the generated plots. Default is False.
+                If a dictionary, keys can include:
+                    - 'filename' : Custom file name (without extension).
+                    - 'extension' : File format (e.g., 'png', 'pdf').
+                    - 'directory' : Directory to save the plot.
             draws : int, optional
                 Number of subsample replications, by default 500.
 
@@ -60,13 +65,17 @@ class TSSC:
         -------
         dict
             A dictionary with the following keys:
-            'SIMPLEX' : float
+            
+            'SIMPLEX' : dict
                 Estimates and inference from the SIMPLEX method.
-            'MSCa' : float
+                
+            'MSCa' : dict
                 Estimates and inference from the MSCa method.
-            'MSCb' : float
+                
+            'MSCb' : dict
                 Estimates and inference from the MSCb method.
-            'MSCc' : float
+                
+            'MSCc' : dict
                 Estimates and inference from the MSCc method.
         """
 
@@ -132,7 +141,7 @@ class TSSC:
                 counterfactualcolors=[self.counterfactual_color]
             )
 
-        return (result,prepped)
+        return result
 
 class FMA:
     def __init__(self, config):
@@ -337,7 +346,7 @@ class FMA:
                            counterfactual_names=[f"FMA {prepped['treated_unit_name']}"], save=self.save)
         
         
-        return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference, "Prepped": prepped}
+        return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference}
 
 
 class PDA:
@@ -445,7 +454,7 @@ class PDA:
                 save=self.save
             )
 
-        return (pdaest,prepped)
+        return pdaest
 
 
 class FDID:
@@ -861,7 +870,7 @@ class FDID:
                            prepped["treated_unit_name"], prepped["y"], [y_FDID], method="FDID", counterfactual_names=["FDID "+prepped["treated_unit_name"]],
                            treatedcolor=self.treated_color, save=self.save, counterfactualcolors=[self.counterfactual_color])
 
-        return (estimators_results,prepped)
+        return estimators_results
 
 
 class GSC:
@@ -1148,7 +1157,7 @@ class CLUSTERSC:
                 save=self.save
             )
 
-        ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict, "Prepped": prepped}
+        ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
 
         return ClustSCdict
 
