@@ -44,7 +44,7 @@ save = {
 }
 
 df = pd.read_csv(
-    r"https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/Vignettes/TSSC/Data.csv",
+    r"https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/Data.csv",
     sep=",",
 ).reset_index()
 # Rename the 'index' column to 'Time'
