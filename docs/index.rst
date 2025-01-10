@@ -4,9 +4,9 @@
 
 To Do List:
 
-- Two-Step SCM
 - Generalized SCM
 - Implement Placebos (time and space), possibly as a helper
+- Add covariates to the TSSC approach (maybe with `this solver <https://doi.org/10.1007/s10614-023-10471-7>`_)
 
 
 .. note::
