@@ -1,4 +1,3 @@
----
 name: Test MLSYNTH Estimation
 on:
   push:
@@ -43,7 +42,12 @@ jobs:
       - name: Run FMA
         run: |
           set -x
-          python examples/fma.py  # Add this line to run fma.py
+          python examples/fma.py
+
+      - name: Run TSCC
+        run: |
+          set -x
+          python examples/tscc.py
 
       - name: Commit plots
         run: |
