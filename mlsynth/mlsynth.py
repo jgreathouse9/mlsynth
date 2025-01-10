@@ -132,7 +132,7 @@ class TSSC:
                 counterfactualcolors=[self.counterfactual_color]
             )
 
-        return result
+        return (result,prepped)
 
 class FMA:
     def __init__(self, config):
@@ -337,7 +337,7 @@ class FMA:
                            counterfactual_names=[f"FMA {prepped['treated_unit_name']}"], save=self.save)
         
         
-        return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference}
+        return {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Inference": Inference, "Prepped": prepped}
 
 
 class PDA:
@@ -443,7 +443,7 @@ class PDA:
                 save=self.save
             )
 
-        return pdaest
+        return (pdaest,prepped)
 
 
 class FDID:
@@ -859,7 +859,7 @@ class FDID:
                            prepped["treated_unit_name"], prepped["y"], [y_FDID], method="FDID", counterfactual_names=["FDID "+prepped["treated_unit_name"]],
                            treatedcolor=self.treated_color, save=self.save, counterfactualcolors=[self.counterfactual_color])
 
-        return estimators_results
+        return (estimators_results,prepped)
 
 
 class GSC:
@@ -949,7 +949,7 @@ class GSC:
         n, p = prepped["donor_matrix"][:prepped["pre_periods"]].shape
         k = (min(n, p) - 1) // 2
 
-        Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(prepped["donor_matrix"][:prepped["pre_periods"]], k, strategy='i')
+        #Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(prepped["donor_matrix"][:prepped["pre_periods"]], k, strategy='i')
 
         Z[treatrow, -prepped["post_periods"]:] = 1
         result = DC_PR_with_suggested_rank(Ywide.to_numpy(), Z, suggest_r=rank, method='non-convex')
@@ -1146,7 +1146,7 @@ class CLUSTERSC:
                 save=self.save
             )
 
-        ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
+        ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict, "Prepped": prepped}
 
         return ClustSCdict
 
