@@ -57,7 +57,7 @@ def compute_t_stat_and_ci(att, treatment_effects, truncation_lag, confidence_lev
     standard_error = np.sqrt(hac_variance / T2)
 
     # t-statistic
-    t_stat = np.sqrt(T2) * att / standard_error
+    t_stat = att / standard_error
 
     # 95% confidence interval
     z_low, z_high = zconfint(att, standard_error, alpha=1 - confidence_level)
