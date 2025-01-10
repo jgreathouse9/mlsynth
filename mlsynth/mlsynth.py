@@ -378,8 +378,10 @@ class PDA:
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
             method : str, optional
-                Type of PDA to use, either "LASSO", "fs" (forward selection), or "l2" (L2-relaxation),
-                by default "fs" (forward selection).
+                Type of PDA to use, either 
+                - "LASSO" (L1 Penalty),
+                - "l2" (L2-Relaxation),
+                - "fs" (Forward Selection), default.
 
         Returns
         -------
@@ -387,16 +389,16 @@ class PDA:
             A dictionary containing the estimated treatment effects, fit metrics,
             and inference results depending on the selected PDA method.
 
-        References
+        References 
         ----------
         Shi, Z. & Huang, J. (2023). "Forward-selected panel data approach for program evaluation."
-        *Journal of Econometrics*, Volume 234, Issue 2, Pages 512-535.
+        *Journal of Econometrics*, Volume 234, Issue 2, Pages 512-535. DOI: https://doi.org/10.1016/j.jeconom.2021.04.009
 
         Li, Kathleen T., and David R. Bell. "Estimation of Average Treatment Effects with Panel Data: Asymptotic
-        Theory and Implementation." *Journal of Econometrics* 197, no. 1 (March, 2017): 65-75. DOI: `10.1016/j.jeconom.2016.01.011<https://doi.org/10.1016/j.jeconom.2016.01.011>`_
+        Theory and Implementation." *Journal of Econometrics* 197, no. 1 (March, 2017): 65-75. DOI: https://doi.org/10.1016/j.jeconom.2016.01.011
 
         Shi, Z. & Wang, Y. (2024). "L2-relaxation for Economic Prediction."
-        DOI: 10.13140/RG.2.2.11670.97609.
+        DOI: https://doi.org/10.13140/RG.2.2.11670.97609.
         """
 
         self.df = config.get("df")
