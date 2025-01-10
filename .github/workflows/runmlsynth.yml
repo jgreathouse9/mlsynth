@@ -44,10 +44,10 @@ jobs:
           set -x
           python examples/fma.py
 
-      - name: Run TSCC
+      - name: Run TSSC
         run: |
           set -x
-          python examples/tscc.py
+          python examples/tssc.py
 
       - name: Commit plots
         run: |
