@@ -1145,7 +1145,9 @@ class CLUSTERSC:
         Parameters
         ----------
         config : dict
+        
             A dictionary containing the necessary parameters. The following keys are expected:
+            
             df : pandas.DataFrame
                 DataFrame containing the data.
             treat : str
