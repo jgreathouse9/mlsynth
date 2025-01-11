@@ -1,7 +1,7 @@
 import pandas as pd
 from mlsynth.mlsynth import PDA
 import os
-import examples.jared_theme
+import theme.jared_theme
 
 def load_and_process_data():
     """
