@@ -1173,12 +1173,13 @@ class CLUSTERSC:
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
             Frequentist : bool, optional
-                If true, use Frequntist Robust SCM,
-                else if False, use Amjad's Bayesian method.
-                Defaults to true
+                If true, use Frequntist Robust SCM.
+                If False, usees Amjad's Bayesian method.
+                Defaults to true.
                 
         Returns
         -------
+        
         dict
             A dictionary containing results for both RPCA-SC and PCR methods, with the following keys:
             
