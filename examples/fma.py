@@ -1,24 +1,8 @@
 import pandas as pd
 from mlsynth.mlsynth import FMA
-import matplotlib
 import os
-
-jared_theme = {
-    "axes.grid": True,
-    "grid.linestyle": "-",
-    "legend.framealpha": 1,
-    "legend.facecolor": "white",
-    "legend.shadow": True,
-    "legend.fontsize": 12,
-    "legend.title_fontsize": 14,
-    "xtick.labelsize": 12,
-    "ytick.labelsize": 12,
-    "axes.labelsize": 12,
-    "axes.titlesize": 20,
-    "figure.dpi": 100,
-    "axes.facecolor": "white",
-    "figure.figsize": (11, 6),
-}
+from theme import jared_theme
+import matplotlib
 
 matplotlib.rcParams.update(jared_theme)
 
