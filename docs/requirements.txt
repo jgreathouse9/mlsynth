@@ -1,6 +1,6 @@
 # Sphinx dependencies
 sphinx
-sphinx_rtd_theme
+sphinx_press_theme
 sphinxcontrib-bibtex<2.0.0
 sphinx-copybutton
 
