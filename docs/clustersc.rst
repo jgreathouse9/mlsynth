@@ -153,65 +153,38 @@ We can now turn to an empirical example, namely the reanalysis of West Germany' 
 .. code-block:: python
 
     from mlsynth.mlsynth import CLUSTERSC
-    import matplotlib
     import pandas as pd
-
-    # matplotlib theme
-    jared_theme = {
-        'axes.grid': False,
-        'grid.linestyle': '-',
-        'grid.color': 'black',
-        'legend.framealpha': 1,
-        'legend.facecolor': 'white',
-        'legend.shadow': True,
-        'legend.fontsize': 14,
-        'legend.title_fontsize': 16,
-        'xtick.labelsize': 14,
-        'ytick.labelsize': 14,
-        'axes.labelsize': 16,
-        'axes.titlesize': 20,
-        'figure.dpi': 100,
-        'axes.facecolor': 'white',
-        'figure.figsize': (10, 6)
-    }
-
+    import os
+    from theme import jared_theme
+    import matplotlib
+    
     matplotlib.rcParams.update(jared_theme)
-
-    # URL for the dataset
-    stub_url = 'https://raw.githubusercontent.com/OscarEngelbrektson/SyntheticControlMethods/master/examples/datasets/'
-
-    # Define configuration for Germany dataset
-    germany_config = {
-        "Columns": ['country', 'year', 'gdp'],
-        "Treatment Time": 1990,
-        "Treatment Name": "Reunification",
-        "Treated Unit": "Germany",
-        "Time": "year",
-        "Panel": 'country',
-        "Outcome": "gdp"
-    }
-
-    # Load and edit the Germany dataset
-    germany_df = pd.read_csv(stub_url + 'german_reunification.csv')
-
-    # Keep only the specified columns
-    germany_df = germany_df[germany_config['Columns']]
-
-    # Ensure the time column is of integer type
-    germany_df[germany_config['Time']] = germany_df[germany_config['Time']].astype(int)
-
-    # Generate the treatment variable
-    germany_df[germany_config["Treatment Name"]] = (germany_df[germany_config["Panel"]].str.contains(germany_config["Treated Unit"])) & \
-                                                   (germany_df[germany_config["Time"]] >= germany_config["Treatment Time"])
-
-    # Define the model configuration
-    unitid = germany_df.columns[0]
-    time = germany_df.columns[1]
-    outcome = germany_df.columns[2]
-    treat = germany_config["Treatment Name"]
-
+    
+    # Access the corresponding dictionary
+    file_path = os.path.join(os.path.dirname(__file__), '..', 'basedata', 'german_reunification.csv')
+    
+    # Load the CSV file using pandas
+    df = pd.read_csv(file_path)
+    
+    treat = "Reunification"
+    outcome = "gdp"
+    unitid = "country"
+    time = "year"
+    
+    new_directory = os.path.join(os.getcwd(), "examples")
+    os.chdir(new_directory)
+    
+    # Define the 'FMA' directory
+    save_directory = os.path.join(os.getcwd(), "clustersc")
+    
+    # Create the directory if it doesn't exist
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+    
+    save = {"filename": "German", "extension": "png", "directory": save_directory}
+    
     config = {
-        "df": germany_df,
+        "df": df,
         "treat": treat,
         "time": time,
         "outcome": outcome,
@@ -219,19 +192,14 @@ We can now turn to an empirical example, namely the reanalysis of West Germany' 
         "counterfactual_color": "red",
         "treated_color": "black",
         "display_graphs": True,
-        "save": True,
-        "cluster": False
+        "save": save,
+        "cluster": False,
     }
-
-    # Instantiate and fit the CLUSTERSC model
+    
     model = CLUSTERSC(config)
-    asc = model.fit()
+    
+    arco = model.fit()
 
-    # Print results
-    keys = ['Effects', 'Fit', 'Weights']
-    for key in keys:
-        print(f"\n{key}:")
-        print(asc["RPCASC"][key])
 
 
 
