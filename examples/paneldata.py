@@ -1,7 +1,10 @@
 import pandas as pd
 from mlsynth.mlsynth import PDA
 import os
-import theme.jared_theme
+import matplotlib.pyplot as plt
+from theme import jared_theme
+
+matplotlib.rcParams.update(jared_theme)
 
 def load_and_process_data():
     """
