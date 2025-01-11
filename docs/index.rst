@@ -77,8 +77,6 @@ At present, ``mlsynth`` supports the following estimators:
    At present, all designs are implemented with only a single treated unit, though this will change in the future.
 
 
-Contents:
-
 .. toctree::
    :maxdepth: 2
    :caption: Overview:
