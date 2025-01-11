@@ -78,10 +78,9 @@ def plot_estimates(
             cf,
             label=label,
             color=color,
-            linestyle="-",
+            linestyle="--",
             linewidth=2.5,
-            marker="D",
-            markersize=2,
+            marker="D"
         )
 
     # Add labels, title, legend, and grid
