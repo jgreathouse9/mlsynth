@@ -128,15 +128,16 @@ This is done via taking the augmented Lagrangian, solved with proximal gradient 
    \end{aligned}
 
 
-In the above, all this means is that we iteratively estimate the rank of the donor matrix via the SVT operator, and we use the :math:`\ell_1` norm to extract to the noise component, and the :math:`\rho` (the proximal gradeint operator) encourages updates. With this low-rank structure, we estimate our weights by solving the following optimization problem:
+In the above, all this means is that we iteratively estimate the rank of the donor matrix via the SVT operator, and we use the :math:`\ell_1` norm to extract to the noise component, and the :math:`\rho` (the proximal gradient operator) encourages updates. With this low-rank structure, we estimate our weights by solving the following optimization problem:
 
 .. math::
 
    \begin{align}
-       \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{L} w_{j}||_{2}^2 \\
+       \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{L} \mathbf{w}^{\top}||_{2}^2 \\
        \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
    \end{align}
 
+our weights are here onlt constrained to be positive, since the donor selection provess attempts to ensure that the donors are already more similar to the treated unit.
 
 Estimating ``CLUSTERSC``
 ------------------------
