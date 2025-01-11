@@ -15,7 +15,7 @@ jared_theme = {
     "axes.titlesize": 20,
     "figure.dpi": 100,
     "axes.facecolor": "#c7d0c9",
-    "figure.figsize": (10, 8),
+    "figure.figsize": (10, 5.5),
 }
 
 matplotlib.rcParams.update(jared_theme)
