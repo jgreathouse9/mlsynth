@@ -56,7 +56,7 @@ where the weights are constrained to lie on the unit interval and add up to 1, w
 .. math::
    \mathbf{L}=\underset{\mathbf{U}, \mathbf{S}, \mathbf{V}}{\text{argmin}} \quad \|\mathbf{Y}_{\mathcal{N}_0} - \mathbf{U} \mathbf{S} \mathbf{V}^\top\|_F^2
 
-where :math:`\|\cdot\|_F` denotes the Frobenius norm. When we do this, we are left with the singular values, and how much of the total variance they explain. Selecting too few singular values/principal components means our synthetic control will underfit the pre-intervention time series of the treated unit. Selecting too many singular values means we will overft the pre-intervention time series. The benefits of this approach, as [Amjad2018]_ and [Agarwal2021]_ show, is that it implicitly performs regularization our donor pool, and has a denoising effect. Original PCR used Universal Singular Value Thresholding to choose the optimal numver of principal componenets to retain [Chatterjee2015]_. However, :class:`CLUSTERSC` instead uses the SCREENOT method by Donoho et al. [Donoho2023]_.
+where :math:`\|\cdot\|_F` denotes the Frobenius norm. When we do this, we are left with the singular values, and how much of the total variance they explain. Selecting too few singular values/principal components means our synthetic control will underfit the pre-intervention time series of the treated unit. Selecting too many singular values means we will overft the pre-intervention time series. The benefits of this approach, as [Amjad2018]_ and [Agarwal2021]_ show, is that it implicitly performs regularization our donor pool, and has a denoising effect. PCR (also called Robust Synthetic Control) uses Universal Singular Value Thresholding to choose the optimal numver of principal componenets to retain [Chatterjee2015]_. We take the same approach, but other methods, such as SCREENOT by Donoho et al. [Donoho2023]_, may at some point be applied as an option..
 
 The final objective function is
 
@@ -66,7 +66,7 @@ The final objective function is
        \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}
    \end{align}
 
-where we simply use the reconstructed, denoised version of the control group to learn the values of the treated unit in the preintervention period. Then, we take the dot product of our control group to estimate the post intervention counterfactual.
+where we simply use the reconstructed, denoised version of the control group to learn the values of the treated unit in the preintervention period via OLS. Then, we take the dot product of our control group,, using the learnt weights, to estimate the post intervention counterfactual.
 
 Robust PCA SYNTH
 ~~~~~~~~~~~~~~~~~
