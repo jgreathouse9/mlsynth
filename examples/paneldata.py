@@ -7,67 +7,10 @@ from theme import jared_theme
 
 matplotlib.rcParams.update(jared_theme)
 
-def load_and_process_data():
-    """
-    Loads the GDP data, processes it, and returns the DataFrame with additional columns.
+file_path = os.path.join(os.path.dirname(__file__), '..', 'basedata', 'HongKong.csv')
 
-    Returns:
-        pd.DataFrame: Processed DataFrame with columns 'Country', 'GDP', 'Time', and 'Integration'.
-    """
-    # Define column names
-    column_names = [
-        "Hong Kong",
-        "Australia",
-        "Austria",
-        "Canada",
-        "Denmark",
-        "Finland",
-        "France",
-        "Germany",
-        "Italy",
-        "Japan",
-        "Korea",
-        "Mexico",
-        "Netherlands",
-        "New Zealand",
-        "Norway",
-        "Switzerland",
-        "United Kingdom",
-        "United States",
-        "Singapore",
-        "Philippines",
-        "Indonesia",
-        "Malaysia",
-        "Thailand",
-        "Taiwan",
-        "China",
-    ]
-
-    # Load the dataset
-    df = pd.read_csv(
-        "https://raw.githubusercontent.com/leoyyang/rhcw/master/other/hcw-data.txt",
-        header=None,
-        delim_whitespace=True,
-    )
-
-    # Assign column names
-    df.columns = column_names
-
-    # Melt the dataframe
-    df = pd.melt(df, var_name="Country", value_name="GDP", ignore_index=False)
-
-    # Add 'Time' column ranging from 0 to 60
-    df["Time"] = df.index
-
-    # Create 'Integration' column based on conditions
-    df["Integration"] = (
-        df["Country"].str.contains("Hong") & (df["Time"] >= 44)
-    ).astype(int)
-
-    return df
-
-
-df = load_and_process_data()
+# Load the CSV file using pandas
+df = pd.read_csv(file_path)
 
 treat = "Integration"
 outcome = "GDP"
