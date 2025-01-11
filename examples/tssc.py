@@ -1,31 +1,13 @@
 import pandas as pd
-from mlsynth.mlsynth import TSSC, FDID, PDA
+from mlsynth.mlsynth import TSSC
 import matplotlib.pyplot as plt
-import matplotlib
 import os
-
 import numpy as np
-
-# matplotlib theme
-jared_theme = {
-    "axes.grid": True,
-    "grid.linestyle": "-",
-    "grid.color": "black",
-    "legend.framealpha": 1,
-    "legend.facecolor": "white",
-    "legend.shadow": True,
-    "legend.fontsize": 14,
-    "legend.title_fontsize": 16,
-    "xtick.labelsize": 14,
-    "ytick.labelsize": 14,
-    "axes.labelsize": 16,
-    "axes.titlesize": 20,
-    "figure.dpi": 100,
-    "axes.facecolor": "#c7d0c9",
-    "figure.figsize": (10, 8),
-}
+from theme import jared_theme
+import matplotlib
 
 matplotlib.rcParams.update(jared_theme)
+
 
 new_directory = os.path.join(os.getcwd(), "examples")
 os.chdir(new_directory)
