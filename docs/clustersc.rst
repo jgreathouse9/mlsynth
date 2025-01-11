@@ -64,7 +64,7 @@ where :math:`\|\cdot\|_F` denotes the Frobenius norm. When we do this, we are le
        \text{s.t.} \: & \mathbf{w} \in \mathbb{R}
    \end{align}
 
-where we simply use the reconstructed, denoised version of the control group to learn the values of the treated unit in the preintervention period via OLS. Then, we take the dot product of our control group using the learnt weights. This returns our in and out of sample predictions so that we may compute ATTs. Note as of Jnaury 11, the Bayesian version of this method is also an option, when the ``Frequentist`` option is set to False (for both the clustered and unclustered RSCs). The mathematical details will be laid out here, soon.
+where we simply use the reconstructed, denoised version of the control group to learn the values of the treated unit in the preintervention period via OLS. Then, we take the dot product of our control group using the learnt weights. This returns our in and out of sample predictions so that we may compute ATTs. Note as of January 11, the Bayesian version of this method is also an option, when the ``Frequentist`` option is set to False (for both the clustered and unclustered RSCs). The mathematical details of the Bayesian RSC/PCR will be laid out here, soon.
 
 Robust PCA SYNTH
 ~~~~~~~~~~~~~~~~~
