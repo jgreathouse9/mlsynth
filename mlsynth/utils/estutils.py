@@ -16,6 +16,7 @@ from scipy.stats import norm
 from screenot.ScreeNOT import adaptiveHardThresholding
 from sklearn.linear_model import LassoCV
 from scipy.stats import t as t_dist
+from mlsynth.utils.bayesutils import BayesSCM
 
 
 def compute_hac_variance(treatment_effects, truncation_lag):
@@ -334,50 +335,63 @@ def TSEST(x, y, t1, nb, donornames, t2):
     return fit_dicts_list
 
 
-def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False):
-    # n, p = X[:pre].shape
-    # k = (min(n, p) - 1) // 2
-    # Y0_rank, Topt_gauss, rank = adaptiveHardThresholding(X[:pre], k, strategy='0')
 
+def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False, Frequentist=False):
     # Perform SVT on the original donor matrix
     Y0_rank, n2, u_rank, s_rank, v_rank = svt(X[:pre])
 
     if cluster:
-        X_sub, selected_donor_names, indices = SVDCluster(
-            X[:pre], y, donor_names
-        )
+        X_sub, selected_donor_names, indices = SVDCluster(X[:pre], y, donor_names)
         Y0_rank, n2, u_rank, s_rank, v_rank = svt(X_sub[:pre])
         # Estimate synthetic control weights
-        weights = Opt.SCopt(
-            Y0_rank.shape[1],
-            y[:pre],
-            X_sub.shape[0],
-            Y0_rank,
-            model=objective,
-            donor_names=donor_names,
-        )
+        if Frequentist:
+            weights = Opt.SCopt(Y0_rank.shape[1], y[:pre], X_sub.shape[0], Y0_rank, model=objective, donor_names=donor_names)
+            weights_dict = {selected_donor_names[i]: weights[i] for i in range(len(weights))}
+            return weights_dict, np.dot(X[:, indices], weights)
 
-        weights_dict = {
-            selected_donor_names[i]: weights[i] for i in range(len(weights))
-        }
+        else:
+            alpha = 1.0
+            beta_D, Sigma_D, Y_pred, Y_var = BayesSCM(Y0_rank, y[:pre], np.var(y[:pre], ddof=1), alpha)
+            weights_dict = {selected_donor_names[i]: beta_D[i] for i in range(len(beta_D))}
+            num_samples = 1000  # Number of samples from the posterior predictive distribution
+            samples = np.random.multivariate_normal(beta_D, Sigma_D, size=num_samples)
 
-        return weights_dict, np.dot(X[:, indices], weights)
+            # Compute counterfactual predictions for each sample
+            cf_samples = X[:, indices] @ samples.T  # Shape: (num_time_points, num_samples)
+
+            # Compute the 2.5th and 97.5th percentiles for a 95% credible interval
+            lower_bound = np.percentile(cf_samples, 2.5, axis=1)
+            upper_bound = np.percentile(cf_samples, 97.5, axis=1)
+
+            return weights_dict, np.median(cf_samples, axis=1)
+
     else:
         # Default to the full low-rank approximation
-        # Y0_rank = np.dot(u_rank, np.dot(np.diag(s_rank), v_rank))
-        weights = Opt.SCopt(
-            n2,
-            y[:pre],
-            X.shape[0],
-            Y0_rank,
-            model=objective,
-            donor_names=donor_names,
-        )
+        if Frequentist:
+            weights = Opt.SCopt(n2, y[:pre], X.shape[0], Y0_rank, model=objective, donor_names=donor_names)
+            weights_dict = {donor_names[i]: weights[i] for i in range(len(weights))}
+            return weights_dict, np.dot(X, weights)
 
-        weights_dict = {
-            donor_names[i]: weights[i] for i in range(len(weights))
-        }
-        return weights_dict, np.dot(X, weights)
+        else:
+            alpha = 1.0
+            beta_D, Sigma_D, Y_pred, Y_var = BayesSCM(Y0_rank, y[:pre], np.var(y[:pre], ddof=1), alpha)
+            weights_dict = {donor_names[i]: beta_D[i] for i in range(len(beta_D))}
+            num_samples = 1000  # Number of samples from the posterior predictive distribution
+            samples = np.random.multivariate_normal(beta_D, Sigma_D, size=num_samples)
+
+            # Compute counterfactual predictions for each sample
+            cf_samples = X @ samples.T  # Shape: (num_time_points, num_samples)
+
+            # Compute the 2.5th and 97.5th percentiles for a 95% credible interval
+            lower_bound = np.percentile(cf_samples, 2.5, axis=1)
+            upper_bound = np.percentile(cf_samples, 97.5, axis=1)
+
+            # Predictive mean is the median of the sampled counterfactuals
+            cf_mean = np.median(cf_samples, axis=1)
+            cf = np.dot(X, beta_D)
+
+            return weights_dict, cf_mean
+
 
 
 class Opt:
