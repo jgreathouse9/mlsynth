@@ -1,6 +1,7 @@
 import pandas as pd
 from mlsynth.mlsynth import PDA
 import os
+import matplotlib
 import matplotlib.pyplot as plt
 from theme import jared_theme
 
