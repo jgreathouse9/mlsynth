@@ -1135,6 +1135,7 @@ class GSC:
         return result
 
 
+
 class CLUSTERSC:
     def __init__(self, config):
         """
@@ -1171,12 +1172,16 @@ class CLUSTERSC:
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-
+            Frequentist : bool, optional
+                If true, use Frequntist Robust SCM,
+                else if False, use Amjad's Bayesian method.
+                Defaults to true
+                
         Returns
         -------
         dict
             A dictionary containing results for both RPCA-SC and PCR methods, with the following keys:
-
+            
             'Weights' : dict
                 Weights assigned to control units in the synthetic control model.
             'Effects' : dict
@@ -1196,6 +1201,7 @@ class CLUSTERSC:
         *CUNY Academic Works*.
         """
 
+
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
@@ -1207,14 +1213,16 @@ class CLUSTERSC:
         self.save = config.get("save", False)
         self.objective = config.get("objective", "OLS")
         self.cluster = config.get("cluster", True)
+        self.Frequentist = config.get("Frequentist", True)
+
 
     def fit(self):
-
+        
         balance(self.df, self.unitid, self.time)
-
-        prepped = dataprep(
-            self.df, self.unitid, self.time, self.outcome, self.treat
-        )
+        
+        prepped = dataprep(self.df,
+                           self.unitid, self.time,
+                           self.outcome, self.treat)
 
         # Run PCR with the cluster parameter
         RSCweight, synth = pcr(
@@ -1223,57 +1231,38 @@ class CLUSTERSC:
             self.objective,
             prepped["donor_names"],
             prepped["donor_matrix"],
-            pre=prepped["pre_periods"],
-            cluster=self.cluster,  # Use the cluster parameter
+            pre = prepped["pre_periods"],
+            cluster=self.cluster,
+            Frequentist=self.Frequentist
         )
         RSCweight = {key: round(value, 3) for key, value in RSCweight.items()}
 
         # Calculate effects
         attdict, fitdict, Vectors = effects.calculate(
-            prepped["y"],
-            synth,
-            prepped["pre_periods"],
-            prepped["post_periods"],
+            prepped["y"], synth, prepped["pre_periods"], prepped["post_periods"]
         )
 
-        RSCdict = {
-            "Effects": attdict,
-            "Fit": fitdict,
-            "Vectors": Vectors,
-            "Weights": RSCweight,
-        }
+        RSCdict = {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Weights": RSCweight}
 
         # Pivot the DataFrame to wide format
         trainframe = self.df.pivot_table(
-            index=self.unitid,
-            columns=self.time,
-            values=self.outcome,
-            sort=False,
+            index=self.unitid, columns=self.time, values=self.outcome, sort=False
         )
 
         # Extract pre-treatment period data
-        X = trainframe.iloc[:, : prepped["pre_periods"]]
+        X = trainframe.iloc[:, :prepped["pre_periods"]]
 
         # Perform functional PCA and clustering
         optimal_clusters, cluster_x, numvals = fpca(X)
-        kmeans = KMeans(
-            n_clusters=optimal_clusters,
-            random_state=0,
-            init="k-means++",
-            algorithm="elkan",
-        )
+        kmeans = KMeans(n_clusters=optimal_clusters, random_state=0, init="k-means++", algorithm="elkan")
         trainframe["cluster"] = kmeans.fit_predict(cluster_x)
 
         # Identify treated unit's cluster and filter corresponding units
         treat_cluster = trainframe.at[prepped["treated_unit_name"], "cluster"]
-        clustered_units = trainframe[
-            trainframe["cluster"] == treat_cluster
-        ].drop("cluster", axis=1)
+        clustered_units = trainframe[trainframe["cluster"] == treat_cluster].drop("cluster", axis=1)
 
         # Extract treated unit row and control group matrix
-        treated_row_idx = clustered_units.index.get_loc(
-            prepped["treated_unit_name"]
-        )
+        treated_row_idx = clustered_units.index.get_loc(prepped["treated_unit_name"])
         Y = clustered_units.to_numpy()
         y = Y[treated_row_idx]
         Y0 = np.delete(Y, treated_row_idx, axis=0)
@@ -1284,15 +1273,15 @@ class CLUSTERSC:
         m, n = Y0.shape
         lambda_1 = 1 / np.sqrt(max(m, n))
 
-        # L = RPCA_HQF(Y0, rank, maxiter=3000, ip=2, lam_1=lambda_1)
+        #L = RPCA_HQF(Y0, rank, maxiter=3000, ip=2, lam_1=lambda_1)
 
         # Optimize synthetic control weights using pre-period data
         beta_value = Opt.SCopt(
             len(Y0),
-            prepped["y"][: prepped["pre_periods"]],
+            prepped["y"][:prepped["pre_periods"]],
             prepped["pre_periods"],
-            L[:, : prepped["pre_periods"]].T,
-            model="MSCb",
+            L[:, :prepped["pre_periods"]].T,
+            model="MSCb"
         )
 
         # Calculate synthetic control predictions
@@ -1300,28 +1289,18 @@ class CLUSTERSC:
         beta_value = np.round(beta_value, 3)
 
         # Create a dictionary of non-zero weights
-        unit_names = [
-            name
-            for name in clustered_units.index
-            if name != prepped["treated_unit_name"]
-        ]
-        Rweights_dict = {
-            name: weight for name, weight in zip(unit_names, beta_value)
-        }
+        unit_names = [name for name in clustered_units.index if name != prepped["treated_unit_name"]]
+        Rweights_dict = {name: weight for name, weight in zip(unit_names, beta_value)}
 
-        Rattdict, Rfitdict, RVectors = effects.calculate(
-            prepped["y"],
-            y_RPCA,
-            prepped["pre_periods"],
-            prepped["post_periods"],
-        )
+        Rattdict, Rfitdict, RVectors = effects.calculate(prepped["y"], y_RPCA, prepped["pre_periods"], prepped["post_periods"])
 
-        RPCAdict = {
-            "Effects": Rattdict,
-            "Fit": Rfitdict,
-            "Vectors": RVectors,
-            "Weights": Rweights_dict,
-        }
+        RPCAdict = {"Effects": Rattdict, "Fit": Rfitdict, "Vectors": RVectors, "Weights": Rweights_dict}
+
+        # Determine the title based on Frequentist value
+        if self.Frequentist:
+            counterfactual_names = ["RPCA Synth", "Robust Synthetic Control"]
+        else:
+            counterfactual_names = ["RPCA Synth", "Bayesian RSC"]
 
         # Call the function
         if self.display_graphs:
@@ -1334,14 +1313,11 @@ class CLUSTERSC:
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
                 cf_list=[y_RPCA, synth],
-                counterfactual_names=[
-                    "RPCA Synth",
-                    "Robust Synthetic Control",
-                ],
+                counterfactual_names=counterfactual_names,  # Use the dynamic counterfactual names
                 method="CLUSTERSC",
                 treatedcolor="black",
                 counterfactualcolors=["blue", "red"],
-                save=self.save,
+                save=self.save
             )
 
         ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
