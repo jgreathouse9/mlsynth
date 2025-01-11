@@ -1,29 +1,10 @@
 from mlsynth.mlsynth import CLUSTERSC
-import matplotlib
 import pandas as pd
 import os
-
-# matplotlib theme
-jared_theme = {
-    "axes.grid": False,
-    "grid.linestyle": "-",
-    "grid.color": "black",
-    "legend.framealpha": 1,
-    "legend.facecolor": "white",
-    "legend.shadow": True,
-    "legend.fontsize": 14,
-    "legend.title_fontsize": 16,
-    "xtick.labelsize": 14,
-    "ytick.labelsize": 14,
-    "axes.labelsize": 16,
-    "axes.titlesize": 20,
-    "figure.dpi": 100,
-    "axes.facecolor": "white",
-    "figure.figsize": (10, 6),
-}
+from theme import jared_theme
+import matplotlib
 
 matplotlib.rcParams.update(jared_theme)
-
 
 def get_edited_frames(stub_url, urls, base_dict):
     edited_frames = []
