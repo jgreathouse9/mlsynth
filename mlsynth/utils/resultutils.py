@@ -50,8 +50,8 @@ def plot_estimates(
     plt.axvline(
         x=intervention_point,
         color="black",
-        linestyle="--",
-        linewidth=1.25,
+        linestyle="-",
+        linewidth=2,
         label=f"{treatmentname}, {intervention_point}",
     )
 
@@ -79,7 +79,7 @@ def plot_estimates(
             label=label,
             color=color,
             linestyle="--",
-            linewidth=1,
+            linewidth=2.5,
             marker="D",
             markersize=3,
         )
@@ -87,7 +87,7 @@ def plot_estimates(
     # Add labels, title, legend, and grid
     plt.xlabel(time)
     plt.ylabel(outcome)
-    plt.title("Counterfactual Analysis")
+    plt.title("Artificial Counterfactual")
     plt.legend()
 
     # Save or display the plot
