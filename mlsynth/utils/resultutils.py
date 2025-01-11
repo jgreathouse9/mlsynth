@@ -79,7 +79,7 @@ def plot_estimates(
             label=label,
             color=color,
             linestyle="--",
-            linewidth=3,
+            linewidth=2,
             marker="o"
         )
 
