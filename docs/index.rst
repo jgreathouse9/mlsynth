@@ -103,5 +103,5 @@ MLSYNTH
 .. toctree::
    :maxdepth: 2
 
-   auto_examples/index
+   auto_examples/exampleplot
 
