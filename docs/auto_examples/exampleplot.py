@@ -7,7 +7,6 @@ This is a simple example of how to create a plot using matplotlib.
 import pandas as pd
 from mlsynth.mlsynth import FMA
 import os
-from theme import jared_theme
 import matplotlib
 from theme import jared_theme
 
