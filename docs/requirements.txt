@@ -3,6 +3,7 @@ sphinx
 sphinx_press_theme
 sphinxcontrib-bibtex<2.0.0
 sphinx-copybutton
+sphinx-gallery
 
 pandas
 numpy
