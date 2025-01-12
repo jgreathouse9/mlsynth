@@ -53,6 +53,7 @@ exclude_patterns = ['theme.py']
 sphinx_gallery_conf = {
     'examples_dirs': ['auto_examples'],   # Path to your examples folder
     'gallery_dirs': ['auto_examples'],  # Path to the gallery build output
-    'filename_pattern': r'auto_examples/.*\.py'
+    'filename_pattern': r'auto_examples/.*\.py',
+    'ignore_pattern': r'(?i)theme\.py'
 }
 
