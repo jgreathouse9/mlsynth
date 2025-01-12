@@ -11,7 +11,7 @@ from theme import jared_theme
 import matplotlib
 
 # Load the CSV file using pandas
-df = pd.read_csv('https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/HongKong.csv)
+df = pd.read_csv('https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/HongKong.csv')
 
 treat = "Integration"
 outcome = "GDP"
