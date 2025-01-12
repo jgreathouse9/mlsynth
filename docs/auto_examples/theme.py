@@ -1,3 +1,7 @@
+"""
+Jared's theme
+"""
+
 import matplotlib
 
 jared_theme = {
