@@ -1,27 +1,14 @@
 """
-This example demonstrates how to plot data using the specified method.
-It visualizes the results of the synthetic control method on a time series dataset.
+Example Plot
+=============
+This is a simple example of how to create a plot using matplotlib.
 """
 
-
 import matplotlib.pyplot as plt
-import numpy as np
 
-# Generate some dummy data
-x = np.linspace(0, 10, 100)
-y = np.sin(x)
-
-# Create the plot
-plt.figure(figsize=(8, 6))
-plt.plot(x, y, label='sin(x)', color='b')
-
-# Add title and labels
-plt.title('Dummy Example Plot')
-plt.xlabel('X-axis')
-plt.ylabel('Y-axis')
-
-# Add a legend
-plt.legend()
-
-# Show the plot
+# Example plotting code
+plt.plot([1, 2, 3, 4], [1, 4, 9, 16])
+plt.xlabel('x label')
+plt.ylabel('y label')
+plt.title('Simple Plot')
 plt.show()
