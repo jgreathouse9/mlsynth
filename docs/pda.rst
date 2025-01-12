@@ -20,7 +20,7 @@ Panel data approaches generally assume that there are a common set of factors th
 .. math::
 
    \begin{aligned}
-   &\min_{\boldsymbol{\beta}} \frac{1}{2} \|\boldsymbol{\beta}\|_2^2 \quad \text{subject to } \|\boldsymbol{\eta} - \boldsymbol{\Sigma}  \boldsymbol{\beta}\|_\infty \leq \tau \\
+   &\min_{\boldsymbol{\beta}} \frac{1}{2} \|\boldsymbol{\beta}\|_2^2 \: \forall t \in \, \mathcal{T}_1, \quad \text{subject to } \|\boldsymbol{\eta} - \boldsymbol{\Sigma}  \boldsymbol{\beta}\|_\infty \leq \tau \\
    &\boldsymbol{\eta} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{y}_1 \\
    &\boldsymbol{\Sigma} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{Y}_0 \in \mathbb{R}^{N_0 \times N_0}
    \end{aligned}
