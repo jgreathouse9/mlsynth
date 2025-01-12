@@ -1,5 +1,7 @@
 import os
 import sys
+from sphinx_gallery.sorting import FileNameSortKey
+
 
 sys.path.insert(0, os.path.abspath("../"))
 
