@@ -49,3 +49,16 @@ html_theme = 'press'
 
 # -- Options for EPUB output
 epub_show_urls = "footnote"
+
+
+extensions.append("sphinx_gallery.gen_gallery")
+
+sphinx_gallery_conf = {
+    'examples_dirs': 'examples',     # Path to your example scripts
+    'gallery_dirs': 'auto_examples', # Path where the generated gallery will be stored
+    'within_subsection_order': FileNameSortKey,
+    'remove_config_comments': True,
+    'backreferences_dir': 'generated', # Optional: Link to related documentation
+    'doc_module': ('mlsynth',),        # Your main module name
+}
+
