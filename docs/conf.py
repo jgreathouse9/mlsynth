@@ -1,10 +1,8 @@
 import os
 import sys
-from sphinx_gallery.sorting import FileNameSortKey
-
+from sphinx_gallery.sorting import FileNameSortKey  # Import FileNameSortKey
 
 sys.path.insert(0, os.path.abspath("../"))
-
 
 # Configuration file for the Sphinx documentation builder.
 
@@ -28,14 +26,13 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
+    "sphinx_gallery.gen_gallery",  # Moved this here directly
 ]
 
 latex_elements = {"preamble": r"\usepackage{mathtools}"}
 
-
 def setup(app):
     app.add_js_file("static/custom_mathjax.js")
-
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
@@ -52,9 +49,7 @@ html_theme = 'press'
 # -- Options for EPUB output
 epub_show_urls = "footnote"
 
-
-extensions.append("sphinx_gallery.gen_gallery")
-
+# -- Sphinx Gallery Configuration
 sphinx_gallery_conf = {
     'examples_dirs': 'examples',     # Path to your example scripts
     'gallery_dirs': 'auto_examples', # Path where the generated gallery will be stored
@@ -63,4 +58,3 @@ sphinx_gallery_conf = {
     'backreferences_dir': 'generated', # Optional: Link to related documentation
     'doc_module': ('mlsynth',),        # Your main module name
 }
-
