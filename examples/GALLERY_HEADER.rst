@@ -1,7 +1,6 @@
-.. _gallery-header:
+.. _gallery_header:
 
-Example Gallery
-===============
+Welcome to the MLSynth Gallery
+=============================
 
-This gallery contains example scripts demonstrating the functionality of the `mlsynth` package.
-Each example illustrates a different feature or method for synthetic control analysis.
+This gallery showcases various examples using the MLSynth package. The examples demonstrate how to use the core functionality of MLSynth in different scenarios.
