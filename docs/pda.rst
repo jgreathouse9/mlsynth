@@ -25,28 +25,25 @@ Panel data approaches generally assume that there are a common set of factors th
    &\boldsymbol{\Sigma} = \frac{1}{T_1} \mathbf{Y}_0^\top \mathbf{Y}_0 \in \mathbb{R}^{N_0 \times N_0}
    \end{aligned}
 
-where we seek the coefficients which minimize the predictions between the sample covariance vector and the covariance matrix of the control units. In other words, we are projecting the treated unit on to the control units. We are doing this with the sup-norm, which in this case simply places an upper bound on the deviation from the covariance vector, using the constant tau. There is a key problem here, though: as tau shrinks to 0, we approach the OLS estimator, which seeks to totally minimize the discrepancies. Of course, this will result in overfitting. So to mitigate this, Shi and Wang employ cross validation to select tau [l2relax]_, and I follow them here. I divide the data into the training period and the out-of-sample validation periods (that is, the post-intervention period). I further divide the training period into :math:`\mathcal{T}_1^{\text{train}} = \{1, 2, \ldots, \left\lfloor \frac{T_1}{2} \right\rfloor\}` for training, and the validation period :math:`\mathcal{T}_2^{\text{val}} = \{\left\lfloor \frac{T_1}{2} \right\rfloor\ +1, \ldots, T_0\}` for out-of-sample testing
+where we seek the coefficients which minimize the predictions between the sample covariance vector and the covariance matrix of the control units. In other words, we are projecting the treated unit on to the control units. We are doing this with the sup-norm, which in this case simply places an upper bound on the deviation from the covariance vector, using the constant tau. There is a key problem here, though: as tau shrinks to 0, we approach the OLS estimator, which seeks to totally minimize the discrepancies. Of course, this will result in overfitting. So to mitigate this, Shi and Wang employ cross validation to select tau [l2relax]_, and I follow them here. To this end, I divide the pre-intervention data into a training period and a validation periods.
 
 .. math::
 
-   \mathcal{T}_1 = \mathcal{T}_1^{\text{train}} \cup \mathcal{T}_2^{\text{val}}, \quad 
-   \mathcal{T}_1^{\text{train}} \cap \mathcal{T}_2^{\text{val}} = \emptyset.
+   \mathcal{T}_1 = \mathcal{T}_1^{\text{train}} \cup \mathcal{T}_1^{\text{val}}, \quad 
+   \mathcal{T}_1^{\text{train}} \cap \mathcal{T}_1^{\text{val}} = \emptyset.
 
-Let the final period of the training in the in sample data be denoted as :math:`k`,
+Let the final period of the training in the in sample data be denoted as :math:`k = \left\lfloor \frac{T_1}{2} \right\rfloor`,
 
 .. math::
-
-   k = \left\lfloor \frac{T_1}{2} \right\rfloor.
 
    \mathcal{T}_1^{\text{train}} = \{1, 2, \ldots, k\}, \quad 
-   \mathcal{T}_2^{\text{val}} = \{k+1, \ldots, T_0\}.
-
+   \mathcal{T}_1^{\text{val}} = \{k+1, \ldots, T_0\}.
 
 For our purposes, we are concerned with the value for tau that minimizes the MSE for the validation period
 
 .. math::
 
-    \tau^{\ast} = \operatorname*{argmin}_{\tau} \left( \frac{1}{|\mathcal{T}_2^{\text{val}}|} \| \mathbf{y}^{\ell_2} - \mathbf{y}_1 \|_2^2 \right).
+    \tau^{\ast} = \operatorname*{argmin}_{\tau} \left( \frac{1}{|\mathcal{T}_1^{\text{val}}|} \| \mathbf{y}^{\ell_2} - \mathbf{y}_1 \|_2^2 \right).
 
 The predictions for the validation period take the form
 
