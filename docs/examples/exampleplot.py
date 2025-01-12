@@ -1,3 +1,8 @@
+"""
+This example demonstrates how to plot data using the specified method.
+It visualizes the results of the synthetic control method on a time series dataset.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 
