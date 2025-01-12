@@ -51,7 +51,7 @@ config = {
 model = PDA(config)
 
 l2est = model.fit()
-
+plt.clf()
 # Update the method to "fs" for forward selection
 config["method"] = "fs"
 
@@ -72,7 +72,7 @@ model_fs = PDA(config)
 
 # Fit the model using forward selection
 fs_est = model_fs.fit()
-
+plt.clf()
 
 # Update the method to "LASSO" for LASSO based PDA
 config["method"] = "LASSO"
@@ -94,3 +94,4 @@ model_fs = PDA(config)
 
 # Fit the model using forward selection
 LASSO_est = model_fs.fit()
+plt.clf()
