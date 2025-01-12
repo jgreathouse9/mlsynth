@@ -9,6 +9,7 @@ from mlsynth.mlsynth import FMA
 import os
 from theme import jared_theme
 import matplotlib
+from theme import jared_theme
 
 # Load the CSV file using pandas
 df = pd.read_csv('https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/HongKong.csv')
