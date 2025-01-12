@@ -27,7 +27,6 @@ config = {
     "counterfactual_color": "blue",
     "treated_color": "black",
     "display_graphs": True,
-    "save": save,
     "criti": 10,  # Assuming Stationary
     "DEMEAN": 1,  # Demeans the donor pool
 }
