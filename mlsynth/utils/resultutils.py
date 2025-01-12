@@ -116,7 +116,7 @@ def plot_estimates(
         plt.show()
 
     # Clear the plot to avoid overlap in subsequent plots
-    plt.clf()
+    #plt.clf()
 
 
 class effects:
