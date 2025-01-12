@@ -51,10 +51,8 @@ epub_show_urls = "footnote"
 
 # -- Sphinx Gallery Configuration
 sphinx_gallery_conf = {
-    'examples_dirs': 'examples',     # Path to your example scripts
-    'gallery_dirs': 'auto_examples', # Path where the generated gallery will be stored
-    'within_subsection_order': FileNameSortKey,
-    'remove_config_comments': True,
-    'backreferences_dir': 'generated', # Optional: Link to related documentation
-    'doc_module': ('mlsynth',),        # Your main module name
+    'examples_dirs': ['examples'],   # Path to your examples folder
+    'gallery_dirs': ['_build/gallery'],  # Path to the gallery build output
+    'filename_pattern': r'auto_examples/.*\.py'
 }
+
