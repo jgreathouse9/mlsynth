@@ -7,8 +7,6 @@ This is a simple example of how to create a plot using matplotlib.
 import pandas as pd
 from mlsynth.mlsynth import FMA
 import os
-import matplotlib
-from theme import jared_theme
 
 # Load the CSV file using pandas
 df = pd.read_csv('https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/HongKong.csv')
