@@ -52,7 +52,7 @@ epub_show_urls = "footnote"
 # -- Sphinx Gallery Configuration
 sphinx_gallery_conf = {
     'examples_dirs': ['auto_examples'],   # Path to your examples folder
-    'gallery_dirs': ['_build/gallery'],  # Path to the gallery build output
+    'gallery_dirs': ['auto_examples'],  # Path to the gallery build output
     'filename_pattern': r'auto_examples/.*\.py'
 }
 
