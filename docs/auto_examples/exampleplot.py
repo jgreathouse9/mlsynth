@@ -5,7 +5,7 @@ This is a simple example of how to create a plot using matplotlib.
 """
 
 import pandas as pd
-from mlsynth.mlsynth import FMA
+from mlsynth.mlsynth import FDID
 import os
 
 # Load the CSV file using pandas
