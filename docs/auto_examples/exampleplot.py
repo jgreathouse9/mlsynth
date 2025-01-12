@@ -29,6 +29,6 @@ config = {
     "DEMEAN": 1,  # Demeans the donor pool
 }
 
-model = FMA(config)
+model = FDID(config)
 
 FMAest = model.fit()
