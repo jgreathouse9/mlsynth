@@ -426,7 +426,7 @@ class FMA:
                 [y_hat],
                 method="FMA",
                 treatedcolor=self.treated_color,
-                counterfactualcolors=["red"],
+                counterfactualcolors=[self.counterfactual_color],
                 counterfactual_names=[f"FMA {prepped['treated_unit_name']}"],
                 save=self.save,
             )
@@ -1175,8 +1175,8 @@ class CLUSTERSC:
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
             Frequentist : bool, optional
-                If true, use Frequntist Robust SCM.
-                If False, usees Amjad's Bayesian method.
+                If true, use Frequentist Robust SCM.
+                If False, uses Amjad's Bayesian method.
                 Defaults to true.
                 
         Returns
