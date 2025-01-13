@@ -104,5 +104,6 @@ MLSYNTH
    :maxdepth: 2
 
    auto_examples/exampleplot
+   auto_examples/Prop99
 
 
