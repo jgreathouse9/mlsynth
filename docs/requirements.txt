@@ -1,6 +1,6 @@
 # Sphinx dependencies
 sphinx
-sphinx_material
+sphinx-material
 sphinxcontrib-bibtex<2.0.0
 sphinx-copybutton
 sphinx-gallery
