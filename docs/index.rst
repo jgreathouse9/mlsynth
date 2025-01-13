@@ -102,6 +102,8 @@ MLSYNTH
 
 .. toctree::
    :maxdepth: 2
+   :caption: Gallery
+   :titlesonly:
 
    auto_examples/exampleplot
    auto_examples/Prop99
