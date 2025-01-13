@@ -154,34 +154,15 @@ We can now turn to an empirical example, namely the reanalysis of West Germany' 
 
     from mlsynth.mlsynth import CLUSTERSC
     import pandas as pd
-    import os
-    from theme import jared_theme
-    import matplotlib
     
-    matplotlib.rcParams.update(jared_theme)
-    
-    # Access the corresponding dictionary
-    file_path = os.path.join(os.path.dirname(__file__), '..', 'basedata', 'german_reunification.csv')
-    
+    file = 'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/german_reunification.csv'
     # Load the CSV file using pandas
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file)
     
     treat = "Reunification"
     outcome = "gdp"
     unitid = "country"
     time = "year"
-    
-    new_directory = os.path.join(os.getcwd(), "examples")
-    os.chdir(new_directory)
-    
-    # Define the 'FMA' directory
-    save_directory = os.path.join(os.getcwd(), "clustersc")
-    
-    # Create the directory if it doesn't exist
-    if not os.path.exists(save_directory):
-        os.makedirs(save_directory)
-    
-    save = {"filename": "German", "extension": "png", "directory": save_directory}
     
     config = {
         "df": df,
@@ -189,16 +170,14 @@ We can now turn to an empirical example, namely the reanalysis of West Germany' 
         "time": time,
         "outcome": outcome,
         "unitid": unitid,
-        "counterfactual_color": "red",
-        "treated_color": "black",
         "display_graphs": True,
-        "save": save,
-        "cluster": False,
+        "cluster": True,
     }
     
     model = CLUSTERSC(config)
     
     arco = model.fit()
+
 
 
 
