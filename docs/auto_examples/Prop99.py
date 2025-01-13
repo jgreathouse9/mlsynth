@@ -50,7 +50,7 @@ config = {
     "time": time,
     "outcome": outcome,
     "unitid": unitid,
-    "counterfactual_color": "pink",
+    "counterfactual_color": "#DC143C",
     "treated_color": "black",
     "display_graphs": True,
     "method": "l2",
