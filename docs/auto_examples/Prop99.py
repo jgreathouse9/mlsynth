@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.rcParams.update(jared_theme)
 
 # Access the corresponding dictionary
-file_path = 'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/smoking_data.csv')
+file_path = r'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/smoking_data.csv')
 
 # Load the CSV file using pandas
 df = pd.read_csv(file_path)
