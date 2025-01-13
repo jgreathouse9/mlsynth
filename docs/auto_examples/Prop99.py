@@ -1,3 +1,10 @@
+"""
+L2 Relaxer
+==========
+L2PDA
+"""
+
+
 from mlsynth.mlsynth import PDA
 import matplotlib.pyplot as plt
 import pandas as pd
