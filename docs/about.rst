@@ -8,6 +8,9 @@ GitHub Repo
 
 https://github.com/jgreathouse9/mlsynth
 
+Installation
+~~~~~~~~~~~~~
+
 The way you install mlsynth is by doing, from the command line,
 
 .. code-block:: console
@@ -15,6 +18,9 @@ The way you install mlsynth is by doing, from the command line,
    $ pip install -U git+https://github.com/jgreathouse9/mlsynth.git
 
 which simply installs the latest release from my GitHub.
+
+Methods
+-------
 
 At present, ``mlsynth`` supports:
 
