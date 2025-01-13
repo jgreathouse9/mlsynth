@@ -11,13 +11,23 @@ https://github.com/jgreathouse9/mlsynth
 Installation
 ~~~~~~~~~~~~~
 
-The way you install mlsynth is by doing, from the command line,
+The dependencies for mlsynth are::
+
+    pandas
+    numpy
+    matplotlib
+    scipy
+    scikit-learn
+    cvxpy
+    screenot
+    statsmodels
+
+
+``mlsynth`` may be installed from the command line like
 
 .. code-block:: console
 
    $ pip install -U git+https://github.com/jgreathouse9/mlsynth.git
-
-which simply installs the latest release from my GitHub.
 
 Methods
 -------
