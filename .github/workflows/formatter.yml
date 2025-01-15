@@ -13,40 +13,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'  # Adjust the version based on your needs
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'  # Adjust the version as needed
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install black flake8 autopep8 docformatter  # Install required tools
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black flake8 autopep8 docformatter  # Install required tools
 
-    - name: Auto-format docstrings with docformatter
-      run: |
-        docformatter --in-place --recursive . --wrap-summaries 79 --wrap-descriptions 79
+      - name: Auto-format code with Black
+        run: |
+          black . --line-length 79  # Autoformat your code with Black, max line length 79
 
-    - name: Auto-format code with Black
-      run: |
-        black . --line-length 79  # Autoformat your code with a max line length of 79
+      - name: Auto-format code with autopep8
+        run: |
+          autopep8 --in-place --aggressive --max-line-length 79 **/*.py  # Fix formatting issues with autopep8
 
-    - name: Check code style with Flake8
-      run: |
-        flake8 . --max-line-length=79 --exit-zero  # Run Flake8 without failing the job
+      - name: Auto-format docstrings with docformatter
+        run: |
+          find . -name "*.py" -exec docformatter --in-place --wrap-summaries 79 --wrap-descriptions 79 {} +  # Format docstrings in Python files
 
-    - name: Auto-format code with autopep8
-      run: |
-        autopep8 --in-place --aggressive --max-line-length 79 **/*.py  # Automatically fix formatting issues, including long lines in Python files
+      - name: Check code style with Flake8
+        run: |
+          flake8 . --max-line-length=79 --exit-zero  # Run Flake8, allow non-zero exit without failing the job
 
-    - name: Commit and push changes (if any)
-      run: |
-        git config --global user.name "github-actions"
-        git config --global user.email "github-actions@github.com"
-        git add .
-        git diff --exit-code || (git commit -m "Auto-format code with Black, autopep8, and docformatter" && git push)
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit and push changes (if any)
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add .
+          git diff --exit-code || (git commit -m "Auto-format code with Black, autopep8, and docformatter" && git push)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
