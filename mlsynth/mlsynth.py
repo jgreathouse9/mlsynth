@@ -28,12 +28,9 @@ class TSSC:
         """
         Generate estimates for SIMPLEX, MSCa, MSCb, and MSCc methods.
 
-        TSSC computes the two step SCM as described in:
-
-        https://doi.org/10.1287/mnsc.2023.4878
-
         Parameters
         ----------
+        
         config : dict
         
             A dictionary containing the necessary parameters. The following keys are expected:
@@ -43,43 +40,64 @@ class TSSC:
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
                 
             treat : str
+            
                 Column name identifying the treated unit (must be a 0 or 1 dummy).
+                
             time : str
+            
                 Column name for the time variable (must be numeric).
+                
             outcome : str
+            
                 Column name for the outcome variable.
+                
             unitid : str
+            
                 Column name identifying the units.
+                
             counterfactual_color : str, optional
+            
                 Color for the counterfactual line in the plots, by default "red".
+                
             treated_color : str, optional
                 Color for the treated line in the plots, by default "black".
+                
             display_graphs : bool, optional
+            
                 Whether to display the plots, by default True.
+                
             save : bool or dict, optional
+            
                 Whether to save the generated plots. Default is False.
+                
                 If a dictionary, keys can include:
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
+                    
             draws : int, optional
                 Number of subsample replications, by default 500.
 
         Returns
         -------
+        
         dict
             A dictionary with the following keys:
 
             'SIMPLEX' : dict
+            
                 Estimates and inference from the SIMPLEX method.
 
             'MSCa' : dict
+            
                 Estimates and inference from the MSCa method.
 
             'MSCb' : dict
+            
                 Estimates and inference from the MSCb method.
 
             'MSCc' : dict
+            
                 Estimates and inference from the MSCc method.
         """
 
@@ -216,9 +234,7 @@ class FMA:
         """
         Compute estimates and inference using the Factor Model Approach (FMA).
 
-        This function implements the Factor Model Approach described in
-        Li and Sonnier (2023) and returns a dictionary containing the estimated
-        effects, model fit, factor vectors, and inference results.
+        Implements the Factor Model Approach.
 
         Parameters
         ----------
@@ -231,29 +247,39 @@ class FMA:
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
 
             treat : str
+            
                 Column name identifying the treated unit.
 
             time : str
+            
                 Column name for the time variable.
 
             outcome : str
+            
                 Column name for the outcome variable.
 
             unitid : str
+            
                 Column name identifying the units.
 
             counterfactual_color : str, optional
+            
                 Color for the counterfactual line in the plots, by default "red".
 
             treated_color : str, optional
+            
                 Color for the treated line in the plots, by default "black".
 
             display_graphs : bool, optional
+            
                 Whether to display the plots, by default True.
 
             save : bool or dict, optional
+            
                 Whether to save the generated plots. Default is False.
+                
                 If a dictionary, keys can include:
+                
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
@@ -263,6 +289,7 @@ class FMA:
                 If criti = 11, nonstationarity is assumed; if criti = 10, stationarity is assumed. Default is 11.
 
             DEMEAN : int, optional
+            
                 A value that determines how the data is processed:
                 - If DEMEAN = 1, the data is demeaned.
                 - If DEMEAN = 2, the data is standardized.
@@ -447,15 +474,11 @@ class FMA:
 class PDA:
     def __init__(self, config):
         """
-        Causal inference via the Panel Data Approach (PDA).
-
-        This class implements PDA as described in
-        Shi and Huang (2023), Li and Bell (2017), and Shi and Wang (2024).
-        It supports different methods including LASSO, forward selection (fs),
-        and L2-relaxation.
+        Implements the Panel Data Approach (PDA).
 
         Parameters
         ----------
+        
         config : dict
         
             A dictionary containing the necessary parameters. The following keys are expected:
@@ -465,25 +488,41 @@ class PDA:
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
                 
             treat : str
+            
                 Column name identifying the treated unit.
+                
             time : str
+            
                 Column name for the time variable.
+                
             outcome : str
+            
                 Column name for the outcome variable.
+                
             unitid : str
                 Column name identifying the units.
+                
             counterfactual_color : str, optional
                 Color for the counterfactual line in the plots, by default "red".
+                
             treated_color : str, optional
+            
                 Color for the treated line in the plots, by default "black".
+                
             display_graphs : bool, optional
+            
                 Whether to display the plots, by default True.
+                
             save : bool or dict, optional
+            
                 Whether to save the generated plots. Default is False.
+                
                 If a dictionary, keys can include:
+                
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
+                    
             method : str, optional
                 Type of PDA to use, either
                 - "LASSO" (L1 Penalty),
@@ -575,19 +614,33 @@ class FDID:
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
                 
             unitid : str
+            
                 Column name for unit IDs.
+                
             time : str
+            
                 Column name for time periods.
+                
             outcome : str
+            
                 Column name for outcomes.
+                
             treat : str
+            
                 Column name for the treatment indicator.
+                
             counterfactual_color : str, optional
+            
                 Color for the counterfactual lines, by default "red".
+                
             treated_color : str, optional
+            
                 Color for the treated lines, by default "black".
+                
             display_graphs : bool, optional
+            
                 Whether to display the graphs, by default True.
+                
             save : bool or dict, optional
                 Whether to save the generated plots. Default is False.
                 If a dictionary, keys can include:
@@ -598,13 +651,19 @@ class FDID:
         Returns
         -------
         dict
+        
             A dictionary containing the following keys for each method (FDID, ADID, DID):
 
             'Effects' : dict
+            
                 ATTs: ATT, percent ATT, Standardized Effect Size
+                
             'Fit' : dict
+            
                 Goodness-of-fit metrics for the model: R-Squared, Pre-RMSE
+                
             'Inference' : dict
+            
                 Inference results, including 95% confidence intervals and p-values.
 
         References
@@ -1163,30 +1222,53 @@ class CLUSTERSC:
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
                 
             treat : str
+            
                 Column name identifying the treated unit.
+                
             time : str
+            
                 Column name for the time variable.
+                
             outcome : str
+            
                 Column name for the outcome variable.
+                
             unitid : str
+            
                 Column name identifying the units.
+                
             cluster : bool, optional
+            
                 Whether to apply clustering for PCR. Default is True.
+                
             objective : str, optional
+            
                 Constraint for PCR. Defaul is "OLS", but user may specify "SIMPLEX"
+                
             counterfactual_color : str, optional
+            
                 Color for the counterfactual line in the plots. Default is "red".
+                
             treated_color : str, optional
+            
                 Color for the treated line in the plots. Default is "black".
+                
             display_graphs : bool, optional
+            
                 Whether to display the plots. Default is True.
+                
             save : bool or dict, optional
+            
                 Whether to save the generated plots. Default is False.
+                
                 If a dictionary, keys can include:
+                
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
+                    
             Frequentist : bool, optional
+            
                 If true, use Frequntist Robust SCM.
                 If False, usees Amjad's Bayesian method.
                 Defaults to true.
@@ -1362,9 +1444,13 @@ class PROXIMAL:
         - "treat" : str
         
             The name of the treatment indicator variable.
+            
         - "unitid" : str
+        
             The name of the unit identifier column.
+            
         - "time" : str
+        
             The name of the time variable.
             
         - "counterfactual_color" : str, optional, default="red"
@@ -1384,6 +1470,7 @@ class PROXIMAL:
             Whether to save the generated plots. Default is False.
         
             If a dictionary, keys can include:
+            
                 - 'filename' : Custom file name (without extension).
                 - 'extension' : File format (e.g., 'png', 'pdf').
                 - 'directory' : Directory to save the plot.
@@ -1395,14 +1482,19 @@ class PROXIMAL:
         - "proxies" : list of str, optional, default=[]
         
             A list of proxy variables, where:
+            
               * The first element corresponds to variables for the surrogates.
               * The second element corresponds to proxies for the surrogates.
+              
         - "donors" : list of str, optional, default=[]
+        
             A list of donor units to construct the counterfactual.
 
     Returns
     -------
+    
     dict
+    
         A dictionary with keys "PI", "PIS", and "PIPost", each containing the estimated effects, 
         model fit, and vectors for the corresponding approach.
 
