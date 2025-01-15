@@ -7,9 +7,9 @@ from scipy.stats import norm
 import scipy.stats as stats
 from sklearn.cluster import KMeans
 from screenot.ScreeNOT import adaptiveHardThresholding
-from mlsynth.utils.datautils import balance, dataprep
+from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
 from mlsynth.utils.resultutils import effects, plot_estimates
-from mlsynth.utils.estutils import Opt, pcr, TSEST, pda
+from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post
 from mlsynth.utils.inferutils import step2
 from mlsynth.utils.selectorsutils import fpca
 from mlsynth.utils.denoiseutils import (
@@ -426,7 +426,7 @@ class FMA:
                 [y_hat],
                 method="FMA",
                 treatedcolor=self.treated_color,
-                counterfactualcolors=[self.counterfactual_color],
+                counterfactualcolors=["red"],
                 counterfactual_names=[f"FMA {prepped['treated_unit_name']}"],
                 save=self.save,
             )
@@ -1175,8 +1175,8 @@ class CLUSTERSC:
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
             Frequentist : bool, optional
-                If true, use Frequentist Robust SCM.
-                If False, uses Amjad's Bayesian method.
+                If true, use Frequntist Robust SCM.
+                If False, usees Amjad's Bayesian method.
                 Defaults to true.
                 
         Returns
@@ -1326,3 +1326,98 @@ class CLUSTERSC:
         ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
 
         return ClustSCdict
+
+
+class PROXIMAL:
+    def __init__(self, config):
+        # Load configuration
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.display_graphs = config.get("display_graphs", True)
+        self.save = config.get("save", False)
+
+        # New lists for surrogates, proxies, and donors
+        self.surrogates = config.get("surrogates", [])
+        self.proxies = config.get("proxies", [])
+        self.donors = config.get("donors", [])
+
+    def fit(self):
+        # Ensure the required lists are not empty
+        if not self.surrogates:
+            raise ValueError("List of surrogates cannot be empty.")
+        if not self.proxies:
+            raise ValueError("List of proxies cannot be empty.")
+        if not self.donors:
+            raise ValueError("List of donors cannot be empty.")
+
+        # Placeholder for the balance method implementation
+        balance(self.df, self.unitid, self.time)
+
+        prepped = dataprep(
+            self.df, self.unitid, self.time, self.outcome, self.treat
+        )
+
+        # Filter self.donors to include only valid columns in Ywide
+        valid_donors = [donor for donor in self.donors if donor in  prepped['Ywide'].columns]
+
+        # Extract only the valid columns
+        W =  prepped['Ywide'][valid_donors].to_numpy()
+
+        surframe = self.df.pivot(index=self.time, columns=self.unitid, values=self.proxies[0])
+
+        Z0 = surframe[valid_donors].to_numpy()
+
+        Z0 = np.exp(Z0)
+
+        X, Z1 = proxy_dataprep(self.df, surrogate_units=self.surrogates, proxy_vars=self.proxies, T=prepped["total_periods"])
+
+        h = int(np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9)))
+
+        y_PI, alpha, se_tau = pi(prepped["y"], W, Z0, prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
+
+        PIattdict, PIfitdict, PIVectors = effects.calculate(prepped["y"], y_PI, prepped["pre_periods"],
+                                                         prepped["post_periods"])
+
+        PIdict = {"Effects": PIattdict, "Fit": PIfitdict, "Vectors": PIVectors}
+
+
+        tau, taut, alpha, se_tau = pi_surrogate(prepped["y"], W, Z0, Z1, clean_surrogates2(X, Z0, W, prepped["pre_periods"]), prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
+        y_PIS = prepped["y"] - taut
+        PISattdict, PISfitdict, PISVectors = effects.calculate(prepped["y"], y_PIS, prepped["pre_periods"],
+                                                         prepped["post_periods"])
+
+        PISdict = {"Effects": PISattdict, "Fit": PISfitdict, "Vectors": PISVectors}
+        
+        tau, taut,  alpha, se_tau = pi_surrogate_post(prepped["y"], W, Z0, Z1, clean_surrogates2(X, Z0, W, prepped["pre_periods"]), prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
+        y_PIPost = prepped["y"] - taut
+        PIPostattdict, PIPostfitdict, PIPostVectors = effects.calculate(prepped["y"], y_PIPost, prepped["pre_periods"],
+                                                         prepped["post_periods"])
+
+        PIPostdict = {"Effects": PIPostattdict, "Fit": PIPostfitdict, "Vectors": PIPostVectors}
+
+        if self.display_graphs:
+            plot_estimates(
+                self.df,
+                self.time,
+                self.unitid,
+                self.outcome,
+                self.treat,
+                prepped["treated_unit_name"],
+                prepped["y"],
+                [y_PI, y_PIS, y_PIPost],
+                method="PI",
+                counterfactual_names=["PI", "PI-S", "PI-Post"],
+                treatedcolor=self.treated_color,
+                save=self.save,
+                counterfactualcolors=["grey", "red", "blue"],
+            )
+
+        ProximalDict = {"PI": PIdict, "PIS": PISdict, "PIPost": PIPostdict}
+
+        return ProximalDict
+
