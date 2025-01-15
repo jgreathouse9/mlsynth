@@ -1329,6 +1329,60 @@ class CLUSTERSC:
 
 
 class PROXIMAL:
+    """
+    A class for implementing the Proximal Inference framework with surrogates, proxies, and donor units 
+    to estimate causal impacts in the context of synthetic control methods.
+
+    Parameters
+    ----------
+    config : dict
+    
+        A dictionary containing configuration options for the analysis, with the following keys:
+        
+        - "df" : pandas.DataFrame
+            The input dataset, where each row corresponds to a time period, and each column represents a unit.
+        - "outcome" : str
+            The name of the outcome variable.
+        - "treat" : str
+            The name of the treatment indicator variable.
+        - "unitid" : str
+            The name of the unit identifier column.
+        - "time" : str
+            The name of the time variable.
+        - "counterfactual_color" : str, optional, default="red"
+            The color used for counterfactual estimates in the plots.
+        - "treated_color" : str, optional, default="black"
+            The color used for the treated unit in the plots.
+        - "display_graphs" : bool, optional, default=True
+            Whether to display the resulting plots.
+        - "save" : bool, optional, default=False
+            Whether to save the plots to disk.
+        - "surrogates" : list, optional, default=[]
+            A list of surrogate unit identifiers (string or numeric) used in the analysis.
+        - "proxies" : list of str, optional, default=[]
+            A list of proxy variables, where:
+              * The first element corresponds to variables for the surrogates.
+              * The second element corresponds to proxies for the surrogates.
+        - "donors" : list of str, optional, default=[]
+            A list of donor units to construct the counterfactual.
+
+    Returns
+    -------
+    dict
+        A dictionary with keys "PI", "PIS", and "PIPost", each containing the estimated effects, 
+        model fit, and vectors for the corresponding approach.
+
+    References
+    ----------
+    Xu Shi, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen. 
+    "Theory for identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework." 
+    arXiv preprint arXiv:2108.13935, 2023. URL: https://arxiv.org/abs/2108.13935.
+    
+    Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão. 
+    "Proximal Causal Inference for Synthetic Control with Surrogates." 
+    arXiv preprint arXiv:2308.09527, 2023. URL: https://arxiv.org/abs/2308.09527.
+    """
+
     def __init__(self, config):
         # Load configuration
         self.df = config.get("df")
