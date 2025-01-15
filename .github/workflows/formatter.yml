@@ -36,7 +36,7 @@ jobs:
 
       - name: Auto-format docstrings with docformatter
         run: |
-          docformatter --recursive . --in-place --wrap-summaries 79 --wrap-descriptions 79 --verbose
+          find . -name "*.py" -print -exec docformatter --in-place --wrap-summaries 79 --wrap-descriptions 79 {} \;
 
       - name: Check code style with Flake8
         run: |
