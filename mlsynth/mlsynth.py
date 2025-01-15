@@ -1366,17 +1366,34 @@ class PROXIMAL:
             The name of the unit identifier column.
         - "time" : str
             The name of the time variable.
+            
         - "counterfactual_color" : str, optional, default="red"
+        
             The color used for counterfactual estimates in the plots.
+            
         - "treated_color" : str, optional, default="black"
+        
             The color used for the treated unit in the plots.
+
         - "display_graphs" : bool, optional, default=True
+        
             Whether to display the resulting plots.
-        - "save" : bool, optional, default=False
-            Whether to save the plots to disk.
+
+        - "save" : bool or dict, optional
+        
+            Whether to save the generated plots. Default is False.
+        
+            If a dictionary, keys can include:
+                - 'filename' : Custom file name (without extension).
+                - 'extension' : File format (e.g., 'png', 'pdf').
+                - 'directory' : Directory to save the plot.
+                
         - "surrogates" : list, optional, default=[]
+        
             A list of surrogate unit identifiers (string or numeric) used in the analysis.
+            
         - "proxies" : list of str, optional, default=[]
+        
             A list of proxy variables, where:
               * The first element corresponds to variables for the surrogates.
               * The second element corresponds to proxies for the surrogates.
