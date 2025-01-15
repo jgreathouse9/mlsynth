@@ -42,6 +42,7 @@ MLSYNTH
    fma
    pda
    tssc
+   proximal
 
 
 .. toctree::
