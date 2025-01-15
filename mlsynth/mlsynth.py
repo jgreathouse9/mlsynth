@@ -35,10 +35,13 @@ class TSSC:
         Parameters
         ----------
         config : dict
+        
             A dictionary containing the necessary parameters. The following keys are expected:
 
             df : pandas.DataFrame
-                User-specified dataframe containing the data.
+            
+                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                
             treat : str
                 Column name identifying the treated unit (must be a 0 or 1 dummy).
             time : str
@@ -220,10 +223,12 @@ class FMA:
         Parameters
         ----------
         config : dict
+        
             A dictionary containing the necessary parameters. The following keys are expected:
 
             df : pandas.DataFrame
-                DataFrame containing the data.
+            
+                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
 
             treat : str
                 Column name identifying the treated unit.
@@ -452,10 +457,13 @@ class PDA:
         Parameters
         ----------
         config : dict
+        
             A dictionary containing the necessary parameters. The following keys are expected:
 
             df : pandas.DataFrame
-                DataFrame containing the data.
+            
+                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                
             treat : str
                 Column name identifying the treated unit.
             time : str
@@ -556,18 +564,16 @@ class FDID:
         """
         Compute Forward DID, Augmented DID, and standard DID estimates.
 
-        This function implements the Forward Difference-in-Differences (FDID) method,
-        the Augmented Difference-in-Differences (ADID) method, and the standard Difference-in-Differences (DID) method,
-        as described in Li (2023) and Li & Van den Bulte (2023).
-        It returns estimates for all three methods, including effects, model fit, and inference results.
-
         Parameters
         ----------
         config : dict
+        
             Dictionary containing the configuration options. The following keys are expected:
 
             df : pandas.DataFrame
-                Dataframe containing the data.
+            
+                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                
             unitid : str
                 Column name for unit IDs.
             time : str
@@ -1031,9 +1037,13 @@ class GSC:
         Parameters
         ----------
         config : dict
+        
             A dictionary containing the necessary parameters. The following keys are expected:
+            
             df : pandas.DataFrame
-                DataFrame containing the data.
+            
+                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                
             treat : str
                 Column name identifying the treated unit.
             time : str
@@ -1149,7 +1159,9 @@ class CLUSTERSC:
             A dictionary containing the necessary parameters. The following keys are expected:
             
             df : pandas.DataFrame
-                DataFrame containing the data.
+            
+                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                
             treat : str
                 Column name identifying the treated unit.
             time : str
@@ -1337,13 +1349,18 @@ class PROXIMAL:
     ----------
     config : dict
     
-        A dictionary containing configuration options for the analysis, with the following keys:
+        A dictionary containing configuration options:
         
         - "df" : pandas.DataFrame
-            The input dataset, where each row corresponds to a time period, and each column represents a unit.
+        
+            Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+            
         - "outcome" : str
+        
             The name of the outcome variable.
+            
         - "treat" : str
+        
             The name of the treatment indicator variable.
         - "unitid" : str
             The name of the unit identifier column.
