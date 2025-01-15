@@ -61,8 +61,7 @@ def plot_estimates(
         y,
         label=f"Observed {treated_unit_name}",
         linewidth=3,
-        color=treatedcolor,
-        marker="o",
+        color=treatedcolor
     )
 
     # Plot each counterfactual
@@ -79,8 +78,7 @@ def plot_estimates(
             label=label,
             color=color,
             linestyle="--",
-            linewidth=1.25,
-            marker="o"
+            linewidth=1.25
         )
 
     # Add labels, title, legend, and grid
