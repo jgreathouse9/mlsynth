@@ -114,3 +114,66 @@ def balance(df, unit_col, time_col):
 
     if not is_balanced:
         raise ValueError("The panel is not strongly balanced.")
+
+
+
+def clean_surrogates2(X, Z0, W, T0, Cy=None):
+    """
+    Cleans surrogate variables using the provided inputs and returns the updated X.
+
+    Parameters:
+    X (ndarray): Matrix of surrogate variables.
+    Z0 (ndarray): Matrix of pre-treatment covariates for the donor pool.
+    W (ndarray): Matrix of pre-treatment covariates for the treated unit.
+    T0 (int): Time point before treatment.
+    Cy (ndarray, optional): Additional covariates (default is None).
+
+    Returns:
+    ndarray: Updated surrogate variable matrix.
+    """
+    tauts = []
+    for i in range(X.shape[1]):
+        X1 = np.copy(X[:, i])
+        if Cy is not None:
+            Z0_aug = np.column_stack((Z0, Cy))
+            W_aug = np.column_stack((W, Cy))
+        else:
+            Z0_aug = Z0
+            W_aug = W
+        Y = X1
+        Z0W = Z0_aug[:T0].T @ W_aug[:T0]
+        Z0Y = Z0_aug[:T0].T @ Y[:T0]
+        alpha = np.linalg.solve(Z0W, Z0Y)
+        taut = Y - W_aug.dot(alpha)
+        tauts.append(taut)
+
+    X_cleaned = np.column_stack(tauts)
+    return X_cleaned
+
+
+def proxy_dataprep(df, surrogate_units, proxy_vars, id_col='ID', time_col='time', T=None):
+    """
+    Efficiently constructs donor, surrogate, and proxy matrices using vectorized operations.
+
+    Args:
+    df (pd.DataFrame): The dataset containing relevant columns.
+    surrogate_units (list): List of surrogate unit IDs.
+    proxy_vars (list): List of proxy variable names (e.g., ['bid_itp', 'ask_itp']).
+    id_col (str): Column name representing the unit ID.
+    time_col (str): Column name representing the time variable.
+
+    Returns:
+    surrogate_matrix (np.ndarray): Surrogate matrix (X).
+    surrogate_proxy_matrix (np.ndarray): Surrogate proxy matrix (Z1).
+    """
+
+    # Surrogate matrix: Filter for surrogate units and pivot using the first proxy variable
+    surrogate_df = df[df[id_col].isin(surrogate_units)].pivot(index=time_col, columns=id_col, values=proxy_vars[0])
+    surrogate_matrix = surrogate_df.to_numpy()  # No log transformation, using raw values
+
+    # Surrogate proxy matrix: Use the second proxy variable for the same surrogate units
+    surrogate_proxy_df = df[df[id_col].isin(surrogate_units)].pivot(index=time_col, columns=id_col, values=proxy_vars[1])
+    surrogate_proxy_matrix = surrogate_proxy_df.to_numpy()  # No log transformation, using raw values
+
+    return surrogate_matrix, surrogate_proxy_matrix
+
