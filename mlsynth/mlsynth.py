@@ -1449,6 +1449,9 @@ class PROXIMAL:
             
         - "time" : str
             The name of the time variable.
+
+        - "surrogates" : list
+            A list of surrogate units.
             
         - "counterfactual_color" : list of str, optional, default=["grey", "red", "blue"]
             The colors used for counterfactuals.
@@ -1469,7 +1472,7 @@ class PROXIMAL:
         - "vars" : dict, optional, default={}
             A dictionary with two keys:
                 - "surrogatevars" : list of str
-                    A list of surrogate units for which proxy variables are defined.
+                    A list of surrogate variables.
                 - "proxyvars" : list of str
                     A list of proxy variables for the surrogates.
         
