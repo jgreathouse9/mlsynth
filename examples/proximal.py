@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
-from mlsynth.mlsynth import PROXIMAL, FDID
+from mlsynth.mlsynth import PROXIMAL
 import matplotlib
+import os
 
 jared_theme = {
     "axes.grid": True,
@@ -46,6 +47,24 @@ var_dict = {
     "proxyvars": ["ask_itp"]                 # Proxy variables
 }
 
+
+new_directory = os.path.join(os.getcwd(), "examples")
+os.chdir(new_directory)
+
+# Define the 'PROXIMAL' directory
+save_directory = os.path.join(os.getcwd(), "PROXIMAL")
+
+# Create the directory if it doesn't exist
+if not os.path.exists(save_directory):
+    os.makedirs(save_directory)
+
+save = {
+    "filename": "PanicProx",
+    "extension": "png",
+    "directory": save_directory,
+}
+
+
 config = {
     "df": df,
     "treat": treat,
@@ -53,7 +72,7 @@ config = {
     "outcome": outcome,
     "unitid": unitid,
     "treated_color": "black",
-    "display_graphs": True,
+    "display_graphs": False,
     "surrogates": surrogates,
     "vars": var_dict,
     "donors": donors,
