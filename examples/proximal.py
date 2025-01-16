@@ -29,7 +29,7 @@ file_path = os.path.join(os.path.dirname(__file__), '..', 'basedata', 'trust.dta
 # Load the CSV file using pandas
 df = pd.read_csv(file_path)
 
-df = df[df["ID"] != 1 # Dropping the unbalanced unit
+df = df[df["ID"] != 1] # Dropping the unbalanced unit
 
 surrogates = df[df['introuble'] == 1]['ID'].unique().tolist() # Our list of surrogates
 
