@@ -1,6 +1,8 @@
 Proximal Synthetic Control
 ==========================
 
+Next, I discuss the proximal SCM method.
+
 .. autoclass:: mlsynth.mlsynth.PROXIMAL
    :members:
    :undoc-members:
