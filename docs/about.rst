@@ -77,6 +77,14 @@ At present, ``mlsynth`` supports:
    * - `Two Step Synthetic Control <https://doi.org/10.1287/mnsc.2023.4878>`_
      - Kathleen T. Li, Venkatesh Shankar. "A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events." *Management Science* 70(6):3734-3747, 2023.
      - TSSC
+   * - `PI-SCM <https://arxiv.org/abs/2108.13935>`_
+     - Xu Shi, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen. “Theory for identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework.” arXiv preprint arXiv:2108.13935, 2023.
+     - PROXIMAL
+   * - `PIS-SCM <https://arxiv.org/abs/2308.09527>`_
+     - Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão. “Proximal Causal Inference for Synthetic Control with Surrogates.” arXiv preprint arXiv:2308.09527, 2023.
+     - PROXIMAL
+
+
 
 Mission
 -------
