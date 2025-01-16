@@ -79,7 +79,7 @@ config = {
     "unitid": unitid,
     "treated_color": "black",
     "counterfactualcolors": ['blue', 'pink', 'orange'],
-    "display_graphs": False,
+    "display_graphs": True,
     "surrogates": surrogates,
     "vars": var_dict,
     "donors": donors,
