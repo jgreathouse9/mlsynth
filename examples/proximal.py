@@ -56,7 +56,7 @@ config = {
     "display_graphs": True,
     "surrogates": surrogates,
     "vars": var_dict,
-    "donors": donors
+    "donors": donors,
     "save": save
 }
 
