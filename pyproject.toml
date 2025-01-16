@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]  # Build dependencies
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlsynth"
+version = "0.1.0"
+description = "A Python package for advanced synthetic control methods."
+readme = "README.md"
+readme-content-type = "text/markdown"
+authors = [
+    { name = "Jared Greathouse", email = "jgreathouse3@student.gsu.edu" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.9"
+homepage = "https://github.com/jgreathouse9/mlsynth"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+
+[project.dependencies]
+pandas = "*"
+numpy = "*"
+matplotlib = "*"
+scipy = "*"
+scikit-learn = "*"
+statsmodels = "*"
+cvxpy = "*"
+screenot = "*"
+
+[tool.setuptools.packages.find]
+include = ["mlsynth", "mlsynth.*"]
