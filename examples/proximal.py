@@ -27,7 +27,7 @@ matplotlib.rcParams.update(jared_theme)
 file_path = os.path.join(os.path.dirname(__file__), '..', 'basedata', 'trust.dta')
 
 # Load the CSV file using pandas
-df = pd.read_csv(file_path)
+df = pd.read_stata(file_path)
 
 df = df[df["ID"] != 1] # Dropping the unbalanced unit
 
