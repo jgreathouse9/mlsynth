@@ -1,7 +1,8 @@
 Proximal Synthetic Control
 ==========================
 
-Next, I discuss the proximal SCM method.
+Next, I discuss the proximal SCM method. This method is a GMM based estimator of the treatment effect, where some units are used as surrogates (or, predictive of the latent unit specific factors which drive the outcome) and proxies, unaffected elements that vary through time and match on the time latent common factors.
+
 
 .. autoclass:: mlsynth.mlsynth.PROXIMAL
    :show-inheritance:
