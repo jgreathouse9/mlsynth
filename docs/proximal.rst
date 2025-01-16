@@ -13,9 +13,11 @@ Next, I discuss the proximal SCM method.
 
 
 Estimating Proximal SCM via ``mlsynth``
--------------------------------------
+--------------------------------------------
+
 
 This is the plot we get when we estimate the causal impact.
+
 
 .. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/PROXIMAL/PanicProx.png
    :alt: Proximal Synthetic Control Estimation
