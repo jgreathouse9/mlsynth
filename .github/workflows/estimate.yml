@@ -49,6 +49,11 @@ jobs:
           set -x
           python examples/tssc.py
 
+      - name: Run Proximal Inference
+        run: |
+          set -x
+          python examples/proximal.py
+
       - name: Commit plots
         run: |
           git add -A  # Stage all changes
