@@ -24,18 +24,24 @@ jared_theme = {
 
 matplotlib.rcParams.update(jared_theme)
 
-df = pd.read_stata("data/trust.dta")
+file_path = os.path.join(os.path.dirname(__file__), '..', 'basedata', 'trust.dta')
 
-df = df[df["ID"] != 1]
+# Load the CSV file using pandas
+df = pd.read_csv(file_path)
 
-surrogates = df[df['introuble'] == 1]['ID'].unique().tolist()
-donors = df[df['type'] == "normal"]['ID'].unique().tolist()
+df = df[df["ID"] != 1 # Dropping the unbalanced unit
+
+surrogates = df[df['introuble'] == 1]['ID'].unique().tolist() # Our list of surrogates
+
+donors = df[df['type'] == "normal"]['ID'].unique().tolist() # Our pure controls
 
 vars = ["bid_itp", "ask_itp"]
 
-df[vars] = df[vars].apply(np.log)
+df[vars] = df[vars].apply(np.log) # We take the log of these, per the paper.
 
-df['Panic'] = np.where((df['time'] > 229) & (df['ID'] == 34), 1, 0) # 229
+df['Panic'] = np.where((df['time'] > 229) & (df['ID'] == 34), 1, 0)
+
+# Here is when our treatment began, on the 229th tri-week.
 
 treat = "Panic"
 outcome = "prc_log"
@@ -43,8 +49,8 @@ unitid = "ID"
 time = "date"
 
 var_dict = {
-    "surrogatevars": ["bid_itp"],  # Surrogate variables
-    "proxyvars": ["ask_itp"]                 # Proxy variables
+    "surrogatevars": ["bid_itp"],  # Surrogate variable
+    "proxyvars": ["ask_itp"]                 # Proxy variable
 }
 
 
