@@ -1516,7 +1516,7 @@ class PROXIMAL:
         self.treat = config.get("treat")
         self.unitid = config.get("unitid")
         self.time = config.get("time")
-        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.counterfactual_color = config.get("counterfactual_color", ["grey", "red", "blue"])
         self.treated_color = config.get("treated_color", "black")
         self.display_graphs = config.get("display_graphs", True)
         self.save = config.get("save", False)
@@ -1525,13 +1525,10 @@ class PROXIMAL:
         self.surrogates = config.get("surrogates", [])
         self.proxies = config.get("proxies", [])
         self.donors = config.get("donors", [])
+        self.vars = config.get("vars", [])
 
     def fit(self):
         # Ensure the required lists are not empty
-        if not self.surrogates:
-            raise ValueError("List of surrogates cannot be empty.")
-        if not self.proxies:
-            raise ValueError("List of proxies cannot be empty.")
         if not self.donors:
             raise ValueError("List of donors cannot be empty.")
 
@@ -1548,17 +1545,16 @@ class PROXIMAL:
         # Extract only the valid columns
         W =  prepped['Ywide'][valid_donors].to_numpy()
 
-        surframe = self.df.pivot(index=self.time, columns=self.unitid, values=self.proxies[0])
+        surframe = self.df.pivot(index=self.time, columns=self.unitid, values=self.vars["surrogatevars"][0])
 
         Z0 = surframe[valid_donors].to_numpy()
 
-        Z0 = np.exp(Z0)
-
-        X, Z1 = proxy_dataprep(self.df, surrogate_units=self.surrogates, proxy_vars=self.proxies, T=prepped["total_periods"])
+        X, Z1 = proxy_dataprep(self.df, surrogate_units=self.surrogates, proxy_vars=self.vars, id_col=self.unitid, time_col=self.time, T=prepped["total_periods"])
 
         h = int(np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9)))
 
         y_PI, alpha, se_tau = pi(prepped["y"], W, Z0, prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
+        print(se_tau)
 
         PIattdict, PIfitdict, PIVectors = effects.calculate(prepped["y"], y_PI, prepped["pre_periods"],
                                                          prepped["post_periods"])
@@ -1580,6 +1576,8 @@ class PROXIMAL:
 
         PIPostdict = {"Effects": PIPostattdict, "Fit": PIPostfitdict, "Vectors": PIPostVectors}
 
+        print(prepped["treated_unit_name"])
+
         if self.display_graphs:
             plot_estimates(
                 self.df,
@@ -1594,10 +1592,9 @@ class PROXIMAL:
                 counterfactual_names=["PI", "PI-S", "PI-Post"],
                 treatedcolor=self.treated_color,
                 save=self.save,
-                counterfactualcolors=["grey", "red", "blue"],
+                counterfactualcolors=self.counterfactual_color,
             )
 
         ProximalDict = {"PI": PIdict, "PIS": PISdict, "PIPost": PIPostdict}
 
         return ProximalDict
-
