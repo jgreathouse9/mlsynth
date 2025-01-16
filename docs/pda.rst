@@ -11,7 +11,7 @@ Formally, I lay out the notations. Indexed by :math:`j`, we observe :math:`\math
 
 
 :math:`\ell_2` Relaxation
------------------------
+-----------------------------
 
 The first approach we discuss is the :math:`\ell_2`-relaxation PDA. Much criticism has been made of sparse-models such as the LASSO or other methods designed to induce sparsity, especially in situations where the true underlying model may actually be dense [l2relax]_. In such situations, the LASSO will perform poorly for variable selection tasks because it will assign zeros to informative predictors, or even select the wrong variables altogether. As an answer to this, econometricians increasingly have experimented with the Ridge regression estimator as a tool of interest, say as Amjad et. al [Amjad2018]_ does with their Robust Synthetic Control estimator. In paticular, they argue that the primary thing of interest should be our out of sample predictions; so, imposing sparsity or nonnegative weights, while easily interpretable, may not be the best in practice. 
 
@@ -91,7 +91,7 @@ When we estimate the counterfactual, we get
    :width: 600px
 
 Forward Selected Approach
--------------------------
+---------------------------
 
 Next I describe the forward-selection PDA implemented by ``mlsynth``. In fsPDA, the control group is selected using forward selection. The selection method iteratively chooses control units to maximize the model's explanatory power based on the :math:`R^2` statistic.
 
