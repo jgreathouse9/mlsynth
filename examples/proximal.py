@@ -61,7 +61,7 @@ config = {
     "outcome": outcome,
     "unitid": unitid,
     "treated_color": "black",
-    "counterfactual_color": ['blue', 'pink', 'orange'],
+    "counterfactual_color": ['blue', 'green', 'red'],
     "display_graphs": True,
     "surrogates": surrogates,
     "vars": var_dict,
