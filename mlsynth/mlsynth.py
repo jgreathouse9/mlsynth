@@ -1434,67 +1434,51 @@ class PROXIMAL:
         A dictionary containing configuration options:
         
         - "df" : pandas.DataFrame
-        
-            Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+            Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, 
+            one column for time, another column for the numeric outcome, and a column that is a dummy variable, 
+            equal to 1 when the unit is treated, else 0.
             
         - "outcome" : str
-        
             The name of the outcome variable.
             
         - "treat" : str
-        
             The name of the treatment indicator variable.
             
         - "unitid" : str
-        
             The name of the unit identifier column.
             
         - "time" : str
-        
             The name of the time variable.
             
-        - "counterfactual_color" : str, optional, default="red"
-        
-            The color used for counterfactual estimates in the plots.
+        - "counterfactual_color" : list of str, optional, default=["grey", "red", "blue"]
+            The colors used for counterfactuals.
             
         - "treated_color" : str, optional, default="black"
-        
             The color used for the treated unit in the plots.
 
         - "display_graphs" : bool, optional, default=True
-        
             Whether to display the resulting plots.
 
         - "save" : bool or dict, optional
-        
             Whether to save the generated plots. Default is False.
-        
             If a dictionary, keys can include:
-            
                 - 'filename' : Custom file name (without extension).
                 - 'extension' : File format (e.g., 'png', 'pdf').
                 - 'directory' : Directory to save the plot.
                 
-        - "surrogates" : list, optional, default=[]
+        - "vars" : dict, optional, default={}
+            A dictionary with two keys:
+                - "surrogatevars" : list of str
+                    A list of surrogate variables for which proxy variables are defined.
+                - "proxyvars" : list of str
+                    A list of proxy variables for the surrogates.
         
-            A list of surrogate unit identifiers (string or numeric) used in the analysis.
-            
-        - "proxies" : list of str, optional, default=[]
-        
-            A list of proxy variables, where:
-            
-              * The first element corresponds to variables for the surrogates.
-              * The second element corresponds to proxies for the surrogates.
-              
         - "donors" : list of str, optional, default=[]
-        
             A list of donor units to construct the counterfactual.
 
     Returns
     -------
-    
     dict
-    
         A dictionary with keys "PI", "PIS", and "PIPost", each containing the estimated effects, 
         model fit, and vectors for the corresponding approach.
 
@@ -1508,6 +1492,7 @@ class PROXIMAL:
     "Proximal Causal Inference for Synthetic Control with Surrogates." 
     arXiv preprint arXiv:2308.09527, 2023. URL: https://arxiv.org/abs/2308.09527.
     """
+
 
     def __init__(self, config):
         # Load configuration
