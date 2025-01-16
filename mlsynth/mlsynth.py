@@ -1469,7 +1469,7 @@ class PROXIMAL:
         - "vars" : dict, optional, default={}
             A dictionary with two keys:
                 - "surrogatevars" : list of str
-                    A list of surrogate variables for which proxy variables are defined.
+                    A list of surrogate units for which proxy variables are defined.
                 - "proxyvars" : list of str
                     A list of proxy variables for the surrogates.
         
