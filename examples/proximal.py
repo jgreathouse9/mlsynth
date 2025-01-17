@@ -32,8 +32,8 @@ unitid = "ID"
 time = "date"
 
 var_dict = {
-    "surrogatevars": ["bid_itp"],  # Surrogate variable
-    "proxyvars": ["ask_itp"]                 # Proxy variable
+    "donorproxies": ["bid_itp"],
+    "surrogatevars": ["ask_itp"] 
 }
 
 
@@ -46,6 +46,8 @@ save_directory = os.path.join(os.getcwd(), "PROXIMAL")
 # Create the directory if it doesn't exist
 if not os.path.exists(save_directory):
     os.makedirs(save_directory)
+
+
 
 save = {
     "filename": "PanicProx",
@@ -61,11 +63,11 @@ config = {
     "outcome": outcome,
     "unitid": unitid,
     "treated_color": "black",
-    "counterfactual_color": ['blue', 'green', 'red'],
+    "counterfactual_color": ['red', 'grey', "blue"],
     "display_graphs": True,
-    "surrogates": surrogates,
     "vars": var_dict,
     "donors": donors,
+    "surrogates": surrogates,
     "save": save
 }
 
