@@ -1422,6 +1422,7 @@ class CLUSTERSC:
         return ClustSCdict
 
 
+
 class PROXIMAL:
     """
     A class for implementing the Proximal Inference framework with surrogates, proxies, and donor units 
@@ -1434,54 +1435,67 @@ class PROXIMAL:
         A dictionary containing configuration options:
         
         - "df" : pandas.DataFrame
-            Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, 
-            one column for time, another column for the numeric outcome, and a column that is a dummy variable, 
-            equal to 1 when the unit is treated, else 0.
+        
+            Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
             
         - "outcome" : str
+        
             The name of the outcome variable.
             
         - "treat" : str
+        
             The name of the treatment indicator variable.
             
         - "unitid" : str
+        
             The name of the unit identifier column.
             
         - "time" : str
+        
             The name of the time variable.
-
-        - "surrogates" : list
-            A list of surrogate units.
             
-        - "counterfactual_color" : list of str, optional, default=["grey", "red", "blue"]
-            The colors used for counterfactuals.
+        - "counterfactual_color" : str, optional, default="red"
+        
+            The color used for counterfactual estimates in the plots.
             
         - "treated_color" : str, optional, default="black"
+        
             The color used for the treated unit in the plots.
 
         - "display_graphs" : bool, optional, default=True
+        
             Whether to display the resulting plots.
 
         - "save" : bool or dict, optional
+        
             Whether to save the generated plots. Default is False.
+        
             If a dictionary, keys can include:
+            
                 - 'filename' : Custom file name (without extension).
                 - 'extension' : File format (e.g., 'png', 'pdf').
                 - 'directory' : Directory to save the plot.
                 
-        - "vars" : dict, optional, default={}
-            A dictionary with two keys:
-                - "surrogatevars" : list of str
-                    A list of surrogate variables.
-                - "proxyvars" : list of str
-                    A list of proxy variables for the surrogates.
+        - "surrogates" : list, optional, default=[]
         
+            A list of surrogate unit identifiers (string or numeric) used in the analysis.
+            
+        - "vars" : list of str, optional, default=[]
+        
+            A list of proxy variables, where:
+            
+              * The first element corresponds to proxies for the donors.
+              * The second element corresponds to proxies for the surrogates.
+              
         - "donors" : list of str, optional, default=[]
+        
             A list of donor units to construct the counterfactual.
 
     Returns
     -------
+    
     dict
+    
         A dictionary with keys "PI", "PIS", and "PIPost", each containing the estimated effects, 
         model fit, and vectors for the corresponding approach.
 
@@ -1496,7 +1510,6 @@ class PROXIMAL:
     arXiv preprint arXiv:2308.09527, 2023. URL: https://arxiv.org/abs/2308.09527.
     """
 
-
     def __init__(self, config):
         # Load configuration
         self.df = config.get("df")
@@ -1509,9 +1522,8 @@ class PROXIMAL:
         self.display_graphs = config.get("display_graphs", True)
         self.save = config.get("save", False)
 
-        # New lists for surrogates, proxies, and donors
+        
         self.surrogates = config.get("surrogates", [])
-        self.proxies = config.get("proxies", [])
         self.donors = config.get("donors", [])
         self.vars = config.get("vars", [])
 
@@ -1533,16 +1545,15 @@ class PROXIMAL:
         # Extract only the valid columns
         W =  prepped['Ywide'][valid_donors].to_numpy()
 
-        surframe = self.df.pivot(index=self.time, columns=self.unitid, values=self.vars["surrogatevars"][0])
+        donorprox = self.df.pivot(index=self.time, columns=self.unitid, values=self.vars["donorproxies"][0])
 
-        Z0 = surframe[valid_donors].to_numpy()
+        Z0 = donorprox[valid_donors].to_numpy()
 
         X, Z1 = proxy_dataprep(self.df, surrogate_units=self.surrogates, proxy_vars=self.vars, id_col=self.unitid, time_col=self.time, T=prepped["total_periods"])
 
         h = int(np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9)))
 
         y_PI, alpha, se_tau = pi(prepped["y"], W, Z0, prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
-        print(se_tau)
 
         PIattdict, PIfitdict, PIVectors = effects.calculate(prepped["y"], y_PI, prepped["pre_periods"],
                                                          prepped["post_periods"])
@@ -1550,21 +1561,41 @@ class PROXIMAL:
         PIdict = {"Effects": PIattdict, "Fit": PIfitdict, "Vectors": PIVectors}
 
 
-        tau, taut, alpha, se_tau = pi_surrogate(prepped["y"], W, Z0, Z1, clean_surrogates2(X, Z0, W, prepped["pre_periods"]), prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
-        y_PIS = prepped["y"] - taut
-        PISattdict, PISfitdict, PISVectors = effects.calculate(prepped["y"], y_PIS, prepped["pre_periods"],
-                                                         prepped["post_periods"])
+        if len(self.surrogates) > 1:
+            # Surrogate-based estimations
+            tau, taut, alpha, se_tau = pi_surrogate(prepped["y"], W, Z0, Z1,
+                                                    clean_surrogates2(X, Z0, W, prepped["pre_periods"]),
+                                                    prepped["pre_periods"], prepped["post_periods"],
+                                                    prepped["total_periods"], h)
+            y_PIS = prepped["y"] - taut
+            PISattdict, PISfitdict, PISVectors = effects.calculate(prepped["y"], y_PIS, prepped["pre_periods"],
+                                                                   prepped["post_periods"])
+            PISdict = {"Effects": PISattdict, "Fit": PISfitdict, "Vectors": PISVectors}
 
-        PISdict = {"Effects": PISattdict, "Fit": PISfitdict, "Vectors": PISVectors}
-        
-        tau, taut,  alpha, se_tau = pi_surrogate_post(prepped["y"], W, Z0, Z1, clean_surrogates2(X, Z0, W, prepped["pre_periods"]), prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
-        y_PIPost = prepped["y"] - taut
-        PIPostattdict, PIPostfitdict, PIPostVectors = effects.calculate(prepped["y"], y_PIPost, prepped["pre_periods"],
-                                                         prepped["post_periods"])
+            # Post-surrogate estimators
+            tau, taut, alpha, se_tau = pi_surrogate_post(prepped["y"], W, Z0, Z1,
+                                                         clean_surrogates2(X, Z0, W, prepped["pre_periods"]),
+                                                         prepped["pre_periods"], prepped["post_periods"],
+                                                         prepped["total_periods"], h)
+            y_PIPost = prepped["y"] - taut
+            PIPostattdict, PIPostfitdict, PIPostVectors = effects.calculate(prepped["y"], y_PIPost,
+                                                                            prepped["pre_periods"],
+                                                                            prepped["post_periods"])
+            PIPostdict = {"Effects": PIPostattdict, "Fit": PIPostfitdict, "Vectors": PIPostVectors}
 
-        PIPostdict = {"Effects": PIPostattdict, "Fit": PIPostfitdict, "Vectors": PIPostVectors}
+            # Add surrogate results to dictionary
+            ProximalDict = {"PI": PIdict, "PIS": PISdict, "PIPost": PIPostdict}
 
-        print(prepped["treated_unit_name"])
+            # Plotting: Include PI, PI-S, PI-P
+            counterfactuals = [y_PI, y_PIS, y_PIPost]
+            counterfactual_names = ["Proximal Inference", "Proximal Surrogates", "Proximal Post"]
+        else:
+            # If no surrogates, return only PI results
+            ProximalDict = {"PI": PIdict}
+
+            # Plotting: Only PI
+            counterfactuals = [y_PI]
+            counterfactual_names = ["Proximal Inference"]
 
         if self.display_graphs:
             plot_estimates(
@@ -1575,14 +1606,14 @@ class PROXIMAL:
                 self.treat,
                 prepped["treated_unit_name"],
                 prepped["y"],
-                [y_PI, y_PIS, y_PIPost],
+                counterfactuals,
                 method="PI",
-                counterfactual_names=["PI", "PI-S", "PI-Post"],
+                counterfactual_names=counterfactual_names,
                 treatedcolor=self.treated_color,
                 save=self.save,
                 counterfactualcolors=self.counterfactual_color,
             )
 
-        ProximalDict = {"PI": PIdict, "PIS": PISdict, "PIPost": PIPostdict}
 
         return ProximalDict
+
