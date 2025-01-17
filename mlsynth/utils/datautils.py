@@ -158,7 +158,7 @@ def proxy_dataprep(df, surrogate_units, proxy_vars, id_col='Artist', time_col='D
     Args:
     df (pd.DataFrame): The dataset containing relevant columns.
     surrogate_units (list): List of surrogate unit IDs.
-    proxy_vars (list): List of proxy variable names (e.g., ['bid_itp', 'ask_itp']).
+    proxy_vars (list): List of proxy variable names.
     id_col (str): Column name representing the unit ID.
     time_col (str): Column name representing the time variable.
 
@@ -169,12 +169,11 @@ def proxy_dataprep(df, surrogate_units, proxy_vars, id_col='Artist', time_col='D
 
     # Surrogate matrix: Filter for surrogate units and pivot using the first proxy variable
 
-    surrogate_df = df[df[id_col].isin(surrogate_units)].pivot(index=time_col, columns=id_col, values=proxy_vars["surrogatevars"])
+    surrogate_df = df[df[id_col].isin(surrogate_units)].pivot(index=time_col, columns=id_col, values=proxy_vars['donorproxies'][0])
     surrogate_matrix = surrogate_df.to_numpy()
 
     # Surrogate proxy matrix: Use the second proxy variable for the same surrogate units
-    surrogate_proxy_df = df[df[id_col].isin(surrogate_units)].pivot(index=time_col, columns=id_col, values=proxy_vars["proxyvars"])
+    surrogate_proxy_df = df[df[id_col].isin(surrogate_units)].pivot(index=time_col, columns=id_col, values=proxy_vars['surrogatevars'][0])
     surrogate_proxy_matrix = surrogate_proxy_df.to_numpy()
 
     return surrogate_matrix, surrogate_proxy_matrix
-
