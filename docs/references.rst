@@ -140,7 +140,7 @@ References
     DOI: https://doi.org/10.1093/jopart/muy067
 
 
-.. ProxSCM:
+.. [ProxSCM]
 
     Shi, Xu, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen. 
     "Theory for Identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework." 
