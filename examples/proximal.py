@@ -67,10 +67,9 @@ config = {
     "display_graphs": True,
     "vars": var_dict,
     "donors": donors,
-    "surrogates": surrogates,
     "save": save
 }
-
+# "surrogates": surrogates
 model = PROXIMAL(config)
 
 SC = model.fit()
