@@ -139,6 +139,15 @@ References
     *Journal of Public Administration Research and Theory*, 29(3): 511-529, 2018. 
     DOI: https://doi.org/10.1093/jopart/muy067
 
+
+.. ProxSCM:
+
+    Shi, Xu, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen. 
+    "Theory for Identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework." 
+    2023. https://doi.org/10.48550/arXiv.2108.13935
+
+
+
 .. [ABADIE2003]
     Abadie, Alberto and Gardeazabal, Javier. 
     "The Economic Costs of Conflict: A Case Study of the Basque Country." 
