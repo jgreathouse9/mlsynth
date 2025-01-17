@@ -8,7 +8,13 @@ Next, I discuss the proximal SCM method. In synthetic control methods, we oftent
    argue that the outcomes of control units are essentially proxies of the latent factors. Rather than directly regressing the outcome on all such proxies, one can split the set of  proxies into two, thus leveraging one set of proxies to assist the construction of a SC defined in terms of the other set of proxies.
 
 
-In other words, if we agree that the outcomes of the control units are time variant proxies for our control units, we may be able to leverage these outcomes further, repurposing them for mathcing on the latent time variant factors instead of learning the weights. This method is a GMM based estimator of the treatment effect, where some units are used as surrogates (or, predictive of the latent unit specific factors which drive the outcome) and proxies, unaffected elements that vary through time and match on the time latent common factors.
+In other words, if we agree that the outcomes of the control units are time variant proxies for our control units, we may be able to still employ the outcomes of other control units, repurposing them for matching on the latent time variant factors instead of learning the weights. This page describes, broadly, the three methods they propose, and applies it to an emprical example.
+
+Notations
+----------
+
+
+This method is a GMM based estimator of the treatment effect, where some units are used as surrogates (or, predictive of the latent unit specific factors which drive the outcome) and proxies, unaffected elements that vary through time and match on the time latent common factors.
 
 
 .. autoclass:: mlsynth.mlsynth.PROXIMAL
