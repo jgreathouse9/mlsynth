@@ -9,7 +9,7 @@ from sklearn.cluster import KMeans
 from screenot.ScreeNOT import adaptiveHardThresholding
 from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
 from mlsynth.utils.resultutils import effects, plot_estimates
-from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post
+from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, pi2
 from mlsynth.utils.inferutils import step2
 from mlsynth.utils.selectorsutils import fpca
 from mlsynth.utils.denoiseutils import (
@@ -1553,7 +1553,7 @@ class PROXIMAL:
 
         h = int(np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9)))
 
-        y_PI, alpha, se_tau = pi(prepped["y"], W, Z0, prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
+        y_PI, alpha, se_tau = pi2(prepped["y"], W, Z0, prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
 
         PIattdict, PIfitdict, PIVectors = effects.calculate(prepped["y"], y_PI, prepped["pre_periods"],
                                                          prepped["post_periods"])
