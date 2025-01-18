@@ -83,6 +83,7 @@ def plot_estimates(
 
     # Add labels, title, legend, and grid
     plt.xlabel(time)
+    plt.xticks(rotation=45)
     plt.ylabel(outcome)
     plt.title("Artificial Counterfactual")
     plt.legend()
