@@ -122,7 +122,7 @@ So, to summarize quickly, we just employ these proxies to assist in the matching
 Surrogate Approach 
 --------------------
 
-We may also employ surrogate variables which capture latent factors that drive outcome. Let :math:`\mathbf{X}_t \in \mathbb{R}^H` represent a vector of observed surrogates for the treated unit, where :math:`H` is the number of surrogate variables. These surrogates are chosen because they are highly predictive of the treatment effects and driven by the same latent factors as the treated unit. The treatment effect is decomposed into two components, 
+We may also employ surrogate variables which capture latent factors that drive outcome. This appears in the extension paper [LiuTchetgenVar]_, adding to the above. Let :math:`\mathbf{X}_t \in \mathbb{R}^H` represent a vector of observed surrogates for the treated unit, where :math:`H` is the number of surrogate variables. These surrogates are chosen because they are highly predictive of the treatment effects and driven by the same latent factors as the treated unit. The treatment effect is decomposed into two components, 
 
 .. math::
 
