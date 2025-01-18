@@ -139,21 +139,21 @@ The observed surrogates :math:`\mathbf{X}_t` follow a similar factor model,
 where :math:`\mathbf{\Phi} \in \mathbb{R}^{K \times H}` is a matrix of factor loadings for the surrogates, and :math:`\boldsymbol{\epsilon}_{X,t}` is an error term for the surrogates. In this framework, proxies are introduced for donors and surrogates. Let :math:`\mathbf{P}_{0,t}` represent proxy variables for donor outcomes, assumed to capture latent factors :math:`\boldsymbol{\lambda}_t`, and let :math:`\mathbf{P}_{1,t}` represent proxy variables for surrogates, capturing both donor latent factors :math:`\boldsymbol{\lambda}_t` and surrogate latent factors :math:`\boldsymbol{\rho}_t`.
 
 
-The surrogate framework introduces two sets of moment conditions, one for the **pre-treatment period** and one for the **post-treatment period**. In the **pre-treatment period**, the residuals are orthogonal to the proxies for donor units:
+The surrogate framework introduces two sets of moment conditions, one for the pre-treatment period and one for the post-treatment period. In the pre-treatment period, the residuals are orthogonal to the proxies for donor units:
 
 .. math::
 
    \mathbb{E}[Y_t - \mathbf{Y}_0^\top \mathbf{w} \mid \mathbf{P}_{0,t}, t \leq T_0] = 0.
 
-This condition ensures that the synthetic control weights :math:`\mathbf{w}` are correctly estimated by matching the treated unit's outcomes to the donor units' outcomes, using the proxies :math:`\mathbf{P}_{0,t}` for latent factors. In the **post-treatment period**, the residuals must also account for the surrogate variables:
+As above, the weights match on the treated unit's outcomes to the donor pool via the proxies :math:`\mathbf{P}_{0,t}` for the common time factors. In the post-treatment period, the residuals must also account for the surrogate variables via the moment condition:
 
 .. math::
 
    \mathbb{E}[Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \mid \mathbf{P}_{0,t}, \mathbf{P}_{1,t}, t > T_0] = 0.
 
-Here, :math:`\mathbf{X}_t` is the vector of surrogate variables, and :math:`\boldsymbol{\gamma}` is the vector of coefficients relating the surrogates to the latent factors. This condition ensures that the treatment effect is estimated using both the synthetic control outcomes and the information captured by the surrogate variables.
+Here, :math:`\mathbf{X}_t` is the matrix of surrogate variables, and :math:`\boldsymbol{\gamma}` is the vector of coefficients relating the surrogates to the latent unit specific factors.
 
-To combine these conditions, a **stacked moment vector** :math:`\mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma})` is defined, which includes the pre- and post-treatment moments. For :math:`t \leq T_0`, the moment vector is:
+As above, we combine these into a function of moment conditions, :math:`\mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma})`. For :math:`t \leq T_0`, the moment vector is:
 
 .. math::
 
