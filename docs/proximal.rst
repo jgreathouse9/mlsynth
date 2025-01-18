@@ -33,7 +33,7 @@ Shi, Li, Miao, Hu, and Tchetgen Tchetgen [ProxSCM]_ advocate for a GMM approach,
 
 .. math::
 
-U_t(\mathbf{w}) = g(\mathbf{P}_t) \cdot \left( \mathbf{y}_1 - (\mathbf{Y}_0 \mathbf{w})_t \right),
+    U_t(\mathbf{w}) = g(\mathbf{P}_t) \cdot \left( \mathbf{y}_1 - (\mathbf{Y}_0 \mathbf{w})_t \right),
 
 where :math:`g(\mathbf{P}_t)` is a function applied to the proxy variables :math:`\mathbf{P}_t` at time :math:`t`, 
 and :math:`\mathbf{y}_1` and :math:`(\mathbf{Y}_0 \mathbf{w})_t` are the observed and predicted outcomes at time :math:`t`, respectively. In this setup, the :math:`\mathbf{P}_t` matrix may be comprised of anything we believe to be correlated with the time variant common factors. Per HCW [HCW]_, the outcomes of other donor units is one example of this, or other covariates that are unaffected by the treatment but are correlated with the time latent factors.
