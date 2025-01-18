@@ -226,7 +226,7 @@ In the paper by Liu, Tchetgen and Varjão [LiuTchetgenVar]_, the authors give an
    :width: 600px
 
 
-As we can see, the use of the bidding price (a proxy for supply) as a proxy causes the synthetic control to fit the pre-intervention time series well. What if we just used the post-intervention data, or added in the surrogates? In the original code, the authors used the bidding price of the two other affected trusts as surrogates, as well as the bidding price of Knickerbocker itself. the proxies for the surrogates was the weekly asking price for the trust. Again, the surrogates were also affected a lot by the bank runs, but in our case that's okay because they do not contribute to the synthetic control, they are used as instruments for the latent unit effects. Here is the plot we get when we add in the surrogates
+As we can see, the use of the bidding price (a proxy for supply) as a proxy causes the synthetic control to fit the pre-intervention time series well. What if we just used the post-intervention data, or added in the surrogates? In the original code, the authors used the bidding price of the two other affected trusts as surrogates. They also included the bidding price of Knickerbocker itself as a surrogate. The proxies for the surrogates was the weekly asking price for the trust. Keep in mind, the surrogates were also affected substantially by their own bank runs. But in our case that's okay because they do not contribute to the synthetic control, they are effectively used as instruments for the latent unit effects in the post-intervention period since it's reasonable to assume they are correlated with the treatment effect. Here is the plot we get when we add in the surrogates
 
 .. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/PROXIMAL/PanicSurrogates.png
    :alt: Surrogate Synthetic Control Estimation
@@ -235,3 +235,5 @@ As we can see, the use of the bidding price (a proxy for supply) as a proxy caus
 
 
 As we can see, even when we use only post-intervention data to estimate the causal impact, the result largely agrees with the original Proximal Inference estimates.
+
+The authors list prediction intervals and inference for the setting of contaminated surrogates as useful directions for future work, and I agree with them. However, I think another extension may also be warranted, namely the selection of proxies and surrogates. In other words, suppose we have a high dimensional setup where we observe very many potentially relevant proxies for common time factors; which proxies should we use and why? How many should we use? If we believe many valid surrogates exist, which ones should we employ, how many, and why? Coupled with inference, I believe there are exciting future topics for this setting which policy analysts and other researchers may use.
