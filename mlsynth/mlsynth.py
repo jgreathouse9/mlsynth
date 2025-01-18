@@ -9,7 +9,7 @@ from sklearn.cluster import KMeans
 from screenot.ScreeNOT import adaptiveHardThresholding
 from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
 from mlsynth.utils.resultutils import effects, plot_estimates
-from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, pi2
+from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post
 from mlsynth.utils.inferutils import step2
 from mlsynth.utils.selectorsutils import fpca
 from mlsynth.utils.denoiseutils import (
