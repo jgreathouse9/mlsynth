@@ -138,48 +138,60 @@ The observed surrogates :math:`\mathbf{X}_t` follow a similar factor model,
 
 where :math:`\mathbf{\Phi} \in \mathbb{R}^{K \times H}` is a matrix of factor loadings for the surrogates, and :math:`\boldsymbol{\epsilon}_{X,t}` is an error term for the surrogates. In this framework, proxies are introduced for donors and surrogates. Let :math:`\mathbf{P}_{0,t}` represent proxy variables for donor outcomes, assumed to capture latent factors :math:`\boldsymbol{\lambda}_t`, and let :math:`\mathbf{P}_{1,t}` represent proxy variables for surrogates, capturing both donor latent factors :math:`\boldsymbol{\lambda}_t` and surrogate latent factors :math:`\boldsymbol{\rho}_t`.
 
-The identification of this model relies on moment conditions. For the pre-treatment period, we have
+
+The surrogate framework introduces two sets of moment conditions, one for the **pre-treatment period** and one for the **post-treatment period**. In the **pre-treatment period**, the residuals are orthogonal to the proxies for donor units:
 
 .. math::
 
-    \mathbb{E}[Y_t - \mathbf{Y}_0^\top \mathbf{w} \mid \mathbf{P}_{0,t}, t \leq T_0] = 0.
+   \mathbb{E}[Y_t - \mathbf{Y}_0^\top \mathbf{w} \mid \mathbf{P}_{0,t}, t \leq T_0] = 0.
 
-In the post-treatment period,
-
-.. math::
-
-    \mathbb{E}[Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \mid \mathbf{P}_{0,t}, \mathbf{P}_{1,t}, t > T_0] = 0.
-
-The complete stacked moment vector is:
-
-   .. math::
-
-      \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma}) =
-      \begin{cases}
-      \mathbf{g}_0(\mathbf{P}_{0,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} \right), & t \leq T_0, \\
-      \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \right), & t > T_0.
-      \end{cases}
-
-   In matrix form, the stacked moment vector can be written as:
-
-   .. math::
-
-      \mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}) =
-      \begin{bmatrix}
-      \mathbf{g}_0(\mathbf{P}_{0,t}) \left( \mathbf{Y} - \mathbf{Y}_0 \mathbf{w} \right) \\ 
-      \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( \mathbf{Y} - \mathbf{Y}_0 \mathbf{w} - \mathbf{X} \boldsymbol{\gamma} \right)
-      \end{bmatrix}.
-
-For identification, there must exist weights :math:`\mathbf{w} \in \mathbb{R}^{N}` for donors such that :math:`\mathbf{\Gamma} \mathbf{w} = \boldsymbol{\beta}`, where :math:`\mathbf{\Gamma}` and :math:`\boldsymbol{\beta}` represent factor loadings. Similarly, there must exist weights :math:`\boldsymbol{\gamma} \in \mathbb{R}^H` for surrogates such that :math:`\mathbf{\Phi} \boldsymbol{\gamma} = \boldsymbol{\theta}`.
-
-As above, the weights :math:`\mathbf{w}` and the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated via GMM. The objective function can be written as:
+This condition ensures that the synthetic control weights :math:`\mathbf{w}` are correctly estimated by matching the treated unit's outcomes to the donor units' outcomes, using the proxies :math:`\mathbf{P}_{0,t}` for latent factors. In the **post-treatment period**, the residuals must also account for the surrogate variables:
 
 .. math::
 
-    \arg \min_{\mathbf{w}, \boldsymbol{\gamma}} \sum_{t \in \mathcal{T}_1} \left( \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma})^\top \mathbf{\Omega}^{-1} \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma}) \right),
+   \mathbb{E}[Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \mid \mathbf{P}_{0,t}, \mathbf{P}_{1,t}, t > T_0] = 0.
 
+Here, :math:`\mathbf{X}_t` is the vector of surrogate variables, and :math:`\boldsymbol{\gamma}` is the vector of coefficients relating the surrogates to the latent factors. This condition ensures that the treatment effect is estimated using both the synthetic control outcomes and the information captured by the surrogate variables.
 
-:math:`\mathbf{\Omega}` is a positive-definite weight matrix.
+To combine these conditions, a **stacked moment vector** :math:`\mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma})` is defined, which includes the pre- and post-treatment moments. For :math:`t \leq T_0`, the moment vector is:
+
+.. math::
+
+   U_0(t, \mathbf{w}) = \mathbf{g}_0(\mathbf{P}_{0,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} \right),
+
+where :math:`\mathbf{g}_0(\mathbf{P}_{0,t})` is a user-specified function of the proxies :math:`\mathbf{P}_{0,t}`. For :math:`t > T_0`, the moment vector is:
+
+.. math::
+
+   U_1(t, \mathbf{w}, \boldsymbol{\gamma}) = \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \right),
+
+where :math:`\mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t})` is a user-specified function of the proxies :math:`\mathbf{P}_{0,t}` and :math:`\mathbf{P}_{1,t}`. The complete stacked moment vector is:
+
+.. math::
+
+   \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma}) =
+   \begin{cases}
+   \mathbf{g}_0(\mathbf{P}_{0,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} \right), & t \leq T_0, \\
+   \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \right), & t > T_0.
+   \end{cases}
+
+In matrix form, the stacked moment vector can be written as:
+
+.. math::
+
+   \mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}) =
+   \begin{bmatrix}
+   \mathbf{g}_0(\mathbf{P}_{0,t}) \left( \mathbf{Y} - \mathbf{Y}_0 \mathbf{w} \right) \\ 
+   \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( \mathbf{Y} - \mathbf{Y}_0 \mathbf{w} - \mathbf{X} \boldsymbol{\gamma} \right)
+   \end{bmatrix}.
+
+The goal is to estimate the weights :math:`\mathbf{w}` and the surrogate coefficients :math:`\boldsymbol{\gamma}` by minimizing the quadratic form of the moment residuals:
+
+.. math::
+
+   \arg \min_{\mathbf{w}, \boldsymbol{\gamma}} \sum_{t \in \mathcal{T}} \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma})^\top \Omega^{-1} \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma}),
+
+where :math:`\Omega` is the covariance matrix of the moment conditions, accounting for heteroskedasticity and autocorrelation.
 
 The Average Treatment Effect on the Treated (ATT) is expressed with the surrogates information in mind, as
 
