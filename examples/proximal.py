@@ -63,7 +63,7 @@ config = {
     "outcome": outcome,
     "unitid": unitid,
     "treated_color": "black",
-    "counterfactual_color": ["#00f0ff"],
+    "counterfactual_color": ["blue"],
     "display_graphs": True,
     "vars": var_dict,
     "donors": donors,
