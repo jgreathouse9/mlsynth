@@ -1553,7 +1553,7 @@ class PROXIMAL:
 
         h = int(np.floor(4 * (prepped["post_periods"] / 100) ** (2 / 9)))
 
-        y_PI, alpha, se_tau = pi2(prepped["y"], W, Z0, prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
+        y_PI, alpha, se_tau = pi(prepped["y"], W, Z0, prepped["pre_periods"], prepped["post_periods"], prepped["total_periods"], h)
 
         PIattdict, PIfitdict, PIVectors = effects.calculate(prepped["y"], y_PI, prepped["pre_periods"],
                                                          prepped["post_periods"])
