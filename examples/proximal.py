@@ -67,6 +67,8 @@ config_1 = {
 model_1 = PROXIMAL(config_1)
 SC_1 = model_1.fit()
 
+plt.clf()
+
 # Second run with surrogates and new filename
 save_2 = {
     "filename": "PanicSurrogates",
