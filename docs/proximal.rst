@@ -40,49 +40,44 @@ and :math:`\mathbf{y}_1` and :math:`(\mathbf{Y}_0 \mathbf{w})_t` are the observe
 
 To do this, we define a set of moment conditions over the pre-intervention period such that :math:`\mathbf{y} - \mathbf{Y}_0 \mathbf{w}` should be orthogonal to the proxies :math:`\mathbf{P}`:
    
-   .. math::
+.. math::
 
-\mathbb{E}\left[ \mathbf{P}^\top \left( \mathbf{y} - \mathbf{Y}_0 \mathbf{w} \right) \right] = 0.
-
-In plain English, sample mean residual between the treated unit vector and prediction should be zero. We then do the exact same thing for the post intervention period, such that the residual :math:`\mathbf{y} - \tau - \mathbf{Y}_0 \mathbf{w}` should be minimized in the post-treatment period:
-   
-   .. math::
-
-\mathbb{E}\left[ \mathbf{y} - \tau - \mathbf{Y}_0 \mathbf{w} \right] = 0.
+    \mathbb{E}\left[ \mathbf{y} - \tau - \mathbf{Y}_0 \mathbf{w} \right] = 0.
 
 We then combine these conditions into a single stacked moment vector :math:`U(\theta)`, where :math:`\theta = (\mathbf{w}, \tau)` contains the weights and the treatment effect. For :math:`t \leq T_0`, the residuals are:
 
-   .. math::
+.. math::
 
-U_0(t, \mathbf{w}) = \mathbf{P}^\top \left( \mathbf{y}_t - (\mathbf{Y}_0 \mathbf{w})_t \right).
+    U_0(t, \mathbf{w}) = \mathbf{P}^\top \left( \mathbf{y}_t - (\mathbf{Y}_0 \mathbf{w})_t \right).
 
-and for :math:`t > T_0` we have:
+and for :math:`t > T_0`, we have:
 
-   .. math::
+.. math::
 
-U_1(t, \tau, \mathbf{w}) = \mathbf{y}_t - \tau - (\mathbf{Y}_0 \mathbf{w})_t.
+    U_1(t, \tau, \mathbf{w}) = \mathbf{y}_t - \tau - (\mathbf{Y}_0 \mathbf{w})_t.
 
 The complete moment vector is:
 
-   .. math::
+.. math::
 
-   U(\theta) =
-   \begin{bmatrix}
-   U_0(t, \mathbf{w}) \\
-   U_1(t, \tau, \mathbf{w})
-   \end{bmatrix} =
-   \begin{bmatrix}
-   \mathbf{P}^\top \left( \mathbf{y} - \mathbf{Y}_0 \mathbf{w} \right) \\ 
-\mathbf{y} - \tau - \mathbf{Y}_0 \mathbf{w}
-\end{bmatrix}.
+    U(\theta) =
+    \begin{bmatrix}
+    U_0(t, \mathbf{w}) \\
+    U_1(t, \tau, \mathbf{w})
+    \end{bmatrix} =
+    \begin{bmatrix}
+    \mathbf{P}^\top \left( \mathbf{y} - \mathbf{Y}_0 \mathbf{w} \right) \\ 
+    \mathbf{y} - \tau - \mathbf{Y}_0 \mathbf{w}
+    \end{bmatrix}.
 
-The goal is to estimate the weights :math:`\mathbf{w}` by solving a quadratic programming problem which minimizes both sets of moment conditions
+The goal is to estimate the weights :math:`\mathbf{w}` by solving a quadratic programming problem that minimizes both sets of moment conditions:
 
 .. math::
 
     \mathbf{w} = \arg\min_{\mathbf{w}} \sum_{t \in \mathcal{T}_1} U_t(\mathbf{w})^\top \Omega^{-1} U_t(\mathbf{w}),
 
 where :math:`\Omega` is the covariance matrix of the estimating function.
+
 
 Once we have our where, we math estimate the treatment effect like
 
