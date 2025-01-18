@@ -161,10 +161,7 @@ where the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated from 
 Estimating Proximal Inference SCM via ``mlsynth``
 ----------------------------------------------------
 
-In the paper by Liu, Tchetgen and Varjão [LiuTchetgenVar]_, the authors give an example of the Proximal Causal Inference SCM. The authors exploit the Panic of 1907, using data from [fohlin2021]_ as an intervention.
-
-
-This is the plot we get when we estimate the causal impact.
+In the paper by Liu, Tchetgen and Varjão [LiuTchetgenVar]_, the authors give an example of the Proximal Causal Inference SCM. The authors exploit the Panic of 1907, using data from [fohlin2021]_ as an intervention. Basically, this financial crisis led to the downfall of the Knickerbocker Trust, a major bank in New York City. We have price data on the stock for 59 major trusts, where Knickerbocker is the treated unit. Of the remaining 58, there are two more trusts which also experienced devastating bank runs. 7 trusts were connected to major firms. Finally, of the 58 trusts, one trust was dropped because it was missing one time periods. This leaves us with the logged price for 49 potential control units, with Knickerbocker being the treated unit. With the Proximal Inference SCM, we can use the logged bid price for the 49 unit control group as a proxy for the log-stock price of Knickerbocker. And this makes sense, since the bid price may reasonably be correlated with other macroeconomic factors which affect the overall stock price of the treated unit. This is the plot we get when we estimate the causal impact.
 
 
 .. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/PROXIMAL/PanicProx.png
