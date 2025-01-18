@@ -19,6 +19,76 @@ from scipy.stats import t as t_dist
 from mlsynth.utils.bayesutils import BayesSCM
 
 
+def pi2(Y, W, Z0, T0, t1, T, lag, Cw=None, Cy=None):
+    """
+    Proximal inference for treatment effect estimation using GMM.
+
+    Parameters:
+    - Y: Outcome vector (T x 1)
+    - W: Design matrix (T x dimW)
+    - Z0: Proxy matrix (T x dimZ0)
+    - T0: Number of pre-treatment periods
+    - t1: Number of post-treatment periods
+    - T: Total time periods
+    - lag: HAC lag length for variance estimation
+    - Cw, Cy: Optional covariates to augment W and Z0
+
+    Returns:
+    - y_PI: Predicted outcomes using proximal inference
+    - alpha: Estimated coefficients for the design matrix
+    - se_tau: Standard error of the treatment effect
+    """
+    if W.shape[1] != Z0.shape[1]:
+        raise RuntimeError("Design matrix W and proxy matrix Z0 must have the same number of columns.")
+    
+    # Step 1: Augment W and Z0 with covariates if provided
+    if Cw is not None and Cy is not None:
+        Z0 = np.column_stack((Z0, Cy, Cw))
+        W = np.column_stack((W, Cy, Cw))
+    
+    # Step 2: Solve for alpha using CVXPY
+    dimW = W.shape[1]
+    alpha = cp.Variable(dimW)
+    residual1 = Z0[:T0].T @ (Y[:T0] - W[:T0] @ alpha)
+    residual2 = Y - W @ alpha
+    tau = cp.Variable(1)
+    residual2[:T0] = 0  # Zero out pre-treatment residuals
+    residual1[:, T0:] = 0  # Zero out post-treatment residuals
+
+    # Combine residuals
+    U = cp.vstack([residual1, residual2])
+
+    # Minimize quadratic form for GMM
+    Omega_inv = np.eye(U.shape[0])  # Replace with your HAC Omega_inv
+    objective = cp.Minimize(cp.quad_form(U, Omega_inv))
+    problem = cp.Problem(objective)
+    problem.solve()
+
+    # Extract solution
+    alpha_val = alpha.value
+    tau_val = tau.value
+
+    # Step 3: Predict outcomes and calculate treatment effect
+    y_PI = W @ alpha_val
+    taut = Y - y_PI
+    tau_mean = np.mean(taut[T0:T0 + t1])
+
+    # Step 4: Compute variance and standard error of tau
+    dimZ0 = Z0.shape[1]
+    G = np.zeros((dimZ0 + 1, dimW + 1))
+    G[:dimZ0, :dimW] = (Z0[:T0].T @ W[:T0]) / T
+    G[-1, :dimW] = np.sum(W[T0:T0 + t1], axis=0) / T
+    G[-1, -1] = t1 / T
+
+    Omega = hac(U.value, lag)  # Compute HAC Omega using residuals
+    Cov = np.linalg.inv(G) @ Omega @ np.linalg.inv(G).T
+    var_tau = Cov[-1, -1]
+    se_tau = np.sqrt(var_tau / T)
+
+    return y_PI, alpha_val[:W.shape[1]], se_tau
+
+
+
 def compute_hac_variance(treatment_effects, truncation_lag):
     """
     Compute the HAC long-run variance estimator with truncation lag h.
