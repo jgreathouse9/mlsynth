@@ -86,6 +86,18 @@ of :math:`\tau` is computed as:
     \text{SE}(\tau) = \sqrt{\frac{\text{Var}(\tau)}{T}}.
 
 
+Surrogate Approach 
+--------------------
+
+We may also employ surrogates, or post-intervention metrics which capture latent factors that drive the outcomes of the treated unit. Let :math`\mathbf{X}_t \in \mathbb{R}^H` represent a vector of observed surrogates for the treated unit, where :math`H` is the number of surrogate variables. These surrogates are chosen such that they are highly predictive of the treatment effects. The treatment effect is decomposed into two components, :math`Y_t(1) - Y_t(0) = \boldsymbol{\rho}_t^\top \boldsymbol{\theta} + \delta_t`, where :math`\boldsymbol{\rho}_t \in \mathbb{R}^K` is a vector of latent factors, :math`\boldsymbol{\theta} \in \mathbb{R}^K` is a vector of factor loadings, and :math`\delta_t` represents an error term uncorrelated with the latent factors.  
+
+The surrogates :math`\mathbf{X}_t` follow a similar factor model, :math`\mathbf{X}_t^\top = \boldsymbol{\rho}_t^\top \mathbf{\Phi} + \boldsymbol{\epsilon}_{X,t}^\top`, where :math`\mathbf{\Phi} \in \mathbb{R}^{K \times H}` is a matrix of factor loadings for the surrogates, and :math`\boldsymbol{\epsilon}_{X,t}`is an error term for the surrogates. In this framework, proxies are introduced for donors and surrogates. Let \( \mathbf{P}_{0,t} \) represent proxy variables for donor outcomes, assumed to capture latent factors \( \boldsymbol{\lambda}_t \), and let \( \mathbf{P}_{1,t} \) represent proxy variables for surrogates, capturing both donor latent factors \( \boldsymbol{\lambda}_t \) and surrogate latent factors \( \boldsymbol{\rho}_t \).
+
+The identification of this model relies on specific moment conditions. In the pre-treatment period, \( \mathbb{E}[Y_t - \mathbf{W}_t^\top \boldsymbol{\alpha} \mid \mathbf{Z}_{0,t}, t \leq T_0] = 0 \). In the post-treatment period, \( \mathbb{E}[Y_t - \mathbf{W}_t^\top \boldsymbol{\alpha} - \mathbf{X}_t^\top \boldsymbol{\gamma} \mid \mathbf{Z}_{0,t}, \mathbf{Z}_{1,t}, t > T_0] = 0 \). To ensure identification, there must exist weights \( \boldsymbol{\alpha} \in \mathbb{R}^{N} \) for donors such that \( \mathbf{\Gamma} \boldsymbol{\alpha} = \boldsymbol{\beta} \), where \( \mathbf{\Gamma} \) and \( \boldsymbol{\beta} \) represent factor loadings. Similarly, there must exist weights \( \boldsymbol{\gamma} \in \mathbb{R}^H \) for surrogates such that \( \mathbf{\Phi} \boldsymbol{\gamma} = \boldsymbol{\theta} \).
+
+The Average Treatment Effect on the Treated (ATT) is expressed as \( \tau = \frac{1}{T - T_0} \sum_{t > T_0} \mathbf{X}_t^\top \boldsymbol{\gamma} \), where the surrogate coefficients \( \boldsymbol{\gamma} \) are estimated from the post-treatment period. Alternatively, the ATT can be calculated as \( \tau = \frac{1}{T - T_0} \sum_{t > T_0} \left( Y_t - \mathbf{W}_t^\top \boldsymbol{\alpha} \right) \). This formulation leverages surrogate variables and proxies to enhance the synthetic control framework, providing improved estimates of treatment effects, particularly in settings with latent factors and limited pre-treatment data.
+
+
 .. autoclass:: mlsynth.mlsynth.PROXIMAL
    :show-inheritance:
    :special-members: __init__
