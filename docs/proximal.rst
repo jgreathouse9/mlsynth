@@ -150,6 +150,26 @@ In the post-treatment period,
 
     \mathbb{E}[Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \mid \mathbf{P}_{0,t}, \mathbf{P}_{1,t}, t > T_0] = 0.
 
+The complete stacked moment vector is:
+
+   .. math::
+
+      \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma}) =
+      \begin{cases}
+      \mathbf{g}_0(\mathbf{P}_{0,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} \right), & t \leq T_0, \\
+      \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \right), & t > T_0.
+      \end{cases}
+
+   In matrix form, the stacked moment vector can be written as:
+
+   .. math::
+
+      \mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}) =
+      \begin{bmatrix}
+      \mathbf{g}_0(\mathbf{P}_{0,t}) \left( \mathbf{Y} - \mathbf{Y}_0 \mathbf{w} \right) \\ 
+      \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( \mathbf{Y} - \mathbf{Y}_0 \mathbf{w} - \mathbf{X} \boldsymbol{\gamma} \right)
+      \end{bmatrix}.
+
 For identification, there must exist weights :math:`\mathbf{w} \in \mathbb{R}^{N}` for donors such that :math:`\mathbf{\Gamma} \mathbf{w} = \boldsymbol{\beta}`, where :math:`\mathbf{\Gamma}` and :math:`\boldsymbol{\beta}` represent factor loadings. Similarly, there must exist weights :math:`\boldsymbol{\gamma} \in \mathbb{R}^H` for surrogates such that :math:`\mathbf{\Phi} \boldsymbol{\gamma} = \boldsymbol{\theta}`.
 
 As above, the weights :math:`\mathbf{w}` and the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated via GMM. The objective function can be written as:
@@ -158,17 +178,8 @@ As above, the weights :math:`\mathbf{w}` and the surrogate coefficients :math:`\
 
     \arg \min_{\mathbf{w}, \boldsymbol{\gamma}} \sum_{t \in \mathcal{T}_1} \left( \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma})^\top \mathbf{\Omega}^{-1} \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma}) \right),
 
-where the moment conditions for :math:`\mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma})` are defined as:
 
-.. math::
-
-    \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma}) =
-    \begin{cases}
-    \mathbf{g}_0(\mathbf{P}_{0,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} \right) I\{ t \leq T_0 \}, \\
-    \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \right) I\{ t > T_0 \},
-    \end{cases}
-
-where :math:`\mathbf{g}_0` and :math:`\mathbf{g}_1` are user-specified functions of the proxies for the donor and surrogate data, and :math:`\mathbf{\Omega}` is a positive-definite weight matrix.
+:math:`\mathbf{\Omega}` is a positive-definite weight matrix.
 
 The Average Treatment Effect on the Treated (ATT) is expressed with the surrogates information in mind, as
 
