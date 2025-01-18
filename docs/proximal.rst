@@ -119,7 +119,7 @@ In the post-treatment period,
 
 For identification, there must exist weights :math:`\mathbf{w} \in \mathbb{R}^{N}` for donors such that :math:`\mathbf{\Gamma} \mathbf{w} = \boldsymbol{\beta}`, where :math:`\mathbf{\Gamma}` and :math:`\boldsymbol{\beta}` represent factor loadings. Similarly, there must exist weights :math:`\boldsymbol{\gamma} \in \mathbb{R}^H` for surrogates such that :math:`\mathbf{\Phi} \boldsymbol{\gamma} = \boldsymbol{\theta}`.
 
-The objective function for estimating the synthetic control weights :math:`\mathbf{w}` and the surrogate coefficients :math:`\boldsymbol{\gamma}` is based on the generalized method of moments (GMM). The objective function can be written as:
+As above, the weights :math:`\mathbf{w}` and the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated via GMM. The objective function can be written as:
 
 .. math::
 
@@ -137,19 +137,13 @@ where the moment conditions for :math:`\mathbf{U}_t(\mathbf{w}, \boldsymbol{\gam
 
 where :math:`\mathbf{g}_0` and :math:`\mathbf{g}_1` are user-specified functions of the proxies for the donor and surrogate data, and :math:`\mathbf{\Omega}` is a positive-definite weight matrix.
 
-The Average Treatment Effect on the Treated (ATT) is expressed as 
+The Average Treatment Effect on the Treated (ATT) is expressed with the surrogates information in mind, as
 
 .. math::
 
     \tau = \frac{1}{T - T_0} \sum_{t > T_0} \mathbf{X}_t^\top \boldsymbol{\gamma},
 
-where the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated from the post-treatment period. Alternatively, the ATT can be calculated as:
-
-.. math::
-
-    \tau = \frac{1}{T - T_0} \sum_{t > T_0} \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} \right).
-
-This formulation leverages surrogate variables and proxies to enhance the synthetic control framework, providing improved estimates of treatment effects, particularly in settings with latent factors and limited pre-treatment data.
+where the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated from the post-treatment period.
 
 
 .. autoclass:: mlsynth.mlsynth.PROXIMAL
