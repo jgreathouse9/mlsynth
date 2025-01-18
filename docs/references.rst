@@ -33,6 +33,12 @@ References
 
 .. [HCW] Hsiao, Cheng, H. Steve Ching, and Shui Ki Wan. "A Panel Data Approach for Program Evaluation: Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China." *Journal of Applied Econometrics* 27, no. 5 (2012): 705-40. DOI: 10.1002/jae.1230.
 
+.. [fohlin2021] Caroline Fohlin and Zhikun Lu. 
+   "How Contagious Was the Panic of 1907? New Evidence from Trust Company Stocks." 
+   *AEA Papers and Proceedings*, vol. 111, pp. 514-519, 2021. 
+   DOI: `10.1257/pandp.20211097`_.
+
+
 
 
 .. [Li2024] Li, Kathleen T. *"Frontiers: A Simple Forward Difference-in-Differences Method."* Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. `doi:10.1287/mksc.2022.0212 <https://doi.org/10.1287/mksc.2022.0212>`_.
