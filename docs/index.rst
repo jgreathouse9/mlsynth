@@ -4,7 +4,7 @@
 
 To Do List:
 
-- Generalized SCM
+- Generalized SCM (Debiased Convex Regression)
 - Implement Placebos (time and space), possibly as a helper
 - Add covariates to the TSSC approach (maybe with `this solver <https://doi.org/10.1007/s10614-023-10471-7>`_)
 
@@ -33,7 +33,7 @@ MLSYNTH
 
 .. toctree::
    :maxdepth: 2
-   :caption: Classes
+   :caption: Estimators
    :titlesonly:
 
    fdid
@@ -42,6 +42,7 @@ MLSYNTH
    fma
    pda
    tssc
+   proximal
 
 
 .. toctree::
