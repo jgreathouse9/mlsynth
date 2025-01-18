@@ -13,8 +13,94 @@ In other words, if we agree that the outcomes of the control units are time vari
 Notations
 ----------
 
+Formally, let us define the notation. We observe a set of units indexed by :math:`j`, where 
+:math:`\mathcal{N} \operatorname*{:=} \{1, 2, \ldots, N\}` is the set of all units, with cardinality 
+:math:`N = |\mathcal{N}|`. Let :math:`j = 1` represent the treated unit, and 
+:math:`\mathcal{N}_0 \operatorname*{:=} \mathcal{N} \setminus \{1\}` denote the set of control units, 
+with cardinality :math:`N_0 = |\mathcal{N}_0|`. The time periods are indexed by :math:`t`, with 
+:math:`\mathcal{T}_1 \operatorname*{:=} \{1, 2, \ldots, T_0\}` representing the pre-intervention periods 
+and :math:`\mathcal{T}_2 \operatorname*{:=} \{T_0 + 1, \ldots, T\}` representing the post-intervention periods. 
+We denote the full time series as :math:`\mathcal{T} \operatorname*{:=} \mathcal{T}_1 \cup \mathcal{T}_2`, 
+with :math:`T = |\mathcal{T}|` representing the total number of time periods.
 
-This method is a GMM based estimator of the treatment effect, where some units are used as surrogates (or, predictive of the latent unit specific factors which drive the outcome) and proxies, unaffected elements that vary through time and match on the time latent common factors.
+Let :math:`\mathbf{y}_1 \in \mathbb{R}^T` be the vector for the treated unit's outcomes, and 
+:math:`\mathbf{Y}_0 \in \mathbb{R}^{T \times N_0}` be the matrix containing the outcomes of the control units. 
+Let :math:`\mathbf{P}_t \in \mathbb{R}^{k \times T}` be a matrix of proxy variables that are assumed to be 
+correlated with the common factors driving the outcomes of the treated unit. Here, :math:`k` represents the 
+number of proxy variables, and :math:`T` is the number of time periods.
+
+Let :math:`\mathbf{w} \in \mathbb{R}^{N_0}` represent the vector of weights that defines the synthetic control, 
+and we seek to minimize the difference between the treated unit's outcome and the linear combination of the 
+control units' outcomes weighted by :math:`\mathbf{w}`.
+
+We define the estimating function for the proximal synthetic control method as:
+
+.. math::
+
+    U_t(\mathbf{w}) = g(\mathbf{P}_t) \cdot \left( \mathbf{y}_t - (\mathbf{Y}_0 \mathbf{w})_t \right),
+
+where :math:`g(\mathbf{P}_t)` is a function applied to the proxy variables :math:`\mathbf{P}_t` at time :math:`t`, 
+and :math:`\mathbf{y}_t` and :math:`(\mathbf{Y}_0 \mathbf{w})_t` are the observed and predicted outcomes at time 
+:math:`t`, respectively.
+
+The goal is to estimate the weights :math:`\mathbf{w}` by minimizing the quadratic form of the weighted estimating 
+functions over time:
+
+.. math::
+
+    \mathbf{w} = \arg\min_{\mathbf{w}} \sum_{t \in \mathcal{T}_1} U_t(\mathbf{w})^\top \Omega^{-1} U_t(\mathbf{w}),
+
+where :math:`\Omega` is the covariance matrix of the estimating function.
+
+To calculate the Average Treatment Effect on the Treated (ATT), we take the weighted sum of the control units' 
+outcomes based on the estimated :math:`\mathbf{w}`:
+
+.. math::
+
+    \tau = \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}.
+
+Thus, the ATT is the difference between the treated unit's observed outcome :math:`\mathbf{y}_1` and the synthetic 
+control, which is a linear combination of the control units' outcomes weighted by :math:`\mathbf{w}`.
+
+The standard error of the ATT estimate can be computed using the generalized method of moments (GMM) approach. 
+The covariance matrix :math:`\Omega` is calculated using the heteroskedasticity- and autocorrelation-consistent 
+(HAC) estimator, which adjusts for potential correlations across time and units. This is implemented in the code 
+via the `hac()` function, which computes :math:`\Omega` by summing over lags within the range :math:`[-h, h]`, 
+where :math:`h` is calculated as:
+
+.. math::
+
+    h = \left\lfloor 4 \left( \frac{T_2}{100} \right)^{\frac{2}{9}} \right\rfloor.
+
+The matrix :math:`G` is used to compute the covariance matrix and is calculated as:
+
+.. math::
+
+    G = \begin{bmatrix}
+    \frac{\mathbf{P}_0^\top \mathbf{Y}_0}{T} \\
+    \end{bmatrix},
+
+The covariance matrix of the ATT estimate is then calculated using the formula:
+
+.. math::
+
+    \text{Cov}(\tau) = G^{-1} \Omega G^{-1}.
+
+Here, :math:`G^{-1}` is the inverse of the matrix :math:`G`, and :math:`\Omega` is the covariance matrix of the 
+estimating function, computed using the HAC estimator. This matrix captures the potential correlations in the 
+errors across time and units.
+
+Finally, the standard error of the ATT, :math:`\text{se}(\tau)`, is derived by taking the square root of the 
+diagonal element of the covariance matrix that corresponds to the ATT estimate:
+
+.. math::
+
+    \text{se}(\tau) = \sqrt{\text{Cov}(\tau)}.
+
+Thus, the matrix :math:`G` adjusts for the structure of the model, and when combined with the covariance matrix 
+:math:`\Omega`, it enables the calculation of the variance and standard error of the ATT. The diagonal elements 
+of the resulting covariance matrix provide the variance, and the square root of this value gives the standard 
+error for the ATT estimate.
 
 
 .. autoclass:: mlsynth.mlsynth.PROXIMAL
