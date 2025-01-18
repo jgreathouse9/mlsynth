@@ -217,7 +217,110 @@ where the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated from 
 Estimating Proximal Inference SCM via ``mlsynth``
 ----------------------------------------------------
 
-In the paper by Liu, Tchetgen and Varjão [LiuTchetgenVar]_, the authors give an example of the Proximal Causal Inference SCM. The authors exploit the Panic of 1907, using data from [fohlin2021]_ as an intervention. Basically, this financial crisis led to the downfall of the Knickerbocker Trust, a major bank in New York City. We have price data on the stock for 59 major trusts, where Knickerbocker is the treated unit. Of the remaining 58, there are two more trusts which also experienced devastating bank runs. 7 trusts were connected to major firms. Finally, of the 58 trusts, one trust was dropped because it was missing one time periods. This leaves us with the logged price for 49 potential control units, with Knickerbocker being the treated unit. With the Proximal Inference SCM, we can use the logged bid price for the 49 unit control group as a proxy for the log-stock price of Knickerbocker. And this makes sense, since the bid price may reasonably be correlated with other macroeconomic factors which affect the overall stock price of the treated unit. This is the plot we get when we estimate the causal impact.
+In the paper by Liu, Tchetgen and Varjão [LiuTchetgenVar]_, the authors give an example of the Proximal Causal Inference SCM. The authors exploit the Panic of 1907, using data from [fohlin2021]_ as an intervention. Basically, this financial crisis led to the downfall of the Knickerbocker Trust, a major bank in New York City. We have price data on the stock for 59 major trusts, where Knickerbocker is the treated unit. Of the remaining 58, there are two more trusts which also experienced devastating bank runs. 7 trusts were connected to major firms. Finally, of the 58 trusts, one trust was dropped because it was missing one time periods. This leaves us with the logged price for 49 potential control units, with Knickerbocker being the treated unit. With the Proximal Inference SCM, we can use the logged bid price for the 49 unit control group as a proxy for the log-stock price of Knickerbocker. And this makes sense, since the bid price may reasonably be correlated with other macroeconomic factors which affect the overall stock price of the treated unit. Here is the code for both approaches I discuss
+
+
+.. code-block:: python
+
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from mlsynth.mlsynth import PROXIMAL
+    import matplotlib
+    import os
+    from theme import jared_theme
+
+    matplotlib.rcParams.update(jared_theme)
+
+    file_path = os.path.join(os.path.dirname(__file__), '..', 'basedata', 'trust.dta')
+
+    # Load the CSV file using pandas
+    df = pd.read_stata(file_path)
+
+    df = df[df["ID"] != 1]  # Dropping the unbalanced unit
+
+    surrogates = df[df['introuble'] == 1]['ID'].unique().tolist()  # Our list of surrogates
+    donors = df[df['type'] == "normal"]['ID'].unique().tolist()  # Our pure controls
+
+    vars = ["bid_itp", "ask_itp"]
+
+    df[vars] = df[vars].apply(np.log)  # We take the log of these, per the paper.
+    df['Panic'] = np.where((df['time'] > 229) & (df['ID'] == 34), 1, 0)
+
+    # Here is when our treatment began, on the 229th tri-week.
+    treat = "Panic"
+    outcome = "prc_log"
+    unitid = "ID"
+    time = "date"
+
+    var_dict = {
+        "donorproxies": ["bid_itp"],
+        "surrogatevars": ["ask_itp"]
+    }
+
+    new_directory = os.path.join(os.getcwd(), "examples")
+    os.chdir(new_directory)
+
+    # Define the 'PROXIMAL' directory
+    save_directory = os.path.join(os.getcwd(), "PROXIMAL")
+
+    # Create the directory if it doesn't exist
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+
+    # First run
+    save_1 = {
+        "filename": "PanicProx",
+        "extension": "png",
+        "directory": save_directory,
+    }
+
+    config_1 = {
+        "df": df,
+        "treat": treat,
+        "time": time,
+        "outcome": outcome,
+        "unitid": unitid,
+        "treated_color": "black",
+        "counterfactual_color": ["blue"],
+        "display_graphs": True,
+        "vars": var_dict,
+        "donors": donors,
+        "save": save_1
+    }
+
+    model_1 = PROXIMAL(config_1)
+    SC_1 = model_1.fit()
+
+    plt.clf()
+
+    # Second run with surrogates and new filename
+    save_2 = {
+        "filename": "PanicSurrogates",
+        "extension": "png",
+        "directory": save_directory,
+    }
+
+    config_2 = {
+        "df": df,
+        "treat": treat,
+        "time": time,
+        "outcome": outcome,
+        "unitid": unitid,
+        "treated_color": "black",
+        "counterfactual_color": ["blue", "red", "lime"],
+        "display_graphs": True,
+        "vars": var_dict,
+        "donors": donors,
+        "surrogates": surrogates,  # Here are our surrogates!!
+        "save": save_2
+    }
+
+    model_2 = PROXIMAL(config_2)
+    SC_2 = model_2.fit()
+
+
+This is the plot we get when we estimate the causal impact.
 
 
 .. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/PROXIMAL/PanicProx.png
