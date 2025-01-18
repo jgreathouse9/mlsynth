@@ -158,8 +158,10 @@ where the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated from 
 
 
 
-Estimating Proximal SCM via ``mlsynth``
---------------------------------------------
+Estimating Proximal Inference SCM via ``mlsynth``
+----------------------------------------------------
+
+In the paper by Liu, Tchetgen and Varjão [LiuTchetgenVar]_, the authors give an example of the Proximal Causal Inference SCM. The authors exploit the Panic of 1907, using data from [fohlin2021]_ as an intervention.
 
 
 This is the plot we get when we estimate the causal impact.
