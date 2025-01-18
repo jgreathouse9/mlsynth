@@ -145,6 +145,11 @@ The Average Treatment Effect on the Treated (ATT) is expressed with the surrogat
 
 where the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated from the post-treatment period.
 
+.. tip::
+
+   Let's take a breath and understand what's really going on here. If we're intestate in the treatment effect for a treated unit, proxies will help capture time specific effects that are common across all units. But what about surrogates? Surrogates are post-intervention metrics we think will be informative of the causal effect that are similar on unit specific latent factors. This means we can even include other units we think are affected by the treatment, or entities that are within the exact same geography (if spillovers are a concern). In standard SCM studies, we would throw out these metrics. But here, we remove them from the donor pool and use them to adjust our effect size based on their correlation with the treatment effect
+
+
 
 .. autoclass:: mlsynth.mlsynth.PROXIMAL
    :show-inheritance:
