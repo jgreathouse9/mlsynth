@@ -27,24 +27,19 @@ Let :math:`\mathbf{y}_1 \in \mathbb{R}^T` be the vector for the treated unit's o
 :math:`\mathbf{Y}_0 \in \mathbb{R}^{T \times N_0}` be the matrix containing the outcomes of the control units. 
 Let :math:`\mathbf{P}_t \in \mathbb{R}^{k \times T}` be a matrix of proxy variables that are assumed to be 
 correlated with the common factors driving the outcomes of the treated unit. Here, :math:`k` represents the 
-number of proxy variables, and :math:`T` is the number of time periods.
+number of proxy variables. Let :math:`\mathbf{w} \in \mathbb{R}^{N_0}` represent the vector of weights for the synthetic control.
 
-Let :math:`\mathbf{w} \in \mathbb{R}^{N_0}` represent the vector of weights that defines the synthetic control, 
-and we seek to minimize the difference between the treated unit's outcome and the linear combination of the 
-control units' outcomes weighted by :math:`\mathbf{w}`.
-
-We define the estimating function for the proximal synthetic control method as:
+Shi, Li, Miao, Hu, and Tchetgen Tchetgen [ProxSCM]_ advocate for a GMM approach, defining the estimating function for the proximal synthetic control method as:
 
 .. math::
 
-    U_t(\mathbf{w}) = g(\mathbf{P}_t) \cdot \left( \mathbf{y}_t - (\mathbf{Y}_0 \mathbf{w})_t \right),
+    U_t(\mathbf{w}) = g(\mathbf{P}_t) \cdot \left( \mathbf{y}_1 - (\mathbf{Y}_0 \mathbf{w})_t \right),
 
 where :math:`g(\mathbf{P}_t)` is a function applied to the proxy variables :math:`\mathbf{P}_t` at time :math:`t`, 
-and :math:`\mathbf{y}_t` and :math:`(\mathbf{Y}_0 \mathbf{w})_t` are the observed and predicted outcomes at time 
-:math:`t`, respectively.
+and :math:`\mathbf{y}_1` and :math:`(\mathbf{Y}_0 \mathbf{w})_t` are the observed and predicted outcomes at time 
+:math:`t`, respectively. In this setup, the :math:`\mathbf{P}_t` matrix may be comprised of anything we believe to be correlated with the time variant common factors. Per HCW [HCW]_, the outcomes of other donor units is one example of this, or other covariates that are unaffected by the treatment but are correlated with the time latent factors.
 
-The goal is to estimate the weights :math:`\mathbf{w}` by minimizing the quadratic form of the weighted estimating 
-functions over time:
+The goal is to estimate the weights :math:`\mathbf{w}` by solving a quadratic programming problem which minimizes the moment conditions
 
 .. math::
 
@@ -52,40 +47,30 @@ functions over time:
 
 where :math:`\Omega` is the covariance matrix of the estimating function.
 
-To calculate the Average Treatment Effect on the Treated (ATT), we take the weighted sum of the control units' 
-outcomes based on the estimated :math:`\mathbf{w}`:
+Once we have our where, we math estimate the treatment effect like
 
 .. math::
 
-    \tau = \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}.
+    \tau = \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w},
 
-Thus, the ATT is the difference between the treated unit's observed outcome :math:`\mathbf{y}_1` and the synthetic 
-control, which is a linear combination of the control units' outcomes weighted by :math:`\mathbf{w}`.
-
-Inference
-----------
-
-To compute inference, we first estimate the variance-covariance matrix of the moment conditions, denoted by 
-:math:`\boldsymbol{\Omega}`. This is done using a HAC (heteroskedasticity- and autocorrelation-consistent) estimator. 
+where the sample average of this over the post-intervention period is the ATT. To compute inference, we first estimate the variance-covariance matrix of the moment conditions, denoted by 
+:math:`\boldsymbol{\Omega}`. This is done using a HAC estimator. 
 The matrix :math:`\boldsymbol{\Omega}` is computed as:
 
 .. math::
 
     \boldsymbol{\Omega} = \frac{1}{T} \sum_{j=-J}^{J} k(j, J) \sum_{t=1}^{T - |j|} \mathbf{g}_t \mathbf{g}_{t+j}^\top,
 
-where :math:`k(j, J)` is the kernel function (e.g., Bartlett kernel), :math:`J` is the bandwidth, and 
+where :math:`k(j, J)` is the Bartlett kernel, :math:`J` is the bandwidth, and 
 :math:`\mathbf{g}_t` is the vector of moment conditions at time :math:`t`. The outer summation runs over all lags 
 within the valid range, while the inner summation computes the covariance contribution for each lag.
 
-Using :math:`\boldsymbol{\Omega}` and the Jacobian matrix :math:`\mathbf{G}`, we calculate the covariance matrix 
+We now calculate the covariance matrix 
 of the parameters as:
 
 .. math::
 
     \text{Cov} = \mathbf{G}^{-1} \boldsymbol{\Omega} \left(\mathbf{G}^{-1}\right)^\top,
-
-where :math:`\mathbf{G}` is the Jacobian of the moment conditions with respect to the parameters 
-:math:`\boldsymbol{\alpha}` and :math:`\tau`.
 
 The variance of the ATT estimate :math:`\tau` is then extracted from the covariance matrix as:
 
