@@ -18,7 +18,6 @@ from sklearn.linear_model import LassoCV
 from scipy.stats import t as t_dist
 from mlsynth.utils.bayesutils import BayesSCM
 
-
 def pi2(Y, W, Z0, T0, t1, T, lag, Cw=None, Cy=None):
     """
     Proximal inference for treatment effect estimation using GMM.
@@ -46,17 +45,24 @@ def pi2(Y, W, Z0, T0, t1, T, lag, Cw=None, Cy=None):
         Z0 = np.column_stack((Z0, Cy, Cw))
         W = np.column_stack((W, Cy, Cw))
     
-    # Step 2: Solve for alpha using CVXPY
+    # Step 2: Solve for alpha and tau using CVXPY
     dimW = W.shape[1]
     alpha = cp.Variable(dimW)
-    residual1 = Z0[:T0].T @ (Y[:T0] - W[:T0] @ alpha)
-    residual2 = Y - W @ alpha
     tau = cp.Variable(1)
-    residual2[:T0] = 0  # Zero out pre-treatment residuals
-    residual1[:, T0:] = 0  # Zero out post-treatment residuals
 
+    # Residuals
+    residual1 = Z0[:T0].T @ (Y[:T0] - W[:T0] @ alpha)  # Pre-treatment residuals
+    residual2 = (Y - tau - W @ alpha)  # Post-treatment residuals
+    
+    # Mask the pre-treatment and post-treatment residuals
+    pre_treatment_mask = np.concatenate([np.ones(T0), np.zeros(T - T0)])
+    post_treatment_mask = np.concatenate([np.zeros(T0), np.ones(T - T0)])
+    
+    residual2_masked = cp.multiply(post_treatment_mask, residual2)
+    residual1_masked = cp.multiply(pre_treatment_mask[:T0], residual1)  # Only for Z0 residuals
+    
     # Combine residuals
-    U = cp.vstack([residual1, residual2])
+    U = cp.vstack([residual1_masked, residual2_masked])
 
     # Minimize quadratic form for GMM
     Omega_inv = np.eye(U.shape[0])  # Replace with your HAC Omega_inv
@@ -86,7 +92,6 @@ def pi2(Y, W, Z0, T0, t1, T, lag, Cw=None, Cy=None):
     se_tau = np.sqrt(var_tau / T)
 
     return y_PI, alpha_val[:W.shape[1]], se_tau
-
 
 
 def compute_hac_variance(treatment_effects, truncation_lag):
