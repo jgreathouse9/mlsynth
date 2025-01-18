@@ -226,4 +226,12 @@ In the paper by Liu, Tchetgen and Varjão [LiuTchetgenVar]_, the authors give an
    :width: 600px
 
 
-As we can see, even when we use only post-intervention data to estimate the causal impact, the result largely agrees with the original estimates.
+As we can see, the use of the bidding price (a proxy for supply) as a proxy causes the synthetic control to fit the pre-intervention time series well. What if we just used the post-intervention data, or added in the surrogates? In the original code, the authors used the bidding price of the two other affected trusts as surrogates, as well as the bidding price of Knickerbocker itself. the proxies for the surrogates was the weekly asking price for the trust. Again, the surrogates were also affected a lot by the bank runs, but in our case that's okay because they do not contribute to the synthetic control, they are used as instruments for the latent unit effects. Here is the plot we get when we add in the surrogates
+
+.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/PROXIMAL/PanicSurrogates.png
+   :alt: Surrogate Synthetic Control Estimation
+   :align: center
+   :width: 600px
+
+
+As we can see, even when we use only post-intervention data to estimate the causal impact, the result largely agrees with the original Proximal Inference estimates.
