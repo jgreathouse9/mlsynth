@@ -68,9 +68,10 @@ jobs:
         run: |
           pip install pydocstringformatter
 
-      - name: Generate docstrings for all Python files
+      - name: Generate docstrings with numpydoc style
         run: |
-          pydocstringformatter . -w --recursive --in-place --strip-whitespaces --split-summary-body 
+          pydocstringformatter . -w --recursive --style numpydoc --numpydoc-section-order \
+          --numpydoc-name-type-spacing --numpydoc-section-spacing --numpydoc-section-hyphen-length
 
       - name: Commit and push changes (if any)
         run: |
@@ -78,7 +79,7 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           if [ -n "$(git status --porcelain)" ]; then
             git add .
-            git commit -m "Generate docstrings using pydocstringformatter"
+            git commit -m "Generate docstrings using pydocstringformatter (numpydoc style)"
             git push
           else
             echo "No changes to commit"
