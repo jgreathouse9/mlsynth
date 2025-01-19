@@ -1,7 +1,6 @@
 """
-FDID Estimation.
-
-=================
+FDID Estimation
+================
 FDID Plot
 """
 
