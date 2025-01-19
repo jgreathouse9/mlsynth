@@ -9,7 +9,7 @@ from mlsynth.mlsynth import PDA
 import matplotlib
 
 jared_theme = {
-    "axes.grid": True,
+    "axes.grid": False,
     "grid.linestyle": "-",
     "grid.color": "black",
     "legend.framealpha": 1,
@@ -22,8 +22,8 @@ jared_theme = {
     "axes.labelsize": 12,
     "axes.titlesize": 14,
     "figure.dpi": 120,
-    "axes.facecolor": "#c7d0c9",
-    "figure.figsize": (10, 5.5),
+    "axes.facecolor": "white",
+    "figure.figsize": (11, 4),
 }
 
 matplotlib.rcParams.update(jared_theme)
