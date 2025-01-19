@@ -1,4 +1,4 @@
-name: Formatting
+name: Formatting and Docstring Generation
 
 on:
   push:
@@ -48,5 +48,40 @@ jobs:
           git config --global user.email "github-actions@github.com"
           git add .
           git diff --exit-code || (git commit -m "Auto-format code with Black, autopep8, and docformatter" && git push)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  generate-docstrings:
+    runs-on: ubuntu-latest
+    needs: formatting  # Ensures this job runs after the formatting job
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install pydocstringformatter
+
+      - name: Generate docstrings for all Python files
+        run: |
+          pydocstringformatter . -w --recursive --in-place --strip-whitespaces --split-summary-body 
+
+      - name: Commit and push changes (if any)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "Generate docstrings using pydocstringformatter"
+            git push
+          else
+            echo "No changes to commit"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
