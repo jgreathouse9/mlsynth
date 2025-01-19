@@ -1,5 +1,6 @@
 """
-L2 Relaxer
+L2 Relaxer.
+
 ==========
 Applies the l2 relaxer to some Apple Music data. Here we estimate the causal impact of Tyla going viral on the numer of playlists she's on.
 """

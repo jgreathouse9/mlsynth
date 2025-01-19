@@ -90,7 +90,8 @@ def pi_surrogate(Y, W, Z0, Z1, X, T0, t1, T, lag, Cw=None, Cy=None, Cx=None):
 
 def pi_surrogate_post(Y, W, Z0, Z1, X, T0, T1, lag, Cw=None, Cy=None, Cx=None):
     """
-    Computes the treatment effect using post-treatment surrogate variables
+    Computes the treatment effect using post-treatment surrogate variables.
+
     and instruments with GMM-based inference.
 
     Parameters:

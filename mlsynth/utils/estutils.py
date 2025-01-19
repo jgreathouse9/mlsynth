@@ -150,7 +150,8 @@ def compute_t_stat_and_ci(
 
 def l2_relax(time_periods, treated_unit, X, tau):
     """
-    Implements the L2-relaxation estimator using cvxpy for time-series panel data,
+    Implements the L2-relaxation estimator using cvxpy for time-series panel data,.
+
     where the intercept is estimated separately after learning the coefficients.
 
     Parameters:
@@ -206,7 +207,8 @@ def l2_relax(time_periods, treated_unit, X, tau):
 
 def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
     """
-    Cross-validation for L2-relaxation to select the optimal tau by splitting
+    Cross-validation for L2-relaxation to select the optimal tau by splitting.
+
     the training data into two halves, without including an intercept.
 
     Parameters:
@@ -265,7 +267,7 @@ def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
 
 def ci_bootstrap(b, Nco, x, y, t1, nb, att, method, y_counterfactual):
     """
-    Perform subsampling bootstrap for TSSC
+    Perform subsampling bootstrap for TSSC.
 
     Args:
         x (numpy.ndarray): Feature matrix.
@@ -949,7 +951,8 @@ def pi_surrogate(Y, W, Z0, Z1, X, T0, t1, T, lag, Cw=None, Cy=None, Cx=None):
 
 def pi_surrogate_post(Y, W, Z0, Z1, X, T0, T1, lag, Cw=None, Cy=None, Cx=None):
     """
-    Computes the treatment effect using post-treatment surrogate variables
+    Computes the treatment effect using post-treatment surrogate variables.
+
     and instruments with GMM-based inference.
 
     Parameters:

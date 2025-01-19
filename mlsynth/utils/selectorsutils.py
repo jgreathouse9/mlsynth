@@ -65,7 +65,8 @@ def SVDCluster(X, y, donor_names):
 
 def determine_optimal_clusters(X):
     """
-    Function to determine the optimal number of clusters using
+    Function to determine the optimal number of clusters using.
+
     Silhouette score.
     """
     silhouette_scores = []
@@ -83,9 +84,7 @@ def determine_optimal_clusters(X):
 
 
 def fpca(X):
-    """
-    Function to calculating our FPC scores
-    """
+    """Function to calculating our FPC scores."""
     # Use X.shape[1] for the number of time points
     x = np.linspace(0, 1, num=X.shape[1])
 

@@ -30,74 +30,74 @@ class TSSC:
 
         Parameters
         ----------
-        
+
         config : dict
-        
+
             A dictionary containing the necessary parameters. The following keys are expected:
 
             df : pandas.DataFrame
-            
+
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
-                
+
             treat : str
-            
+
                 Column name identifying the treated unit (must be a 0 or 1 dummy).
-                
+
             time : str
-            
+
                 Column name for the time variable (must be numeric).
-                
+
             outcome : str
-            
+
                 Column name for the outcome variable.
-                
+
             unitid : str
-            
+
                 Column name identifying the units.
-                
+
             counterfactual_color : str, optional
-            
+
                 Color for the counterfactual line in the plots, by default "red".
-                
+
             treated_color : str, optional
                 Color for the treated line in the plots, by default "black".
-                
+
             display_graphs : bool, optional
-            
+
                 Whether to display the plots, by default True.
-                
+
             save : bool or dict, optional
-            
+
                 Whether to save the generated plots. Default is False.
-                
+
                 If a dictionary, keys can include:
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-                    
+
             draws : int, optional
                 Number of subsample replications, by default 500.
 
         Returns
         -------
-        
+
         dict
             A dictionary with the following keys:
 
             'SIMPLEX' : dict
-            
+
                 Estimates and inference from the SIMPLEX method.
 
             'MSCa' : dict
-            
+
                 Estimates and inference from the MSCa method.
 
             'MSCb' : dict
-            
+
                 Estimates and inference from the MSCb method.
 
             'MSCc' : dict
-            
+
                 Estimates and inference from the MSCc method.
         """
 
@@ -239,47 +239,47 @@ class FMA:
         Parameters
         ----------
         config : dict
-        
+
             A dictionary containing the necessary parameters. The following keys are expected:
 
             df : pandas.DataFrame
-            
+
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
 
             treat : str
-            
+
                 Column name identifying the treated unit.
 
             time : str
-            
+
                 Column name for the time variable.
 
             outcome : str
-            
+
                 Column name for the outcome variable.
 
             unitid : str
-            
+
                 Column name identifying the units.
 
             counterfactual_color : str, optional
-            
+
                 Color for the counterfactual line in the plots, by default "red".
 
             treated_color : str, optional
-            
+
                 Color for the treated line in the plots, by default "black".
 
             display_graphs : bool, optional
-            
+
                 Whether to display the plots, by default True.
 
             save : bool or dict, optional
-            
+
                 Whether to save the generated plots. Default is False.
-                
+
                 If a dictionary, keys can include:
-                
+
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
@@ -289,7 +289,7 @@ class FMA:
                 If criti = 11, nonstationarity is assumed; if criti = 10, stationarity is assumed. Default is 11.
 
             DEMEAN : int, optional
-            
+
                 A value that determines how the data is processed:
                 - If DEMEAN = 1, the data is demeaned.
                 - If DEMEAN = 2, the data is standardized.
@@ -478,51 +478,51 @@ class PDA:
 
         Parameters
         ----------
-        
+
         config : dict
-        
+
             A dictionary containing the necessary parameters. The following keys are expected:
 
             df : pandas.DataFrame
-            
+
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
-                
+
             treat : str
-            
+
                 Column name identifying the treated unit.
-                
+
             time : str
-            
+
                 Column name for the time variable.
-                
+
             outcome : str
-            
+
                 Column name for the outcome variable.
-                
+
             unitid : str
                 Column name identifying the units.
-                
+
             counterfactual_color : str, optional
                 Color for the counterfactual line in the plots, by default "red".
-                
+
             treated_color : str, optional
-            
+
                 Color for the treated line in the plots, by default "black".
-                
+
             display_graphs : bool, optional
-            
+
                 Whether to display the plots, by default True.
-                
+
             save : bool or dict, optional
-            
+
                 Whether to save the generated plots. Default is False.
-                
+
                 If a dictionary, keys can include:
-                
+
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-                    
+
             method : str, optional
                 Type of PDA to use, either
                 - "LASSO" (L1 Penalty),
@@ -606,41 +606,41 @@ class FDID:
         Parameters
         ----------
         config : dict
-        
+
             Dictionary containing the configuration options. The following keys are expected:
 
             df : pandas.DataFrame
-            
+
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
-                
+
             unitid : str
-            
+
                 Column name for unit IDs.
-                
+
             time : str
-            
+
                 Column name for time periods.
-                
+
             outcome : str
-            
+
                 Column name for outcomes.
-                
+
             treat : str
-            
+
                 Column name for the treatment indicator.
-                
+
             counterfactual_color : str, optional
-            
+
                 Color for the counterfactual lines, by default "red".
-                
+
             treated_color : str, optional
-            
+
                 Color for the treated lines, by default "black".
-                
+
             display_graphs : bool, optional
-            
+
                 Whether to display the graphs, by default True.
-                
+
             save : bool or dict, optional
                 Whether to save the generated plots. Default is False.
                 If a dictionary, keys can include:
@@ -651,19 +651,19 @@ class FDID:
         Returns
         -------
         dict
-        
+
             A dictionary containing the following keys for each method (FDID, ADID, DID):
 
             'Effects' : dict
-            
+
                 ATTs: ATT, percent ATT, Standardized Effect Size
-                
+
             'Fit' : dict
-            
+
                 Goodness-of-fit metrics for the model: R-Squared, Pre-RMSE
-                
+
             'Inference' : dict
-            
+
                 Inference results, including 95% confidence intervals and p-values.
 
         References
@@ -1096,13 +1096,13 @@ class GSC:
         Parameters
         ----------
         config : dict
-        
+
             A dictionary containing the necessary parameters. The following keys are expected:
-            
+
             df : pandas.DataFrame
-            
+
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
-                
+
             treat : str
                 Column name identifying the treated unit.
             time : str
@@ -1208,77 +1208,78 @@ class GSC:
 class CLUSTERSC:
     def __init__(self, config):
         """
-        This function provides ATT estimates ad weights using Robust PCA Synthetic Control (RPCA SCM)
+        This function provides ATT estimates ad weights using Robust PCA Synthetic Control (RPCA SCM).
+
         and Principal Component Regression (PCR).
 
         Parameters
         ----------
         config : dict
-        
+
             A dictionary containing the necessary parameters. The following keys are expected:
-            
+
             df : pandas.DataFrame
-            
+
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
-                
+
             treat : str
-            
+
                 Column name identifying the treated unit.
-                
+
             time : str
-            
+
                 Column name for the time variable.
-                
+
             outcome : str
-            
+
                 Column name for the outcome variable.
-                
+
             unitid : str
-            
+
                 Column name identifying the units.
-                
+
             cluster : bool, optional
-            
+
                 Whether to apply clustering for PCR. Default is True.
-                
+
             objective : str, optional
-            
+
                 Constraint for PCR. Defaul is "OLS", but user may specify "SIMPLEX"
-                
+
             counterfactual_color : str, optional
-            
+
                 Color for the counterfactual line in the plots. Default is "red".
-                
+
             treated_color : str, optional
-            
+
                 Color for the treated line in the plots. Default is "black".
-                
+
             display_graphs : bool, optional
-            
+
                 Whether to display the plots. Default is True.
-                
+
             save : bool or dict, optional
-            
+
                 Whether to save the generated plots. Default is False.
-                
+
                 If a dictionary, keys can include:
-                
+
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
-                    
+
             Frequentist : bool, optional
-            
+
                 If true, use Frequntist Robust SCM.
                 If False, usees Amjad's Bayesian method.
                 Defaults to true.
-                
+
         Returns
         -------
-        
+
         dict
             A dictionary containing results for both RPCA-SC and PCR methods, with the following keys:
-            
+
             'Weights' : dict
                 Weights assigned to control units in the synthetic control model.
             'Effects' : dict
@@ -1425,88 +1426,89 @@ class CLUSTERSC:
 
 class PROXIMAL:
     """
-    A class for implementing the Proximal Inference framework with surrogates, proxies, and donor units 
+    A class for implementing the Proximal Inference framework with surrogates, proxies, and donor units.
+
     to estimate causal impacts in the context of synthetic control methods.
 
     Parameters
     ----------
     config : dict
-    
+
         A dictionary containing configuration options:
-        
+
         - "df" : pandas.DataFrame
-        
+
             Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
-            
+
         - "outcome" : str
-        
+
             The name of the outcome variable.
-            
+
         - "treat" : str
-        
+
             The name of the treatment indicator variable.
-            
+
         - "unitid" : str
-        
+
             The name of the unit identifier column.
-            
+
         - "time" : str
-        
+
             The name of the time variable.
-            
+
         - "counterfactual_color" : str, optional, default="red"
-        
+
             The color used for counterfactual estimates in the plots.
-            
+
         - "treated_color" : str, optional, default="black"
-        
+
             The color used for the treated unit in the plots.
 
         - "display_graphs" : bool, optional, default=True
-        
+
             Whether to display the resulting plots.
 
         - "save" : bool or dict, optional
-        
+
             Whether to save the generated plots. Default is False.
-        
+
             If a dictionary, keys can include:
-            
+
                 - 'filename' : Custom file name (without extension).
                 - 'extension' : File format (e.g., 'png', 'pdf').
                 - 'directory' : Directory to save the plot.
-                
+
         - "surrogates" : list, optional, default=[]
-        
+
             A list of surrogate unit identifiers (string or numeric) used in the analysis.
-            
+
         - "vars" : list of str, optional, default=[]
-        
+
             A list of proxy variables, where:
-            
+
               * The first element corresponds to proxies for the donors.
               * The second element corresponds to proxies for the surrogates.
-              
+
         - "donors" : list of str, optional, default=[]
-        
+
             A list of donor units to construct the counterfactual.
 
     Returns
     -------
-    
+
     dict
-    
-        A dictionary with keys "PI", "PIS", and "PIPost", each containing the estimated effects, 
+
+        A dictionary with keys "PI", "PIS", and "PIPost", each containing the estimated effects,
         model fit, and vectors for the corresponding approach.
 
     References
     ----------
-    Xu Shi, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen. 
-    "Theory for identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework." 
+    Xu Shi, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen.
+    "Theory for identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework."
     arXiv preprint arXiv:2108.13935, 2023. URL: https://arxiv.org/abs/2108.13935.
-    
-    Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão. 
-    "Proximal Causal Inference for Synthetic Control with Surrogates." 
+
+    Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão.
+    "Proximal Causal Inference for Synthetic Control with Surrogates."
     arXiv preprint arXiv:2308.09527, 2023. URL: https://arxiv.org/abs/2308.09527.
     """
 

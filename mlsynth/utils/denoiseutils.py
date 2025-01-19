@@ -58,8 +58,8 @@ def svt(X, max_rank=None, t=None):
 
 
 def shrink(X, tau):
-    """
-    Gets our optimal singular values (shrinks) to optimal number,
+    """Gets our optimal singular values (shrinks) to optimal number,.
+
     'soft impute'
     """
     # 'Soft' Impute
@@ -68,9 +68,7 @@ def shrink(X, tau):
 
 
 def SVT(X, tau):
-    """
-    Does the Singular Value thresholding (the matrix operation)
-    """
+    """Does the Singular Value thresholding (the matrix operation)."""
     # Does Singular Value Thresholding
     U, S, VT = np.linalg.svd(X, full_matrices=0)
     out = U @ np.diag(shrink(S, tau)) @ VT
@@ -79,7 +77,8 @@ def SVT(X, tau):
 
 def RPCA(X):
     """
-    Gets our low-rank representation into
+    Gets our low-rank representation into.
+
     Low rank structure, common patterns and noise
     """
 
@@ -153,9 +152,7 @@ def svd_fast(M):
 
 ## least-squares solved via single SVD
 def SVD(M, r):
-    """
-    input matrix M, approximating with rank r
-    """
+    """Input matrix M, approximating with rank r."""
     u, s, vh = svd_fast(M)
     s[r:] = 0
     return (u * s).dot(vh)
@@ -214,7 +211,7 @@ def DC_PR_with_l(O, Z, l, initial_tau=None, eps=1e-6):
 
 def non_convex_PR(O, Z, r, initial_tau=None, eps=1e-6):
     """
-    Non-Convex Panel Regression with the rank r
+    Non-Convex Panel Regression with the rank r.
 
     Parameters
     -------------
@@ -289,9 +286,7 @@ def panel_regression_CI(M, Z, E):
 
 
 def remove_tangent_space_component(u, vh, Z):
-    """
-    Remove the projection of Z (a single treatment) onto the tangent space of M in memory-aware manner
-    """
+    """Remove the projection of Z (a single treatment) onto the tangent space of M in memory-aware manner."""
 
     # We conduct some checks for extremely wide or extremely long matrices, which may result in OOM errors with
     # naïve operation sequencing.  If BOTH dimensions are extremely large, there may still be an OOM error, but this
@@ -320,7 +315,8 @@ def remove_tangent_space_component(u, vh, Z):
 
 def transform_to_3D(Z):
     """
-    Z is a list of 2D numpy arrays or a single 2D/3D numpy array
+    Z is a list of 2D numpy arrays or a single 2D/3D numpy array.
+
     convert Z to a 3D numpy array with the last dimension being the index of interventions
     """
     if isinstance(Z, list):  # if Z is a list of numpy arrays
@@ -376,11 +372,12 @@ def DC_PR_auto_rank(O, Z, spectrum_cut=0.002, method="auto"):
 
 def DC_PR_with_suggested_rank(O, Z, suggest_r=1, method="auto"):
     """
-    De-biased Convex Panel Regression with the suggested rank. Gradually decrease the nuclear-norm regularizer l until the rank of the next-iterated estimator exceeds r.
+    De-biased Convex Panel Regression with the suggested rank.
+
+    Gradually decrease the nuclear-norm regularizer l until the rank of the next-iterated estimator exceeds r.
 
     :param O: observation matrix
     :param Z: intervention matrix
-
     """
     treatedrow = [i for i, row in enumerate(Z) if 1 in row][0]
     Z = transform_to_3D(Z)  ## Z is (n1 x n2 x num_treat) numpy array

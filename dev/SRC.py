@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 def SRC(y1, Y0, theta_hat, sigma_squared):
     """
     Parameters:
+
     y1 (numpy.ndarray): Pre-treatment outcomes for the treated unit, shape (T0, 1).
     Y0 (numpy.ndarray): Pre-treatment outcomes for control units, shape (T0, J).
     theta_hat (numpy.ndarray): Regression coefficients for control units, shape (J,).
@@ -38,7 +39,8 @@ def SRC(y1, Y0, theta_hat, sigma_squared):
 
 def compute_theta_and_sigma(y1, Y0):
     """
-    Compute regression coefficients (theta) and variance estimate (sigma^2)
+    Compute regression coefficients (theta) and variance estimate (sigma^2).
+
     for the Synthetic Regressing Control (SRC) method.
 
     Parameters:
