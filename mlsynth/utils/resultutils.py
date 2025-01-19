@@ -13,13 +13,11 @@ def plot_estimates(
     y,
     cf_list,
     method,
-    treatedcolor,
-    counterfactualcolors,
-    counterfactual_names=None,
+    customization=None,
     save=False,
 ):
     """
-    Plots observed and multiple counterfactual estimates.
+    Plots observed and multiple counterfactual estimates with customizable options.
 
     Parameters:
     - df: DataFrame containing the dataset.
@@ -31,9 +29,16 @@ def plot_estimates(
     - y: Observed outcome for the treated unit.
     - cf_list: List of counterfactual predictions (one series per method).
     - method: Method name for title or file saving.
-    - treatedcolor: Color for the observed line.
-    - counterfactualcolors: List of colors for each counterfactual.
-    - counterfactual_names: List of custom names for counterfactuals (optional).
+    - customization: Dictionary for customizing plot elements. Keys can include:
+        - 'reference_line_color': Color for the reference line.
+        - 'reference_line_style': Line style for the reference line.
+        - 'reference_line_width': Width of the reference line.
+        - 'treated_line_style': Line style for the treated line.
+        - 'treated_line_width': Width of the treated line.
+        - 'plot_title': Custom title for the plot.
+        - 'xlabel': Custom x-axis label.
+        - 'ylabel': Custom y-axis label.
+        - 'grid': Boolean to toggle grid.
     - save: Boolean or dictionary for saving the plot. Defaults to False.
             If a dictionary, keys can include:
                 - 'filename': Custom file name (without extension).
@@ -41,6 +46,19 @@ def plot_estimates(
                 - 'directory': Directory to save the plot.
     """
     import os
+    import matplotlib.pyplot as plt
+
+    # Extract customization options or set defaults
+    customization = customization or {}
+    ref_color = customization.get("reference_line_color", "#7DF9FF")
+    ref_style = customization.get("reference_line_style", "-")
+    ref_width = customization.get("reference_line_width", 2)
+    treated_style = customization.get("treated_line_style", "-")
+    treated_width = customization.get("treated_line_width", 3)
+    plot_title = customization.get("plot_title", "Observed vs. Prediction")
+    xlabel = customization.get("xlabel", time)
+    ylabel = customization.get("ylabel", outcome)
+    grid = customization.get("grid", True)
 
     # Identify the intervention point
     intervention_point = df.loc[df[treatmentname] == 1, time].min()
@@ -49,9 +67,9 @@ def plot_estimates(
     # Plot intervention point
     plt.axvline(
         x=intervention_point,
-        color="#7DF9FF",
-        linestyle="-",
-        linewidth=2,
+        color=ref_color,
+        linestyle=ref_style,
+        linewidth=ref_width,
         label=f"{treatmentname}, {intervention_point}",
     )
 
@@ -60,33 +78,39 @@ def plot_estimates(
         time_axis,
         y,
         label=f"{treated_unit_name}",
-        linewidth=3,
-        color=treatedcolor
+        linewidth=treated_width,
+        linestyle=treated_style,
+        color=customization.get("treated_color", "black"),
     )
 
     # Plot each counterfactual
     for idx, cf in enumerate(cf_list):
         label = (
-            counterfactual_names[idx]
-            if counterfactual_names
+            customization.get("counterfactual_names", [f"Artificial {idx + 1}"])[idx]
+            if "counterfactual_names" in customization
             else f"Artificial {idx + 1}"
         )
-        color = counterfactualcolors[idx % len(counterfactualcolors)]
+        color = customization.get("counterfactual_colors", ["green", "red"])[
+            idx % len(customization.get("counterfactual_colors", ["green", "red"]))
+        ]
         plt.plot(
             time_axis,
             cf,
             label=label,
             color=color,
-            linestyle="-",
-            linewidth=2
+            linestyle=customization.get("counterfactual_line_styles", ["--", ":"])[
+                idx % len(customization.get("counterfactual_line_styles", ["--", ":"]))
+            ],
+            linewidth=2,
         )
 
     # Add labels, title, legend, and grid
-    plt.xlabel(time)
-    #plt.xticks(rotation=45)
-    plt.ylabel(outcome)
-    plt.title("Observed vs. Prediction")
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(plot_title)
     plt.legend()
+    if grid:
+        plt.grid(True)
 
     # Save or display the plot
     if save:
