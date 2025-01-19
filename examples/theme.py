@@ -1,7 +1,7 @@
 import matplotlib
 
 jared_theme = {
-    "axes.grid": True,
+    "axes.grid": False,
     "grid.linestyle": "-",
     "grid.color": "black",
     "legend.framealpha": 1,
@@ -13,8 +13,8 @@ jared_theme = {
     "ytick.labelsize": 14,
     "axes.labelsize": 16,
     "axes.titlesize": 20,
-    "figure.dpi": 100,
-    "axes.facecolor": "#c7d0c9",
+    "figure.dpi": 120,
+    "axes.facecolor": "white",
     "figure.figsize": (10, 5.5),
 }
 
