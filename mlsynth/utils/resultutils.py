@@ -49,7 +49,7 @@ def plot_estimates(
     # Plot intervention point
     plt.axvline(
         x=intervention_point,
-        color="black",
+        color="#7DF9FF",
         linestyle="-",
         linewidth=2,
         label=f"{treatmentname}, {intervention_point}",
@@ -59,7 +59,7 @@ def plot_estimates(
     plt.plot(
         time_axis,
         y,
-        label=f"Observed {treated_unit_name}",
+        label=f"{treated_unit_name}",
         linewidth=3,
         color=treatedcolor
     )
@@ -69,7 +69,7 @@ def plot_estimates(
         label = (
             counterfactual_names[idx]
             if counterfactual_names
-            else f"Counterfactual {idx + 1}"
+            else f"Artificial {idx + 1}"
         )
         color = counterfactualcolors[idx % len(counterfactualcolors)]
         plt.plot(
@@ -77,15 +77,15 @@ def plot_estimates(
             cf,
             label=label,
             color=color,
-            linestyle="--",
-            linewidth=1.25
+            linestyle="-",
+            linewidth=2
         )
 
     # Add labels, title, legend, and grid
     plt.xlabel(time)
-    plt.xticks(rotation=45)
+    #plt.xticks(rotation=45)
     plt.ylabel(outcome)
-    plt.title("Artificial Counterfactual")
+    plt.title("Observed vs. Prediction")
     plt.legend()
 
     # Save or display the plot
