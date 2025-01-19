@@ -169,7 +169,7 @@ def DC_PR_with_l(O, Z, l, initial_tau=None, eps=1e-6):
     De-biased Convex Panel Regression with the regularizer l.
 
     Parameters
-    -------------
+    ----------
     O : 2d float numpy array
         Observation matrix.
     Z : a list of 2d float numpy array or a single 2d/3d float numpy array
@@ -182,7 +182,7 @@ def DC_PR_with_l(O, Z, l, initial_tau=None, eps=1e-6):
         Convergence threshold.
 
     Returns
-    -------------
+    -------
     M : 2d float numpy array
         Estimated matrix.
     tau : (num_treat,) float numpy array
@@ -214,7 +214,7 @@ def non_convex_PR(O, Z, r, initial_tau=None, eps=1e-6):
     Non-Convex Panel Regression with the rank r.
 
     Parameters
-    -------------
+    ----------
     O : 2d float numpy array
         Observation matrix.
     Z : a list of 2d float numpy array or a single 2d/3d float numpy array
@@ -227,7 +227,7 @@ def non_convex_PR(O, Z, r, initial_tau=None, eps=1e-6):
         Convergence threshold.
 
     Returns
-    -------------
+    -------
     M : 2d float numpy array
         Estimated baseline matrix.
     tau : (num_treat,) float numpy array
@@ -260,16 +260,16 @@ def panel_regression_CI(M, Z, E):
     """
     Compute the confidence interval of taus using the first-order approximation.
 
+    Returns
+    -------
+    CI : a kxk matrix that charaterizes the asymptotic covariance matrix of treatment estimation from non-convex panel regression,
+        where k is the number of treatments
+
     Parameters:
-    -------------
+    -----------
     M: the (approximate) baseline matrix
     Z: a list of intervention matrices
     E: the (approximate) noise matrix
-
-    Returns
-    -----------
-    CI: a kxk matrix that charaterizes the asymptotic covariance matrix of treatment estimation from non-convex panel regression,
-        where k is the number of treatments
     """
     u, s, vh = svd_fast(M)
     r = np.sum(s / np.cumsum(s) >= 1e-6)
