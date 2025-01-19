@@ -49,8 +49,8 @@ def plot_estimates(
     # Plot intervention point
     plt.axvline(
         x=intervention_point,
-        color="#7DF9FF",
-        linestyle="-",
+        color="black",
+        linestyle="--",
         linewidth=2,
         label=f"{treatmentname}, {intervention_point}",
     )
