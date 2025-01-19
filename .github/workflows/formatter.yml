@@ -1,4 +1,4 @@
-name: Formatting and Docstring Generation
+name: Formatting
 
 on:
   push:
@@ -70,9 +70,8 @@ jobs:
 
       - name: Generate docstrings with numpydoc style
         run: |
-          pydocstringformatter . -w --recursive --style numpydoc --numpydoc-section-order \
-          --numpydoc-name-type-spacing --numpydoc-section-spacing --numpydoc-section-hyphen-length --no-final-period
-
+          find . -name "*.py" ! -path "./docs/auto_examples/*" -exec pydocstringformatter -w --style numpydoc --numpydoc-section-order --numpydoc-name-type-spacing --numpydoc-section-spacing --numpydoc-section-hyphen-length --no-final-period {} +
+        
       - name: Commit and push changes (if any)
         run: |
           git config --global user.name "github-actions[bot]"
@@ -83,6 +82,5 @@ jobs:
             git push
           else
             echo "No changes to commit"
-          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
