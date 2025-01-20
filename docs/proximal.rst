@@ -157,7 +157,7 @@ As above, the weights match on the treated unit's outcomes to the donor pool via
 
 .. math::
 
-   \mathbb{E}[Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \mid \mathbf{P}_{0,t}, \mathbf{P}_{1,t}, t > T_0] = 0.
+   \mathbb{E}[\mathbf{y}_1 - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \mid \mathbf{P}_{0t}, \mathbf{P}_{1t}, t > T_0] = 0.
 
 Here, :math:`\mathbf{X}_t` is the matrix of surrogate variables, and :math:`\boldsymbol{\gamma}` is the vector of coefficients relating the surrogates to the latent unit specific factors.
 
@@ -165,22 +165,22 @@ As above, we combine these into a function of moment conditions, :math:`\mathbf{
 
 .. math::
 
-   U_0(t, \mathbf{w}) = \mathbf{g}_0(\mathbf{P}_{0,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} \right),
+   U_0(t, \mathbf{w}) = \mathbf{g}_0(\mathbf{P}_{0t}) \left(\mathbf{y}_1- \mathbf{Y}_0^\top \mathbf{w} \right),
 
-where :math:`\mathbf{g}_0(\mathbf{P}_{0,t})` is a user-specified function of the proxies :math:`\mathbf{P}_{0,t}`. For :math:`t > T_0`, the moment vector is:
+where :math:`\mathbf{g}_0(\mathbf{P}_{0t})` is a user-specified function of the proxies :math:`\mathbf{P}_{0t}`. For :math:`t > T_0`, the moment vector is:
 
 .. math::
 
-   U_1(t, \mathbf{w}, \boldsymbol{\gamma}) = \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \right),
+   U_1(t, \mathbf{w}, \boldsymbol{\gamma}) = \mathbf{g}_1(\mathbf{P}_{0t}, \mathbf{P}_{1t}) \left(\mathbf{y}_1 - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \right),
 
-where :math:`\mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t})` is a user-specified function of the proxies :math:`\mathbf{P}_{0,t}` and :math:`\mathbf{P}_{1,t}`. The complete stacked moment vector is:
+where :math:`\mathbf{g}_1(\mathbf{P}_{0t}, \mathbf{P}_{1t})` is a user-specified function of the proxies :math:`\mathbf{P}_{0t}` and :math:`\mathbf{P}_{1t}`. The complete stacked moment vector is:
 
 .. math::
 
    \mathbf{U}_t(\mathbf{w}, \boldsymbol{\gamma}) =
    \begin{cases}
-   \mathbf{g}_0(\mathbf{P}_{0,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} \right), & t \leq T_0, \\
-   \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( Y_t - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \right), & t > T_0.
+   \mathbf{g}_0(\mathbf{P}_{0,t}) \left( \mathbf{y}_1 - \mathbf{Y}_0^\top \mathbf{w} \right), & t \leq T_0, \\
+   \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( \mathbf{y}_1 - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}_t^\top \boldsymbol{\gamma} \right), & t > T_0.
    \end{cases}
 
 In matrix form, the stacked moment vector can be written as:
@@ -189,8 +189,8 @@ In matrix form, the stacked moment vector can be written as:
 
    \mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}) =
    \begin{bmatrix}
-   \mathbf{g}_0(\mathbf{P}_{0,t}) \left( \mathbf{Y} - \mathbf{Y}_0 \mathbf{w} \right) \\ 
-   \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1,t}) \left( \mathbf{Y} - \mathbf{Y}_0 \mathbf{w} - \mathbf{X} \boldsymbol{\gamma} \right)
+   \mathbf{g}_0(\mathbf{P}_{0t}) \left( \mathbf{y}_1- \mathbf{Y}_0 \mathbf{w} \right) \\ 
+   \mathbf{g}_1(\mathbf{P}_{0,t}, \mathbf{P}_{1t}) \left( \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w} - \mathbf{X} \boldsymbol{\gamma} \right)
    \end{bmatrix}.
 
 The goal is to estimate the weights :math:`\mathbf{w}` and the surrogate coefficients :math:`\boldsymbol{\gamma}` by minimizing the quadratic form of the moment residuals:
