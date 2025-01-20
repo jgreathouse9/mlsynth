@@ -122,12 +122,11 @@ So, to summarize quickly, we just employ these proxies to assist in the matching
 Surrogate Approach 
 --------------------
 
-boop
-
 
 .. math::
 
-   \arg \min_{\mathbf{w}, \boldsymbol{\gamma}, \tau} |\mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}, \tau)|_{\Omega^{-1}}^2,
+   \arg \min_{\mathbf{w}, \boldsymbol{\gamma}, \tau} \lvert \mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}, \tau) \rvert_{\Omega^{-1}}^2,
+
 
 
 
