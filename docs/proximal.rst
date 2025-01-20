@@ -42,19 +42,19 @@ To do this, we define a set of moment conditions over the pre-intervention perio
    
 .. math::
 
-    \mathbb{E}\left[ \mathbf{y} - \tau - \mathbf{Y}_0 \mathbf{w} \right] = 0.
+    \mathbb{E}\left[ \mathbf{y}_1- \tau - \mathbf{Y}_0 \mathbf{w} \right] = 0.
 
 We then combine these conditions into a single stacked moment vector :math:`U(\theta)`, where :math:`\theta = (\mathbf{w}, \tau)` contains the weights and the treatment effect. For :math:`t \leq T_0`, the residuals are:
 
 .. math::
 
-    U_0(t, \mathbf{w}) = \mathbf{P}^\top \left( \mathbf{y}_t - (\mathbf{Y}_0 \mathbf{w})_t \right).
+    U_0(t, \mathbf{w}) = \mathbf{P}^\top \left( \mathbf{y}_1 - (\mathbf{Y}_0 \mathbf{w})_t \right).
 
 and for :math:`t > T_0`, we have:
 
 .. math::
 
-    U_1(t, \tau, \mathbf{w}) = \mathbf{y}_t - \tau - (\mathbf{Y}_0 \mathbf{w})_t.
+    U_1(t, \tau, \mathbf{w}) = \mathbf{y}_1 - \tau - (\mathbf{Y}_0 \mathbf{w})_j.
 
 The complete moment vector is:
 
@@ -66,8 +66,8 @@ The complete moment vector is:
     U_1(t, \tau, \mathbf{w})
     \end{bmatrix} =
     \begin{bmatrix}
-    \mathbf{P}^\top \left( \mathbf{y} - \mathbf{Y}_0 \mathbf{w} \right) \\ 
-    \mathbf{y} - \tau - \mathbf{Y}_0 \mathbf{w}
+    \mathbf{P}^\top \left( \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w} \right) \\ 
+    \mathbf{y}_1 - \tau - \mathbf{Y}_0 \mathbf{w}
     \end{bmatrix}.
 
 The goal is to estimate the weights :math:`\mathbf{w}` by solving a quadratic programming problem that minimizes both sets of moment conditions:
@@ -79,7 +79,7 @@ The goal is to estimate the weights :math:`\mathbf{w}` by solving a quadratic pr
 where :math:`\Omega` is the covariance matrix of the estimating function.
 
 
-Once we have our where, we math estimate the treatment effect like
+We estimate the treatment effect like
 
 .. math::
 
@@ -123,18 +123,11 @@ Surrogate Approach
 --------------------
 
 
-.. math::
-
-   \arg \min_{\mathbf{w}, \boldsymbol{\gamma}, \tau} || \mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}, \tau) ||_{\Omega^{-1}}^2,
-
-
-
-
 We may also employ surrogate variables which capture latent factors that drive outcome. This appears in the extension paper [LiuTchetgenVar]_, adding to the above. Let :math:`\mathbf{X}_t \in \mathbb{R}^H` represent a vector of observed surrogates for the treated unit, where :math:`H` is the number of surrogate variables. These surrogates are chosen because they are highly predictive of the treatment effects and driven by the same latent factors as the treated unit. The treatment effect is decomposed into two components, 
 
 .. math::
 
-    Y_t(1) - Y_t(0) = \boldsymbol{\rho}_t^\top \boldsymbol{\theta} + \delta_t,
+    \mathbf{y}_1(1) - \mathbf{y}_1(0) = \boldsymbol{\rho}_t^\top \boldsymbol{\theta} + \delta_t,
 
 where :math:`\boldsymbol{\rho}_t \in \mathbb{R}^K` is a vector of latent factors driving the causal effect, :math:`\boldsymbol{\theta} \in \mathbb{R}^K` is a vector of factor loadings for the causal effect, and :math:`\delta_t` represents an error term uncorrelated with the latent factors.
 
@@ -144,14 +137,14 @@ The observed surrogates :math:`\mathbf{X}_t` follow a similar factor model,
 
     \mathbf{X}_t^\top = \boldsymbol{\rho}_t^\top \mathbf{\Phi} + \boldsymbol{\epsilon}_{X,t}^\top,
 
-where :math:`\mathbf{\Phi} \in \mathbb{R}^{K \times H}` is a matrix of factor loadings for the surrogates, and :math:`\boldsymbol{\epsilon}_{X,t}` is an error term for the surrogates. In this framework, proxies are introduced for donors and surrogates. Let :math:`\mathbf{P}_{0,t}` represent proxy variables for donor outcomes, assumed to capture latent factors :math:`\boldsymbol{\lambda}_t`, and let :math:`\mathbf{P}_{1,t}` represent proxy variables for surrogates, capturing both donor latent factors :math:`\boldsymbol{\lambda}_t` and surrogate latent factors :math:`\boldsymbol{\rho}_t`.
+where :math:`\mathbf{\Phi} \in \mathbb{R}^{K \times H}` is a matrix of factor loadings for the surrogates, and :math:`\boldsymbol{\epsilon}_{X,t}` is an error term for the surrogates. In this framework, proxies are introduced for donors and surrogates. Let :math:`\mathbf{P}_{0,t}` represent proxy variables for donor outcomes, assumed to capture latent factors :math:`\boldsymbol{\lambda}_t`, and let :math:`\mathbf{P}_{1t}` represent proxy variables for surrogates, capturing both donor latent factors :math:`\boldsymbol{\lambda}_t` and surrogate latent factors :math:`\boldsymbol{\rho}_t`.
 
 
 The surrogate framework introduces two sets of moment conditions, one for the pre-treatment period and one for the post-treatment period. In the pre-treatment period, the residuals are orthogonal to the proxies for donor units:
 
 .. math::
 
-   \mathbb{E}[Y_t - \mathbf{Y}_0^\top \mathbf{w} \mid \mathbf{P}_{0,t}, t \leq T_0] = 0.
+   \mathbb{E}[\mathbf{y}_1 - \mathbf{Y}_0^\top \mathbf{w} \mid \mathbf{P}_{0t}, t \leq T_0] = 0.
 
 As above, the weights match on the treated unit's outcomes to the donor pool via the proxies :math:`\mathbf{P}_{0,t}` for the common time factors. In the post-treatment period, the residuals must also account for the surrogate variables via the moment condition:
 
