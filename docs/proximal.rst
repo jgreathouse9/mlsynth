@@ -201,6 +201,41 @@ The Average Treatment Effect on the Treated (ATT) is expressed with the surrogat
 
 where the surrogate coefficients :math:`\boldsymbol{\gamma}` are estimated from the post-treatment period.
 
+We can also do the surrogate approach with post intervention data only. The first moment condition is the treated unit's post-treatment outcomes are consistent with the donors (the ones where the weights come from) via the proxy variables:
+
+.. math::
+
+   \mathbb{E}[\mathbf{P}_1 \cdot (\mathbf{y}_1 - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}^\top \boldsymbol{\gamma})] = 0.
+
+The surrogate moment condition does the same with respect to the the proxy variables of the surrogates:
+
+.. math::
+
+   \mathbb{E}[\mathbf{P}_2 \cdot (\mathbf{y}_1 - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}^\top \boldsymbol{\gamma})] = 0.
+
+The surrogate treatment effect condition links the surrogates directly to the causal effect:
+
+.. math::
+
+   \mathbb{E}[\mathbf{X}^\top \boldsymbol{\gamma} - \tau] = 0.
+
+The combined moment vector is given by:
+
+.. math::
+
+   \mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}, \tau) =
+   \begin{bmatrix}
+   \mathbf{P}_1 \cdot (\mathbf{y}_1 - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}^\top \boldsymbol{\gamma}) \\
+   \mathbf{P}_2 \cdot (\mathbf{y}_1 - \mathbf{Y}_0^\top \mathbf{w} - \mathbf{X}^\top \boldsymbol{\gamma}) \\
+   \mathbf{X}^\top \boldsymbol{\gamma} - \tau
+   \end{bmatrix}.
+
+Our GMM optimization becomes:
+
+.. math::
+
+   \arg \min_{\mathbf{w}, \boldsymbol{\gamma}, \tau} \mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}, \tau)^\top \Omega^{-1} \mathbf{U}(\mathbf{w}, \boldsymbol{\gamma}, \tau),
+
 .. tip::
 
    Let's take a breath and understand what's really going on here. If we're interested in the treatment effect for a treated unit, proxies will help capture time specific effects that are common across all units. But what about surrogates? Surrogates are post-intervention metrics we think will be informative of the causal effect that are similar on unit specific latent factors. This means we can even include other units we think are affected by the treatment, or entities that are within the exact same geography (if spillovers are a concern). In standard SCM studies, we would throw out these metrics. But here, we repurpose them. We remove them from the donor pool and use them to adjust our effect size based on their correlation with the treatment effect. 
