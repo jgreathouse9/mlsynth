@@ -8,7 +8,7 @@ Next, I discuss the proximal SCM method. In synthetic control methods, we oftent
    argue that the outcomes of control units are essentially proxies of the latent factors. Rather than directly regressing the outcome on all such proxies, one can split the set of  proxies into two, thus leveraging one set of proxies to assist the construction of a SC defined in terms of the other set of proxies.
 
 
-In other words, if we agree that the outcomes of the control units are time variant proxies for our control units, we may be able to still employ the outcomes of other control units, especiallyif we believe they are correlated with common time factors. This page describes, broadly, the three methods they propose, and applies it to an empirical example.
+In other words, if we agree that the outcomes of the control units are time variant proxies for our control units, we may be able to still employ the outcomes of other control units, especially if we believe they are correlated with common time factors. This page describes, broadly, the three methods they propose, and applies it to an empirical example.
 
 Notations
 ----------
@@ -36,15 +36,15 @@ Shi, Li, Miao, Hu, and Tchetgen Tchetgen [ProxSCM]_ advocate for a GMM approach,
     U_t(\mathbf{w}) = g(\mathbf{P}_t) \cdot \left( \mathbf{y}_1 - (\mathbf{Y}_0 \mathbf{w})_t \right),
 
 where :math:`g(\mathbf{P}_t)` is a function applied to the proxy variables :math:`\mathbf{P}_t` at time :math:`t`, 
-and :math:`\mathbf{y}_1` and :math:`(\mathbf{Y}_0 \mathbf{w})_t` are the observed and predicted outcomes at time :math:`t`, respectively. In this setup, the :math:`\mathbf{P}_t` matrix may be comprised of anything we believe to be correlated with the time variant common factors. Per HCW [HCW]_, the outcomes of other donor units is one example of this, or other covariates that are unaffected by the treatment but are correlated with the time latent factors.
+and :math:`\mathbf{y}_1` and :math:`(\mathbf{Y}_0 \mathbf{w})_t` are the observed and predicted outcomes at time :math:`t`, respectively. In this setup, the :math:`\mathbf{P}_t` matrix may be comprised of anything we believe to be correlated with the time variant common factors. Per HCW [HCW]_, the outcomes of other donor units is one example of a proxy. We may also use other covariates that are unaffected by the treatment but are correlated with the time latent factors.
 
-To do this, we define a set of moment conditions over the pre-intervention period such that :math:`\mathbf{y} - \mathbf{Y}_0 \mathbf{w}` should be orthogonal to the proxies :math:`\mathbf{P}`:
+We define a set of moment conditions over the pre-intervention period such that :math:`\mathbf{y} - \mathbf{Y}_0 \mathbf{w}` should be orthogonal to the proxies :math:`\mathbf{P}`:
    
 .. math::
 
     \mathbb{E}\left[ \mathbf{y}_1- \tau - \mathbf{Y}_0 \mathbf{w} \right] = 0.
 
-We then combine these conditions into a single stacked moment vector :math:`U(\theta)`, where :math:`\theta = (\mathbf{w}, \tau)` contains the weights and the treatment effect. For :math:`t \leq T_0`, the residuals are:
+We combine these conditions into a single stacked moment vector :math:`U(\theta)`, where :math:`\theta = (\mathbf{w}, \tau)` contains the weights and the treatment effect. For :math:`t \leq T_0`, the residuals are:
 
 .. math::
 
@@ -70,22 +70,19 @@ The complete moment vector is:
     \mathbf{y}_1 - \tau - \mathbf{Y}_0 \mathbf{w}
     \end{bmatrix}.
 
-The goal is to estimate the weights :math:`\mathbf{w}` by solving a quadratic programming problem that minimizes both sets of moment conditions:
+The goal is to estimate the weights :math:`\mathbf{w}` by solving a quadratic programming problem that minimizes the moment vector:
 
 .. math::
 
     \mathbf{w} = \arg\min_{\mathbf{w}} \sum_{t \in \mathcal{T}_1} U_t(\mathbf{w})^\top \Omega^{-1} U_t(\mathbf{w}),
 
-where :math:`\Omega` is the covariance matrix of the estimating function.
-
-
-We estimate the treatment effect like
+where :math:`\Omega` is the covariance matrix. When we estimate our weights, we now can estimate the treatment effect like
 
 .. math::
 
-    \tau = \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w},
+    \tau = \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}.
 
-where the sample average of this over the post-intervention period is the ATT. To compute inference, we first estimate the variance-covariance matrix of the moment conditions, denoted by 
+The sample average of the treatment effect in the post-intervention period is the ATT. For inference, we estimate the variance-covariance matrix of the moment conditions, denoted by 
 :math:`\boldsymbol{\Omega}`. This is done using a HAC estimator. The matrix :math:`\boldsymbol{\Omega}` is computed as:
 
 .. math::
