@@ -42,6 +42,7 @@ MLSYNTH
    fma
    pda
    tssc
+   proximal
 
 
 .. toctree::
@@ -49,7 +50,7 @@ MLSYNTH
    :caption: Gallery
    :titlesonly:
 
-   auto_examples/exampleplot
+   #auto_examples/exampleplot
    auto_examples/Water
 
 
