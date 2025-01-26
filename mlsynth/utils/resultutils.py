@@ -108,6 +108,7 @@ def plot_estimates(
         filepath = os.path.join(directory, f"{filename}.{extension}")
         plt.savefig(filepath)
         print(f"Plot saved to: {filepath}")
+        plt.clf()
 
     if not save or (
         isinstance(save, dict) and "display" in save and save["display"]
@@ -115,7 +116,7 @@ def plot_estimates(
         plt.show()
 
     # Clear the plot to avoid overlap in subsequent plots
-    #plt.clf()
+    plt.clf()
 
 class effects:
     @staticmethod
