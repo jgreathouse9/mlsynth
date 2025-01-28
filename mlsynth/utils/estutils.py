@@ -799,7 +799,7 @@ def pda(prepped, N, method="fs"):
         optimal_tau, min_mse = cross_validate_tau(
             prepped["y"][: prepped["pre_periods"]],
             prepped["donor_matrix"][: prepped["pre_periods"]],
-            2,
+            tau1,
         )
 
         # Step 2: Re-fit the model using the optimal tau
