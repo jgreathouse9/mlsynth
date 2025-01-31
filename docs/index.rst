@@ -51,6 +51,6 @@ MLSYNTH
    :titlesonly:
 
    #auto_examples/exampleplot
-   auto_examples/Water
+   #auto_examples/Water
 
 
