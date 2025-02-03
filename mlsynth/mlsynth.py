@@ -5,6 +5,7 @@ import matplotlib
 from numpy.linalg import inv
 from scipy.stats import norm
 import scipy.stats as stats
+import warnings
 from sklearn.cluster import KMeans
 from screenot.ScreeNOT import adaptiveHardThresholding
 from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
@@ -1208,82 +1209,69 @@ class GSC:
 class CLUSTERSC:
     def __init__(self, config):
         """
-        This function provides ATT estimates ad weights using Robust PCA Synthetic Control (RPCA SCM).
-
-        and Principal Component Regression (PCR).
+        This function provides ATT estimates and weights using Robust PCA Synthetic Control (RPCA SCM) and Principal Component Regression (PCR).
 
         Parameters
         ----------
         config : dict
-
             A dictionary containing the necessary parameters. The following keys are expected:
 
             df : pandas.DataFrame
-
                 Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
 
             treat : str
-
                 Column name identifying the treated unit.
 
             time : str
-
                 Column name for the time variable.
 
             outcome : str
-
                 Column name for the outcome variable.
 
             unitid : str
-
                 Column name identifying the units.
 
             cluster : bool, optional
-
                 Whether to apply clustering for PCR. Default is True.
 
             objective : str, optional
-
-                Constraint for PCR. Defaul is "OLS", but user may specify "SIMPLEX"
+                Constraint for PCR. Default is "OLS", but user may specify "SIMPLEX".
 
             counterfactual_color : str, optional
-
                 Color for the counterfactual line in the plots. Default is "red".
 
             treated_color : str, optional
-
                 Color for the treated line in the plots. Default is "black".
 
             display_graphs : bool, optional
-
                 Whether to display the plots. Default is True.
 
             save : bool or dict, optional
-
                 Whether to save the generated plots. Default is False.
-
                 If a dictionary, keys can include:
-
                     - 'filename' : Custom file name (without extension).
                     - 'extension' : File format (e.g., 'png', 'pdf').
                     - 'directory' : Directory to save the plot.
 
             Frequentist : bool, optional
-
-                If true, use Frequntist Robust SCM.
-                If False, usees Amjad's Bayesian method.
+                If true, use Frequentist Robust SCM.
+                If False, uses Amjad's Bayesian method.
                 Defaults to true.
+
+            Robust : str, optional
+                Specifies the robust method to use. If "PCP", Principal Component Pursuit (PCP) is used for Robust PCA. If "HQF", non-convex half-quadratic regularization is applied. Defaults to "PCP".
 
         Returns
         -------
-
         dict
             A dictionary containing results for both RPCA-SC and PCR methods, with the following keys:
 
             'Weights' : dict
                 Weights assigned to control units in the synthetic control model.
+
             'Effects' : dict
                 Estimated treatment effects for the treated unit over time.
+
             'Vectors' : dict
                 Observed, predicted, and treatment effects for both methods.
 
@@ -1297,8 +1285,10 @@ class CLUSTERSC:
 
         Bayani, M. (2022). "Essays on Machine Learning Methods in Economics." Chapter 1.
         *CUNY Academic Works*.
-        """
 
+        Wang, Zhi-Yong, Xiao Peng Li, Hing Cheung So, and Zhaofeng Liu. (2023). "Robust PCA via non-convex half-quadratic regularization."
+        *Signal Processing*, 204, 108816.
+        """
 
         self.df = config.get("df")
         self.outcome = config.get("outcome")
@@ -1312,6 +1302,7 @@ class CLUSTERSC:
         self.objective = config.get("objective", "OLS")
         self.cluster = config.get("cluster", True)
         self.Frequentist = config.get("Frequentist", True)
+        self.ROB = config.get("Robust", "PCP")
 
 
     def fit(self):
@@ -1365,13 +1356,19 @@ class CLUSTERSC:
         y = Y[treated_row_idx]
         Y0 = np.delete(Y, treated_row_idx, axis=0)
 
-        # Perform RPCA on the control group matrix
-        L = RPCA(Y0)
+        # Perform RPCA based on self.ROB
+        if self.ROB == "PCP":  # Default case
+            L = RPCA(Y0)
+        elif self.ROB == "HQF":
+            m, n = Y0.shape
+            (u, s, v) = np.linalg.svd(Y0, full_matrices=False)
+            t = 0.999
+            lambda_1 = 1 / np.sqrt(max(m, n))
 
-        m, n = Y0.shape
-        lambda_1 = 1 / np.sqrt(max(m, n))
-
-        #L = RPCA_HQF(Y0, rank, maxiter=3000, ip=2, lam_1=lambda_1)
+            L = RPCA_HQF(Y0, spectral_rank(s, t=t), maxiter=1000, ip=2, lam_1=lambda_1)
+        else:
+            warnings.warn(f"Invalid value for self.ROB: {self.ROB}. Defaulting to 'RPCA'.", UserWarning)
+            L = RPCA(Y0)  # Default to RPCA
 
         # Optimize synthetic control weights using pre-period data
         beta_value = Opt.SCopt(
