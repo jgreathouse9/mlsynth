@@ -798,7 +798,7 @@ def pda(prepped, N, method="fs",tau=None):
 
         if tau is not None:
             # Use the user-specified tau
-            tau_to_use = self.tau
+            tau_to_use = tau
         else:
             # Perform cross-validation to determine the optimal tau
             tau_to_use, min_mse = cross_validate_tau(
