@@ -479,14 +479,15 @@ class PDA:
 
         Parameters
         ----------
-
         config : dict
 
             A dictionary containing the necessary parameters. The following keys are expected:
 
             df : pandas.DataFrame
 
-                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier,
+                one column for time, another column for the numeric outcome, and, finally, a column that is a dummy
+                variable, equal to 1 when the unit is treated, else 0.
 
             treat : str
 
@@ -501,9 +502,11 @@ class PDA:
                 Column name for the outcome variable.
 
             unitid : str
+
                 Column name identifying the units.
 
             counterfactual_color : str, optional
+
                 Color for the counterfactual line in the plots, by default "red".
 
             treated_color : str, optional
@@ -525,10 +528,15 @@ class PDA:
                     - 'directory' : Directory to save the plot.
 
             method : str, optional
-                Type of PDA to use, either
+
+                Type of PDA to use, either:
                 - "LASSO" (L1 Penalty),
                 - "l2" (L2-Relaxation),
                 - "fs" (Forward Selection), default.
+
+            tau : float, optional
+
+                A user-specified treatment effect value, default is None.
 
         Returns
         -------
@@ -539,10 +547,12 @@ class PDA:
         References
         ----------
         Shi, Z. & Huang, J. (2023). "Forward-selected panel data approach for program evaluation."
-        *Journal of Econometrics*, Volume 234, Issue 2, Pages 512-535. DOI: https://doi.org/10.1016/j.jeconom.2021.04.009
+        *Journal of Econometrics*, Volume 234, Issue 2, Pages 512-535.
+        DOI: https://doi.org/10.1016/j.jeconom.2021.04.009
 
-        Li, Kathleen T., and David R. Bell. "Estimation of Average Treatment Effects with Panel Data: Asymptotic
-        Theory and Implementation." *Journal of Econometrics* 197, no. 1 (March, 2017): 65-75. DOI: https://doi.org/10.1016/j.jeconom.2016.01.011
+        Li, Kathleen T., and David R. Bell. "Estimation of Average Treatment Effects with Panel Data:
+        Asymptotic Theory and Implementation." *Journal of Econometrics* 197, no. 1 (March, 2017): 65-75.
+        DOI: https://doi.org/10.1016/j.jeconom.2016.01.011
 
         Shi, Z. & Wang, Y. (2024). "L2-relaxation for Economic Prediction."
         DOI: https://doi.org/10.13140/RG.2.2.11670.97609.
@@ -558,6 +568,10 @@ class PDA:
         self.display_graphs = config.get("display_graphs", True)
         self.save = config.get("save", False)
         self.method = config.get("method", "fs")
+        self.tau = config.get("tau", None) 
+
+        if self.tau is not None and not isinstance(self.tau, (int, float)):
+            raise ValueError("tau must be a numeric value.")
 
     def fit(self):
 
@@ -567,7 +581,7 @@ class PDA:
             self.df, self.unitid, self.time, self.outcome, self.treat
         )
 
-        pdaest = pda(prepped, len(prepped["donor_names"]), method=self.method)
+        pdaest = pda(prepped, len(prepped["donor_names"]), method=self.method,tau=self.tau)
         attdict, fitdict, Vectors = effects.calculate(
             prepped["y"],
             pdaest["Vectors"]["Counterfactual"],
@@ -1365,7 +1379,7 @@ class CLUSTERSC:
             t = 0.999
             lambda_1 = 1 / np.sqrt(max(m, n))
 
-            L = RPCA_HQF(Y0, spectral_rank(s, t=t), maxiter=1000, ip=2, lam_1=lambda_1)
+            L = RPCA_HQF(Y0, spectral_rank(s, t=t), maxiter=1000, ip=1, lam_1=lambda_1)
         else:
             warnings.warn(f"Invalid value for self.ROB: {self.ROB}. Defaulting to 'RPCA'.", UserWarning)
             L = RPCA(Y0)  # Default to RPCA
@@ -1376,7 +1390,7 @@ class CLUSTERSC:
             prepped["y"][:prepped["pre_periods"]],
             prepped["pre_periods"],
             L[:, :prepped["pre_periods"]].T,
-            model="MSCb"
+            model="SIMPLEX"
         )
 
         # Calculate synthetic control predictions
