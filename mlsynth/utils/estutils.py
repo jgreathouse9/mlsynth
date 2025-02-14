@@ -519,7 +519,7 @@ class Opt:
         return beta.value
 
 
-def pda(prepped, N, method="fs"):
+def pda(prepped, N, method="fs",tau=None):
     """
     Estimate the counterfactual outcomes using either 'fs' or 'LASSO' method.
 
@@ -794,21 +794,35 @@ def pda(prepped, N, method="fs"):
             @ prepped["y"][: prepped["pre_periods"]]
         ) / n
 
-        tau1 = np.linalg.norm(eta, ord=np.inf)
 
-        optimal_tau, min_mse = cross_validate_tau(
-            prepped["y"][: prepped["pre_periods"]],
-            prepped["donor_matrix"][: prepped["pre_periods"]],
-            tau1,
-        )
+        if tau is None:
+            # Step 1: Compute initial tau1
+            tau1 = np.linalg.norm(prepped["eta"], ord=np.inf)
 
-        # Step 2: Re-fit the model using the optimal tau
-        beta_hat, intercept, _ = l2_relax(
-            prepped["pre_periods"],
-            prepped["y"],
-            prepped["donor_matrix"],
-            optimal_tau,
-        )
+            # Perform cross-validation to determine the optimal tau
+            optimal_tau, min_mse = cross_validate_tau(
+                prepped["y"][: prepped["pre_periods"]],
+                prepped["donor_matrix"][: prepped["pre_periods"]],
+                tau1,
+            )
+
+            # Step 2: Re-fit the model using the optimal tau
+            beta_hat, intercept, _ = l2_relax(
+                prepped["pre_periods"],
+                prepped["y"],
+                prepped["donor_matrix"],
+                optimal_tau,  # Use cross-validated tau
+            )
+
+        else:
+            # Use the user-specified tau
+            beta_hat, intercept, _ = l2_relax(
+                prepped["pre_periods"],
+                prepped["y"],
+                prepped["donor_matrix"],
+                tau
+            )
+            optimal_tau = tau
 
         yl2 = prepped["donor_matrix"] @ beta_hat + intercept
 
