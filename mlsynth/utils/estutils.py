@@ -835,7 +835,7 @@ def pda(prepped, N, method="fs",tau=None):
 
         return {
             "method": r"l2 relaxation",
-            "optimal_tau": optimal_tau,
+            "optimal_tau": tau_to_use,
             "Betas": donor_coefficients,
             "Inference": inference_results,
             "Effects": attdict,
