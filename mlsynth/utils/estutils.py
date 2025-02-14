@@ -794,35 +794,26 @@ def pda(prepped, N, method="fs",tau=None):
             @ prepped["y"][: prepped["pre_periods"]]
         ) / n
 
+        tau1 = np.linalg.norm(eta, ord=np.inf)
 
-        if tau is None:
-            # Step 1: Compute initial tau1
-            tau1 = np.linalg.norm(prepped["eta"], ord=np.inf)
-
+        if tau is not None:
+            # Use the user-specified tau
+            tau_to_use = self.tau
+        else:
             # Perform cross-validation to determine the optimal tau
-            optimal_tau, min_mse = cross_validate_tau(
+            tau_to_use, min_mse = cross_validate_tau(
                 prepped["y"][: prepped["pre_periods"]],
                 prepped["donor_matrix"][: prepped["pre_periods"]],
                 tau1,
             )
 
-            # Step 2: Re-fit the model using the optimal tau
-            beta_hat, intercept, _ = l2_relax(
-                prepped["pre_periods"],
-                prepped["y"],
-                prepped["donor_matrix"],
-                optimal_tau,  # Use cross-validated tau
-            )
-
-        else:
-            # Use the user-specified tau
-            beta_hat, intercept, _ = l2_relax(
-                prepped["pre_periods"],
-                prepped["y"],
-                prepped["donor_matrix"],
-                tau
-            )
-            optimal_tau = tau
+        # Fit the model using the selected tau (either user-specified or cross-validated)
+        beta_hat, intercept, _ = l2_relax(
+            prepped["pre_periods"],
+            prepped["y"],
+            prepped["donor_matrix"],
+            tau_to_use,
+        )
 
         yl2 = prepped["donor_matrix"] @ beta_hat + intercept
 
