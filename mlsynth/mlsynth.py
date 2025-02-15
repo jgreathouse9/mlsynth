@@ -1094,7 +1094,7 @@ class FDID:
                 counterfactual_names=["FDID " + prepped["treated_unit_name"], "DID " + prepped["treated_unit_name"]],
                 treatedcolor=self.treated_color,
                 save=self.save,
-                counterfactualcolors=[self.counterfactual_color],
+                counterfactualcolors=[self.counterfactual_color, "blue"],
             )
 
         return estimators_results
