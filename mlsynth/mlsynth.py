@@ -1077,6 +1077,8 @@ class FDID:
                     rounded_dict[key] = value
             return rounded_dict
 
+        DID_counterfactual = DID_dict["Vectors"]["Counterfactual"]
+
         if self.display_graphs:
 
             plot_estimates(
@@ -1087,9 +1089,9 @@ class FDID:
                 self.treated,
                 prepped["treated_unit_name"],
                 prepped["y"],
-                [y_FDID],
+                [y_FDID, DID_counterfactual],
                 method="FDID",
-                counterfactual_names=["FDID " + prepped["treated_unit_name"]],
+                counterfactual_names=["FDID " + prepped["treated_unit_name"], "DID " + prepped["treated_unit_name"]],
                 treatedcolor=self.treated_color,
                 save=self.save,
                 counterfactualcolors=[self.counterfactual_color],
