@@ -65,7 +65,7 @@ def plot_estimates(
     valid_x = np.intersect1d(time_axis, xticks)
     valid_y = [y[np.where(time_axis == vx)[0][0]] for vx in valid_x]
 
-    # Plot markers only at tick positions for observed data
+    # Plot markers only at tick positions for observed data (same color as line)
     plt.scatter(valid_x, valid_y, color=treatedcolor, edgecolor="black", zorder=3)
 
     # Plot each counterfactual without markers
@@ -79,7 +79,7 @@ def plot_estimates(
         # Find valid y values for counterfactuals at tick positions
         valid_cf_y = [cf[np.where(time_axis == vx)[0][0]] for vx in valid_x]
 
-        # Plot markers only at tick positions for counterfactuals
+        # Plot markers only at tick positions for counterfactuals (same color as line)
         plt.scatter(valid_x, valid_cf_y, color=color, edgecolor="black", zorder=3)
 
     # Add labels, title, legend, and grid
@@ -109,6 +109,7 @@ def plot_estimates(
 
     # Clear the figure only once at the end
     plt.clf()
+
 
 
 
