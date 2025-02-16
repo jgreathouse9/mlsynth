@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import pandas as pd
 
 def plot_estimates(
     df,
@@ -55,12 +56,17 @@ def plot_estimates(
     plt.draw()
     xticks = plt.gca().get_xticks()
 
+    # Handle datetime x-axis
+    if np.issubdtype(time_axis.dtype, np.datetime64):
+        xticks = pd.to_datetime(xticks, unit="D")  # Convert float ticks to datetime
+        time_axis = pd.to_datetime(time_axis)  # Ensure time_axis is also datetime
+
     # Find the closest x values to tick positions
     valid_x = np.intersect1d(time_axis, xticks)
     valid_y = [y[np.where(time_axis == vx)[0][0]] for vx in valid_x]
 
     # Plot markers only at tick positions for observed data
-    plt.scatter(valid_x, valid_y, color=treatedcolor, edgecolor='black', zorder=3)
+    plt.scatter(valid_x, valid_y, color=treatedcolor, edgecolor="black", zorder=3)
 
     # Plot each counterfactual without markers
     for idx, cf in enumerate(cf_list):
@@ -74,7 +80,7 @@ def plot_estimates(
         valid_cf_y = [cf[np.where(time_axis == vx)[0][0]] for vx in valid_x]
 
         # Plot markers only at tick positions for counterfactuals
-        plt.scatter(valid_x, valid_cf_y, color=color, edgecolor='black', zorder=3)
+        plt.scatter(valid_x, valid_cf_y, color=color, edgecolor="black", zorder=3)
 
     # Add labels, title, legend, and grid
     plt.xlabel(time)
@@ -103,6 +109,7 @@ def plot_estimates(
 
     # Clear the figure only once at the end
     plt.clf()
+
 
 
 class effects:
