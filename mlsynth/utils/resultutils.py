@@ -74,7 +74,7 @@ def plot_estimates(
             counterfactual_names[idx] if counterfactual_names else f"Artificial {idx + 1}"
         )
         color = counterfactualcolors[idx % len(counterfactualcolors)]
-        plt.plot(time_axis, cf, label=label, color=color, linestyle="-", linewidth=2)
+        plt.plot(time_axis, cf, label=label, linestyle="-", linewidth=2)
 
         # Find valid y values for counterfactuals at tick positions
         valid_cf_y = [cf[np.where(time_axis == vx)[0][0]] for vx in valid_x]
