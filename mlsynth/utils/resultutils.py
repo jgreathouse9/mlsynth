@@ -66,7 +66,7 @@ def plot_estimates(
     valid_y = [y[np.where(time_axis == vx)[0][0]] for vx in valid_x]
 
     # Plot markers only at tick positions for observed data (same color as line)
-    plt.scatter(valid_x, valid_y, color=treatedcolor, edgecolor="black", zorder=3)
+    plt.scatter(valid_x, valid_y, color=treatedcolor, zorder=3)
 
     # Plot each counterfactual without markers
     for idx, cf in enumerate(cf_list):
