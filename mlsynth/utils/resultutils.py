@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-
 def plot_estimates(
     df,
     time,
@@ -19,7 +18,7 @@ def plot_estimates(
     save=False,
 ):
     """
-    Plots observed and multiple counterfactual estimates.
+    Plots observed and multiple counterfactual estimates with markers only at x-tick positions.
 
     Parameters:
     - df: DataFrame containing the dataset.
@@ -35,13 +34,7 @@ def plot_estimates(
     - counterfactualcolors: List of colors for each counterfactual.
     - counterfactual_names: List of custom names for counterfactuals (optional).
     - save: Boolean or dictionary for saving the plot. Defaults to False.
-            If a dictionary, keys can include:
-                - 'filename': Custom file name (without extension).
-                - 'extension': File format (e.g., 'png', 'pdf').
-                - 'directory': Directory to save the plot.
     """
-    import os
-
     # Identify the intervention point
     intervention_point = df.loc[df[treatmentname] == 1, time].min()
     time_axis = df[df[unitid] == treated_unit_name][time].values
@@ -55,35 +48,36 @@ def plot_estimates(
         label=f"{treatmentname}, {intervention_point}",
     )
 
-    # Plot observed outcomes
-    plt.plot(
-        time_axis,
-        y,
-        label=f"{treated_unit_name}",
-        linewidth=3,
-        color=treatedcolor
-    )
+    # Plot observed outcomes without markers
+    plt.plot(time_axis, y, label=f"{treated_unit_name}", linewidth=3, color=treatedcolor)
 
-    # Plot each counterfactual
+    # Draw plot to determine tick positions
+    plt.draw()
+    xticks = plt.gca().get_xticks()
+
+    # Find the closest x values to tick positions
+    valid_x = np.intersect1d(time_axis, xticks)
+    valid_y = [y[np.where(time_axis == vx)[0][0]] for vx in valid_x]
+
+    # Plot markers only at tick positions for observed data
+    plt.scatter(valid_x, valid_y, color=treatedcolor, edgecolor='black', zorder=3)
+
+    # Plot each counterfactual without markers
     for idx, cf in enumerate(cf_list):
         label = (
-            counterfactual_names[idx]
-            if counterfactual_names
-            else f"Artificial {idx + 1}"
+            counterfactual_names[idx] if counterfactual_names else f"Artificial {idx + 1}"
         )
         color = counterfactualcolors[idx % len(counterfactualcolors)]
-        plt.plot(
-            time_axis,
-            cf,
-            label=label,
-            color=color,
-            linestyle="-",
-            linewidth=2
-        )
+        plt.plot(time_axis, cf, label=label, color=color, linestyle="-", linewidth=2)
+
+        # Find valid y values for counterfactuals at tick positions
+        valid_cf_y = [cf[np.where(time_axis == vx)[0][0]] for vx in valid_x]
+
+        # Plot markers only at tick positions for counterfactuals
+        plt.scatter(valid_x, valid_cf_y, color=color, edgecolor='black', zorder=3)
 
     # Add labels, title, legend, and grid
     plt.xlabel(time)
-    #plt.xticks(rotation=45)
     plt.ylabel(outcome)
     plt.title("Observed vs. Prediction")
     plt.legend()
@@ -91,32 +85,25 @@ def plot_estimates(
     # Save or display the plot
     if save:
         if isinstance(save, dict):
-            # Extract options from the dictionary
             filename = save.get("filename", f"{method}_{treated_unit_name}")
             extension = save.get("extension", "png")
             directory = save.get("directory", os.getcwd())
         else:
-            # Use default filename and extension
             filename = f"{method}_{treated_unit_name}"
             extension = "png"
             directory = os.getcwd()
 
-        # Ensure the directory exists
         os.makedirs(directory, exist_ok=True)
-
-        # Construct the full file path
         filepath = os.path.join(directory, f"{filename}.{extension}")
         plt.savefig(filepath)
         print(f"Plot saved to: {filepath}")
-        plt.clf()
 
-    if not save or (
-        isinstance(save, dict) and "display" in save and save["display"]
-    ):
+    if not save or (isinstance(save, dict) and save.get("display", True)):
         plt.show()
 
-    # Clear the plot to avoid overlap in subsequent plots
+    # Clear the figure only once at the end
     plt.clf()
+
 
 class effects:
     @staticmethod
