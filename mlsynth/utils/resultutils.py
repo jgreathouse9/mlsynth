@@ -74,13 +74,13 @@ def plot_estimates(
             counterfactual_names[idx] if counterfactual_names else f"Artificial {idx + 1}"
         )
         color = counterfactualcolors[idx % len(counterfactualcolors)]
-        plt.plot(time_axis, cf, label=label, linestyle="-", linewidth=2)
-
+        plt.plot(time_axis, cf, label=label, linestyle="-", linewidth=2, color=color)
+    
         # Find valid y values for counterfactuals at tick positions
         valid_cf_y = [cf[np.where(time_axis == vx)[0][0]] for vx in valid_x]
-
+    
         # Plot markers only at tick positions for counterfactuals (same color as line)
-        plt.scatter(valid_x, valid_cf_y, color=color, edgecolor="black", zorder=3)
+        plt.scatter(valid_x, valid_cf_y, color=color, zorder=3)
 
     # Add labels, title, legend, and grid
     plt.xlabel(time)
