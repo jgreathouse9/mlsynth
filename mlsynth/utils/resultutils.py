@@ -40,18 +40,13 @@ def plot_estimates(
     intervention_point = df.loc[df[treatmentname] == 1, time].min()
     time_axis = df[df[unitid] == treated_unit_name][time].values
 
-    # Plot intervention point
-    plt.axvline(
-        x=intervention_point,
-        color="black",
-        linestyle="-",
-        linewidth=2,
-        label=f"{treatmentname}, {intervention_point}",
+    plt.axvspan(
+        intervention_point,  # Start shading from intervention time
+        time_axis.max(),  # Shade until the max time value
+        color="gray",  # Shade in gray
+        alpha=0.3,  # Adjust transparency (0 = transparent, 1 = solid)
+        label=f"{treatmentname} Period"
     )
-
-    # Plot observed outcomes without markers
-    plt.plot(time_axis, y, label=f"{treated_unit_name}", linewidth=3, color=treatedcolor)
-
     # Draw plot to determine tick positions
     plt.draw()
     xticks = plt.gca().get_xticks()
@@ -74,7 +69,7 @@ def plot_estimates(
             counterfactual_names[idx] if counterfactual_names else f"Artificial {idx + 1}"
         )
         color = counterfactualcolors[idx % len(counterfactualcolors)]
-        plt.plot(time_axis, cf, label=label, linestyle="-", linewidth=2, color=color)
+        plt.plot(time_axis, cf, label=label, linestyle="-", linewidth=1.25, color=color)
     
         # Find valid y values for counterfactuals at tick positions
         valid_cf_y = [cf[np.where(time_axis == vx)[0][0]] for vx in valid_x]
@@ -82,10 +77,15 @@ def plot_estimates(
         # Plot markers only at tick positions for counterfactuals (same color as line)
         plt.scatter(valid_x, valid_cf_y, color=color, zorder=3)
 
+    # Plot observed outcomes without markers
+    plt.plot(time_axis, y, label=f"{treated_unit_name}", linewidth=2, color=treatedcolor)
+
+
     # Add labels, title, legend, and grid
     plt.xlabel(time)
-    plt.ylabel(outcome)
-    plt.title("Observed vs. Prediction")
+    #plt.ylabel(outcome)
+    plt.title(f"Causal Impact on {outcome}", loc="left")
+
     plt.legend()
 
     # Save or display the plot
