@@ -106,9 +106,7 @@ def plot_estimates(
 
     if not save or (isinstance(save, dict) and save.get("display", True)):
         plt.show()
-
-    # Clear the figure only once at the end
-    plt.clf()
+        plt.clf()
 
 
 
