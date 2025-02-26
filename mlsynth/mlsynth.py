@@ -1392,7 +1392,7 @@ class CLUSTERSC:
             prepped["y"][:prepped["pre_periods"]],
             prepped["pre_periods"],
             L[:, :prepped["pre_periods"]].T,
-            model="SIMPLEX"
+            model="MSCb"
         )
 
         # Calculate synthetic control predictions
