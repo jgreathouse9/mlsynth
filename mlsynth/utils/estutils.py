@@ -794,7 +794,7 @@ def pda(prepped, N, method="fs",tau=None):
             @ prepped["y"][: prepped["pre_periods"]]
         ) / n
 
-        tau1 = np.linalg.norm(eta, ord=np.inf)
+        tau1 = 1.5
 
         if tau is not None:
             # Use the user-specified tau
