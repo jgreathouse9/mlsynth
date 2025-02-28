@@ -798,7 +798,7 @@ class FDID:
             "95 LB": round(CI_95_DID_left, 3),
             "95 UB": round(CI_95_DID_right, 3),
             "Width": CI_95_DID_right - CI_95_DID_left,
-            "SE": std_Omega_hat_DID,
+            "SE": std_Omega_hat_DID / np.sqrt(t2),
             "Intercept": np.round(b_DID, 3),
         }
 
