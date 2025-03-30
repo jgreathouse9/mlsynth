@@ -156,8 +156,8 @@ def l2_relax(time_periods, treated_unit, X, tau):
 
     Parameters:
         time_periods (int): Number of initial time periods to use for estimation.
-        treated_unit (numpy.ndarray): Outcome vector for the treated unit (n x 1).
-        X (numpy.ndarray): Design matrix with rows as time periods and columns as control units (n x p).
+        treated_unit (numpy.ndarray): Outcome vector for the treated unit (T x 1).
+        X (numpy.ndarray): Design matrix with rows as time periods and columns as control units (T x N).
         tau (float): Tuning parameter for the sup-norm constraint.
 
     Returns:
@@ -205,7 +205,7 @@ def l2_relax(time_periods, treated_unit, X, tau):
     return coefficients, intercept, counterfactuals
 
 
-def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
+def cross_validate_tau(treated_unit, X, tau_init, num_tau=2000):
     """
     Cross-validation for L2-relaxation to select the optimal tau by splitting.
 
@@ -322,7 +322,9 @@ def ci_bootstrap(b, Nco, x, y, t1, nb, att, method, y_counterfactual):
         if method in ["MSCc"]:
             xm = xm[:, 1:]
 
-        bm = Opt.SCopt(Nco, ym[:t1], t1, xm[:t1], model=method)
+        prob = Opt.SCopt(Nco, ym[:t1], t1, xm[:t1], model=method)
+
+        bm = prob.solution.primal_vars[next(iter(prob.solution.primal_vars))]
 
         A1_star = -np.mean(np.dot(x2, (bm - b))) * np.sqrt(
             (t2 * m) / t1
@@ -371,11 +373,13 @@ def TSEST(x, y, t1, nb, donornames, t2):
 
         Nco = x.shape[1]
 
-        b = Opt.SCopt(Nco, y[:t1], t1, x[:t1], model=method)
+        prob = Opt.SCopt(Nco, y[:t1], t1, x[:t1], model=method)
+
+        weightest = prob.solution.primal_vars[next(iter(prob.solution.primal_vars))]
 
         weights_dict = {
             donor: weight
-            for donor, weight in zip(donornames, np.round(b, 4))
+            for donor, weight in zip(donornames, np.round(weightest, 4))
             if weight > 0.001
         }
 
@@ -386,7 +390,7 @@ def TSEST(x, y, t1, nb, donornames, t2):
             x = np.c_[np.ones((x.shape[0], 1)), x]
 
         # Calculate the counterfactual outcome
-        y_counterfactual = x.dot(b)
+        y_counterfactual = x.dot(weightest)
 
         attdict, fitdict, Vectors = effects.calculate(
             y, y_counterfactual, t1, t2
@@ -394,7 +398,7 @@ def TSEST(x, y, t1, nb, donornames, t2):
 
         att = attdict["ATT"]
 
-        cis = ci_bootstrap(b, Nco, x, y, t1, nb, att, method, y_counterfactual)
+        cis = ci_bootstrap(weightest, Nco, x, y, t1, nb, att, method, y_counterfactual)
 
         # Create Fit_dict for the specific method
         fit_dict = {
@@ -402,7 +406,7 @@ def TSEST(x, y, t1, nb, donornames, t2):
             "Effects": attdict,
             "95% CI": cis,
             "Vectors": Vectors,
-            "WeightV": np.round(b, 3),
+            "WeightV": np.round(weightest, 3),
             "Weights": weights_dict,
         }
 
@@ -412,7 +416,6 @@ def TSEST(x, y, t1, nb, donornames, t2):
     return fit_dicts_list
 
 
-
 def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False, Frequentist=False):
     # Perform SVT on the original donor matrix
     Y0_rank, n2, u_rank, s_rank, v_rank = svt(X[:pre])
@@ -420,103 +423,146 @@ def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False, Frequentist=
     if cluster:
         X_sub, selected_donor_names, indices = SVDCluster(X[:pre], y, donor_names)
         Y0_rank, n2, u_rank, s_rank, v_rank = svt(X_sub[:pre])
-        # Estimate synthetic control weights
-        if Frequentist:
-            weights = Opt.SCopt(Y0_rank.shape[1], y[:pre], X_sub.shape[0], Y0_rank, model=objective, donor_names=donor_names)
-            weights_dict = {selected_donor_names[i]: weights[i] for i in range(len(weights))}
-            return weights_dict, np.dot(X[:, indices], weights)
 
+        # Frequentist Synthetic Control
+        if Frequentist:
+            prob = Opt.SCopt(Y0_rank.shape[1], y[:pre], X_sub.shape[0], Y0_rank, model=objective,
+                                donor_names=donor_names)
+
+            weights = prob.solution.primal_vars[next(iter(prob.solution.primal_vars))]
+
+
+            weights_dict = {selected_donor_names[i]: weights[i] for i in range(len(weights))}
+
+            return {"weights": weights_dict, "cf_mean": np.dot(X[:, indices], weights)}
+
+        # Bayesian Synthetic Control
         else:
             alpha = 1.0
             beta_D, Sigma_D, Y_pred, Y_var = BayesSCM(Y0_rank, y[:pre], np.var(y[:pre], ddof=1), alpha)
             weights_dict = {selected_donor_names[i]: beta_D[i] for i in range(len(beta_D))}
-            num_samples = 1000  # Number of samples from the posterior predictive distribution
+            num_samples = 1000
             samples = np.random.multivariate_normal(beta_D, Sigma_D, size=num_samples)
 
             # Compute counterfactual predictions for each sample
-            cf_samples = X[:, indices] @ samples.T  # Shape: (num_time_points, num_samples)
+            cf_samples = X[:, indices] @ samples.T
 
-            # Compute the 2.5th and 97.5th percentiles for a 95% credible interval
+            # Compute credible intervals
             lower_bound = np.percentile(cf_samples, 2.5, axis=1)
             upper_bound = np.percentile(cf_samples, 97.5, axis=1)
 
-            return weights_dict, np.median(cf_samples, axis=1)
+            return {
+                "weights": weights_dict,
+                "cf_mean": np.median(cf_samples, axis=1),
+                "credible_interval": (lower_bound, upper_bound)
+            }
 
     else:
-        # Default to the full low-rank approximation
         if Frequentist:
-            weights = Opt.SCopt(n2, y[:pre], X.shape[0], Y0_rank, model=objective, donor_names=donor_names)
-            weights_dict = {donor_names[i]: weights[i] for i in range(len(weights))}
-            return weights_dict, np.dot(X, weights)
+            prob = Opt.SCopt(n2, y[:pre], X.shape[0], Y0_rank, model=objective, donor_names=donor_names)
+
+            weights = prob.solution.primal_vars[next(iter(prob.solution.primal_vars))]
+            return {"weights": weights, "cf_mean": np.dot(X, weights)}
 
         else:
             alpha = 1.0
             beta_D, Sigma_D, Y_pred, Y_var = BayesSCM(Y0_rank, y[:pre], np.var(y[:pre], ddof=1), alpha)
             weights_dict = {donor_names[i]: beta_D[i] for i in range(len(beta_D))}
-            num_samples = 1000  # Number of samples from the posterior predictive distribution
+            num_samples = 4000
             samples = np.random.multivariate_normal(beta_D, Sigma_D, size=num_samples)
 
             # Compute counterfactual predictions for each sample
-            cf_samples = X @ samples.T  # Shape: (num_time_points, num_samples)
+            cf_samples = X @ samples.T
 
-            # Compute the 2.5th and 97.5th percentiles for a 95% credible interval
+            # Compute credible intervals
             lower_bound = np.percentile(cf_samples, 2.5, axis=1)
             upper_bound = np.percentile(cf_samples, 97.5, axis=1)
 
-            # Predictive mean is the median of the sampled counterfactuals
-            cf_mean = np.median(cf_samples, axis=1)
-            cf = np.dot(X, beta_D)
+            return {
+                "weights": weights_dict,
+                "cf_mean": np.median(cf_samples, axis=1),
+                "credible_interval": (lower_bound, upper_bound)
+            }
 
-            return weights_dict, cf_mean
 
+import cvxpy as cp
+import numpy as np
 
 
 class Opt:
     @staticmethod
-    def SCopt(Nco, y, t1, X, model="MSCb", donor_names=None):
+    def SCopt(Nco, y, t1, X, model="MSCb", donor_names=None, model_weights=None):
+        """
+        Parameters:
+        - Nco: Number of control units (donors)
+        - y: Target vector
+        - t1: Number of pre-treatment periods
+        - X: Donor matrix (features)
+        - model: Optimization method ('MSCa', 'MSCb', 'MSCc', 'SIMPLEX', 'OLS', 'MA')
+        - donor_names: Optional names of donor units
+        - model_weights: List of Nco-length weight vectors (required if model="MA")
 
+        Returns:
+        - Optimized problem object
+        """
         # Check if matrix dimensions allow multiplication
         if X.shape[0] != y.shape[0]:
-            raise ValueError(
-                "Number of columns in X must be equal to the number of rows in y."
-            )
+            raise ValueError("Number of columns in X must be equal to the number of rows in y.")
 
         if model in ["MSCa", "MSCc"]:
             Nco += 1
             if donor_names:
                 donor_names = ["Intercept"] + list(donor_names)
 
-        # Define the optimization variable
-        beta = cp.Variable(Nco)
+        if model == "MA":
+            if model_weights is None or not isinstance(model_weights, list):
+                raise ValueError("For model averaging ('MA'), must provide a list of weight vectors.")
+            M = len(model_weights)  # Number of models
+            if any(len(w) != Nco for w in model_weights):
+                raise ValueError("Each model weight vector must have length Nco.")
 
-        # Preallocate memory for constraints
-        constraints = [beta >= 0] if model != "OLS" else []
+            # Define model combination weights (lambda_vars)
+            lambda_vars = cp.Variable(M)
 
-        # If intercept added, append the intercept column to X
-        if model in ["MSCa", "MSCc"]:
-            X = np.c_[np.ones((X.shape[0], 1)), X]
+            # Compute the model-averaged donor weights
+            w_MA = sum(lambda_vars[m] * model_weights[m] for m in range(M))
 
-        # Define the objective function
-        objective = cp.Minimize(cp.norm(y[:t1] - X @ beta, 2))
+            # Define the objective function (squared error)
+            objective = cp.Minimize(cp.norm(y[:t1] - X @ w_MA, 2))
 
-        # Define the constraints based on the selected method
-        if model == "SIMPLEX":
-            constraints.append(
-                cp.sum(beta) == 1
-            )  # Sum constraint for all coefficients
-        elif model == "MSCa":
-            constraints.append(
-                cp.sum(beta[1:]) == 1
-            )  # Sum constraint for coefficients excluding intercept
-        elif model == "MSCc":
-            constraints.append(beta[1:] >= 0)
+            # Constraints: convex combination of model weights
+            constraints = [
+                cp.sum(lambda_vars) == 1,  # Weights sum to 1
+                lambda_vars >= 0  # Weights are non-negative
+            ]
 
+        else:
+            # Define the optimization variable
+            beta = cp.Variable(Nco)
+
+            # Constraints setup
+            constraints = [beta >= 0] if model != "OLS" else []
+
+            # If intercept added, append the intercept column to X
+            if model in ["MSCa", "MSCc"]:
+                X = np.c_[np.ones((X.shape[0], 1)), X]
+
+            # Define the objective function
+            objective = cp.Minimize(cp.norm(y[:t1] - X @ beta, 2))
+
+            # Constraints for different models
+            if model == "SIMPLEX":
+                constraints.append(cp.sum(beta) == 1)
+            elif model == "MSCa":
+                constraints.append(cp.sum(beta[1:]) == 1)
+            elif model == "MSCc":
+                constraints.append(beta[1:] >= 0)
+
+        # Solve the optimization problem
         prob = cp.Problem(objective, constraints)
-
-        # Solve the problem
         result = prob.solve(solver=cp.CLARABEL)
 
-        return beta.value
+        return prob
 
 
 def pda(prepped, N, method="fs",tau=None):
@@ -796,6 +842,7 @@ def pda(prepped, N, method="fs",tau=None):
 
         tau1 = 1.5
 
+
         if tau is not None:
             # Use the user-specified tau
             tau_to_use = tau
@@ -841,6 +888,7 @@ def pda(prepped, N, method="fs",tau=None):
             "Effects": attdict,
             "Fit": fitdict,
             "Vectors": Vectors,
+            "Intercept": intercept
         }
 
     else:
