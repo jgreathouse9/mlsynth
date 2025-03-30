@@ -1755,7 +1755,7 @@ class FSCM:
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
                 cf_list=[counterfactual],
-                counterfactual_names=[f"Forward SC {prepped["treated_unit_name"]}"],  # Use the dynamic counterfactual names
+                counterfactual_names=[f"Forward SC {prepped['treated_unit_name']}"],  # Use the dynamic counterfactual names
                 method="CLUSTERSC",
                 treatedcolor="black",
                 counterfactualcolors=self.counterfactual_color,
