@@ -7,6 +7,7 @@ from scipy.stats import norm
 import scipy.stats as stats
 import warnings
 from sklearn.cluster import KMeans
+from concurrent.futures import ThreadPoolExecutor
 from screenot.ScreeNOT import adaptiveHardThresholding
 from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
 from mlsynth.utils.resultutils import effects, plot_estimates
@@ -209,8 +210,8 @@ class TSSC:
             (None, None),
         )
 
+        # Call the function
         if self.display_graphs:
-
             plot_estimates(
                 df=self.df,
                 time=self.time,
@@ -220,11 +221,11 @@ class TSSC:
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
                 cf_list=[recommended_variable],
-                counterfactual_names=[recommended_model],
-                method=f"{recommended_model}",
+                counterfactual_names=[recommended_model],  # Use the dynamic counterfactual names
+                method="TSSC",
                 treatedcolor=self.treated_color,
-                counterfactualcolors=[self.counterfactual_color],
-                save=self.save,
+                counterfactualcolors=self.counterfactual_color,
+                save=self.save
             )
 
         return result
@@ -1330,7 +1331,7 @@ class CLUSTERSC:
                            self.outcome, self.treat)
 
         # Run PCR with the cluster parameter
-        RSCweight, synth = pcr(
+        result = pcr(
             prepped["donor_matrix"],
             prepped["y"],
             self.objective,
@@ -1340,14 +1341,14 @@ class CLUSTERSC:
             cluster=self.cluster,
             Frequentist=self.Frequentist
         )
-        RSCweight = {key: round(value, 3) for key, value in RSCweight.items()}
+        #RSCweight = {key: round(value, 3) for key, value in RSCweight.items()}
 
         # Calculate effects
         attdict, fitdict, Vectors = effects.calculate(
-            prepped["y"], synth, prepped["pre_periods"], prepped["post_periods"]
+            prepped["y"], result['cf_mean'], prepped["pre_periods"], prepped["post_periods"]
         )
 
-        RSCdict = {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Weights": RSCweight}
+        RSCdict = {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Weights": result["weights"]}
 
         # Pivot the DataFrame to wide format
         trainframe = self.df.pivot_table(
@@ -1372,6 +1373,7 @@ class CLUSTERSC:
         y = Y[treated_row_idx]
         Y0 = np.delete(Y, treated_row_idx, axis=0)
 
+
         # Perform RPCA based on self.ROB
         if self.ROB == "PCP":  # Default case
             L = RPCA(Y0)
@@ -1387,13 +1389,15 @@ class CLUSTERSC:
             L = RPCA(Y0)  # Default to RPCA
 
         # Optimize synthetic control weights using pre-period data
-        beta_value = Opt.SCopt(
+        rpcaw = Opt.SCopt(
             len(Y0),
             prepped["y"][:prepped["pre_periods"]],
             prepped["pre_periods"],
             L[:, :prepped["pre_periods"]].T,
             model="MSCb"
         )
+
+        beta_value = rpcaw.solution.primal_vars[next(iter(rpcaw.solution.primal_vars))]
 
         # Calculate synthetic control predictions
         y_RPCA = np.dot(L.T, beta_value)
@@ -1423,7 +1427,7 @@ class CLUSTERSC:
                 treatmentname=self.treat,
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
-                cf_list=[y_RPCA, synth],
+                cf_list=[y_RPCA, result["cf_mean"]],
                 counterfactual_names=counterfactual_names,  # Use the dynamic counterfactual names
                 method="CLUSTERSC",
                 treatedcolor="black",
@@ -1632,3 +1636,128 @@ class PROXIMAL:
 
         return ProximalDict
 
+
+class FSCM:
+    def __init__(self, config):
+        """
+        This function provides ATT estimates and weights using Robust PCA Synthetic Control (RPCA SCM) and Principal Component Regression (PCR).
+
+        Parameters
+        ----------
+        config : dict
+            A dictionary containing the necessary parameters. The following keys are expected:
+            - df, treat, time, outcome, unitid, cluster, objective, etc.
+        """
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.display_graphs = config.get("display_graphs", True)
+        self.save = config.get("save", False)
+
+    def evaluate_donor(self, donor_index, donor_columns, y_pre, T0):
+        """
+        Evaluate the MSE for a given donor index using the SCM optimization.
+        """
+        donor = donor_columns[donor_index]
+        prob = Opt.SCopt(1, y_pre, T0, donor, model="SIMPLEX")
+        mse = prob.solution.opt_val
+        return donor_index, mse
+
+    def fSCM(self, y_pre, Y0, T0):
+        """
+        Returns the optimal donor indices, their corresponding weights, and optimal RMSE using Synthetic Control Method (SCM).
+        """
+        best_mse = float("inf")
+        best_set = None
+        donor_columns = [Y0[:, i].reshape(-1, 1) for i in range(Y0.shape[1])]  # Precompute donor columns
+
+        # Find the best single donor in parallel
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            donor_mse_results = list(
+                executor.map(lambda i: self.evaluate_donor(i, donor_columns, y_pre, T0), range(Y0.shape[1])))
+
+        donor_mse_results.sort(key=lambda x: x[1])  # Sort by MSE
+        best_set = [donor_mse_results[0][0]]  # Store the best donor index
+        best_mse = donor_mse_results[0][1]
+
+        # Greedy donor addition
+        all_donors = set(range(Y0.shape[1]))
+        remaining_donors = all_donors - set(best_set)
+
+        best_combination = best_set
+        best_combination_mse = best_mse
+
+        for j in remaining_donors:
+            current_set = best_combination + [j]
+            Y0_subset = Y0[:, current_set]
+
+            prob = Opt.SCopt(len(current_set), y_pre, T0, Y0_subset, model="SIMPLEX")
+            mse = np.sqrt((prob.solution.opt_val ** 2) / T0)
+
+            if mse < best_combination_mse:
+                best_combination_mse = mse
+                best_combination = current_set
+
+        optimal_indices = best_combination
+        optimal_Y0 = Y0[:, optimal_indices]
+        prob = Opt.SCopt(len(optimal_indices), y_pre, T0, optimal_Y0, model="SIMPLEX")
+
+        first_key = list(prob.solution.primal_vars.keys())[0]
+        weights = prob.solution.primal_vars[first_key]
+
+        optimal_rmse = best_combination_mse
+
+        return optimal_indices, weights, optimal_rmse, optimal_Y0, y_pre
+
+    def fit(self):
+        balance(self.df, self.unitid, self.time)
+
+        prepped = dataprep(self.df,
+                           self.unitid, self.time,
+                           self.outcome, self.treat)
+
+        Y0 = prepped["donor_matrix"][:prepped["pre_periods"]]  # Pre-period donor matrix
+        y_pre = prepped["y"][:prepped["pre_periods"]]  # Pre-period treated unit
+        T0 = prepped["pre_periods"]
+
+        optimal_indices, rounded_weights, optimal_rmse, optimal_Y0, y_pre = self.fSCM(y_pre, Y0, T0)
+
+        Y0_selected = prepped["donor_matrix"][:, optimal_indices]
+
+        counterfactual = np.dot(Y0_selected, rounded_weights)
+        # Extract donor names from prepped["donor_names"]
+        donor_names = prepped["donor_names"]
+
+        # Select the donor names corresponding to the optimal indices
+        selected_donor_names = [donor_names[i] for i in optimal_indices]
+
+        # Extract the corresponding weights for the optimal indices
+        donor_weights =  {selected_donor_names[i]: round(rounded_weights[i], 3) for i in range(len(optimal_indices))}
+
+
+        attdict, fitdict, Vectors = effects.calculate(prepped["y"], counterfactual, prepped["pre_periods"],
+                                                       prepped["post_periods"])
+
+
+
+        # Call the function
+        if self.display_graphs:
+            plot_estimates(
+                df=self.df,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname=self.treat,
+                treated_unit_name=prepped["treated_unit_name"],
+                y=prepped["y"],
+                cf_list=[counterfactual],
+                counterfactual_names=[f"Forward SC {prepped["treated_unit_name"]}"],  # Use the dynamic counterfactual names
+                method="CLUSTERSC",
+                treatedcolor="black",
+                counterfactualcolors=self.counterfactual_color,
+                save=self.save
+            )
