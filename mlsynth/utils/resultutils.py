@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
+from matplotlib import rc_context
 
 def plot_estimates(
     df,
@@ -36,77 +37,104 @@ def plot_estimates(
     - counterfactual_names: List of custom names for counterfactuals (optional).
     - save: Boolean or dictionary for saving the plot. Defaults to False.
     """
-    # Identify the intervention point
-    intervention_point = df.loc[df[treatmentname] == 1, time].min()
-    time_axis = df[df[unitid] == treated_unit_name][time].values
 
-    plt.axvspan(
-        intervention_point,  # Start shading from intervention time
-        time_axis.max(),  # Shade until the max time value
-        color="gray",  # Shade in gray
-        alpha=0.3,  # Adjust transparency (0 = transparent, 1 = solid)
-        label=f"{treatmentname} Period"
-    )
-    # Draw plot to determine tick positions
-    plt.draw()
-    xticks = plt.gca().get_xticks()
+    ubertheme = {
+        "figure.facecolor": "white",
+        "figure.figsize": (11, 5),
+        "figure.dpi": 100,
+        "figure.titlesize": 16,
+        "figure.titleweight": "bold",
+        "lines.linewidth": 1.2,
+        "patch.facecolor": "#0072B2",  # Blue shade for patches
+        "xtick.direction": "out",
+        "ytick.direction": "out",
+        "font.size": 14,
+        "font.family": "sans-serif",
+        "font.sans-serif": ["DejaVu Sans"],
+        "axes.grid": True,
+        "axes.facecolor": "white",
+        "axes.linewidth": 0.1,
+        "axes.titlesize": "large",
+        "axes.titleweight": "bold",
+        "axes.labelsize": "medium",
+        "axes.labelweight": "bold",
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.spines.left": False,
+        "axes.spines.bottom": False,
+        "axes.titlepad": 25,
+        "axes.labelpad": 20,
+        "grid.alpha": 0.1,
+        "grid.linewidth": 0.5,
+        "grid.color": "#000000",
+        "legend.framealpha": 0.5,
+        "legend.fancybox": True,
+        "legend.borderpad": 0.5,
+        "legend.loc": "best",
+        "legend.fontsize": "small",
+    }
 
-    # Handle datetime x-axis
-    if np.issubdtype(time_axis.dtype, np.datetime64):
-        xticks = pd.to_datetime(xticks, unit="D")  # Convert float ticks to datetime
-        time_axis = pd.to_datetime(time_axis)  # Ensure time_axis is also datetime
+    with rc_context(rc=ubertheme):
+        # Identify the intervention point
+        intervention_point = df.loc[df[treatmentname] == 1, time].min()
+        time_axis = df[df[unitid] == treated_unit_name][time].values
 
-    # Find the closest x values to tick positions
-    valid_x = np.intersect1d(time_axis, xticks)
-    valid_y = [y[np.where(time_axis == vx)[0][0]] for vx in valid_x]
-
-    # Plot markers only at tick positions for observed data (same color as line)
-    #plt.scatter(valid_x, valid_y, color=treatedcolor, zorder=3)
-
-    # Plot each counterfactual without markers
-    for idx, cf in enumerate(cf_list):
-        label = (
-            counterfactual_names[idx] if counterfactual_names else f"Artificial {idx + 1}"
+        plt.axvline(
+            x=intervention_point,
+            color='grey',
+            linestyle='--',  # Dashed line
+            linewidth=1.2,  # Line thickness
+            label=f"{treatmentname}" # Optional label for the reference line
         )
-        color = counterfactualcolors[idx % len(counterfactualcolors)]
-        plt.plot(time_axis, cf, label=label, linestyle="-", linewidth=1.25, color=color)
-    
-        # Find valid y values for counterfactuals at tick positions
-        valid_cf_y = [cf[np.where(time_axis == vx)[0][0]] for vx in valid_x]
-    
-        # Plot markers only at tick positions for counterfactuals (same color as line)
-        #plt.scatter(valid_x, valid_cf_y, color=color, zorder=3)
 
-    # Plot observed outcomes without markers
-    plt.plot(time_axis, y, label=f"{treated_unit_name}", linewidth=2, color=treatedcolor)
+        plt.draw()
+        xticks = plt.gca().get_xticks()
 
+        # Handle datetime x-axis
+        if np.issubdtype(time_axis.dtype, np.datetime64):
+            xticks = pd.to_datetime(xticks, unit="D")
+            time_axis = pd.to_datetime(time_axis)
 
-    # Add labels, title, legend, and grid
-    plt.xlabel(time)
-    #plt.ylabel(outcome)
-    plt.title(f"Causal Impact on {outcome}", loc="left")
+        # Find the closest x values to tick positions
+        valid_x = np.intersect1d(time_axis, xticks)
+        valid_y = [y[np.where(time_axis == vx)[0][0]] for vx in valid_x]
 
-    plt.legend()
+        # Plot each counterfactual
+        for idx, cf in enumerate(cf_list):
+            label = (
+                counterfactual_names[idx] if counterfactual_names else f"Artificial {idx + 1}"
+            )
+            color = counterfactualcolors[idx % len(counterfactualcolors)]
+            plt.plot(time_axis, cf, label=label, linestyle="-", color=color)
 
-    # Save or display the plot
-    if save:
-        if isinstance(save, dict):
-            filename = save.get("filename", f"{method}_{treated_unit_name}")
-            extension = save.get("extension", "png")
-            directory = save.get("directory", os.getcwd())
-        else:
-            filename = f"{method}_{treated_unit_name}"
-            extension = "png"
-            directory = os.getcwd()
+        # Plot observed outcomes
+        plt.plot(time_axis, y, label=f"{treated_unit_name}", color=treatedcolor)
 
-        os.makedirs(directory, exist_ok=True)
-        filepath = os.path.join(directory, f"{filename}.{extension}")
-        plt.savefig(filepath)
-        print(f"Plot saved to: {filepath}")
+        # Add labels, title, legend, and grid
+        plt.xlabel(time)
+        plt.title(f"Causal Impact on {outcome}", loc="left")
+        plt.legend()
 
-    if not save or (isinstance(save, dict) and save.get("display", True)):
-        plt.show()
-        plt.clf()
+        # Save or display the plot
+        if save:
+            if isinstance(save, dict):
+                filename = save.get("filename", f"{method}_{treated_unit_name}")
+                extension = save.get("extension", "png")
+                directory = save.get("directory", os.getcwd())
+            else:
+                filename = f"{method}_{treated_unit_name}"
+                extension = "png"
+                directory = os.getcwd()
+
+            os.makedirs(directory, exist_ok=True)
+            filepath = os.path.join(directory, f"{filename}.{extension}")
+            plt.savefig(filepath)
+            print(f"Plot saved to: {filepath}")
+
+        if not save or (isinstance(save, dict) and save.get("display", True)):
+            plt.show()
+            plt.close()
+
 
 
 
