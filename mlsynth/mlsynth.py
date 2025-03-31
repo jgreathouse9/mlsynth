@@ -1640,13 +1640,12 @@ class PROXIMAL:
 class FSCM:
     def __init__(self, config):
         """
-        This function provides ATT estimates using the forward selected synthetic control method. 
+        This function provides ATT estimates using the forward selected synthetic control method.
         Originally, this was develoepd by
 
-        Cerulli, Giovanni. 2024. "Optimal initial donor selection for the synthetic control method." 
-        Economics Letters 244: 111976. 
+        Cerulli, Giovanni. 2024. "Optimal initial donor selection for the synthetic control method."
+        Economics Letters 244: 111976.
         https://doi.org/10.1016/j.econlet.2024.111976.
-        
 
         Parameters
         ----------
