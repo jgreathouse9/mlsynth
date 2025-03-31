@@ -1659,18 +1659,14 @@ class FSCM:
         self.save = config.get("save", False)
 
     def evaluate_donor(self, donor_index, donor_columns, y_pre, T0):
-        """
-        Evaluate the MSE for a given donor index using the SCM optimization.
-        """
+        """Evaluate the MSE for a given donor index using the SCM optimization."""
         donor = donor_columns[donor_index]
         prob = Opt.SCopt(1, y_pre, T0, donor, model="SIMPLEX")
         mse = prob.solution.opt_val
         return donor_index, mse
 
     def fSCM(self, y_pre, Y0, T0):
-        """
-        Returns the optimal donor indices, their corresponding weights, and optimal RMSE using Synthetic Control Method (SCM).
-        """
+        """Returns the optimal donor indices, their corresponding weights, and optimal RMSE using Synthetic Control Method (SCM)."""
         best_mse = float("inf")
         best_set = None
         donor_columns = [Y0[:, i].reshape(-1, 1) for i in range(Y0.shape[1])]  # Precompute donor columns
