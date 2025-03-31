@@ -4,6 +4,8 @@ import os
 import pandas as pd
 from matplotlib import rc_context
 
+
+
 def plot_estimates(
     df,
     time,
@@ -75,29 +77,17 @@ def plot_estimates(
     }
 
     with rc_context(rc=ubertheme):
-        # Identify the intervention point
-        intervention_point = df.loc[df[treatmentname] == 1, time].min()
-        time_axis = df[df[unitid] == treated_unit_name][time].values
+
+        x = np.arange(len(y))
+        formatted_date = df["Ywide"].index[df["pre_periods"]]
 
         plt.axvline(
-            x=intervention_point,
+            x=df["pre_periods"],
             color='grey',
             linestyle='--',  # Dashed line
-            linewidth=1.2,  # Line thickness
-            label=f"{treatmentname}" # Optional label for the reference line
+            linewidth=1.8,  # Line thickness
+            label=f"{treatmentname}, {formatted_date}" # Optional label for the reference line
         )
-
-        plt.draw()
-        xticks = plt.gca().get_xticks()
-
-        # Handle datetime x-axis
-        if np.issubdtype(time_axis.dtype, np.datetime64):
-            xticks = pd.to_datetime(xticks, unit="D")
-            time_axis = pd.to_datetime(time_axis)
-
-        # Find the closest x values to tick positions
-        valid_x = np.intersect1d(time_axis, xticks)
-        valid_y = [y[np.where(time_axis == vx)[0][0]] for vx in valid_x]
 
         # Plot each counterfactual
         for idx, cf in enumerate(cf_list):
@@ -105,14 +95,23 @@ def plot_estimates(
                 counterfactual_names[idx] if counterfactual_names else f"Artificial {idx + 1}"
             )
             color = counterfactualcolors[idx % len(counterfactualcolors)]
-            plt.plot(time_axis, cf, label=label, linestyle="-", color=color)
+            plt.plot(x, cf, label=label, linestyle="-", color=color, linewidth=1.5)
 
         # Plot observed outcomes
-        plt.plot(time_axis, y, label=f"{treated_unit_name}", color=treatedcolor)
+        plt.plot(x, y, label=f"{treated_unit_name}", color=treatedcolor, linewidth=1.5)
 
         # Add labels, title, legend, and grid
         plt.xlabel(time)
-        plt.title(f"Causal Impact on {outcome}", loc="left")
+        # Extract min and max index values
+        mindate = df["Ywide"].index.min()
+        maxdate = df["Ywide"].index.max()
+
+        # Format them if they are datetime
+        mindate_str = mindate.strftime("%Y-%m-%d") if hasattr(mindate, "strftime") else str(mindate)
+        maxdate_str = maxdate.strftime("%Y-%m-%d") if hasattr(maxdate, "strftime") else str(maxdate)
+
+        # Set the title
+        plt.title(f"Causal Impact on {outcome}, {mindate_str} to {maxdate_str}", loc="left")
         plt.legend()
 
         # Save or display the plot
