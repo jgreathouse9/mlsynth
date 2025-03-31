@@ -213,7 +213,7 @@ class TSSC:
         # Call the function
         if self.display_graphs:
             plot_estimates(
-                df=self.df,
+                df=prepped,
                 time=self.time,
                 unitid=self.unitid,
                 outcome=self.outcome,
@@ -450,7 +450,7 @@ class FMA:
         if self.display_graphs:
 
             plot_estimates(
-                self.df,
+               prepped,
                 self.time,
                 self.unitid,
                 self.outcome,
@@ -596,7 +596,7 @@ class PDA:
         if self.display_graphs:
 
             plot_estimates(
-                df=self.df,
+                df=prepped,
                 time=self.time,
                 unitid=self.unitid,
                 outcome=self.outcome,
@@ -1083,7 +1083,7 @@ class FDID:
         if self.display_graphs:
 
             plot_estimates(
-                self.df,
+                prepped,
                 self.time,
                 self.unitid,
                 self.outcome,
@@ -1205,7 +1205,7 @@ class GSC:
 
         if self.display_graphs:
             plot_estimates(
-                df=self.df,
+                df=prepped,
                 time=self.time,
                 unitid=self.unitid,
                 outcome=self.outcome,
@@ -1420,7 +1420,7 @@ class CLUSTERSC:
         # Call the function
         if self.display_graphs:
             plot_estimates(
-                df=self.df,
+                df=prepped,
                 time=self.time,
                 unitid=self.unitid,
                 outcome=self.outcome,
@@ -1618,7 +1618,7 @@ class PROXIMAL:
 
         if self.display_graphs:
             plot_estimates(
-                self.df,
+                prepped,
                 self.time,
                 self.unitid,
                 self.outcome,
@@ -1640,18 +1640,13 @@ class PROXIMAL:
 class FSCM:
     def __init__(self, config):
         """
-        This function provides ATT estimates using the forward selected synthetic control method.
-        Originally, this was develoepd by
-
-        Cerulli, Giovanni. 2024. "Optimal initial donor selection for the synthetic control method."
-        Economics Letters 244: 111976.
-        https://doi.org/10.1016/j.econlet.2024.111976.
+        This function provides ATT estimates and weights using Robust PCA Synthetic Control (RPCA SCM) and Principal Component Regression (PCR).
 
         Parameters
         ----------
         config : dict
             A dictionary containing the necessary parameters. The following keys are expected:
-            - df, treat, time, outcome, unitid.
+            - df, treat, time, outcome, unitid, cluster, objective, etc.
         """
         self.df = config.get("df")
         self.outcome = config.get("outcome")
@@ -1664,14 +1659,18 @@ class FSCM:
         self.save = config.get("save", False)
 
     def evaluate_donor(self, donor_index, donor_columns, y_pre, T0):
-        """Evaluate the MSE for a given donor index using the SCM optimization."""
+        """
+        Evaluate the MSE for a given donor index using the SCM optimization.
+        """
         donor = donor_columns[donor_index]
         prob = Opt.SCopt(1, y_pre, T0, donor, model="SIMPLEX")
         mse = prob.solution.opt_val
         return donor_index, mse
 
     def fSCM(self, y_pre, Y0, T0):
-        """Returns the optimal donor indices, their corresponding weights, and optimal RMSE using Synthetic Control Method (SCM)."""
+        """
+        Returns the optimal donor indices, their corresponding weights, and optimal RMSE using Synthetic Control Method (SCM).
+        """
         best_mse = float("inf")
         best_set = None
         donor_columns = [Y0[:, i].reshape(-1, 1) for i in range(Y0.shape[1])]  # Precompute donor columns
@@ -1730,13 +1729,15 @@ class FSCM:
         Y0_selected = prepped["donor_matrix"][:, optimal_indices]
 
         counterfactual = np.dot(Y0_selected, rounded_weights)
-
+        # Extract donor names from prepped["donor_names"]
         donor_names = prepped["donor_names"]
 
-
+        # Select the donor names corresponding to the optimal indices
         selected_donor_names = [donor_names[i] for i in optimal_indices]
 
+        # Extract the corresponding weights for the optimal indices
         donor_weights =  {selected_donor_names[i]: round(rounded_weights[i], 3) for i in range(len(optimal_indices))}
+
 
         attdict, fitdict, Vectors = effects.calculate(prepped["y"], counterfactual, prepped["pre_periods"],
                                                        prepped["post_periods"])
@@ -1746,7 +1747,7 @@ class FSCM:
         # Call the function
         if self.display_graphs:
             plot_estimates(
-                df=self.df,
+                df=prepped,
                 time=self.time,
                 unitid=self.unitid,
                 outcome=self.outcome,
@@ -1754,9 +1755,23 @@ class FSCM:
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
                 cf_list=[counterfactual],
-                counterfactual_names=[f"Forward SC {prepped['treated_unit_name']}"],  # Use the dynamic counterfactual names
+                counterfactual_names=[f"FSC {prepped["treated_unit_name"]}"],  # Use the dynamic counterfactual names
                 method="CLUSTERSC",
                 treatedcolor="black",
                 counterfactualcolors=self.counterfactual_color,
                 save=self.save
             )
+
+        return {
+            "Effects": attdict,
+            "Fit": fitdict,
+            "Vectors": Vectors,
+            "Weights": [
+                donor_weights,
+                {
+                    "Cardinality of Positive Donors": np.sum(np.abs(rounded_weights) > 0.001),
+                    "Cardinality of Selected Donor Pool": np.shape(optimal_Y0)[1]
+                }
+            ],
+            "_prepped": prepped
+        }
