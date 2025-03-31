@@ -1640,13 +1640,19 @@ class PROXIMAL:
 class FSCM:
     def __init__(self, config):
         """
-        This function provides ATT estimates and weights using Robust PCA Synthetic Control (RPCA SCM) and Principal Component Regression (PCR).
+        This function provides ATT estimates using the forward selected synthetic control method. 
+        Originally, this was develoepd by
+
+        Cerulli, Giovanni. 2024. "Optimal initial donor selection for the synthetic control method." 
+        Economics Letters 244: 111976. 
+        https://doi.org/10.1016/j.econlet.2024.111976.
+        
 
         Parameters
         ----------
         config : dict
             A dictionary containing the necessary parameters. The following keys are expected:
-            - df, treat, time, outcome, unitid, cluster, objective, etc.
+            - df, treat, time, outcome, unitid.
         """
         self.df = config.get("df")
         self.outcome = config.get("outcome")
@@ -1725,15 +1731,13 @@ class FSCM:
         Y0_selected = prepped["donor_matrix"][:, optimal_indices]
 
         counterfactual = np.dot(Y0_selected, rounded_weights)
-        # Extract donor names from prepped["donor_names"]
+
         donor_names = prepped["donor_names"]
 
-        # Select the donor names corresponding to the optimal indices
+
         selected_donor_names = [donor_names[i] for i in optimal_indices]
 
-        # Extract the corresponding weights for the optimal indices
         donor_weights =  {selected_donor_names[i]: round(rounded_weights[i], 3) for i in range(len(optimal_indices))}
-
 
         attdict, fitdict, Vectors = effects.calculate(prepped["y"], counterfactual, prepped["pre_periods"],
                                                        prepped["post_periods"])
