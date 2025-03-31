@@ -221,7 +221,7 @@ class TSSC:
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
                 cf_list=[recommended_variable],
-                counterfactual_names=[recommended_model],  # Use the dynamic counterfactual names
+                counterfactual_names=[recommended_model],
                 method="TSSC",
                 treatedcolor=self.treated_color,
                 counterfactualcolors=self.counterfactual_color,
