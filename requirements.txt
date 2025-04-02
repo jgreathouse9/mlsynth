@@ -3,6 +3,6 @@ numpy
 matplotlib
 scipy
 scikit-learn
-cvxpy
+clarable[cvxpy]
 screenot
 statsmodels
