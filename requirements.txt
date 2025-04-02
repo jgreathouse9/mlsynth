@@ -3,6 +3,7 @@ numpy
 matplotlib
 scipy
 scikit-learn
-cvxpy
+cvxpy --no-deps
+clarabel
 screenot
 statsmodels
