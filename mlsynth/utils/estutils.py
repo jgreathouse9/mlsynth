@@ -484,11 +484,6 @@ def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False, Frequentist=
                 "credible_interval": (lower_bound, upper_bound)
             }
 
-
-import cvxpy as cp
-import numpy as np
-
-
 class Opt:
     @staticmethod
     def SCopt(Nco, y, t1, X, model="MSCb", donor_names=None, model_weights=None):
@@ -528,7 +523,7 @@ class Opt:
             w_MA = sum(lambda_vars[m] * model_weights[m] for m in range(M))
 
             # Define the objective function (squared error)
-            objective = cp.Minimize(cp.norm(y[:t1] - X @ w_MA, 2))
+            objective = cp.Minimize(cp.norm(y[:t1] - X @ w_MA, 2)**2)
 
             # Constraints: convex combination of model weights
             constraints = [
