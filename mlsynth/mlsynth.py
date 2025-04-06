@@ -1796,9 +1796,7 @@ class SRC:
         self.save = config.get("save", False)
 
     def fit(self):
-        """
-        Fit the SRC model to compute optimal donor weights and counterfactual estimates.
-        """
+        """Fit the SRC model to compute optimal donor weights and counterfactual estimates."""
         # Preparing the data using dataprep (you should ensure the function `dataprep` is defined elsewhere)
         prepped = dataprep(self.df,
                            self.unitid, self.time,
