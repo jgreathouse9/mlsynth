@@ -1829,7 +1829,7 @@ class SRC:
         penalty_term = 2 * sigma_hat_squared * np.ones(n_donors)
 
         # Objective function: Minimize the penalized least squares
-        objective = cp.Minimize(cp.norm(y_pre - Y0 @ w, p=2) + penalty_term.T @ cp.abs(w))
+        objective = cp.Minimize(cp.norm(y_pre - Y0 @ w, p=2)**2 + penalty_term.T @ cp.abs(w))
 
         # Constraints: Weights must sum to 1 (synthetic control requirement)
         constraints = [cp.sum(w) == 1]
