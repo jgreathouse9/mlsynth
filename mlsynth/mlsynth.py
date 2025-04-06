@@ -5,6 +5,7 @@ import matplotlib
 from numpy.linalg import inv
 from scipy.stats import norm
 import scipy.stats as stats
+import cvxpy as cp
 import warnings
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor
