@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from screenot.ScreeNOT import adaptiveHardThresholding
 from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
 from mlsynth.utils.resultutils import effects, plot_estimates
-from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post
+from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, get_theta, get_sigmasq, SRCest
 from mlsynth.utils.inferutils import step2
 from mlsynth.utils.selectorsutils import fpca
 from mlsynth.utils.denoiseutils import (
@@ -1797,61 +1797,26 @@ class SRC:
         self.save = config.get("save", False)
 
     def fit(self):
-        """Fit the SRC model to compute optimal donor weights and counterfactual estimates."""
-        # Preparing the data using dataprep (you should ensure the function `dataprep` is defined elsewhere)
+        """
+        This method prepares the data and runs the SRC estimation process.
+        """
+
+        # Pre-process the data using dataprep function
         prepped = dataprep(self.df,
-                           self.unitid, self.time,
-                           self.outcome, self.treat)
+                           self.unitid,
+                           self.time,
+                           self.outcome,
+                           self.treat)
 
-        # Extracting the pre-treatment donor matrix and treated unit outcomes
-        Y0 = prepped["donor_matrix"][:prepped["pre_periods"]]  # Pre-period donor matrix
-        y_pre = prepped["y"][:prepped["pre_periods"]]  # Pre-period treated unit
-        T0 = prepped["pre_periods"]  # Number of pre-treatment periods
+        y1 = prepped["y"]
+        Y0 = prepped["donor_matrix"]
 
-        # Demeaning the target (treated unit) and donor matrix
-        Qy_1 = np.subtract(y_pre, y_pre.mean(axis=0))  # Demeaned target (treated unit)
-        QY_0 = np.subtract(Y0, Y0.mean(axis=0))  # Demeaned donor matrix
+        y_SRC, w_hat, theta_hat = SRCest(y1, Y0, prepped["post_periods"])
 
-        # Inverting the diagonal matrix for regularization (ridge-like)
-        inv_diag = np.diag(1.0 / np.diag(QY_0.T @ QY_0))
-
-        # In-sample fit (counterfactual outcomes in the demeaned space)
-        y_1_hat = QY_0 @ inv_diag @ QY_0.T @ Qy_1  # Regressing (fitting the model)
-
-        # Compute residuals and estimate sigma^2
-        sigma_hat_squared = np.sum(np.subtract(Qy_1, y_1_hat) ** 2) / T0
-
-        # Define the weights variable for the optimization (non-negative weights)
-        n_donors = Y0.shape[1]
-        w = cp.Variable(n_donors, nonneg=True)
-
-        # Regularization term: Penalize large weights
-        penalty_term = 2 * sigma_hat_squared * np.ones(n_donors)
-
-        # Objective function: Minimize the penalized least squares
-        objective = cp.Minimize(cp.norm(y_pre - Y0 @ w, p=2)**2 + penalty_term.T @ cp.abs(w))
-
-        # Constraints: Weights must sum to 1 (synthetic control requirement)
-        constraints = [cp.sum(w) == 1]
-
-        # Set up and solve the optimization problem
-        problem = cp.Problem(objective, constraints)
-        problem.solve(solver=cp.CLARABEL)
-
-        # Store the computed donor weights
-        weights = w.value
-
-        # Compute the counterfactual for both pre- and post-treatment periods
-        counterfactual = np.concatenate([
-            (Y0 @ weights) + (np.mean(y_pre) - np.mean(Y0 @ weights)),  # Pre-treatment
-            (prepped["donor_matrix"][T0:, :] @ weights) + (np.mean(y_pre) - np.mean(Y0 @ weights))  # Post-treatment
-        ])
-
-        # Extract the donor names and corresponding weights in one line
-        donor_weights = {prepped["donor_names"][i]: round(weights[i], 3) for i in range(len(weights)) if weights[i] > 0}
+        donor_weights = {prepped["donor_names"][i]: round(w_hat[i], 3) for i in range(len(w_hat))}
 
         # Calculate the ATT and other effects using the `effects` module (ensure it's defined)
-        attdict, fitdict, Vectors = effects.calculate(prepped["y"], counterfactual, prepped["pre_periods"],
+        attdict, fitdict, Vectors = effects.calculate(prepped["y"], y_SRC, prepped["pre_periods"],
                                                        prepped["post_periods"])
 
         # Call the function to plot the estimates
@@ -1864,7 +1829,7 @@ class SRC:
                 treatmentname=self.treat,
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
-                cf_list=[counterfactual],
+                cf_list=[y_SRC],
                 counterfactual_names=[f"SRC {prepped['treated_unit_name']}"],
                 method="SRC",
                 treatedcolor=self.treated_color,
@@ -1874,7 +1839,7 @@ class SRC:
 
         # Return the results as a dictionary
         return {
-            "Counterfactual": counterfactual,
+            "Counterfactual": y_SRC,
             "Weights": donor_weights,
             "ATT": attdict,
             "Fit": fitdict,
