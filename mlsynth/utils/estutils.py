@@ -484,6 +484,11 @@ def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False, Frequentist=
                 "credible_interval": (lower_bound, upper_bound)
             }
 
+
+import cvxpy as cp
+import numpy as np
+
+
 class Opt:
     @staticmethod
     def SCopt(Nco, y, t1, X, model="MSCb", donor_names=None, model_weights=None):
@@ -523,7 +528,7 @@ class Opt:
             w_MA = sum(lambda_vars[m] * model_weights[m] for m in range(M))
 
             # Define the objective function (squared error)
-            objective = cp.Minimize(cp.norm(y[:t1] - X @ w_MA, 2)**2)
+            objective = cp.Minimize(cp.norm(y[:t1] - X @ w_MA, 2))
 
             # Constraints: convex combination of model weights
             constraints = [
@@ -1076,3 +1081,88 @@ def pi_surrogate_post(Y, W, Z0, Z1, X, T0, T1, lag, Cw=None, Cy=None, Cx=None):
 
     return tau, taut, params[:W.shape[1]], se_tau
 
+
+def get_theta(y1_pre, Y0_pre):
+    y1_demeaned = y1_pre - np.mean(y1_pre)
+    Y0_demeaned = Y0_pre - np.mean(Y0_pre, axis=0)
+
+    numerators = Y0_demeaned.T @ y1_demeaned
+    denominators = np.sum(Y0_demeaned ** 2, axis=0)
+    theta_hat = numerators / (denominators)
+
+    Y_theta = Y0_pre * theta_hat
+    return theta_hat, Y_theta
+
+# -------------------------------
+# Step 2: Estimate Noise Variance
+# -------------------------------
+
+def get_sigmasq(y1_pre, Y0_pre):
+    T0 = len(y1_pre)
+    Q = np.eye(T0) - np.ones((T0, T0)) / T0
+
+    G = Y0_pre.T @ Q @ Y0_pre
+    diag_G = np.diag(G)
+    Z = Y0_pre @ np.diag(1 / (diag_G + 1e-8)) @ Y0_pre.T
+
+    projection = Z @ Q @ y1_pre
+    residual = Q @ y1_pre - Q @ projection
+    sigma2 = np.linalg.norm(residual) ** 2
+    return sigma2
+
+def __SRC_opt(y1_pre, Y0_pre, Y0_post, Y_theta, theta_hat, sigma2):
+    """
+    Perform SRC weight optimization and prediction.
+
+    Parameters:
+    - y1_pre: (T0,) vector, pre-treatment treated unit outcomes
+    - Y0_pre: (T0, J) matrix, pre-treatment donor outcomes
+    - Y0_post: (T1, J) matrix, post-treatment donor outcomes
+    - Y_theta: (T0, J) donor matrix adjusted by alignment coefficients
+    - theta_hat: (J,) alignment coefficients
+    - sigma2: estimated noise variance
+    - post_periods: list of post-treatment indices
+
+    Returns:
+    - y1_hat_pre: (T0,) in-sample predicted treated outcomes
+    - y1_hat_post: (T1,) post-treatment counterfactuals
+    - w_hat: (J,) optimal donor weights
+    - theta_hat: (J,) alignment coefficients (just passed through)
+    """
+
+    J = Y0_pre.shape[1]
+    w = cp.Variable(J, nonneg=True)
+
+    loss = cp.sum_squares(y1_pre - Y_theta @ w)
+    penalty = 2 * sigma2 * cp.sum(w)
+    objective = cp.Minimize(loss + penalty)
+
+    constraints = [cp.sum(w) == 1]
+    prob = cp.Problem(objective, constraints)
+    prob.solve(solver=cp.OSQP)
+
+    w_hat = w.value
+
+    y1_bar = np.mean(y1_pre)
+    yj_bar = np.mean(Y0_pre, axis=0)
+    y1_hat_pre = Y0_pre @ (w_hat * theta_hat)
+    y1_hat_post = y1_bar + (Y0_post - yj_bar) @ (w_hat * theta_hat)
+
+    return y1_hat_pre, y1_hat_post, w_hat, theta_hat
+
+def SRCest(y1, Y0, post_periods):
+    T, J = Y0.shape
+    T0 = T-post_periods
+    y1_pre = y1[:T0]
+    Y0_pre = Y0[:T0]
+
+    theta_hat, Y_theta = get_theta(y1_pre, Y0_pre)
+    sigma2 = get_sigmasq(y1_pre, Y0_pre)
+    Y0_post = Y0[-post_periods:]
+
+    y1_hat_pre, y1_hat_post, w_hat, theta_hat = __SRC_opt(
+        y1_pre, Y0_pre, Y0_post, Y_theta, theta_hat, sigma2)
+    # In-sample prediction
+    y1_hat_pre = Y0_pre @ (w_hat * theta_hat)
+
+    return np.concatenate([y1_hat_pre, y1_hat_post]), w_hat, theta_hat
