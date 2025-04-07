@@ -1,83 +1,142 @@
 import numpy as np
 import cvxpy as cp
 import matplotlib.pyplot as plt
-from mlsynth.mlsynth import dataprep
-import pandas as pd
 
-def SRC(target, donors, n_periods, T0):
+# -------------------------------
+# Data Simulation
+# -------------------------------
+
+def simulate_latent_factor_data(T=150, J=90, r=2, rho=0.9, treatment_time=120, tau=5.0, seed=1292):
+    if seed is not None:
+        np.random.seed(seed)
+
+    F = np.zeros((T, r))
+    F[0] = np.random.normal(size=r)
+    for t in range(1, T):
+        F[t] = rho * F[t - 1] + np.random.normal(size=r)
+
+    Lambda = np.random.normal(size=(J + 1, r))  # includes treated unit
+    noise = np.random.normal(scale=0.5, size=(T, J + 1))
+    Y = F @ Lambda.T + noise + 60
+    y1 = Y[:, 0].copy()
+    Y0 = Y[:, 1:]
+
+    y1[treatment_time:] += tau
+    post_periods = list(range(treatment_time, T))
+    return y1, Y0, post_periods
+
+# -------------------------------
+# Step 1: Alignment Coefficients
+# -------------------------------
+
+def compute_alignment_coefficients(y1_pre, Y0_pre):
+    y1_demeaned = y1_pre - np.mean(y1_pre)
+    Y0_demeaned = Y0_pre - np.mean(Y0_pre, axis=0)
+
+    numerators = Y0_demeaned.T @ y1_demeaned
+    denominators = np.sum(Y0_demeaned ** 2, axis=0)
+    theta_hat = numerators / (denominators + 1e-8)
+
+    Y_theta = Y0_pre * theta_hat
+    return theta_hat, Y_theta
+
+# -------------------------------
+# Step 2: Estimate Noise Variance
+# -------------------------------
+
+def estimate_noise_variance(y1_pre, Y0_pre):
+    T0 = len(y1_pre)
+    Q = np.eye(T0) - np.ones((T0, T0)) / T0
+
+    G = Y0_pre.T @ Q @ Y0_pre
+    diag_G = np.diag(G)
+    Z = Y0_pre @ np.diag(1 / (diag_G + 1e-8)) @ Y0_pre.T
+
+    projection = Z @ Q @ y1_pre
+    residual = Q @ y1_pre - Q @ projection
+    sigma2 = np.linalg.norm(residual) ** 2
+    return sigma2
+
+def SRC_opt(y1_pre, Y0_pre, Y0_post, Y_theta, theta_hat, sigma2, post_periods):
     """
-    Perform synthetic control estimation and return the donor weights and out-of-sample estimates.
+    Perform SRC weight optimization and prediction.
 
-    Args:
-        target (numpy.ndarray): Target pre-treatment vector (n_periods,)
-        donors (numpy.ndarray): Donor matrix with outcomes for potential control units (n_periods, n_donors)
-        n_periods (int): The number of time periods (including pre-treatment and treatment periods)
-        T0 (int): The number of pre-treatment periods
+    Parameters:
+    - y1_pre: (T0,) vector, pre-treatment treated unit outcomes
+    - Y0_pre: (T0, J) matrix, pre-treatment donor outcomes
+    - Y0_post: (T1, J) matrix, post-treatment donor outcomes
+    - Y_theta: (T0, J) donor matrix adjusted by alignment coefficients
+    - theta_hat: (J,) alignment coefficients
+    - sigma2: estimated noise variance
+    - post_periods: list of post-treatment indices
 
     Returns:
-        numpy.ndarray: Optimal donor weights (n_donors,)
-        numpy.ndarray: Counterfactual outcome including level difference (both pre-treatment and post-treatment)
+    - y1_hat_pre: (T0,) in-sample predicted treated outcomes
+    - y1_hat_post: (T1,) post-treatment counterfactuals
+    - w_hat: (J,) optimal donor weights
+    - theta_hat: (J,) alignment coefficients (just passed through)
     """
-    # Slice target and donor matrices to include only the first T0 periods
-    Y0 = donors.copy()
-    target = target[:T0]  # Slice the target vector
-    donors = donors[:T0, :]  # Slice the donor matrix
 
-    # Demeaning the target and donor matrix
-    Qy_1 = np.subtract(target, target.mean(axis=0))  # Demeaned target
-    QY_0 = np.subtract(donors, donors.mean(axis=0))  # Demeaned donor matrix
+    J = Y0_pre.shape[1]
+    w = cp.Variable(J, nonneg=True)
 
-    # Inverting the diagonal (this part remains unchanged)
-    inv_diag = np.diag(1.0 / np.diag(QY_0.T @ QY_0))
+    loss = cp.sum_squares(y1_pre - Y_theta @ w)
+    penalty = 2 * sigma2 * cp.sum(w)
+    objective = cp.Minimize(loss + penalty)
 
-    # In-sample fit (counterfactual outcomes in demeaned space)
-    y_1_hat = QY_0 @ inv_diag @ QY_0.T @ Qy_1  # Regressing
-
-    # Residuals from demeaned estimates above (sigma_hat_squared)
-    sigma_hat_squared = np.sum(np.subtract(Qy_1, y_1_hat) ** 2) / T0
-
-    # Define the weights variable for the optimization
-    n_donors = donors.shape[1]
-    w = cp.Variable(n_donors, nonneg=True)
-
-    # Regularization term (penalty on the weights)
-    penalty_term = 2 * sigma_hat_squared * np.ones(n_donors)
-
-    # Define the objective function (penalized least squares)
-    objective = cp.Minimize(cp.norm(target - donors @ w, p=2) + penalty_term.T @ cp.abs(w))
-
-    # Constraints (weights sum to 1)
     constraints = [cp.sum(w) == 1]
+    prob = cp.Problem(objective, constraints)
+    prob.solve(solver=cp.CLARABEL)
 
-    # Set up and solve the optimization problem
-    problem = cp.Problem(objective, constraints)
-    problem.solve(solver=cp.CLARABEL)
+    w_hat = w.value
 
-    # Calculate counterfactual for both pre- and post-treatment periods, including level difference
-    counterfactual = np.concatenate([
-        (donors @ w.value) + (np.mean(target) - np.mean(donors @ w.value)),  # Pre-treatment
-        (Y0[T0:, :] @ w.value) + (np.mean(target) - np.mean(donors @ w.value))  # Post-treatment
-    ])
+    y1_bar = np.mean(y1_pre)
+    yj_bar = np.mean(Y0_pre, axis=0)
+    y1_hat_pre = Y0_pre @ (w_hat * theta_hat)
+    y1_hat_post = y1_bar + (Y0_post - yj_bar) @ (w_hat * theta_hat)
 
-    # Return the optimal donor weights and the counterfactual (pre and post-treatment)
-    return w.value, counterfactual
+    return y1_hat_pre, y1_hat_post, w_hat, theta_hat
 
-# Example usagea
-url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv"
-data = pd.read_csv(url)
+# -------------------------------
+# SRC Estimator
+# -------------------------------
 
-prepped = dataprep(data, data.columns[0], data.columns[1], data.columns[2], data.columns[-1])
+def SRC(y1, Y0, post_periods, weight_constraint='simplex'):
+    T, J = Y0.shape
+    T0 = max(set(range(T)) - set(post_periods))
+    y1_pre = y1[:T0]
+    Y0_pre = Y0[:T0]
 
-y1 = prepped["y"]
-Y0 = prepped["donor_matrix"]
-T0 = prepped["pre_periods"]
+    theta_hat, Y_theta = compute_alignment_coefficients(y1_pre, Y0_pre)
+    sigma2 = estimate_noise_variance(y1_pre, Y0_pre)
+    Y0_post = Y0[post_periods]
 
-optimal_weights, counterfactual = SRC(y1, Y0, len(y1), T0)
+    y1_hat_pre, y1_hat_post, w_hat, theta_hat = SRC_opt(
+        y1_pre, Y0_pre, Y0_post, Y_theta, theta_hat, sigma2, post_periods
+    )
+    # In-sample prediction
+    y1_hat_pre = Y0_pre @ (w_hat * theta_hat)
+    return y1_hat_pre, y1_hat_post, w_hat, theta_hat
 
-# Plot the results
-plt.figure(figsize=(10, 6))
-plt.plot(y1, label="California", color='black')
-plt.plot(counterfactual, label="Synthetic California", color='blue')
+# -------------------------------
+# Run + Plot
+# -------------------------------
+
+y1, Y0, post_periods = simulate_latent_factor_data(seed=42)
+y1_hat_pre, y1_hat_post, w_hat, theta_hat = SRC(y1, Y0, post_periods)
+
+# Combine predictions
+T0 = post_periods[0]
+y1_hat_full = np.concatenate([y1_hat_pre, y1_hat_post])
+
+# Plot
+plt.figure(figsize=(10, 5))
+plt.plot(y1, label='Observed Treated', linewidth=2)
+plt.plot(y1_hat_full, label='SRC Prediction', linestyle='--')
+plt.axvline(T0, color='k', linestyle=':', label='Treatment Begins')
+plt.title("Synthetic Regularized Control: Observed vs. Predicted")
+plt.xlabel("Time")
+plt.ylabel("Outcome")
 plt.legend()
-plt.title("Prop 99")
+plt.tight_layout()
 plt.show()
