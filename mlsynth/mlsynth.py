@@ -1797,9 +1797,7 @@ class SRC:
         self.save = config.get("save", False)
 
     def fit(self):
-        """
-        This method prepares the data and runs the SRC estimation process.
-        """
+        """This method prepares the data and runs the SRC estimation process."""
 
         # Pre-process the data using dataprep function
         prepped = dataprep(self.df,
