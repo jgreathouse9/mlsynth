@@ -140,7 +140,8 @@ def plot_estimates(
 
 class effects:
     @staticmethod
-    def calculate(y, y_counterfactual, t1, t2):
+    def calculate(y, y_counterfactual, t1, t2, alpha=0.1):
+        # Basic treatment effect calculation
         ATT = np.mean(y[t1:] - y_counterfactual[t1:])
         ATT_percentage = 100 * ATT / np.mean(y_counterfactual[t1:])
         u1 = y[:t1] - y_counterfactual[:t1]
@@ -176,17 +177,37 @@ class effects:
             "TTE": round(TTE, 3),  # Add TTE to the returned dictionary
         }
 
+        # Gap calculation
         gap = y - y_counterfactual
 
         second_column = np.arange(gap.shape[0]) - t1 + 1
 
         gap_matrix = np.column_stack((gap, second_column))
 
-        # Vectors subdictionary
+        # Conformal Prediction Intervals (Gap and Counterfactual)
+        residuals = np.abs(y[:t1] - y_counterfactual[:t1])
+        q = np.quantile(residuals, 1 - alpha)
+
+        # Post-treatment periods
+        post_times = np.arange(t1, len(y))
+
+        # Gap-based intervals (treatment effect)
+        gap_post = (y[t1:] - y_counterfactual[t1:])
+        lower_gap = gap_post - q
+        upper_gap = gap_post + q
+
+        # Counterfactual prediction intervals
+        lower_pred = y_counterfactual[t1:] - q
+        upper_pred = y_counterfactual[t1:] + q
+
+        # Vectors subdictionary with prediction intervals as tuples
         Vector_dict = {
             "Observed Unit": np.round(y.reshape(-1, 1), 3),
             "Counterfactual": np.round(y_counterfactual.reshape(-1, 1), 3),
             "Gap": np.round(gap_matrix, 3),
+            "Gap Prediction Interval": (np.round(lower_gap, 3), np.round(upper_gap, 3)),
+            "Counterfactual Prediction Interval": (np.round(lower_pred, 3), np.round(upper_pred, 3)),
         }
 
         return Effects_dict, Fit_dict, Vector_dict
+
