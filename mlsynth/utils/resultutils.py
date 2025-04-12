@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 from matplotlib import rc_context
-
+import matplotlib.colors as mcolors
+import random
 
 
 def plot_estimates(
@@ -20,6 +21,7 @@ def plot_estimates(
     counterfactualcolors,
     counterfactual_names=None,
     save=False,
+    uncvectors=None,  # Accept Vectors directly
 ):
     """
     Plots observed and multiple counterfactual estimates with markers only at x-tick positions.
@@ -38,8 +40,9 @@ def plot_estimates(
     - counterfactualcolors: List of colors for each counterfactual.
     - counterfactual_names: List of custom names for counterfactuals (optional).
     - save: Boolean or dictionary for saving the plot. Defaults to False.
+    - vectors: Vectors dictionary with prediction intervals (if available).
     """
-
+    # Set up the plot's aesthetic theme
     ubertheme = {
         "figure.facecolor": "white",
         "figure.figsize": (11, 5),
@@ -78,9 +81,10 @@ def plot_estimates(
 
     with rc_context(rc=ubertheme):
 
-        x = np.arange(len(y))
+        x = np.arange(len(y))  # Time axis based on the length of observed outcomes
         formatted_date = df["Ywide"].index[df["pre_periods"]]
 
+        # Add vertical dashed line for treatment period
         plt.axvline(
             x=df["pre_periods"],
             color='grey',
@@ -89,7 +93,19 @@ def plot_estimates(
             label=f"{treatmentname}, {formatted_date}" # Optional label for the reference line
         )
 
-        # Plot each counterfactual
+        # Ensure counterfactualcolors has enough colors
+        unique_colors_needed = len(cf_list) - len(counterfactualcolors)
+
+        if unique_colors_needed > 0:
+            all_named_colors = list(mcolors.CSS4_COLORS.keys())
+            forbidden_colors = set(counterfactualcolors + [treatedcolor])
+            candidate_colors = [c for c in all_named_colors if c not in forbidden_colors]
+            random.shuffle(candidate_colors)
+
+            # Add new random colors to the list
+            counterfactualcolors += candidate_colors[:unique_colors_needed]
+
+        # Plot each counterfactual (artificial) series
         for idx, cf in enumerate(cf_list):
             label = (
                 counterfactual_names[idx] if counterfactual_names else f"Artificial {idx + 1}"
@@ -97,22 +113,36 @@ def plot_estimates(
             color = counterfactualcolors[idx % len(counterfactualcolors)]
             plt.plot(x, cf, label=label, linestyle="-", color=color, linewidth=1.5)
 
-        # Plot observed outcomes
+        # Plot observed outcomes (treated unit)
         plt.plot(x, y, label=f"{treated_unit_name}", color=treatedcolor, linewidth=1.5)
+
+        # Plot uncertainty intervals if uncvectors are provided
+        if uncvectors is not None and uncvectors.shape[1] == 2:
+            lower = uncvectors[:, 0]
+            upper = uncvectors[:, 1]
+            plt.fill_between(
+                x, lower, upper,
+                color='grey', alpha=0.4, label="Prediction Interval"
+            )
+
 
         # Add labels, title, legend, and grid
         plt.xlabel(time)
-        # Extract min and max index values
+
+        # Extract min and max index values (for date range)
         mindate = df["Ywide"].index.min()
         maxdate = df["Ywide"].index.max()
 
-        # Format them if they are datetime
+        # Format them if they are datetime objects
         mindate_str = mindate.strftime("%Y-%m-%d") if hasattr(mindate, "strftime") else str(mindate)
         maxdate_str = maxdate.strftime("%Y-%m-%d") if hasattr(maxdate, "strftime") else str(maxdate)
 
         # Set the title
         plt.title(f"Causal Impact on {outcome}, {mindate_str} to {maxdate_str}", loc="left")
+
+        # Show legend and grid
         plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.5)
 
         # Save or display the plot
         if save:
@@ -133,7 +163,6 @@ def plot_estimates(
         if not save or (isinstance(save, dict) and save.get("display", True)):
             plt.show()
             plt.close()
-
 
 
 
@@ -184,30 +213,13 @@ class effects:
 
         gap_matrix = np.column_stack((gap, second_column))
 
-        # Conformal Prediction Intervals (Gap and Counterfactual)
-        residuals = np.abs(y[:t1] - y_counterfactual[:t1])
-        q = np.quantile(residuals, 1 - alpha)
-
-        # Post-treatment periods
-        post_times = np.arange(t1, len(y))
-
-        # Gap-based intervals (treatment effect)
-        gap_post = (y[t1:] - y_counterfactual[t1:])
-        lower_gap = gap_post - q
-        upper_gap = gap_post + q
-
-        # Counterfactual prediction intervals
-        lower_pred = y_counterfactual[t1:] - q
-        upper_pred = y_counterfactual[t1:] + q
-
         # Vectors subdictionary with prediction intervals as tuples
         Vector_dict = {
             "Observed Unit": np.round(y.reshape(-1, 1), 3),
             "Counterfactual": np.round(y_counterfactual.reshape(-1, 1), 3),
-            "Gap": np.round(gap_matrix, 3),
-            "Gap Prediction Interval": (np.round(lower_gap, 3), np.round(upper_gap, 3)),
-            "Counterfactual Prediction Interval": (np.round(lower_pred, 3), np.round(upper_pred, 3)),
+            "Gap": np.round(gap_matrix, 3)
         }
 
         return Effects_dict, Fit_dict, Vector_dict
+
 

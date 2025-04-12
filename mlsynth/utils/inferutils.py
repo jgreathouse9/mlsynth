@@ -74,3 +74,44 @@ def step2(R1t, R2t, Rt, b_MSC_c, q1t, q2t, qt, t1, x1, y1, nb, n, bm_MSC_c):
         recommended_model = "SC"
 
     return recommended_model
+
+
+def ag_conformal(y_true_pre, y_pred_pre, y_pred_post, alpha=0.1, pad_value=np.nan):
+    """
+    Computes agnostic conformal prediction intervals for post-treatment predictions,
+    padded to full length with NaNs or other placeholder value.
+
+    Parameters
+    ----------
+    y_true_pre : np.ndarray
+        Actual outcomes in the pre-treatment period (1D).
+    y_pred_pre : np.ndarray
+        Predicted outcomes in the pre-treatment period (1D).
+    y_pred_post : np.ndarray
+        Predicted outcomes in the post-treatment period (1D).
+    alpha : float
+        Desired miscoverage level (e.g., 0.1 for 90% intervals).
+    pad_value : float or np.nan
+        Value used to pad pre-treatment period (default np.nan).
+
+    Returns
+    -------
+    lower_full : np.ndarray
+        Full-length lower bounds of prediction intervals.
+    upper_full : np.ndarray
+        Full-length upper bounds of prediction intervals.
+    """
+
+    residuals = y_true_pre - y_pred_pre
+    var_u = np.var(residuals, ddof=1)
+    eps = np.sqrt(var_u / (alpha / 2))
+
+    lower = y_pred_post - eps
+    upper = y_pred_post + eps
+
+    pad = np.full(len(y_true_pre), pad_value)
+
+    lower_full = np.concatenate([pad, lower])
+    upper_full = np.concatenate([pad, upper])
+
+    return lower_full.flatten(), upper_full.flatten()

@@ -1,6 +1,9 @@
 import numpy as np
 import cvxpy as cp
-from mlsynth.utils.denoiseutils import universal_rank, svt
+from mlsynth.utils.denoiseutils import (
+    universal_rank, svt, RPCA,
+    spectral_rank,
+    RPCA_HQF)
 from mlsynth.utils.resultutils import effects
 from mlsynth.utils.selectorsutils import (
     determine_optimal_clusters,
@@ -17,6 +20,7 @@ from screenot.ScreeNOT import adaptiveHardThresholding
 from sklearn.linear_model import LassoCV
 from scipy.stats import t as t_dist
 from mlsynth.utils.bayesutils import BayesSCM
+from mlsynth.utils.selectorsutils import fpca
 
 def pi2(Y, W, Z0, T0, t1, T, lag, Cw=None, Cy=None):
     """
@@ -205,7 +209,7 @@ def l2_relax(time_periods, treated_unit, X, tau):
     return coefficients, intercept, counterfactuals
 
 
-def cross_validate_tau(treated_unit, X, tau_init, num_tau=2000):
+def cross_validate_tau(treated_unit, X, tau_init, num_tau=1000):
     """
     Cross-validation for L2-relaxation to select the optimal tau by splitting.
 
@@ -483,10 +487,6 @@ def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False, Frequentist=
                 "cf_mean": np.median(cf_samples, axis=1),
                 "credible_interval": (lower_bound, upper_bound)
             }
-
-
-import cvxpy as cp
-import numpy as np
 
 
 class Opt:
@@ -1103,7 +1103,7 @@ def get_sigmasq(y1_pre, Y0_pre):
 
     G = Y0_pre.T @ Q @ Y0_pre
     diag_G = np.diag(G)
-    Z = Y0_pre @ np.diag(1 / (diag_G + 1e-8)) @ Y0_pre.T
+    Z = Y0_pre @ np.diag(1 / (diag_G)) @ Y0_pre.T
 
     projection = Z @ Q @ y1_pre
     residual = Q @ y1_pre - Q @ projection
@@ -1166,3 +1166,136 @@ def SRCest(y1, Y0, post_periods):
     y1_hat_pre = Y0_pre @ (w_hat * theta_hat)
 
     return np.concatenate([y1_hat_pre, y1_hat_post]), w_hat, theta_hat
+
+def RPCASYNTH(df, config, prepped):
+
+    unitid = config["unitid"]
+    time = config["time"]
+    outcome = config["outcome"]
+    treated_unit_name = prepped["treated_unit_name"]
+    pre_periods = prepped["pre_periods"]
+    post_periods = prepped["post_periods"]
+    ROB = config.get("ROB", "PCP")  # default to PCP
+
+    # Pivot to wide format
+    trainframe = df.pivot_table(index=unitid, columns=time, values=outcome, sort=False)
+
+    # Extract pre-treatment outcomes
+    X = trainframe.iloc[:, :pre_periods]
+
+    # Functional PCA clustering
+    optimal_clusters, cluster_x, numvals = fpca(X)
+    kmeans = KMeans(n_clusters=optimal_clusters, random_state=0, init="k-means++", algorithm="elkan")
+    trainframe["cluster"] = kmeans.fit_predict(cluster_x)
+
+    # Get donor pool with same cluster
+    treat_cluster = trainframe.at[treated_unit_name, "cluster"]
+    clustered_units = trainframe[trainframe["cluster"] == treat_cluster].drop("cluster", axis=1)
+
+    # Extract arrays
+    treated_row_idx = clustered_units.index.get_loc(treated_unit_name)
+    Y = clustered_units.to_numpy()
+    y = Y[treated_row_idx]
+    Y0 = np.delete(Y, treated_row_idx, axis=0)
+
+    # Robust PCA
+    if ROB == "PCP":
+        L = RPCA(Y0)
+    elif ROB == "HQF":
+        m, n = Y0.shape
+        u, s, v = np.linalg.svd(Y0, full_matrices=False)
+        t = 0.999
+        lambda_1 = 1 / np.sqrt(max(m, n))
+        L = RPCA_HQF(Y0, spectral_rank(s, t=t), maxiter=1000, ip=1, lam_1=lambda_1)
+    else:
+        warnings.warn(f"Invalid robust method '{ROB}'. Defaulting to 'PCP'.", UserWarning)
+        L = RPCA(Y0)
+
+    # Solve synthetic control weights
+    rpcaw = Opt.SCopt(
+        len(Y0),
+        prepped["y"][:pre_periods],
+        pre_periods,
+        L[:, :pre_periods].T,
+        model="MSCb"
+    )
+    beta_value = rpcaw.solution.primal_vars[next(iter(rpcaw.solution.primal_vars))]
+    y_RPCA = np.dot(L.T, beta_value)
+    beta_value = np.round(beta_value, 3)
+
+    # Return weights
+    unit_names = [name for name in clustered_units.index if name != treated_unit_name]
+    weights = {name: weight for name, weight in zip(unit_names, beta_value)}
+
+    # Effects + Vectors
+    Rattdict, Rfitdict, RVectors = effects.calculate(prepped["y"], y_RPCA, pre_periods, post_periods)
+
+    return {
+        "name": "RPCA",
+        "weights": weights,
+        "Effects": Rattdict,
+        "Fit": Rfitdict,
+        "Vectors": RVectors,
+    }
+
+import numpy as np
+import cvxpy as cp
+
+def SMOweights(data, method='concatenated', T0=None):
+    """
+    Estimate SCM weights using either concatenated (TLP) or averaged (SBMF) objective,
+    assuming donors are shape (T, N) — i.e., rows = time periods, columns = units.
+
+    Parameters:
+        data (dict): {
+            'Target': list of 1D numpy arrays, each of shape (T,),
+            'Donors': list of 2D numpy arrays, each of shape (T, N)
+        }
+        method (str): 'concatenated' or 'average'
+        T0 (int): number of pre-treatment periods
+
+    Returns:
+        np.ndarray: Optimal weight vector of shape (N,)
+    """
+    target_list = data.get("Target")
+    donor_list = data.get("Donors")
+
+    assert isinstance(target_list, list) and isinstance(donor_list, list), "Inputs must be lists."
+    assert len(target_list) == len(donor_list), "Target and Donor lists must be same length."
+
+    K = len(target_list)
+    T_full, N = donor_list[0].shape
+
+    if T0 is None:
+        T0 = T_full
+
+    # Truncate to pre-treatment period
+    target_list = [y[:T0] for y in target_list]
+    donor_list = [Y[:T0, :] for Y in donor_list]
+
+    w = cp.Variable(N)
+
+    if method == "concatenated":
+        # Stack rows (time) from each outcome
+        y_stack = np.concatenate(target_list, axis=0)  # shape (K*T0,)
+        Y_stack = np.vstack(donor_list)               # shape (K*T0, N)
+        objective = cp.Minimize(cp.sum_squares(Y_stack @ w - y_stack))
+
+    elif method == "average":
+        y_demeaned = [y - np.mean(y) for y in target_list]
+        Y_demeaned = [Y - np.mean(Y, axis=0, keepdims=True) for Y in donor_list]  # demean across time (rows)
+
+        y_avg = sum(y_demeaned) / K                     # (T0,)
+        Y_avg = sum(Y_demeaned) / K                     # (T0, N)
+        objective = cp.Minimize(cp.sum_squares(Y_avg @ w - y_avg))
+
+    else:
+        raise ValueError("Method must be 'concatenated' or 'average'")
+
+    constraints = [w >= 0, cp.sum(w) == 1]
+    prob = cp.Problem(objective, constraints)
+    prob.solve(solver=cp.CLARABEL)
+
+    fgfg
+
+    return w.value
