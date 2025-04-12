@@ -10,7 +10,7 @@ import warnings
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor
 from screenot.ScreeNOT import adaptiveHardThresholding
-from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2, modataprep
+from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
 from mlsynth.utils.resultutils import effects, plot_estimates
 from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, get_theta, get_sigmasq, SRCest, RPCASYNTH, SMOweights
 from mlsynth.utils.inferutils import step2, ag_conformal
