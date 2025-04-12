@@ -10,10 +10,10 @@ import warnings
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor
 from screenot.ScreeNOT import adaptiveHardThresholding
-from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
+from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2, modataprep
 from mlsynth.utils.resultutils import effects, plot_estimates
-from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, get_theta, get_sigmasq, SRCest
-from mlsynth.utils.inferutils import step2
+from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, get_theta, get_sigmasq, SRCest, RPCASYNTH, SMOweights
+from mlsynth.utils.inferutils import step2, ag_conformal
 from mlsynth.utils.selectorsutils import fpca
 from mlsynth.utils.denoiseutils import (
     RPCA,
@@ -608,7 +608,7 @@ class PDA:
                 counterfactual_names=[counterfactual_name],
                 method=est_method,
                 treatedcolor=self.treated_color,
-                counterfactualcolors=[self.counterfactual_color],
+                counterfactualcolors=self.counterfactual_color,
                 save=self.save,
             )
 
@@ -1096,7 +1096,7 @@ class FDID:
                 counterfactual_names=["FDID " + prepped["treated_unit_name"], "DID " + prepped["treated_unit_name"]],
                 treatedcolor=self.treated_color,
                 save=self.save,
-                counterfactualcolors=[self.counterfactual_color, "blue"],
+                counterfactualcolors=self.counterfactual_color,
             )
 
         return estimators_results
@@ -1321,102 +1321,110 @@ class CLUSTERSC:
         self.cluster = config.get("cluster", True)
         self.Frequentist = config.get("Frequentist", True)
         self.ROB = config.get("Robust", "PCP")
-
+        self.method = config.get("method", "PCR").upper()
 
     def fit(self):
-        
         balance(self.df, self.unitid, self.time)
-        
+
         prepped = dataprep(self.df,
                            self.unitid, self.time,
                            self.outcome, self.treat)
 
-        # Run PCR with the cluster parameter
-        result = pcr(
-            prepped["donor_matrix"],
-            prepped["y"],
-            self.objective,
-            prepped["donor_names"],
-            prepped["donor_matrix"],
-            pre = prepped["pre_periods"],
-            cluster=self.cluster,
-            Frequentist=self.Frequentist
-        )
-        #RSCweight = {key: round(value, 3) for key, value in RSCweight.items()}
+        results = {}
 
-        # Calculate effects
-        attdict, fitdict, Vectors = effects.calculate(
-            prepped["y"], result['cf_mean'], prepped["pre_periods"], prepped["post_periods"]
-        )
+        match self.method.upper():
+            case "PCR":
+                result = pcr(
+                    prepped["donor_matrix"],
+                    prepped["y"],
+                    self.objective,
+                    prepped["donor_names"],
+                    prepped["donor_matrix"],
+                    pre=prepped["pre_periods"],
+                    cluster=self.cluster,
+                    Frequentist=self.Frequentist
+                )
 
-        RSCdict = {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors, "Weights": result["weights"]}
+                attdict, fitdict, Vectors = effects.calculate(
+                    prepped["y"], result['cf_mean'], prepped["pre_periods"], prepped["post_periods"]
+                )
 
-        # Pivot the DataFrame to wide format
-        trainframe = self.df.pivot_table(
-            index=self.unitid, columns=self.time, values=self.outcome, sort=False
-        )
+                results["PCR"] = {
+                    "Effects": attdict,
+                    "Fit": fitdict,
+                    "Vectors": Vectors,
+                    "Weights": result["weights"]
+                }
 
-        # Extract pre-treatment period data
-        X = trainframe.iloc[:, :prepped["pre_periods"]]
+            case "RPCA":
+                results["RPCA"] = RPCASYNTH(self.df, self.__dict__, prepped)
 
-        # Perform functional PCA and clustering
-        optimal_clusters, cluster_x, numvals = fpca(X)
-        kmeans = KMeans(n_clusters=optimal_clusters, random_state=0, init="k-means++", algorithm="elkan")
-        trainframe["cluster"] = kmeans.fit_predict(cluster_x)
+            case "BOTH":
+                # PCR block
+                result = pcr(
+                    prepped["donor_matrix"],
+                    prepped["y"],
+                    self.objective,
+                    prepped["donor_names"],
+                    prepped["donor_matrix"],
+                    pre=prepped["pre_periods"],
+                    cluster=self.cluster,
+                    Frequentist=self.Frequentist
+                )
 
-        # Identify treated unit's cluster and filter corresponding units
-        treat_cluster = trainframe.at[prepped["treated_unit_name"], "cluster"]
-        clustered_units = trainframe[trainframe["cluster"] == treat_cluster].drop("cluster", axis=1)
+                attdict, fitdict, Vectors = effects.calculate(
+                    prepped["y"], result['cf_mean'], prepped["pre_periods"], prepped["post_periods"]
+                )
 
-        # Extract treated unit row and control group matrix
-        treated_row_idx = clustered_units.index.get_loc(prepped["treated_unit_name"])
-        Y = clustered_units.to_numpy()
-        y = Y[treated_row_idx]
-        Y0 = np.delete(Y, treated_row_idx, axis=0)
+                results["PCR"] = {
+                    "Effects": attdict,
+                    "Fit": fitdict,
+                    "Vectors": Vectors,
+                    "Weights": result["weights"]
+                }
 
+                # RPCA block
+                results["RPCA"] = RPCASYNTH(self.df, self.__dict__, prepped)
 
-        # Perform RPCA based on self.ROB
-        if self.ROB == "PCP":  # Default case
-            L = RPCA(Y0)
-        elif self.ROB == "HQF":
-            m, n = Y0.shape
-            (u, s, v) = np.linalg.svd(Y0, full_matrices=False)
-            t = 0.999
-            lambda_1 = 1 / np.sqrt(max(m, n))
+            case _:
+                raise ValueError("method must be 'PCR', 'RPCA', or 'BOTH'")
 
-            L = RPCA_HQF(Y0, spectral_rank(s, t=t), maxiter=1000, ip=1, lam_1=lambda_1)
+        # Assuming results is a dictionary that contains either PCR or RPCA results
+        all_counterfactuals = {}
+
+        # Iterate over all methods in the results dictionary
+        for method, method_data in results.items():
+            # Check if the "Vectors" key exists and contains "Counterfactual"
+            if 'Vectors' in method_data and 'Counterfactual' in method_data['Vectors']:
+                # Extract the counterfactual for this method
+                counterfactual = method_data['Vectors']['Counterfactual']
+                all_counterfactuals[method] = counterfactual
+
+        # Determine counterfactual names based on the method and Frequentist flag
+        if self.method.upper() == "PCR":
+            if self.Frequentist:
+                counterfactual_names = ["RSC"]  # Only RSC for Frequentist True
+            else:
+                counterfactual_names = ["Bayesian RSC"]  # Only Bayesian RSC for Frequentist False
+        elif self.method.upper() == "RPCA":
+            counterfactual_names = ["RPCA Synth"]  # Only RPCA Synth for RPCA method
         else:
-            warnings.warn(f"Invalid value for self.ROB: {self.ROB}. Defaulting to 'RPCA'.", UserWarning)
-            L = RPCA(Y0)  # Default to RPCA
+            # Handle case for both methods (PCR and RPCA)
+            if self.Frequentist:
+                counterfactual_names = ["RSC", "RPCA Synth"]
+            else:
+                counterfactual_names = ["Bayesian RSC", "RPCA Synth"]
 
-        # Optimize synthetic control weights using pre-period data
-        rpcaw = Opt.SCopt(
-            len(Y0),
-            prepped["y"][:prepped["pre_periods"]],
-            prepped["pre_periods"],
-            L[:, :prepped["pre_periods"]].T,
-            model="MSCb"
-        )
+        # Initialize an empty list for the vectors to supply
+        vectors_to_supply = []
 
-        beta_value = rpcaw.solution.primal_vars[next(iter(rpcaw.solution.primal_vars))]
+        # Check if 'PCR' is in all_counterfactuals and append if it exists
+        if 'PCR' in all_counterfactuals:
+            vectors_to_supply.append(all_counterfactuals['PCR'])
 
-        # Calculate synthetic control predictions
-        y_RPCA = np.dot(L.T, beta_value)
-        beta_value = np.round(beta_value, 3)
-
-        # Create a dictionary of non-zero weights
-        unit_names = [name for name in clustered_units.index if name != prepped["treated_unit_name"]]
-        Rweights_dict = {name: weight for name, weight in zip(unit_names, beta_value)}
-
-        Rattdict, Rfitdict, RVectors = effects.calculate(prepped["y"], y_RPCA, prepped["pre_periods"], prepped["post_periods"])
-
-        RPCAdict = {"Effects": Rattdict, "Fit": Rfitdict, "Vectors": RVectors, "Weights": Rweights_dict}
-
-        # Determine the title based on Frequentist value
-        if self.Frequentist:
-            counterfactual_names = ["RPCA Synth", "Robust Synthetic Control"]
-        else:
-            counterfactual_names = ["RPCA Synth", "Bayesian RSC"]
+        # Check if 'RPCA' is in all_counterfactuals and append if it exists
+        if 'RPCA' in all_counterfactuals:
+            vectors_to_supply.append(all_counterfactuals['RPCA'])
 
         # Call the function
         if self.display_graphs:
@@ -1428,18 +1436,15 @@ class CLUSTERSC:
                 treatmentname=self.treat,
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
-                cf_list=[y_RPCA, result["cf_mean"]],
-                counterfactual_names=counterfactual_names,  # Use the dynamic counterfactual names
+                cf_list=vectors_to_supply,
+                counterfactual_names=self.counterfactual_color,  # Use the dynamic counterfactual names
                 method="CLUSTERSC",
                 treatedcolor="black",
-                counterfactualcolors=["blue", "red"],
+                counterfactualcolors=self.counterfactual_color,
                 save=self.save
             )
 
-        ClustSCdict = {"RSC": RSCdict, "RPCASC": RPCAdict}
-
-        return ClustSCdict
-
+        return results
 
 
 class PROXIMAL:
@@ -1843,3 +1848,139 @@ class SRC:
             "Fit": fitdict,
             "Vectors": Vectors,
         }
+
+
+class SCMO:
+    def __init__(self, config):
+        """
+        This class implements the Multiple Outcome SCM with support for TLP (Tian et al.)
+        and SBMF (Sun et al.) estimators.
+
+        Parameters
+        ----------
+        config : dict
+            Keys:
+            - df: long-form dataframe
+            - outcome: primary outcome column (string)
+            - treat: treatment indicator column
+            - unitid: unit identifier column
+            - time: time column
+            - counterfactual_color: color for synthetic line
+            - treated_color: color for treated unit
+            - display_graphs: bool
+            - save: bool
+            - addout: optional secondary/tertiary outcomes
+            - method: 'TLP', 'SBMF', or 'both'
+        """
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.display_graphs = config.get("display_graphs", True)
+        self.save = config.get("save", False)
+        self.addout = config.get("addout", [])
+        self.method = config.get("method", "TLP").upper()
+
+        # Validate method
+        assert self.method in ["TLP", "SBMF", "BOTH"], "Method must be 'TLP', 'SBMF', or 'both'"
+
+    def fit(self):
+        """Prepares data and fits the synthetic control weights for one or both estimators."""
+
+        # Handle addout gracefully
+        if isinstance(self.addout, str):
+            outcome_list = [self.outcome, self.addout]
+        elif isinstance(self.addout, list):
+            outcome_list = [self.outcome] + self.addout
+        else:
+            outcome_list = [self.outcome]
+
+        # Prep all outcomes
+        results = [
+            dataprep(self.df, self.unitid, self.time, outcome, self.treat)
+            for outcome in outcome_list
+        ]
+        T0 = results[0]['pre_periods']
+        post = results[0]['post_periods']
+
+        # Always prep primary outcome for final plotting/effects
+        base = dataprep(self.df, self.unitid, self.time, self.outcome, self.treat)
+        Y0, y = base["donor_matrix"], base["y"]
+
+        estimators = {}
+
+        for method in (["TLP", "SBMF"] if self.method == "BOTH" else [self.method]):
+            if method == "TLP":
+                y_stack = np.concatenate([r["y"][:T0] for r in results], axis=0)
+                Y0_stack = np.concatenate([r["donor_matrix"][:T0] for r in results], axis=0)
+            elif method == "SBMF":
+                # Use raw data, no need to demean or average across outcomes
+                y_stack = np.concatenate([r["y"][:T0] for r in results], axis=0)
+                Y0_stack = np.concatenate([r["donor_matrix"][:T0] for r in results], axis=0)
+            else:
+                raise ValueError("Unknown method.")
+
+            # Solve SCM with MSCa for SBMF, SIMPLEX otherwise
+            model_type = "MSCa" if method == "SBMF" else "SIMPLEX"
+            prob = Opt.SCopt(
+                Y0_stack.shape[1], y_stack, T0 * len(outcome_list), Y0_stack, model=model_type
+            )
+            first_key = list(prob.solution.primal_vars.keys())[0]
+            weights = prob.solution.primal_vars[first_key]
+
+            # Construct counterfactual for main outcome
+            if method == "SBMF":
+                # No need to reapply demeaning; just use the original counterfactual computation
+                y_SCMO = np.dot(Y0, weights[1:]) + weights[0]  # Use weights for SBMF
+            else:
+                y_SCMO = np.dot(Y0, weights)  # Use weights for SIMPLEX (same calculation here)
+
+            # Compute effects and store
+            attdict, fitdict, Vectors = effects.calculate(y, y_SCMO, T0, post)
+
+            # Compute prediction intervals using agnostic conformal inference
+            alpha = 0.1  # Set alpha for confidence level (e.g., 90% intervals)
+            lower, upper = ag_conformal(y[:T0], y_SCMO[:T0], y_SCMO[T0:], alpha=alpha)
+
+            # Create a 2-column matrix for the prediction intervals (lower, upper)
+            prediction_intervals_matrix = np.vstack([lower, upper]).T
+
+            # Add results to estimators with Prediction Intervals in the Vectors sub-dictionary
+            estimators[method] = {
+                "weights": weights,
+                "Effects": attdict,
+                "Fit": fitdict,
+                "Vectors": {
+                    **Vectors,
+                    "Agnostic Prediction Intervals": prediction_intervals_matrix,  # Add the matrix
+                },
+            }
+
+        treated_unit_name = base["treated_unit_name"]
+
+        # Extract all valid counterfactuals and names
+        cfvecs = [est["Vectors"]["Counterfactual"] for est in estimators.values()]
+        cflist = [f"{key} {treated_unit_name}" for key in estimators.keys()]
+
+        # Call the function to plot the estimates
+        if self.display_graphs:
+            plot_estimates(
+                df=base,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname=self.treat,
+                treated_unit_name=base["treated_unit_name"],
+                y=base["y"],
+                cf_list=cfvecs,
+                counterfactual_names=cflist,
+                method="SRC",
+                treatedcolor=self.treated_color,
+                counterfactualcolors=self.counterfactual_color,
+                save=self.save,
+                uncvectors=prediction_intervals_matrix
+            )
+        return estimators
