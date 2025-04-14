@@ -10,7 +10,7 @@ import warnings
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor
 from screenot.ScreeNOT import adaptiveHardThresholding
-from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
+from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2, modataprep
 from mlsynth.utils.resultutils import effects, plot_estimates
 from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, get_theta, get_sigmasq, SRCest, RPCASYNTH, SMOweights
 from mlsynth.utils.inferutils import step2, ag_conformal
@@ -1437,7 +1437,7 @@ class CLUSTERSC:
                 treated_unit_name=prepped["treated_unit_name"],
                 y=prepped["y"],
                 cf_list=vectors_to_supply,
-                counterfactual_names=self.counterfactual_color,  # Use the dynamic counterfactual names
+                counterfactual_names=counterfactual_names,  # Use the dynamic counterfactual names
                 method="CLUSTERSC",
                 treatedcolor="black",
                 counterfactualcolors=self.counterfactual_color,
@@ -1930,6 +1930,17 @@ class SCMO:
             )
             first_key = list(prob.solution.primal_vars.keys())[0]
             weights = prob.solution.primal_vars[first_key]
+            # Assign donor weights dictionary
+            if method == "SBMF":
+                donor_weights = {
+                    base["donor_names"][i]: round(weights[i + 1], 3)
+                    for i in range(len(base["donor_names"]))
+                }
+            else:
+                donor_weights = {
+                    base["donor_names"][i]: round(weights[i], 3)
+                    for i in range(len(base["donor_names"]))
+                }
 
             # Construct counterfactual for main outcome
             if method == "SBMF":
@@ -1950,7 +1961,7 @@ class SCMO:
 
             # Add results to estimators with Prediction Intervals in the Vectors sub-dictionary
             estimators[method] = {
-                "weights": weights,
+                "weights": donor_weights,
                 "Effects": attdict,
                 "Fit": fitdict,
                 "Vectors": {
@@ -1959,11 +1970,51 @@ class SCMO:
                 },
             }
 
+        if len(estimators) > 1:
+            # Proceed with model averaging
+            cf_vectors = {}
+            for method_name, info in estimators.items():
+                cf = info["Vectors"]["Counterfactual"]
+                w = np.array(list(info["weights"].values()))
+
+                if method_name == "SBMF":
+                    # SBMF: intercept is included in weights[0], prepend it
+                    w_full = np.insert(w, 0, weights[0])  # Already handled above
+                elif method_name == "TLP":
+                    # TLP: no intercept, add dummy 0 at beginning
+                    w_full = np.insert(w, 0, 0.0)
+                else:
+                    raise ValueError(f"Unknown method '{method_name}' for model averaging.")
+
+                cf_vectors[method_name] = {
+                    "cf": cf,
+                    "weights": w_full
+                }
+            MAres = Opt.SCopt(len(estimators), y[:T0], T0, Y0, model="MA",  model_weights=cf_vectors, donor_names=base["donor_names"])
+        else:
+            print("Only one estimator — skipping model averaging.")
+
         treated_unit_name = base["treated_unit_name"]
 
-        # Extract all valid counterfactuals and names
-        cfvecs = [est["Vectors"]["Counterfactual"] for est in estimators.values()]
-        cflist = [f"{key} {treated_unit_name}" for key in estimators.keys()]
+        if self.method != "BOTH":
+            cfvecs = [est["Vectors"]["Counterfactual"] for est in estimators.values()]
+            cflist = [f"{key} {treated_unit_name}" for key in estimators.keys()]
+        elif self.method == "BOTH":
+            cfvecs = [MAres['Counterfactual']]
+            # Compute prediction intervals using agnostic conformal inference
+            alpha = 0.1  # Set alpha for confidence level (e.g., 90% intervals)
+            lower, upper = ag_conformal(y[:T0], MAres['Counterfactual'][:T0], MAres['Counterfactual'][T0:], alpha=alpha)
+
+            # Create a 2-column matrix for the prediction intervals (lower, upper)
+            prediction_intervals_matrix = np.vstack([lower, upper]).T
+            cflist = [f"MA {treated_unit_name}"]
+            MAattdict, MAfitdict, MAVectors = effects.calculate(y, MAres['Counterfactual'], T0, post)
+            ma_weights = {
+                base["donor_names"][i]: round(MAres["w_MA"][i], 3)
+                for i in range(len(base["donor_names"]))
+            }
+
+            estimators = {"Effects": MAattdict, "Fit": MAfitdict, "Vectors": MAVectors, "Conformal Prediction": prediction_intervals_matrix, "Weights": ma_weights}
 
         # Call the function to plot the estimates
         if self.display_graphs:
