@@ -506,8 +506,8 @@ class Opt:
         - Optimized problem object
         """
         # Check if matrix dimensions allow multiplication
-        if X.shape[0] != y.shape[0]:
-            raise ValueError("Number of columns in X must be equal to the number of rows in y.")
+        if model != "MA" and X.shape[0] != y.shape[0]:
+            raise ValueError("For non-MA models, X and y must have matching row counts.")
 
         if model in ["MSCa", "MSCc"]:
             Nco += 1
@@ -515,26 +515,32 @@ class Opt:
                 donor_names = ["Intercept"] + list(donor_names)
 
         if model == "MA":
-            if model_weights is None or not isinstance(model_weights, list):
-                raise ValueError("For model averaging ('MA'), must provide a list of weight vectors.")
-            M = len(model_weights)  # Number of models
-            if any(len(w) != Nco for w in model_weights):
-                raise ValueError("Each model weight vector must have length Nco.")
+            if not isinstance(model_weights, dict):
+                raise ValueError("For 'MA', model_weights must be a dictionary of {model_name: weight_vector}")
 
-            # Define model combination weights (lambda_vars)
-            lambda_vars = cp.Variable(M)
+            model_names = list(model_weights.keys())
+            M = len(model_names)
 
-            # Compute the model-averaged donor weights
-            w_MA = sum(lambda_vars[m] * model_weights[m] for m in range(M))
+            # Stack counterfactuals as columns: each column is Y0 @ w_model
+            cf_matrix = np.column_stack([model_weights[name]["cf"] for name in model_names])
 
-            # Define the objective function (squared error)
-            objective = cp.Minimize(cp.norm(y[:t1] - X @ w_MA, 2))
+            lambda_vars = cp.Variable(M, nonneg=True)
+            objective = cp.Minimize(cp.norm(y[:t1] - cf_matrix[:t1] @ lambda_vars, 2))
+            constraints = [cp.sum(lambda_vars) == 1]
+            prob = cp.Problem(objective, constraints)
+            prob.solve()
 
-            # Constraints: convex combination of model weights
-            constraints = [
-                cp.sum(lambda_vars) == 1,  # Weights sum to 1
-                lambda_vars >= 0  # Weights are non-negative
-            ]
+            lambda_values = lambda_vars.value
+
+            lambda_dict = {model_names[i]: float(lambda_values[i]) for i in range(M)}
+
+            # Compute final model-averaged donor weights
+            final_weights = sum(lambda_values[i] * model_weights[model_names[i]]["weights"] for i in range(M))
+
+            cf_pred = np.dot(cf_matrix, lambda_values)  # Counterfactual as a weighted sum
+
+            # Return dict of {model_name: lambda_value}
+            return {"Lambdas": lambda_dict, "w_MA": final_weights, "Counterfactual": cf_pred}
 
         else:
             # Define the optimization variable
