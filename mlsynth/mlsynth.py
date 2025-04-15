@@ -9,7 +9,7 @@ import cvxpy as cp
 import warnings
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor
-from screenot.ScreeNOT import adaptiveHardThresholding
+from mlsynth.utils.helperutils import prenorm
 from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
 from mlsynth.utils.resultutils import effects, plot_estimates
 from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, get_theta, get_sigmasq, SRCest, RPCASYNTH, SMOweights
@@ -1903,6 +1903,8 @@ class SCMO:
             dataprep(self.df, self.unitid, self.time, outcome, self.treat)
             for outcome in outcome_list
         ]
+
+
         T0 = results[0]['pre_periods']
         post = results[0]['post_periods']
 
@@ -1914,14 +1916,18 @@ class SCMO:
 
         for method in (["TLP", "SBMF"] if self.method == "BOTH" else [self.method]):
             if method == "TLP":
-                y_stack = np.concatenate([r["y"][:T0] for r in results], axis=0)
-                Y0_stack = np.concatenate([r["donor_matrix"][:T0] for r in results], axis=0)
+                y_stack = np.concatenate([prenorm(r["y"][:T0]) for r in results], axis=0)
+                Y0_stack = np.concatenate([prenorm(r["donor_matrix"][:T0]) for r in results], axis=0)
+
             elif method == "SBMF":
                 # Use raw data, no need to demean or average across outcomes
                 y_stack = np.concatenate([r["y"][:T0] for r in results], axis=0)
                 Y0_stack = np.concatenate([r["donor_matrix"][:T0] for r in results], axis=0)
             else:
                 raise ValueError("Unknown method.")
+
+            assert np.all(np.isfinite(y_stack)), "y_stack contains non-numeric values (NaN or inf)"
+            assert np.all(np.isfinite(Y0_stack)), "Y0_stack contains non-numeric values (NaN or inf)"
 
             # Solve SCM with MSCa for SBMF, SIMPLEX otherwise
             model_type = "MSCa" if method == "SBMF" else "SIMPLEX"
@@ -2014,7 +2020,12 @@ class SCMO:
                 for i in range(len(base["donor_names"]))
             }
 
-            estimators = {"Effects": MAattdict, "Fit": MAfitdict, "Vectors": MAVectors, "Conformal Prediction": prediction_intervals_matrix, "Weights": ma_weights}
+            estimators = {"Effects": MAattdict,
+                          "Fit": MAfitdict,
+                          "Vectors": MAVectors,
+                          "Conformal Prediction": prediction_intervals_matrix,
+                          "Weights": ma_weights,
+                          "Lambdas": MAres["Lambdas"]}
 
         # Call the function to plot the estimates
         if self.display_graphs:
