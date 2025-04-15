@@ -75,39 +75,41 @@ def step2(R1t, R2t, Rt, b_MSC_c, q1t, q2t, qt, t1, x1, y1, nb, n, bm_MSC_c):
 
     return recommended_model
 
-
 def ag_conformal(y_true_pre, y_pred_pre, y_pred_post, alpha=0.1, pad_value=np.nan):
     """
-    Computes agnostic conformal prediction intervals for post-treatment predictions,
-    padded to full length with NaNs or other placeholder value.
+    Constructs prediction intervals for post-treatment predictions based on sub-Gaussian concentration bounds.
 
     Parameters
     ----------
     y_true_pre : np.ndarray
-        Actual outcomes in the pre-treatment period (1D).
+        Actual pre-treatment outcomes (1D array).
     y_pred_pre : np.ndarray
-        Predicted outcomes in the pre-treatment period (1D).
+        Predicted pre-treatment outcomes (1D array).
     y_pred_post : np.ndarray
-        Predicted outcomes in the post-treatment period (1D).
+        Predicted post-treatment outcomes (1D array).
     alpha : float
         Desired miscoverage level (e.g., 0.1 for 90% intervals).
     pad_value : float or np.nan
-        Value used to pad pre-treatment period (default np.nan).
+        Value to use for padding pre-treatment periods (default: np.nan).
 
     Returns
     -------
     lower_full : np.ndarray
-        Full-length lower bounds of prediction intervals.
+        Full-length lower bound vector for prediction intervals.
     upper_full : np.ndarray
-        Full-length upper bounds of prediction intervals.
+        Full-length upper bound vector for prediction intervals.
     """
 
     residuals = y_true_pre - y_pred_pre
-    var_u = np.var(residuals, ddof=1)
-    eps = np.sqrt(var_u / (alpha / 2))
+    mu_hat = np.mean(residuals)
+    sigma2_hat = np.var(residuals, ddof=1)
 
-    lower = y_pred_post - eps
-    upper = y_pred_post + eps
+    # Sub-Gaussian bound for level alpha
+    delta = np.sqrt(2 * sigma2_hat * np.log(2 / alpha))
+
+    # Interval for each post-treatment point
+    lower = y_pred_post + mu_hat - delta
+    upper = y_pred_post + mu_hat + delta
 
     pad = np.full(len(y_true_pre), pad_value)
 
