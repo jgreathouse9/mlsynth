@@ -4,14 +4,13 @@
 
 To Do List:
 
-- Generalized SCM (Debiased Convex Regression)
+- Document [FSCM](https://jgreathouse9.github.io/docs/fscm.html), [Synthetic Regression Control](https://jgreathouse9.github.io/docs/synthregcontrol.html), and [Synthetic Control with Multiple Outcomes](https://jgreathouse9.github.io/docs/scmo.html).
 - Implement Placebos (time and space), possibly as a helper
-- Add covariates to the TSSC approach (maybe with `this solver <https://doi.org/10.1007/s10614-023-10471-7>`_)
 
 
 .. note::
 
-   This project is under active development. Some material is not yet documented. This project would not be possible without the kind assistance/efforts of and/or discussions with `Jason Coupet <https://aysps.gsu.edu/profile/jason-coupet/>`_, `Kathy Li <https://sites.utexas.edu/kathleenli/>`_, `Mani Bayani <https://www.linkedin.com/in/mani-bayani?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app>`_, `Zhentao Shi <https://zhentaoshi.github.io/>`_, and `Jaume Vives-i-Bastida <https://jvivesb.github.io/>`_.
+   This project is under active development. Some material is not yet documented (see the above, for example). This project would not be possible without the kind assistance/efforts of and/or discussions with `Jason Coupet <https://aysps.gsu.edu/profile/jason-coupet/>`_, `Kathy Li <https://sites.utexas.edu/kathleenli/>`_, `Mani Bayani <https://www.linkedin.com/in/mani-bayani?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app>`_, `Zhentao Shi <https://zhentaoshi.github.io/>`_, and `Jaume Vives-i-Bastida <https://jvivesb.github.io/>`_.
 
 Hi, I'm `Jared <https://jgreathouse9.github.io/>`_. I wrote the ``mlsynth`` package for Python. Welcome to ``mlsynth``'s documentation! ``mlsynth`` is short for "Machine-Learning Synthetic Control". It implements various Synthetic Control based methodologies for program evaluation, but it also includes difference-in-differences, panel data approaches, and factor modeling that fit within the broader artificial counterfactual setup.
 
@@ -43,6 +42,9 @@ MLSYNTH
    pda
    tssc
    proximal
+   fscm
+   src
+   scmo
 
 
 .. toctree::
