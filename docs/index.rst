@@ -4,7 +4,8 @@
 
 To Do List:
 
-- Document [FSCM](https://jgreathouse9.github.io/docs/fscm.html), [Synthetic Regression Control](https://jgreathouse9.github.io/docs/synthregcontrol.html), and [Synthetic Control with Multiple Outcomes](https://jgreathouse9.github.io/docs/scmo.html).
+- Document `FSCM <https://jgreathouse9.github.io/docs/fscm.html>`_, `Synthetic Regression Control <https://jgreathouse9.github.io/docs/synthregcontrol.html>`_, and `Synthetic Control with Multiple Outcomes <https://jgreathouse9.github.io/docs/scmo.html>`_.
+
 - Implement Placebos (time and space), possibly as a helper
 
 
