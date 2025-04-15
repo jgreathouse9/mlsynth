@@ -35,7 +35,7 @@ config = {
     "time": time,
     "outcome": outcome,
     "unitid": unitid,
-    "counterfactual_color": ["red", "blue"]
+    "counterfactual_color": ["red", "blue"],
     "treated_color": "black",
     "display_graphs": True,
     "save": save,
