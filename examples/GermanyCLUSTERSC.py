@@ -35,11 +35,11 @@ config = {
     "time": time,
     "outcome": outcome,
     "unitid": unitid,
-    "counterfactual_color": "red",
+    "counterfactual_color": ["red", blue]
     "treated_color": "black",
     "display_graphs": True,
     "save": save,
-    "cluster": False,
+    "cluster": False, "method": "both"
 }
 
 model = CLUSTERSC(config)
@@ -47,10 +47,6 @@ model = CLUSTERSC(config)
 asc = model.fit()
 
 keys = ["Effects", "Fit", "Weights"]
-
-for key in keys:
-    print(f"\n{key}:")
-    print(asc["RPCASC"][key])
 
 save["filename"] = "Cluster_Germany"
 config["cluster"] = True
