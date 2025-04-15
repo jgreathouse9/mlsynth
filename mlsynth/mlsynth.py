@@ -2102,20 +2102,21 @@ class SCMO:
         Per-model effects, fits, or trajectories are not returned when using model averaging.
     """
 
-    self.df = config.get("df")
-    self.outcome = config.get("outcome")
-    self.treat = config.get("treat")
-    self.unitid = config.get("unitid")
-    self.time = config.get("time")
-    self.counterfactual_color = config.get("counterfactual_color", "red")
-    self.treated_color = config.get("treated_color", "black")
-    self.display_graphs = config.get("display_graphs", True)
-    self.save = config.get("save", False)
-    self.addout = config.get("addout", [])
-    self.method = config.get("method", "TLP").upper()
 
-    # Validate method
-    assert self.method in ["TLP", "SBMF", "BOTH"], "Method must be 'TLP', 'SBMF', or 'both'"
+    def __init__(self, config):
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.display_graphs = config.get("display_graphs", True)
+        self.save = config.get("save", False)
+        self.addout = config.get("addout", [])
+        self.method = config.get("method", "tlp").upper()
+
+        assert self.method in ["TLP", "SBMF", "BOTH"], "Method must be 'TLP', 'SBMF', or 'both'"
 
     def fit(self):
         """Prepares data and fits the synthetic control weights for one or both estimators."""
