@@ -1227,7 +1227,7 @@ class GSC:
 class CLUSTERSC:
     def __init__(self, config):
         """
-        This function provides ATT estimates and weights using Robust PCA Synthetic Control (RPCA SCM) and Principal Component Regression (PCR).
+        This function provides ATT estimates and weights using Robust PCA Synthetic Control (RPCA SCM) and/or Principal Component Regression (PCR).
 
         Parameters
         ----------
@@ -1255,8 +1255,15 @@ class CLUSTERSC:
             objective : str, optional
                 Constraint for PCR. Default is "OLS", but user may specify "SIMPLEX".
 
-            counterfactual_color : str, optional
-                Color for the counterfactual line in the plots. Default is "red".
+            method : str, optional
+                Specifies which estimation method(s) to run. Options are:
+                    - "PCR": Run Principal Component Regression only.
+                    - "RPCA": Run Robust PCA Synthetic Control only.
+                    - "BOTH": Run both PCR and RPCA methods.
+                Default is "PCR".
+
+            counterfactual_color : str or list of str, optional
+                Color for the counterfactual line(s) in the plots. If a string, the same color is used for all methods. If a list, it must contain as many color strings as there are counterfactuals returned by the estimator (e.g., two colors if both PCR and RPCA are run). Default is "red".
 
             treated_color : str, optional
                 Color for the treated line in the plots. Default is "black".
@@ -1274,7 +1281,7 @@ class CLUSTERSC:
             Frequentist : bool, optional
                 If true, use Frequentist Robust SCM.
                 If False, uses Amjad's Bayesian method.
-                Defaults to true.
+                Defaults to True.
 
             Robust : str, optional
                 Specifies the robust method to use. If "PCP", Principal Component Pursuit (PCP) is used for Robust PCA. If "HQF", non-convex half-quadratic regularization is applied. Defaults to "PCP".
@@ -1282,16 +1289,18 @@ class CLUSTERSC:
         Returns
         -------
         dict
-            A dictionary containing results for both RPCA-SC and PCR methods, with the following keys:
+            A dictionary containing results for the specified method(s), with the following keys:
 
-            'Weights' : dict
-                Weights assigned to control units in the synthetic control model.
+            'Weights' : list of dict
+                A two-element list where:
+                    - The first element is a dictionary mapping unit IDs to their assigned weights.
+                    - The second element is a dictionary of unit-weight pairs where the weights are strictly positive.
 
             'Effects' : dict
                 Estimated treatment effects for the treated unit over time.
 
             'Vectors' : dict
-                Observed, predicted, and treatment effects for both methods.
+                Observed, predicted, and treatment effects for the selected methods.
 
         References
         ----------
@@ -1307,6 +1316,7 @@ class CLUSTERSC:
         Wang, Zhi-Yong, Xiao Peng Li, Hing Cheung So, and Zhaofeng Liu. (2023). "Robust PCA via non-convex half-quadratic regularization."
         *Signal Processing*, 204, 108816.
         """
+
 
         self.df = config.get("df")
         self.outcome = config.get("outcome")
@@ -1353,7 +1363,7 @@ class CLUSTERSC:
                     "Effects": attdict,
                     "Fit": fitdict,
                     "Vectors": Vectors,
-                    "Weights": result["weights"]
+                    "Weights": [result["weights"], {k: round(v, 3) for k, v in result["weights"].items() if v > 0}]
                 }
 
             case "RPCA":
@@ -1646,14 +1656,76 @@ class PROXIMAL:
 class FSCM:
     def __init__(self, config):
         """
-        This function provides ATT estimates and weights using Robust PCA Synthetic Control (RPCA SCM) and Principal Component Regression (PCR).
+        This function provides ATT estimates using the Forward Selected Synthetic Control Method (FSCM).
+
+        This approach optimally selects a subset of donor units using forward selection, beginning with the best-fitting single donor and adding additional units only if they improve predictive fit. The final weights and counterfactual are derived using a constrained optimization procedure (SIMPLEX) over the selected donor pool.
 
         Parameters
         ----------
         config : dict
             A dictionary containing the necessary parameters. The following keys are expected:
-            - df, treat, time, outcome, unitid, cluster, objective, etc.
+
+            df : pandas.DataFrame
+                Input dataset. Must contain at least four columns: one identifying the unit, one for time, one for the outcome, and one indicating treatment status (binary).
+
+            treat : str
+                Column name indicating the treated unit (treated unit is the one with a 1 in the treatment column).
+
+            time : str
+                Column name for the time variable.
+
+            outcome : str
+                Column name for the numeric outcome variable.
+
+            unitid : str
+                Column name identifying unit labels.
+
+            counterfactual_color : str or list of str, optional
+                Color used in the counterfactual plot line. If multiple methods are plotted, a list of colors can be supplied. Default is "red".
+
+            treated_color : str, optional
+                Color used for the treated unit plot line. Default is "black".
+
+            display_graphs : bool, optional
+                Whether to display the ATT graph. Default is True.
+
+            save : bool or dict, optional
+                If True, saves the plot to the current directory.
+                If a dictionary, keys may include:
+                    - 'filename': Custom name for the file (without extension)
+                    - 'extension': Format like 'png', 'pdf'
+                    - 'directory': Directory path to save the file
+
+        Returns
+        -------
+        dict
+            A dictionary containing the following keys:
+
+            'Effects' : dict
+                Contains average treatment effect estimates over time, including pre- and post-treatment periods.
+
+            'Fit' : dict
+                Goodness-of-fit metrics over the pre-treatment period.
+
+            'Vectors' : dict
+                Observed outcomes, counterfactual estimates, and treatment effects (difference between treated and synthetic) over time.
+
+            'Weights' : list
+                A list of two elements:
+                    - A dictionary mapping selected donor unit names to their corresponding weights (rounded to 3 decimal places).
+                    - A dictionary with summary metrics:
+                        * 'Cardinality of Positive Donors': Number of selected donor units with non-negligible weights (> 0.001).
+                        * 'Cardinality of Selected Donor Pool': Total number of donors considered in the final model.
+
+            '_prepped' : dict
+                Internal dictionary with intermediate data used to compute the estimate (e.g., treated vector, donor matrix, donor names).
+
+        References
+        ----------
+        Cerulli, Giovanni. "Optimal initial donor selection for the synthetic control method."
+        *Economics Letters*, 244 (2024): 111976. https://doi.org/10.1016/j.econlet.2024.111976
         """
+
         self.df = config.get("df")
         self.outcome = config.get("outcome")
         self.treat = config.get("treat")
@@ -1782,14 +1854,75 @@ class FSCM:
 class SRC:
     def __init__(self, config):
         """
-        This class implements the Synthetic Control Estimation (SRC) method.
+        Implements the Synthetic Regressing Control (SRC) method for estimating treatment effects.
+
+        This method, introduced by Zhu (2023), estimates a counterfactual trajectory for a treated unit by regressing its outcome on a weighted combination of donor units in the post-treatment period, with adjustments to ensure predictive fit over the pre-period.
 
         Parameters
         ----------
         config : dict
-            A dictionary containing the necessary parameters. The following keys are expected:
-            - df, outcome, treat, unitid, time, counterfactual_color, treated_color, display_graphs, save
+            A dictionary containing the configuration for the estimator. The following keys are expected:
+
+            df : pandas.DataFrame
+                Input dataset. Must include columns for unit, time, outcome, and treatment indicator.
+
+            outcome : str
+                Column name of the outcome variable.
+
+            treat : str
+                Column name of the binary treatment indicator (1 if treated, 0 otherwise).
+
+            unitid : str
+                Column name for unit identifiers.
+
+            time : str
+                Column name for the time variable.
+
+            counterfactual_color : str or list of str, optional
+                Color for the counterfactual trajectory line in the output graph. Can be a single color or a list if plotting multiple counterfactuals. Default is "red".
+
+            treated_color : str, optional
+                Color for the treated unit’s trajectory line in the graph. Default is "black".
+
+            display_graphs : bool, optional
+                If True, plots the estimated counterfactual against the observed treated trajectory. Default is True.
+
+            save : bool or dict, optional
+                If True, saves the generated plot using default settings.
+                If a dictionary, may include:
+                    - 'filename': Custom filename (without extension)
+                    - 'extension': Format like 'png', 'pdf'
+                    - 'directory': Directory path to save the plot
+
+        Returns
+        -------
+        dict
+            Dictionary with the following keys:
+
+            "Counterfactual" : np.ndarray
+                Estimated counterfactual trajectory for the treated unit.
+
+            "Weights" : dict
+                Dictionary mapping donor unit names to their estimated weights.
+
+            "ATT" : dict
+                Average treatment effect estimates for the post-treatment period.
+
+            "Fit" : dict
+                Goodness-of-fit metrics computed over the pre-treatment period.
+
+            "Vectors" : dict
+                Contains:
+                    - "Treated": The observed outcome for the treated unit.
+                    - "Counterfactual": The estimated counterfactual.
+                    - "Effect": The estimated treatment effect vector.
+
+        References
+        ----------
+        Zhu, Rong J. B. "Synthetic Regressing Control Method." arXiv preprint arXiv:2306.02584 (2023).
+        https://arxiv.org/abs/2306.02584
         """
+
         # Assigning the configuration dictionary parameters
         self.df = config.get("df")
         self.outcome = config.get("outcome")
@@ -1851,41 +1984,138 @@ class SRC:
 
 
 class SCMO:
-    def __init__(self, config):
-        """
-        This class implements the Multiple Outcome SCM with support for TLP (Tian et al.)
-        and SBMF (Sun et al.) estimators.
+    """
+    SCMO: Synthetic Control with Multiple Outcomes
 
-        Parameters
-        ----------
-        config : dict
-            Keys:
-            - df: long-form dataframe
-            - outcome: primary outcome column (string)
-            - treat: treatment indicator column
-            - unitid: unit identifier column
-            - time: time column
-            - counterfactual_color: color for synthetic line
-            - treated_color: color for treated unit
-            - display_graphs: bool
-            - save: bool
-            - addout: optional secondary/tertiary outcomes
-            - method: 'TLP', 'SBMF', or 'both'
-        """
-        self.df = config.get("df")
-        self.outcome = config.get("outcome")
-        self.treat = config.get("treat")
-        self.unitid = config.get("unitid")
-        self.time = config.get("time")
-        self.counterfactual_color = config.get("counterfactual_color", "red")
-        self.treated_color = config.get("treated_color", "black")
-        self.display_graphs = config.get("display_graphs", True)
-        self.save = config.get("save", False)
-        self.addout = config.get("addout", [])
-        self.method = config.get("method", "TLP").upper()
+    Implements synthetic control estimators for settings with one treated unit and multiple
+    auxiliary outcomes. Supports two methods: TLP (Tian, Lee, and Panchenko) and SBMF (Sun et al.),
+    as well as model averaging between the two. Optional conformal prediction intervals are available
+    for treatment effect inference.
 
-        # Validate method
-        assert self.method in ["TLP", "SBMF", "BOTH"], "Method must be 'TLP', 'SBMF', or 'both'"
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary specifying the data, model, and visualization behavior.
+
+        Required keys:
+            - df : pandas.DataFrame
+                Long-form panel dataset. Each row represents a unit-time observation.
+
+            - outcome : str
+                Name of the main outcome variable to be used for treatment effect estimation.
+
+            - treat : str
+                Name of the treatment indicator column. Should be 1 for the treated unit post-intervention, 0 otherwise.
+
+            - unitid : str
+                Name of the column identifying the unit (e.g., city, region).
+
+            - time : str
+                Name of the time variable column (e.g., week, year).
+
+        Optional keys:
+            - addout : str or list of str, default = []
+                One or more auxiliary outcome variables to be included in outcome stacking.
+
+            - method : str, default = 'TLP'
+                Estimation method to use. One of:
+                    'TLP' — Two-layer projection estimator (Tian et al.)
+                    'SBMF' — Sparse balancing matrix factorization (Sun et al.)
+                    'both' — Model averaging between TLP and SBMF
+
+            - display_graphs : bool, default = True
+                If True, displays a plot of the treated unit and its synthetic counterfactual over time.
+
+            - save : bool or dict, default = False
+                If True, saves the plot with default settings (PNG, working directory).
+                If a dict, the following keys are supported:
+                    - 'filename': str, custom name for the plot (without extension)
+                    - 'extension': str, format to save in (e.g., 'png', 'pdf')
+                    - 'directory': str, path to the directory to save the file
+
+            - counterfactual_color : str, default = 'red'
+                Color for the synthetic control trajectory in plots.
+
+            - treated_color : str, default = 'black'
+                Color for the treated unit trajectory in plots.
+
+    Returns
+    -------
+    results : dict
+        Dictionary of estimation results. Structure depends on the value of `method`.
+
+        If method is 'TLP' or 'SBMF', the dictionary has the following keys:
+
+            - 'Weights': numpy.ndarray
+                Donor weights estimated for the treated unit.
+
+            - 'Effects': dict
+                Treatment effect statistics:
+                    - 'ATT': Average treatment effect on the treated (scalar)
+                    - 'Percent ATT': ATT as a percentage of counterfactual mean
+                    - 'SATT': Standardized ATT, normalized by estimated variance
+                    - 'TTE': Total treatment effect (sum of post-period differences)
+
+            - 'Fit': dict
+                Pre- and post-treatment fit diagnostics:
+                    - 'T0 RMSE': Root mean squared error for pre-treatment periods
+                    - 'T1 RMSE': Standard deviation of treatment effect in post-treatment periods
+                    - 'R-Squared': Fit quality over pre-treatment window
+                    - 'Pre-Periods': Number of pre-treatment periods
+                    - 'Post-Periods': Number of post-treatment periods
+
+            - 'Vectors': dict
+                Time series vectors (all numpy arrays):
+                    - 'Observed Unit': Observed outcome of treated unit
+                    - 'Counterfactual': Synthetic control prediction for treated unit
+                    - 'Gap': 2D array where first column is observed - counterfactual,
+                      and second column is time relative to intervention
+
+            - 'Conformal Prediction': dict
+                Prediction intervals using agnostic conformal inference. Keys are:
+                    - 'Lower Bound': Lower bound of pointwise prediction interval
+                    - 'Upper Bound': Upper bound of pointwise prediction interval
+
+        If method is 'both', the dictionary contains:
+
+            - 'Weights': numpy.ndarray
+                Donor weights obtained by optimally averaging the TLP and SBMF predictions.
+
+            - 'Lambdas': dict
+                Averaging weights assigned to each method:
+                    - 'TLP': Weight placed on TLP model
+                    - 'SBMF': Weight placed on SBMF model
+
+            - 'Effects': dict
+                Treatment effect statistics computed from the model-averaged counterfactual.
+
+            - 'Fit': dict
+                Fit diagnostics for the model-averaged counterfactual.
+
+            - 'Vectors': dict
+                Time series vectors based on the averaged counterfactual:
+                    - 'Observed Unit', 'Counterfactual', and 'Gap' as above.
+
+            - 'Conformal Prediction': dict
+                Prediction intervals applied to the averaged counterfactual.
+
+        Per-model effects, fits, or trajectories are not returned when using model averaging.
+    """
+
+    self.df = config.get("df")
+    self.outcome = config.get("outcome")
+    self.treat = config.get("treat")
+    self.unitid = config.get("unitid")
+    self.time = config.get("time")
+    self.counterfactual_color = config.get("counterfactual_color", "red")
+    self.treated_color = config.get("treated_color", "black")
+    self.display_graphs = config.get("display_graphs", True)
+    self.save = config.get("save", False)
+    self.addout = config.get("addout", [])
+    self.method = config.get("method", "TLP").upper()
+
+    # Validate method
+    assert self.method in ["TLP", "SBMF", "BOTH"], "Method must be 'TLP', 'SBMF', or 'both'"
 
     def fit(self):
         """Prepares data and fits the synthetic control weights for one or both estimators."""
@@ -2024,7 +2254,7 @@ class SCMO:
                           "Fit": MAfitdict,
                           "Vectors": MAVectors,
                           "Conformal Prediction": prediction_intervals_matrix,
-                          "Weights": ma_weights,
+                          "Weights": [ma_weights, {k: v for k, v in ma_weights.items() if v > 0}],
                           "Lambdas": MAres["Lambdas"]}
 
         # Call the function to plot the estimates
