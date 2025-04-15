@@ -6,6 +6,9 @@ Forward SCM
    :special-members: __init__
 
 
+Uses Forward Selection to choose the donor pool for the vanilla SCM.
+
+
 .. code-block:: python
 
     import pandas as pd  # To work with panel data
