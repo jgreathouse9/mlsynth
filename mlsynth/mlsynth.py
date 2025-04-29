@@ -2339,7 +2339,8 @@ class SI:
         # Ensure panel is balanced
         balance(self.df, self.unitid, self.time)
 
-        # Prepare pre-treatment data structures
+        # Prepare the data for analysis... reshaping
+        
         prepped = dataprep(self.df, self.unitid, self.time, self.outcome, self.treat)
 
         # Dictionary: {intervention name → set of units assigned to that intervention}
@@ -2353,7 +2354,7 @@ class SI:
         SIresults = {}  # Store results by intervention name
 
         for alt_treat, donor_units in intervention_sets.items():
-            # Select only donor columns present in Ywide, that are also exposed to their own treatment
+            # Select only donor columns present in Ywide
             donor_cols = prepped['Ywide'].columns.intersection(donor_units)
             Y_donor = prepped['Ywide'][donor_cols].to_numpy()
 
@@ -2361,17 +2362,19 @@ class SI:
             result = pcr(
                 Y_donor,
                 prepped["y"],
-                "OLS", # Maybe gove the option to use the simplex
+                "OLS", # Maybe have OLS be an option?
                 donor_cols,
                 Y_donor,
-                pre=prepped["pre_periods"],
+                pre=prepped["pre_periods"], # Number of pre periods is set by the analyst
                 cluster=False,
                 Frequentist=True
             )
 
             cf = result[list(result.keys())[-1]]  # Extract counterfactual vector
 
-            # Compute ATT, fit diagnostics, and store relevant vectors
+            weight_dict = dict(zip(donor_cols, result[list(result.keys())[0]]))  # Map weights to donor unit names
+
+            # Compute ATT, fit diagnostics, and relevant vectors
             attdict, fitdict, vectors = effects.calculate(
                 prepped["y"],
                 cf,
@@ -2383,9 +2386,8 @@ class SI:
             SIresults[alt_treat] = {
                 "Effects": attdict,
                 "Fit": fitdict,
-                "Vectors": vectors,
+                "Vectors": vectors, "Weights": weight_dict
             }
-
 
             counterfactuals.append(cf)
             counterfactual_names.append(f"{alt_treat} {prepped['treated_unit_name']}")
