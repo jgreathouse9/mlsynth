@@ -2277,3 +2277,135 @@ class SCMO:
                 uncvectors=prediction_intervals_matrix
             )
         return estimators
+
+
+class SI:
+    """
+    SI: Synthetic Interventions
+
+    Estimates counterfactual outcomes under alternative treatments using Principal Component Regression (PCR).
+    For each treatment in `inters`, it computes the counterfactual outcomes for a focal treated unit, as if
+    that unit had received the alternative treatment instead.
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary.
+
+        Required keys:
+            - df : pandas.DataFrame
+                Long-form panel dataset.
+            - outcome : str
+                Name of the outcome variable.
+            - unitid : str
+                Column identifying units (e.g., "state", "region").
+            - time : str
+                Column identifying time periods.
+            - inters : list of str
+                List of binary treatment indicator columns used to define donor groups.
+            - treat : str
+                Name of the treatment indicator column for the focal unit.
+
+        Optional keys:
+            - display_graphs : bool, default=True
+                Whether to show the outcome and counterfactual trajectory.
+            - save : bool or dict, default=False
+                Whether to save the plot and how to configure it.
+            - counterfactual_color : str, default="red"
+                Color for counterfactual lines in the plot.
+            - treated_color : str, default="black"
+                Color for the treated unit's observed line.
+    """
+
+    def __init__(self, config):
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.inters = config.get("inters")
+        self.treat = config.get("treat")
+
+        # Validate inputs
+        assert self.inters and isinstance(self.inters, list), "'inters' must be a non-empty list."
+        for inter in self.inters:
+            assert inter in self.df.columns, f"Intervention column '{inter}' not found in dataframe."
+
+        self.display_graphs = config.get("display_graphs", True)
+        self.save = config.get("save", False)
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+
+    def fit(self):
+        # Ensure panel is balanced
+        balance(self.df, self.unitid, self.time)
+
+        # Prepare pre-treatment data structures
+        prepped = dataprep(self.df, self.unitid, self.time, self.outcome, self.treat)
+
+        # Dictionary: {intervention name → set of units assigned to that intervention}
+        intervention_sets = {
+            col: set(self.df.loc[self.df[col] == 1, self.unitid])
+            for col in self.inters
+        }
+
+        counterfactuals = []
+        counterfactual_names = []
+        SIresults = {}  # Store results by intervention name
+
+        for alt_treat, donor_units in intervention_sets.items():
+            # Select only donor columns present in Ywide, that are also exposed to their own treatment
+            donor_cols = prepped['Ywide'].columns.intersection(donor_units)
+            Y_donor = prepped['Ywide'][donor_cols].to_numpy()
+
+            # Estimate PCR weights and counterfactual
+            result = pcr(
+                Y_donor,
+                prepped["y"],
+                "OLS", # Maybe gove the option to use the simplex
+                donor_cols,
+                Y_donor,
+                pre=prepped["pre_periods"],
+                cluster=False,
+                Frequentist=True
+            )
+
+            cf = result[list(result.keys())[-1]]  # Extract counterfactual vector
+
+            # Compute ATT, fit diagnostics, and store relevant vectors
+            attdict, fitdict, vectors = effects.calculate(
+                prepped["y"],
+                cf,
+                prepped["pre_periods"],
+                prepped["post_periods"],
+            )
+
+            # Store results for this alternative treatment
+            SIresults[alt_treat] = {
+                "Effects": attdict,
+                "Fit": fitdict,
+                "Vectors": vectors,
+            }
+
+
+            counterfactuals.append(cf)
+            counterfactual_names.append(f"{alt_treat} {prepped['treated_unit_name']}")
+
+        # If you wish to plot...
+        if self.display_graphs:
+            plot_estimates(
+                df=prepped,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname="Synthetic Treatments Start",
+                treated_unit_name=prepped["treated_unit_name"],
+                y=prepped["y"],
+                cf_list=counterfactuals,
+                counterfactual_names=counterfactual_names,
+                method="SI",
+                treatedcolor=self.treated_color,
+                counterfactualcolors=self.counterfactual_color,
+                save=self.save
+            )
+
+        return SIresults
