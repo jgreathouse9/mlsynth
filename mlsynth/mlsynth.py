@@ -2315,6 +2315,8 @@ class SI:
                 Color for counterfactual lines in the plot.
             - treated_color : str, default="black"
                 Color for the treated unit's observed line.
+            - objective: str, default= "OLS"
+                Whether we use Simplex or OLS PCR
     """
 
     def __init__(self, config):
@@ -2334,6 +2336,7 @@ class SI:
         self.save = config.get("save", False)
         self.counterfactual_color = config.get("counterfactual_color", "red")
         self.treated_color = config.get("treated_color", "black")
+        self.objective = config.get("objective", "OLS")
 
     def fit(self):
         # Ensure panel is balanced
@@ -2362,7 +2365,7 @@ class SI:
             result = pcr(
                 Y_donor,
                 prepped["y"],
-                "OLS", # Maybe have OLS be an option?
+                self.objective,
                 donor_cols,
                 Y_donor,
                 pre=prepped["pre_periods"], # Number of pre periods is set by the analyst
