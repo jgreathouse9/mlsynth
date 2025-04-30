@@ -46,6 +46,7 @@ MLSYNTH
    fscm
    src
    scmo
+   si
 
 
 .. toctree::
