@@ -1,7 +1,7 @@
-Synthetic Regression Control Method
+Synthetic Interventions
 =====================
 
-.. autoclass:: mlsynth.mlsynth.SRC
+.. autoclass:: mlsynth.mlsynth.SI
    :show-inheritance:
    :special-members: __init__
 
