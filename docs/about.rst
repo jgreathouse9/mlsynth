@@ -77,12 +77,25 @@ At present, ``mlsynth`` supports:
    * - `Two Step Synthetic Control <https://doi.org/10.1287/mnsc.2023.4878>`_
      - Kathleen T. Li, Venkatesh Shankar. "A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events." *Management Science* 70(6):3734-3747, 2023.
      - TSSC
+   * - `Synthetic Control with Multiple Outcomes <https://arxiv.org/abs/2304.02272>`_
+     - Wei Tian, Seojeong Lee, and Valentyn Panchenko. "Synthetic Controls with Multiple Outcomes." arXiv 2304.02272.
+     - SCMO
+   * - `Synthetic Interventions <https://arxiv.org/abs/2006.07691>`_
+     - Anish Agarwal, Devavrat Shah, and Dennis Shen. "Synthetic Interventions." arXiv 2006.07691.
+     - SI
+   * - `Forward Selected Synthetic Control Method <https://doi.org/10.1016/j.econlet.2024.111976>`_
+     - Giovanni Cerulli. "Optimal initial donor selection for the synthetic control method." *Economics Letters*, 2024.
+     - FSCM
+   * - `Synthetic Regressing Control Method <https://arxiv.org/abs/2306.02584>`_
+     - Rong J. B. Zhu. "Synthetic Regressing Control Method." arXiv 2306.02584.
+     - SRC
    * - `PI-SCM <https://arxiv.org/abs/2108.13935>`_
-     - Xu Shi, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen. “Theory for identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework.” arXiv preprint arXiv:2108.13935, 2023.
+     - Xu Shi, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen. "Theory for identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework." arXiv:2108.13935, 2023.
      - PROXIMAL
    * - `PIS-SCM <https://arxiv.org/abs/2308.09527>`_
-     - Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão. “Proximal Causal Inference for Synthetic Control with Surrogates.” arXiv preprint arXiv:2308.09527, 2023.
+     - Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão. "Proximal Causal Inference for Synthetic Control with Surrogates." arXiv:2308.09527, 2023.
      - PROXIMAL
+
 
 
 
