@@ -2329,19 +2329,19 @@ class SI:
     -------
     SIresults : dict
         Dictionary containing the estimation results for each intervention in `inters`. Each key in the dictionary corresponds to an alternative treatment, and the value is another dictionary containing the following keys:
-        
+
         - 'Effects' : dict
             Treatment effect statistics including Average Treatment on the Treated (ATT), Percent ATT, Standardized ATT (SATT), and Total Treatment Effect (TTE).
-        
+
         - 'Fit' : dict
             Diagnostics related to the fit of the counterfactual, such as RMSE, R-squared, and the number of pre- and post-treatment periods.
-        
+
         - 'Vectors' : dict
             Time series data of observed outcomes, counterfactual outcomes, and treatment effects (gap between treated and counterfactual).
-        
+
         - 'Weights' : dict
             Estimated donor weights for the treated unit.
-            
+
     References
     ----------
     Agarwal, Anish, Devavrat Shah, and Dennis Shen. "Synthetic Interventions." *arXiv preprint arXiv:2006.07691* (2024). [https://arxiv.org/abs/2006.07691](https://arxiv.org/abs/2006.07691)
