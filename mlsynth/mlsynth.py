@@ -2100,7 +2100,14 @@ class SCMO:
                 Prediction intervals applied to the averaged counterfactual.
 
         Per-model effects, fits, or trajectories are not returned when using model averaging.
+
+    References
+    ----------
+    Tian, Wei, Seojeong Lee, and Valentyn Panchenko. "Synthetic Controls with Multiple Outcomes." *arXiv preprint arXiv:2304.02272* (2024). [https://arxiv.org/abs/2304.02272](https://arxiv.org/abs/2304.02272)
+
+    Sun, Liyang, Eli Ben-Michael, and Avi Feller. "Using Multiple Outcomes to Improve the Synthetic Control Method." *The Review of Economics and Statistics* (2025). [https://doi.org/10.1162/rest_a_01592](https://doi.org/10.1162/rest_a_01592)
     """
+
 
 
     def __init__(self, config):
@@ -2316,8 +2323,30 @@ class SI:
             - treated_color : str, default="black"
                 Color for the treated unit's observed line.
             - objective: str, default= "OLS"
-                Whether we use Simplex or OLS PCR
+                Whether we use Simplex or OLS PCR.
+
+    Returns
+    -------
+    SIresults : dict
+        Dictionary containing the estimation results for each intervention in `inters`. Each key in the dictionary corresponds to an alternative treatment, and the value is another dictionary containing the following keys:
+        
+        - 'Effects' : dict
+            Treatment effect statistics including Average Treatment on the Treated (ATT), Percent ATT, Standardized ATT (SATT), and Total Treatment Effect (TTE).
+        
+        - 'Fit' : dict
+            Diagnostics related to the fit of the counterfactual, such as RMSE, R-squared, and the number of pre- and post-treatment periods.
+        
+        - 'Vectors' : dict
+            Time series data of observed outcomes, counterfactual outcomes, and treatment effects (gap between treated and counterfactual).
+        
+        - 'Weights' : dict
+            Estimated donor weights for the treated unit.
+            
+    References
+    ----------
+    Agarwal, Anish, Devavrat Shah, and Dennis Shen. "Synthetic Interventions." *arXiv preprint arXiv:2006.07691* (2024). [https://arxiv.org/abs/2006.07691](https://arxiv.org/abs/2006.07691)
     """
+
 
     def __init__(self, config):
         self.df = config.get("df")
