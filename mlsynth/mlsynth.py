@@ -2103,9 +2103,9 @@ class SCMO:
 
     References
     ----------
-    Tian, Wei, Seojeong Lee, and Valentyn Panchenko. "Synthetic Controls with Multiple Outcomes." *arXiv preprint arXiv:2304.02272* (2024). [https://arxiv.org/abs/2304.02272](https://arxiv.org/abs/2304.02272)
+    Tian, Wei, Seojeong Lee, and Valentyn Panchenko. "Synthetic Controls with Multiple Outcomes." *arXiv preprint arXiv:2304.02272* (2024). https://arxiv.org/abs/2304.02272
 
-    Sun, Liyang, Eli Ben-Michael, and Avi Feller. "Using Multiple Outcomes to Improve the Synthetic Control Method." *The Review of Economics and Statistics* (2025). [https://doi.org/10.1162/rest_a_01592](https://doi.org/10.1162/rest_a_01592)
+    Sun, Liyang, Eli Ben-Michael, and Avi Feller. "Using Multiple Outcomes to Improve the Synthetic Control Method." *The Review of Economics and Statistics* (2025). https://doi.org/10.1162/rest_a_01592
     """
 
 
