@@ -29,80 +29,65 @@ from mlsynth.utils.denoiseutils import (
 class TSSC:
     def __init__(self, config):
         """
-        Generate estimates for SIMPLEX, MSCa, MSCb, and MSCc methods.
+        Generate estimates using the SIMPLEX, MSCa, MSCb, and MSCc methods.
 
         Parameters
         ----------
-
         config : dict
-
-            A dictionary containing the necessary parameters. The following keys are expected:
+            A dictionary of configuration parameters with the following keys:
 
             df : pandas.DataFrame
-
-                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                Input dataset. Must include:
+                - A column for unit identifiers (string or numeric),
+                - A numeric time column,
+                - A numeric outcome column,
+                - A treatment indicator column (dummy variable equal to 1 if treated, else 0).
 
             treat : str
-
-                Column name identifying the treated unit (must be a 0 or 1 dummy).
+                Column name for the treatment indicator (0 or 1 dummy).
 
             time : str
-
-                Column name for the time variable (must be numeric).
+                Column name for the numeric time variable.
 
             outcome : str
-
                 Column name for the outcome variable.
 
             unitid : str
-
-                Column name identifying the units.
+                Column name for unit identifiers.
 
             counterfactual_color : str, optional
-
-                Color for the counterfactual line in the plots, by default "red".
+                Color for the counterfactual line in plots. Default is "red".
 
             treated_color : str, optional
-                Color for the treated line in the plots, by default "black".
+                Color for the treated line in plots. Default is "black".
 
             display_graphs : bool, optional
-
-                Whether to display the plots, by default True.
+                Whether to display plots. Default is True.
 
             save : bool or dict, optional
-
-                Whether to save the generated plots. Default is False.
-
-                If a dictionary, keys can include:
-                    - 'filename' : Custom file name (without extension).
-                    - 'extension' : File format (e.g., 'png', 'pdf').
-                    - 'directory' : Directory to save the plot.
+                If True, saves plots using default settings. If a dictionary, you can specify:
+                - 'filename' : str, custom filename (without extension),
+                - 'extension' : str, file format (e.g., 'png', 'pdf'),
+                - 'directory' : str, directory to save the plots.
 
             draws : int, optional
-                Number of subsample replications, by default 500.
+                Number of subsample replications. Default is 500.
 
         Returns
         -------
-
         dict
-            A dictionary with the following keys:
+            A dictionary containing results from each method:
 
-            'SIMPLEX' : dict
-
+            - 'SIMPLEX' : dict
                 Estimates and inference from the SIMPLEX method.
-
-            'MSCa' : dict
-
+            - 'MSCa' : dict
                 Estimates and inference from the MSCa method.
-
-            'MSCb' : dict
-
+            - 'MSCb' : dict
                 Estimates and inference from the MSCb method.
-
-            'MSCc' : dict
-
+            - 'MSCc' : dict
                 Estimates and inference from the MSCc method.
         """
+
 
         self.df = config.get("df")
         self.outcome = config.get("outcome")
