@@ -86,6 +86,12 @@ class TSSC:
                 Estimates and inference from the MSCb method.
             - 'MSCc' : dict
                 Estimates and inference from the MSCc method.
+
+        References
+        ----------
+        Li, K. T., & Shankar, V. (2023). 
+        A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events. 
+        *Management Science, 70*(6), 3734–3747. https://doi.org/10.1287/mnsc.2023.4878
         """
 
 
@@ -222,65 +228,55 @@ class FMA:
         """
         Compute estimates and inference using the Factor Model Approach (FMA).
 
-        Implements the Factor Model Approach.
-
         Parameters
         ----------
         config : dict
-
-            A dictionary containing the necessary parameters. The following keys are expected:
+            A dictionary of configuration parameters with the following keys:
 
             df : pandas.DataFrame
-
-                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                Input dataset. Must include:
+                - A column for unit identifiers (string or numeric),
+                - A numeric time column,
+                - A numeric outcome column,
+                - A treatment indicator column (dummy variable equal to 1 if treated, else 0).
 
             treat : str
-
-                Column name identifying the treated unit.
+                Column name for the treatment indicator (0 or 1 dummy).
 
             time : str
-
-                Column name for the time variable.
+                Column name for the numeric time variable.
 
             outcome : str
-
                 Column name for the outcome variable.
 
             unitid : str
-
-                Column name identifying the units.
+                Column name for unit identifiers.
 
             counterfactual_color : str, optional
-
-                Color for the counterfactual line in the plots, by default "red".
+                Color for the counterfactual line in plots. Default is "red".
 
             treated_color : str, optional
-
-                Color for the treated line in the plots, by default "black".
+                Color for the treated line in plots. Default is "black".
 
             display_graphs : bool, optional
-
-                Whether to display the plots, by default True.
+                Whether to display plots. Default is True.
 
             save : bool or dict, optional
-
-                Whether to save the generated plots. Default is False.
-
-                If a dictionary, keys can include:
-
-                    - 'filename' : Custom file name (without extension).
-                    - 'extension' : File format (e.g., 'png', 'pdf').
-                    - 'directory' : Directory to save the plot.
+                If True, saves plots using default settings. If a dictionary, you can specify:
+                - 'filename' : str, custom filename (without extension),
+                - 'extension' : str, file format (e.g., 'png', 'pdf'),
+                - 'directory' : str, directory to save the plots.
 
             criti : int, optional
-                A value to indicate whether the data is assumed to be stationary or nonstationary.
-                If criti = 11, nonstationarity is assumed; if criti = 10, stationarity is assumed. Default is 11.
+                Indicates stationarity assumption:
+                - 11 assumes nonstationarity,
+                - 10 assumes stationarity.
+                Default is 11.
 
             DEMEAN : int, optional
-
-                A value that determines how the data is processed:
-                - If DEMEAN = 1, the data is demeaned.
-                - If DEMEAN = 2, the data is standardized.
+                Preprocessing method:
+                - 1 to demean the data,
+                - 2 to standardize the data.
                 Default is 1.
 
         Returns
@@ -288,21 +284,20 @@ class FMA:
         dict
             A dictionary containing the following keys:
 
-            'Effects' : dict
+            - 'Effects' : dict
                 Estimated treatment effects for the treated unit over time.
-
-            'Fit' : dict
+            - 'Fit' : dict
                 Goodness-of-fit metrics for the model.
-
-            'Vectors' : dict
+            - 'Vectors' : dict
                 Observed, counterfactual, and treatment effect vectors.
-
-            'Inference' : dict
+            - 'Inference' : dict
                 Inference results, including confidence intervals and p-values.
 
         References
         ----------
-        Li, K. T. & Sonnier, G. P. (2023). "Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings." *Journal of Marketing Research*, Volume 60, Issue 3.
+        Li, K. T., & Sonnier, G. P. (2023). 
+        Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings. 
+        *Journal of Marketing Research, 60*(3).
         """
 
         self.df = config.get("df")
@@ -462,68 +457,55 @@ class FMA:
 class PDA:
     def __init__(self, config):
         """
-        Implements the Panel Data Approach (PDA).
+        Compute estimates using the Panel Data Approach (PDA).
 
         Parameters
         ----------
         config : dict
-
-            A dictionary containing the necessary parameters. The following keys are expected:
+            A dictionary of configuration parameters with the following keys:
 
             df : pandas.DataFrame
-
-                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier,
-                one column for time, another column for the numeric outcome, and, finally, a column that is a dummy
-                variable, equal to 1 when the unit is treated, else 0.
+                Input dataset. Must include:
+                - A column for unit identifiers (string or numeric),
+                - A numeric time column,
+                - A numeric outcome column,
+                - A treatment indicator column (dummy variable equal to 1 if treated, else 0).
 
             treat : str
-
-                Column name identifying the treated unit.
+                Column name for the treatment indicator (0 or 1 dummy).
 
             time : str
-
-                Column name for the time variable.
+                Column name for the numeric time variable.
 
             outcome : str
-
                 Column name for the outcome variable.
 
             unitid : str
-
-                Column name identifying the units.
+                Column name for unit identifiers.
 
             counterfactual_color : str, optional
-
-                Color for the counterfactual line in the plots, by default "red".
+                Color for the counterfactual line in plots. Default is "red".
 
             treated_color : str, optional
-
-                Color for the treated line in the plots, by default "black".
+                Color for the treated line in plots. Default is "black".
 
             display_graphs : bool, optional
-
-                Whether to display the plots, by default True.
+                Whether to display plots. Default is True.
 
             save : bool or dict, optional
-
-                Whether to save the generated plots. Default is False.
-
-                If a dictionary, keys can include:
-
-                    - 'filename' : Custom file name (without extension).
-                    - 'extension' : File format (e.g., 'png', 'pdf').
-                    - 'directory' : Directory to save the plot.
+                If True, saves plots using default settings. If a dictionary, you can specify:
+                - 'filename' : str, custom filename (without extension),
+                - 'extension' : str, file format (e.g., 'png', 'pdf'),
+                - 'directory' : str, directory to save the plots.
 
             method : str, optional
-
-                Type of PDA to use, either:
-                - "LASSO" (L1 Penalty),
-                - "l2" (L2-Relaxation),
-                - "fs" (Forward Selection), default.
+                Type of PDA to use:
+                - "LASSO" (L1 penalty),
+                - "l2" (L2-relaxation),
+                - "fs" (Forward Selection, default).
 
             tau : float, optional
-
-                A user-specified treatment effect value, default is None.
+                A user-specified treatment effect value. Default is None.
 
         Returns
         -------
@@ -533,16 +515,17 @@ class PDA:
 
         References
         ----------
-        Shi, Z. & Huang, J. (2023). "Forward-selected panel data approach for program evaluation."
-        *Journal of Econometrics*, Volume 234, Issue 2, Pages 512-535.
-        DOI: https://doi.org/10.1016/j.jeconom.2021.04.009
+        Shi, Z., & Huang, J. (2023). 
+        Forward-selected panel data approach for program evaluation. 
+        *Journal of Econometrics, 234*(2), 512–535. https://doi.org/10.1016/j.jeconom.2021.04.009
 
-        Li, Kathleen T., and David R. Bell. "Estimation of Average Treatment Effects with Panel Data:
-        Asymptotic Theory and Implementation." *Journal of Econometrics* 197, no. 1 (March, 2017): 65-75.
-        DOI: https://doi.org/10.1016/j.jeconom.2016.01.011
+        Li, K. T., & Bell, D. R. (2017). 
+        Estimation of Average Treatment Effects with Panel Data: Asymptotic Theory and Implementation. 
+        *Journal of Econometrics, 197*(1), 65–75. https://doi.org/10.1016/j.jeconom.2016.01.011
 
-        Shi, Z. & Wang, Y. (2024). "L2-relaxation for Economic Prediction."
-        DOI: https://doi.org/10.13140/RG.2.2.11670.97609.
+        Shi, Z., & Wang, Y. (2024). 
+        L2-relaxation for Economic Prediction. 
+        https://doi.org/10.13140/RG.2.2.11670.97609
         """
 
         self.df = config.get("df")
@@ -603,78 +586,70 @@ class PDA:
 class FDID:
     def __init__(self, config):
         """
-        Compute Forward DID, Augmented DID, and standard DID estimates.
+        Compute Forward DID (FDID), Augmented DID (ADID), and standard DID estimates.
 
         Parameters
         ----------
         config : dict
-
-            Dictionary containing the configuration options. The following keys are expected:
+            A dictionary of configuration parameters with the following keys:
 
             df : pandas.DataFrame
-
-                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                Input dataset. Must include:
+                - A column for unit identifiers (string or numeric),
+                - A numeric time column,
+                - A numeric outcome column,
+                - A treatment indicator column (dummy variable equal to 1 if treated, else 0).
 
             unitid : str
-
-                Column name for unit IDs.
+                Column name for unit identifiers.
 
             time : str
-
                 Column name for time periods.
 
             outcome : str
-
-                Column name for outcomes.
+                Column name for the outcome variable.
 
             treat : str
-
                 Column name for the treatment indicator.
 
             counterfactual_color : str, optional
-
-                Color for the counterfactual lines, by default "red".
+                Color for the counterfactual lines in plots. Default is "red".
 
             treated_color : str, optional
-
-                Color for the treated lines, by default "black".
+                Color for the treated lines in plots. Default is "black".
 
             display_graphs : bool, optional
-
-                Whether to display the graphs, by default True.
+                Whether to display plots. Default is True.
 
             save : bool or dict, optional
-                Whether to save the generated plots. Default is False.
-                If a dictionary, keys can include:
-                    - 'filename' : Custom file name (without extension).
-                    - 'extension' : File format (e.g., 'png', 'pdf').
-                    - 'directory' : Directory to save the plot.
+                If True, saves plots using default settings. If a dictionary, you can specify:
+                - 'filename' : str, custom filename (without extension),
+                - 'extension' : str, file format (e.g., 'png', 'pdf'),
+                - 'directory' : str, directory to save the plots.
 
         Returns
         -------
         dict
+            A dictionary containing results for each method (FDID, ADID, DID), with the following keys:
 
-            A dictionary containing the following keys for each method (FDID, ADID, DID):
+            - 'Effects' : dict
+                Average Treatment Effects on the Treated (ATT), Percent ATT, and Standardized Effect Size.
 
-            'Effects' : dict
+            - 'Fit' : dict
+                Goodness-of-fit metrics, including R-squared and Pre-treatment RMSE.
 
-                ATTs: ATT, percent ATT, Standardized Effect Size
-
-            'Fit' : dict
-
-                Goodness-of-fit metrics for the model: R-Squared, Pre-RMSE
-
-            'Inference' : dict
-
+            - 'Inference' : dict
                 Inference results, including 95% confidence intervals and p-values.
 
         References
         ----------
-        Li, K. T. (2023). "Frontiers: A Simple Forward Difference-in-Differences Method."
-        *Marketing Science* 43(2):267-279.
+        Li, K. T. (2023). 
+        Frontiers: A Simple Forward Difference-in-Differences Method. 
+        *Marketing Science, 43*(2), 267–279.
 
-        Li, K. T. & Van den Bulte, C. (2023). "Augmented Difference-in-Differences."
-        *Marketing Science* 42:4, 746-767.
+        Li, K. T., & Van den Bulte, C. (2023). 
+        Augmented Difference-in-Differences. 
+        *Marketing Science, 42*(4), 746–767.
         """
 
         # Required parameters
@@ -1212,15 +1187,20 @@ class GSC:
 class CLUSTERSC:
     def __init__(self, config):
         """
-        This function provides ATT estimates and weights using Robust PCA Synthetic Control (RPCA SCM) and/or Principal Component Regression (PCR).
+        Estimate treatment effects using Robust PCA Synthetic Control (RPCA SCM) and/or 
+        Principal Component Regression (PCR).
 
         Parameters
         ----------
         config : dict
-            A dictionary containing the necessary parameters. The following keys are expected:
+            A dictionary containing the necessary parameters:
 
             df : pandas.DataFrame
-                Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+                Input dataset. Must include:
+                - A column for unit identifiers (string or numeric),
+                - A numeric time column,
+                - A numeric outcome column,
+                - A treatment indicator column (dummy variable equal to 1 if treated, else 0).
 
             treat : str
                 Column name identifying the treated unit.
@@ -1238,67 +1218,72 @@ class CLUSTERSC:
                 Whether to apply clustering for PCR. Default is True.
 
             objective : str, optional
-                Constraint for PCR. Default is "OLS", but user may specify "SIMPLEX".
+                Objective constraint for PCR. Default is "OLS". May also specify "SIMPLEX".
 
             method : str, optional
-                Specifies which estimation method(s) to run. Options are:
-                    - "PCR": Run Principal Component Regression only.
-                    - "RPCA": Run Robust PCA Synthetic Control only.
-                    - "BOTH": Run both PCR and RPCA methods.
+                Specifies which estimation method(s) to run:
+                - "PCR": Principal Component Regression only,
+                - "RPCA": Robust PCA Synthetic Control only,
+                - "BOTH": Run both PCR and RPCA methods.
                 Default is "PCR".
 
             counterfactual_color : str or list of str, optional
-                Color for the counterfactual line(s) in the plots. If a string, the same color is used for all methods. If a list, it must contain as many color strings as there are counterfactuals returned by the estimator (e.g., two colors if both PCR and RPCA are run). Default is "red".
+                Color for counterfactual lines. If a string, it applies to all methods. 
+                If a list, it should contain one color per method. Default is "red".
 
             treated_color : str, optional
-                Color for the treated line in the plots. Default is "black".
+                Color for the treated unit line. Default is "black".
 
             display_graphs : bool, optional
-                Whether to display the plots. Default is True.
+                Whether to display plots. Default is True.
 
             save : bool or dict, optional
-                Whether to save the generated plots. Default is False.
-                If a dictionary, keys can include:
-                    - 'filename' : Custom file name (without extension).
-                    - 'extension' : File format (e.g., 'png', 'pdf').
-                    - 'directory' : Directory to save the plot.
+                Whether to save generated plots. Default is False.
+                If a dictionary, it may contain:
+                - 'filename' : Custom file name (without extension),
+                - 'extension' : File format (e.g., 'png', 'pdf'),
+                - 'directory' : Directory to save the plots.
 
             Frequentist : bool, optional
-                If true, use Frequentist Robust SCM.
-                If False, uses Amjad's Bayesian method.
-                Defaults to True.
+                If True, use Frequentist Robust SCM. If False, use Amjad’s Bayesian method. 
+                Default is True.
 
             Robust : str, optional
-                Specifies the robust method to use. If "PCP", Principal Component Pursuit (PCP) is used for Robust PCA. If "HQF", non-convex half-quadratic regularization is applied. Defaults to "PCP".
+                Robust PCA method:
+                - "PCP": Principal Component Pursuit,
+                - "HQF": Half-quadratic regularization.
+                Default is "PCP".
 
         Returns
         -------
         dict
-            A dictionary containing results for the specified method(s), with the following keys:
+            A dictionary containing the results from the selected method(s):
 
             'Weights' : list of dict
-                A two-element list where:
-                    - The first element is a dictionary mapping unit IDs to their assigned weights.
-                    - The second element is a dictionary of unit-weight pairs where the weights are strictly positive.
+                Two-element list:
+                - First element: dict mapping unit IDs to weights,
+                - Second element: dict of unit-weight pairs with strictly positive weights.
 
             'Effects' : dict
                 Estimated treatment effects for the treated unit over time.
 
             'Vectors' : dict
-                Observed, predicted, and treatment effects for the selected methods.
+                Observed, predicted, and treatment effect series for selected methods.
 
         References
         ----------
-        Amjad, M., Shah, D., & Shen, D. (2018). "Robust synthetic control."
-        *Journal of Machine Learning Research*, 19(22), 1-51.
+        Amjad, M., Shah, D., & Shen, D. (2018). 
+        "Robust synthetic control." *Journal of Machine Learning Research*, 19(22), 1–51.
 
-        Agarwal, A., Shah, D., Shen, D., & Song, D. (2021). "On Robustness of Principal Component Regression."
-        *Journal of the American Statistical Association*, 116(536), 1731–45.
+        Agarwal, A., Shah, D., Shen, D., & Song, D. (2021). 
+        "On Robustness of Principal Component Regression." 
+        *Journal of the American Statistical Association*, 116(536), 1731–1745.
 
-        Bayani, M. (2022). "Essays on Machine Learning Methods in Economics." Chapter 1.
-        *CUNY Academic Works*.
+        Bayani, M. (2022). 
+        "Essays on Machine Learning Methods in Economics." Chapter 1. *CUNY Academic Works*.
 
-        Wang, Zhi-Yong, Xiao Peng Li, Hing Cheung So, and Zhaofeng Liu. (2023). "Robust PCA via non-convex half-quadratic regularization."
+        Wang, Zhi-Yong, Li, X. P., So, H. C., & Liu, Z. (2023). 
+        "Robust PCA via non-convex half-quadratic regularization." 
         *Signal Processing*, 204, 108816.
         """
 
@@ -1444,91 +1429,86 @@ class CLUSTERSC:
 
 class PROXIMAL:
     """
-    A class for implementing the Proximal Inference framework with surrogates, proxies, and donor units.
-
-    to estimate causal impacts in the context of synthetic control methods.
+    Estimate causal effects using the Proximal Inference framework with surrogates, proxies, and donor units.
 
     Parameters
     ----------
     config : dict
+        A dictionary containing the necessary parameters:
 
-        A dictionary containing configuration options:
+        df : pandas.DataFrame
+            Input dataset. Must include:
+            - A column for unit identifiers (string or numeric),
+            - A numeric time column,
+            - A numeric outcome column,
+            - A treatment indicator column (dummy variable equal to 1 if treated, else 0).
 
-        - "df" : pandas.DataFrame
+        outcome : str
+            Column name for the outcome variable.
 
-            Input dataset. At minimum, the user must have one column for the string or numeric unit identifier, one column for time, another column for the numeric outcome, and, finally, a column that is a dummy variable, equal to 1 when the unit is treated, else 0.
+        treat : str
+            Column name for the treatment indicator variable.
 
-        - "outcome" : str
+        unitid : str
+            Column name for the unit identifiers.
 
-            The name of the outcome variable.
+        time : str
+            Column name for the time variable.
 
-        - "treat" : str
+        counterfactual_color : str, optional
+            Color for counterfactual estimates in the plots. Default is "red".
 
-            The name of the treatment indicator variable.
+        treated_color : str, optional
+            Color for the treated unit line in the plots. Default is "black".
 
-        - "unitid" : str
+        display_graphs : bool, optional
+            Whether to display the resulting plots. Default is True.
 
-            The name of the unit identifier column.
-
-        - "time" : str
-
-            The name of the time variable.
-
-        - "counterfactual_color" : str, optional, default="red"
-
-            The color used for counterfactual estimates in the plots.
-
-        - "treated_color" : str, optional, default="black"
-
-            The color used for the treated unit in the plots.
-
-        - "display_graphs" : bool, optional, default=True
-
-            Whether to display the resulting plots.
-
-        - "save" : bool or dict, optional
-
+        save : bool or dict, optional
             Whether to save the generated plots. Default is False.
+            If a dictionary, it may contain:
+                - 'filename' : Custom file name (without extension),
+                - 'extension' : File format (e.g., 'png', 'pdf'),
+                - 'directory' : Directory to save the plots.
 
-            If a dictionary, keys can include:
+        surrogates : list, optional
+            List of surrogate unit identifiers. Default is an empty list.
 
-                - 'filename' : Custom file name (without extension).
-                - 'extension' : File format (e.g., 'png', 'pdf').
-                - 'directory' : Directory to save the plot.
+        vars : list of str, optional
+            List of proxy variables. Must contain:
+                - The first element: proxies for donors,
+                - The second element: proxies for surrogates.
+            Default is an empty list.
 
-        - "surrogates" : list, optional, default=[]
-
-            A list of surrogate unit identifiers (string or numeric) used in the analysis.
-
-        - "vars" : list of str, optional, default=[]
-
-            A list of proxy variables, where:
-
-              * The first element corresponds to proxies for the donors.
-              * The second element corresponds to proxies for the surrogates.
-
-        - "donors" : list of str, optional, default=[]
-
-            A list of donor units to construct the counterfactual.
+        donors : list of str, optional
+            List of donor units used to construct the counterfactual. Default is an empty list.
 
     Returns
     -------
-
     dict
+        A dictionary containing estimated results for each Proximal approach:
 
-        A dictionary with keys "PI", "PIS", and "PIPost", each containing the estimated effects,
-        model fit, and vectors for the corresponding approach.
+        'PI' : dict
+            Results for the basic Proximal Inference method.
+
+        'PIS' : dict
+            Results using surrogates.
+
+        'PIPost' : dict
+            Post-regularization results.
 
     References
     ----------
-    Xu Shi, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen.
-    "Theory for identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework."
-    arXiv preprint arXiv:2108.13935, 2023. URL: https://arxiv.org/abs/2108.13935.
+    Shi, X., Li, K., Miao, W., Hu, M., & Tchetgen Tchetgen, E. (2023).
+    "Theory for Identification and Inference with Synthetic Controls: 
+    A Proximal Causal Inference Framework." 
+    *arXiv preprint* arXiv:2108.13935. https://arxiv.org/abs/2108.13935
 
-    Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão.
-    "Proximal Causal Inference for Synthetic Control with Surrogates."
-    arXiv preprint arXiv:2308.09527, 2023. URL: https://arxiv.org/abs/2308.09527.
+    Liu, J., Tchetgen Tchetgen, E. J., & Varjão, C. (2023).
+    "Proximal Causal Inference for Synthetic Control with Surrogates." 
+    *arXiv preprint* arXiv:2308.09527. https://arxiv.org/abs/2308.09527
     """
+
 
     def __init__(self, config):
         # Load configuration
@@ -1641,74 +1621,79 @@ class PROXIMAL:
 class FSCM:
     def __init__(self, config):
         """
-        This function provides ATT estimates using the Forward Selected Synthetic Control Method (FSCM).
+        Estimate ATT using the Forward Selected Synthetic Control Method (FSCM).
 
-        This approach optimally selects a subset of donor units using forward selection, beginning with the best-fitting single donor and adding additional units only if they improve predictive fit. The final weights and counterfactual are derived using a constrained optimization procedure (SIMPLEX) over the selected donor pool.
+        This method uses forward selection to identify a subset of donor units that optimally predict the treated unit’s pre-treatment outcomes. 
+        Final weights and counterfactuals are computed via constrained optimization (SIMPLEX) on the selected donor pool.
 
         Parameters
         ----------
         config : dict
-            A dictionary containing the necessary parameters. The following keys are expected:
+            A dictionary containing the required configuration options:
 
             df : pandas.DataFrame
-                Input dataset. Must contain at least four columns: one identifying the unit, one for time, one for the outcome, and one indicating treatment status (binary).
+                Input dataset. Must include:
+                - A column identifying each unit,
+                - A time column,
+                - A numeric outcome column,
+                - A binary treatment indicator column.
 
             treat : str
-                Column name indicating the treated unit (treated unit is the one with a 1 in the treatment column).
+                Column name for the treated unit (unit with treatment indicator equal to 1).
 
             time : str
                 Column name for the time variable.
 
             outcome : str
-                Column name for the numeric outcome variable.
+                Column name for the outcome variable.
 
             unitid : str
-                Column name identifying unit labels.
+                Column name identifying units.
 
             counterfactual_color : str or list of str, optional
-                Color used in the counterfactual plot line. If multiple methods are plotted, a list of colors can be supplied. Default is "red".
+                Color(s) for counterfactual line(s) in plots. Default is "red".
 
             treated_color : str, optional
-                Color used for the treated unit plot line. Default is "black".
+                Color for the treated unit line in plots. Default is "black".
 
             display_graphs : bool, optional
-                Whether to display the ATT graph. Default is True.
+                Whether to display the plot. Default is True.
 
             save : bool or dict, optional
                 If True, saves the plot to the current directory.
-                If a dictionary, keys may include:
-                    - 'filename': Custom name for the file (without extension)
-                    - 'extension': Format like 'png', 'pdf'
-                    - 'directory': Directory path to save the file
+                If a dictionary, accepted keys include:
+                    - 'filename' : Custom file name (no extension),
+                    - 'extension' : File format (e.g., 'png', 'pdf'),
+                    - 'directory' : Output directory path.
 
         Returns
         -------
         dict
-            A dictionary containing the following keys:
+            A dictionary containing the following outputs:
 
             'Effects' : dict
-                Contains average treatment effect estimates over time, including pre- and post-treatment periods.
+                ATT estimates across time, including pre- and post-treatment periods.
 
             'Fit' : dict
-                Goodness-of-fit metrics over the pre-treatment period.
+                Pre-treatment goodness-of-fit metrics.
 
             'Vectors' : dict
-                Observed outcomes, counterfactual estimates, and treatment effects (difference between treated and synthetic) over time.
+                Time series of observed, counterfactual, and treatment effect values.
 
             'Weights' : list
-                A list of two elements:
-                    - A dictionary mapping selected donor unit names to their corresponding weights (rounded to 3 decimal places).
-                    - A dictionary with summary metrics:
-                        * 'Cardinality of Positive Donors': Number of selected donor units with non-negligible weights (> 0.001).
-                        * 'Cardinality of Selected Donor Pool': Total number of donors considered in the final model.
+                Two-element list:
+                    - Dictionary of donor unit weights (rounded to 3 decimals),
+                    - Dictionary of summary metrics:
+                        * 'Cardinality of Positive Donors' : Number of donors with weight > 0.001,
+                        * 'Cardinality of Selected Donor Pool' : Total donors selected in the model.
 
             '_prepped' : dict
-                Internal dictionary with intermediate data used to compute the estimate (e.g., treated vector, donor matrix, donor names).
+                Internal intermediate values used during computation (e.g., donor matrix, treated vector).
 
         References
         ----------
-        Cerulli, Giovanni. "Optimal initial donor selection for the synthetic control method."
-        *Economics Letters*, 244 (2024): 111976. https://doi.org/10.1016/j.econlet.2024.111976
+        Cerulli, G. (2024). "Optimal initial donor selection for the synthetic control method."
+        *Economics Letters*, 244, 111976. https://doi.org/10.1016/j.econlet.2024.111976
         """
 
         self.df = config.get("df")
@@ -1839,73 +1824,76 @@ class FSCM:
 class SRC:
     def __init__(self, config):
         """
-        Implements the Synthetic Regressing Control (SRC) method for estimating treatment effects.
+        Estimate treatment effects using the Synthetic Regressing Control (SRC) method.
 
-        This method, introduced by Zhu (2023), estimates a counterfactual trajectory for a treated unit by regressing its outcome on a weighted combination of donor units in the post-treatment period, with adjustments to ensure predictive fit over the pre-period.
+        SRC regresses the treated unit's outcomes on a weighted combination of donor units in the post-treatment period, 
+        with weights optimized to ensure good pre-treatment fit. This method allows post-treatment regression adjustment 
+        and is designed to improve robustness in estimating causal effects.
 
         Parameters
         ----------
         config : dict
-            A dictionary containing the configuration for the estimator. The following keys are expected:
+            Dictionary of configuration options. Expected keys:
 
             df : pandas.DataFrame
-                Input dataset. Must include columns for unit, time, outcome, and treatment indicator.
+                Input dataset with columns for unit ID, time, numeric outcome, and a binary treatment indicator.
 
             outcome : str
-                Column name of the outcome variable.
+                Name of the outcome variable.
 
             treat : str
-                Column name of the binary treatment indicator (1 if treated, 0 otherwise).
+                Name of the treatment indicator column (1 for treated, 0 otherwise).
 
             unitid : str
-                Column name for unit identifiers.
+                Name of the unit identifier column.
 
             time : str
-                Column name for the time variable.
+                Name of the time variable column.
 
             counterfactual_color : str or list of str, optional
-                Color for the counterfactual trajectory line in the output graph. Can be a single color or a list if plotting multiple counterfactuals. Default is "red".
+                Color for the counterfactual line in the plot. Can be a single color or a list (if plotting multiple trajectories). 
+                Default is "red".
 
             treated_color : str, optional
-                Color for the treated unit’s trajectory line in the graph. Default is "black".
+                Color for the treated unit's line. Default is "black".
 
             display_graphs : bool, optional
-                If True, plots the estimated counterfactual against the observed treated trajectory. Default is True.
+                Whether to display the plot comparing actual and counterfactual trajectories. Default is True.
 
             save : bool or dict, optional
-                If True, saves the generated plot using default settings.
-                If a dictionary, may include:
-                    - 'filename': Custom filename (without extension)
-                    - 'extension': Format like 'png', 'pdf'
-                    - 'directory': Directory path to save the plot
+                If True, saves the plot using default settings.
+                If a dictionary, accepted keys include:
+                    - 'filename' : Custom file name (without extension),
+                    - 'extension' : File format (e.g., 'png', 'pdf'),
+                    - 'directory' : Directory to save the plot.
 
         Returns
         -------
         dict
-            Dictionary with the following keys:
+            A dictionary containing the following components:
 
             "Counterfactual" : np.ndarray
                 Estimated counterfactual trajectory for the treated unit.
 
             "Weights" : dict
-                Dictionary mapping donor unit names to their estimated weights.
+                Donor unit names mapped to their estimated weights.
 
             "ATT" : dict
-                Average treatment effect estimates for the post-treatment period.
+                Estimated average treatment effects over the post-treatment period.
 
             "Fit" : dict
-                Goodness-of-fit metrics computed over the pre-treatment period.
+                Goodness-of-fit metrics for the pre-treatment period.
 
             "Vectors" : dict
-                Contains:
-                    - "Treated": The observed outcome for the treated unit.
-                    - "Counterfactual": The estimated counterfactual.
-                    - "Effect": The estimated treatment effect vector.
+                Contains time series of:
+                    - "Treated" : Observed outcomes,
+                    - "Counterfactual" : Estimated counterfactuals,
+                    - "Effect" : Treatment effect (treated minus counterfactual).
 
         References
         ----------
-        Zhu, Rong J. B. "Synthetic Regressing Control Method." arXiv preprint arXiv:2306.02584 (2023).
-        https://arxiv.org/abs/2306.02584
+        Zhu, Rong J. B. (2023). "Synthetic Regressing Control Method." 
+        *arXiv preprint* arXiv:2306.02584. https://arxiv.org/abs/2306.02584
         """
 
         # Assigning the configuration dictionary parameters
@@ -1969,131 +1957,123 @@ class SRC:
 
 
 class SCMO:
-    """
-    SCMO: Synthetic Control with Multiple Outcomes
+    def __init__(self, config):
+        """
+        Estimate treatment effects using Synthetic Control with Multiple Outcomes (SCMO).
 
-    Implements synthetic control estimators for settings with one treated unit and multiple
-    auxiliary outcomes. Supports two methods: TLP (Tian, Lee, and Panchenko) and SBMF (Sun et al.),
-    as well as model averaging between the two. Optional conformal prediction intervals are available
-    for treatment effect inference.
+        SCMO applies synthetic control estimators in settings with one treated unit and multiple auxiliary outcomes.
+        The method supports two estimators: TLP (Tian, Lee, and Panchenko) and SBMF (Sun et al.), and allows for model averaging between the two. 
+        Conformal prediction intervals are available for treatment effect inference.
 
-    Parameters
-    ----------
-    config : dict
-        Configuration dictionary specifying the data, model, and visualization behavior.
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary containing data, model, and visualization options. Expected keys:
 
-        Required keys:
-            - df : pandas.DataFrame
-                Long-form panel dataset. Each row represents a unit-time observation.
+            df : pandas.DataFrame
+                Long-form panel dataset where each row represents a unit-time observation.
 
-            - outcome : str
-                Name of the main outcome variable to be used for treatment effect estimation.
+            outcome : str
+                Column name of the main outcome variable used for treatment effect estimation.
 
-            - treat : str
-                Name of the treatment indicator column. Should be 1 for the treated unit post-intervention, 0 otherwise.
+            treat : str
+                Column name of the treatment indicator (1 for treated unit post-treatment, 0 otherwise).
 
-            - unitid : str
-                Name of the column identifying the unit (e.g., city, region).
+            unitid : str
+                Column name identifying the unit (e.g., city, region).
 
-            - time : str
-                Name of the time variable column (e.g., week, year).
+            time : str
+                Column name for the time variable (e.g., week, year).
 
-        Optional keys:
-            - addout : str or list of str, default = []
-                One or more auxiliary outcome variables to be included in outcome stacking.
+            addout : str or list of str, optional, default=[]
+                One or more auxiliary outcome variables to include in outcome stacking.
 
-            - method : str, default = 'TLP'
-                Estimation method to use. One of:
-                    'TLP' — Two-layer projection estimator (Tian et al.)
-                    'SBMF' — Sparse balancing matrix factorization (Sun et al.)
-                    'both' — Model averaging between TLP and SBMF
+            method : str, optional, default='TLP'
+                Estimation method to use:
+                    - 'TLP' : Two-layer projection estimator (Tian et al.)
+                    - 'SBMF' : Sparse balancing matrix factorization (Sun et al.)
+                    - 'both' : Model averaging between TLP and SBMF
 
-            - display_graphs : bool, default = True
-                If True, displays a plot of the treated unit and its synthetic counterfactual over time.
+            display_graphs : bool, optional, default=True
+                Whether to display plots of the treated unit and its synthetic counterfactual over time.
 
-            - save : bool or dict, default = False
-                If True, saves the plot with default settings (PNG, working directory).
-                If a dict, the following keys are supported:
-                    - 'filename': str, custom name for the plot (without extension)
-                    - 'extension': str, format to save in (e.g., 'png', 'pdf')
-                    - 'directory': str, path to the directory to save the file
+            save : bool or dict, optional, default=False
+                If True, saves the plot with default settings. If a dictionary, accepts:
+                    - 'filename' : Custom file name (without extension),
+                    - 'extension' : File format (e.g., 'png', 'pdf'),
+                    - 'directory' : Directory path to save the plot.
 
-            - counterfactual_color : str, default = 'red'
-                Color for the synthetic control trajectory in plots.
+            counterfactual_color : str, optional, default='red'
+                Color for the synthetic control trajectory in the plot.
 
-            - treated_color : str, default = 'black'
-                Color for the treated unit trajectory in plots.
+            treated_color : str, optional, default='black'
+                Color for the treated unit trajectory in the plot.
 
-    Returns
-    -------
-    results : dict
-        Dictionary of estimation results. Structure depends on the value of `method`.
+        Returns
+        -------
+        results : dict
+            A dictionary containing the estimation results. Structure depends on the method chosen:
 
-        If method is 'TLP' or 'SBMF', the dictionary has the following keys:
+            If method is 'TLP' or 'SBMF':
+                - 'Weights' : numpy.ndarray
+                    Donor weights estimated for the treated unit.
 
-            - 'Weights': numpy.ndarray
-                Donor weights estimated for the treated unit.
+                - 'Effects' : dict
+                    Treatment effect statistics:
+                        - 'ATT' : Average treatment effect on the treated (scalar)
+                        - 'Percent ATT' : ATT as a percentage of counterfactual mean
+                        - 'SATT' : Standardized ATT, normalized by estimated variance
+                        - 'TTE' : Total treatment effect (sum of post-period differences)
 
-            - 'Effects': dict
-                Treatment effect statistics:
-                    - 'ATT': Average treatment effect on the treated (scalar)
-                    - 'Percent ATT': ATT as a percentage of counterfactual mean
-                    - 'SATT': Standardized ATT, normalized by estimated variance
-                    - 'TTE': Total treatment effect (sum of post-period differences)
+                - 'Fit' : dict
+                    Pre- and post-treatment fit diagnostics:
+                        - 'T0 RMSE' : RMSE for pre-treatment periods
+                        - 'T1 RMSE' : Standard deviation of treatment effect in post-treatment periods
+                        - 'R-Squared' : Fit quality over pre-treatment window
+                        - 'Pre-Periods' : Number of pre-treatment periods
+                        - 'Post-Periods' : Number of post-treatment periods
 
-            - 'Fit': dict
-                Pre- and post-treatment fit diagnostics:
-                    - 'T0 RMSE': Root mean squared error for pre-treatment periods
-                    - 'T1 RMSE': Standard deviation of treatment effect in post-treatment periods
-                    - 'R-Squared': Fit quality over pre-treatment window
-                    - 'Pre-Periods': Number of pre-treatment periods
-                    - 'Post-Periods': Number of post-treatment periods
+                - 'Vectors' : dict
+                    Time series vectors:
+                        - 'Observed Unit' : Observed outcome of treated unit
+                        - 'Counterfactual' : Synthetic control prediction for treated unit
+                        - 'Gap' : 2D array (first column: observed - counterfactual, second column: time relative to intervention)
 
-            - 'Vectors': dict
-                Time series vectors (all numpy arrays):
-                    - 'Observed Unit': Observed outcome of treated unit
-                    - 'Counterfactual': Synthetic control prediction for treated unit
-                    - 'Gap': 2D array where first column is observed - counterfactual,
-                      and second column is time relative to intervention
+                - 'Conformal Prediction' : dict
+                    Prediction intervals using agnostic conformal inference:
+                        - 'Lower Bound' : Lower bound of prediction interval
+                        - 'Upper Bound' : Upper bound of prediction interval
 
-            - 'Conformal Prediction': dict
-                Prediction intervals using agnostic conformal inference. Keys are:
-                    - 'Lower Bound': Lower bound of pointwise prediction interval
-                    - 'Upper Bound': Upper bound of pointwise prediction interval
+            If method is 'both' (model averaging):
+                - 'Weights' : numpy.ndarray
+                    Averaged donor weights from TLP and SBMF.
 
-        If method is 'both', the dictionary contains:
+                - 'Lambdas' : dict
+                    Weights assigned to each method in the model average:
+                        - 'TLP' : Weight placed on TLP model
+                        - 'SBMF' : Weight placed on SBMF model
 
-            - 'Weights': numpy.ndarray
-                Donor weights obtained by optimally averaging the TLP and SBMF predictions.
+                - 'Effects' : dict
+                    Treatment effect statistics from the model-averaged counterfactual.
 
-            - 'Lambdas': dict
-                Averaging weights assigned to each method:
-                    - 'TLP': Weight placed on TLP model
-                    - 'SBMF': Weight placed on SBMF model
+                - 'Fit' : dict
+                    Fit diagnostics for the model-averaged counterfactual.
 
-            - 'Effects': dict
-                Treatment effect statistics computed from the model-averaged counterfactual.
+                - 'Vectors' : dict
+                    Time series vectors based on the averaged counterfactual:
+                        - 'Observed Unit', 'Counterfactual', and 'Gap'.
 
-            - 'Fit': dict
-                Fit diagnostics for the model-averaged counterfactual.
+                - 'Conformal Prediction' : dict
+                    Prediction intervals for the averaged counterfactual.
 
-            - 'Vectors': dict
-                Time series vectors based on the averaged counterfactual:
-                    - 'Observed Unit', 'Counterfactual', and 'Gap' as above.
+        References
+        ----------
+        Tian, Wei, Seojeong Lee, and Valentyn Panchenko. "Synthetic Controls with Multiple Outcomes."
+        *arXiv preprint arXiv:2304.02272* (2024). https://arxiv.org/abs/2304.02272
 
-            - 'Conformal Prediction': dict
-                Prediction intervals applied to the averaged counterfactual.
-
-        Per-model effects, fits, or trajectories are not returned when using model averaging.
-
-    References
-    ----------
-    Tian, Wei, Seojeong Lee, and Valentyn Panchenko. "Synthetic Controls with Multiple Outcomes." *arXiv preprint arXiv:2304.02272* (2024). https://arxiv.org/abs/2304.02272
-
-    Sun, Liyang, Eli Ben-Michael, and Avi Feller. "Using Multiple Outcomes to Improve the Synthetic Control Method." *The Review of Economics and Statistics* (2025). https://doi.org/10.1162/rest_a_01592
-    """
-
-
+        Sun, Liyang, Eli Ben-Michael, and Avi Feller. "Using Multiple Outcomes to Improve the Synthetic Control Method."
+        *The Review of Economics and Statistics* (2025). https://doi.org/10.1162/rest_a_01592
+        """
 
     def __init__(self, config):
         self.df = config.get("df")
@@ -2270,67 +2250,92 @@ class SCMO:
             )
         return estimators
 
-
 class SI:
-    """
-    SI: Synthetic Interventions
+    def __init__(self, config):
+        """
+        Estimate counterfactual outcomes under alternative treatments using Synthetic Interventions (SI).
 
-    Estimates counterfactual outcomes under alternative treatments using Principal Component Regression (PCR).
-    For each treatment in `inters`, it computes the counterfactual outcomes for a focal treated unit, as if
-    that unit had received the alternative treatment instead.
+        This method applies Principal Component Regression (PCR) to estimate the counterfactual outcomes for a treated unit
+        under different treatment scenarios defined in the `inters` list. For each intervention, the method computes the
+        counterfactual outcomes as if the focal treated unit had received that alternative treatment.
 
-    Parameters
-    ----------
-    config : dict
-        Configuration dictionary.
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary with the following required keys:
 
-        Required keys:
-            - df : pandas.DataFrame
-                Long-form panel dataset.
-            - outcome : str
-                Name of the outcome variable.
-            - unitid : str
-                Column identifying units (e.g., "state", "region").
-            - time : str
-                Column identifying time periods.
-            - inters : list of str
-                List of binary treatment indicator columns used to define donor groups.
-            - treat : str
-                Name of the treatment indicator column for the focal unit.
+            df : pandas.DataFrame
+                Long-form panel dataset where each row represents a unit-time observation.
 
-        Optional keys:
-            - display_graphs : bool, default=True
-                Whether to show the outcome and counterfactual trajectory.
-            - save : bool or dict, default=False
-                Whether to save the plot and how to configure it.
-            - counterfactual_color : str, default="red"
-                Color for counterfactual lines in the plot.
-            - treated_color : str, default="black"
-                Color for the treated unit's observed line.
-            - objective: str, default= "OLS"
-                Whether we use Simplex or OLS PCR.
+            outcome : str
+                Column name of the outcome variable.
 
-    Returns
-    -------
-    SIresults : dict
-        Dictionary containing the estimation results for each intervention in `inters`. Each key in the dictionary corresponds to an alternative treatment, and the value is another dictionary containing the following keys:
+            unitid : str
+                Column name identifying units (e.g., "state", "region").
 
-        - 'Effects' : dict
-            Treatment effect statistics including Average Treatment on the Treated (ATT), Percent ATT, Standardized ATT (SATT), and Total Treatment Effect (TTE).
+            time : str
+                Column name identifying time periods.
 
-        - 'Fit' : dict
-            Diagnostics related to the fit of the counterfactual, such as RMSE, R-squared, and the number of pre- and post-treatment periods.
+            inters : list of str
+                List of binary treatment indicator columns used to define different donor groups.
 
-        - 'Vectors' : dict
-            Time series data of observed outcomes, counterfactual outcomes, and treatment effects (gap between treated and counterfactual).
+            treat : str
+                Column name of the treatment indicator for the focal unit.
 
-        - 'Weights' : dict
-            Estimated donor weights for the treated unit.
+            Optional keys:
+            - display_graphs : bool, optional, default=True
+                If True, displays the plot comparing observed and counterfactual trajectories for the treated unit.
 
-    References
-    ----------
-    Agarwal, Anish, Devavrat Shah, and Dennis Shen. "Synthetic Interventions." *arXiv preprint arXiv:2006.07691* (2024). [https://arxiv.org/abs/2006.07691](https://arxiv.org/abs/2006.07691)
-    """
+            - save : bool or dict, optional, default=False
+                If True, saves the plot. If a dictionary, it can include:
+                    - 'filename' : Custom file name (without extension)
+                    - 'extension' : File format (e.g., 'png', 'pdf')
+                    - 'directory' : Directory path for saving the plot.
+
+            - counterfactual_color : str, optional, default="red"
+                Color for the counterfactual lines in the plot.
+
+            - treated_color : str, optional, default="black"
+                Color for the treated unit's observed trajectory.
+
+            - objective : str, optional, default="OLS"
+                Specifies the method used in PCR. Options are:
+                    - 'OLS' : Ordinary Least Squares PCR
+                    - 'Simplex' : Simplex PCR
+
+        Returns
+        -------
+        SIresults : dict
+            A dictionary where each key corresponds to an alternative treatment from `inters`, and each value is another dictionary with:
+
+            - 'Effects' : dict
+                Treatment effect statistics including:
+                    - 'ATT' : Average treatment effect on the treated (scalar)
+                    - 'Percent ATT' : ATT as a percentage of the counterfactual mean
+                    - 'SATT' : Standardized ATT, normalized by estimated variance
+                    - 'TTE' : Total treatment effect (sum of post-period differences)
+
+            - 'Fit' : dict
+                Fit diagnostics including:
+                    - 'RMSE' : Root Mean Squared Error of the counterfactual
+                    - 'R-Squared' : Fit quality over pre-treatment periods
+                    - 'Pre-Periods' : Number of pre-treatment periods
+                    - 'Post-Periods' : Number of post-treatment periods
+
+            - 'Vectors' : dict
+                Time series vectors for the treated unit:
+                    - 'Observed' : Observed outcome for the treated unit
+                    - 'Counterfactual' : Synthetic counterfactual for the treated unit
+                    - 'Gap' : Difference between the observed and counterfactual outcomes over time
+
+            - 'Weights' : dict
+                Estimated donor weights for the treated unit.
+
+        References
+        ----------
+        Agarwal, Anish, Devavrat Shah, and Dennis Shen. "Synthetic Interventions." 
+        *arXiv preprint arXiv:2006.07691* (2024). [https://arxiv.org/abs/2006.07691](https://arxiv.org/abs/2006.07691)
+        """
 
 
     def __init__(self, config):
