@@ -89,8 +89,8 @@ class TSSC:
 
         References
         ----------
-        Li, K. T., & Shankar, V. (2023). 
-        A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events. 
+        Li, K. T., & Shankar, V. (2023).
+        A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events.
         *Management Science, 70*(6), 3734–3747. https://doi.org/10.1287/mnsc.2023.4878
         """
 
@@ -295,8 +295,8 @@ class FMA:
 
         References
         ----------
-        Li, K. T., & Sonnier, G. P. (2023). 
-        Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings. 
+        Li, K. T., & Sonnier, G. P. (2023).
+        Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings.
         *Journal of Marketing Research, 60*(3).
         """
 
@@ -515,16 +515,16 @@ class PDA:
 
         References
         ----------
-        Shi, Z., & Huang, J. (2023). 
-        Forward-selected panel data approach for program evaluation. 
+        Shi, Z., & Huang, J. (2023).
+        Forward-selected panel data approach for program evaluation.
         *Journal of Econometrics, 234*(2), 512–535. https://doi.org/10.1016/j.jeconom.2021.04.009
 
-        Li, K. T., & Bell, D. R. (2017). 
-        Estimation of Average Treatment Effects with Panel Data: Asymptotic Theory and Implementation. 
+        Li, K. T., & Bell, D. R. (2017).
+        Estimation of Average Treatment Effects with Panel Data: Asymptotic Theory and Implementation.
         *Journal of Econometrics, 197*(1), 65–75. https://doi.org/10.1016/j.jeconom.2016.01.011
 
-        Shi, Z., & Wang, Y. (2024). 
-        L2-relaxation for Economic Prediction. 
+        Shi, Z., & Wang, Y. (2024).
+        L2-relaxation for Economic Prediction.
         https://doi.org/10.13140/RG.2.2.11670.97609
         """
 
@@ -643,12 +643,12 @@ class FDID:
 
         References
         ----------
-        Li, K. T. (2023). 
-        Frontiers: A Simple Forward Difference-in-Differences Method. 
+        Li, K. T. (2023).
+        Frontiers: A Simple Forward Difference-in-Differences Method.
         *Marketing Science, 43*(2), 267–279.
 
-        Li, K. T., & Van den Bulte, C. (2023). 
-        Augmented Difference-in-Differences. 
+        Li, K. T., & Van den Bulte, C. (2023).
+        Augmented Difference-in-Differences.
         *Marketing Science, 42*(4), 746–767.
         """
 
@@ -1187,7 +1187,7 @@ class GSC:
 class CLUSTERSC:
     def __init__(self, config):
         """
-        Estimate treatment effects using Robust PCA Synthetic Control (RPCA SCM) and/or 
+        Estimate treatment effects using Robust PCA Synthetic Control (RPCA SCM) and/or
         Principal Component Regression (PCR).
 
         Parameters
@@ -1228,7 +1228,7 @@ class CLUSTERSC:
                 Default is "PCR".
 
             counterfactual_color : str or list of str, optional
-                Color for counterfactual lines. If a string, it applies to all methods. 
+                Color for counterfactual lines. If a string, it applies to all methods.
                 If a list, it should contain one color per method. Default is "red".
 
             treated_color : str, optional
@@ -1245,7 +1245,7 @@ class CLUSTERSC:
                 - 'directory' : Directory to save the plots.
 
             Frequentist : bool, optional
-                If True, use Frequentist Robust SCM. If False, use Amjad’s Bayesian method. 
+                If True, use Frequentist Robust SCM. If False, use Amjad’s Bayesian method.
                 Default is True.
 
             Robust : str, optional
@@ -1272,18 +1272,18 @@ class CLUSTERSC:
 
         References
         ----------
-        Amjad, M., Shah, D., & Shen, D. (2018). 
+        Amjad, M., Shah, D., & Shen, D. (2018).
         "Robust synthetic control." *Journal of Machine Learning Research*, 19(22), 1–51.
 
-        Agarwal, A., Shah, D., Shen, D., & Song, D. (2021). 
-        "On Robustness of Principal Component Regression." 
+        Agarwal, A., Shah, D., Shen, D., & Song, D. (2021).
+        "On Robustness of Principal Component Regression."
         *Journal of the American Statistical Association*, 116(536), 1731–1745.
 
-        Bayani, M. (2022). 
+        Bayani, M. (2022).
         "Essays on Machine Learning Methods in Economics." Chapter 1. *CUNY Academic Works*.
 
-        Wang, Zhi-Yong, Li, X. P., So, H. C., & Liu, Z. (2023). 
-        "Robust PCA via non-convex half-quadratic regularization." 
+        Wang, Zhi-Yong, Li, X. P., So, H. C., & Liu, Z. (2023).
+        "Robust PCA via non-convex half-quadratic regularization."
         *Signal Processing*, 204, 108816.
         """
 
@@ -1500,12 +1500,12 @@ class PROXIMAL:
     References
     ----------
     Shi, X., Li, K., Miao, W., Hu, M., & Tchetgen Tchetgen, E. (2023).
-    "Theory for Identification and Inference with Synthetic Controls: 
-    A Proximal Causal Inference Framework." 
+    "Theory for Identification and Inference with Synthetic Controls:
+    A Proximal Causal Inference Framework."
     *arXiv preprint* arXiv:2108.13935. https://arxiv.org/abs/2108.13935
 
     Liu, J., Tchetgen Tchetgen, E. J., & Varjão, C. (2023).
-    "Proximal Causal Inference for Synthetic Control with Surrogates." 
+    "Proximal Causal Inference for Synthetic Control with Surrogates."
     *arXiv preprint* arXiv:2308.09527. https://arxiv.org/abs/2308.09527
     """
 
@@ -1623,7 +1623,7 @@ class FSCM:
         """
         Estimate ATT using the Forward Selected Synthetic Control Method (FSCM).
 
-        This method uses forward selection to identify a subset of donor units that optimally predict the treated unit’s pre-treatment outcomes. 
+        This method uses forward selection to identify a subset of donor units that optimally predict the treated unit’s pre-treatment outcomes.
         Final weights and counterfactuals are computed via constrained optimization (SIMPLEX) on the selected donor pool.
 
         Parameters
@@ -1826,8 +1826,8 @@ class SRC:
         """
         Estimate treatment effects using the Synthetic Regressing Control (SRC) method.
 
-        SRC regresses the treated unit's outcomes on a weighted combination of donor units in the post-treatment period, 
-        with weights optimized to ensure good pre-treatment fit. This method allows post-treatment regression adjustment 
+        SRC regresses the treated unit's outcomes on a weighted combination of donor units in the post-treatment period,
+        with weights optimized to ensure good pre-treatment fit. This method allows post-treatment regression adjustment
         and is designed to improve robustness in estimating causal effects.
 
         Parameters
@@ -1851,7 +1851,7 @@ class SRC:
                 Name of the time variable column.
 
             counterfactual_color : str or list of str, optional
-                Color for the counterfactual line in the plot. Can be a single color or a list (if plotting multiple trajectories). 
+                Color for the counterfactual line in the plot. Can be a single color or a list (if plotting multiple trajectories).
                 Default is "red".
 
             treated_color : str, optional
@@ -1892,7 +1892,7 @@ class SRC:
 
         References
         ----------
-        Zhu, Rong J. B. (2023). "Synthetic Regressing Control Method." 
+        Zhu, Rong J. B. (2023). "Synthetic Regressing Control Method."
         *arXiv preprint* arXiv:2306.02584. https://arxiv.org/abs/2306.02584
         """
 
@@ -1962,7 +1962,7 @@ class SCMO:
         Estimate treatment effects using Synthetic Control with Multiple Outcomes (SCMO).
 
         SCMO applies synthetic control estimators in settings with one treated unit and multiple auxiliary outcomes.
-        The method supports two estimators: TLP (Tian, Lee, and Panchenko) and SBMF (Sun et al.), and allows for model averaging between the two. 
+        The method supports two estimators: TLP (Tian, Lee, and Panchenko) and SBMF (Sun et al.), and allows for model averaging between the two.
         Conformal prediction intervals are available for treatment effect inference.
 
         Parameters
@@ -2333,7 +2333,7 @@ class SI:
 
         References
         ----------
-        Agarwal, Anish, Devavrat Shah, and Dennis Shen. "Synthetic Interventions." 
+        Agarwal, Anish, Devavrat Shah, and Dennis Shen. "Synthetic Interventions."
         *arXiv preprint arXiv:2006.07691* (2024). [https://arxiv.org/abs/2006.07691](https://arxiv.org/abs/2006.07691)
         """
 
