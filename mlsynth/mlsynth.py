@@ -2022,8 +2022,8 @@ class SCMO:
 
                 - method : str, default = 'TLP'
                     Estimation method to use. One of:
-                        'TLP' — Two-layer projection estimator (Tian et al.)
-                        'SBMF' — Sparse balancing matrix factorization (Sun et al.)
+                        'TLP' — Concatenated estimator (Tian et al.)
+                        'SBMF' — Demeaned estimator (Sun et al.)
                         'both' — Model averaging between TLP and SBMF
 
                 - display_graphs : bool, default = True
