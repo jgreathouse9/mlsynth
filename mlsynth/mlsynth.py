@@ -6,6 +6,8 @@ from numpy.linalg import inv
 from scipy.stats import norm
 import scipy.stats as stats
 import cvxpy as cp
+from statsmodels.tsa.stattools import grangercausalitytests
+from scipy.stats import chi2
 import warnings
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor
@@ -2433,3 +2435,110 @@ class SI:
             )
 
         return SIresults
+
+
+class StableSC:
+    def __init__(self, config):
+        """
+        Stable Synthetic Control with hybrid anomaly-based donor selection.
+
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary with keys:
+            - df : DataFrame with unit, time, outcome, and treatment indicators
+            - treat, time, outcome, unitid : column names
+        """
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.display_graphs = config.get("display_graphs", True)
+        self.save = config.get("save", False)
+
+    def normalize(self, Y):
+        return Y - Y.mean(axis=0, keepdims=True)
+
+    def granger_mask(self, y, Y0, T0, alpha=0.05, maxlag=1):
+        mask = []
+        for j in range(Y0.shape[1]):
+            try:
+                df = pd.DataFrame({'y': y[:T0], 'x': Y0[:T0, j]})
+                result = grangercausalitytests(df[['y', 'x']], maxlag=maxlag, verbose=False)
+                pval = result[maxlag][0]['ssr_ftest'][1]
+                mask.append(pval < alpha)
+            except:
+                mask.append(False)
+        return np.array(mask)
+
+    def proximity_mask(self, Y0, T0, alpha=0.05):
+        J = Y0.shape[1]
+        dists = np.zeros(J)
+        for j in range(J):
+            others = np.delete(Y0[:T0], j, axis=1)
+            avg_others = others.mean(axis=1)
+            dists[j] = np.sum((Y0[:T0, j] - avg_others) ** 2) / T0
+        threshold = chi2.ppf(1 - alpha, T0)
+        return dists < threshold, dists
+
+    def rbf_scores(self, dists, sigma=1.0):
+        return np.exp(-dists**2 / (2 * sigma**2))
+
+    def select_donors(self, y, Y0, T0, alpha=0.05, sigma=1.0):
+        y_norm = y - y.mean()
+        Y0_norm = self.normalize(Y0)
+        gmask = self.granger_mask(y_norm, Y0_norm, T0, alpha)
+        pmask, dists = self.proximity_mask(Y0_norm, T0, alpha)
+        hybrid_mask = gmask & pmask
+        scores = self.rbf_scores(dists, sigma)
+        S_diag = hybrid_mask * scores
+        keep_idx = np.where(S_diag > 0)[0]
+        Y0_filtered = Y0[:, keep_idx]
+        S_diag_filtered = S_diag[keep_idx]
+        return keep_idx, Y0_filtered, S_diag_filtered
+
+    def fit(self):
+        # Assume balance() and dataprep() are externally defined and available
+        balance(self.df, self.unitid, self.time)
+        prepped = dataprep(self.df, self.unitid, self.time, self.outcome, self.treat)
+
+        y = prepped["y"]
+        Y0 = prepped["donor_matrix"]
+        T0 = prepped["pre_periods"]
+
+        # Step 1: Select donors and compute anomaly weights
+        keep_idx, Y0_selected, S_diag = self.select_donors(y, Y0, T0)
+
+        # Step 2: Prepare QP components
+        y_pre = y[:T0]
+        Y0_pre = Y0_selected[:T0]
+        K = Y0_pre.shape[1]
+
+        Q = Y0_pre.T @ Y0_pre
+        Q_weighted = np.diag(S_diag) @ Q
+        c = -2 * (Y0_pre.T @ y_pre) * S_diag
+
+        # Step 3: Solve QP with cvxpy
+        w = cp.Variable(K)
+        objective = cp.Minimize((1/2) * cp.quad_form(w, Q_weighted) + c @ w)
+        constraints = [w >= 0, cp.sum(w) == 1]
+        prob = cp.Problem(objective, constraints)
+        prob.solve()
+
+        w_hat = w.value
+        y_hat = Y0_selected @ w_hat
+        att = y - y_hat
+
+        self._results = {
+            "weights": w_hat,
+            "donor_indices": keep_idx,
+            "counterfactual": y_hat,
+            "att": att,
+            "S_diag": S_diag,
+            "T0": T0,
+            "y": y
+        }
+
