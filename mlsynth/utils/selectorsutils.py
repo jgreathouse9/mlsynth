@@ -7,6 +7,66 @@ import numpy as np
 from mlsynth.utils.denoiseutils import universal_rank, svt, spectral_rank
 from screenot.ScreeNOT import adaptiveHardThresholding
 from numpy.linalg import svd
+from statsmodels.tsa.stattools import grangercausalitytests
+from scipy.stats import chi2
+
+
+def normalize(Y):
+    return Y - Y.mean(axis=0, keepdims=True)
+
+
+def granger_mask(y, Y0, T0, alpha=0.05, maxlag=1):
+    mask = []
+    for j in range(Y0.shape[1]):
+        try:
+            df = pd.DataFrame({'y': y[:T0], 'x': Y0[:T0, j]})
+            result = grangercausalitytests(df[['y', 'x']], maxlag=maxlag, verbose=False)
+            pval = result[maxlag][0]['ssr_ftest'][1]
+            mask.append(pval < alpha)
+        except:
+            mask.append(False)
+    return np.array(mask)
+
+
+def proximity_mask(Y0, T0, alpha=0.05):
+    J = Y0.shape[1]
+    dists = np.zeros(J)
+    for j in range(J):
+        others = np.delete(Y0[:T0], j, axis=1)
+        avg_others = others.mean(axis=1)
+        dists[j] = np.sum((Y0[:T0, j] - avg_others) ** 2) / T0
+    threshold = chi2.ppf(1 - alpha, T0)
+    return dists < threshold, dists
+
+
+def rbf_scores(dists, sigma=1.0):
+    return np.exp(-dists ** 2 / (2 * sigma ** 2))
+
+
+def ansynth_select_donors(y, Y0, T0, alpha=0.1, sigma=1.0):
+    # Slice to pre-treatment period
+    y_pre = y[:T0]
+    Y0_pre = Y0[:T0, :]
+
+    # Normalize treated and donor units
+    y_norm = y_pre - y_pre.mean()
+    Y0_norm = normalize(Y0_pre)
+
+    # Granger and proximity masks
+    gmask = granger_mask(y_norm, Y0_norm, T0, alpha)
+    pmask, dists = proximity_mask(Y0_norm, T0, alpha)
+    hybrid_mask = gmask & pmask
+
+    # Compute weights
+    scores = rbf_scores(dists, sigma)
+    S_diag = hybrid_mask * scores
+
+    # Select donors with positive weights
+    keep_idx = np.where(S_diag > 0)[0]
+    Y0_filtered = Y0[:, keep_idx]  # use full Y0 here for final model
+    S_diag_filtered = S_diag[keep_idx]
+
+    return keep_idx, Y0_filtered, S_diag_filtered
 
 
 def SVDCluster(X, y, donor_names):

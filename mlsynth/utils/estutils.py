@@ -466,7 +466,7 @@ def pcr(X, y, objective, donor_names, xfull, pre=10, cluster=False, Frequentist=
             prob = Opt.SCopt(n2, y[:pre], X.shape[0], Y0_rank, model=objective, donor_names=donor_names)
 
             weights = prob.solution.primal_vars[next(iter(prob.solution.primal_vars))]
-            return {"weights": weights, "cf_mean": np.dot(X, weights)}
+            return {"weights": dict(zip(donor_names, weights)), "cf_mean": np.dot(X, weights)}
 
         else:
             alpha = 1.0
