@@ -3,14 +3,18 @@ import numpy as np
 import pandas as pd
 from mlsynth.utils.datautils import dataprep, balance, treatlogic
 
-# Test `treatlogic`
 def test_treat_single_unit():
-    treatment_matrix = np.array([[0, 0, 1], [0, 0, 1], [1, 1, 1]])  # 1 treated unit
+    treatment_matrix = np.array([
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 1, 1]  # Only unit 2 is treated
+    ])
     result = treatlogic(treatment_matrix)
     assert result["Num Treated Units"] == 1
-    assert result["Post Periods"] > 0
-    assert result["Pre Periods"] > 0
     assert result["Treated Index"] == [2]
+    assert result["Pre Periods"] == 1
+    assert result["Post Periods"] == 2
+
 
 def test_treat_multiple_units():
     treatment_matrix = np.array([[0, 1, 1], [0, 1, 1], [1, 1, 1]])  # 2 treated units
