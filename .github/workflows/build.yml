@@ -32,7 +32,7 @@ jobs:
 
     - name: Run unit tests
       run: |
-        pytest mlsynth/mlsynth/test --maxfail=1 --disable-warnings --tb=short
+        pytest mlsynth/test --maxfail=1 --disable-warnings --tb=short
 
     - name: Build source distribution
       run: |
