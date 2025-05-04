@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from mlsynth.mlsynth import datautils  # Replace with actual module path
+from mlsynth.utils.datautils import datautils
 
 # Example mock data
 def create_mock_data():
