@@ -3,86 +3,128 @@ import pandas as pd
 
 
 def test_treat(treatment_matrix: np.ndarray):
-    """
-    Test the treatment matrix for validity.
-
-    Parameters:
-        treatment_matrix (numpy.ndarray): The treatment matrix to be tested.
-
-    Raises:
-        TypeError: If the treatment matrix is not a NumPy array.
-        AssertionError: If any of the tests fail.
-
-    Returns:
-        dict: A dictionary containing the results of the tests.
-    """
-    # Check if treatment_matrix is a numpy array
     if not isinstance(treatment_matrix, np.ndarray):
         raise TypeError("treatment_matrix must be a NumPy array")
 
-    # Test 1: Calculate the l0 norm of the matrix and assert that it's greater than 0
     l0_norm = np.count_nonzero(treatment_matrix)
-    assert (
-        l0_norm > 0
-    ), f"The l0 norm is {l0_norm}, which is not greater than 0. No treated units found."
+    assert l0_norm > 0, "No treated units found (l0 norm = 0)"
 
-    # Test 2: Calculate the l1 norm of the treated column(s) to check that the treatment values are integers
-    columns_with_ones = np.where(np.any(treatment_matrix == 1, axis=0))[0]
-    treated_column = treatment_matrix[:, columns_with_ones]
-    t2 = int(
-        np.linalg.norm(treated_column, ord=1)
-    )  # Explicitly convert to integer
-    assert t2 == np.linalg.norm(
-        treated_column, ord=1
-    ), f"The l1 norm of the treated column is not an integer."
+    num_units = treatment_matrix.shape[1]
+    num_periods = treatment_matrix.shape[0]
 
-    # Test 3: Use the infinite norm of the treated column(s) to ensure that the maximum value is 1
-    inf_norm = np.linalg.norm(treated_column, ord=np.inf)
-    assert (
-        inf_norm == 1
-    ), f"The maximum value of the treated column is {inf_norm}, which is not equal to 1."
+    # Identify treated units
+    treated_unit_mask = np.any(treatment_matrix == 1, axis=0)
+    treated_indices = np.where(treated_unit_mask)[0]
+    num_treated_units = len(treated_indices)
 
-    t1 = int(
-        np.size(treated_column) - np.count_nonzero(treated_column)
-    )  # Explicitly convert to integer
-    total_periods = t2 + t1
+    # === SINGLE TREATED UNIT CASE ===
+    if num_treated_units == 1:
+        treated_col = treatment_matrix[:, treated_indices[0]]
+        treat_times = np.where(treated_col == 1)[0]
+        assert len(treat_times) > 0, "Treated unit has no post-treatment period"
+        treat_start = treat_times[0]
+        assert np.all(treated_col[treat_start:] == 1), "Treatment is not sustained"
 
-    return {
-        "Num Treated Units": l0_norm,
-        "Post Periods": t2,  # Ensured integer
-        "Treated Index": columns_with_ones,
-        "Pre Periods": t1,  # Ensured integer
-        "Total Periods": total_periods,  # Ensured integer
-    }
+        t2 = int(np.sum(treated_col[treat_start:]))
+        t1 = int(treat_start)
+        total_periods = int(t1 + t2)
+
+        return {
+            "Num Treated Units": 1,
+            "Post Periods": t2,
+            "Treated Index": treated_indices,
+            "Pre Periods": t1,
+            "Total Periods": total_periods,
+        }
+
+    # === MULTIPLE TREATED UNITS CASE ===
+    else:
+        first_treat_periods = np.full(num_units, fill_value=np.nan)
+        for unit_idx in treated_indices:
+            treat_vector = treatment_matrix[:, unit_idx]
+            treat_times = np.where(treat_vector == 1)[0]
+            assert len(treat_times) > 0, f"Unit {unit_idx} has no post-treatment period"
+            first_treat_periods[unit_idx] = treat_times[0]
+            assert np.all(treat_vector[treat_times[0]:] == 1), f"Treatment is not sustained for unit {unit_idx}"
+
+        first_treat_periods_clean = first_treat_periods[treated_indices].astype(int)
+        pre_periods = first_treat_periods_clean
+        post_periods = num_periods - pre_periods
+
+        return {
+            "Num Treated Units": num_treated_units,
+            "Treated Index": treated_indices,
+            "First Treat Periods": first_treat_periods_clean,
+            "Pre Periods by Unit": pre_periods,
+            "Post Periods by Unit": post_periods,
+            "Total Periods": num_periods,
+        }
+
 
 
 def dataprep(df, unitid, time, outcome, treat):
-    test_results = test_treat(
-        df.pivot(index=time, columns=unitid, values=treat).to_numpy()
-    )
-    t2 = test_results["Post Periods"]
-    t1 = test_results["Pre Periods"]
-    trcolnum = test_results["Treated Index"]
-    t = test_results["Total Periods"]
+    T_wide = df.pivot(index=time, columns=unitid, values=treat)
+    treat_matrix = T_wide.to_numpy()
+    test_results = test_treat(treat_matrix)
 
-    Ywide = df.pivot(index=time, columns=unitid, values=outcome)
-    treated_unit_name = Ywide.columns[test_results["Treated Index"]][0]
-    y = Ywide[treated_unit_name].to_numpy()
-    donor_df = Ywide.drop(
-        Ywide.columns[test_results["Treated Index"][0]], axis=1
-    )
-    donor_names = donor_df.columns
+    # Case: Only one treated unit (preserve original logic)
+    if len(test_results["Treated Index"]) == 1:
+        t2 = test_results["Post Periods"]
+        t1 = test_results["Pre Periods"]
+        t = test_results["Total Periods"]
+        trcolnum = test_results["Treated Index"]
 
-    return {
-        "treated_unit_name": treated_unit_name,
-        "Ywide": Ywide,
-        "y": y,
-        "donor_names": donor_names,
-        "donor_matrix": donor_df.to_numpy(),
-        "total_periods": t,
-        "pre_periods": t1,
-        "post_periods": t2,
-    }
+        Ywide = df.pivot(index=time, columns=unitid, values=outcome)
+        treated_unit_name = Ywide.columns[trcolnum[0]]
+        y = Ywide[treated_unit_name].to_numpy()
+        donor_df = Ywide.drop(Ywide.columns[trcolnum[0]], axis=1)
+        donor_names = donor_df.columns
+
+        return {
+            "treated_unit_name": treated_unit_name,
+            "Ywide": Ywide,
+            "y": y,
+            "donor_names": donor_names,
+            "donor_matrix": donor_df.to_numpy(),
+            "total_periods": t,
+            "pre_periods": t1,
+            "post_periods": t2,
+        }
+
+    # Case: Multiple treated units (group by treatment timing)
+    else:
+        Ywide = df.pivot(index=time, columns=unitid, values=outcome)
+        T_wide = df.pivot(index=time, columns=unitid, values=treat)
+
+        first_treat_time = (T_wide == 1).idxmax().to_dict()
+        cohorts = {}
+
+        for unit, treat_time in first_treat_time.items():
+            if T_wide.loc[treat_time, unit] == 1:  # Confirm valid treatment
+                cohorts.setdefault(treat_time, []).append(unit)
+
+        cohort_data = {}
+
+        for treat_time, units in cohorts.items():
+            y_mat = Ywide[units].to_numpy()
+            t_post = Ywide.shape[0] - Ywide.index.get_loc(treat_time)
+            t_pre = Ywide.index.get_loc(treat_time)
+            donor_df = Ywide.drop(columns=units)
+
+            cohort_data[treat_time] = {
+                "treated_units": units,
+                "y": y_mat,
+                "donor_names": donor_df.columns,
+                "donor_matrix": donor_df.to_numpy(),
+                "total_periods": Ywide.shape[0],
+                "pre_periods": t_pre,
+                "post_periods": t_post,
+            }
+
+        return {
+            "Ywide": Ywide,
+            "cohorts": cohort_data,
+        }
 
 
 def balance(df, unit_col, time_col):
