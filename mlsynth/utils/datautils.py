@@ -59,6 +59,67 @@ def treatlogic(treatment_matrix: np.ndarray):
             "Total Periods": num_periods,
         }
 
+def dataprep(df, unitid, time, outcome, treat):
+    # Pivot treatment matrix to wide format (rows: time, cols: units)
+    T_wide = df.pivot(index=time, columns=unitid, values=treat).sort_index()
+    treat_matrix = T_wide.to_numpy()
+    treat_info = treatlogic(treat_matrix)
+
+    Ywide = df.pivot(index=time, columns=unitid, values=outcome).sort_index()
+
+    if treat_info["Num Treated Units"] == 1:
+        # === Single treated unit case ===
+        tr_index = treat_info["Treated Index"][0]
+        t1 = treat_info["Pre Periods"]
+        t2 = treat_info["Post Periods"]
+        total_t = treat_info["Total Periods"]
+
+        treated_unit_name = Ywide.columns[tr_index]
+        y = Ywide[treated_unit_name].to_numpy()
+        donor_df = Ywide.drop(columns=treated_unit_name)
+
+        return {
+            "treated_unit_name": treated_unit_name,
+            "Ywide": Ywide,
+            "y": y,
+            "donor_names": donor_df.columns,
+            "donor_matrix": donor_df.to_numpy(),
+            "total_periods": total_t,
+            "pre_periods": t1,
+            "post_periods": t2,
+        }
+
+    else:
+        # === Multiple treated units case ===
+        cohorts = {}
+        first_treat_periods = treat_info["First Treat Periods"]
+
+        for idx, unit_index in enumerate(treat_info["Treated Index"]):
+            treat_time = Ywide.index[first_treat_periods[idx]]
+            unit_name = Ywide.columns[unit_index]
+            cohorts.setdefault(treat_time, []).append(unit_name)
+
+        cohort_data = {}
+        for treat_time, units in cohorts.items():
+            t_pre = Ywide.index.get_loc(treat_time)
+            t_post = Ywide.shape[0] - t_pre
+            y_mat = Ywide[units].to_numpy()
+            donor_df = Ywide.drop(columns=units)
+
+            cohort_data[treat_time] = {
+                "treated_units": units,
+                "y": y_mat,
+                "donor_names": donor_df.columns,
+                "donor_matrix": donor_df.to_numpy(),
+                "total_periods": Ywide.shape[0],
+                "pre_periods": t_pre,
+                "post_periods": t_post,
+            }
+
+        return {
+            "Ywide": Ywide,
+            "cohorts": cohort_data,
+        }
 
 
 
