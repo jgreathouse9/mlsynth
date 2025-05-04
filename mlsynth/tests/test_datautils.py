@@ -17,10 +17,15 @@ def test_treat_single_unit():
 
 
 def test_treat_multiple_units():
-    treatment_matrix = np.array([[0, 1, 1], [0, 1, 1], [1, 1, 1]])  # 2 treated units
+    treatment_matrix = np.array([
+        [0, 0, 0],  # Unit 0 - never treated
+        [0, 1, 1],  # Unit 1 - treated
+        [0, 1, 1]   # Unit 2 - treated
+    ])
     result = treatlogic(treatment_matrix)
     assert result["Num Treated Units"] == 2
-    assert len(result["Treated Index"]) == 2
+    assert set(result["Treated Index"]) == {1, 2}
+
 
 def test_treat_no_treated_units():
     treatment_matrix = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])  # No treated units
