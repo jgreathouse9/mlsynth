@@ -30,14 +30,9 @@ jobs:
         pip install -r requirements.txt
         pip install pytest
 
-    - name: Show directory structure (debugging)
-      run: |
-        pwd
-        ls -R
-
     - name: Run unit tests
       run: |
-        pytest . --maxfail=1 --disable-warnings --tb=short
+        pytest mlsynth/tests --maxfail=1 --disable-warnings --tb=short
 
     - name: Build source distribution
       run: |
