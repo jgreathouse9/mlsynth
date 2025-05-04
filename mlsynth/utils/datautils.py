@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def test_treat(treatment_matrix: np.ndarray):
+def treatlogic(treatment_matrix: np.ndarray):
     if not isinstance(treatment_matrix, np.ndarray):
         raise TypeError("treatment_matrix must be a NumPy array")
 
@@ -65,7 +65,7 @@ def test_treat(treatment_matrix: np.ndarray):
 def dataprep(df, unitid, time, outcome, treat):
     T_wide = df.pivot(index=time, columns=unitid, values=treat)
     treat_matrix = T_wide.to_numpy()
-    test_results = test_treat(treat_matrix)
+    test_results = treatlogic(treat_matrix)
 
     # Case: Only one treated unit (preserve original logic)
     if len(test_results["Treated Index"]) == 1:
