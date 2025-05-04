@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from mlsynth.utils.datautils import datautils
+from mlsynth.utils.datautils import dataprep, balance, test_treat
 
 # Example mock data
 def create_mock_data():
