@@ -4,38 +4,28 @@ import pandas as pd
 
 def treatlogic(treatment_matrix: np.ndarray):
     if not isinstance(treatment_matrix, np.ndarray):
-        raise TypeError("treatment_matrix must be a NumPy array")
+        raise TypeError("Input must be a numpy ndarray")
 
-    l0_norm = np.count_nonzero(treatment_matrix)
-    assert l0_norm > 0, "No treated units found (l0 norm = 0)"
+    if treatment_matrix.ndim != 2:
+        raise ValueError("Treatment matrix must be 2D")
 
-    num_units = treatment_matrix.shape[1]
-    num_periods = treatment_matrix.shape[0]
-
-    # Identify treated units
-    treated_unit_mask = np.any(treatment_matrix == 1, axis=0)
-    treated_indices = np.where(treated_unit_mask)[0]
+    treated_mask = treatment_matrix.sum(axis=1) > 0
+    treated_indices = list(np.where(treated_mask)[0])
     num_treated_units = len(treated_indices)
 
-    # === SINGLE TREATED UNIT CASE ===
-    if num_treated_units == 1:
-        treated_col = treatment_matrix[:, treated_indices[0]]
-        treat_times = np.where(treated_col == 1)[0]
-        assert len(treat_times) > 0, "Treated unit has no post-treatment period"
-        treat_start = treat_times[0]
-        assert np.all(treated_col[treat_start:] == 1), "Treatment is not sustained"
+    assert num_treated_units > 0, "There must be at least one treated unit"
 
-        t2 = int(np.sum(treated_col[treat_start:]))
-        t1 = int(treat_start)
-        total_periods = int(t1 + t2)
+    first_treatment_time = np.argmax(treatment_matrix[treated_indices[0]] == 1)
+    total_periods = treatment_matrix.shape[1]
+    pre_periods = first_treatment_time
+    post_periods = total_periods - pre_periods
 
-        return {
-            "Num Treated Units": 1,
-            "Post Periods": t2,
-            "Treated Index": treated_indices,
-            "Pre Periods": t1,
-            "Total Periods": total_periods,
-        }
+    return {
+        "Num Treated Units": num_treated_units,
+        "Treated Index": treated_indices,
+        "Pre Periods": pre_periods,
+        "Post Periods": post_periods,
+    }
 
     # === MULTIPLE TREATED UNITS CASE ===
     else:
@@ -59,7 +49,6 @@ def treatlogic(treatment_matrix: np.ndarray):
             "Post Periods by Unit": post_periods,
             "Total Periods": num_periods,
         }
-
 
 
 def dataprep(df, unitid, time, outcome, treat):
