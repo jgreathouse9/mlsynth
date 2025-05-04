@@ -36,9 +36,14 @@ def test_treat_invalid_type():
     with pytest.raises(TypeError):
         treatlogic("invalid_input")  # Passing a non-NumPy array
 
-def test_treat_division_by_zero():
-    treatment_matrix = np.array([[1, 0], [1, 0], [0, 0]])  # Zero treatment in the second unit
-    with pytest.raises(ZeroDivisionError):
+
+def test_treat_unsustained_treatment_raises():
+    treatment_matrix = np.array([
+        [1, 0],
+        [1, 0],
+        [0, 0]
+    ])
+    with pytest.raises(AssertionError, match="Treatment is not sustained"):
         treatlogic(treatment_matrix)
 
 # Test `dataprep`
