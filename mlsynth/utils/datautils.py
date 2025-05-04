@@ -259,10 +259,7 @@ def dataprep(df, unitid, time, outcome, treat):
 def balance(df, unit_col, time_col):
 
     """
-
     Check if the panel is strongly balanced.
-
-
 
     Parameters:
 
@@ -272,18 +269,13 @@ def balance(df, unit_col, time_col):
 
     - time_col: str, column name representing the time variable
 
-
-
     Raises:
 
     - ValueError: If the panel is not strongly balanced
 
-
-
     Returns:
 
     - None if the panel is strongly balanced
-
     """
 
     # Check for unique observations
@@ -323,10 +315,7 @@ def balance(df, unit_col, time_col):
 def clean_surrogates2(X, Z0, W, T0, Cy=None):
 
     """
-
     Cleans surrogate variables using the provided inputs and returns the updated X.
-
-
 
     Parameters:
 
@@ -340,12 +329,9 @@ def clean_surrogates2(X, Z0, W, T0, Cy=None):
 
     Cy (ndarray, optional): Additional covariates (default is None).
 
-
-
     Returns:
 
     ndarray: Updated surrogate variable matrix.
-
     """
 
     tauts = []
@@ -391,10 +377,7 @@ def clean_surrogates2(X, Z0, W, T0, Cy=None):
 def proxy_dataprep(df, surrogate_units, proxy_vars, id_col='Artist', time_col='Date', T=None):
 
     """
-
     Efficiently constructs donor, surrogate, and proxy matrices using vectorized operations.
-
-
 
     Args:
 
@@ -408,14 +391,11 @@ def proxy_dataprep(df, surrogate_units, proxy_vars, id_col='Artist', time_col='D
 
     time_col (str): Column name representing the time variable.
 
-
-
     Returns:
 
     surrogate_matrix (np.ndarray): Surrogate matrix (X).
 
     surrogate_proxy_matrix (np.ndarray): Surrogate proxy matrix (Z1).
-
     """
 
 
