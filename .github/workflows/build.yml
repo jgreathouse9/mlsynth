@@ -30,6 +30,14 @@ jobs:
         pip install -r requirements.txt
         pip install pytest
 
+    - name: Show directory structure (debugging)
+      run: |
+        pwd
+        ls -R
+
+    - name: Set PYTHONPATH to include mlsynth directory
+      run: echo "PYTHONPATH=$(pwd)/mlsynth" >> $GITHUB_ENV
+
     - name: Run unit tests
       run: |
         pytest mlsynth/tests --maxfail=1 --disable-warnings --tb=short
