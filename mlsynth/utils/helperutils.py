@@ -12,5 +12,11 @@ def prenorm(X, target=100):
         np.ndarray: Normalized array.
     """
     X = np.asarray(X)
+
     denom = X[-1] if X.ndim == 1 else X[-1, :]
+
+    # Check for division by zero
+    if np.any(denom == 0):
+        raise ZeroDivisionError("Division by zero in prenorm function.")
+
     return X / denom * target
