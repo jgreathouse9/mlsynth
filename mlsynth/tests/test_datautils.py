@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from mlsynth.utils.datautils import dataprep, balance, test_treat
+from mlsynth.utils.datautils import dataprep, balance, treatlogic
 
 # Example mock data
 def create_mock_data():
@@ -11,7 +11,7 @@ def create_mock_data():
 # Test `test_treat`
 def test_treat_single_unit():
     treatment_matrix = np.array([[0, 0, 1], [0, 0, 1], [1, 1, 1]])  # 1 treated unit
-    result = datautils.test_treat(treatment_matrix)
+    result = datautils.treatlogic(treatment_matrix)
     assert result["Num Treated Units"] == 1
     assert result["Post Periods"] > 0
     assert result["Pre Periods"] > 0
@@ -19,23 +19,23 @@ def test_treat_single_unit():
 
 def test_treat_multiple_units():
     treatment_matrix = np.array([[0, 1, 1], [0, 1, 1], [1, 1, 1]])  # 2 treated units
-    result = datautils.test_treat(treatment_matrix)
+    result = datautils.treatlogic(treatment_matrix)
     assert result["Num Treated Units"] == 2
     assert len(result["Treated Index"]) == 2
 
 def test_treat_no_treated_units():
     treatment_matrix = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])  # No treated units
     with pytest.raises(AssertionError):
-        datautils.test_treat(treatment_matrix)
+        datautils.treatlogic(treatment_matrix)
 
 def test_treat_invalid_type():
     with pytest.raises(TypeError):
-        datautils.test_treat("invalid_input")  # Passing a non-NumPy array
+        datautils.treatlogic("invalid_input")  # Passing a non-NumPy array
 
 def test_treat_division_by_zero():
     treatment_matrix = np.array([[1, 0], [1, 0], [0, 0]])  # Zero treatment in the second unit
     with pytest.raises(ZeroDivisionError):
-        datautils.test_treat(treatment_matrix)
+        datautils.treatlogic(treatment_matrix)
 
 # Test `dataprep`
 def test_dataprep_single_treated_unit():
