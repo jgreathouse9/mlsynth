@@ -6,7 +6,7 @@ import pandas as pd
 
 
 
-def test_treat(treatment_matrix: np.ndarray):
+def logictreat(treatment_matrix: np.ndarray):
 
     if not isinstance(treatment_matrix, np.ndarray):
 
@@ -132,7 +132,7 @@ def dataprep(df, unitid, time, outcome, treat):
 
     treat_matrix = T_wide.to_numpy()
 
-    test_results = test_treat(treat_matrix)
+    test_results = logictreat(treat_matrix)
 
 
 
