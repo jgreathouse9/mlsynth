@@ -15,23 +15,28 @@ def treatlogic(treatment_matrix: np.ndarray):
 
     assert num_treated_units > 0, "There must be at least one treated unit"
 
-    first_treatment_time = np.argmax(treatment_matrix[treated_indices[0]] == 1)
-    total_periods = treatment_matrix.shape[1]
-    pre_periods = first_treatment_time
-    post_periods = total_periods - pre_periods
+    num_periods = treatment_matrix.shape[1]
 
-    return {
-        "Num Treated Units": num_treated_units,
-        "Treated Index": treated_indices,
-        "Pre Periods": pre_periods,
-        "Post Periods": post_periods,
-    }
+    # === SINGLE TREATED UNIT CASE ===
+    if num_treated_units == 1:
+        first_treatment_time = np.argmax(treatment_matrix[treated_indices[0]] == 1)
+        total_periods = treatment_matrix.shape[1]
+        pre_periods = first_treatment_time
+        post_periods = total_periods - pre_periods
+
+        return {
+            "Num Treated Units": num_treated_units,
+            "Treated Index": treated_indices,
+            "Pre Periods": pre_periods,
+            "Post Periods": post_periods,
+            "Total Periods": total_periods,
+        }
 
     # === MULTIPLE TREATED UNITS CASE ===
     else:
-        first_treat_periods = np.full(num_units, fill_value=np.nan)
+        first_treat_periods = np.full(treatment_matrix.shape[0], fill_value=np.nan)
         for unit_idx in treated_indices:
-            treat_vector = treatment_matrix[:, unit_idx]
+            treat_vector = treatment_matrix[unit_idx]
             treat_times = np.where(treat_vector == 1)[0]
             assert len(treat_times) > 0, f"Unit {unit_idx} has no post-treatment period"
             first_treat_periods[unit_idx] = treat_times[0]
@@ -50,70 +55,6 @@ def treatlogic(treatment_matrix: np.ndarray):
             "Total Periods": num_periods,
         }
 
-
-def dataprep(df, unitid, time, outcome, treat):
-    T_wide = df.pivot(index=time, columns=unitid, values=treat)
-    treat_matrix = T_wide.to_numpy()
-    test_results = treatlogic(treat_matrix)
-
-    # Case: Only one treated unit (preserve original logic)
-    if len(test_results["Treated Index"]) == 1:
-        t2 = test_results["Post Periods"]
-        t1 = test_results["Pre Periods"]
-        t = test_results["Total Periods"]
-        trcolnum = test_results["Treated Index"]
-
-        Ywide = df.pivot(index=time, columns=unitid, values=outcome)
-        treated_unit_name = Ywide.columns[trcolnum[0]]
-        y = Ywide[treated_unit_name].to_numpy()
-        donor_df = Ywide.drop(Ywide.columns[trcolnum[0]], axis=1)
-        donor_names = donor_df.columns
-
-        return {
-            "treated_unit_name": treated_unit_name,
-            "Ywide": Ywide,
-            "y": y,
-            "donor_names": donor_names,
-            "donor_matrix": donor_df.to_numpy(),
-            "total_periods": t,
-            "pre_periods": t1,
-            "post_periods": t2,
-        }
-
-    # Case: Multiple treated units (group by treatment timing)
-    else:
-        Ywide = df.pivot(index=time, columns=unitid, values=outcome)
-        T_wide = df.pivot(index=time, columns=unitid, values=treat)
-
-        first_treat_time = (T_wide == 1).idxmax().to_dict()
-        cohorts = {}
-
-        for unit, treat_time in first_treat_time.items():
-            if T_wide.loc[treat_time, unit] == 1:  # Confirm valid treatment
-                cohorts.setdefault(treat_time, []).append(unit)
-
-        cohort_data = {}
-
-        for treat_time, units in cohorts.items():
-            y_mat = Ywide[units].to_numpy()
-            t_post = Ywide.shape[0] - Ywide.index.get_loc(treat_time)
-            t_pre = Ywide.index.get_loc(treat_time)
-            donor_df = Ywide.drop(columns=units)
-
-            cohort_data[treat_time] = {
-                "treated_units": units,
-                "y": y_mat,
-                "donor_names": donor_df.columns,
-                "donor_matrix": donor_df.to_numpy(),
-                "total_periods": Ywide.shape[0],
-                "pre_periods": t_pre,
-                "post_periods": t_post,
-            }
-
-        return {
-            "Ywide": Ywide,
-            "cohorts": cohort_data,
-        }
 
 
 def balance(df, unit_col, time_col):
