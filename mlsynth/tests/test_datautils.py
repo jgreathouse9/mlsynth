@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from mlsynth.utils.datautils import dataprep, balance, treatlogic
+from mlsynth.utils.datautils import dataprep, balance, logictreat
 
 # === Test Data Helpers ===
 
