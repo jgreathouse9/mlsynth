@@ -1,7 +1,8 @@
 import pytest
 import numpy as np
 import pandas as pd
-from mlsynth.utils.datautils import dataprep, balance, logictreat
+from numpy.testing import assert_array_almost_equal
+from mlsynth.utils.datautils import dataprep, balance, logictreat, clean_surrogates2, proxy_dataprep
 
 # === Test Data Helpers ===
 
@@ -110,3 +111,54 @@ def test_balance_duplicates_raises():
     df = pd.concat([df, df.iloc[[0]]], ignore_index=True)
     with pytest.raises(ValueError, match="Duplicate observations found"):
         balance(df, unit_col='unit', time_col='time')
+
+
+# === Proximal/Special Dataprep tests ===
+
+
+def test_clean_surrogates2_basic():
+    # Simulate input matrices
+    X = np.array([[1, 2], [2, 3], [3, 4]])
+    Z0 = np.array([[1], [2], [3]])
+    W = np.array([[2], [3], [4]])
+    T0 = 2
+
+    cleaned = clean_surrogates2(X, Z0, W, T0)
+
+    assert cleaned.shape == X.shape
+    # Check that output is numeric and finite
+    assert np.isfinite(cleaned).all()
+
+def test_clean_surrogates2_with_cy():
+    X = np.random.rand(5, 2)
+    Z0 = np.random.rand(5, 2)
+    W = np.random.rand(5, 2)
+    Cy = np.random.rand(5, 1)
+    T0 = 3
+
+    cleaned = clean_surrogates2(X, Z0, W, T0, Cy)
+
+    assert cleaned.shape == X.shape
+    assert np.isfinite(cleaned).all()
+
+def test_proxy_dataprep_shapes():
+    df = pd.DataFrame({
+        'Artist': ['A', 'A', 'B', 'B'],
+        'Date': [1, 2, 1, 2],
+        'proxy1': [10, 11, 20, 21],
+        'proxy2': [30, 31, 40, 41],
+    })
+
+    proxy_vars = {
+        'donorproxies': ['proxy1'],
+        'surrogatevars': ['proxy2']
+    }
+
+    surrogate_units = ['A', 'B']
+
+    X, Z1 = proxy_dataprep(df, surrogate_units, proxy_vars, id_col='Artist', time_col='Date')
+
+    assert X.shape == (2, 2)
+    assert Z1.shape == (2, 2)
+    assert_array_almost_equal(X, np.array([[10, 20], [11, 21]]))
+    assert_array_almost_equal(Z1, np.array([[30, 40], [31, 41]]))
