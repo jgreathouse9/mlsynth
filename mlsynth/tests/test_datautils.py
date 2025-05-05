@@ -76,11 +76,20 @@ def test_dataprep_single_unit():
 
 
 def test_dataprep_multiple_units():
-    df = make_multiple_treated_df()
-    df.loc[df['unit'] == 'A', 'treat'] = 0  # Ensure only B and C are treated
+    data = {
+        'unit': ['A'] * 5 + ['B'] * 5 + ['C'] * 5,
+        'time': [1, 2, 3, 4, 5] * 3,
+        'outcome': list(range(10, 15)) + list(range(20, 25)) + list(range(30, 35)),
+        'treat': [0]*5 + [0, 0, 1, 1, 1] + [0, 1, 1, 1, 1]
+    }
+    df = pd.DataFrame(data)
+
     result = dataprep(df, unitid='unit', time='time', outcome='outcome', treat='treat')
+    
     assert 'cohorts' in result
-    assert len(result['cohorts']) == 1  # Only one unique treatment time in this setup
+    assert len(result['cohorts']) == 2  # B treated at t=3, C at t=2
+    assert sorted(result['cohorts'].keys()) == [2, 3]
+
 
 
 # === balance Tests ===
