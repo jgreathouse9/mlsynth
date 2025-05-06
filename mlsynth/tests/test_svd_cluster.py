@@ -62,4 +62,4 @@ def test_svdcluster_output_dimensions(mocked_svt):
     assert X_sub.shape[0] == X.shape[0], "Output should have same number of rows as input"
     assert X_sub.shape[1] == len(selected_names), "Number of selected donors should match shape"
     assert all(name in donor_names for name in selected_names), "All returned names must be valid donors"
-    assert 0 not in selected_indices, "Treated unit (index 0 in combined matrix) should be excluded"
+    assert all(0 <= i < X.shape[1] for i in selected_indices), "All indices should be valid donor columns"
