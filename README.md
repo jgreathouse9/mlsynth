@@ -1,4 +1,7 @@
 #  ``mlsynth``
+
+![coverage](coverage.svg)
+
 ``mlsynth`` is a python package for doing policy evaluation using panel data estimators. See the [full documentation](https://mlsynth.readthedocs.io/) and the associated tutorials.
 
 
