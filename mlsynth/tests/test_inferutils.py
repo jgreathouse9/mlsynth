@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from mlsynth.utils.inferutils import ag_conformal
 
+
 def test_ag_conformal_basic():
     y_true_pre = np.array([1.0, 2.0, 3.0])
     y_pred_pre = np.array([0.9, 2.1, 2.9])
