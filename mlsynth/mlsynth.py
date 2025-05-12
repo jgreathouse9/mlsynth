@@ -239,8 +239,6 @@ class FMA:
         """
         Compute estimates and inference using the Factor Model Approach (FMA).
 
-        Implements the Factor Model Approach.
-
         Parameters
         ----------
         config : dict
