@@ -47,6 +47,11 @@ jobs:
         coverage xml
         coverage-badge -o coverage.svg -f
 
+    - name: Untrack coverage artifacts
+      run: |
+        git rm --cached .coverage || true
+        git rm --cached coverage.xml || true
+
     - name: Commit coverage badge to repo
       run: |
         git config --global user.name "GitHub Actions"
