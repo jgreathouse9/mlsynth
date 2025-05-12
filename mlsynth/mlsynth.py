@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from mlsynth.utils.helperutils import prenorm
 from mlsynth.utils.datautils import balance, dataprep, proxy_dataprep, clean_surrogates2
 from mlsynth.utils.resultutils import effects, plot_estimates
-from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, get_theta, get_sigmasq, SRCest, RPCASYNTH, SMOweights
+from mlsynth.utils.estutils import Opt, pcr, TSEST, pda, pi, pi_surrogate, pi_surrogate_post, get_theta, get_sigmasq, SRCest, RPCASYNTH, SMOweights, NSCcv, NSC_opt
 from mlsynth.utils.inferutils import step2, ag_conformal
 from mlsynth.utils.selectorsutils import fpca
 from mlsynth.utils.denoiseutils import (
@@ -2522,4 +2522,110 @@ class StableSC:
             )
 
 
+
+
+class NSC:
+    def __init__(self, config):
+        """
+        Nonlinear Synthetic Control (NSC) model for estimating the treatment effect
+        for a single treated unit using affine combinations of control units.
+
+        Parameters:
+        ----------
+        config : dict
+            Dictionary containing configuration parameters:
+            - "df": DataFrame with the observed panel data.
+            - "outcome": Name of the outcome variable in the DataFrame.
+            - "treat": Name of the treatment indicator variable in the DataFrame.
+            - "unitid": Name of the unit identifier variable in the DataFrame.
+            - "time": Name of the time variable in the DataFrame.
+            - "counterfactual_color": Color for the counterfactual line in the graph (default: "red").
+            - "treated_color": Color for the treated unit's line in the graph (default: "black").
+            - "display_graphs": Boolean flag to display graphs (default: True).
+            - "save": Boolean flag to save results (default: False).
+        """
+        self.df = config.get("df")
+        self.outcome = config.get("outcome")
+        self.treat = config.get("treat")
+        self.unitid = config.get("unitid")
+        self.time = config.get("time")
+        self.counterfactual_color = config.get("counterfactual_color", "red")
+        self.treated_color = config.get("treated_color", "black")
+        self.display_graphs = config.get("display_graphs", True)
+        self.save = config.get("save", False)
+
+    def fit(self):
+        """
+        Fits the NSC model by performing the following steps:
+
+        1. Balances the panel to ensure a consistent structure.
+        2. Prepares the data for the treated unit and control units using the `dataprep` function.
+        3. Runs cross-validation to select optimal hyperparameters `a` and `b` for the weight estimation.
+        4. Estimates the optimal weights for the control units using affine combinations based on the selected `a` and `b`.
+
+        Returns:
+        -------
+        None
+            This method does not return any value. It stores the results in the model instance.
+        """
+        # Step 1: Balance panel (ensures balanced panel structure)
+        balance(self.df, self.unitid, self.time)
+
+        # Step 2: Prepare data using dataprep
+        prepped = dataprep(self.df, self.unitid, self.time, self.outcome, self.treat)
+
+        # Step 3: Extract relevant data from prepped (single treated unit case)
+        y = prepped["y"]  # Treated unit outcomes (pre-treatment)
+        Y0 = prepped["donor_matrix"]  # Donor unit outcomes (pre-treatment)
+
+        # Step 4: Tune hyperparameters a and b using kfold
+        best_a, best_b = NSCcv(y[:prepped["pre_periods"]], Y0[:prepped["pre_periods"]])
+
+        # Step 5: Estimate affine weights using optimal a, b
+        weights = NSC_opt(y[:prepped["pre_periods"]], Y0[:prepped["pre_periods"]], best_a, best_b)
+
+        # Step 6: Compute counterfactual by applying the weights to the donor matrix
+        y_NSC = np.dot(Y0, weights)
+
+        # Step 7: Create a dictionary mapping donor names to their corresponding weights
+        weightsdict = {prepped["donor_names"][i]: round(weights[i], 3) for i in range(len(prepped["donor_names"]))}
+
+        print(weightsdict)
+        
+        attdict, fitdict, Vectors = effects.calculate(
+            prepped["y"],
+            y_NSC,
+            prepped["pre_periods"],
+            prepped["post_periods"],
+        )
+        
+        if self.display_graphs:
+            plot_estimates(
+                df=prepped,
+                time=self.time,
+                unitid=self.unitid,
+                outcome=self.outcome,
+                treatmentname=self.treat,
+                treated_unit_name=prepped["treated_unit_name"],
+                y=prepped["y"],
+                cf_list=[y_NSC],
+                counterfactual_names=["NSC"],
+                method="NSC",
+                treatedcolor=self.treated_color,
+                counterfactualcolors=self.counterfactual_color,
+                save=self.save
+            )
+
+        return {
+            "Effects": attdict,
+            "Fit": fitdict,
+            "Vectors": Vectors,
+            "Weights": [
+                weightsdict,
+                {
+                    "Cardinality of Positive Donors": np.sum(np.abs(weights) > 0.001)
+                }
+            ],
+            "_prepped": prepped
+        }
 
