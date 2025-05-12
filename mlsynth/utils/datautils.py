@@ -292,8 +292,7 @@ def balance(df, unit_col, time_col):
 
     # Group by unit and count the number of observations for each unit
 
-    counts = df.groupby([unit_col, time_col]).size().unstack(fill_value=0)
-
+    counts = df.groupby([unit_col, time_col], observed=False).size().unstack(fill_value=0)
 
 
     # Check if all units have the same number of observations
