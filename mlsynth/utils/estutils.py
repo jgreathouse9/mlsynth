@@ -1307,11 +1307,11 @@ def SMOweights(data, method='concatenated', T0=None):
 # CVXPY optimization for weights
 def NSC_opt(y, Y0, a, b):
     """
-    Solve for weights that minimize the error between the treated unit's outcome 
+    Solve for weights that minimize the error between the treated unit's outcome
     (y) and the affine combination of control units' outcomes (Y0).
 
     Parameters:
-    ----------
+    -----------
     y : np.ndarray
         Outcome vector for the treated unit (pre-treatment periods).
 
@@ -1325,7 +1325,7 @@ def NSC_opt(y, Y0, a, b):
         Regularization parameter for the l2 penalty on weights.
 
     Returns:
-    -------
+    --------
     np.ndarray
         The computed weights for the control units.
     """
@@ -1354,7 +1354,7 @@ def NSCcv(y, Y0, a_grid=np.arange(0.01, 1.01, 0.05), b_grid=np.arange(0.01, 1.01
     Perform k-fold cross-validation to select the best values of tuning parameters a and b.
 
     Parameters:
-    ----------
+    -----------
     y : np.ndarray
         Outcome vector for the treated unit (pre-treatment periods).
 
@@ -1371,7 +1371,7 @@ def NSCcv(y, Y0, a_grid=np.arange(0.01, 1.01, 0.05), b_grid=np.arange(0.01, 1.01
         Number of folds for cross-validation (default is 5).
 
     Returns:
-    -------
+    --------
     tuple
         Best a and b values that minimize cross-validated prediction error.
     """
