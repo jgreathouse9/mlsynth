@@ -2531,7 +2531,7 @@ class NSC:
         for a single treated unit using affine combinations of control units.
 
         Parameters:
-        ----------
+        -----------
         config : dict
             Dictionary containing configuration parameters:
             - "df": DataFrame with the observed panel data.
@@ -2564,7 +2564,7 @@ class NSC:
         4. Estimates the optimal weights for the control units using affine combinations based on the selected `a` and `b`.
 
         Returns:
-        -------
+        --------
         None
             This method does not return any value. It stores the results in the model instance.
         """
