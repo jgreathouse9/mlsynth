@@ -10,3 +10,7 @@ dist/
 # Ignore Python bytecode files
 *.pyc
 *.pyo
+
+# Coverage files
+.coverage
+coverage.xml
