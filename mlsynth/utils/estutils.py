@@ -1244,9 +1244,6 @@ def RPCASYNTH(df, config, prepped):
         "Vectors": RVectors,
     }
 
-import numpy as np
-import cvxpy as cp
-
 def SMOweights(data, method='concatenated', T0=None):
     """
     Estimate SCM weights using either concatenated (TLP) or averaged (SBMF) objective,
@@ -1302,6 +1299,107 @@ def SMOweights(data, method='concatenated', T0=None):
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=cp.CLARABEL)
 
-    fgfg
+    return w.value
+
+
+
+
+# CVXPY optimization for weights
+def NSC_opt(y, Y0, a, b):
+    """
+    Solve for weights that minimize the error between the treated unit's outcome 
+    (y) and the affine combination of control units' outcomes (Y0).
+
+    Parameters:
+    ----------
+    y : np.ndarray
+        Outcome vector for the treated unit (pre-treatment periods).
+
+    Y0 : np.ndarray
+        Matrix of outcomes for the control units (pre-treatment periods).
+
+    a : float
+        Regularization parameter for pairwise discrepancy.
+
+    b : float
+        Regularization parameter for the l2 penalty on weights.
+
+    Returns:
+    -------
+    np.ndarray
+        The computed weights for the control units.
+    """
+    w = cp.Variable(Y0.shape[1])  # Weights
+    residual = y - Y0 @ w
+    l2_term = cp.sum_squares(residual)
+
+    # Adjust pairwise discrepancies to match current Y0
+    discrepancies = np.linalg.norm(y[:, np.newaxis] - Y0, axis=0)  # Shape: (J_local,)
+    l1_term = cp.sum(cp.multiply(cp.abs(w), discrepancies))
+    l2_penalty = cp.sum_squares(w)
+
+    # Minimize the objective
+    objective = cp.Minimize(l2_term + a * l1_term + b * l2_penalty)
+    constraints = [cp.sum(w) == 1]
+
+    # Solve the optimization problem
+    problem = cp.Problem(objective, constraints)
+    problem.solve(solver=cp.CLARABEL)
 
     return w.value
+
+
+def NSCcv(y, Y0, a_grid=np.arange(0.01, 1.01, 0.05), b_grid=np.arange(0.01, 1.01, 0.05), k=5):
+    """
+    Perform k-fold cross-validation to select the best values of tuning parameters a and b.
+
+    Parameters:
+    ----------
+    y : np.ndarray
+        Outcome vector for the treated unit (pre-treatment periods).
+
+    Y0 : np.ndarray
+        Matrix of outcomes for the control units (pre-treatment periods).
+
+    a_grid : np.ndarray, optional
+        Grid of values for parameter a to search over.
+
+    b_grid : np.ndarray, optional
+        Grid of values for parameter b to search over.
+
+    k : int, optional
+        Number of folds for cross-validation (default is 5).
+
+    Returns:
+    -------
+    tuple
+        Best a and b values that minimize cross-validated prediction error.
+    """
+    best_a, best_b = 0, 0
+    min_error = np.inf
+    J = Y0.shape[1]
+    kf = KFold(n_splits=min(k, J), shuffle=True, random_state=1400)
+
+    for a in a_grid:
+        for b in b_grid:
+            fold_errors = []
+            for train_index, val_index in kf.split(range(J)):
+                Y_train = Y0[:, train_index]
+                Y_val = Y0[:, val_index]
+
+                for j in range(Y_val.shape[1]):
+                    y_val_j = Y_val[:, j]
+                    w = NSC_opt(y_val_j, Y_train, a, b)
+                    if w is not None:
+                        y_pred = Y_train @ w
+                        error = np.mean((y_val_j - y_pred) ** 2)
+                        fold_errors.append(error)
+
+            if fold_errors:
+                avg_error = np.mean(fold_errors)
+                if avg_error < min_error:
+                    min_error = avg_error
+                    best_a, best_b = a, b
+
+    return best_a, best_b
+
