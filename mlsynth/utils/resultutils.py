@@ -223,3 +223,60 @@ class effects:
         return Effects_dict, Fit_dict, Vector_dict
 
 
+
+
+def SDID_plot(results, title="Event Study: Synthetic Difference-in-Differences",
+              ylabel="Treatment Effect", xlabel="Event Time (Relative to Treatment)"):
+    """
+    Plot the event study estimates from SDID results.
+
+    Parameters
+    ----------
+    results : dict
+        Output from the SDID estimator, expected to contain a "pooled_estimates" dict
+        where keys are event times and values are dicts with "tau" and "ci" (confidence interval).
+
+    title : str, optional
+        Title of the plot. Default is a generic SDID event study title.
+
+    ylabel : str, optional
+        Label for the y-axis. Default is "Treatment Effect".
+
+    xlabel : str, optional
+        Label for the x-axis. Default is "Event Time (Relative to Treatment)".
+    """
+    pooled_estimates = results["pooled_estimates"]
+
+    # Prepare data for plotting
+    event_times, taus, lower_ci, upper_ci = [], [], [], []
+
+    for ell, estimate in pooled_estimates.items():
+        event_times.append(int(ell))
+        taus.append(estimate["tau"])
+        lower_ci.append(estimate["ci"][0])
+        upper_ci.append(estimate["ci"][1])
+
+    # Sort by event time
+    sorted_indices = np.argsort(event_times)
+    event_times = [event_times[i] for i in sorted_indices]
+    taus = [taus[i] for i in sorted_indices]
+    lower_ci = [lower_ci[i] for i in sorted_indices]
+    upper_ci = [upper_ci[i] for i in sorted_indices]
+
+    # Create the plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(event_times, taus, 'o-', label='Estimated Effect', color='blue')
+    plt.fill_between(event_times, lower_ci, upper_ci, color='blue', alpha=0.2, label='95% CI')
+
+    # Reference lines
+    plt.axvline(x=0, color='black', linestyle='--', label='Treatment Start')
+    plt.axhline(y=0, color='gray', linestyle='-')
+
+    # Labels and layout
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
