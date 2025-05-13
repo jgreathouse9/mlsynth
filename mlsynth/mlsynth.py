@@ -2641,7 +2641,7 @@ class SDID:
         for a single treated unit using affine combinations of control units.
 
         Parameters:
-        ----------
+        -----------
         config : dict
             Dictionary containing configuration parameters:
             - "df": DataFrame with the observed panel data.
@@ -2670,7 +2670,7 @@ class SDID:
         Fits the SDID Design with placebo results
 
         Returns:
-        -------
+        --------
         None
             This method does not return any value. It stores the results in the model instance.
         """
