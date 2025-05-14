@@ -1,6 +1,5 @@
 import numpy as np
 import cvxpy as cp
-from mlsynth.mlsynth import dataprep
 import matplotlib.pyplot as plt
 from matplotlib import rc_context
 import os
@@ -74,6 +73,8 @@ def ssdid_est(treated_y, donor_matrix, omega, lambda_vec, a, k):
 
 
 def sc_diagplot(config):
+    from mlsynth.mlsynth import dataprep  # Moved here to avoid circular import
+
     """
     Diagnostic plot showing treated unit(s) vs donor units.
 
