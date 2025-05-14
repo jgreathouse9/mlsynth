@@ -24,9 +24,7 @@ def prenorm(X, target=100):
 
 
 def ssdid_w(treated_y, donor_matrix, a, k, eta, pi=None):
-    """
-    Solve for synthetic control weights (omega) to match pre-treatment trajectory.
-    """
+    """Solve for synthetic control weights (omega) to match pre-treatment trajectory."""
     T, J = donor_matrix.shape
     if pi is None:
         pi = np.ones(J) / J
@@ -46,9 +44,7 @@ def ssdid_w(treated_y, donor_matrix, a, k, eta, pi=None):
     return omega.value, omega_0.value
 
 def ssdid_lambda(treated_y, donor_matrix, a, k, eta):
-    """
-    Solve for time weights (lambda) to balance the donor pre-treatment series.
-    """
+    """Solve for time weights (lambda) to balance the donor pre-treatment series."""
     t_max = a + k
     Y_pre_treated = treated_y[:a]
     Y_pre_donors = donor_matrix[:a, :]
@@ -64,9 +60,7 @@ def ssdid_lambda(treated_y, donor_matrix, a, k, eta):
     return lambda_var.value, lambda_0.value
 
 def ssdid_est(treated_y, donor_matrix, omega, lambda_vec, a, k):
-    """
-    Compute treatment effect estimate at horizon k by comparing gaps.
-    """
+    """Compute treatment effect estimate at horizon k by comparing gaps."""
     t_post = a + k
     y_post_treated = treated_y[t_post]
     y_post_donors = donor_matrix[t_post, :] @ omega
