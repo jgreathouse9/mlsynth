@@ -39,7 +39,7 @@ class TSSC:
 
         config : dict
 
-            A dictionary containing the necessary parameters. The following keys are expected:
+            A dictionary expecting:
 
             df : pandas.DataFrame
 
