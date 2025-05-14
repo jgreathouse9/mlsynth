@@ -17,6 +17,11 @@ def prenorm(X, target=100):
     """
     X = np.asarray(X)
     denom = X[-1] if X.ndim == 1 else X[-1, :]
+
+    # Check if any denominator is zero and raise a ZeroDivisionError
+    if np.any(denom == 0):
+        raise ZeroDivisionError("Division by zero in prenorm.")
+
     return X / denom * target
 
 
