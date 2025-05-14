@@ -238,7 +238,7 @@ class TSSC:
 class FMA:
     def __init__(self, config):
         """
-        Compute estimates and inference using the Factor Model Approach (FMA).
+        Compute ATT/Inference using the Factor Model Approach (FMA).
 
         Parameters
         ----------
