@@ -2566,8 +2566,8 @@ class NSC:
 
         Returns:
         --------
-        None
-            This method does not return any value. It stores the results in the model instance.
+        dict
+            This method returns the usual treatment effect, fit statistics, vectors, and weights.
         """
         # Step 1: Balance panel (ensures balanced panel structure)
         balance(self.df, self.unitid, self.time)
@@ -2576,8 +2576,8 @@ class NSC:
         prepped = dataprep(self.df, self.unitid, self.time, self.outcome, self.treat)
 
         # Step 3: Extract relevant data from prepped (single treated unit case)
-        y = prepped["y"]  # Treated unit outcomes (pre-treatment)
-        Y0 = prepped["donor_matrix"]  # Donor unit outcomes (pre-treatment)
+        y = prepped["y"]  # Treated unit outcomes
+        Y0 = prepped["donor_matrix"]  # Donor unit outcomes
 
         # Step 4: Tune hyperparameters a and b using kfold
         best_a, best_b = NSCcv(y[:prepped["pre_periods"]], Y0[:prepped["pre_periods"]])
