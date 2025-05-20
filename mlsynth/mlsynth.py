@@ -2590,8 +2590,6 @@ class NSC:
 
         # Step 7: Create a dictionary mapping donor names to their corresponding weights
         weightsdict = {prepped["donor_names"][i]: round(weights[i], 3) for i in range(len(prepped["donor_names"]))}
-
-        print(weightsdict)
         
         attdict, fitdict, Vectors = effects.calculate(
             prepped["y"],
