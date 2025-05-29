@@ -147,11 +147,11 @@ def plot_estimates(
         # Save or display the plot
         if save:
             if isinstance(save, dict):
-                filename = save.get("filename", f"{method}_{treated_unit_name}")
+                filename = save.get("filename", f"{outcome}_{treated_unit_name}")
                 extension = save.get("extension", "png")
                 directory = save.get("directory", os.getcwd())
             else:
-                filename = f"{method}_{treated_unit_name}"
+                filename = f"{outcome}_{treated_unit_name}"
                 extension = "png"
                 directory = os.getcwd()
 
