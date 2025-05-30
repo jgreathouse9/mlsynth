@@ -144,7 +144,6 @@ def step2(
     ... except Exception as e: # Catch potential numerical issues in a toy example
     ...     print(f"Example run failed: {e}") # Or print True if it runs
     True
-
     """
     # Calculate initial discrepancies for H0a, H0b, and the combined H0
     # Discrepancy = R * b_initial - r_target
@@ -392,7 +391,6 @@ def ag_conformal(
     ... except MlsynthConfigError as e:
     ...     print(e)
     miscoverage_rate must be between 0 and 1.
-
     """
     # --- Input Validation ---
     if len(actual_outcomes_pre_treatment) != len(predicted_outcomes_pre_treatment):

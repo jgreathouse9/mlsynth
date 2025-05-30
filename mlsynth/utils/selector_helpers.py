@@ -159,7 +159,7 @@ def SVDCluster(
     ...         # So, we need to return something that matches that structure.
     ...         # svt returns: low_rank_approximation, num_cols, U_k, S_k_diag, Vh_k
     ...         # SVDCluster uses the 3rd and 4th elements: U_k, S_k_diag
-    ...         return data_matrix, data_matrix.shape[1], U, S, Vt 
+    ...         return data_matrix, data_matrix.shape[1], U, S, Vt
     >>>
     >>> # Replace actual svt with mock for doctest
     >>> import mlsynth.utils.denoiseutils as du_actual # Keep actual denoiseutils

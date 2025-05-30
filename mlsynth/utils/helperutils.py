@@ -135,11 +135,6 @@ def ssdid_w(
         - optimal_intercept : float
             The optimal intercept term. (Formerly `omega_0`)
 
-    Notes
-    -----
-    - The optimization is performed using CVXPY with the default solver.
-    - `matching_period_end_index = num_matching_pre_periods + matching_horizon_offset` defines the window of pre-treatment data used for estimation. (Formerly `t_max = a + k`)
-
     Raises
     ------
     MlsynthDataError
@@ -150,6 +145,11 @@ def ssdid_w(
         If `num_matching_pre_periods` or `matching_horizon_offset` are negative or lead to invalid slice indices.
     MlsynthEstimationError
         If the CVXPY optimization solver fails.
+
+    Notes
+    -----
+    - The optimization is performed using CVXPY with the default solver.
+    - `matching_period_end_index = num_matching_pre_periods + matching_horizon_offset` defines the window of pre-treatment data used for estimation. (Formerly `t_max = a + k`)
 
     Examples
     --------
@@ -300,11 +300,6 @@ def ssdid_lambda(
         - optimal_intercept : float
             The optimal intercept term. (Formerly `lambda_0_val`)
 
-    Notes
-    -----
-    - The optimization is performed using CVXPY with the default solver.
-    - `target_donor_period_index = num_pre_treatment_periods_for_lambda + post_treatment_horizon_offset` is the index into `donor_units_outcomes_all_periods` for the target observation.
-
     Raises
     ------
     MlsynthDataError
@@ -314,6 +309,11 @@ def ssdid_lambda(
         If `num_pre_treatment_periods_for_lambda` or `post_treatment_horizon_offset` are negative or lead to invalid slice indices.
     MlsynthEstimationError
         If the CVXPY optimization solver fails.
+
+    Notes
+    -----
+    - The optimization is performed using CVXPY with the default solver.
+    - `target_donor_period_index = num_pre_treatment_periods_for_lambda + post_treatment_horizon_offset` is the index into `donor_units_outcomes_all_periods` for the target observation.
 
     Examples
     --------
@@ -577,6 +577,11 @@ def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
             cohort's data to use for the plot. If `None` and multiple cohorts
             are detected by `dataprep`, a `ValueError` is raised.
 
+    Returns
+    -------
+    None
+        This function displays a matplotlib plot and does not return any value.
+
     Raises
     ------
     MlsynthConfigError
@@ -584,10 +589,12 @@ def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
         If multiple cohorts are detected in the data prepared from a config
         and the "cohort" key is not specified in that config.
 
-    Returns
-    -------
-    None
-        This function displays a matplotlib plot and does not return any value.
+    Notes
+    -----
+    This function uses a local import `from .datautils import dataprep`.
+    This is done to avoid potential circular import issues if `helperutils.py`
+    is imported by modules that `dataprep` might depend on indirectly.
+    The plot styling is controlled by a predefined `ubertheme`.
 
     Examples
     --------
@@ -630,13 +637,6 @@ def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
     >>> # - GDP of donor units 'B' and 'C' (gray lines).
     >>> # - Mean GDP of donors 'B' and 'C' (blue line).
     >>> # - A vertical dashed line after year 2000, indicating treatment start.
-
-    Notes
-    -----
-    This function uses a local import `from .datautils import dataprep`.
-    This is done to avoid potential circular import issues if `helperutils.py`
-    is imported by modules that `dataprep` might depend on indirectly.
-    The plot styling is controlled by a predefined `ubertheme`.
     """
     from .datautils import dataprep  # import inside parent in case of circularity
 

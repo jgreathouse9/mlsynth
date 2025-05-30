@@ -145,7 +145,6 @@ def plot_estimates(
     ...         uncertainty_intervals_array=uncertainty_intervals_array_ex # doctest: +SKIP
     ...     ) # doctest: +SKIP
     ...     mock_show.assert_called_once() # Verifies plt.show() was called # doctest: +SKIP
-
     """
     # --- Input Validation and Data Extraction ---
     try:
@@ -417,7 +416,7 @@ class effects:
             # Time series of Percent ATT.
             percent_att_time_series = np.full_like(att_time_series, np.nan) # Initialize with NaNs.
             non_zero_cf_post_mask = counterfactual_outcome_series[post_period_slice] != 0 # Avoid division by zero.
-            percent_att_time_series[non_zero_cf_post_mask] = 100 * \
+            percent_att_time_series[non_zero_cf_post_mask] = 100 *\
                 att_time_series[non_zero_cf_post_mask] / counterfactual_outcome_series[post_period_slice][non_zero_cf_post_mask]
             # Time series of SATT (currently a placeholder, as per-period SATT might need different scaling).
             satt_time_series = np.full_like(att_time_series, np.nan) 
@@ -466,8 +465,8 @@ class effects:
 
         # Dictionary for key time series vectors.
         cf_series_for_dict = np.full_like(observed_outcome_series, np.nan, dtype=float) # Default to NaNs, ensure float
-        if counterfactual_outcome_series is not None and \
-           isinstance(counterfactual_outcome_series, np.ndarray) and \
+        if counterfactual_outcome_series is not None and\
+           isinstance(counterfactual_outcome_series, np.ndarray) and\
            counterfactual_outcome_series.size == observed_outcome_series.size:
             try:
                 # Ensure counterfactual_outcome_series is 1D before reshape
@@ -543,7 +542,6 @@ def SDID_plot(
     >>> with patch("matplotlib.pyplot.show") as mock_show: # doctest: +SKIP
     ...     SDID_plot(sdid_results_ex, title="My SDID Event Study") # doctest: +SKIP
     ...     mock_show.assert_called_once() # Verifies plt.show() was called # doctest: +SKIP
-
     """
     # --- Input Validation and Data Extraction ---
     try:

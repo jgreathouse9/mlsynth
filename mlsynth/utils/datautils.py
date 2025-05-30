@@ -259,6 +259,7 @@ def dataprep(
                     by the cohort's treatment start time.
                 "post_periods" : int
                     Number of post-treatment periods for this cohort.
+
     Raises
     ------
     MlsynthDataError
@@ -377,18 +378,18 @@ def balance(df: pd.DataFrame, unit_id_column_name: str, time_period_column_name:
     time_period_column_name : str
         The name of the column in `df` that identifies the time periods. (Formerly `time_col`)
 
+    Returns
+    -------
+    None
+        This function does not return a value but raises an error if the
+        panel is not strongly balanced or contains duplicates.
+
     Raises
     ------
     MlsynthDataError
         If duplicate unit-time observations are found.
         If the panel is not strongly balanced (i.e., not all units have
         observations for all time periods).
-
-    Returns
-    -------
-    None
-        This function does not return a value but raises an error if the
-        panel is not strongly balanced or contains duplicates.
     """
     # Check for unique observations: each unit-time pair should be unique.
     if df.duplicated([unit_id_column_name, time_period_column_name]).any():

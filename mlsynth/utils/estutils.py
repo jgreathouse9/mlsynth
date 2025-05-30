@@ -298,7 +298,6 @@ def compute_t_stat_and_ci(
     t-statistic: 12.55
     >>> print(f"CI: ({confidence_interval_example[0]:.2f}, {confidence_interval_example[1]:.2f})")
     CI: (0.42, 0.58)
-
     """
     num_post_treatment_obs: int = len(post_treatment_effects_vector)
     if num_post_treatment_obs == 0:
@@ -381,7 +380,6 @@ def l2_relax(
     (3,)
     >>> print(predicted_counterfactuals_example.shape)
     (20,)
-
     """
     treated_unit_subset: np.ndarray = treated_unit_outcome_vector[:num_pre_treatment_estimation_periods]
     donor_outcomes_subset: np.ndarray = donor_outcomes_matrix[:num_pre_treatment_estimation_periods, :]
@@ -447,7 +445,6 @@ def cross_validate_tau(
     ... )
     >>> print(f"Optimal tau: {optimal_tau_example:.4f}, Min MSE: {min_mse_example:.4f}")
     Optimal tau: 0.0464, Min MSE: 0.0727
-
     """
     num_pre_treatment_periods: int = len(pre_treatment_treated_outcome)
     half_num_pre_treatment_periods: int = num_pre_treatment_periods // 2
@@ -554,7 +551,6 @@ def ci_bootstrap(
     ... #     original_att_example, "MSCb", original_counterfactual_example, confidence_level=0.90
     ... # )
     >>> # print(confidence_interval_example) # Expected: [float, float]
-
     """
     total_time_periods: int = len(original_counterfactual_outcome_vector)
     pre_treatment_subsample_size: int = num_pre_treatment_periods - _BOOTSTRAP_SUBSAMPLE_ADJUSTMENT
@@ -903,7 +899,6 @@ def TSEST(
     True
     >>> isinstance(estimation_results_list[0][first_method_name_example]["Weights"], dict)
     True
-
     """
     all_method_results_list: List[Dict[str, Any]] = []
     scm_methods_to_evaluate: List[str] = [
@@ -2313,7 +2308,6 @@ def pda(
     LASSO
     >>> isinstance(results_lasso["non_zero_coef_dict"], dict)
     True
-
     """
     # The following lines were commented out as preprocessed_data is passed directly to helpers.
     # outcome_vector_treated_full_period: np.ndarray = preprocessed_data["y"]
@@ -2369,7 +2363,6 @@ def bartlett(lag_order: int, truncation_lag: int) -> float:
     0.16666666666666663
     >>> bartlett(6, 5)
     0.0
-
     """
     if np.abs(lag_order) <= truncation_lag:
         return 1 - np.abs(lag_order) / (truncation_lag + 1)
@@ -2419,7 +2412,6 @@ def hac(G_moments: np.ndarray, truncation_lag: int, kernel: Callable[[int, int],
     >>> omega_hat_trunc_ex = hac(G_moments_ex, truncation_lag_ex, kernel=truncated_kernel)
     >>> print(omega_hat_trunc_ex.shape)
     (2, 2)
-
     """
     num_observations, num_moment_conditions = G_moments.shape
     omega_hac_matrix: np.ndarray = np.zeros((num_moment_conditions, num_moment_conditions))
@@ -2528,7 +2520,6 @@ def pi(
     ...     )
     ...     print(y_pred.shape, alpha.shape, isinstance(se_tau, float))
     (20,) (2,) True
-
     """
     W_aug, Z0_aug = design_matrix, instrument_matrix
     if common_aux_covariates_1 is not None and common_aux_covariates_2 is not None:
@@ -2729,7 +2720,6 @@ def pi_surrogate(
     ...     aux_covariates_main_1=aux_covariates_main_1_data, aux_covariates_main_2=aux_covariates_main_2_data, aux_covariates_surrogate=aux_covariates_surrogate_data
     ... )
     >>> print(f"Avg. Effect with aug covs (tau): {tau_aug:.3f}") # Avg. Effect with aug covs (tau): ...
-
     """
     W_aug, Z0_aug, X_surr_aug, Z1_aug = design_matrix_main, instrument_matrix_main, surrogate_outcome_matrix, instrument_matrix_surrogate
     if aux_covariates_main_1 is not None and aux_covariates_main_2 is not None and aux_covariates_surrogate is not None:
@@ -2935,7 +2925,6 @@ def pi_surrogate_post(
     Shape of W coefficients: (2,)
     >>> print(f"Shape of time-varying effects: {taut_val.shape}")
     Shape of time-varying effects: (30,)
-
     """
     # W_aug, Z0_aug, X_aug, Z1_aug = main_covariates, main_instruments, surrogate_covariates, surrogate_instruments
     # Augment matrices if additional covariates are provided
@@ -2950,7 +2939,7 @@ def pi_surrogate_post(
                 "covariates (WX_combined_aug) after augmentation."
             )
     else: # No additional covariates
-        if not (main_covariates.shape[1] == main_instruments.shape[1] and \
+        if not (main_covariates.shape[1] == main_instruments.shape[1] and\
                 surrogate_covariates.shape[1] == surrogate_instruments.shape[1]):
             raise MlsynthConfigError(
                 "Dimension mismatch for base main_covariates/main_instruments or "
@@ -3070,7 +3059,6 @@ def get_theta(treated_outcome_pre_treatment: np.ndarray, donor_outcomes_pre_trea
     (3,)
     >>> print(Y_aligned.shape)
     (10, 3)
-
     """
     treated_outcome_pre_treatment_demeaned: np.ndarray = treated_outcome_pre_treatment - np.mean(treated_outcome_pre_treatment)
     donor_outcomes_pre_treatment_demeaned: np.ndarray = donor_outcomes_pre_treatment - np.mean(donor_outcomes_pre_treatment, axis=0)
@@ -3127,10 +3115,9 @@ def get_sigmasq(treated_outcome_pre_treatment: np.ndarray, donor_outcomes_pre_tr
     >>> noise_variance_estimate_example = get_sigmasq(treated_outcome_pre_example, donor_outcomes_pre_example)
     >>> print(f"Estimated sigma^2: {noise_variance_estimate_example:.4f}") # doctest: +SKIP
     Estimated sigma^2: ...
-
     """
     num_pre_treatment_periods: int = len(treated_outcome_pre_treatment)
-    demeaning_matrix: np.ndarray = np.eye(num_pre_treatment_periods) - \
+    demeaning_matrix: np.ndarray = np.eye(num_pre_treatment_periods) -\
                                   np.ones((num_pre_treatment_periods, num_pre_treatment_periods)) / num_pre_treatment_periods
 
     # G_matrix = Y0_demeaned.T @ Y0_demeaned
@@ -3157,8 +3144,8 @@ def get_sigmasq(treated_outcome_pre_treatment: np.ndarray, donor_outcomes_pre_tr
     # Here, it's simplified to Z diag(1/(Z_j'QZ_j)) Z' Q.
     # This projects onto the space spanned by the *individually scaled* demeaned donor outcomes.
     # donor_based_projection_matrix shape: (T0, T0)
-    donor_based_projection_matrix: np.ndarray = donor_outcomes_pre_treatment @ \
-                                              np.diag(inverse_diagonal_of_donor_demeaned_inner_product) @ \
+    donor_based_projection_matrix: np.ndarray = donor_outcomes_pre_treatment @\
+                                              np.diag(inverse_diagonal_of_donor_demeaned_inner_product) @\
                                               donor_outcomes_pre_treatment.T
     
     # Project the demeaned treated outcome onto the space defined by the donor_based_projection_matrix.
@@ -3170,7 +3157,7 @@ def get_sigmasq(treated_outcome_pre_treatment: np.ndarray, donor_outcomes_pre_tr
     # Since P_Z is constructed with Z and Q, and Q is idempotent (Q*Q=Q),
     # Q @ P_Z @ Q simplifies depending on P_Z structure.
     # Here, it's effectively (demeaned treated outcome) - (demeaned projection of treated outcome).
-    estimation_residual_error: np.ndarray = demeaning_matrix @ treated_outcome_pre_treatment - \
+    estimation_residual_error: np.ndarray = demeaning_matrix @ treated_outcome_pre_treatment -\
                                            demeaning_matrix @ projected_treated_outcome_demeaned # This is Qy1 - Q * (P_Z Q y1)
     
     # The noise variance is estimated as the squared L2-norm of this residual error.
@@ -3268,7 +3255,7 @@ def __SRC_opt(
     # This is constructed by taking the mean of the treated unit's pre-treatment outcome,
     # and adding the weighted and aligned deviations of post-treatment donor outcomes from their pre-treatment means.
     # Formula: Y_mean_pre_treated + (Y_donors_post - Y_mean_donors_pre) @ (weights * theta)
-    predicted_counterfactual_post_treatment: np.ndarray = mean_treated_outcome_pre_treatment + \
+    predicted_counterfactual_post_treatment: np.ndarray = mean_treated_outcome_pre_treatment +\
         (donor_outcomes_post_treatment - mean_donor_outcomes_pre_treatment) @ (optimal_donor_weights * alignment_coefficients)
 
     return predicted_treated_outcome_pre_treatment, predicted_counterfactual_post_treatment, optimal_donor_weights, alignment_coefficients
@@ -3340,7 +3327,6 @@ def SRCest(
     Theta coefficients shape: (4,)
     >>> print(f"Sum of weights: {np.sum(weights_est):.2f}") # Should be close to 1 # doctest: +SKIP
     Sum of weights: 1.00
-
     """
     total_time_periods, num_donors = donor_outcomes_full_period.shape
     # Infer the number of pre-treatment periods based on total periods and post-treatment periods.
@@ -3367,7 +3353,7 @@ def SRCest(
     # Step 3: Perform SRC weight optimization and predict outcomes.
     # `__SRC_opt` solves for donor weights and constructs pre-treatment predictions and post-treatment counterfactuals.
     # It uses the aligned donor outcomes and the estimated noise variance in its optimization.
-    predicted_treated_outcome_pre_treatment_subset, predicted_counterfactual_post_treatment_subset, \
+    predicted_treated_outcome_pre_treatment_subset, predicted_counterfactual_post_treatment_subset,\
     optimal_donor_weights_result, _ = __SRC_opt( # The last returned item (alignment_coefficients) is ignored here as we already have it.
         treated_outcome_pre_treatment_subset, 
         donor_outcomes_pre_treatment_subset, # Original pre-treatment donor outcomes for constructing predictions
@@ -3490,7 +3476,6 @@ def RPCASYNTH(
     True
     >>> print(f"ATT: {results_rpca_example['Effects']['ATT']:.2f}") # Example output # doctest: +SKIP
     ATT: ...
-
     """
     unit_id_column_name: str = estimation_config["unitid"]
     time_period_column_name: str = estimation_config["time"]
@@ -3707,7 +3692,6 @@ def SMOweights(
     ... )
     >>> print(f"Average weights shape: {weights_avg_example.shape}")
     Average weights shape: (3,)
-
     """
     # Retrieve lists of outcome series for the target unit and donor units from the input dictionary.
     full_period_target_outcomes_list: List[np.ndarray] = multi_outcome_data_dict.get("Target", [])
@@ -3846,7 +3830,6 @@ def NSC_opt(
     ...     print(f"Sum of weights: {np.sum(optimal_weights_ex):.2f}") # doctest: +SKIP
     NSC weights shape: (4,)
     Sum of weights: 1.00
-
     """
     # Determine the number of donor units.
     num_donors: int = pre_treatment_donor_outcomes.shape[1]
@@ -3987,7 +3970,6 @@ def NSCcv(
     ... )
     >>> print(f"Best L1 penalty: {best_l1}, Best L2 penalty: {best_l2}") # doctest: +SKIP
     Best L1 penalty: ..., Best L2 penalty: ...
-
     """
     # Use provided search spaces or defaults
     l1_penalty_grid_to_use = np.array(a_vals) if a_vals is not None else np.arange(0.01, 1.01, 0.05)

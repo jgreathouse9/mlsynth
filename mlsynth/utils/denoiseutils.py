@@ -911,7 +911,6 @@ def SVD_soft(input_matrix: np.ndarray, threshold: float) -> np.ndarray: # SVD wi
     X reconstructed with SVD_soft (threshold=1.0):
      [[ 1.8667619   2.1332381 ] # Expected values might differ slightly
      [ 2.1332381   1.8667619 ]]
-
     """
     if not isinstance(input_matrix, np.ndarray):
         raise MlsynthDataError("Input `input_matrix` must be a NumPy array.")
@@ -1025,7 +1024,6 @@ def DC_PR_with_l(
 
     Note: The exact numerical results in the example will vary due to random
     data generation. The example illustrates the usage and expected shapes.
-
     """
     if not isinstance(observed_matrix, np.ndarray) or observed_matrix.ndim != 2:
         raise MlsynthDataError("`observed_matrix` must be a 2D NumPy array.")
@@ -1203,7 +1201,6 @@ def non_convex_PR(
 
     Note: The exact numerical results in the example will vary due to random
     data generation. The example illustrates the usage and expected shapes/rank.
-
     """
     if not isinstance(observed_matrix, np.ndarray) or observed_matrix.ndim != 2:
         raise MlsynthDataError("`observed_matrix` must be a 2D NumPy array.")
@@ -1382,7 +1379,6 @@ def panel_regression_CI(
     X reconstructed with SVD_soft (threshold=1.0):
      [[ 1.8667619   2.1332381 ] # Expected values might differ slightly
      [ 2.1332381   1.8667619 ]]
-
     """
     left_singular_vectors, singular_values, right_singular_vectors_transposed = svd_fast(
         estimated_baseline_matrix
@@ -1585,7 +1581,6 @@ def remove_tangent_space_component(
     >>> inner_prod = np.sum(X_tangent_mat_example * Z_ortho_comp)
     >>> print(f"Inner product (should be near zero): {inner_prod:.1e}") # doctest: +SKIP
     # e.g., Inner product (should be near zero): -1.2e-15
-
     """
     if not isinstance(left_singular_vectors_M, np.ndarray) or left_singular_vectors_M.ndim != 2:
         raise MlsynthDataError("`left_singular_vectors_M` must be a 2D NumPy array.")
@@ -1774,7 +1769,6 @@ def transform_to_3D(
     Shape: (2, 3, 2)
     >>> print("Data type:", Z_transformed_3d_ex.dtype)
     Data type: float64
-
     """
     intervention_data_3d: np.ndarray # Variable to hold the final 3D array
     if isinstance(intervention_data, list):
@@ -1918,7 +1912,6 @@ def prepare_OLS(
     Inverse of (ols_design_matrix.T @ ols_design_matrix) (shape (2, 2)):
      [[0.5 0. ]
      [0.  0.5]]
-
     """
     if not isinstance(intervention_matrices_3d, np.ndarray):
         raise MlsynthDataError("`intervention_matrices_3d` must be a NumPy array.")
@@ -2016,16 +2009,16 @@ def solve_tau(
     estimated_treatment_effects : np.ndarray
         The estimated treatment effects. Shape (n_interventions,).
 
-    See Also
-    --------
-    prepare_OLS : Helper function used to construct the OLS design matrix
-                  and other necessary components.
-
     Raises
     ------
     np.linalg.LinAlgError
         If `ols_design_matrix.T @ ols_design_matrix` (calculated within
         `prepare_OLS`) is singular and cannot be inverted.
+
+    See Also
+    --------
+    prepare_OLS : Helper function used to construct the OLS design matrix
+                  and other necessary components.
 
     Examples
     --------
@@ -2055,7 +2048,6 @@ def solve_tau(
     >>> tau_perfect_ex = solve_tau(outcome_perfect_ex, Z_perfect_3d_ex)
     >>> print("\\nEstimated tau with perfect data:", tau_perfect_ex)
     Estimated tau with perfect data: [0.5]
-
     """
     if not isinstance(outcome_matrix_or_residuals, np.ndarray):
         raise MlsynthDataError("`outcome_matrix_or_residuals` must be a NumPy array.")
@@ -2213,7 +2205,6 @@ def DC_PR_auto_rank(
     # e.g., Estimated ATT: 0.78... (close to true_effect_ex 0.8)
     >>> print("Pre-treatment RMSE:", results_ex["RMSE"]) # doctest: +SKIP
     # e.g., Pre-treatment RMSE: 0.06...
-
     """
     if not isinstance(observed_panel_matrix, np.ndarray) or observed_panel_matrix.ndim != 2:
         raise MlsynthDataError("`observed_panel_matrix` must be a 2D NumPy array.")
@@ -2469,7 +2460,6 @@ def DC_PR_with_suggested_rank(
     # e.g., Non-Convex - Estimated ATT: 0.78...
     >>> print("Non-Convex - M_final rank:", np.linalg.matrix_rank(results_nonconvex_ex["Vectors"]["Counterfactual_Full_Matrix"])) # doctest: +SKIP
     # e.g., Non-Convex - M_final rank: 2
-
     """
     # Input validation
     if not isinstance(observed_panel_matrix, np.ndarray) or observed_panel_matrix.ndim != 2:
@@ -2652,7 +2642,7 @@ def DC_PR_with_suggested_rank(
             # Prefer non-convex if:
             # 1. Convex method did not achieve target_rank but non-convex did, OR
             # 2. Non-convex has lower reconstruction error.
-            if (rank_convex != target_rank and rank_non_convex == target_rank) or \
+            if (rank_convex != target_rank and rank_non_convex == target_rank) or\
                (error_non_convex < error_convex):
                 final_estimated_baseline_matrix = non_convex_baseline_matrix
                 final_estimated_treatment_effects = non_convex_treatment_effects
@@ -2854,7 +2844,6 @@ def RPCA_HQF(
     >>> print(f"Error of observed vs true low-rank: {error_observed_ex:.2f}") # doctest: +SKIP
     >>> print(f"Error of denoised vs true low-rank: {error_denoised_ex:.2f}") # doctest: +SKIP
     # Expect error_denoised_ex to be smaller than error_observed_ex
-
     """
     if not isinstance(observed_matrix_with_noise, np.ndarray) or observed_matrix_with_noise.ndim != 2:
         raise MlsynthDataError("`observed_matrix_with_noise` must be a 2D NumPy array.")
@@ -3107,7 +3096,6 @@ def demean_matrix(input_matrix: np.ndarray) -> np.ndarray:
     Demeaned 1D array Y_demeaned_ex: [-10.   0.  10.]
     >>> print("Mean of Y_demeaned_ex (should be ~0):", np.mean(Y_demeaned_ex))
     Mean of Y_demeaned_ex (should be ~0): 0.0
-
     """
     if not isinstance(input_matrix, np.ndarray):
         raise MlsynthDataError("Input `input_matrix` must be a NumPy array.")
@@ -3231,7 +3219,6 @@ def nbpiid(
     Shape of common component: (100, 50)
     >>> print("Shape of estimated factors:", factors_est_res.shape) # doctest: +SKIP
     # Expected: Shape of estimated factors: (100, 2) (if num_factors_res is 2)
-
     """
     # Input Validation
     if not isinstance(input_panel_data, np.ndarray):
@@ -3453,7 +3440,7 @@ def standardize(input_matrix: np.ndarray) -> np.ndarray:
         approximately equal to zero and `std(output[:, j])` approximately
         equal to one (within floating point precision), provided the original
         column standard deviation was not zero.
-    
+
     Raises
     ------
     MlsynthDataError
@@ -3502,7 +3489,6 @@ def standardize(input_matrix: np.ndarray) -> np.ndarray:
     Mean of Y_standardized_ex (should be ~0): 0.0
     >>> print("Std of Y_standardized_ex (should be ~1):", np.std(Y_standardized_ex))
     Std of Y_standardized_ex (should be ~1): 1.0
-
     """
     if not isinstance(input_matrix, np.ndarray):
         raise MlsynthDataError("Input `input_matrix` must be a NumPy array.")
