@@ -152,7 +152,7 @@ We can now turn to an empirical example, namely the reanalysis of West Germany' 
 
 .. code-block:: python
 
-    from mlsynth.mlsynth import CLUSTERSC
+    from mlsynth import CLUSTERSC
     import pandas as pd
     
     file = 'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/german_reunification.csv'
