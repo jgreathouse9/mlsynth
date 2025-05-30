@@ -5,7 +5,7 @@ FDID Plot
 """
 
 import pandas as pd
-from mlsynth.mlsynth import FDID
+from mlsynth import FDID
 import os
 
 # Load the CSV file using pandas
@@ -22,11 +22,9 @@ config = {
     "time": time,
     "outcome": outcome,
     "unitid": unitid,
-    "counterfactual_color": ["blue"],
+    "counterfactual_color": "blue",
     "treated_color": "black",
-    "display_graphs": True,
-    "criti": 10,  # Assuming Stationary
-    "DEMEAN": 1,  # Demeans the donor pool
+    "display_graphs": True
 }
 
 model = FDID(config)
