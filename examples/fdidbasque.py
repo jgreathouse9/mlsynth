@@ -1,11 +1,7 @@
-from mlsynth.mlsynth import FDID
+from mlsynth import FDID
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-from theme import jared_theme
-import matplotlib
-
-matplotlib.rcParams.update(jared_theme)
 
 # Access the corresponding dictionary
 file_path = os.path.join(os.path.dirname(__file__), '..', 'basedata', 'basque_data.csv')
