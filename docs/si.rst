@@ -1,7 +1,7 @@
 Synthetic Interventions
 =====================
 
-.. autoclass:: mlsynth.mlsynth.SI
+.. autoclass:: mlsynth SI
    :show-inheritance:
    :special-members: __init__
 
@@ -13,7 +13,7 @@ Uses Synthetic Interventions to estimate how Louisiana's tobacco trends would ha
 
   import pandas as pd
 
-  from mlsynth.mlsynth import SI
+  from mlsynth import SI
   
    # Load the data
    url = "https://raw.githubusercontent.com/jehangiramjad/tslib/refs/heads/master/tests/testdata/prop99.csv"
