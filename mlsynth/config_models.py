@@ -46,9 +46,7 @@ class BaseEstimatorConfig(BaseModel):
         return values
 
 class TSSCConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Two-Step Synthetic Control (TSSC) estimator.
-    """
+    """Configuration for the Two-Step Synthetic Control (TSSC) estimator."""
     draws: int = Field(default=500, description="Number of draws for inference.", ge=0) # Changed ge=1 to ge=0
     ci: float = Field(default=0.95, description="Confidence interval level.", ge=0, le=1)
     parallel: bool = Field(default=False, description="Whether to use parallel processing for draws.")
@@ -58,16 +56,12 @@ class TSSCConfig(BaseEstimatorConfig):
 # Placeholder for other estimator configs - to be added sequentially
 
 class FMAConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Factor Model Approach (FMA) estimator.
-    """
+    """Configuration for the Factor Model Approach (FMA) estimator."""
     criti: int = Field(default=11, description="Criterion for stationarity assumption: 11 for nonstationary, 10 for stationary.", ge=10, le=11) # Assuming 10 or 11
     DEMEAN: int = Field(default=1, description="Data processing method: 1 for demean, 2 for standardize.", ge=1, le=2) # Assuming 1 or 2
 
 class PDAConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Panel Data Approach (PDA) estimator.
-    """
+    """Configuration for the Panel Data Approach (PDA) estimator."""
     method: str = Field(default="fs", description="Type of PDA to use: 'LASSO', 'l2', or 'fs'.", pattern="^(LASSO|l2|fs)$")
     tau: Optional[float] = Field(default=None, description="User-specified treatment effect value (used as tau_l2 for 'l2' method).")
     # Note: The original __init__ had validation for method.lower(). Pydantic's pattern handles case-sensitivity.
@@ -82,9 +76,7 @@ class FDIDConfig(BaseEstimatorConfig):
     pass
 
 class GSCConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Generalized Synthetic Control (GSC) estimator.
-    """
+    """Configuration for the Generalized Synthetic Control (GSC) estimator."""
     denoising_method: str = Field(
         default="non-convex",
         description="Method for the denoising algorithm: 'auto', 'convex', or 'non-convex'.",
@@ -100,9 +92,7 @@ class GSCConfig(BaseEstimatorConfig):
     # it might need to be defined here if different from BaseEstimatorConfig.save.
 
 class CLUSTERSCConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Cluster-based Synthetic Control (CLUSTERSC) estimator.
-    """
+    """Configuration for the Cluster-based Synthetic Control (CLUSTERSC) estimator."""
     objective: str = Field(default="OLS", description="Constraint for PCR ('OLS', 'SIMPLEX', 'MSCa', 'MSCb', 'MSCc').", pattern="^(OLS|SIMPLEX|MSCa|MSCb|MSCc)$")
     cluster: bool = Field(default=True, description="Whether to apply clustering for PCR.")
     Frequentist: bool = Field(default=True, description="If True, use Frequentist Robust SCM; False for Bayesian (for PCR method).")
@@ -132,9 +122,7 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         return data
 
 class PROXIMALConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Proximal Inference (PROXIMAL) estimator.
-    """
+    """Configuration for the Proximal Inference (PROXIMAL) estimator."""
     # Override counterfactual_color from Base to match PROXIMAL's default and usage
     counterfactual_color: Union[str, List[str]] = Field(default_factory=lambda: ["grey", "red", "blue"], description="Color(s) for counterfactual lines in plots. Can be a single color string or a list of color strings for multiple counterfactuals.")
 
@@ -175,24 +163,18 @@ class SRCConfig(BaseEstimatorConfig):
     pass
 
 class SCMOConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Synthetic Control with Multiple Outcomes (SCMO) estimator.
-    """
+    """Configuration for the Synthetic Control with Multiple Outcomes (SCMO) estimator."""
     addout: Union[str, List[str]] = Field(default_factory=list, description="Auxiliary outcome variable(s) for outcome stacking.")
     method: str = Field(default="TLP", description="Estimation method: 'TLP', 'SBMF', or 'BOTH'.", pattern="^(TLP|SBMF|BOTH)$")
     conformal_alpha: float = Field(default=0.1, description="Miscoverage rate for conformal prediction intervals (e.g., 0.1 for 90% CI).", gt=0, lt=1)
 
 class SIConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Synthetic Interventions (SI) estimator.
-    """
+    """Configuration for the Synthetic Interventions (SI) estimator."""
     inters: List[str] = Field(..., min_length=1, description="Required list of binary treatment indicator column names for alternative interventions. Must not be empty.")
     # No default_factory=list, as Pydantic will require it due to '...' and min_length=1.
 
 class StableSCConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Stable Synthetic Control (StableSC) estimator.
-    """
+    """Configuration for the Stable Synthetic Control (StableSC) estimator."""
     granger_alpha: float = Field(default=0.05, description="Significance level for Granger causality tests in the fit method.", ge=0, le=1)
     granger_maxlag: int = Field(default=1, description="Maximum lag for Granger causality tests in the fit method.", ge=1)
     proximity_alpha: float = Field(default=0.05, description="Significance level for proximity mask chi-squared tests in the fit method.", ge=0, le=1)
@@ -222,9 +204,7 @@ class NSCConfig(BaseEstimatorConfig):
         return values
 
 class SDIDConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Synthetic Difference-in-Differences (SDID) estimator.
-    """
+    """Configuration for the Synthetic Difference-in-Differences (SDID) estimator."""
     B: int = Field(default=500, description="Number of placebo iterations for inference.", ge=0) # B can be 0 if no inference desired
 
 # --- Pydantic Models for Standardized Estimator Results ---
