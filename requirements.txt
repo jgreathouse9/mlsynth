@@ -6,3 +6,4 @@ scikit-learn
 cvxpy
 screenot
 statsmodels
+pydantic
