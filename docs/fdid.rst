@@ -44,7 +44,7 @@ The code below automates this process for the three standard datasets in the syn
 
 .. code-block:: python
 
-    from mlsynth.mlsynth import FDID
+    from mlsynth import FDID
     import pandas as pd
     
     file = 'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv'
