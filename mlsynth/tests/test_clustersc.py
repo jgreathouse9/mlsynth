@@ -573,7 +573,7 @@ def test_clustersc_plotting_behavior(
                 mock_plot.assert_called_once()
                 call_args = mock_plot.call_args[1] 
                 
-                assert len(call_args["cf_list"]) == expected_cf_list_len
+                assert len(call_args["counterfactual_series_list"]) == expected_cf_list_len
                 assert call_args["counterfactual_names"] == expected_cf_names
                 assert call_args["method"] == "CLUSTERSC"
                 assert call_args["treatedcolor"] == config_dict["treated_color"]
