@@ -5,30 +5,7 @@ Applies the l2 relaxer to some Apple Music data. Here we estimate the causal imp
 """
 
 import pandas as pd
-from mlsynth.mlsynth import PDA
-import matplotlib
-
-jared_theme = {
-    "axes.grid": False,
-    "grid.linestyle": "-",
-    "grid.color": "black",
-    "legend.framealpha": 1,
-    "legend.facecolor": "white",
-    "legend.shadow": True,
-    "legend.fontsize": 14,
-    "legend.title_fontsize": 14,
-    "xtick.labelsize": 12,
-    "ytick.labelsize": 12,
-    "axes.labelsize": 12,
-    "axes.titlesize": 14,
-    "figure.dpi": 120,
-    "axes.facecolor": "white",
-    "figure.figsize": (11, 4),
-}
-
-matplotlib.rcParams.update(jared_theme)
-
-
+from mlsynth import PDA
 
 url = "https://raw.githubusercontent.com/jgreathouse9/jgreathouse9.github.io/refs/heads/master/Apple%20Music/AppleMusic.csv"
 df = pd.read_csv(url)
