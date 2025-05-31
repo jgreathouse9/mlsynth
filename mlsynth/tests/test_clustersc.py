@@ -505,8 +505,12 @@ def test_clustersc_rpca_config_variations(
     except Exception as e:
         pytest.fail(f"CLUSTERSC RPCA fit with config {rpca_config_override} failed: {e}")
 
+
 # --- Plotting Behavior Tests ---
 from unittest.mock import patch
+import pytest
+import pandas as pd
+from typing import Dict, Any
 
 @pytest.mark.parametrize("method_to_test", ["PCR", "RPCA", "BOTH"])
 @pytest.mark.parametrize("display_graphs_flag", [True, False])
@@ -530,6 +534,7 @@ def test_clustersc_plotting_behavior(
         "treated_color": "green",
         "save": False
     }
+
     config_obj = CLUSTERSCConfig(**config_dict) 
     estimator = CLUSTERSC(config_obj)
     
@@ -548,47 +553,47 @@ def test_clustersc_plotting_behavior(
                 if pcr_sub_res and pcr_sub_res.time_series and pcr_sub_res.time_series.counterfactual_outcome is not None:
                     expected_calls = 1
                     expected_cf_list_len = 1
-                    expected_cf_names = ["Bayesian RSC"] if not config_dict["Frequentist"] else ["RSC"]
+                    expected_cf_names = ["RSC"] if config_dict["Frequentist"] else ["Bayesian RSC"]
             elif method_to_test == "RPCA":
                 if rpca_sub_res and rpca_sub_res.time_series and rpca_sub_res.time_series.counterfactual_outcome is not None:
                     expected_calls = 1
                     expected_cf_list_len = 1
                     expected_cf_names = ["RPCA Synth"]
             elif method_to_test == "BOTH":
-                num_valid_cfs_for_plot = 0
-                temp_cf_names = []
+                num_valid_cfs = 0
+                temp_names = []
                 if pcr_sub_res and pcr_sub_res.time_series and pcr_sub_res.time_series.counterfactual_outcome is not None:
-                    num_valid_cfs_for_plot +=1
-                    temp_cf_names.append("Bayesian RSC" if not config_dict["Frequentist"] else "RSC")
+                    num_valid_cfs += 1
+                    temp_names.append("RSC" if config_dict["Frequentist"] else "Bayesian RSC")
                 if rpca_sub_res and rpca_sub_res.time_series and rpca_sub_res.time_series.counterfactual_outcome is not None:
-                    num_valid_cfs_for_plot +=1
-                    temp_cf_names.append("RPCA Synth")
-                
-                if num_valid_cfs_for_plot > 0:
+                    num_valid_cfs += 1
+                    temp_names.append("RPCA Synth")
+
+                if num_valid_cfs > 0:
                     expected_calls = 1
-                    expected_cf_list_len = num_valid_cfs_for_plot
-                    expected_cf_names = temp_cf_names
+                    expected_cf_list_len = num_valid_cfs
+                    expected_cf_names = temp_names
 
             if expected_calls > 0:
                 mock_plot.assert_called_once()
-                call_args = mock_plot.call_args[1] 
-                
+                call_args = mock_plot.call_args[1]
+
                 assert len(call_args["counterfactual_series_list"]) == expected_cf_list_len
                 assert call_args["counterfactual_names"] == expected_cf_names
                 assert call_args["estimation_method_name"] == "CLUSTERSC"
-                assert call_args["treatedcolor"] == config_dict["treated_color"]
-                
+                assert call_args["treated_series_color"] == config_dict["treated_color"]
+
                 if expected_cf_list_len == 1:
-                    assert call_args["counterfactual_series_colors"] == [config_dict["counterfactual_series_colors"]]
-                elif expected_cf_list_len > 1: 
-                    assert call_args["counterfactual_series_colors"] == [config_dict["counterfactual_series_colors"]] * expected_cf_list_len
+                    assert call_args["counterfactual_series_colors"] == [config_dict["counterfactual_color"]]
+                else:
+                    assert call_args["counterfactual_series_colors"] == [config_dict["counterfactual_color"]] * expected_cf_list_len
 
-                assert call_args["save"] == config_dict["save"]
-                assert call_args["time"] == config_dict["time"]
-                assert call_args["unitid"] == config_dict["unitid"]
-                assert call_args["outcome"] == config_dict["outcome"]
-
-            else: 
+                assert call_args["save_plot_config"] == config_dict["save"]
+                assert call_args["time_axis_label"] == config_dict["time"]
+                assert call_args["unit_identifier_column_name"] == config_dict["unitid"]
+                assert call_args["outcome_variable_label"] == config_dict["outcome"]
+                assert call_args["treatment_name_label"] == config_dict["treat"]
+            else:
                 mock_plot.assert_not_called()
         else:
             mock_plot.assert_not_called()
