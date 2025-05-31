@@ -987,6 +987,9 @@ def _solve_pda_fs(
         :, selected_donor_indices
     ]
     forward_selection_intercept: float = forward_selection_model_coefficients[0]
+    assert selected_donor_outcomes_fs.shape[1] == forward_selection_model_coefficients[1:].shape[0], \
+    f"Mismatch: donors={selected_donor_outcomes_fs.shape[1]}, coefs={forward_selection_model_coefficients[1:].shape[0]}"
+
     forward_selection_counterfactual_outcome: np.ndarray = (
         forward_selection_intercept
         + selected_donor_outcomes_fs @ forward_selection_model_coefficients[1:]
