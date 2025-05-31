@@ -731,15 +731,15 @@ def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
                     zorder=1,
                 )
 
-            # Plot donor mean trajectory
-                ax_plot.plot(
-                    time_period_axis_index,
-                    donor_mean_outcome_trajectory,
-                    label="Donor Mean", # Label for the legend
-                    color="blue",
-                    linewidth=2,
-                    zorder=2, # Ensure donor mean is plotted above individual donors
-                )
+        # Plot donor mean trajectory
+            ax_plot.plot(
+                time_period_axis_index,
+                donor_mean_outcome_trajectory,
+                label="Donor Mean", # Label for the legend
+                color="blue",
+                linewidth=2,
+                zorder=2, # Ensure donor mean is plotted above individual donors
+            )
             # Plot treated unit trajectory (black, prominent)
             ax_plot.plot(
                 time_period_axis_index,
