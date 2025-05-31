@@ -11,9 +11,9 @@ from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError # Added
 @pytest.fixture
 def sample_pda_data() -> pd.DataFrame:
     """Creates a sample df for PDA tests."""
-    n_units = 5  # Increased from 3 to 5 (4 donors)
-    n_periods = 15 # Increased from 10 to 15
-    treatment_start_period = 10 # Treatment at period 10 (9 pre-periods)
+    n_units = 25  # Increased from 3 to 5 (4 donors)
+    n_periods = 60 # Increased from 10 to 15
+    treatment_start_period = 40 # Treatment at period 10 (9 pre-periods)
 
     units = np.repeat(np.arange(1, n_units + 1), n_periods)
     times = np.tile(np.arange(1, n_periods + 1), n_units)
