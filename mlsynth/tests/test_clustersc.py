@@ -576,7 +576,7 @@ def test_clustersc_plotting_behavior(
                 assert len(call_args["counterfactual_series_list"]) == expected_cf_list_len
                 assert call_args["counterfactual_names"] == expected_cf_names
                 assert call_args["estimation_method_name"] == "CLUSTERSC"
-                assert call_args["treated_series_color"] == config_dict["treated_series_color"]
+                assert call_args["treatedcolor"] == config_dict["treated_color"]
                 
                 if expected_cf_list_len == 1:
                     assert call_args["counterfactual_series_colors"] == [config_dict["counterfactual_series_colors"]]
