@@ -573,30 +573,29 @@ def test_clustersc_plotting_behavior(
                     expected_calls = 1
                     expected_cf_list_len = num_valid_cfs
                     expected_cf_names = temp_names
+                    
+                if expected_calls > 0:
+                    mock_plot.assert_called_once()
+                    call_args = mock_plot.call_args[1]
+                
+                    assert len(call_args["counterfactual_series_list"]) == expected_cf_list_len
+                    assert call_args["counterfactual_names"] == expected_cf_names
+                    assert call_args["estimation_method_name"] == "CLUSTERSC"
+                    assert call_args["treated_series_color"] == config_dict["treated_color"]
+                
+                    if expected_cf_list_len == 1:
+                        assert call_args["counterfactual_series_colors"] == config_dict["counterfactual_color"]
+                    else:
+                        assert call_args["counterfactual_series_colors"] == (
+                            config_dict["counterfactual_color"] * expected_cf_list_len
+                        )
+                
+                    # These assertions should always run if `expected_calls > 0`
+                    assert call_args["save_plot_config"] == config_dict["save"]
+                    assert call_args["time_axis_label"] == config_dict["time"]
+                    assert call_args["unit_identifier_column_name"] == config_dict["unitid"]
+                    assert call_args["outcome_variable_label"] == config_dict["outcome"]
+                    assert call_args["treatment_name_label"] == config_dict["treat"]
+                else:
+                    mock_plot.assert_not_called()
 
-            if expected_calls > 0:
-                mock_plot.assert_called_once()
-                call_args = mock_plot.call_args[1]
-
-                assert len(call_args["counterfactual_series_list"]) == expected_cf_list_len
-                assert call_args["counterfactual_names"] == expected_cf_names
-                assert call_args["estimation_method_name"] == "CLUSTERSC"
-                assert call_args["treated_series_color"] == config_dict["treated_color"]
-
-            if expected_cf_list_len == 1:
-                assert call_args["counterfactual_series_colors"] == config_dict["counterfactual_color"]
-            else:
-                assert call_args["counterfactual_series_colors"] == (
-                    config_dict["counterfactual_color"] * expected_cf_list_len
-                )
-
-
-                assert call_args["save_plot_config"] == config_dict["save"]
-                assert call_args["time_axis_label"] == config_dict["time"]
-                assert call_args["unit_identifier_column_name"] == config_dict["unitid"]
-                assert call_args["outcome_variable_label"] == config_dict["outcome"]
-                assert call_args["treatment_name_label"] == config_dict["treat"]
-            else:
-                mock_plot.assert_not_called()
-        else:
-            mock_plot.assert_not_called()
