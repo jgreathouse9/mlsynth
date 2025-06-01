@@ -675,7 +675,7 @@ def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
             # The keys in `config_item_plot` (e.g., "unitid", "time") are passed to `dataprep`.
             prepared_data_for_plot = dataprep(
                 df=config_item_plot["df"],
-                unit_id_column=config_item_plot["unitid"], 
+                unit_id_column_name=config_item_plot["unitid"], 
                 time_column_name=config_item_plot["time"],
                 outcome_column_name=config_item_plot["outcome"],
                 treated_unit_identifier=config_item_plot["treat"],
