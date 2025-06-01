@@ -984,9 +984,9 @@ def test_pcr_smoke(cluster_flag, is_frequentist):
 # ---------- Fixture for pda tests ----------
 @pytest.fixture
 def prepped_data_for_pda():
-    T_total = 30
-    N_donors_original = 5
-    pre_periods = 20
+    T_total = 100
+    N_donors_original = 25
+    pre_periods = 70
     post_periods = T_total - pre_periods
     
     y_treated_full = np.random.rand(T_total)
@@ -1008,7 +1008,7 @@ def prepped_data_for_pda():
 # ---------- Tests for pda ----------
 @pytest.mark.parametrize("method", ["fs", "LASSO", "l2"])
 def test_pda_smoke(prepped_data_for_pda, method):
-    N_donors_param = 3 # For 'fs', max selected donors. For others, might not be used directly.
+    N_donors_param = 24 # For 'fs', max selected donors. For others, might not be used directly.
     tau_l2_param = 0.1 if method == "l2" else None # Only for l2
 
     # Ensure pre_periods is sufficient for LassoCV's default cv=5
