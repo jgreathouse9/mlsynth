@@ -17,7 +17,7 @@ class BaseEstimatorConfig(BaseModel):
     time: str = Field(..., description="Name of the time period column in the DataFrame.")
     display_graphs: bool = Field(default=True, description="Whether to display plots of results.")
     save: Union[bool, str] = Field(default=False, description="Configuration for saving plots. If False (default), plots are not saved. If True, plots are saved with default names. If a string, it's used as the base filename for saved plots.")
-    counterfactual_color: str = Field(default="red", description="Color for counterfactual line(s) in plots.")
+    counterfactual_color: List[str] = Field(default_factory=lambda: ["red", "blue"],description="Color(s) for counterfactual line(s) in plots.")
     treated_color: str = Field(default="black", description="Color for the treated unit line in plots.")
     seed: Optional[int] = Field(default=None, description="Random seed for reproducibility.")
     verbose: bool = Field(default=False, description="Verbosity level.")
