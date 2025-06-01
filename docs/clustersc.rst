@@ -142,7 +142,7 @@ our weights are here onlt constrained to be positive, since the donor selection 
 Estimating ``CLUSTERSC``
 ------------------------
 
-.. autoclass:: mlsynth CLUSTERSC
+.. autoclass:: mlsynth.CLUSTERSC
    :show-inheritance:
    :special-members: __init__
 
