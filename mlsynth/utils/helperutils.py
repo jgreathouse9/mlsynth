@@ -540,8 +540,9 @@ def ssdid_est(
     return ssdid_estimate
 
 
-def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
-    """Generate diagnostic plots for synthetic control analyses.
+def sc_diagplot(config_list: List[Dict[str, Any]], save: Optional[str] = None) -> None:
+    """
+    Generate diagnostic plots for synthetic control analyses.
 
     For each configuration provided, this function plots the treated unit's
     outcome trajectory against individual donor unit trajectories and the
@@ -577,10 +578,15 @@ def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
             cohort's data to use for the plot. If `None` and multiple cohorts
             are detected by `dataprep`, a `ValueError` is raised.
 
+    save : Optional[str], default None
+        If provided, saves the plot to the specified file path instead of displaying
+        it interactively. Accepts formats supported by `matplotlib.pyplot.savefig`
+        (e.g., '.png', '.pdf', '.svg').
+
     Returns
     -------
     None
-        This function displays a matplotlib plot and does not return any value.
+        This function displays a matplotlib plot or saves it to disk if `save` is specified.
 
     Raises
     ------
@@ -637,7 +643,10 @@ def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
     >>> # - GDP of donor units 'B' and 'C' (gray lines).
     >>> # - Mean GDP of donors 'B' and 'C' (blue line).
     >>> # - A vertical dashed line after year 2000, indicating treatment start.
+    >>> # To save the figure instead:
+    >>> sc_diagplot(plot_config, save="sc_diagplot_output.png")
     """
+
     from .datautils import dataprep  # import inside parent in case of circularity
 
     if not isinstance(config_list, list):
@@ -766,4 +775,8 @@ def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
 
         fig.suptitle("Treated vs Donor Trends", fontsize=16)
         plt.tight_layout()
-        plt.show()
+
+        if save:
+            fig.savefig(save, bbox_inches="tight")
+        else:
+            plt.show()
