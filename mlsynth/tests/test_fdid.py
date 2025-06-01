@@ -59,7 +59,7 @@ def test_fdid_creation(sample_fdid_data: pd.DataFrame):
     assert estimator.time == "time"
     assert estimator.outcome == "y"
     assert estimator.treated == "treated_indicator"
-    assert estimator.counterfactual_color == "red" # Default from Pydantic model
+    assert estimator.counterfactual_color == ["red"] # Default from Pydantic model
     assert estimator.treated_color == "black" # Default from Pydantic model
     assert estimator.display_graphs is True # Default from Pydantic model
     assert estimator.save is False # Default from Pydantic model
