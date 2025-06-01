@@ -590,7 +590,7 @@ def test_proximal_plotting_pi_only(
         "unitid": "UnitIdentifier", "time": "TimeIdx", "donors": [2, 3], 
         "vars": {"donorproxies": ["DonorProxyVar1"]}, "surrogates": [],
         "display_graphs": display_graphs_flag,
-            "counterfactual_color": "red", 
+            "counterfactual_color": ["red"], 
             "treated_color": "blue"
         }
     config_obj = PROXIMALConfig(**config_dict)
@@ -634,7 +634,7 @@ def test_proximal_plotting_pi_only(
         
         assert call_args.kwargs["counterfactual_names"] == ["Proximal Inference"]
         assert call_args.kwargs["treatedcolor"] == "blue"
-        assert call_args.kwargs["counterfactualcolors"] == "red"
+        assert call_args.kwargs["counterfactualcolors"] == ["red"]
         assert call_args.kwargs.get("save_path") is None # save=False
     else:
         mock_plot_estimates.assert_not_called()
