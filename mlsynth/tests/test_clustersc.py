@@ -530,7 +530,7 @@ def test_clustersc_plotting_behavior(
         "objective": "OLS", 
         "Frequentist": True,
         "ROB": "PCP", 
-        "counterfactual_color": "blue", 
+        "counterfactual_color": ["blue"], 
         "treated_color": "green",
         "save": False
     }
