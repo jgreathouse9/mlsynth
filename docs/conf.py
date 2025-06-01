@@ -47,11 +47,3 @@ html_theme = 'sphinx_book_theme'
 
 # -- Options for EPUB output
 epub_show_urls = "footnote"
-
-# -- Sphinx Gallery Configuration
-sphinx_gallery_conf = {
-    'examples_dirs': ['auto_examples'],   # Path to your examples folder
-    'gallery_dirs': ['auto_examples'],  # Path to the gallery build output
-    'filename_pattern': r'auto_examples/.*\.py'
-}
-
