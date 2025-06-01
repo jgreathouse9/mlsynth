@@ -583,12 +583,14 @@ def test_clustersc_plotting_behavior(
                     assert call_args["estimation_method_name"] == "CLUSTERSC"
                     assert call_args["treated_series_color"] == config_dict["treated_color"]
                 
-                    if expected_cf_list_len == 1:
-                        assert call_args["counterfactual_series_colors"] == config_dict["counterfactual_color"]
+                    cf_colors = config_dict["counterfactual_color"]
+                    if len(cf_colors) == 1:
+                        expected_colors = cf_colors * expected_cf_list_len
                     else:
-                        assert call_args["counterfactual_series_colors"] == (
-                            config_dict["counterfactual_color"] * expected_cf_list_len
-                        )
+                        expected_colors = cf_colors
+                    
+                    assert call_args["counterfactual_series_colors"] == expected_colors
+
                 
                     # These assertions should always run if `expected_calls > 0`
                     assert call_args["save_plot_config"] == config_dict["save"]
