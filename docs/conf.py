@@ -25,8 +25,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
-    "sphinx_copybutton",
-    "sphinx_gallery.gen_gallery",  # Moved this here directly
+    "sphinx_copybutton"
 ]
 
 latex_elements = {"preamble": r"\usepackage{mathtools}"}
