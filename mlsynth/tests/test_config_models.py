@@ -54,7 +54,7 @@ def test_base_estimator_config_valid(base_config_data: Dict[str, Any]):
     assert config.df.equals(base_config_data["df"])
     assert config.outcome == "outcome_var"
     assert config.display_graphs is True # Check default
-    assert config.counterfactual_color == "red"
+    assert config.counterfactual_color == ["red"]
 
 def test_base_estimator_config_missing_required(base_config_data: Dict[str, Any]):
     """Test ValidationError for missing required fields in BaseEstimatorConfig."""
