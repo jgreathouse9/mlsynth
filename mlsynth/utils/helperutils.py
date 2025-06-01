@@ -676,9 +676,9 @@ def sc_diagplot(config_list: List[Dict[str, Any]]) -> None:
             prepared_data_for_plot = dataprep(
                 df=config_item_plot["df"],
                 unit_id_column_name=config_item_plot["unitid"], 
-                time_column_name=config_item_plot["time"],
+                time_period_column_name=config_item_plot["time"],
                 outcome_column_name=config_item_plot["outcome"],
-                treated_unit_identifier=config_item_plot["treat"],
+                treatment_indicator_column_name=config_item_plot["treat"],
                 # Other dataprep parameters will use their defaults or are assumed not critical for this diagnostic plot.
             )
 
