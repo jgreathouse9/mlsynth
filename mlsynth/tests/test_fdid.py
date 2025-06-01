@@ -458,11 +458,11 @@ def test_fdid_plotting_behavior(mock_plot_estimates, sample_fdid_data: pd.DataFr
     mock_plot_estimates.assert_called_once()
     
     args, kwargs = mock_plot_estimates.call_args
-    assert kwargs.get("method") == "FDID"
-    assert kwargs.get("treatmentname") == "treated_indicator"
+    assert kwargs.get("estimation_method_name") == "FDID"
+    assert kwargs.get("treatment_name_label") == "treated_indicator"
     assert kwargs.get("treated_unit_name") == "T"
-    assert isinstance(kwargs.get("cf_list"), list)
-    assert len(kwargs.get("cf_list")) == 2
+    assert isinstance(kwargs.get("counterfactual_series_list"), list)
+    assert len(kwargs.get("counterfactual_series_list")) == 2
 
     mock_plot_estimates.reset_mock()
 
