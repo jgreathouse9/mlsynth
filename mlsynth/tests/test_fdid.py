@@ -70,7 +70,7 @@ def test_fdid_creation(sample_fdid_data: pd.DataFrame):
         "time": "time_col",
         "outcome": "outcome_col",
             "treat": "treatment_col",
-            "counterfactual_color": "blue",
+            "counterfactual_color": ["blue"],
             "treated_color": "green",
             "display_graphs": False,
             "save": "/tmp/plot.png", # Changed from dict to string
@@ -94,7 +94,7 @@ def test_fdid_creation(sample_fdid_data: pd.DataFrame):
     #     "time": "time_col_actual",
     #     "outcome": "outcome_col_actual",
     #     "treat": "treatment_col_actual",
-    #     "counterfactual_color": "blue",
+    #     "counterfactual_color": ["blue"],
     #     "treated_color": "green",
     #     "display_graphs": False,
     #     "save": "/tmp/plot.png",
@@ -107,7 +107,7 @@ def test_fdid_creation(sample_fdid_data: pd.DataFrame):
     # assert estimator_with_config_valid.time == "time_col_actual"
     # assert estimator_with_config_valid.outcome == "outcome_col_actual"
     # assert estimator_with_config_valid.treated == "treatment_col_actual"
-    # assert estimator_with_config_valid.counterfactual_color == "blue"
+    # assert estimator_with_config_valid.counterfactual_color == ["blue"]
     # assert estimator_with_config_valid.treated_color == "green"
     # assert estimator_with_config_valid.display_graphs is False
     # assert estimator_with_config_valid.save == "/tmp/plot.png"
