@@ -1,7 +1,7 @@
 Forward SCM
 =====================
 
-.. autoclass:: mlsynth.mlsynth.FSCM
+.. autoclass:: mlsynth.FSCM
    :show-inheritance:
    :special-members: __init__
 
