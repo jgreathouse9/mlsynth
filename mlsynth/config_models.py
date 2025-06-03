@@ -66,12 +66,19 @@ class PDAConfig(BaseEstimatorConfig):
     # If case-insensitivity is desired, the pattern would be different or a validator would be needed.
     # For now, assuming exact match "LASSO", "l2", "fs".
 
+
 class FDIDConfig(BaseEstimatorConfig):
     """
     Configuration for the Forward Difference-in-Differences (FDID) estimator.
-    This estimator currently uses only the common configuration parameters.
+    Inherits all common configuration parameters from BaseEstimatorConfig.
+
+    Additional Parameters
+    ---------------------
+    plot_did : bool, default=True
+        Whether to display a plot for the standard DID estimator.
+        Has no effect on FDID or ADID plots.
     """
-    pass
+    plot_did: bool = Field(default=True, description="Whether to plot standard DID results.")
 
 class GSCConfig(BaseEstimatorConfig):
     """Configuration for the Generalized Synthetic Control (GSC) estimator."""
