@@ -93,7 +93,7 @@ class GSCConfig(BaseEstimatorConfig):
 
 class CLUSTERSCConfig(BaseEstimatorConfig):
     """Configuration for the Cluster-based Synthetic Control (CLUSTERSC) estimator."""
-    objective: str = Field(default="OLS", description="Constraint for PCR ('OLS', 'SIMPLEX').", pattern="^(OLS|SIMPLEX)$")
+    objective: str = Field(default="OLS", description="Constraint for PCR ('OLS', 'SIMPLEX').", pattern="^(OLS|SIMPLEX|MSCb)$")
     cluster: bool = Field(default=True, description="Whether to apply clustering for PCR.")
     Frequentist: bool = Field(default=True, description="If True, use Frequentist Robust SCM; False for Bayesian (for PCR method).")
     ROB: str = Field(default="PCP", description="Robust method for RPCA ('PCP' or 'HQF').", pattern="^(PCP|HQF)$") # Parameter name is ROB in code
