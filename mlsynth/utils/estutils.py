@@ -372,78 +372,53 @@ def l2_relax(
     return estimated_coefficients, estimated_intercept, predicted_counterfactuals
 
 
-def cross_validate_tau(
+
+def adaptive_cross_validate_tau(
     pre_treatment_treated_outcome: np.ndarray,
     pre_treatment_donor_outcomes: np.ndarray,
     tau_upper_bound_for_grid: float,
-    num_tau_grid_points: int = 1000,
+    num_coarse_points: int = 10,
+    num_fine_points: int = 20,
+    zoom_width: float = 0.5
 ) -> Tuple[float, float]:
     """
-    Cross-validation for L2-relaxation to select optimal tau.
-
-    Splits pre-treatment data into two halves for training and validation.
-    No intercept is included in this CV process.
-
-    Parameters
-    ----------
-    pre_treatment_treated_outcome : np.ndarray
-        Pre-treatment outcome vector for the treated unit, shape (T_pre,).
-    pre_treatment_donor_outcomes : np.ndarray
-        Pre-treatment design matrix (control units), shape (T_pre, N_controls).
-    tau_upper_bound_for_grid : float
-        Upper bound for tau values to test.
-    num_tau_grid_points : int, optional
-        Number of tau values to evaluate, by default 1000.
-
-    Returns
-    -------
-    Tuple[float, float]
-        - optimal_tau : float
-            The tau value from `tau_values_grid` that results in the minimum
-            mean squared error on the validation set.
-        - min_mse : float
-            The minimum mean squared error achieved on the validation set
-            corresponding to `optimal_tau`.
-
-    Examples
-    --------
-    >>> num_pre_periods_example, num_donors_example = 20, 3
-    >>> pre_treated_outcome_example = np.random.rand(num_pre_periods_example)
-    >>> pre_donor_outcomes_example = np.random.rand(num_pre_periods_example, num_donors_example)
-    >>> tau_upper_bound_example = 1.0
-    >>> optimal_tau_example, min_mse_example = cross_validate_tau(
-    ...     pre_treated_outcome_example, pre_donor_outcomes_example, tau_upper_bound_example, num_tau_grid_points=10
-    ... )
-    >>> print(f"Optimal tau: {optimal_tau_example:.4f}, Min MSE: {min_mse_example:.4f}")
-    Optimal tau: 0.0464, Min MSE: 0.0727
+    Adaptive cross-validation for tau in L2-relax estimator.
+    First performs a coarse grid search, then zooms in around the best tau.
     """
-    num_pre_treatment_periods: int = len(pre_treatment_treated_outcome)
-    half_num_pre_treatment_periods: int = num_pre_treatment_periods // 2
+    num_pre_periods = len(pre_treatment_treated_outcome)
+    half = num_pre_periods // 2
 
-    training_treated_outcome: np.ndarray = pre_treatment_treated_outcome[:half_num_pre_treatment_periods]
-    training_donor_outcomes: np.ndarray = pre_treatment_donor_outcomes[:half_num_pre_treatment_periods, :]
-    validation_treated_outcome: np.ndarray = pre_treatment_treated_outcome[half_num_pre_treatment_periods:]
-    validation_donor_outcomes: np.ndarray = pre_treatment_donor_outcomes[half_num_pre_treatment_periods:, :]
+    y_train = pre_treatment_treated_outcome[:half]
+    X_train = pre_treatment_donor_outcomes[:half, :]
+    y_val = pre_treatment_treated_outcome[half:]
+    X_val = pre_treatment_donor_outcomes[half:, :]
 
-    def cv_mse_for_tau(current_tau_value: float) -> float:
-        cv_coefficients, _, _ = l2_relax(
-            num_pre_treatment_estimation_periods=half_num_pre_treatment_periods, # arg for l2_relax
-            treated_unit_outcome_vector=training_treated_outcome,        # arg for l2_relax
-            donor_outcomes_matrix=training_donor_outcomes,          # arg for l2_relax
-            sup_norm_constraint_tau=current_tau_value             # arg for l2_relax
+    def mse_for_tau(tau_val: float) -> float:
+        coefs, _, _ = l2_relax(
+            num_pre_treatment_estimation_periods=half,
+            treated_unit_outcome_vector=y_train,
+            donor_outcomes_matrix=X_train,
+            sup_norm_constraint_tau=tau_val
         )
-        cv_predictions: np.ndarray = validation_donor_outcomes @ cv_coefficients
-        mean_squared_error: float = np.mean((validation_treated_outcome - cv_predictions) ** 2)
-        return mean_squared_error
+        preds = X_val @ coefs
+        return np.mean((y_val - preds) ** 2)
 
-    tau_values_grid: np.ndarray = np.logspace(-4, np.log10(tau_upper_bound_for_grid), num=num_tau_grid_points)
-    mse_values_for_grid: List[float] = [cv_mse_for_tau(tau) for tau in tau_values_grid]
+    # Stage 1: Coarse log grid
+    coarse_grid = np.logspace(-4, np.log10(tau_upper_bound_for_grid), num_coarse_points)
+    coarse_mse = [mse_for_tau(tau) for tau in coarse_grid]
+    best_idx = np.argmin(coarse_mse)
+    best_tau_coarse = coarse_grid[best_idx]
 
-    optimal_tau_index: int = np.argmin(mse_values_for_grid)
-    optimal_tau: float = tau_values_grid[optimal_tau_index]
-    min_mse: float = mse_values_for_grid[optimal_tau_index]
+    # Stage 2: Fine linear grid around best tau
+    lower = max(best_tau_coarse * (1 - zoom_width), 1e-6)
+    upper = best_tau_coarse * (1 + zoom_width)
+    fine_grid = np.linspace(lower, upper, num_fine_points)
+    fine_mse = [mse_for_tau(tau) for tau in fine_grid]
+    best_fine_idx = np.argmin(fine_mse)
 
-    return optimal_tau, min_mse
+    return fine_grid[best_fine_idx], fine_mse[best_fine_idx]
+
+
 
 
 def ci_bootstrap(
@@ -1238,11 +1213,10 @@ def _solve_pda_l2(
     if l2_regularization_parameter is not None:
         selected_l2_regularization_parameter = l2_regularization_parameter
     else:
-        selected_l2_regularization_parameter, _ = cross_validate_tau(
-            pre_treatment_outcome_l2,
-            pre_treatment_donor_outcomes_l2,
-            initial_tau_for_cv_l2,
-        )
+        selected_l2_regularization_parameter, min_mse = adaptive_cross_validate_tau(
+            pre_treatment_treated_outcome=pre_treatment_outcome_l2,
+            pre_treatment_donor_outcomes=pre_treatment_donor_outcomes_l2,
+            tau_upper_bound_for_grid=1.0)
 
     estimated_coefficients_l2, estimated_intercept_l2, _ = l2_relax(
         num_pre_treatment_periods,
