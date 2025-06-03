@@ -19,8 +19,6 @@ class BaseEstimatorConfig(BaseModel):
     save: Union[bool, str] = Field(default=False, description="Configuration for saving plots. If False (default), plots are not saved. If True, plots are saved with default names. If a string, it's used as the base filename for saved plots.")
     counterfactual_color: List[str] = Field(default_factory=lambda: ["red"],description="Color(s) for counterfactual line(s) in plots.")
     treated_color: str = Field(default="black", description="Color for the treated unit line in plots.")
-    seed: Optional[int] = Field(default=None, description="Random seed for reproducibility.")
-    verbose: bool = Field(default=False, description="Verbosity level.")
 
     class Config:
         arbitrary_types_allowed = True
