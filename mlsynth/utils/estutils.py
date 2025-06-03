@@ -336,9 +336,7 @@ def l2_relax(
     donor_outcomes_matrix: np.ndarray,
     sup_norm_constraint_tau: float,
 ) -> Tuple[np.ndarray, float, np.ndarray]:
-    """
-    L2-relaxation estimator with fallback solvers: CLARABEL, OSQP, ECOS.
-    """
+    """L2-relaxation estimator with fallback solvers: CLARABEL, OSQP, ECOS."""
 
     treated_unit_subset = treated_unit_outcome_vector[:num_pre_treatment_estimation_periods]
     donor_outcomes_subset = donor_outcomes_matrix[:num_pre_treatment_estimation_periods, :]
@@ -960,7 +958,7 @@ def _solve_pda_fs(
         :, selected_donor_indices
     ]
     forward_selection_intercept: float = forward_selection_model_coefficients[0]
-    assert selected_donor_outcomes_fs.shape[1] == forward_selection_model_coefficients[1:].shape[0], \
+    assert selected_donor_outcomes_fs.shape[1] == forward_selection_model_coefficients[1:].shape[0],\
     f"Mismatch: donors={selected_donor_outcomes_fs.shape[1]}, coefs={forward_selection_model_coefficients[1:].shape[0]}"
 
     forward_selection_counterfactual_outcome: np.ndarray = (
