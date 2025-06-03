@@ -329,6 +329,7 @@ def compute_t_stat_and_ci(
     return t_statistic_value, (confidence_interval_lower_bound, confidence_interval_upper_bound)
 
 
+
 def l2_relax(
     num_pre_treatment_estimation_periods: int,
     treated_unit_outcome_vector: np.ndarray,
@@ -336,67 +337,39 @@ def l2_relax(
     sup_norm_constraint_tau: float,
 ) -> Tuple[np.ndarray, float, np.ndarray]:
     """
-    L2-relaxation estimator for time-series panel data.
-
-    Intercept is estimated separately after learning coefficients.
-
-    Parameters
-    ----------
-    num_pre_treatment_estimation_periods : int
-        Number of initial time periods (pre-treatment) to use for estimation.
-    treated_unit_outcome_vector : np.ndarray
-        Outcome vector for the treated unit, shape (T_total,).
-    donor_outcomes_matrix : np.ndarray
-        Design matrix (control units), shape (T_total, N_controls).
-    sup_norm_constraint_tau : float
-        Tuning parameter for the sup-norm constraint.
-
-    Returns
-    -------
-    Tuple[np.ndarray, float, np.ndarray]
-        - coefficients : np.ndarray
-            Estimated coefficients for control units. Shape (N_controls,).
-        - intercept : float
-            Estimated intercept term.
-        - counterfactuals : np.ndarray
-            Predicted counterfactual outcomes for the treated unit for all `T_total`
-            periods. Shape (T_total,).
-
-    Raises
-    ------
-    MlsynthEstimationError
-        If CVXPY optimization fails to find an optimal solution.
-
-    Examples
-    --------
-    >>> T_total_example, N_donors_example, T_pre_estimation_example = 20, 3, 10
-    >>> treated_outcome_vector_example = np.random.rand(T_total_example)
-    >>> donor_outcomes_matrix_example = np.random.rand(T_total_example, N_donors_example)
-    >>> tau_value_example = 0.1
-    >>> estimated_coefficients_example, estimated_intercept_example, predicted_counterfactuals_example = l2_relax(
-    ...     T_pre_estimation_example, treated_outcome_vector_example, donor_outcomes_matrix_example, tau_value_example
-    ... )
-    >>> print(estimated_coefficients_example.shape)
-    (3,)
-    >>> print(predicted_counterfactuals_example.shape)
-    (20,)
+    L2-relaxation estimator with fallback solvers: CLARABEL, OSQP, ECOS.
     """
-    treated_unit_subset: np.ndarray = treated_unit_outcome_vector[:num_pre_treatment_estimation_periods]
-    donor_outcomes_subset: np.ndarray = donor_outcomes_matrix[:num_pre_treatment_estimation_periods, :]
+
+    treated_unit_subset = treated_unit_outcome_vector[:num_pre_treatment_estimation_periods]
+    donor_outcomes_subset = donor_outcomes_matrix[:num_pre_treatment_estimation_periods, :]
 
     num_estimation_periods_subset, num_donors_subset = donor_outcomes_subset.shape
-    Sigma_cov_matrix: np.ndarray = (donor_outcomes_subset.T @ donor_outcomes_subset) / num_estimation_periods_subset
-    eta_vector: np.ndarray = (donor_outcomes_subset.T @ treated_unit_subset) / num_estimation_periods_subset
+    Sigma_cov_matrix = (donor_outcomes_subset.T @ donor_outcomes_subset) / num_estimation_periods_subset
+    eta_vector = (donor_outcomes_subset.T @ treated_unit_subset) / num_estimation_periods_subset
 
     donor_weights_cvxpy = cp.Variable(num_donors_subset)
-    objective = cp.Minimize(0.5 * cp.sum_squares(donor_weights_cvxpy)) # Equivalent to 0.5 * cp.norm(donor_weights_cvxpy, 2)**2
+    objective = cp.Minimize(0.5 * cp.sum_squares(donor_weights_cvxpy))
     constraint = [cp.norm(eta_vector - Sigma_cov_matrix @ donor_weights_cvxpy, "inf") <= sup_norm_constraint_tau]
     problem = cp.Problem(objective, constraint)
-    problem.solve(solver=_SOLVER_CLARABEL_STR)
 
-    estimated_coefficients: np.ndarray = donor_weights_cvxpy.value
-    estimated_intercept: float = np.mean(treated_unit_subset) - np.mean(donor_outcomes_subset @ estimated_coefficients)
-    predicted_counterfactuals: np.ndarray = donor_outcomes_matrix @ estimated_coefficients + estimated_intercept
+    solvers_to_try = ["CLARABEL", "OSQP", "ECOS"]
+    for solver in solvers_to_try:
+        try:
+            problem.solve(solver=solver)
+            if donor_weights_cvxpy.value is not None:
+                break
+        except Exception:
+            continue
+
+    if donor_weights_cvxpy.value is None:
+        raise MlsynthEstimationError("L2-relax failed: All solvers failed to converge.")
+
+    estimated_coefficients = donor_weights_cvxpy.value
+    estimated_intercept = (
+        np.mean(treated_unit_subset) -
+        np.mean(donor_outcomes_subset @ estimated_coefficients)
+    )
+    predicted_counterfactuals = donor_outcomes_matrix @ estimated_coefficients + estimated_intercept
 
     return estimated_coefficients, estimated_intercept, predicted_counterfactuals
 
