@@ -1216,7 +1216,7 @@ def _solve_pda_l2(
         selected_l2_regularization_parameter, min_mse = adaptive_cross_validate_tau(
             pre_treatment_treated_outcome=pre_treatment_outcome_l2,
             pre_treatment_donor_outcomes=pre_treatment_donor_outcomes_l2,
-            tau_upper_bound_for_grid=3.0)
+            tau_upper_bound_for_grid=1.5)
 
     estimated_coefficients_l2, estimated_intercept_l2, _ = l2_relax(
         num_pre_treatment_periods,
