@@ -189,7 +189,7 @@ class FDID:
         fitted_treated_outcome_pre_treatment: np.ndarray = did_intercept + mean_control_outcome_pre_treatment
         # Post-treatment: predicted values based on the intercept and mean control post-treatment outcomes (assuming parallel trends).
         predicted_treated_outcome_post_treatment: np.ndarray = did_intercept + mean_control_outcome_post_treatment
-        counterfactual_outcome_did: np.ndarray = np.vstack((fitted_treated_outcome_pre_treatment, predicted_treated_outcome_post_treatment))
+        counterfactual_outcome_did: np.ndarray = did_intercept + np.mean(control_outcomes_all_periods, axis=1).reshape(-1, 1)
 
         # Calculate the Average Treatment Effect on the Treated (ATT).
         # This is the average difference between the observed outcome and the counterfactual outcome in the post-treatment period.
