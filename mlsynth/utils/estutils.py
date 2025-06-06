@@ -383,7 +383,7 @@ def adaptive_cross_validate_tau(
 ) -> Tuple[float, float]:
     """
     Adaptive cross-validation for tau in L2-relax estimator.
-    First performs a coarse grid search, then zooms in around the best tau.
+    Skips over tau values that cause solver failure.
     """
     num_pre_periods = len(pre_treatment_treated_outcome)
     half = num_pre_periods // 2
@@ -394,14 +394,17 @@ def adaptive_cross_validate_tau(
     X_val = pre_treatment_donor_outcomes[half:, :]
 
     def mse_for_tau(tau_val: float) -> float:
-        coefs, _, _ = l2_relax(
-            num_pre_treatment_estimation_periods=half,
-            treated_unit_outcome_vector=y_train,
-            donor_outcomes_matrix=X_train,
-            sup_norm_constraint_tau=tau_val
-        )
-        preds = X_val @ coefs
-        return np.mean((y_val - preds) ** 2)
+        try:
+            coefs, _, _ = l2_relax(
+                num_pre_treatment_estimation_periods=half,
+                treated_unit_outcome_vector=y_train,
+                donor_outcomes_matrix=X_train,
+                sup_norm_constraint_tau=tau_val
+            )
+            preds = X_val @ coefs
+            return np.mean((y_val - preds) ** 2)
+        except Exception:
+            return 1e6  # large MSE on failure
 
     # Stage 1: Coarse log grid
     coarse_grid = np.logspace(-4, np.log10(tau_upper_bound_for_grid), num_coarse_points)
