@@ -42,7 +42,7 @@ _PDA_METHOD_FS = "fs" # Forward Selection
 _PDA_METHOD_LASSO = "LASSO"
 _PDA_METHOD_L2 = "l2" # L2-relaxation
 
-# --- Constants for CVXPY Solvers ---
+# --- Constants for CVXPY Solvers --- #
 _SOLVER_CLARABEL_STR = "CLARABEL"
 _SOLVER_OSQP_STR = "OSQP"
 
