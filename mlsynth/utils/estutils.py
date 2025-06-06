@@ -359,9 +359,6 @@ def l2_relax(
         except Exception:
             continue
 
-    if donor_weights_cvxpy.value is None:
-        raise MlsynthEstimationError("L2-relax failed: All solvers failed to converge.")
-
     estimated_coefficients = donor_weights_cvxpy.value
     estimated_intercept = (
         np.mean(treated_unit_subset) -
