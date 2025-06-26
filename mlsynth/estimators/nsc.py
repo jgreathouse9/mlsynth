@@ -440,8 +440,8 @@ class NSC:
                     observed_outcome_series=prepared_data["y"],  # Observed outcome vector.
                     counterfactual_series_list=[counterfactual_outcome_series.flatten()],
                     # List of counterfactual vectors.
-                    estimation_method_name="SynthRegControl",
-                    counterfactual_names=["Synthetic Regression Control"],  # Names for legend.
+                    estimation_method_name="NonlinearSC",
+                    counterfactual_names=["Nonlinear Synthetic Control"],  # Names for legend.
                     treated_series_color=self.treated_color,
                     counterfactual_series_colors=self.counterfactual_color,
                     save_plot_config=self.save)
