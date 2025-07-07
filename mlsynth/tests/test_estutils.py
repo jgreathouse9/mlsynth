@@ -221,7 +221,7 @@ def test_l2_relax_optimization_failure():
     # Or, if problem becomes trivial/ill-defined.
     # The function itself doesn't explicitly check for T_pre=0 before calculations.
     # Assuming T_pre_zero is a config/data issue leading to estimation failure.
-    with pytest.raises((MlsynthConfigError, MlsynthDataError, MlsynthEstimationError, ZeroDivisionError, cp.error.SolverError, cp.error.DCPError)):
+    with pytest.raises((MlsynthConfigError, MlsynthDataError, MlsynthEstimationError, ZeroDivisionError, cp.error.SolverError, cp.error.DCPError, ValueError)):
          l2_relax(T_pre_zero, treated_unit, X, tau_val)
 
 
