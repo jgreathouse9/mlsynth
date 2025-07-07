@@ -304,21 +304,30 @@ def test_fma_fit_no_post_periods(mock_plot_estimates, sample_fma_data: pd.DataFr
     """Test FMA fit with no post-treatment periods."""
     config_dict: Dict[str, Any] = {
         "df": sample_fma_data.copy(),
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-        "display_graphs": False, "criti": 11, "DEMEAN": 1,
+        "treat": "Treated",
+        "time": "Time",
+        "outcome": "Outcome",
+        "unitid": "Unit",
+        "display_graphs": False,
+        "criti": 11,
+        "DEMEAN": 1,
     }
-    df_mod = config_dict["df"] # type: ignore
-    last_period = df_mod['Time'].max()
-    # Treat unit 1 at a time where no post-periods exist
-    df_mod.loc[(df_mod['Unit'] == 1) & (df_mod['Time'] >= last_period + 1), 'Treated'] = 1
-    df_mod.loc[(df_mod['Unit'] == 1) & (df_mod['Time'] < last_period + 1), 'Treated'] = 0
-    df_mod.loc[df_mod['Unit'] != 1, 'Treated'] = 0
+
+    df_mod = config_dict["df"]  # type: ignore
+    last_period = df_mod["Time"].max()
+
+    # Force treated unit to be treated *after* all observed periods → no post-treatment data
+    df_mod.loc[(df_mod["Unit"] == 1) & (df_mod["Time"] >= last_period + 1), "Treated"] = 1
+    df_mod.loc[(df_mod["Unit"] == 1) & (df_mod["Time"] <= last_period), "Treated"] = 0
+    df_mod.loc[df_mod["Unit"] != 1, "Treated"] = 0
 
     config_obj = FMAConfig(**config_dict)
     estimator = FMA(config=config_obj)
-    # dataprep's logictreat should raise an AssertionError
-    with pytest.raises(AssertionError, match="No treated units found"):
+
+    # Expect specific MlsynthDataError due to no treated obs
+    with pytest.raises(MlsynthDataError, match="No treated units found"):
         estimator.fit()
+
     mock_plot_estimates.assert_not_called()
 
 
