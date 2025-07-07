@@ -513,13 +513,14 @@ def test_pda_l2_with_tau_config(sample_pda_data: pd.DataFrame, tau_value: Any) -
     else:
         assert isinstance(results.raw_results["optimal_tau"], float)
 
+
 # --- Plotting Behavior Tests ---
 from unittest.mock import patch
 
 @pytest.mark.parametrize("display_graphs_flag", [True, False])
 @pytest.mark.parametrize("method_name", ["fs", "LASSO", "l2"])
 def test_pda_plotting_behavior(sample_pda_data: pd.DataFrame, display_graphs_flag: bool, method_name: str) -> None:
-    """Test plotting behavior based on display_graphs flag."""
+    """Test that plot_estimates is called (or not) based on display_graphs flag."""
     config_dict: Dict[str, Any] = {
         "df": sample_pda_data,
         "treat": "IsTreated",
@@ -528,19 +529,42 @@ def test_pda_plotting_behavior(sample_pda_data: pd.DataFrame, display_graphs_fla
         "unitid": "ID",
         "display_graphs": display_graphs_flag,
         "method": method_name,
-        "save": False # Ensure save doesn't interfere
+        "save": False,
     }
-    
+
     with patch("mlsynth.estimators.pda.plot_estimates") as mock_plot:
         config_obj = PDAConfig(**config_dict)
         estimator = PDA(config_obj)
         estimator.fit()
+
         if display_graphs_flag:
             mock_plot.assert_called_once()
-            call_args = mock_plot.call_args[1] # Get kwargs
-            assert call_args['df'] is not None # prepped dict
-            assert call_args['time'] == config_dict['time']
-            assert call_args['unitid'] == config_dict['unitid']
-            # ... other relevant args
+            call_args = mock_plot.call_args[1]  # Get kwargs
+
+            # Check presence of expected kwargs
+            for expected_key in [
+                "processed_data_dict",
+                "time_axis_label",
+                "unit_identifier_column_name",
+                "outcome_variable_label",
+                "treatment_name_label",
+                "treated_unit_name",
+                "observed_outcome_series",
+                "counterfactual_series_list",
+                "estimation_method_name",
+                "counterfactual_names",
+                "treated_series_color",
+                "counterfactual_series_colors",
+                "save_plot_config"
+            ]:
+                assert expected_key in call_args, f"Missing key in plot_estimates call: {expected_key}"
+
+            # Check values of a few core keys
+            assert call_args["time_axis_label"] == config_dict["time"]
+            assert call_args["unit_identifier_column_name"] == config_dict["unitid"]
+            assert call_args["outcome_variable_label"] == config_dict["outcome"]
+            assert call_args["treatment_name_label"] == config_dict["treat"]
+            assert call_args["estimation_method_name"] == "PDA"
+            assert call_args["save_plot_config"] is False
         else:
             mock_plot.assert_not_called()
