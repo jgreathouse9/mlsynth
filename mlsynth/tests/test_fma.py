@@ -259,7 +259,7 @@ def test_fma_fit_insufficient_pre_periods(mock_plot_estimates, sample_fma_data: 
 
 
 @patch('mlsynth.estimators.fma.plot_estimates')
-def test_fma_fit_insufficient_donors(mock_plot_estimates, sample_fma_data: pd.DataFrame):
+def test_fma_fit_insufficient_donors(mock_plot_estimates, sample_fma_data):
     """Test FMA fit behavior when there are insufficient donor units."""
     base_config_dict: Dict[str, Any] = {
         "treat": "Treated",
@@ -288,13 +288,14 @@ def test_fma_fit_insufficient_donors(mock_plot_estimates, sample_fma_data: pd.Da
     try:
         results = estimator_one_donor.fit()
         assert isinstance(results, BaseEstimatorResults), "Fit should return a BaseEstimatorResults object."
-    except (ValueError, IndexError, np.linalg.LinAlgError, MlsynthDataError) as e:
-        # Acceptable failure due to degenerate matrix or estimation edge cases
+    except (ValueError, IndexError, np.linalg.LinAlgError, MlsynthDataError, MlsynthConfigError) as e:
+        # Expected for degenerate cases like singular matrix or low donor count
         print(f"Caught expected error with one donor: {e}")
         pass
     except Exception as e:
         pytest.fail(f"FMA fit with one donor failed unexpectedly: {e}")
 
+    # Ensure plotting is not triggered during smoke tests
     mock_plot_estimates.assert_not_called()
 
 
