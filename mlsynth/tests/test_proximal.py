@@ -575,7 +575,6 @@ def test_proximal_fit_results_with_surrogates(sample_proximal_data: pd.DataFrame
         validate_proximal_method_results(pydantic_result, n_periods)
         assert pydantic_result.method_details.method_name == expected_methods[i]
 
-# --- Plotting Behavior Tests ---
 from unittest.mock import patch
 
 @pytest.mark.parametrize("display_graphs_flag", [True, False])
@@ -584,103 +583,106 @@ from unittest.mock import patch
 def test_proximal_plotting_pi_only(
     mock_plot_estimates: Any, sample_proximal_data: pd.DataFrame, display_graphs_flag: bool
 ) -> None:
-    """Test plotting behavior for PI only path."""
+    """Test plotting behavior for PI-only path in PROXIMAL."""
     config_dict: Dict[str, Any] = {
-        "df": sample_proximal_data, "outcome": "OutcomeValue", "treat": "IsTreated",
-        "unitid": "UnitIdentifier", "time": "TimeIdx", "donors": [2, 3], 
-        "vars": {"donorproxies": ["DonorProxyVar1"]}, "surrogates": [],
+        "df": sample_proximal_data,
+        "outcome": "OutcomeValue",
+        "treat": "IsTreated",
+        "unitid": "UnitIdentifier",
+        "time": "TimeIdx",
+        "donors": [2, 3],
+        "vars": {"donorproxies": ["DonorProxyVar1"]},
+        "surrogates": [],
         "display_graphs": display_graphs_flag,
-            "counterfactual_color": ["red"], 
-            "treated_color": "blue"
-        }
+        "counterfactual_color": "red",
+        "treated_color": "blue",
+        "save": False,
+    }
     config_obj = PROXIMALConfig(**config_dict)
     estimator = PROXIMAL(config_obj)
+
     try:
-        results_list = estimator.fit() # Now returns List[BaseEstimatorResults]
+        results_list = estimator.fit()
     except MlsynthEstimationError as e:
         pytest.skip(f"Skipping PROXIMAL fit (PI only) for plotting test due to numerical/data issue: {e}")
         return
 
     if display_graphs_flag:
-        # This check is for warnings emitted during the estimator.fit() call if plotting fails.
-        # Pytest automatically captures warnings from the SUT call if not within a specific pytest.warns block.
-        # If a specific warning message needs to be asserted, fit() would need to be called inside pytest.warns.
-        # For now, just assert plot_estimates was called.
         mock_plot_estimates.assert_called_once()
-        # mock_plot_estimates.call_args is a tuple (args, kwargs)
-        # For plot_estimates, cf_list is the 8th positional argument (index 7)
-        # or passed as kwarg 'cf_list'
         call_args = mock_plot_estimates.call_args
-        
-        # Check if cf_list was passed as positional or keyword argument
-        cf_list_in_call: Optional[List[np.ndarray]] = None
-        if len(call_args.args) > 7 and isinstance(call_args.args[7], list):
-            cf_list_in_call = call_args.args[7]
-        elif "cf_list" in call_args.kwargs and isinstance(call_args.kwargs["cf_list"], list):
-            cf_list_in_call = call_args.kwargs["cf_list"]
-        
-        assert cf_list_in_call is not None, "cf_list not found in plot_estimates call"
-        assert len(cf_list_in_call) == 1
-        
-        plotted_cf_pi = cf_list_in_call[0] # Already a 1D array from proximal.py
-        # Compare with the counterfactual from the Pydantic result object
-        pi_pydantic_result = results_list[0]
-        assert pi_pydantic_result.time_series is not None
-        expected_cf_pi = pi_pydantic_result.time_series.counterfactual_outcome
-        assert expected_cf_pi is not None
-        
-        assert plotted_cf_pi.shape == expected_cf_pi.shape
-        np.testing.assert_allclose(plotted_cf_pi, expected_cf_pi, atol=1e-3)
-        
-        assert call_args.kwargs["counterfactual_names"] == ["Proximal Inference"]
-        assert call_args.kwargs["treatedcolor"] == "blue"
-        assert call_args.kwargs["counterfactualcolors"] == ["red"]
-        assert call_args.kwargs.get("save_path") is None # save=False
+
+        # Pull out kwargs
+        kwargs = call_args.kwargs
+
+        # Confirm expected keyword args are passed
+        cf_series_list = kwargs.get("counterfactual_series_list", None)
+        assert cf_series_list is not None, "counterfactual_series_list not passed to plot_estimates"
+        assert isinstance(cf_series_list, list)
+        assert len(cf_series_list) == 1
+
+        plotted_cf = cf_series_list[0]
+        expected_cf = results_list[0].time_series.counterfactual_outcome
+        assert expected_cf is not None
+        assert plotted_cf.shape == expected_cf.shape
+        np.testing.assert_allclose(plotted_cf, expected_cf, atol=1e-3)
+
+        assert kwargs["counterfactual_names"] == ["Proximal Inference"]
+        assert kwargs["treated_series_color"] == "blue"
+        assert kwargs["counterfactual_series_colors"][0] == "red"
+        assert kwargs.get("save_plot_config") is None  # Because save=False
     else:
         mock_plot_estimates.assert_not_called()
 
+
+from unittest.mock import patch
+
 @pytest.mark.parametrize("display_graphs_flag", [True, False])
 @pytest.mark.parametrize("sample_proximal_data", [{"with_surrogates": True}], indirect=True)
-@patch("mlsynth.estimators.proximal.plot_estimates") 
+@patch("mlsynth.estimators.proximal.plot_estimates")
 def test_proximal_plotting_with_surrogates(
     mock_plot_estimates: Any, sample_proximal_data: pd.DataFrame, display_graphs_flag: bool
 ) -> None:
-    """Test plotting behavior for path with surrogates."""
+    """Test plotting behavior for PROXIMAL with surrogates (PI, PIS, PIPost)."""
     custom_colors = ["grey", "purple", "orange"]
     config_dict: Dict[str, Any] = {
-        "df": sample_proximal_data, "outcome": "OutcomeValue", "treat": "IsTreated",
-        "unitid": "UnitIdentifier", "time": "TimeIdx", "donors": [2, 3], "surrogates": [4, 5],
-        "vars": {"donorproxies": ["DonorProxyVar1"], "surrogatevars": ["SurrogateSpecificProxyVar1"]},
+        "df": sample_proximal_data,
+        "outcome": "OutcomeValue",
+        "treat": "IsTreated",
+        "unitid": "UnitIdentifier",
+        "time": "TimeIdx",
+        "donors": [2, 3],
+        "surrogates": [4, 5],
+        "vars": {
+            "donorproxies": ["DonorProxyVar1"],
+            "surrogatevars": ["SurrogateSpecificProxyVar1"],
+        },
         "display_graphs": display_graphs_flag,
-            "counterfactual_color": custom_colors,
-            "treated_color": "darkgreen"
-        }
+        "counterfactual_color": custom_colors,
+        "treated_color": "darkgreen",
+        "save": False,
+    }
+
     config_obj = PROXIMALConfig(**config_dict)
     estimator = PROXIMAL(config_obj)
+
     try:
-        results_list = estimator.fit() # Now returns List[BaseEstimatorResults]
+        results_list = estimator.fit()
     except MlsynthEstimationError as e:
-        pytest.skip(f"Skipping PROXIMAL fit (with surrogates) for plotting test due to numerical/data issue: {e}")
+        pytest.skip(f"Skipping PROXIMAL fit (with surrogates) due to error: {e}")
         return
 
     if display_graphs_flag:
-        # Similar to above, assert mock was called. Warnings from plotting are handled by PROXIMAL.fit.
         mock_plot_estimates.assert_called_once()
         call_args = mock_plot_estimates.call_args
-        cf_list_in_call: Optional[List[np.ndarray]] = None
-        if len(call_args.args) > 7 and isinstance(call_args.args[7], list):
-            cf_list_in_call = call_args.args[7]
-        elif "cf_list" in call_args.kwargs and isinstance(call_args.kwargs["cf_list"], list):
-            cf_list_in_call = call_args.kwargs["cf_list"]
+        kwargs = call_args.kwargs
 
-        assert cf_list_in_call is not None, "cf_list not found in plot_estimates call"
-        assert len(cf_list_in_call) == 3
-        
-        plotted_cf_pi = cf_list_in_call[0]
-        plotted_cf_pis = cf_list_in_call[1]
-        plotted_cf_pipost = cf_list_in_call[2]
+        cf_series_list = kwargs.get("counterfactual_series_list", None)
+        assert cf_series_list is not None, "counterfactual_series_list not passed to plot_estimates"
+        assert isinstance(cf_series_list, list)
+        assert len(cf_series_list) == 3
 
-        # Compare with counterfactuals from Pydantic results
+        plotted_cf_pi, plotted_cf_pis, plotted_cf_pipost = cf_series_list
+
         expected_cf_pi = results_list[0].time_series.counterfactual_outcome
         expected_cf_pis = results_list[1].time_series.counterfactual_outcome
         expected_cf_pipost = results_list[2].time_series.counterfactual_outcome
@@ -690,10 +692,10 @@ def test_proximal_plotting_with_surrogates(
         np.testing.assert_allclose(plotted_cf_pi, expected_cf_pi, atol=1e-3)
         np.testing.assert_allclose(plotted_cf_pis, expected_cf_pis, atol=1e-3)
         np.testing.assert_allclose(plotted_cf_pipost, expected_cf_pipost, atol=1e-3)
-        
-        assert call_args.kwargs["counterfactual_names"] == ["Proximal Inference", "Proximal Surrogates", "Proximal Post"]
-        assert call_args.kwargs["treatedcolor"] == "darkgreen"
-        assert call_args.kwargs["counterfactualcolors"] == custom_colors
-        assert call_args.kwargs.get("save_path") is None # save=False
+
+        assert kwargs["counterfactual_names"] == ["Proximal Inference", "Proximal Surrogates", "Proximal Post"]
+        assert kwargs["treated_series_color"] == "darkgreen"
+        assert kwargs["counterfactual_series_colors"] == custom_colors
+        assert kwargs.get("save_plot_config") is None  # save=False
     else:
         mock_plot_estimates.assert_not_called()
