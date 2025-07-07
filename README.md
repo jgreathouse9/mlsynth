@@ -20,6 +20,24 @@
 
 
 Note that  ``mlsynth`` is an active project. New estimators, such as [this one](https://doi.org/10.48550/arXiv.2006.07691), will soon join the toolkit.
+
+## Contributing to ``mlsynth``
+
+``mlsynth`` welcomes expertise and novelty, Bayesian or Frequentist.
+
+Small improvements or fixes are always appreciated. If you are wish to add in new estimators,
+inference tests, or other wider ranging changes, please email Jared first. Some of the newer 
+estimators on the list for development are [continuous treatments](https://doi.org/10.1080/07350015.2021.1927743), [some](https://economics.mit.edu/sites/default/files/inline-files/_Factor_Bayesian_SC_0.pdf) [Bayesian](https://arxiv.org/pdf/2503.06454) methods, [Random Forests](https://onlinelibrary.wiley.com/doi/abs/10.1002/jae.3123), [synthetic historical controls](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4995085), [infernce for simplex weights](https://arxiv.org/pdf/2501.15692), [prediction intervals](https://doi.org/10.1002/jae.3134), [synthetic business cycles](https://arxiv.org/pdf/2505.22388), and other things that we may add.
+
+Whatever changes are proposed, they must be performed on the Basque, Proposition 99, or West Germany dataset, or they must reproduce the findings of the original paper the empirical innovation was proposed for.
+
+In addition to writing code, you may also
+
+- develop tutorials, presentations, and other educational materials using ``mlsynth``
+- promote ``mlsynth`` on LinkedIn or in the classroom
+- help with outreach and onboard new contributors
+
+
     
 ## Using  ``mlsynth``
 We have implemented the following estimators for  ``mlsynth``  
