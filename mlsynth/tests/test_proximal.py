@@ -594,8 +594,6 @@ def test_proximal_plotting_pi_only(
         "vars": {"donorproxies": ["DonorProxyVar1"]},
         "surrogates": [],
         "display_graphs": display_graphs_flag,
-        "counterfactual_color": "red",
-        "treated_color": "blue",
         "save": False,
     }
     config_obj = PROXIMALConfig(**config_dict)
@@ -657,8 +655,6 @@ def test_proximal_plotting_with_surrogates(
             "surrogatevars": ["SurrogateSpecificProxyVar1"],
         },
         "display_graphs": display_graphs_flag,
-        "counterfactual_color": custom_colors,
-        "treated_color": "darkgreen",
         "save": False,
     }
 
