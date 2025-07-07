@@ -448,6 +448,7 @@ def test_fma_fit_config_variations(mock_plot_estimates, sample_fma_data: pd.Data
     mock_plot_estimates.assert_not_called() # display_graphs is False
 
 
+
 # --- Plotting Behavior ---
 
 @patch('mlsynth.estimators.fma.plot_estimates')
@@ -464,10 +465,10 @@ def test_fma_plotting_behavior_display_true(mock_plot_func, sample_fma_data: pd.
     mock_plot_func.assert_called_once()
     # Check some key args passed to plot_estimates
     args, kwargs = mock_plot_func.call_args
-    assert "df" in kwargs # prepped data
-    assert "y" in kwargs
-    assert "cf_list" in kwargs and isinstance(kwargs["cf_list"], list) and len(kwargs["cf_list"]) == 1
-    assert "method" in kwargs and kwargs["method"] == "FMA"
+    assert "processed_data_dict" in kwargs  # matches 'processed_data_dict=prepared_data' in fit()
+    assert "observed_outcome_series" in kwargs  # matches observed_outcome_series=treated_outcome_all_periods
+    assert "counterfactual_series_list" in kwargs and isinstance(kwargs["counterfactual_series_list"], list) and len(kwargs["counterfactual_series_list"]) == 1
+    assert "estimation_method_name" in kwargs and kwargs["estimation_method_name"] == "FMA"
 
 
 @patch('mlsynth.estimators.fma.plot_estimates')
