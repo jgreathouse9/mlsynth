@@ -35,7 +35,7 @@ SDID_TEST_CONFIG_BASE = {
     "display_graphs": False,
     "save": False,
     "B": 10, # Small number of placebo iterations for testing
-    "counterfactual_color": "salmon",
+    "counterfactual_color": ["red"],
     "treated_color": "darkblue",
     "seed": 91827,
     "verbose": False,
