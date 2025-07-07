@@ -450,8 +450,8 @@ def test_tssc_plotting_behavior_display_true(mock_plot_estimates, tssc_panel_dat
     estimator.fit()
     mock_plot_estimates.assert_called_once()
     call_args = mock_plot_estimates.call_args[1] # Get kwargs
-    assert "cf_list" in call_args and isinstance(call_args["cf_list"], list)
-    assert len(call_args["cf_list"]) == 1 # Should plot one recommended CF
+    assert "counterfactual_series_list" in call_args and isinstance(call_args["counterfactual_series_list"], list)
+    assert len(call_args["counterfactual_series_list"]) == 1 # Should plot one recommended CF
     assert "counterfactual_names" in call_args
     assert "Recommended" in call_args["counterfactual_names"][0]
 
