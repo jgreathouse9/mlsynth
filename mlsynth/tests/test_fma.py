@@ -331,57 +331,45 @@ def test_fma_fit_no_post_periods(mock_plot_estimates, sample_fma_data: pd.DataFr
     mock_plot_estimates.assert_not_called()
 
 
+
 @patch('mlsynth.estimators.fma.plot_estimates')
-def test_fma_fit_nan_in_outcome(mock_plot_estimates, sample_fma_data: pd.DataFrame):
-    """Test FMA fit when outcome variable contains NaN values."""
-    base_config_dict: Dict[str, Any] = {
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-        "display_graphs": False, "criti": 11, "DEMEAN": 1,
+def test_fma_fit_nan_in_outcome(mock_plot_estimates, sample_fma_data):
+    """Test FMA fit raises MlsynthEstimationError when outcome variable contains NaN values."""
+
+    base_config_dict = {
+        "treat": "Treated",
+        "time": "Time",
+        "outcome": "Outcome",
+        "unitid": "Unit",
+        "display_graphs": False,
+        "criti": 11,
+        "DEMEAN": 1,
     }
-    
+
     # Case 1: NaN in treated unit's pre-period outcome
-    df_mod_treated_nan = sample_fma_data.copy()
-    df_mod_treated_nan.loc[(df_mod_treated_nan['Unit'] == 1) & (df_mod_treated_nan['Time'] == 5), 'Outcome'] = np.nan
-    config_treated_nan_dict = {**base_config_dict, "df": df_mod_treated_nan}
-    config_obj_treated_nan = FMAConfig(**config_treated_nan_dict)
-    estimator_nan_treated = FMA(config=config_obj_treated_nan)
-    try:
-        results = estimator_nan_treated.fit()
-        # If fit completes, ATT or SE might be NaN
-        assert (results.effects is None or np.isnan(results.effects.att)) or \
-               (results.inference is None or np.isnan(results.inference.standard_error)), \
-               "ATT or SE should be NaN if fit completes with NaNs in treated outcome"
-    except (ValueError, np.linalg.LinAlgError, TypeError) as e:
-        # LinAlgError from inv() if matrices become singular due to NaNs
-        # ValueError from np.mean of all-NaN slice, etc.
-        print(f"Caught expected error for NaN in treated unit: {e}")
-        pass 
-    except Exception as e:
-        pytest.fail(f"FMA fit with NaN in treated unit failed unexpectedly: {e}")
-    
+    df_nan_treated = sample_fma_data.copy()
+    df_nan_treated.loc[(df_nan_treated['Unit'] == 1) & (df_nan_treated['Time'] == 5), 'Outcome'] = np.nan
+    config_treated_nan = FMAConfig(**{**base_config_dict, "df": df_nan_treated})
+    estimator_treated_nan = FMA(config=config_treated_nan)
+
+    with pytest.raises(MlsynthEstimationError, match="missing values"):
+        estimator_treated_nan.fit()
+
     mock_plot_estimates.reset_mock()
 
     # Case 2: NaN in a control unit's pre-period outcome
-    # This will affect donor_matrix, then X_processed, then factor estimation.
-    df_mod_control_nan = sample_fma_data.copy() # Reset df
-    df_mod_control_nan.loc[(df_mod_control_nan['Unit'] == 2) & (df_mod_control_nan['Time'] == 5), 'Outcome'] = np.nan
-    config_control_nan_dict = {**base_config_dict, "df": df_mod_control_nan}
-    config_obj_control_nan = FMAConfig(**config_control_nan_dict)
-    estimator_nan_control = FMA(config=config_obj_control_nan)
-    try:
-        results = estimator_nan_control.fit()
-        # Factor model might still compute, but results could be affected
-        assert (results.effects is None or np.isnan(results.effects.att)) or \
-               (results.inference is None or np.isnan(results.inference.standard_error)) or \
-               (results.time_series is None or results.time_series.counterfactual_outcome is None or np.all(np.isnan(results.time_series.counterfactual_outcome))), \
-               "ATT, SE, or Counterfactual should be NaN if fit completes with NaNs in control outcome"
-    except (ValueError, np.linalg.LinAlgError, TypeError) as e:
-        print(f"Caught expected error for NaN in control unit: {e}")
-        pass
-    except Exception as e:
-        pytest.fail(f"FMA fit with NaN in control unit failed unexpectedly: {e}")
+    df_nan_control = sample_fma_data.copy()
+    df_nan_control.loc[(df_nan_control['Unit'] == 2) & (df_nan_control['Time'] == 5), 'Outcome'] = np.nan
+    config_control_nan = FMAConfig(**{**base_config_dict, "df": df_nan_control})
+    estimator_control_nan = FMA(config=config_control_nan)
+
+    with pytest.raises(MlsynthEstimationError, match="missing values"):
+        estimator_control_nan.fit()
 
     mock_plot_estimates.reset_mock()
+
+
+
 
 # --- Detailed Results Validation ---
 
