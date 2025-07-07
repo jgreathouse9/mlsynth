@@ -449,7 +449,7 @@ def mock_plot_estimates(mocker):
     return mocker.patch("mlsynth.estimators.nsc.plot_estimates")
 
 @pytest.mark.parametrize("display_graphs_config", [True, False])
-@pytest.mark.parametrize("save_config", [False, True]) # Removed dict case for now
+@pytest.mark.parametrize("save_config", [False, True])  # Removed dict case for now
 def test_nsc_plotting_behavior(nsc_panel_data, mock_plot_estimates, display_graphs_config, save_config):
     """Test that plot_estimates is called (or not) based on config."""
     pydantic_dict = _get_pydantic_config_dict_nsc(NSC_FULL_TEST_CONFIG_BASE, nsc_panel_data)
@@ -457,26 +457,29 @@ def test_nsc_plotting_behavior(nsc_panel_data, mock_plot_estimates, display_grap
     pydantic_dict["save"] = save_config
     config_obj = NSCConfig(**pydantic_dict)
     estimator = NSC(config=config_obj)
-    
+
     try:
         results = estimator.fit()
-        assert isinstance(results, BaseEstimatorResults) # Ensure fit runs
+        assert isinstance(results, BaseEstimatorResults)  # Ensure fit runs
     except (np.linalg.LinAlgError, ValueError) as e:
-        if "singular" in str(e).lower() or "Optimization failed" in str(e).lower() or "optimal_inaccurate" in str(e).lower():
+        if any(term in str(e).lower() for term in ["singular", "optimization failed", "optimal_inaccurate"]):
             pytest.skip(f"Skipping plotting test due to optimization issue: {e}")
         raise
 
-if display_graphs_config:
-    mock_plot_estimates.assert_called_once()
-    call_args = mock_plot_estimates.call_args[1]  # keyword args dict
-    assert call_args["processed_data_dict"] is results.raw_results["_prepped"]
-    assert call_args["estimation_method_name"] == "NSC"
-    assert call_args["save_plot_config"] == save_config
-    assert call_args["treated_series_color"] == config_obj.treated_color
-    assert call_args["counterfactual_series_colors"] == (
-        [config_obj.counterfactual_color]
-        if isinstance(config_obj.counterfactual_color, str)
-        else config_obj.counterfactual_color
-    )
-else:
-    mock_plot_estimates.assert_not_called()
+    if display_graphs_config:
+        mock_plot_estimates.assert_called_once()
+        call_args = mock_plot_estimates.call_args[1]  # keyword arguments
+
+        assert call_args["processed_data_dict"] is results.raw_results["_prepped"]
+        assert call_args["estimation_method_name"] == "NSC"
+        assert call_args["save_plot_config"] == save_config
+        assert call_args["treated_series_color"] == config_obj.treated_color
+
+        expected_colors = (
+            [config_obj.counterfactual_color]
+            if isinstance(config_obj.counterfactual_color, str)
+            else config_obj.counterfactual_color
+        )
+        assert call_args["counterfactual_series_colors"] == expected_colors
+    else:
+        mock_plot_estimates.assert_not_called()
