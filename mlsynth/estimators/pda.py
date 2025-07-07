@@ -267,9 +267,9 @@ class PDA:
                 self.df, self.unitid, self.time, self.outcome, self.treat
             )
 
-            if np.isnan(donor_matrix).any():
+            if np.isnan(prepared_data["donor_matrix"]).any():
                 raise MlsynthEstimationError("Donor matrix contains NaN values after preprocessing.")
-            if np.isnan(y).any():
+            if np.isnan(prepared_data["y"]).any():
                 raise MlsynthEstimationError("Treated outcome vector contains NaN values after preprocessing.")
 
             # Step 3: Call the core PDA estimation function from `estutils`.
