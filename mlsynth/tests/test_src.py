@@ -15,7 +15,7 @@ SRC_FULL_TEST_CONFIG_BASE: Dict[str, Any] = {
     "treat": "treated_indicator_programmatic_src",
     "unitid": "unit_id",
     "time": "time_id",
-    "counterfactual_color": "purple",
+    "counterfactual_color": ["purple"],
     "treated_color": "orange",
     "display_graphs": False,
     "save": False,
