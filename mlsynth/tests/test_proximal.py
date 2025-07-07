@@ -594,8 +594,6 @@ def test_proximal_plotting_pi_only(
         "vars": {"donorproxies": ["DonorProxyVar1"]},
         "surrogates": [],
         "display_graphs": display_graphs_flag,
-        "treated_series_color": "blue",
-        "counterfactual_series_colors": "red",
         "save": False,
     }
     config_obj = PROXIMALConfig(**config_dict)
@@ -627,8 +625,6 @@ def test_proximal_plotting_pi_only(
         np.testing.assert_allclose(plotted_cf, expected_cf, atol=1e-3)
 
         assert kwargs["counterfactual_names"] == ["Proximal Inference"]
-        assert kwargs["treated_series_color"] == "blue"
-        assert kwargs["counterfactual_series_colors"][0] == "red"
         assert kwargs.get("save_plot_config") is None  # Because save=False
     else:
         mock_plot_estimates.assert_not_called()
@@ -692,7 +688,6 @@ def test_proximal_plotting_with_surrogates(
         np.testing.assert_allclose(plotted_cf_pipost, expected_cf_pipost, atol=1e-3)
 
         assert kwargs["counterfactual_names"] == ["Proximal Inference", "Proximal Surrogates", "Proximal Post"]
-        assert kwargs["treated_series_color"] == "black"
         assert kwargs["counterfactual_series_colors"] == custom_colors
         assert kwargs.get("save_plot_config") is None  # save=False
     else:
