@@ -260,39 +260,41 @@ def test_fma_fit_insufficient_pre_periods(mock_plot_estimates, sample_fma_data: 
 
 @patch('mlsynth.estimators.fma.plot_estimates')
 def test_fma_fit_insufficient_donors(mock_plot_estimates, sample_fma_data: pd.DataFrame):
-    """Test FMA fit with insufficient donor units."""
+    """Test FMA fit behavior when there are insufficient donor units."""
     base_config_dict: Dict[str, Any] = {
-        # "df" will be replaced
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-        "display_graphs": False, "criti": 11, "DEMEAN": 1,
+        "treat": "Treated",
+        "time": "Time",
+        "outcome": "Outcome",
+        "unitid": "Unit",
+        "display_graphs": False,
+        "criti": 11,
+        "DEMEAN": 1,
     }
-    
-    # Case 1: No donors
-    df_no_donors = sample_fma_data[sample_fma_data['Unit'] == 1].copy()
+
+    # --- Case 1: No donor units ---
+    df_no_donors = sample_fma_data[sample_fma_data["Unit"] == 1].copy()
     config_no_donors_dict = {**base_config_dict, "df": df_no_donors}
-    config_obj_no_donors = FMAConfig(**config_no_donors_dict)
-    estimator_no_donors = FMA(config=config_obj_no_donors)
-    with pytest.raises((ValueError, IndexError, KeyError, MlsynthDataError)): # dataprep should fail
+    estimator_no_donors = FMA(FMAConfig(**config_no_donors_dict))
+
+    # Expect a specific failure due to no donor units
+    with pytest.raises(MlsynthDataError, match="No donor units found"):
         estimator_no_donors.fit()
 
-    # Case 2: One donor (FMA needs N_donors > nfactor_selected, rmax_factors=10 by default)
-    # Factor estimation or nbpiid might fail.
-    df_one_donor = sample_fma_data[sample_fma_data['Unit'].isin([1, 2])].copy()
+    # --- Case 2: Only one donor unit ---
+    df_one_donor = sample_fma_data[sample_fma_data["Unit"].isin([1, 2])].copy()
     config_one_donor_dict = {**base_config_dict, "df": df_one_donor}
-    config_obj_one_donor = FMAConfig(**config_one_donor_dict)
-    estimator_one_donor = FMA(config=config_obj_one_donor)
+    estimator_one_donor = FMA(FMAConfig(**config_one_donor_dict))
+
     try:
-        # With one donor, factor model estimation is degenerate.
-        # The primary check is that it runs without unhandled exceptions.
-        # The statistical validity of results with one donor is a separate concern.
         results = estimator_one_donor.fit()
         assert isinstance(results, BaseEstimatorResults), "Fit should return a BaseEstimatorResults object."
     except (ValueError, IndexError, np.linalg.LinAlgError, MlsynthDataError) as e:
-        # These errors might occur if the single donor leads to singular matrices or other data issues.
-        print(f"Caught an expected error with one donor: {e}")
-        pass 
+        # Acceptable failure due to degenerate matrix or estimation edge cases
+        print(f"Caught expected error with one donor: {e}")
+        pass
     except Exception as e:
         pytest.fail(f"FMA fit with one donor failed unexpectedly: {e}")
+
     mock_plot_estimates.assert_not_called()
 
 
