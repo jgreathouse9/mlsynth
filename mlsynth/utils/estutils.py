@@ -1213,7 +1213,7 @@ def _solve_pda_l2(
     if l2_regularization_parameter is not None:
         selected_l2_regularization_parameter = l2_regularization_parameter
     else:
-        selected_l2_regularization_parameter, min_mse = adaptive_cross_validate_tau(
+        selected_l2_regularization_parameter, min_mse = cross_validate_tau(
             pre_treatment_treated_outcome=pre_treatment_outcome_l2,
             pre_treatment_donor_outcomes=pre_treatment_donor_outcomes_l2,
             tau_upper_bound_for_grid=5)
