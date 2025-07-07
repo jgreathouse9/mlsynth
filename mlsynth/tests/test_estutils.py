@@ -233,7 +233,7 @@ def test_cross_validate_tau_smoke():
     X_pre = np.random.rand(T_pre, N_controls)
     tau_init_upper = 1.0
 
-    optimal_tau, min_mse = cross_validate_tau(treated_unit_pre, X_pre, tau_init_upper, num_tau_grid_points=10) # Fewer values for speed
+    optimal_tau, min_mse = cross_validate_tau(treated_unit_pre, X_pre, tau_init_upper, num_coarse_points=10)
 
     assert isinstance(optimal_tau, float)
     assert isinstance(min_mse, float)
