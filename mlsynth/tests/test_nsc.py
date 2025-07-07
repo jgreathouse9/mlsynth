@@ -466,14 +466,17 @@ def test_nsc_plotting_behavior(nsc_panel_data, mock_plot_estimates, display_grap
             pytest.skip(f"Skipping plotting test due to optimization issue: {e}")
         raise
 
-    if display_graphs_config:
-        mock_plot_estimates.assert_called_once()
-        call_args = mock_plot_estimates.call_args[1] 
-        assert call_args["df"] is results.raw_results["_prepped"]
-        assert call_args["method"] == "NSC"
-        assert call_args["save"] == save_config # Pydantic config value
-        assert call_args["treatedcolor"] == config_obj.treated_color
-        assert call_args["counterfactualcolors"] == [config_obj.counterfactual_color] \
-            if isinstance(config_obj.counterfactual_color, str) else config_obj.counterfactual_color
-    else:
-        mock_plot_estimates.assert_not_called()
+if display_graphs_config:
+    mock_plot_estimates.assert_called_once()
+    call_args = mock_plot_estimates.call_args[1]  # keyword args dict
+    assert call_args["processed_data_dict"] is results.raw_results["_prepped"]
+    assert call_args["estimation_method_name"] == "NSC"
+    assert call_args["save_plot_config"] == save_config
+    assert call_args["treated_series_color"] == config_obj.treated_color
+    assert call_args["counterfactual_series_colors"] == (
+        [config_obj.counterfactual_color]
+        if isinstance(config_obj.counterfactual_color, str)
+        else config_obj.counterfactual_color
+    )
+else:
+    mock_plot_estimates.assert_not_called()
