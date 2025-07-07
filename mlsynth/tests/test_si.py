@@ -26,7 +26,7 @@ SI_FULL_TEST_CONFIG_BASE: Dict[str, Any] = {
     "inters": ["inter_A", "inter_B"],
     "display_graphs": False,
     "save": False,
-    "counterfactual_color": "teal",
+    "counterfactual_color": ["teal"],
     "treated_color": "maroon",
     "seed": 98765, # Not part of SIConfig
     "verbose": False, # Not part of SIConfig
