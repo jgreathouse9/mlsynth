@@ -27,10 +27,8 @@ TSSC_TEST_CONFIG_BASE = {
     "display_graphs": False,
     "save": False,
     "draws": 10, # Small number of draws for testing
-    "counterfactual_color": "lime",
-    "treated_color": "purple",
-    "seed": 19283,
-    "verbose": False,
+    "counterfactual_color": ["lime"],
+    "treated_color": "purple"
 }
 
 @pytest.fixture
