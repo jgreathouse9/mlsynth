@@ -385,6 +385,10 @@ class SCMO:
                     "SCMO.fit encountered multiple treated units or cohort structure for the primary outcome. "
                     "Please ensure the treatment indicator defines a single treated unit for SCMO's main path."
                 )
+
+            # Check for invalid empty string in addout immediately
+            if isinstance(self.addout, str) and self.addout.strip() == "":
+                raise MlsynthDataError("Missing expected key during SCMO data processing: ''")
             
             # Extract key information from the prepared primary outcome data.
             T0: int = primary_outcome_prepared_data['pre_periods'] # Number of pre-treatment periods
