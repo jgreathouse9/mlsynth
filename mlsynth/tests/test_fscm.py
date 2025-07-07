@@ -23,7 +23,7 @@ FSCM_FULL_TEST_CONFIG_BASE: Dict[str, Any] = {
     "treat": "treated_indicator_programmatic",
     "unitid": "unit_id",
     "time": "time_id",
-    "counterfactual_color": "blue",
+    "counterfactual_color": ["blue"],
     "treated_color": "green",
     "display_graphs": False,
     "save": False,
