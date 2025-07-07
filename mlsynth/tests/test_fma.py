@@ -21,9 +21,9 @@ from mlsynth.utils.resultutils import plot_estimates # For mocking
 @pytest.fixture
 def sample_fma_data() -> pd.DataFrame:
     """Creates a sample DataFrame for FMA tests with more time periods."""
-    n_units = 3
-    n_periods = 15
-    treatment_start_period = 13
+    n_units = 16
+    n_periods = 40
+    treatment_start_period = 20
 
     units = np.repeat(np.arange(1, n_units + 1), n_periods)
     times = np.tile(np.arange(1, n_periods + 1), n_units)
