@@ -42,10 +42,14 @@ jobs:
       run: |
         pytest --cov=mlsynth --cov-report=xml --maxfail=1 --disable-warnings --tb=short
 
+    - name: Show missed coverage lines
+      run: |
+        coverage report -m
+
     - name: Generate coverage badge
       run: |
         coverage xml
-        coverage-badge -o coverage.svg -f  # Force overwrite the badge
+        coverage-badge -o coverage.svg -f
 
     - name: Untrack coverage artifacts
       run: |
@@ -57,7 +61,7 @@ jobs:
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
         git add coverage.svg
-        git commit -m "Update coverage badge" || echo "No changes to commit"  # Avoid failing if no changes
+        git commit -m "Update coverage badge" || echo "No changes to commit"
         git push
 
     - name: Build source distribution
