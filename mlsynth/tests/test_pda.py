@@ -300,10 +300,10 @@ def test_pda_no_post_periods(sample_pda_data: pd.DataFrame, method_name: str) ->
 
 
 @pytest.mark.parametrize("method_name", ["fs", "LASSO", "l2"])
-def test_pda_nan_in_outcome_treated(sample_pda_data: pd.DataFrame, method_name: str) -> None:
+def test_pda_nan_in_outcome_treated(sample_pda_data, method_name: str) -> None:
     """Test PDA fit with NaN in the outcome of the treated unit."""
     df_modified = sample_pda_data.copy()
-    # Introduce NaN in pre-period and post-period for treated unit
+    # Introduce NaN in pre-period and post-period for treated unit (ID 1)
     df_modified.loc[(df_modified["ID"] == 1) & (df_modified["Period"] == 5), "Value"] = np.nan
     df_modified.loc[(df_modified["ID"] == 1) & (df_modified["Period"] == 12), "Value"] = np.nan
 
@@ -317,41 +317,26 @@ def test_pda_nan_in_outcome_treated(sample_pda_data: pd.DataFrame, method_name: 
         "method": method_name,
     }
     config_obj = PDAConfig(**config_dict)
-    estimator = PDA(config_obj)
-    
-    # Behavior with NaNs can vary.
-    # dataprep might convert to 0 or drop, or the underlying algorithm might fail.
-    # Assuming underlying algorithms (LassoCV, PDAfs, l2_relax) might raise errors or produce NaNs.
-    # dataprep fills NaNs with 0 in donor_matrix, but not in y_treated_full.
-    # So, y_treated_full (which becomes y_pre_lasso) will have NaNs.
-    # These errors should be wrapped into MlsynthEstimationError by fit().
-    if method_name == "LASSO":
-        with pytest.raises(MlsynthEstimationError, match="Input y contains NaN."):
+    estimator = PDA(config=config_obj)
+
+    if method_name in ["LASSO", "fs"]:
+        with pytest.raises(MlsynthEstimationError, match="Treated outcome vector contains NaN"):
             estimator.fit()
-    elif method_name == "fs":
-        # PDAfs receives y_treated_full with NaNs.
-        with pytest.raises(MlsynthEstimationError): # Original error was TypeError, now wrapped
-             estimator.fit()
     elif method_name == "l2":
-        # l2_relax receives y_treated_full with NaNs.
-        # If estutils.pda (l2_relax part) handles NaNs by raising an error, it will be caught.
-        # If it propagates NaNs leading to CVXPY failure, MlsynthEstimationError.
-        # If it somehow completes, check for NaN results.
         try:
             results = estimator.fit()
-            assert isinstance(results, BaseEstimatorResults) 
+            assert isinstance(results, BaseEstimatorResults)
             assert results.effects is not None
-            # ATT could be None if calculation fails gracefully, or NaN if it proceeds with NaNs
-            assert results.effects.att is None or np.isnan(results.effects.att) # This line was already corrected in the previous user message.
+            assert results.effects.att is None or np.isnan(results.effects.att)
         except MlsynthEstimationError:
-            pass # This is also an acceptable outcome if NaNs cause solver failure
+            pass  # Acceptable failure due to NaNs
 
 
 @pytest.mark.parametrize("method_name", ["fs", "LASSO", "l2"])
-def test_pda_nan_in_outcome_donor(sample_pda_data: pd.DataFrame, method_name: str) -> None:
+def test_pda_nan_in_outcome_donor(sample_pda_data, method_name: str) -> None:
     """Test PDA fit with NaN in the outcome of a donor unit."""
     df_modified = sample_pda_data.copy()
-    # Inject NaNs into both pre- and post-treatment periods for a donor
+    # Inject NaNs into both pre- and post-treatment periods for donor unit (ID 2)
     df_modified.loc[(df_modified["ID"] == 2) & (df_modified["Period"] == 5), "Value"] = np.nan
     df_modified.loc[(df_modified["ID"] == 2) & (df_modified["Period"] == 12), "Value"] = np.nan
 
@@ -366,12 +351,13 @@ def test_pda_nan_in_outcome_donor(sample_pda_data: pd.DataFrame, method_name: st
     }
 
     config_obj = PDAConfig(**config_dict)
-    estimator = PDA(config_obj)
+    estimator = PDA(config=config_obj)
 
     try:
         estimator.fit()
         pytest.fail(f"❌ PDA.fit() unexpectedly succeeded for method `{method_name}` with NaNs in donor data.")
     except MlsynthEstimationError as e:
+        assert any(keyword in str(e).lower() for keyword in ["nan", "donor", "failed"])
         print(f"✅ PDA.fit() correctly raised MlsynthEstimationError for `{method_name}`: {e}")
     except Exception as e:
         pytest.fail(f"❌ PDA.fit() raised unexpected error for `{method_name}`: {type(e).__name__}: {e}")
