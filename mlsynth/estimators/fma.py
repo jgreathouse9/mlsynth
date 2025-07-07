@@ -462,6 +462,12 @@ class FMA:
             control_outcomes_matrix: np.ndarray = prepared_data["donor_matrix"] # Outcomes of control units (T x N_co)
             treated_outcome_pre_treatment: np.ndarray = prepared_data["y"][:num_pre_treatment_periods] # Outcome of treated unit in pre-period (T0 x 1)
             treated_outcome_all_periods = prepared_data["y"] # Full outcome series for treated unit (T x 1)
+
+            if np.isnan(control_outcomes_matrix).any() or np.isnan(treated_outcome_all_periods).any():
+                raise MlsynthEstimationError(
+                    "Outcome matrix contains missing values. "
+                    "FMA does not currently support missing data. Please impute or drop missing values."
+                )
             
             # Determine penalty adjustments for Bai & Ng factor selection criteria
             num_control_units: int = control_outcomes_matrix.shape[1]
