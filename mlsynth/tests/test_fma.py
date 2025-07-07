@@ -14,7 +14,7 @@ from mlsynth.config_models import (
     TimeSeriesResults,
     InferenceResults
 )
-from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
+from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError, MlsynthConfigError
 from mlsynth.utils.datautils import balance, dataprep # For potential error sources
 from mlsynth.utils.resultutils import plot_estimates # For mocking
 
