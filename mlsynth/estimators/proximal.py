@@ -358,7 +358,7 @@ class PROXIMAL:
                     counterfactual_names=plot_counterfactual_names, # Names for legend
                     treated_series_color=self.treated_color,
                     save_plot_config=self.save if isinstance(self.save, str) else None, # Path if save is a string
-                    counterfactual_series_colors=[self.counterfactual_color, "green", "red"], # Colors for counterfactual lines
+                    counterfactual_series_colors=self.counterfactual_color # Colors for counterfactual lines
                 )
             except (MlsynthPlottingError, MlsynthDataError) as e:
                 # Warn if plotting fails due to known plotting or data issues.
