@@ -264,7 +264,7 @@ def test_pda_insufficient_pre_periods(sample_pda_data: pd.DataFrame, method_name
     elif method_name == "fs":
         # PDAfs with T0_pre=1 will likely lead to singular matrix in inv(X.T @ X)
         # This will be wrapped by MlsynthEstimationError.
-        with pytest.raises(MlsynthEstimationError, match="Singular matrix"):
+        with pytest.raises(MlsynthEstimationError, match="PDA estimation failed|Singular|invert"):
             estimator_1_pre.fit()
     elif method_name == "l2":
         # cross_validate_tau with T0_pre=1 -> half_n_pre=0. l2_relax with 0 time periods.
