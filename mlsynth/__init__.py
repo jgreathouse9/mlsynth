@@ -11,7 +11,7 @@ from .estimators.si import SI ## Check
 from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
 
-# Define __all__ to specify the public API of the package
+# Define __all__ to specify the public API of the mlsynth package
 __all__ = [
     "TSSC",
     "FMA",
