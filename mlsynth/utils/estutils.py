@@ -370,7 +370,7 @@ def l2_relax(
 
 
 
-def adaptive_cross_validate_tau(
+def cross_validate_tau(
     pre_treatment_treated_outcome: np.ndarray,
     pre_treatment_donor_outcomes: np.ndarray,
     tau_upper_bound_for_grid: float,
