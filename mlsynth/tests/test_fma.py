@@ -272,7 +272,7 @@ def test_fma_fit_insufficient_donors(mock_plot_estimates, sample_fma_data: pd.Da
     config_no_donors_dict = {**base_config_dict, "df": df_no_donors}
     config_obj_no_donors = FMAConfig(**config_no_donors_dict)
     estimator_no_donors = FMA(config=config_obj_no_donors)
-    with pytest.raises((ValueError, IndexError, KeyError)): # dataprep should fail
+    with pytest.raises((ValueError, IndexError, KeyError, MlsynthDataError)): # dataprep should fail
         estimator_no_donors.fit()
 
     # Case 2: One donor (FMA needs N_donors > nfactor_selected, rmax_factors=10 by default)
@@ -287,7 +287,7 @@ def test_fma_fit_insufficient_donors(mock_plot_estimates, sample_fma_data: pd.Da
         # The statistical validity of results with one donor is a separate concern.
         results = estimator_one_donor.fit()
         assert isinstance(results, BaseEstimatorResults), "Fit should return a BaseEstimatorResults object."
-    except (ValueError, IndexError, np.linalg.LinAlgError) as e:
+    except (ValueError, IndexError, np.linalg.LinAlgError, MlsynthDataError) as e:
         # These errors might occur if the single donor leads to singular matrices or other data issues.
         print(f"Caught an expected error with one donor: {e}")
         pass 
