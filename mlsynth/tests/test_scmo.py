@@ -29,7 +29,7 @@ SCMO_FULL_TEST_CONFIG_BASE: Dict[str, Any] = {
     "time": "time_id",
     "addout": "Y_aux1", 
     "method": "TLP", 
-    "counterfactual_color": "cyan",
+    "counterfactual_color": ["cyan"],
     "treated_color": "magenta",
     "display_graphs": False,
     "save": False,
