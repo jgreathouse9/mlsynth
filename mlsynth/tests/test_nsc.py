@@ -27,7 +27,7 @@ NSC_FULL_TEST_CONFIG_BASE: Dict[str, Any] = {
     "time": "period",
     "display_graphs": False,
     "save": False,
-    "counterfactual_color": "gold",
+    "counterfactual_color": ["gold"],
     "treated_color": "indigo",
     "seed": 75391, # Not part of NSCConfig
     "verbose": False, # Not part of NSCConfig
