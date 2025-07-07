@@ -446,29 +446,37 @@ def sc_diagplot_sample_config() -> dict:
 
 # --- Tests for sc_diagplot ---
 
+
 @patch("mlsynth.utils.helperutils.plt.show")
-@patch("mlsynth.utils.datautils.dataprep") # Corrected patch target
+@patch("mlsynth.utils.datautils.dataprep")  # Corrected patch target
 def test_sc_diagplot_smoke(mock_dataprep, mock_plt_show, sc_diagplot_sample_config):
     """Smoke test for sc_diagplot function."""
     # Mock dataprep to return a structure for a single treated unit
     mock_dataprep.return_value = {
-        "y": np.random.rand(10, 1), # Treated unit outcome
-        "donor_matrix": np.random.rand(10, 5), # Donor outcomes
+        "y": np.random.rand(10, 1),  # Treated unit outcome
+        "donor_matrix": np.random.rand(10, 5),  # Donor outcomes
         "pre_periods": 5,
         "treated_unit_name": "Unit1",
-        "Ywide": pd.DataFrame(index=np.arange(10)) # For time axis
+        "Ywide": pd.DataFrame(index=np.arange(10))  # For time axis
     }
+
     config_list = [sc_diagplot_sample_config]
-    
+
     sc_diagplot(config_list)
+
+    # ✅ Updated to match actual function call signature
     mock_dataprep.assert_called_once_with(
         df=sc_diagplot_sample_config["df"],
-        unit_id_column=sc_diagplot_sample_config["unitid"], # Changed
-        time_column_name=sc_diagplot_sample_config["time"],   # Changed
-        outcome_column_name=sc_diagplot_sample_config["outcome"], # Changed
-        treated_unit_identifier=sc_diagplot_sample_config["treat"], # Changed
+        unit_id_column_name=sc_diagplot_sample_config["unitid"],
+        time_period_column_name=sc_diagplot_sample_config["time"],
+        outcome_column_name=sc_diagplot_sample_config["outcome"],
+        treatment_indicator_column_name=sc_diagplot_sample_config["treat"],
     )
+
     mock_plt_show.assert_called_once()
+
+
+
 
 def test_sc_diagplot_invalid_config_list_type():
     """Test sc_diagplot with non-list config_list."""
