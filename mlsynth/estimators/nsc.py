@@ -440,7 +440,7 @@ class NSC:
                     observed_outcome_series=prepared_data["y"],  # Observed outcome vector.
                     counterfactual_series_list=[counterfactual_outcome_series.flatten()],
                     # List of counterfactual vectors.
-                    estimation_method_name="NonlinearSC",
+                    estimation_method_name="NSC",
                     counterfactual_names=["Nonlinear Synthetic Control"],  # Names for legend.
                     treated_series_color=self.treated_color,
                     counterfactual_series_colors=self.counterfactual_color,
