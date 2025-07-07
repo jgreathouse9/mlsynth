@@ -350,7 +350,7 @@ def l2_relax(
     constraint = [cp.norm(eta_vector - Sigma_cov_matrix @ donor_weights_cvxpy, "inf") <= sup_norm_constraint_tau]
     problem = cp.Problem(objective, constraint)
 
-    solvers_to_try = ["CLARABEL", "OSQP", "ECOS"]
+    solvers_to_try = ["CLARABEL", "ECOS", "SCS, "OSQP"]
     for solver in solvers_to_try:
         try:
             problem.solve(solver=solver)
