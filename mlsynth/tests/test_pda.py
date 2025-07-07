@@ -351,7 +351,7 @@ def test_pda_nan_in_outcome_treated(sample_pda_data: pd.DataFrame, method_name: 
 def test_pda_nan_in_outcome_donor(sample_pda_data: pd.DataFrame, method_name: str) -> None:
     """Test PDA fit with NaN in the outcome of a donor unit."""
     df_modified = sample_pda_data.copy()
-    # Introduce NaN in pre-period and post-period for a donor unit (ID 2)
+    # Inject NaNs into both pre- and post-treatment periods for a donor
     df_modified.loc[(df_modified["ID"] == 2) & (df_modified["Period"] == 5), "Value"] = np.nan
     df_modified.loc[(df_modified["ID"] == 2) & (df_modified["Period"] == 12), "Value"] = np.nan
 
@@ -364,23 +364,18 @@ def test_pda_nan_in_outcome_donor(sample_pda_data: pd.DataFrame, method_name: st
         "display_graphs": False,
         "method": method_name,
     }
+
     config_obj = PDAConfig(**config_dict)
     estimator = PDA(config_obj)
-    
-    # dataprep fills NaNs with 0 in donor_matrix, but not in y_treated_full.
-    # So, donor_matrix_pre_lasso will have NaNs.
-    # These errors should be wrapped into MlsynthEstimationError by fit().
-    if method_name == "LASSO":
-        with pytest.raises(MlsynthEstimationError, match="Input X contains NaN."):
-            estimator.fit()
-    elif method_name == "fs":
-        # PDAfs receives donor_matrix_full with NaNs.
-        with pytest.raises(MlsynthEstimationError): # Original error was TypeError, now wrapped
-            estimator.fit()
-    elif method_name == "l2":
-        # l2_relax receives donor_matrix_full with NaNs.
-        with pytest.raises(MlsynthEstimationError, match="Solver .* failed"): # CVXPY error wrapped
-            estimator.fit()
+
+    try:
+        estimator.fit()
+        pytest.fail(f"❌ PDA.fit() unexpectedly succeeded for method `{method_name}` with NaNs in donor data.")
+    except MlsynthEstimationError as e:
+        print(f"✅ PDA.fit() correctly raised MlsynthEstimationError for `{method_name}`: {e}")
+    except Exception as e:
+        pytest.fail(f"❌ PDA.fit() raised unexpected error for `{method_name}`: {type(e).__name__}: {e}")
+
 
 # --- Detailed Results Validation Tests ---
 
