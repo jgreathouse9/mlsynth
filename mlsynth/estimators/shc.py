@@ -131,7 +131,6 @@ class SHC:
 
                 treated_color : str, default="black"
                     Color for the treated unit line in plots.
-
         """
         if isinstance(config, dict):
             config =SHCConfig(**config)  # convert dict to config object
