@@ -2,14 +2,11 @@ import numpy as np
 import pandas as pd # For type checking scm.df
 from typing import List, Dict, Any, Union, Optional
 import mlsynth # Import the top-level package to access original types
-from mlsynth import CLUSTERSC, NSC, PDA  # These names will be used for construction and patched in tests
+from mlsynth import CLUSTERSC  # These names will be used for construction and patched in tests
 from mlsynth.utils.datautils import dataprep  # Data preparation utilities
 from mlsynth.utils.estutils import (
     pcr,
-    RPCASYNTH,
-    NSCcv,
-    NSC_opt,
-    pda,
+    RPCASYNTH
 )  # Estimation utilities
 # from mlsynth.utils.resultutils import effects # effects is not used in this module
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEstimationError
@@ -186,13 +183,13 @@ def _estimate_counterfactual(
             # It internally handles slicing data to `num_pre_treatment_periods` for fitting weights
             # and then uses the full data to construct the counterfactual.
             estimation_result = pcr(
-                X_donors=donor_outcomes_for_cf_estimation, # "Clean" donor outcomes.
-                y_treated=target_spillover_donor_outcome, # Outcome of the spillover donor (acting as treated).
-                objective_model=scm.objective, # Objective from the original SCM config.
-                donor_names_list=subset_donor_identifiers, # Names of "clean" donors.
-                pre_periods=num_pre_treatment_periods,
-                cluster_flag=scm.cluster, # Clustering flag from original SCM.
-                is_frequentist=scm.Frequentist # Frequentist flag from original SCM.
+                donor_outcomes_matrix=donor_outcomes_for_cf_estimation, # "Clean" donor outcomes.
+                treated_unit_outcome_vector=target_spillover_donor_outcome, # Outcome of the spillover donor (acting as treated).
+                scm_objective_model_type=scm.objective, # Objective from the original SCM config.
+                all_donor_names=subset_donor_identifiers, # Names of "clean" donors.
+                num_pre_treatment_periods=num_pre_treatment_periods,
+                enable_clustering=scm.cluster, # Clustering flag from original SCM.
+                use_frequentist_scm=scm.Frequentist # Frequentist flag from original SCM.
             )
             return estimation_result["cf_mean"] # Return the mean counterfactual outcome.
         # For RPCA or subsequent spillover donors in "BOTH" mode.
@@ -200,80 +197,35 @@ def _estimate_counterfactual(
             # RPCA requires a DataFrame setup where the target spillover donor is marked as treated.
             # Create a temporary DataFrame for this purpose.
             temporary_dataframe = scm.df.copy()
-            temporary_dataframe[scm.treat] = 0 # Mark all units as control initially.
-            # Mark the current spillover donor (identified by its ID from subset_donor_identifiers) as treated.
-            # Assuming subset_donor_identifiers[0] corresponds to the target_spillover_donor_outcome if it's the one being estimated.
-            # This part might need careful review if subset_donor_identifiers is not just the spillover donor.
-            # However, the logic seems to imply that target_spillover_donor_outcome is one of the donors,
-            # and subset_donor_identifiers are the *other* donors used to construct its counterfactual.
-            # If subset_donor_identifiers[0] is used to mark treated, it implies the first donor in the *clean pool*
-            # is temporarily marked as treated for RPCA, which seems incorrect if the goal is to estimate CF for target_spillover_donor_outcome.
-            # This section might need adjustment if target_spillover_donor_outcome's ID is not directly used.
-            # For now, assuming the intent is to treat one of the *clean* donors as a temporary treated unit for RPCA setup.
-            # This is unusual; typically, the target_spillover_donor_outcome's unit ID would be used.
-            # Let's assume subset_donor_identifiers[0] is a placeholder or a specific choice for RPCA.
-            # A more robust approach would be to pass the ID of target_spillover_donor_outcome.
-            # Given the current structure, this will use the first "clean" donor as the temporary treated unit.
-            temporary_dataframe.loc[temporary_dataframe[scm.unitid] == subset_donor_identifiers[0], scm.treat] = 1 # This line is potentially problematic.
+
+            treated_units = set(scm.df.loc[scm.df[scm.treat] == 1, scm.unitid].unique())
+
+            tempprepped = dataprep(
+                temporary_dataframe, scm.unitid, scm.time, scm.outcome, scm.treat
+            )
+
+            donor_names = tempprepped["donor_names"]  # pd.Index
+            spillunit = donor_names[spillover_donor_original_index]  # e.g., "Austria"
+            post_T = tempprepped["post_periods"]  # e.g., 10
+
+            # Get all rows corresponding to 'Austria'
+            unit_mask = temporary_dataframe[scm.unitid] == spillunit
+            austria_rows = temporary_dataframe[unit_mask]
+
+            # Get the last `post_T` rows for Austria
+            post_rows = austria_rows.tail(post_T).index
+
+            # Set the treatment indicator to 1 in those rows
+            temporary_dataframe.loc[post_rows, scm.treat] = True
+
             temporary_prepared_data = dataprep(
                 temporary_dataframe, scm.unitid, scm.time, scm.outcome, scm.treat
             )
+
             # `RPCASYNTH` performs Robust PCA Synthetic Control.
-            estimation_result = RPCASYNTH(temporary_dataframe, scm.__dict__, temporary_prepared_data)
+            estimation_result = RPCASYNTH(temporary_dataframe, scm.__dict__, tempprepped)
+
             return estimation_result["Vectors"]["Counterfactual"] # Return the counterfactual vector.
-
-    # Handle NSC (Nonlinear Synthetic Control).
-    elif isinstance(scm, NSC):
-        # Perform cross-validation to find optimal penalty parameters (a and b) for NSC.
-        # Uses pre-treatment data of the target spillover donor and clean donors.
-        optimal_penalty_a, optimal_penalty_b = NSCcv(
-            target_spillover_donor_outcome[:num_pre_treatment_periods],
-            donor_outcomes_for_cf_estimation[:num_pre_treatment_periods]
-        )
-        # Optimize donor weights using the found penalty parameters.
-        donor_weights = NSC_opt(
-            target_spillover_donor_outcome[:num_pre_treatment_periods],
-            donor_outcomes_for_cf_estimation[:num_pre_treatment_periods],
-            optimal_penalty_a,
-            optimal_penalty_b
-        )
-        # Compute the counterfactual by applying the optimized weights to the full time series of clean donor outcomes.
-        return np.dot(donor_outcomes_for_cf_estimation, donor_weights)
-
-    # Handle PDA (Panel Data Approach).
-    elif isinstance(scm, PDA):
-        # Determine the specific PDA method (LASSO, L2, FS).
-        estimation_method_upper = method.upper() if method else scm.method.upper()
-        if estimation_method_upper not in ["LASSO", "L2", "FS"]:
-            raise MlsynthConfigError("method must be 'LASSO', 'L2', or 'FS' for PDA")
-        
-        # Similar to RPCA, PDA often requires a setup where the target unit is marked as treated.
-        # Create a temporary DataFrame.
-        temporary_dataframe = scm.df.copy()
-        temporary_dataframe[scm.treat] = 0 # Mark all as control.
-        # Mark the first "clean" donor as treated. This has the same potential issue as noted for RPCA.
-        # The ID of target_spillover_donor_outcome should ideally be used here.
-        temporary_dataframe.loc[temporary_dataframe[scm.unitid] == subset_donor_identifiers[0], scm.treat] = 1
-        temporary_prepared_data = dataprep(temporary_dataframe, scm.unitid, scm.time, scm.outcome, scm.treat)
-        
-        # Prepare extra arguments for the `pda` utility based on the method and original SCM config.
-        pda_extra_arguments = {}
-        if estimation_method_upper == "L2" and hasattr(scm, 'tau'): # `tau` is specific to L2 PDA.
-            pda_extra_arguments["tau_l2"] = scm.tau
-        elif estimation_method_upper == "LASSO" and hasattr(scm, 'config') and "lambda_" in scm.config:
-             # `lambda_` is for LASSO PDA. `pda` utility expects it via kwargs or in `temporary_prepared_data['config']`.
-             # Here, it's passed via kwargs if available in the original `scm.config`.
-            pda_extra_arguments["lambda_"] = scm.config["lambda_"]
-        
-        # Call the `pda` utility function.
-        estimation_result = pda(
-            temporary_prepared_data, 
-            len(temporary_prepared_data["donor_names"]), # Number of donors in the temp setup.
-            method=estimation_method_upper, 
-            **pda_extra_arguments
-        )
-        return estimation_result["Vectors"]["Counterfactual"] # Return the counterfactual vector.
-
     # Raise error if the SCM class is not supported by this iterative spillover logic.
     else:
         raise NotImplementedError(
@@ -451,7 +403,7 @@ def iterative_scm(
             ) from e
 
         # Replace the original outcome of the current spillover donor with its estimated counterfactual in the `iteratively_cleaned_donor_outcomes` matrix.
-        iteratively_cleaned_donor_outcomes[:, current_spillover_column_index] = estimated_counterfactual_for_spillover_donor
+        iteratively_cleaned_donor_outcomes[:, current_spillover_column_index] = estimated_counterfactual_for_spillover_donor.flatten()
         # Add the index of the now-cleaned spillover donor to the pool of clean donors for subsequent iterations.
         clean_donor_pool_indices.append(current_spillover_column_index)
 
