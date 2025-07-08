@@ -212,6 +212,13 @@ class SDIDConfig(BaseEstimatorConfig):
     """Configuration for the Synthetic Difference-in-Differences (SDID) estimator."""
     B: int = Field(default=500, description="Number of placebo iterations for inference.", ge=0) # B can be 0 if no inference desired
 
+
+class SHCConfig(BaseEstimatorConfig):
+    """Configuration for the Synthetic Historical Control (SHC) estimator."""
+    m: int = Field(default=12, description="Size of time series windows.", ge=0)
+
+
+
 # --- Pydantic Models for Standardized Estimator Results ---
 
 class EffectsResults(BaseModel):
