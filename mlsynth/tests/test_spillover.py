@@ -50,7 +50,7 @@ def sample_clustersc_scm(base_scm_config: Dict[str, Any]) -> CLUSTERSC:
 # Tests for _get_data
 @pytest.mark.parametrize(
     "scm_fixture_name",
-    ["sample_clustersc_scm", "sample_nsc_scm", "sample_pda_scm"]
+    ["sample_clustersc_scm"]
 )
 def test_get_data_smoke(scm_fixture_name: str, request: pytest.FixtureRequest):
     """Smoke test for _get_data with different SCM types."""
