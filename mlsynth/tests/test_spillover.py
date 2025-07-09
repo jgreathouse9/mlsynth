@@ -178,14 +178,19 @@ def test_estimate_counterfactual_clustersc_rpca(
 ):
     """Test _estimate_counterfactual with CLUSTERSC (RPCA method)."""
 
-    # Setup
     T_total_mock = sample_counterfactual_inputs["Y_target"].shape[0]
     pre_periods_mock = sample_counterfactual_inputs["pre_periods"]
-    donor_names_mock = sample_counterfactual_inputs["donor_names_subset"]
 
-    # Mocked dataprep outputs for both unmodified and modified dataframes
+    # Full list of donors, including the spillover unit (S1 at index 2)
+    donor_names_mock = ['C1', 'C2', 'S1', 'S2']
+    spillover_idx = 2  # index of "S1"
+
+    # We mock the donor matrix so that we can still extract the right columns
+    donor_matrix = np.random.rand(T_total_mock, len(donor_names_mock))
+
+    # Ensure consistency between mocked donor matrix and donor_names
     mock_prepped_data = {
-        "donor_matrix": np.random.rand(T_total_mock, len(donor_names_mock)),
+        "donor_matrix": donor_matrix,
         "y": np.random.rand(T_total_mock),
         "treated_unit_name": donor_names_mock[0],
         "pre_periods": pre_periods_mock,
@@ -194,33 +199,35 @@ def test_estimate_counterfactual_clustersc_rpca(
         "donor_names": pd.Index(donor_names_mock)
     }
 
+    # Simulate dataprep() being called twice
     mock_dataprep.side_effect = [mock_prepped_data, mock_prepped_data]
 
-    # Mock RPCASYNTH output
+    # Mock output of RPCASYNTH
     mock_rpca.return_value = {
         "Vectors": {
             "Counterfactual": np.random.rand(T_total_mock)
         }
     }
 
+    # Mark SCM as using RPCA
     sample_clustersc_scm.method = "RPCA"
 
-    # Run the function under test
+    # Update input structure to match the donor_names list above
     cf = _estimate_counterfactual(
         scm=sample_clustersc_scm,
-        donor_outcomes_for_cf_estimation=sample_counterfactual_inputs["X_donors"],
-        target_spillover_donor_outcome=sample_counterfactual_inputs["Y_target"],
-        subset_donor_identifiers=sample_counterfactual_inputs["donor_names_subset"],
-        num_pre_treatment_periods=sample_counterfactual_inputs["pre_periods"],
-        spillover_donor_original_index=sample_counterfactual_inputs["idx"],
-        all_spillover_donor_original_indices=sample_counterfactual_inputs["spillover_indices"],
+        donor_outcomes_for_cf_estimation=donor_matrix[:, [0, 1]],  # Clean donors: C1, C2
+        target_spillover_donor_outcome=donor_matrix[:, spillover_idx],  # S1
+        subset_donor_identifiers=['C1', 'C2'],  # Clean donors
+        num_pre_treatment_periods=pre_periods_mock,
+        spillover_donor_original_index=spillover_idx,
+        all_spillover_donor_original_indices=[2, 3],  # Indices for S1, S2
         method="RPCA"
     )
 
     # Assertions
     mock_rpca.assert_called_once()
     assert isinstance(cf, np.ndarray)
-    assert cf.shape == sample_counterfactual_inputs["Y_target"].shape
+    assert cf.shape == (T_total_mock,)
 
 
 
