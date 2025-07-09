@@ -120,6 +120,8 @@ class SCMO:
             - addout (Union[str, List[str]], optional): Auxiliary outcome(s). Defaults to empty list.
             - method (str, optional): Estimation method ('TLP', 'SBMF', 'BOTH'). Defaults to "TLP".
         """
+        if isinstance(config, dict):
+            config = SCMOConfig(**config)  # convert dict to config object
         self.config = config # Store the config object
         self.df: pd.DataFrame = config.df
         self.outcome: str = config.outcome
