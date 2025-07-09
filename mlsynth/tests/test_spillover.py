@@ -166,37 +166,59 @@ def test_estimate_counterfactual_clustersc_pcr(mock_pcr: MagicMock, sample_clust
     assert isinstance(cf, np.ndarray)
     assert cf.shape == sample_counterfactual_inputs["Y_target"].shape
 
-@patch('mlsynth.utils.spillover.RPCASYNTH')
-@patch('mlsynth.utils.spillover.dataprep') # RPCASYNTH path calls dataprep internally
-def test_estimate_counterfactual_clustersc_rpca(mock_dataprep: MagicMock, mock_rpca: MagicMock, sample_clustersc_scm: CLUSTERSC, sample_counterfactual_inputs: Dict[str, Any]):
-    """Test _estimate_counterfactual with CLUSTERSC (RPCA method)."""
-    # RPCASYNTH needs more from prepped_data
-    T_total_mock = sample_counterfactual_inputs["Y_target"].shape[0]
-    pre_periods_mock = sample_counterfactual_inputs["pre_periods"]
-    mock_dataprep.return_value = {
-        "donor_matrix": np.random.rand(T_total_mock, 2), # Dummy 2D donor matrix
-        "y": np.random.rand(T_total_mock), # Dummy y vector
-        "treated_unit_name": sample_counterfactual_inputs["donor_names_subset"][0], 
-        "pre_periods": pre_periods_mock,
-        "post_periods": T_total_mock - pre_periods_mock,
-        "total_periods": T_total_mock 
-    }
-    mock_rpca.return_value = {"Vectors": {"Counterfactual": np.random.rand(T_total_mock)}}
-    sample_clustersc_scm.method = "RPCA"
 
-    cf = _estimate_counterfactual(
-        scm=sample_clustersc_scm,
-        donor_outcomes_for_cf_estimation=sample_counterfactual_inputs["X_donors"],
-        target_spillover_donor_outcome=sample_counterfactual_inputs["Y_target"],
-        subset_donor_identifiers=sample_counterfactual_inputs["donor_names_subset"],
-        num_pre_treatment_periods=sample_counterfactual_inputs["pre_periods"],
-        spillover_donor_original_index=sample_counterfactual_inputs["idx"],
-        all_spillover_donor_original_indices=sample_counterfactual_inputs["spillover_indices"],
-        method="RPCA"
-    )
-    mock_rpca.assert_called_once()
-    assert isinstance(cf, np.ndarray)
-    assert cf.shape == sample_counterfactual_inputs["Y_target"].shape
+@patch('mlsynth.utils.spillover.RPCASYNTH')
+@patch('mlsynth.utils.spillover.dataprep')  # RPCASYNTH path calls dataprep internally
+def test_estimate_counterfactual_clustersc_rpca(
+    mock_dataprep: MagicMock,
+    mock_rpca: MagicMock,
+    sample_clustersc_scm,
+    sample_counterfactual_inputs: Dict[str, Any]
+):
+    """Test _estimate_counterfactual with CLUSTERSC (RPCA method)."""
+    
+    T_total_mock = sample_counterfactual_inputs["Y_target"].shape[0]
+    pre_periods_mock = sample_counterfactual_inputs["pre_periods"]
+    donor_names_mock = sample_counterfactual_inputs["donor_names_subset"]
+
+    # Create two mock dataprep returns: before and after modifying treatment indicator
+    mock_prepped_data = {
+        "donor_matrix": np.random.rand(T_total_mock, len(donor_names_mock)),
+        "y": np.random.rand(T_total_mock),
+        "treated_unit_name": donor_names_mock[0],
+        "pre_periods": pre_periods_mock,
+        "post_periods": T_total_mock - pre_periods_mock,
+        "total_periods": T_total_mock,
+        "donor_names": pd.Index(donor_names_mock)
+    }
+
+    mock_dataprep.side_effect = [mock_prepped_data, mock_prepped_data]
+
+    mock_rpca.return_value = {
+        "Vectors": {
+            "Counterfactual": np.random.rand(T_total_mock)
+        }
+    }
+
+    sample_clustersc_scm.method = "RPCA"
+
+    cf = _estimate_counterfactual(
+        scm=sample_clustersc_scm,
+        donor_outcomes_for_cf_estimation=sample_counterfactual_inputs["X_donors"],
+        target_spillover_donor_outcome=sample_counterfactual_inputs["Y_target"],
+        subset_donor_identifiers=sample_counterfactual_inputs["donor_names_subset"],
+        num_pre_treatment_periods=sample_counterfactual_inputs["pre_periods"],
+        spillover_donor_original_index=sample_counterfactual_inputs["idx"],
+        all_spillover_donor_original_indices=sample_counterfactual_inputs["spillover_indices"],
+        method="RPCA"
+    )
+
+    mock_rpca.assert_called_once()
+    assert isinstance(cf, np.ndarray)
+    assert cf.shape == sample_counterfactual_inputs["Y_target"].shape
+
+
+
 
 def test_estimate_counterfactual_invalid_method(sample_clustersc_scm: CLUSTERSC, sample_counterfactual_inputs: Dict[str, Any]):
     """Test _estimate_counterfactual raises MlsynthConfigError for invalid method."""
