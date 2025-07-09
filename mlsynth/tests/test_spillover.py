@@ -47,29 +47,6 @@ def sample_clustersc_scm(base_scm_config: Dict[str, Any]) -> CLUSTERSC:
     pydantic_config = CLUSTERSCConfig(**config_dict)
     return CLUSTERSC(config=pydantic_config)
 
-@pytest.fixture
-def sample_nsc_scm(base_scm_config: Dict[str, Any]) -> NSC:
-    """Fixture for an initialized NSC instance."""
-    # NSC specific config if any, else just base.
-    # NSC might require specific parameters like 'a' and 'b' or run CV by default.
-    # For a basic fixture, default initialization should be fine.
-    config_dict = {**base_scm_config}
-    pydantic_config = NSCConfig(**config_dict)
-    return NSC(config=pydantic_config)
-
-@pytest.fixture
-def sample_pda_scm(base_scm_config: Dict[str, Any]) -> PDA:
-    """Fixture for an initialized PDA instance."""
-    # PDA's LASSO method might expect lambda_ not tau.
-    # If 'tau' is specific to 'l2', it should be set when method='l2'.
-    # For LASSO, ensure 'lambda_' is provided if required by the PDAConfig or pda utility.
-    # The PDAConfig has lambda_ with a default, so this should be fine.
-    config_dict = {**base_scm_config, "method": "LASSO"} 
-    # If tau was intended for L2, it would be:
-    # if config_dict["method"] == "l2": config_dict["tau"] = 0.1
-    pydantic_config = PDAConfig(**config_dict)
-    return PDA(config=pydantic_config)
-
 # Tests for _get_data
 @pytest.mark.parametrize(
     "scm_fixture_name",
