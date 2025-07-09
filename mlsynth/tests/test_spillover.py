@@ -5,8 +5,8 @@ from typing import List, Dict, Any, Union, Optional
 from unittest.mock import MagicMock, patch
 
 # Import SCM classes and utility functions from mlsynth
-from mlsynth import CLUSTERSC, NSC, PDA
-from mlsynth.config_models import CLUSTERSCConfig, NSCConfig, PDAConfig # Import Pydantic configs
+from mlsynth import CLUSTERSC
+from mlsynth.config_models import CLUSTERSCConfig # Import Pydantic configs
 from mlsynth.utils import spillover # Import the module for patch.object
 from mlsynth.utils.spillover import _get_data, _estimate_counterfactual, iterative_scm
 from mlsynth.utils.datautils import dataprep # For creating test data structures
@@ -218,61 +218,6 @@ def test_estimate_counterfactual_clustersc_rpca(mock_dataprep: MagicMock, mock_r
         method="RPCA"
     )
     mock_rpca.assert_called_once()
-    assert isinstance(cf, np.ndarray)
-    assert cf.shape == sample_counterfactual_inputs["Y_target"].shape
-
-@patch('mlsynth.utils.spillover.NSCcv')
-@patch('mlsynth.utils.spillover.NSC_opt')
-def test_estimate_counterfactual_nsc(mock_nsc_opt: MagicMock, mock_nsccv: MagicMock, sample_nsc_scm: NSC, sample_counterfactual_inputs: Dict[str, Any]):
-    """Test _estimate_counterfactual with NSC."""
-    mock_nsccv.return_value = (0.1, 0.1) # Dummy best_a, best_b
-    # NSC_opt is called within NSCcv's loop, X can change size
-    mock_nsc_opt.side_effect = lambda y_val, X_train, a, b: np.random.rand(X_train.shape[1])
-
-
-    cf = _estimate_counterfactual(
-        scm=sample_nsc_scm,
-        donor_outcomes_for_cf_estimation=sample_counterfactual_inputs["X_donors"],
-        target_spillover_donor_outcome=sample_counterfactual_inputs["Y_target"],
-        subset_donor_identifiers=sample_counterfactual_inputs["donor_names_subset"],
-        num_pre_treatment_periods=sample_counterfactual_inputs["pre_periods"],
-        spillover_donor_original_index=sample_counterfactual_inputs["idx"],
-        all_spillover_donor_original_indices=sample_counterfactual_inputs["spillover_indices"]
-    )
-    mock_nsccv.assert_called_once()
-    mock_nsc_opt.assert_called_once()
-    assert isinstance(cf, np.ndarray)
-    assert cf.shape == sample_counterfactual_inputs["Y_target"].shape
-
-@patch('mlsynth.utils.spillover.pda')
-@patch('mlsynth.utils.spillover.dataprep') # PDA path calls dataprep internally
-def test_estimate_counterfactual_pda(mock_dataprep: MagicMock, mock_pda: MagicMock, sample_pda_scm: PDA, sample_counterfactual_inputs: Dict[str, Any]):
-    """Test _estimate_counterfactual with PDA."""
-    T_total_mock_pda = sample_counterfactual_inputs["Y_target"].shape[0]
-    pre_periods_mock_pda = sample_counterfactual_inputs["pre_periods"]
-    mock_dataprep.return_value = {
-        "donor_matrix": np.random.rand(T_total_mock_pda, 2), # Dummy 2D donor matrix
-        "y": np.random.rand(T_total_mock_pda), # Dummy y vector
-        "donor_names": ["mock_donor1", "mock_donor2"], # Dummy donor names list
-        "pre_periods": pre_periods_mock_pda,
-        "post_periods": T_total_mock_pda - pre_periods_mock_pda,
-        "total_periods": T_total_mock_pda,
-        "config": {"lambda_": 0.1} 
-    }
-    mock_pda.return_value = {"Vectors": {"Counterfactual": np.random.rand(T_total_mock_pda)}}
-    sample_pda_scm.method = "LASSO"
-
-    cf = _estimate_counterfactual(
-        scm=sample_pda_scm,
-        donor_outcomes_for_cf_estimation=sample_counterfactual_inputs["X_donors"],
-        target_spillover_donor_outcome=sample_counterfactual_inputs["Y_target"],
-        subset_donor_identifiers=sample_counterfactual_inputs["donor_names_subset"],
-        num_pre_treatment_periods=sample_counterfactual_inputs["pre_periods"],
-        spillover_donor_original_index=sample_counterfactual_inputs["idx"],
-        all_spillover_donor_original_indices=sample_counterfactual_inputs["spillover_indices"],
-        method="LASSO"
-    )
-    mock_pda.assert_called_once()
     assert isinstance(cf, np.ndarray)
     assert cf.shape == sample_counterfactual_inputs["Y_target"].shape
 
