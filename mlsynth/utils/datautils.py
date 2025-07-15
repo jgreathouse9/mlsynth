@@ -183,7 +183,7 @@ def dataprep(
     unit_id_column_name: str,
     time_period_column_name: str,
     outcome_column_name: str,
-    treatment_indicator_column_name: str,
+    treatment_indicator_column_name: str, allow_no_donors: bool = False
 ) -> Dict[str, Any]:
     """Prepare data for synthetic control methods.
 
@@ -293,9 +293,10 @@ def dataprep(
         donor_outcome_array_wide = donor_outcome_df_wide.to_numpy() # Outcome matrix for donors.
 
         if donor_outcome_df_wide.shape[1] == 0:
-            # Ensure there's at least one donor unit.
-            raise MlsynthDataError("No donor units found after pivoting and selecting.")
-        
+            if not allow_no_donors:
+                raise MlsynthDataError("No donor units found after pivoting and selecting.")
+            # else: allow to proceed without donors
+
         if num_pre_treatment_periods == 0: # pre_periods is num_pre_treatment_periods
             # Ensure there are pre-treatment periods for comparison.
             raise MlsynthDataError("Not enough pre-treatment periods (0 pre-periods found).")
