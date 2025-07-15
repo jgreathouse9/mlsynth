@@ -361,7 +361,7 @@ def test_clustersc_too_few_donors(sample_clustersc_data: pd.DataFrame) -> None:
     [
         {"cluster": False},
         {"objective": "SIMPLEX"},
-        {"objective": "MSCb"}, # As per pcr docstring
+        {"objective": "OLS"}, # As per pcr docstring
         {"Frequentist": False}, # Bayesian PCR
         {"cluster": False, "objective": "SIMPLEX", "Frequentist": False},
     ],
