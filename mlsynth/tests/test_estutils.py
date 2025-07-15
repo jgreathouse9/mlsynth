@@ -10,7 +10,7 @@ from mlsynth.utils.estutils import (
     get_theta,
     get_sigmasq,
     l2_relax,
-    cross_validate_tau,
+    adaptive_cross_validate_tau,
     Opt, # Class containing SCopt
     NSC_opt,
     NSCcv,
