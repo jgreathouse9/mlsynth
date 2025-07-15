@@ -66,7 +66,6 @@ class PDAConfig(BaseEstimatorConfig):
     # If case-insensitivity is desired, the pattern would be different or a validator would be needed.
     # For now, assuming exact match "LASSO", "l2", "fs".
 
-
 class FDIDConfig(BaseEstimatorConfig):
     """
     Configuration for the Forward Difference-in-Differences (FDID) estimator.
@@ -98,7 +97,7 @@ class GSCConfig(BaseEstimatorConfig):
 
 class CLUSTERSCConfig(BaseEstimatorConfig):
     """Configuration for the Cluster-based Synthetic Control (CLUSTERSC) estimator."""
-    objective: str = Field(default="OLS", description="Constraint for PCR ('OLS', 'SIMPLEX').", pattern="^(OLS|SIMPLEX|MSCb)$")
+    objective: str = Field(default="OLS", description="Constraint for PCR ('OLS', 'SIMPLEX').", pattern="^(OLS|SIMPLEX|)$")
     cluster: bool = Field(default=True, description="Whether to apply clustering for PCR.")
     Frequentist: bool = Field(default=True, description="If True, use Frequentist Robust SCM; False for Bayesian (for PCR method).")
     ROB: str = Field(default="PCP", description="Robust method for RPCA ('PCP' or 'HQF').", pattern="^(PCP|HQF)$") # Parameter name is ROB in code
@@ -213,9 +212,39 @@ class SDIDConfig(BaseEstimatorConfig):
     B: int = Field(default=500, description="Number of placebo iterations for inference.", ge=0) # B can be 0 if no inference desired
 
 
+from typing import List, Optional, Any
+from pydantic import BaseModel, Field, model_validator
+from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
+import pandas as pd
+import numpy as np
+
 class SHCConfig(BaseEstimatorConfig):
-    """Configuration for the Synthetic Historical Control (SHC) estimator."""
-    m: int = Field(default=12, description="Size of time series windows.", ge=0)
+    """
+    Configuration for the Synthetic Historical Control (SHC) estimator.
+    Requires the user to provide the segment length 'm'. Bandwidth grid for smoothing
+    can optionally be provided for cross-validation.
+    """
+    m: int = Field(..., description="Length of the evaluation window (e.g., number of pre-treatment periods used for validation).")
+    bandwidth_grid: Optional[List[float]] = Field(default=None, description="Optional grid of bandwidth values to search over during cross-validation.")
+
+    @model_validator(mode='after')
+    def check_shc_params(cls, values: Any) -> Any:
+        m = values.m
+        bandwidth_grid = values.bandwidth_grid
+
+        if not isinstance(m, int) or m <= 0:
+            raise MlsynthConfigError("'m' must be a positive integer.")
+
+        if bandwidth_grid is not None:
+            if not all(isinstance(h, (int, float)) for h in bandwidth_grid):
+                raise MlsynthConfigError("All elements in 'bandwidth_grid' must be numeric.")
+            if not bandwidth_grid:
+                raise MlsynthConfigError("'bandwidth_grid' cannot be an empty list if provided.")
+            if not all(h > 0 for h in bandwidth_grid):
+                raise MlsynthConfigError("All bandwidth values must be strictly positive.")
+
+        return values
+
 
 
 
