@@ -7,6 +7,7 @@ from mlsynth.utils.denoiseutils import (
     spectral_rank,
     RPCA_HQF,
 )
+from scipy.linalg import eigh
 from mlsynth.utils.resultutils import effects
 from mlsynth.utils.selector_helpers import (
     determine_optimal_clusters,
@@ -42,7 +43,7 @@ _PDA_METHOD_FS = "fs" # Forward Selection
 _PDA_METHOD_LASSO = "LASSO"
 _PDA_METHOD_L2 = "l2" # L2-relaxation
 
-# --- Constants for CVXPY Solvers --- #
+# --- Constants for CVXPY Solvers ---
 _SOLVER_CLARABEL_STR = "CLARABEL"
 _SOLVER_OSQP_STR = "OSQP"
 
@@ -336,7 +337,9 @@ def l2_relax(
     donor_outcomes_matrix: np.ndarray,
     sup_norm_constraint_tau: float,
 ) -> Tuple[np.ndarray, float, np.ndarray]:
-    """L2-relaxation estimator with fallback solvers: CLARABEL, OSQP, ECOS."""
+    """
+    L2-relaxation estimator with fallback solvers: CLARABEL, OSQP, ECOS.
+    """
 
     treated_unit_subset = treated_unit_outcome_vector[:num_pre_treatment_estimation_periods]
     donor_outcomes_subset = donor_outcomes_matrix[:num_pre_treatment_estimation_periods, :]
@@ -350,7 +353,7 @@ def l2_relax(
     constraint = [cp.norm(eta_vector - Sigma_cov_matrix @ donor_weights_cvxpy, "inf") <= sup_norm_constraint_tau]
     problem = cp.Problem(objective, constraint)
 
-    solvers_to_try = ["CLARABEL", "ECOS", "SCS", "OSQP"]
+    solvers_to_try = ["CLARABEL", "OSQP", "ECOS"]
     for solver in solvers_to_try:
         try:
             problem.solve(solver=solver)
@@ -358,6 +361,9 @@ def l2_relax(
                 break
         except Exception:
             continue
+
+    if donor_weights_cvxpy.value is None:
+        raise MlsynthEstimationError("L2-relax failed: All solvers failed to converge.")
 
     estimated_coefficients = donor_weights_cvxpy.value
     estimated_intercept = (
@@ -369,8 +375,7 @@ def l2_relax(
     return estimated_coefficients, estimated_intercept, predicted_counterfactuals
 
 
-
-def cross_validate_tau(
+def adaptive_cross_validate_tau(
     pre_treatment_treated_outcome: np.ndarray,
     pre_treatment_donor_outcomes: np.ndarray,
     tau_upper_bound_for_grid: float,
@@ -380,7 +385,7 @@ def cross_validate_tau(
 ) -> Tuple[float, float]:
     """
     Adaptive cross-validation for tau in L2-relax estimator.
-    Skips over tau values that cause solver failure.
+    First performs a coarse grid search, then zooms in around the best tau.
     """
     num_pre_periods = len(pre_treatment_treated_outcome)
     half = num_pre_periods // 2
@@ -391,17 +396,14 @@ def cross_validate_tau(
     X_val = pre_treatment_donor_outcomes[half:, :]
 
     def mse_for_tau(tau_val: float) -> float:
-        try:
-            coefs, _, _ = l2_relax(
-                num_pre_treatment_estimation_periods=half,
-                treated_unit_outcome_vector=y_train,
-                donor_outcomes_matrix=X_train,
-                sup_norm_constraint_tau=tau_val
-            )
-            preds = X_val @ coefs
-            return np.mean((y_val - preds) ** 2)
-        except Exception:
-            return 1e6  # large MSE on failure
+        coefs, _, _ = l2_relax(
+            num_pre_treatment_estimation_periods=half,
+            treated_unit_outcome_vector=y_train,
+            donor_outcomes_matrix=X_train,
+            sup_norm_constraint_tau=tau_val
+        )
+        preds = X_val @ coefs
+        return np.mean((y_val - preds) ** 2)
 
     # Stage 1: Coarse log grid
     coarse_grid = np.logspace(-4, np.log10(tau_upper_bound_for_grid), num_coarse_points)
@@ -417,7 +419,6 @@ def cross_validate_tau(
     best_fine_idx = np.argmin(fine_mse)
 
     return fine_grid[best_fine_idx], fine_mse[best_fine_idx]
-
 
 
 
@@ -933,7 +934,7 @@ def _solve_pda_fs(
         :, selected_donor_indices
     ]
     forward_selection_intercept: float = forward_selection_model_coefficients[0]
-    assert selected_donor_outcomes_fs.shape[1] == forward_selection_model_coefficients[1:].shape[0],\
+    assert selected_donor_outcomes_fs.shape[1] == forward_selection_model_coefficients[1:].shape[0], \
     f"Mismatch: donors={selected_donor_outcomes_fs.shape[1]}, coefs={forward_selection_model_coefficients[1:].shape[0]}"
 
     forward_selection_counterfactual_outcome: np.ndarray = (
@@ -1213,10 +1214,11 @@ def _solve_pda_l2(
     if l2_regularization_parameter is not None:
         selected_l2_regularization_parameter = l2_regularization_parameter
     else:
-        selected_l2_regularization_parameter, min_mse = cross_validate_tau(
+
+        selected_l2_regularization_parameter, min_mse = adaptive_cross_validate_tau(
             pre_treatment_treated_outcome=pre_treatment_outcome_l2,
             pre_treatment_donor_outcomes=pre_treatment_donor_outcomes_l2,
-            tau_upper_bound_for_grid=5)
+            tau_upper_bound_for_grid=3.0)
 
     estimated_coefficients_l2, estimated_intercept_l2, _ = l2_relax(
         num_pre_treatment_periods,
@@ -3993,3 +3995,139 @@ def NSCcv(
         return 0.01, 0.01
 
     return optimal_l1_penalty_factor, optimal_l2_penalty_factor
+
+
+# --- 1. Local linear smoother with Gaussian kernel ---
+def smooth(y_pre, bw):
+    T_pre = len(y_pre)
+    smoothed = np.zeros(T_pre)
+    for i in range(T_pre):
+        w = np.exp(-0.5 * ((np.arange(T_pre) - i) / bw) ** 2)
+        w /= w.sum()
+        X = np.vstack([np.ones(T_pre), np.arange(T_pre) - i]).T
+        W = np.diag(w)
+        beta = np.linalg.pinv(X.T @ W @ X) @ X.T @ W @ y_pre
+        smoothed[i] = beta[0]
+    return smoothed
+
+# --- 2. LOOCV to choose optimal bandwidth ---
+def loocv_bandwidth(y_pre, bandwidth_grid):
+    T_pre = len(y_pre)
+    cv_errors = []
+
+    for h in bandwidth_grid:
+        errors = []
+        for i in range(T_pre):
+            y_train = np.delete(y_pre, i)
+            idx = np.arange(T_pre) != i
+            w = np.exp(-0.5 * ((np.where(idx)[0] - i) / h) ** 2)
+            w /= w.sum()
+            X = np.vstack([np.ones(T_pre - 1), np.where(idx)[0] - i]).T
+            W = np.diag(w)
+            beta = np.linalg.pinv(X.T @ W @ X) @ X.T @ W @ y_train
+            y_pred = beta[0]
+            errors.append((y_pre[i] - y_pred) ** 2)
+        cv_errors.append(np.mean(errors))
+
+    best_h = bandwidth_grid[np.argmin(cv_errors)]
+    return best_h, cv_errors
+
+# --- 3. SHC Estimator with stepwise donor selection and BIC-style early stopping ---
+def _shc_est(y, m, T0, bandwidth=None, bandwidth_grid=None):
+    varsigma = 1e-6
+    tol = 1e-8
+    T = len(y)
+    n = T - T0
+    N = T0 - m - n + 1
+    if N <= 0:
+        raise ValueError("Insufficient pre-treatment data to construct donor pool.")
+
+    y_pre = y[:T0]
+
+    # Bandwidth selection via LOOCV
+    if bandwidth is None:
+        if bandwidth_grid is None:
+            bandwidth_grid = np.linspace(0.05, 1.0, 50)
+        bandwidth, _ = loocv_bandwidth(y_pre, bandwidth_grid)
+
+    # Estimate latent trend
+    ell_hat = smooth(y_pre, bandwidth)
+    L_full = np.column_stack([ell_hat[i:i + m] for i in range(N)])
+    ell_eval = ell_hat[-m:]
+    L_post = np.column_stack([ell_hat[i + m:i + m + n] for i in range(N)])
+
+    donor_indices = []
+    mse_list = []
+    weight_list = []
+    yhat_list = []
+    bic_list = []
+
+    remaining = list(range(N))
+    current_donors = []
+
+    lambda_penalty = np.log(m)  # BIC-style penalty
+
+    for j in range(1, N + 1):
+        best_mse = np.inf
+        best_idx = None
+        best_w = None
+        best_yhat = None
+
+        for idx in remaining:
+            candidate = current_donors + [idx]
+            L_j = L_full[:, candidate]
+
+            w = cp.Variable(j)
+            G = L_j.T @ L_j
+            eigvals, eigvecs = eigh(G)
+            C2 = eigvecs[:, eigvals < tol]
+            if C2.size > 0:
+                penalty = cp.norm(C2.T @ w, 2) ** 2
+            else:
+                penalty = 0
+
+            objective = cp.Minimize(cp.norm(ell_eval - L_j @ w, 2) ** 2 + varsigma * penalty)
+            constraints = [w >= 0, cp.sum(w) == 1]
+            cp.Problem(objective, constraints).solve()
+
+            if w.value is not None:
+                yhat_j = L_j @ w.value
+                mse = np.mean((ell_eval - yhat_j) ** 2)
+                if mse < best_mse:
+                    best_mse = mse
+                    best_idx = idx
+                    best_w = w.value
+                    best_yhat = yhat_j
+
+        if best_idx is None:
+            break  # no improvement
+
+        current_donors.append(best_idx)
+        remaining.remove(best_idx)
+
+        # Compute BIC-style criterion
+        bic_j = m * np.log(best_mse) + lambda_penalty * j
+        bic_list.append(bic_j)
+        print(f"MSE with best {j} donors: {best_mse:.10f} | BIC: {bic_j:.6f}")
+
+        # Early stopping: stop if BIC increases for 2 consecutive steps
+        if j > 3 and bic_list[-1] > bic_list[-2] and bic_list[-2] > bic_list[-3]:
+            print(f"Stopping early at j={j} due to BIC increase.")
+            break
+
+        donor_indices.append(current_donors.copy())
+        mse_list.append(best_mse)
+        weight_list.append(best_w)
+        yhat_list.append(best_yhat)
+
+    # Select best donor size j*
+    best_j = np.argmin(mse_list)
+
+    return {
+        "y_hat": np.concatenate([L_full[:,  donor_indices[best_j]] @ weight_list[best_j],  L_post[:,  donor_indices[best_j]] @ weight_list[best_j]]),
+        "weight_pairs": {donor: weight for donor, weight in zip(donor_indices[best_j], weight_list[best_j])},
+        "best_rmse": np.sqrt(mse_list[best_j]),
+        "bandwidth": bandwidth,
+        "mse_path": mse_list,
+        "bic_path": bic_list
+    }
