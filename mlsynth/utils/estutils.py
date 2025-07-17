@@ -4045,7 +4045,7 @@ def _shc_est(y, m, T0, bandwidth=None, bandwidth_grid=None):
     # Bandwidth selection via LOOCV
     if bandwidth is None:
         if bandwidth_grid is None:
-            bandwidth_grid = np.linspace(0.05, 1.0, 50)
+            bandwidth_grid = np.linspace(0.05, 2, 200)
         bandwidth, _ = loocv_bandwidth(y_pre, bandwidth_grid)
 
     # Estimate latent trend
