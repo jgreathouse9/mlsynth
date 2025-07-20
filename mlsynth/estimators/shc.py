@@ -116,7 +116,8 @@ class SHC:
     def _create_estimator_results(
         self,
         combined_raw_estimation_output: Dict[str, Any],
-        prepared_panel_data: Dict[str, Any]
+        prepared_panel_data: Dict[str, Any],
+        inference_kwargs: Optional[Dict[str, Any]] = None,
     ) -> BaseEstimatorResults:
         """
         Constructs a BaseEstimatorResults object from raw SHC outputs.
@@ -227,7 +228,7 @@ class SHC:
                 #donor_names=donor_names_list if donor_names_list else None,
             #)
             
-            inference = InferenceResults()
+            inference = InferenceResults(**inference_kwargs)
 
             method_details = MethodDetailsResults(
                 method_name="SHC" # Name of the estimation method.
@@ -411,11 +412,23 @@ class SHC:
             # Store full intervals (pre and post) for potential later use or if plotting needs them.
             final_prediction_intervals = np.vstack([lower_ag, upper_ag]).T
 
+            inference_kwargs = {
+                "method": "conformal",
+                "confidence_level": 0.90,
+                "details": {
+                    "lower_bound": lower_ci_post,
+                    "upper_bound": upper_ci_post,
+                    "full_interval": final_prediction_intervals,  # Optional if you want pre + post
+                    "interval_type": "AG"  # If you're using Andrews–Genton conformal
+                }
+            }
+
             # Convert the combined raw results into the standardized Pydantic BaseEstimatorResults model.
             # This helper function handles the mapping and can raise MlsynthEstimationError.
             pydantic_results = self._create_estimator_results(
                 combined_raw_estimation_output=combined_raw_estimation_output,
-                prepared_panel_data=prepared_panel_data
+                prepared_panel_data=prepared_panel_data,
+                inference_kwargs=inference_kwargs
             )
 
         except (MlsynthDataError, MlsynthConfigError, MlsynthEstimationError) as e:
