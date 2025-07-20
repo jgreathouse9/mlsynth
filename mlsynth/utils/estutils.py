@@ -4106,11 +4106,11 @@ def _shc_est(y, m, T0, bandwidth=None, bandwidth_grid=None):
         # Compute BIC-style criterion
         bic_j = m * np.log(best_mse) + lambda_penalty * j
         bic_list.append(bic_j)
-        print(f"MSE with best {j} donors: {best_mse:.10f} | BIC: {bic_j:.6f}")
+        #print(f"MSE with best {j} donors: {best_mse:.10f} | BIC: {bic_j:.6f}")
 
         # Early stopping: stop if BIC increases for 2 consecutive steps
         if j > 3 and bic_list[-1] > bic_list[-2] and bic_list[-2] > bic_list[-3]:
-            print(f"Stopping early at j={j} due to BIC increase.")
+            #print(f"Stopping early at j={j} due to BIC increase.")
             break
 
         donor_indices.append(current_donors.copy())
