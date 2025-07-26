@@ -218,32 +218,30 @@ from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import pandas as pd
 import numpy as np
 
+
+
 class SHCConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Synthetic Historical Control (SHC) estimator.
-    Requires the user to provide the segment length 'm'. Bandwidth grid for smoothing
-    can optionally be provided for cross-validation.
-    """
-    m: int = Field(..., description="Length of the evaluation window (e.g., number of pre-treatment periods used for validation).")
-    bandwidth_grid: Optional[List[float]] = Field(default=None, description="Optional grid of bandwidth values to search over during cross-validation.")
+    m: int = Field(..., description="Length of the evaluation window.")
+    bandwidth_grid: Optional[List[float]] = Field(default=None, description="Bandwidth grid for LOOCV.")
+    use_augmented: bool = Field(default=False, description="Use Augmented SHC (ASHC) variant.")
 
-    @model_validator(mode='after')
-    def check_shc_params(cls, values: Any) -> Any:
-        m = values.m
-        bandwidth_grid = values.bandwidth_grid
+    @model_validator(mode="after")
+    def check_shc_params(self) -> "SHCConfig":
+        if not isinstance(self.use_augmented, bool):
+            raise MlsynthConfigError("'use_augmented' must be a boolean.")
 
-        if not isinstance(m, int) or m <= 0:
+        if self.m <= 0:
             raise MlsynthConfigError("'m' must be a positive integer.")
 
-        if bandwidth_grid is not None:
-            if not all(isinstance(h, (int, float)) for h in bandwidth_grid):
+        if self.bandwidth_grid is not None:
+            if not self.bandwidth_grid:
+                raise MlsynthConfigError("'bandwidth_grid' cannot be an empty list.")
+            if not all(isinstance(h, (int, float)) for h in self.bandwidth_grid):
                 raise MlsynthConfigError("All elements in 'bandwidth_grid' must be numeric.")
-            if not bandwidth_grid:
-                raise MlsynthConfigError("'bandwidth_grid' cannot be an empty list if provided.")
-            if not all(h > 0 for h in bandwidth_grid):
+            if not all(h > 0 for h in self.bandwidth_grid):
                 raise MlsynthConfigError("All bandwidth values must be strictly positive.")
 
-        return values
+        return self
 
 
 
