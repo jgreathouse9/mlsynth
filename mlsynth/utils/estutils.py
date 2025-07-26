@@ -337,7 +337,9 @@ def l2_relax(
     donor_outcomes_matrix: np.ndarray,
     sup_norm_constraint_tau: float,
 ) -> Tuple[np.ndarray, float, np.ndarray]:
-    """L2-relaxation estimator with fallback solvers: CLARABEL, OSQP, ECOS."""
+    """
+    L2-relaxation estimator with fallback solvers: CLARABEL, OSQP, ECOS.
+    """
 
     treated_unit_subset = treated_unit_outcome_vector[:num_pre_treatment_estimation_periods]
     donor_outcomes_subset = donor_outcomes_matrix[:num_pre_treatment_estimation_periods, :]
@@ -932,7 +934,7 @@ def _solve_pda_fs(
         :, selected_donor_indices
     ]
     forward_selection_intercept: float = forward_selection_model_coefficients[0]
-    assert selected_donor_outcomes_fs.shape[1] == forward_selection_model_coefficients[1:].shape[0],\
+    assert selected_donor_outcomes_fs.shape[1] == forward_selection_model_coefficients[1:].shape[0], \
     f"Mismatch: donors={selected_donor_outcomes_fs.shape[1]}, coefs={forward_selection_model_coefficients[1:].shape[0]}"
 
     forward_selection_counterfactual_outcome: np.ndarray = (
@@ -4030,102 +4032,118 @@ def loocv_bandwidth(y_pre, bandwidth_grid):
     best_h = bandwidth_grid[np.argmin(cv_errors)]
     return best_h, cv_errors
 
-# --- 3. SHC Estimator with stepwise donor selection and BIC-style early stopping ---
-def _shc_est(y, m, T0, bandwidth=None, bandwidth_grid=None):
-    varsigma = 1e-6
-    tol = 1e-8
-    T = len(y)
-    n = T - T0
-    N = T0 - m - n + 1
-    if N <= 0:
-        raise ValueError("Insufficient pre-treatment data to construct donor pool.")
 
-    y_pre = y[:T0]
+def _solve_SHC_QP(L, ell_eval, use_augmented=False, w_shc=None, lam=None, varsigma=1e-6, tol=1e-8):
+    """
+    Unified function to solve SHC or ASHC QP.
 
-    # Bandwidth selection via LOOCV
-    if bandwidth is None:
-        if bandwidth_grid is None:
-            bandwidth_grid = np.linspace(0.05, 2, 200)
-        bandwidth, _ = loocv_bandwidth(y_pre, bandwidth_grid)
+    Parameters
+    ----------
+    L : np.ndarray
+        Donor matrix (m x N).
+    ell_eval : np.ndarray
+        Evaluation vector (m,).
+    use_augmented : bool
+        If True, solve ASHC; otherwise, solve SHC.
+    w_shc : np.ndarray, optional
+        SHC weight vector (required if use_augmented=True).
+    lam : float, optional
+        Regularization parameter for ASHC (required if use_augmented=True).
+    varsigma : float
+        Regularization parameter for eigenvalue-based penalty.
+    tol : float
+        Eigenvalue threshold for low-variance direction identification.
 
-    # Estimate latent trend
-    ell_hat = smooth(y_pre, bandwidth)
-    L_full = np.column_stack([ell_hat[i:i + m] for i in range(N)])
-    ell_eval = ell_hat[-m:]
-    L_post = np.column_stack([ell_hat[i + m:i + m + n] for i in range(N)])
+    Returns
+    -------
+    w_opt : np.ndarray or None
+        Optimal weight vector.
+    obj_val : float or None
+        Final objective value.
+    """
+    N = L.shape[1]
+    w = cp.Variable(N)
 
-    donor_indices = []
-    mse_list = []
-    weight_list = []
-    yhat_list = []
-    bic_list = []
+    # Fit term
+    if use_augmented:
+        if lam is None or w_shc is None:
+            raise ValueError("lam and w_shc must be provided for ASHC.")
+        fit_term = (1 / (2 * lam)) * cp.sum_squares(ell_eval - L @ w)
+        deviation = lam * cp.sum_squares(w - w_shc)
+    else:
+        fit_term = cp.sum_squares(ell_eval - L @ w)
+        deviation = 0
 
-    remaining = list(range(N))
-    current_donors = []
+    # Eigenvalue penalty
+    G = L.T @ L
+    eigvals, eigvecs = eigh(G)
+    C = eigvecs[:, eigvals < tol]
+    penalty = varsigma * cp.sum_squares(C.T @ w) if C.size > 0 else 0
 
-    lambda_penalty = np.log(m)  # BIC-style penalty
+    # Objective
+    objective = cp.Minimize(fit_term + deviation + penalty)
 
-    for j in range(1, N + 1):
-        best_mse = np.inf
-        best_idx = None
-        best_w = None
-        best_yhat = None
+    # Constraints
+    constraints = [cp.sum(w) == 1]
+    if not use_augmented:
+        constraints.append(w >= 0)
 
-        for idx in remaining:
-            candidate = current_donors + [idx]
-            L_j = L_full[:, candidate]
+    # Solve
+    prob = cp.Problem(objective, constraints)
+    prob.solve()
 
-            w = cp.Variable(j)
-            G = L_j.T @ L_j
-            eigvals, eigvecs = eigh(G)
-            C2 = eigvecs[:, eigvals < tol]
-            if C2.size > 0:
-                penalty = cp.norm(C2.T @ w, 2) ** 2
-            else:
-                penalty = 0
+    return (w.value, prob.value) if w.value is not None else (None, None)
 
-            objective = cp.Minimize(cp.norm(ell_eval - L_j @ w, 2) ** 2 + varsigma * penalty)
-            constraints = [w >= 0, cp.sum(w) == 1]
-            cp.Problem(objective, constraints).solve()
+def tune_lambda_ashc(L, ell_eval, w_shc, lambda_grid=None, split_ratio=0.5):
+    """
+    Tune lambda for ASHC using holdout validation on ell_eval.
 
-            if w.value is not None:
-                yhat_j = L_j @ w.value
-                mse = np.mean((ell_eval - yhat_j) ** 2)
-                if mse < best_mse:
-                    best_mse = mse
-                    best_idx = idx
-                    best_w = w.value
-                    best_yhat = yhat_j
+    Parameters
+    ----------
+    L : np.ndarray
+        Donor matrix of shape (m, N).
+    ell_eval : np.ndarray
+        Evaluation vector of length m.
+    w_shc : np.ndarray
+        SHC weight vector (N,).
+    lambda_grid : list or np.ndarray, optional
+        Candidate values for lambda. If None, uses logscale grid.
+    split_ratio : float, optional
+        Fraction of data to use for training (default 0.5).
 
-        if best_idx is None:
-            break  # no improvement
+    Returns
+    -------
+    best_lambda : float
+        Lambda minimizing validation MSE.
+    lambda_errors : dict
+        Mapping from lambda to validation MSE.
+    """
+    m = len(ell_eval)
+    train_size = int(split_ratio * m)
 
-        current_donors.append(best_idx)
-        remaining.remove(best_idx)
+    ell_train = ell_eval[:train_size]
+    ell_val = ell_eval[train_size:]
 
-        # Compute BIC-style criterion
-        bic_j = m * np.log(best_mse) + lambda_penalty * j
-        bic_list.append(bic_j)
-        #print(f"MSE with best {j} donors: {best_mse:.10f} | BIC: {bic_j:.6f}")
+    L_train = L[:train_size, :]
+    L_val = L[train_size:, :]
 
-        # Early stopping: stop if BIC increases for 2 consecutive steps
-        if j > 3 and bic_list[-1] > bic_list[-2] and bic_list[-2] > bic_list[-3]:
-            #print(f"Stopping early at j={j} due to BIC increase.")
-            break
+    if lambda_grid is None:
+        lambda_grid = np.logspace(-6, 2, 50)
 
-        donor_indices.append(current_donors.copy())
-        mse_list.append(best_mse)
-        weight_list.append(best_w)
-        yhat_list.append(best_yhat)
+    lambda_errors = {}
 
-    # Select best donor size j*
-    best_j = np.argmin(mse_list)
+    for lam in lambda_grid:
+        w_hat, _ = _solve_SHC_QP(
+            L_train,
+            ell_train,
+            use_augmented=True,
+            w_shc=w_shc,
+            lam=lam
+        )
+        if w_hat is not None:
+            y_val_pred = L_val @ w_hat
+            mse = np.mean((ell_val - y_val_pred) ** 2)
+            lambda_errors[lam] = mse
 
-    return {
-        "y_hat": np.concatenate([L_full[:,  donor_indices[best_j]] @ weight_list[best_j],  L_post[:,  donor_indices[best_j]] @ weight_list[best_j]]),
-        "weight_pairs": {donor: weight for donor, weight in zip(donor_indices[best_j], weight_list[best_j])},
-        "best_rmse": np.sqrt(mse_list[best_j]),
-        "bandwidth": bandwidth,
-        "mse_path": mse_list,
-        "bic_path": bic_list
-    }
+    best_lambda = min(lambda_errors, key=lambda_errors.get)
+    return best_lambda, lambda_errors
