@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd # For PDAfs doctest and potentially internal DataFrame use
 from mlsynth.utils.denoiseutils import svt, spectral_rank # svt for SVDCluster, spectral_rank for fpca
 from typing import Tuple, List, Any, Dict
-
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEstimationError
 
 
@@ -785,4 +784,134 @@ def PDAfs(
         "final_information_criterion": final_Q,
         "final_residual_variance": final_sigma_sq,
         "predicted_treated_outcomes_pre_treatment": final_y_hat,
+    }
+
+
+def stepwise_donor_selection(L_full, L_post, ell_eval, m, varsigma=1e-6, tol=1e-8):
+    from mlsynth.utils.estutils import _solve_SHC_QP
+    """
+    Performs stepwise donor selection for synthetic control estimation with BIC-style early stopping.
+
+    This function iteratively selects donor candidates by minimizing the mean squared error (MSE)
+    between the latent trend evaluation vector `ell_eval` and a weighted combination of donor segments.
+    At each step, it solves a constrained quadratic programming problem to find the optimal weights.
+    The process uses a Bayesian Information Criterion (BIC)-style penalty to determine when to stop
+    adding donors to prevent overfitting.
+
+    Parameters
+    ----------
+    L_full : np.ndarray, shape (m, N)
+        Donor matrix for the pre-treatment window.
+        Each column corresponds to a donor candidate's latent trend segment of length m.
+
+    L_post : np.ndarray, shape (n, N)
+        Donor matrix for the post-treatment window.
+        Each column corresponds to the donor candidate's latent trend segment of length n
+        immediately following the pre-treatment window.
+
+    ell_eval : np.ndarray, shape (m,)
+        The evaluation vector representing the latent trend for the most recent donor window,
+        which serves as the target for donor matching.
+
+    m : int
+        Length of the donor window (number of time points per donor).
+
+    varsigma : float, optional, default=1e-6
+        Regularization parameter applied to the penalty term in the quadratic programming problem.
+        Helps stabilize optimization when the donor matrix is nearly rank deficient.
+
+    tol : float, optional, default=1e-8
+        Tolerance threshold for eigenvalue cutoff when constructing the penalty term.
+
+    Returns
+    -------
+    dict
+        A dictionary containing:
+        - "best_donors": list of int
+            Indices of the selected donors providing the best fit.
+        - "best_weights": np.ndarray
+            Optimal weights corresponding to the selected donors.
+        - "best_mse": float
+            Mean squared error of the best donor combination on the evaluation vector.
+        - "mse_path": list of float
+            MSE values tracked at each donor addition step.
+        - "bic_path": list of float
+            BIC values tracked at each donor addition step.
+
+    Notes
+    -----
+    - The selection proceeds by adding one donor at a time from the remaining candidates,
+      choosing the donor that minimizes the MSE when combined with the already selected donors.
+    - At each step, weights are obtained by solving a quadratic program with non-negativity and sum-to-one constraints.
+    - A BIC-style criterion is computed to penalize model complexity (number of donors).
+    - Early stopping occurs if the BIC increases for two consecutive steps after at least three donors,
+      which prevents overfitting by halting the addition of less informative donors.
+    - If no donor improves the MSE at a given step, the selection terminates early.
+
+    """
+    T0, N = L_full.shape
+    n = L_post.shape[1]
+
+    varsigma = 1e-6
+    tol = 1e-8
+
+    donor_indices = []
+    mse_list = []
+    weight_list = []
+    yhat_list = []
+    bic_list = []
+
+    remaining = list(range(N))
+    current_donors = []
+
+    lambda_penalty = np.log(m)  # BIC-style penalty
+
+    for j in range(1, N + 1):
+        best_mse = np.inf
+        best_idx = None
+        best_w = None
+        best_yhat = None
+
+        for idx in remaining:
+            candidate = current_donors + [idx]
+            L_j = L_full[:, candidate]
+
+            w, _= _solve_SHC_QP(L_j, ell_eval, use_augmented=False, varsigma=varsigma, tol=tol)
+
+            if w is not None:
+                yhat_j = L_j @ w
+                mse = np.mean((ell_eval - yhat_j) ** 2)
+
+                if mse < best_mse:
+                    best_mse = mse
+                    best_idx = idx
+                    best_w = w
+                    best_yhat = yhat_j
+
+        if best_idx is None:
+            break  # no improvement, stop early
+
+        current_donors.append(best_idx)
+        remaining.remove(best_idx)
+
+        bic_j = m * np.log(best_mse) + lambda_penalty * j
+        bic_list.append(bic_j)
+
+        # Early stopping if BIC increases for 2 consecutive steps after at least 3 donors
+        if j > 3 and bic_list[-1] > bic_list[-2] and bic_list[-2] > bic_list[-3]:
+            break
+
+        donor_indices.append(current_donors.copy())
+        mse_list.append(best_mse)
+        weight_list.append(best_w)
+        yhat_list.append(best_yhat)
+
+    best_j = np.argmin(mse_list)
+
+    return {
+        "best_donors": donor_indices[best_j],
+        "best_weights": weight_list[best_j],
+        "best_mse": mse_list[best_j],
+        "mse_path": mse_list,
+        "bic_path": bic_list
     }
