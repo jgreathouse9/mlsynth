@@ -616,3 +616,11 @@ def proxy_dataprep(
     surrogate_proxy_matrix = surrogate_proxy_data_wide_df.to_numpy() # Convert to NumPy array.
 
     return surrogate_matrix, surrogate_proxy_matrix
+
+
+def build_donor_segments(ell_hat, m, T0, n):
+    N = T0 - m - n + 1
+    L_full = np.column_stack([ell_hat[i:i + m] for i in range(N)])
+    ell_eval = ell_hat[-m:]
+    L_post = np.column_stack([ell_hat[i + m:i + m + n] for i in range(N)])
+    return L_full, L_post, ell_eval
