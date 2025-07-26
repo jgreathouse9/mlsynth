@@ -4,10 +4,11 @@ from typing import Dict, Any, List, Union, Optional
 import warnings
 import pydantic
 from mlsynth.utils.inferutils import ag_conformal
-from ..utils.datautils import dataprep
+from ..utils.datautils import dataprep, build_donor_segments
 from ..exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError, MlsynthPlottingError
 from ..utils.resultutils import effects, plot_estimates
-from ..utils.estutils import _shc_est
+from ..utils.selector_helpers import stepwise_donor_selection
+from ..utils.estutils import smooth, loocv_bandwidth, tune_lambda_ashc, _solve_SHC_QP
 from ..config_models import ( # Import Pydantic models
     SHCConfig,
     BaseEstimatorResults,
@@ -112,6 +113,7 @@ class SHC:
         self.display_graphs: bool = config.display_graphs
         self.save: Union[bool, str] = config.save # Align with BaseEstimatorConfig
         self.m: int = config.m
+        self.use_augmented: bool = config.use_augmented
 
     def _create_estimator_results(
         self,
@@ -329,7 +331,7 @@ class SHC:
                 self.df, self.unitid, self.time, self.outcome, self.treat, allow_no_donors=True
             )
             
-            num_pre_periods = prepared_panel_data.get("pre_periods")
+            T0 = num_pre_periods = prepared_panel_data.get("pre_periods")
             num_post_periods = prepared_panel_data.get("post_periods")
 
             # Validate that period information is available from dataprep.
@@ -350,13 +352,59 @@ class SHC:
             # Call the core SHC estimation function from estutils.
             # This function returns the estimated counterfactual, donor weights, and theta_hat coefficients.
             # SRCest itself can raise MlsynthDataError or MlsynthEstimationError.
-            result = _shc_est(treated_outcome_vector, m=self.m, T0=num_pre_periods)
-         
+
+            y = treated_outcome_vector
+            T = len(y)
+            n = T - T0
+            N = T0 - self.m - n + 1
+            if N <= 0:
+                raise ValueError("Insufficient pre-treatment data to construct donor pool.")
+
+            y_pre = y[:T0]
+
+            bandwidth_grid = np.linspace(0.05, 1.0, 50)
+            bandwidth, _ = loocv_bandwidth(y_pre, bandwidth_grid)
+            # Step 1: Estimate latent trend
+            ell_hat = smooth(y_pre, bandwidth)
+
+            # Step 2: Build donor segments
+            L_full, L_post, ell_eval = build_donor_segments(ell_hat, self.m, T0, n)
+
+            # Step 3: SHC stepwise selection
+            selection_results = stepwise_donor_selection(L_full, L_post, ell_eval, self.m)
+            selected_indices = selection_results["best_donors"]
+            shc_weights = selection_results["best_weights"]
+
+            # Step 4: Expand SHC weights to full length vector
+            w_shc_full = np.zeros(L_full.shape[1])
+            w_shc_full[selected_indices] = shc_weights
+
+            # Step 5: Conditional ASHC refinement
+            if self.use_augmented:
+                best_lambda, lambda_errors = tune_lambda_ashc(
+                    L=L_full,
+                    ell_eval=ell_eval,
+                    w_shc=w_shc_full,
+                    lambda_grid=np.linspace(0.0005, 0.5, 10)
+                )
+
+                final_weights, _ = _solve_SHC_QP(
+                    L=L_full,
+                    ell_eval=ell_eval,
+                    use_augmented=True,
+                    w_shc=w_shc_full,
+                    lam=best_lambda
+                )
+            else:
+                # If SHC, just use the convex hull solution directly
+                final_weights = w_shc_full
+
+            # Step 6: Estimate full counterfactual outcome
+            estimated_counterfactual_outcome = np.vstack([L_full, L_post]) @ final_weights
             # Calculate treatment effects (ATT, etc.) and goodness-of-fit statistics.
             # This uses the observed outcome of the treated unit and the estimated counterfactual.
             # effects.calculate can raise MlsynthDataError.
             # Extract estimated counterfactual and match length with y segment
-            estimated_counterfactual_outcome = result["y_hat"]  # Length = self.m + num_post_periods
             y_aligned = treated_outcome_vector[num_pre_periods - self.m:num_pre_periods + num_post_periods]
 
             # Sanity check
