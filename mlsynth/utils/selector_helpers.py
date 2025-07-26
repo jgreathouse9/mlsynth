@@ -847,7 +847,6 @@ def stepwise_donor_selection(L_full, L_post, ell_eval, m, varsigma=1e-6, tol=1e-
     - Early stopping occurs if the BIC increases for two consecutive steps after at least three donors,
       which prevents overfitting by halting the addition of less informative donors.
     - If no donor improves the MSE at a given step, the selection terminates early.
-
     """
     T0, N = L_full.shape
     n = L_post.shape[1]
