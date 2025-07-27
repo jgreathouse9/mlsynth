@@ -4067,7 +4067,7 @@ def _solve_SHC_QP(L, ell_eval, use_augmented=False, w_shc=None, lam=None, varsig
         if lam is None or w_shc is None:
             raise ValueError("lam and w_shc must be provided for ASHC.")
         fit_term = (1 / (2 * lam)) * cp.sum_squares(ell_eval - L @ w)
-        deviation = lam * cp.sum_squares(w - w_shc)
+        deviation = cp.sum_squares(w - w_shc)
     else:
         fit_term = cp.sum_squares(ell_eval - L @ w)
         deviation = 0
