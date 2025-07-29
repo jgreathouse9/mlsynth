@@ -4058,6 +4058,10 @@ def _solve_SHC_QP(L, ell_eval, use_augmented=False, w_shc=None, lam=None, varsig
         Optimal weight vector.
     obj_val : float or None
         Final objective value.
+
+    References
+    ----------
+    Chen, Yi-Ting and Yang, Jui-Chung and Yang, Tzu-Ting, Synthetic Historical Control for Policy Evaluation (September 28, 2024). Available at SSRN: https://ssrn.com/abstract=4995085 or http://dx.doi.org/10.2139/ssrn.4995085
     """
     N = L.shape[1]
     w = cp.Variable(N)
