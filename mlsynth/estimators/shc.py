@@ -379,13 +379,26 @@ class SHC:
             w_shc_full = np.zeros(L_full.shape[1])
             w_shc_full[selected_indices] = shc_weights
 
+            def generate_lambdas(X: np.ndarray, lambda_min_ratio: float = 1e-8, n_lambda: int = 20) -> np.ndarray:
+                """Generate a suitable set of lambdas to run the cross-validation
+                procedure on, using only NumPy arrays.
+                """
+                # singular values of X^T (same as of X)
+                _, sing, _ = np.linalg.svd(X.T, full_matrices=False)
+
+                lambda_max = sing[0] ** 2.0  # largest singular value squared
+                scaler = lambda_min_ratio ** (1 / n_lambda)
+
+                return lambda_max * (scaler ** np.arange(n_lambda))
+
+            lamgrid = generate_lambdas(L_full[:self.m], lambda_min_ratio=1e-8, n_lambda=100)
             # Step 5: Conditional ASHC refinement
             if self.use_augmented:
                 best_lambda, lambda_errors = tune_lambda_ashc(
                     L=L_full,
                     ell_eval=ell_eval,
                     w_shc=w_shc_full,
-                    lambda_grid=np.linspace(0.0005, 0.5, 10)
+                    lambda_grid=lamgrid
                 )
 
                 final_weights, _ = _solve_SHC_QP(
