@@ -244,6 +244,8 @@ class SHCConfig(BaseEstimatorConfig):
         return self
 
 
+class RESCMConfig(BaseEstimatorConfig):
+    pass
 
 
 # --- Pydantic Models for Standardized Estimator Results ---

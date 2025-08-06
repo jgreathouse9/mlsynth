@@ -11,7 +11,7 @@ from .estimators.si import SI ## Check
 from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
 from .estimators.shc import SHC # Check
-
+from .estimators.laxscm import RESCM # Check
 # Define __all__ to specify the public API of the package
 __all__ = [
     "TSSC",
@@ -26,5 +26,6 @@ __all__ = [
     "SI",
     "NSC",
     "SDID",
-    "SHC"
+    "SHC",
+    "RESCM"
 ]
