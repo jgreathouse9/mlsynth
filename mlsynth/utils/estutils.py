@@ -337,7 +337,9 @@ def l2_relax(
     donor_outcomes_matrix: np.ndarray,
     sup_norm_constraint_tau: float,
 ) -> Tuple[np.ndarray, float, np.ndarray]:
-    """L2-relaxation estimator with fallback solvers: CLARABEL, OSQP, ECOS."""
+    """
+    L2-relaxation estimator with fallback solvers: CLARABEL, OSQP, ECOS.
+    """
 
     treated_unit_subset = treated_unit_outcome_vector[:num_pre_treatment_estimation_periods]
     donor_outcomes_subset = donor_outcomes_matrix[:num_pre_treatment_estimation_periods, :]
@@ -932,7 +934,7 @@ def _solve_pda_fs(
         :, selected_donor_indices
     ]
     forward_selection_intercept: float = forward_selection_model_coefficients[0]
-    assert selected_donor_outcomes_fs.shape[1] == forward_selection_model_coefficients[1:].shape[0],\
+    assert selected_donor_outcomes_fs.shape[1] == forward_selection_model_coefficients[1:].shape[0], \
     f"Mismatch: donors={selected_donor_outcomes_fs.shape[1]}, coefs={forward_selection_model_coefficients[1:].shape[0]}"
 
     forward_selection_counterfactual_outcome: np.ndarray = (
@@ -4058,10 +4060,6 @@ def _solve_SHC_QP(L, ell_eval, use_augmented=False, w_shc=None, lam=None, varsig
         Optimal weight vector.
     obj_val : float or None
         Final objective value.
-
-    References
-    ----------
-    Chen, Yi-Ting and Yang, Jui-Chung and Yang, Tzu-Ting, Synthetic Historical Control for Policy Evaluation (September 28, 2024). Available at SSRN: https://ssrn.com/abstract=4995085 or http://dx.doi.org/10.2139/ssrn.4995085
     """
     N = L.shape[1]
     w = cp.Variable(N)
@@ -4071,7 +4069,7 @@ def _solve_SHC_QP(L, ell_eval, use_augmented=False, w_shc=None, lam=None, varsig
         if lam is None or w_shc is None:
             raise ValueError("lam and w_shc must be provided for ASHC.")
         fit_term = cp.sum_squares(ell_eval - L @ w)
-        deviation = (1 / (2 * lam)) * cp.sum_squares(w - w_shc)
+        deviation = (0.5 * lam) * cp.sum_squares(w - w_shc)
     else:
         fit_term = cp.sum_squares(ell_eval - L @ w)
         deviation = 0
@@ -4092,7 +4090,7 @@ def _solve_SHC_QP(L, ell_eval, use_augmented=False, w_shc=None, lam=None, varsig
 
     # Solve
     prob = cp.Problem(objective, constraints)
-    prob.solve()
+    prob.solve(solver=cp.CLARABEL)
 
     return (w.value, prob.value) if w.value is not None else (None, None)
 
@@ -4150,3 +4148,131 @@ def tune_lambda_ashc(L, ell_eval, w_shc, lambda_grid=None, split_ratio=0.5):
     best_lambda = min(lambda_errors, key=lambda_errors.get)
     return best_lambda, lambda_errors
 
+
+## Relaxed Balanced SC
+
+
+def standardize_data(y_pre, X_pre, y_post, X_post):
+    """Standardize each unit (treated and donors) using pre-treatment stats."""
+    # Means and stds for pre-treatment
+    mu_treated, sigma_treated = np.mean(y_pre), np.std(y_pre, ddof=1)
+    mu_controls = np.mean(X_pre, axis=0)
+    sigma_controls = np.std(X_pre, axis=0, ddof=1)
+
+    # Avoid division by zero
+    sigma_controls[sigma_controls == 0] = 1.0
+    if sigma_treated == 0:
+        sigma_treated = 1.0
+
+    # Standardize
+    y_pre_std = (y_pre - mu_treated) / sigma_treated
+    X_pre_std = (X_pre - mu_controls) / sigma_controls
+    y_post_std = (y_post - mu_treated) / sigma_treated
+    X_post_std = (X_post - mu_controls) / sigma_controls
+
+    stats = {
+        "mu_treated": mu_treated,
+        "sigma_treated": sigma_treated,
+        "mu_controls": mu_controls,
+        "sigma_controls": sigma_controls,
+    }
+
+    return y_pre_std, X_pre_std, y_post_std, X_post_std, stats
+
+
+def back_transform_predictions(weights_std, X_post, stats):
+    """Map standardized predictions back to original scale."""
+    mu_t, sigma_t = stats["mu_treated"], stats["sigma_treated"]
+    mu_c, sigma_c = stats["mu_controls"], stats["sigma_controls"]
+
+    # Effective weights after rescaling
+    w_back = (sigma_t / sigma_c) * weights_std
+
+    preds_post = (X_post - mu_c) @ (w_back) + mu_t
+    return preds_post
+
+
+def generate_taus(X_pre, y_pre, n_taus=50):
+    """Generate tau grid between feasible lower and upper bounds."""
+    T, J = X_pre.shape
+    w = cp.Variable(J)
+    gam = cp.Variable()
+
+    constraints = [cp.sum(w) == 1, w >= 0]
+    obj = cp.Minimize(cp.pnorm(X_pre.T @ (X_pre @ w - y_pre) / T + gam*np.ones(J), p='inf'))
+    prob = cp.Problem(obj, constraints)
+    prob.solve(solver=cp.CLARABEL, verbose=False)
+    tau_min = prob.value
+
+    w_eq = np.ones(J) / J
+    gam = cp.Variable()
+    obj = cp.Minimize(cp.pnorm(X_pre.T @ (X_pre @ w_eq - y_pre) / T + gam*np.ones(J), p='inf'))
+    prob = cp.Problem(obj)
+    prob.solve(solver=cp.CLARABEL, verbose=False)
+    tau_max = prob.value
+
+    tau_min *= 1.01
+    tau_max *= 1.01
+    return np.geomspace(tau_max, tau_min, n_taus)
+
+
+def rescmcross_validate_tau(X_pre, y_pre, n_splits=5, n_taus=50):
+    """Cross-validate to pick tau."""
+    taus = generate_taus(X_pre, y_pre, n_taus)
+    kf = KFold(n_splits=n_splits, shuffle=False)
+
+    cv_errors, taus_per_fold = [], []
+    for train_idx, test_idx in kf.split(X_pre):
+        X_train, y_train = X_pre[train_idx], y_pre[train_idx]
+        X_test, y_test = X_pre[test_idx], y_pre[test_idx]
+
+        fold_errors, taus_this_fold = [], []
+        for tau in taus:
+            J = X_train.shape[1]
+            w = cp.Variable(J)
+            gam = cp.Variable()
+            obj = cp.Minimize(cp.sum_squares(w))
+            constraints = [
+                cp.sum(w) == 1,
+                w >= 0,
+                cp.pnorm(X_train.T @ (X_train @ w - y_train) / X_train.shape[0] + gam*np.ones(J), p='inf') <= tau,
+            ]
+            prob = cp.Problem(obj, constraints)
+            try:
+                prob.solve(solver=cp.CLARABEL, verbose=False)
+            except:
+                continue
+
+            if w.value is not None:
+                y_pred = X_test @ w.value
+                mse = np.mean((y_test - y_pred) ** 2)
+                fold_errors.append(mse)
+                taus_this_fold.append(tau)
+
+        if fold_errors:
+            cv_errors.append(fold_errors)
+            taus_per_fold.append(taus_this_fold)
+
+    min_len = min(len(f) for f in cv_errors)
+    cv_errors = np.array([f[:min_len] for f in cv_errors])
+    taus_common = taus_per_fold[0][:min_len]
+
+    mean_errors = np.mean(cv_errors, axis=0)
+    best_idx = np.argmin(mean_errors)
+    return taus_common[best_idx], taus_common, mean_errors
+
+
+def fit_l2_relaxation(X_pre, y_pre, tau):
+    """Fit SCM relaxation with chosen tau."""
+    T, J = X_pre.shape
+    w = cp.Variable(J)
+    gam = cp.Variable()
+    obj = cp.Minimize(cp.sum_squares(w))
+    constraints = [
+        cp.sum(w) == 1,
+        w >= 0,
+        cp.pnorm(X_pre.T @ (X_pre @ w - y_pre) / T + gam*np.ones(J), p='inf') <= tau,
+    ]
+    prob = cp.Problem(obj, constraints)
+    prob.solve(solver=cp.CLARABEL, verbose=False)
+    return w.value
