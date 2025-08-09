@@ -1,7 +1,7 @@
 Synthetic Historical Control
 =====================
 
-.. autoclass:: mlsynth SHC
+.. autoclass:: mlsynth.SHC
    :show-inheritance:
    :special-members: __init__
 
