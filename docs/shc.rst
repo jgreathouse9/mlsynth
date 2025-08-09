@@ -76,9 +76,7 @@ Developer API
 =============
 
 These functions are part of the internal optimization and tuning routines
-for SHC and ASHC.  
-While they can be called directly, they are typically invoked through the
-higher-level :class:`SHC` and :class:`ASHC` classes.
+for SHC and ASHC. When  :class:`use_augmented` is true, we pass the original SHC weights chosen by forward selection to the ASHC for bias correction, if necessary.
 
 .. autofunction:: mlsynth.utils.estutils._solve_SHC_QP
 .. autofunction:: mlsynth.utils.estutils.tune_lambda_ashc
