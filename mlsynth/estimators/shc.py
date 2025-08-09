@@ -23,9 +23,9 @@ from ..config_models import ( # Import Pydantic models
 
 class SHC:
     """
-    Implements the Synthetic Historical Control (SRC) method for estimating treatment effects.
+    Implements the Synthetic Historical Control (SHC) method for estimating treatment effects.
 
-    This method....
+    This method, and its augmented variant, fits a time-series variant of synthetic controls where donors do not exist.
 
     Attributes
     ----------
@@ -72,8 +72,7 @@ class SHC:
     References
     ----------
 
-    Zhu, Rong J. B. "Synthetic Regressing Control Method." arXiv preprint arXiv:2306.02584 (2023).
-    https://arxiv.org/abs/2306.02584
+    Chen, Yi-Ting and Yang, Jui-Chung and Yang, Tzu-Ting, Synthetic Historical Control for Policy Evaluation (September 28, 2024). Available at SSRN: https://ssrn.com/abstract=4995085 or http://dx.doi.org/10.2139/ssrn.4995085
     """
 
     def __init__(self, config: SHCConfig) -> None: # Changed to SHCConfig
@@ -99,6 +98,7 @@ class SHC:
               it maps plot keys to full file paths. Defaults to False.
             - counterfactual_color (str, optional): Color for counterfactual line. Defaults to "red".
             - treated_color (str, optional): Color for treated unit line. Defaults to "black".
+            - use_augmented (bool, optional): Fits the Augmented Synthetic Historical Control Method.
         """
         if isinstance(config, dict):
             config = SHCConfig(**config)  # convert dict to config object
