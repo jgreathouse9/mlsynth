@@ -5,6 +5,10 @@ This example uses the **Synthetic Historical Control (SHC)** estimator from
 ``mlsynth`` to measure the Year-over-Year (YoY) growth rate impact of the
 1997–1998 Asian Financial Crisis on the Malaysian Ringgit.
 
+.. autoclass:: mlsynth.SHC
+   :show-inheritance:
+   :special-members: __init__
+
 .. code-block:: python
 
     from mlsynth import SHC
