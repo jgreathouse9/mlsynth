@@ -66,3 +66,19 @@ This example uses the **Synthetic Historical Control (SHC)** estimator from
         "m": 12 * 3                      # Segment Length
     }
 
+
+
+
+
+
+
+Developer API
+=============
+
+These functions are part of the internal optimization and tuning routines
+for SHC and ASHC.  
+While they can be called directly, they are typically invoked through the
+higher-level :class:`SHC` and :class:`ASHC` classes.
+
+.. autofunction:: mlsynth.utils.estutils._solve_SHC_QP
+.. autofunction:: mlsynth.utils.estutils.tune_lambda_ashc
