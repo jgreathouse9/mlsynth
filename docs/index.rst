@@ -44,6 +44,7 @@ MLSYNTH
    fscm
    src
    scmo
+   shc
    si
 
 
