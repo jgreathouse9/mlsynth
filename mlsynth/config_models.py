@@ -211,17 +211,8 @@ class SDIDConfig(BaseEstimatorConfig):
     """Configuration for the Synthetic Difference-in-Differences (SDID) estimator."""
     B: int = Field(default=500, description="Number of placebo iterations for inference.", ge=0) # B can be 0 if no inference desired
 
-
-from typing import List, Optional, Any
-from pydantic import BaseModel, Field, model_validator
-from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
-import pandas as pd
-import numpy as np
-
-
-
 class SHCConfig(BaseEstimatorConfig):
-    m: int = Field(..., description="Length of the evaluation window.")
+    m: int = Field(default=1, description="Length of the evaluation window.")
     bandwidth_grid: Optional[List[float]] = Field(default=None, description="Bandwidth grid for LOOCV.")
     use_augmented: bool = Field(default=False, description="Use Augmented SHC (ASHC) variant.")
 
@@ -242,6 +233,9 @@ class SHCConfig(BaseEstimatorConfig):
                 raise MlsynthConfigError("All bandwidth values must be strictly positive.")
 
         return self
+
+
+
 
 
 class RESCMConfig(BaseEstimatorConfig):
@@ -353,3 +347,4 @@ class BaseEstimatorResults(BaseModel):
             np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()] if arr is not None else None
             # This explicitly converts np.nan (which becomes float('nan') in tolist()) to Python None.
         }
+
