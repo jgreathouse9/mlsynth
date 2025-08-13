@@ -14,6 +14,8 @@ from mlsynth.utils.selector_helpers import (
     SVDCluster,
     PDAfs,
 )
+from skopt import gp_minimize
+from skopt.space import Real
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score # Not used in this file
 from sklearn.model_selection import KFold
@@ -377,8 +379,8 @@ def adaptive_cross_validate_tau(
     pre_treatment_treated_outcome: np.ndarray,
     pre_treatment_donor_outcomes: np.ndarray,
     tau_upper_bound_for_grid: float,
-    num_coarse_points: int = 10,
-    num_fine_points: int = 20,
+    num_coarse_points: int = 50,
+    num_fine_points: int = 100,
     zoom_width: float = 0.5
 ) -> Tuple[float, float]:
     """
@@ -394,13 +396,13 @@ def adaptive_cross_validate_tau(
     X_val = pre_treatment_donor_outcomes[half:, :]
 
     def mse_for_tau(tau_val: float) -> float:
-        coefs, _, _ = l2_relax(
+        coefs, intercept, _ = l2_relax(
             num_pre_treatment_estimation_periods=half,
             treated_unit_outcome_vector=y_train,
             donor_outcomes_matrix=X_train,
             sup_norm_constraint_tau=tau_val
         )
-        preds = X_val @ coefs
+        preds = X_val @ coefs + intercept
         return np.mean((y_val - preds) ** 2)
 
     # Stage 1: Coarse log grid
@@ -4210,7 +4212,7 @@ def generate_taus(X_pre, y_pre, n_taus=50):
     tau_max = prob.value
 
     tau_min *= 1.01
-    tau_max *= 1.01
+    tau_max *= 2.01
     return np.geomspace(tau_max, tau_min, n_taus)
 
 
@@ -4272,6 +4274,69 @@ def fit_l2_relaxation(X_pre, y_pre, tau):
         cp.pnorm(X_pre.T @ (X_pre @ w - y_pre) / T + gam*np.ones(J), p='inf') <= tau,
     ]
     prob = cp.Problem(obj, constraints)
-    prob.solve(solver=cp.CLARABEL, verbose=False)
+    prob.solve(solver=cp.CLARABEL, verbose=True)
 
     return w.value
+
+
+
+# Affine hull SCM fit function
+def fit_affine_hull_scm(X, y, w0, num_iterations=50):
+    """
+    Fit affine-hull synthetic control weights using Bayesian optimization
+    over a regularization parameter β that penalizes distance from initial weights w0.
+
+    Parameters
+    ----------
+    X : np.ndarray of shape (T0, J)
+        Pre-treatment donor matrix.
+    y : np.ndarray of shape (T0,)
+        Pre-treatment outcomes for treated unit.
+    w0 : np.ndarray of shape (J,)
+        Initial weight vector (e.g. SCM weights).
+    num_iterations : int
+        Number of calls to the Bayesian optimizer.
+
+    Returns
+    -------
+    best_w : np.ndarray of shape (J,)
+        Optimal affine-hull weights.
+    best_beta : float
+        Optimal regularization hyperparameter (beta).
+    """
+    T0, J = X.shape
+    split = T0 // 2
+    X_train, X_val = X[:split], X[split:]
+    y_train, y_val = y[:split], y[split:]
+
+    def objective(params):
+        log_beta = params[0]
+        beta = 10 ** log_beta
+        w = cp.Variable(J)
+        obj = cp.sum_squares(y_train - X_train @ w) + beta * cp.sum_squares(w - w0)
+        prob = cp.Problem(cp.Minimize(obj), [cp.sum(w) == 1])
+        prob.solve(warm_start=True)
+        w_candidate = w.value
+        residuals = y_val - X_val @ w_candidate
+        return np.sqrt(np.mean(residuals ** 2))
+
+    # Search log10(beta) in [-4, 3] → beta in [1e-4, 1e3]
+    search_space = [Real(np.log10(1e-4), np.log10(1e3), name='log_beta')]
+    result = gp_minimize(
+        objective,
+        search_space,
+        n_calls=num_iterations,
+        n_initial_points=10,
+        random_state=42
+    )
+
+    # Best beta found
+    best_beta = 10 ** result.x[0]
+
+    # Final model fit on full pre-treatment data
+    w_final = cp.Variable(J)
+    obj_full = cp.sum_squares(y - X @ w_final) + best_beta * cp.sum_squares(w_final - w0)
+    prob_final = cp.Problem(cp.Minimize(obj_full), [cp.sum(w_final) == 1])
+    prob_final.solve(warm_start=True)
+
+    return w_final.value, best_beta
