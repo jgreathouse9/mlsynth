@@ -22,7 +22,7 @@ setup(
         "scikit-learn",
         "statsmodels",
         "cvxpy",
-        "screenot", "pydantic"
+        "screenot", "pydantic", "scikit-optimize"
     ],
     classifiers=[  # Metadata about the package
         "Programming Language :: Python :: 3",
