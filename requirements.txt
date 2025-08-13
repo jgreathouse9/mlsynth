@@ -3,6 +3,7 @@ numpy
 matplotlib
 scipy
 scikit-learn
+scikit-optimize
 cvxpy
 screenot
 statsmodels
