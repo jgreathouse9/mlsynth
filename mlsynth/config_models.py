@@ -157,6 +157,7 @@ class FSCMConfig(BaseEstimatorConfig):
     Configuration for the Forward Selected Synthetic Control Method (FSCM) estimator.
     This estimator currently uses only the common configuration parameters.
     """
+    use_augmented: bool = Field(default=False, description="Use Augmented FSCM variant.")
     pass
 
 class SRCConfig(BaseEstimatorConfig):
@@ -347,4 +348,5 @@ class BaseEstimatorResults(BaseModel):
             np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()] if arr is not None else None
             # This explicitly converts np.nan (which becomes float('nan') in tolist()) to Python None.
         }
+
 
