@@ -103,11 +103,12 @@ def test_fscm_fit_smoke(basic_panel_data_with_treatment: pd.DataFrame):
         assert results is not None, "Fit method should return BaseEstimatorResults."
         assert isinstance(results, BaseEstimatorResults), "Fit method should return BaseEstimatorResults."
 
-        assert results.effects is not None, "Results should contain 'effects'."
+        assert 'FSCM' in results.sub_method_results is not None, "Results should contain 'effects'."
         assert results.weights is not None, "Results should contain 'weights'."
         assert results.time_series is not None
         assert results.method_details is not None
         assert results.method_details.name == "FSCM" # Corrected attribute name
+        assert results.sub_method_results['FSCM'].effects is not None
         
         assert isinstance(results.effects.att, (float, np.floating, type(None))) # ATT can be None if not calculable
         
