@@ -123,9 +123,8 @@ def test_fscm_fit_smoke(basic_panel_data_with_treatment: pd.DataFrame):
         # Check raw_results for original structure
         assert results.raw_results is not None
         assert "Effects" in results.raw_results
-        assert "Weights" in results.raw_results
-        assert isinstance(results.raw_results["Weights"], list)
-        assert len(results.raw_results["Weights"]) == 2
+        assert results.sub_method_results['FSCM'].weights is not None, "Results should contain 'weights'."
+        assert results.sub_method_results['FSCM'].weights.donor_weights is not None
     except Exception as e:
         pytest.fail(f"FSCM fit method failed during smoke test: {e}")
 
