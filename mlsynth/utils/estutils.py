@@ -4344,7 +4344,6 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50):
 
 
 def fSCM(
-        self,
         treated_outcome_pre_treatment_vector: np.ndarray,
         all_donors_outcomes_matrix_pre_treatment: np.ndarray,
         num_pre_treatment_periods: int,
@@ -4460,5 +4459,6 @@ def fSCM(
             best_overall_indices,
             w_affine, full_weights
         )
+
 
 
