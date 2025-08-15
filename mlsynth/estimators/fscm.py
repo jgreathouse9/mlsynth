@@ -2,12 +2,12 @@ import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, List, Tuple, Union, Optional
-import cvxpy as cp # For catching solver errors
-from pydantic import ValidationError # For catching Pydantic errors if models are created internally
+import cvxpy as cp  # For catching solver errors
+from pydantic import ValidationError  # For catching Pydantic errors if models are created internally
 
 from ..utils.datautils import balance, dataprep
 from ..utils.resultutils import effects, plot_estimates
-from ..utils.estutils import Opt, fit_affine_hull_scm
+from ..utils.estutils import Opt, fit_affine_hull_scm, fSCM
 from ..exceptions import (
     MlsynthDataError,
     MlsynthConfigError,
@@ -112,7 +112,7 @@ class FSCM:
     >>> # results = estimator.fit() # doctest: +SKIP
     """
 
-    def __init__(self, config: FSCMConfig) -> None: # Changed to FSCMConfig
+    def __init__(self, config: FSCMConfig) -> None:  # Changed to FSCMConfig
         """
         Initializes the FSCM estimator with a configuration object.
 
@@ -147,26 +147,26 @@ class FSCM:
         """
         if isinstance(config, dict):
             config = FSCMConfig(**config)  # convert dict to config object
-        self.config = config # Store the config object
+        self.config = config  # Store the config object
         self.df: pd.DataFrame = config.df
         self.outcome: str = config.outcome
         self.treat: str = config.treat
         self.unitid: str = config.unitid
         self.time: str = config.time
-        self.counterfactual_color: Union[str, List[str]] = config.counterfactual_color # Kept Union for flexibility
+        self.counterfactual_color: Union[str, List[str]] = config.counterfactual_color  # Kept Union for flexibility
         self.treated_color: str = config.treated_color
         self.display_graphs: bool = config.display_graphs
-        self.save: Union[bool, str] = config.save # Align with BaseEstimatorConfig
+        self.save: Union[bool, str] = config.save  # Align with BaseEstimatorConfig
         self.use_augmented = config.use_augmented
 
-    def _create_estimator_results( # Helper method to package results into the standard Pydantic model
-        self,
-        raw_estimation_output: Dict[str, Any],
-        prepared_data_dict: Dict[str, Any],
-        selected_optimal_donor_indices: List[int], 
-        final_pre_treatment_rmse: float,   
-        optimal_donor_weights_array: np.ndarray,   
-        names_of_selected_donors: List[str] 
+    def _create_estimator_results(  # Helper method to package results into the standard Pydantic model
+            self,
+            raw_estimation_output: Dict[str, Any],
+            prepared_data_dict: Dict[str, Any],
+            selected_optimal_donor_indices: List[int],
+            final_pre_treatment_rmse: float,
+            optimal_donor_weights_array: np.ndarray,
+            names_of_selected_donors: List[str]
     ) -> BaseEstimatorResults:
         """
         Constructs a BaseEstimatorResults object from raw FSCM outputs.
@@ -199,8 +199,8 @@ class FSCM:
         raw_fit_diagnostics_data = raw_estimation_output.get("Fit", {})
         raw_time_series_data = raw_estimation_output.get("Vectors", {})
         # Weights package might contain a dictionary of weights and a summary dictionary
-        raw_weights_package = raw_estimation_output.get("Weights", [{}, {}]) 
-        
+        raw_weights_package = raw_estimation_output.get("Weights", [{}, {}])
+
         # Create EffectsResults Pydantic model
         effects_results_obj = EffectsResults(
             att=raw_effects_data.get("ATT"),
@@ -209,59 +209,63 @@ class FSCM:
 
         # Create FitDiagnosticsResults Pydantic model
         fit_diagnostics_results_obj = FitDiagnosticsResults(
-            pre_treatment_rmse=final_pre_treatment_rmse, # Use the explicitly passed final RMSE
-            pre_treatment_r_squared=raw_fit_diagnostics_data.get("R-Squared"), 
-            additional_metrics={"post_treatment_gap_std": raw_fit_diagnostics_data.get("T1 RMSE")} # Store T1 RMSE as post_treatment_gap_std
+            pre_treatment_rmse=final_pre_treatment_rmse,  # Use the explicitly passed final RMSE
+            pre_treatment_r_squared=raw_fit_diagnostics_data.get("R-Squared"),
+            additional_metrics={"post_treatment_gap_std": raw_fit_diagnostics_data.get("T1 RMSE")}
+            # Store T1 RMSE as post_treatment_gap_std
         )
 
         # Prepare observed outcome array
-        treated_outcome_series_from_prepared_data = prepared_data_dict.get("y") 
+        treated_outcome_series_from_prepared_data = prepared_data_dict.get("y")
         treated_outcome_array: Optional[np.ndarray] = None
         if treated_outcome_series_from_prepared_data is not None:
             # Ensure it's a flattened NumPy array
-            treated_outcome_array = treated_outcome_series_from_prepared_data.to_numpy().flatten() if isinstance(treated_outcome_series_from_prepared_data, pd.Series) else np.array(treated_outcome_series_from_prepared_data).flatten()
+            treated_outcome_array = treated_outcome_series_from_prepared_data.to_numpy().flatten() if isinstance(
+                treated_outcome_series_from_prepared_data, pd.Series) else np.array(
+                treated_outcome_series_from_prepared_data).flatten()
 
         # Prepare counterfactual outcome array
-        counterfactual_outcome_array: Optional[np.ndarray] = None
+        counterfactual_outcome_array: Optional[np.ndarray] = raw_estimation_output['Vectors']['Counterfactual']
         if raw_time_series_data.get("Synthetic") is not None:
             counterfactual_outcome_array = np.array(raw_time_series_data["Synthetic"]).flatten()
 
         # Prepare estimated gap array
-        estimated_gap_array: Optional[np.ndarray] = None
-        if raw_time_series_data.get("Effect") is not None:
-            estimated_gap_array = np.array(raw_time_series_data["Effect"]).flatten()
-        elif treated_outcome_array is not None and counterfactual_outcome_array is not None and len(treated_outcome_array) == len(counterfactual_outcome_array):
-            # Calculate gap if not directly provided but observed and counterfactual are available
-            estimated_gap_array = treated_outcome_array - counterfactual_outcome_array
-            
-        # Prepare time periods array
-        time_periods_array_for_results: Optional[np.ndarray] = None 
-        time_labels_from_prepared_data = prepared_data_dict.get("time_labels") 
-        if time_labels_from_prepared_data is not None:
-            time_periods_array_for_results = np.array(time_labels_from_prepared_data) 
+        estimated_gap_array: Optional[np.ndarray] = raw_estimation_output['Vectors']['Gap']
 
-        # Create TimeSeriesResults Pydantic model
+        # Prepare time periods array
+        time_periods_array_for_results: Optional[np.ndarray] = None
+        time_labels_from_prepared_data = prepared_data_dict.get("time_labels")
+        if time_labels_from_prepared_data is not None:
+            time_periods_array_for_results = np.array(time_labels_from_prepared_data)
+
+            # Create TimeSeriesResults Pydantic model
         time_series_results_obj = TimeSeriesResults(
             observed_outcome=treated_outcome_array,
             counterfactual_outcome=counterfactual_outcome_array,
-            estimated_gap=estimated_gap_array, 
-            time_periods=time_periods_array_for_results, 
+            estimated_gap=estimated_gap_array,
+            time_periods=time_periods_array_for_results,
         )
-        
+
         # Prepare donor weights map
         final_donor_weights_map: Optional[Dict[str, float]] = None
         if optimal_donor_weights_array is not None and names_of_selected_donors is not None:
             # Create a dictionary mapping donor names to their weights
-            final_donor_weights_map = {name: weight for name, weight in zip(names_of_selected_donors, optimal_donor_weights_array.flatten())}
-        
+            final_donor_weights_map = {name: weight for name, weight in zip(prepared_data_dict["donor_names"].tolist(),
+                                                                            optimal_donor_weights_array.flatten())}
+
+        # Create WeightsResults Pydantic model
+        weights_results_obj = WeightsResults(
+            donor_weights=final_donor_weights_map,
+        )
+
         # Create InferenceResults Pydantic model (FSCM typically doesn't provide standard inference)
-        inference_results_obj = InferenceResults() # Defaults to None for all fields
+        inference_results_obj = InferenceResults()  # Defaults to None for all fields
 
         # Prepare method details
-        raw_weights_summary_data = raw_weights_package[1] if len(raw_weights_package) > 1 else {}
+        raw_weights_summary_data = raw_weights_package if len(raw_weights_package) > 1 else {}
         method_details_results_obj = MethodDetailsResults(
-            name="FSCM", 
-            parameters_used={ # Store key parameters and outcomes of the FSCM process
+            name="FSCM",
+            parameters_used={  # Store key parameters and outcomes of the FSCM process
                 "optimal_donor_indices": selected_optimal_donor_indices,
                 "optimal_pre_rmse": final_pre_treatment_rmse,
                 "cardinality_positive_donors": raw_weights_summary_data.get("Cardinality of Positive Donors"),
@@ -273,217 +277,15 @@ class FSCM:
         return BaseEstimatorResults(
             effects=effects_results_obj,
             fit_diagnostics=fit_diagnostics_results_obj,
-            time_series=time_series_results_obj, #weights=weights_results_obj,
+            time_series=time_series_results_obj,  # weights=weights_results_obj,
             inference=inference_results_obj,
             method_details=method_details_results_obj,
-            raw_results=raw_estimation_output, 
+            raw_results=raw_estimation_output,
+            weights=weights_results_obj
         )
 
-    def evaluate_donor(
-        self,
-        donor_index: int,
-        list_of_all_donor_outcome_vectors_pre_treatment: List[np.ndarray],
-        treated_outcome_pre_treatment_vector: np.ndarray,
-        num_pre_treatment_periods: int,
-    ) -> Tuple[int, float]:
-        """
-        Evaluate the MSE for a given donor index using the SCM optimization.
 
-        This method calculates the Mean Squared Error (MSE) that results from
-        using a single specified donor unit to construct a synthetic control
-        for the treated unit's pre-treatment outcomes. The optimization is
-        performed using a SIMPLEX constraint (weights sum to 1 and are non-negative,
-        though for a single donor, the weight will be 1).
-
-        Parameters
-        ----------
-        donor_index : int
-            Index of the donor unit in the `list_of_all_donor_outcome_vectors_pre_treatment` list.
-        list_of_all_donor_outcome_vectors_pre_treatment : List[np.ndarray]
-            A list where each element is a NumPy array representing the
-            pre-treatment outcome time series for a potential donor unit.
-            Each array should have shape (T0, 1).
-        treated_outcome_pre_treatment_vector : np.ndarray
-            NumPy array of the treated unit's pre-treatment outcomes.
-            Shape: (T0,).
-        num_pre_treatment_periods : int
-            The number of pre-treatment time periods.
-
-        Returns
-        -------
-        Tuple[int, float]
-            A tuple containing:
-            - donor_index (int): The original index of the evaluated donor.
-            - mean_squared_error_for_donor (float): The Mean Squared Error from fitting this donor.
-        """
-        current_donor_outcome_vector_pre_treatment: np.ndarray = list_of_all_donor_outcome_vectors_pre_treatment[donor_index]
-        optimization_problem_result = Opt.SCopt(1, treated_outcome_pre_treatment_vector, num_pre_treatment_periods, current_donor_outcome_vector_pre_treatment, scm_model_type="SIMPLEX")
-        mean_squared_error_for_donor: float = optimization_problem_result.solution.opt_val
-        return donor_index, mean_squared_error_for_donor
-
-    def fSCM( # Core Forward Selected Synthetic Control Method logic
-        self, treated_outcome_pre_treatment_vector: np.ndarray, all_donors_outcomes_matrix_pre_treatment: np.ndarray, num_pre_treatment_periods: int
-    ) -> Tuple[List[int], np.ndarray, float, np.ndarray, np.ndarray]: # Renamed from fSCM to _perform_forward_selection
-        """
-        Perform Forward Selected Synthetic Control Method (SCM) optimization.
-
-        This method implements the core forward selection algorithm. It starts by
-        finding the single best donor unit (lowest MSE). Then, it iteratively
-        adds remaining donor units to the current best set if the addition
-        improves the overall MSE of the synthetic control fit. The weights for
-        each candidate set are determined using SIMPLEX optimization.
-
-        Parameters
-        ----------
-        treated_outcome_pre_treatment_vector : np.ndarray
-            Outcome vector for the treated unit in the pre-treatment period.
-            Shape: (T0,).
-        all_donors_outcomes_matrix_pre_treatment : np.ndarray
-            Matrix of outcome vectors for all potential donor units in the
-            pre-treatment period. Each column represents a donor.
-            Shape: (T0, N_donors).
-        num_pre_treatment_periods : int
-            Number of pre-treatment time periods.
-
-        Returns
-        -------
-        Tuple[List[int], np.ndarray, float, np.ndarray, np.ndarray]
-            A tuple containing:
-            - final_optimal_donor_indices (List[int]): List of integer indices (referring to
-              columns in the original `all_donors_outcomes_matrix_pre_treatment`) of the selected optimal donor units.
-            - final_optimal_donor_weights_array (np.ndarray): Optimal weights for the selected donor units.
-              Shape: (number_of_selected_donors,).
-            - final_optimal_rmse (float): The final Root Mean Squared Error of the
-              synthetic control fit using the `final_optimal_donor_indices` and `final_optimal_donor_weights_array`.
-            - outcomes_matrix_for_final_optimal_donors (np.ndarray): Matrix of pre-treatment outcomes for only
-              the selected `final_optimal_donor_indices` donor units. Shape: (T0, number_of_selected_donors).
-            - treated_outcome_pre_treatment_vector_out (np.ndarray): The original pre-treatment outcome vector for
-              the treated unit (passed as input). Shape: (T0,).
-        """
-        # Initialize variables for tracking the best donor set and its MSE
-        current_best_mse: float = float("inf") # Stores the MSE (sum of squared errors) of the best donor set found so far
-        current_best_donor_index_set: Optional[List[int]] = None # Stores indices of donors in the best set
-
-        # Convert columns of the donor matrix to a list of individual donor outcome vectors.
-        # This format is suitable for the `evaluate_donor` method used in parallel processing.
-        list_of_all_donor_outcome_vectors_pre_treatment: List[np.ndarray] = [
-            all_donors_outcomes_matrix_pre_treatment[:, i].reshape(-1, 1) for i in range(all_donors_outcomes_matrix_pre_treatment.shape[1])
-        ]
-
-        # Step 1: Initial Donor Evaluation - Find the single best donor.
-        # This step evaluates each potential donor unit individually to find the one
-        # that best predicts the treated unit's pre-treatment outcomes on its own.
-        # A ThreadPoolExecutor is used to perform these evaluations in parallel for efficiency.
-        with ThreadPoolExecutor(max_workers=10) as executor: # max_workers can be tuned based on system capabilities
-            # Map the `evaluate_donor` method to each donor index.
-            # `evaluate_donor` calculates the MSE for a single donor using SCM optimization.
-            mse_results_for_single_donors: List[Tuple[int, float]] = list(
-                executor.map(
-                    lambda i: self.evaluate_donor(i, list_of_all_donor_outcome_vectors_pre_treatment, treated_outcome_pre_treatment_vector, num_pre_treatment_periods),
-                    range(all_donors_outcomes_matrix_pre_treatment.shape[1]), # Iterate over all donor indices
-                )
-            )
-
-        # Sort the results by MSE (the second element of the tuple) in ascending order.
-        mse_results_for_single_donors.sort(key=lambda x: x[1])
-
-        # Handle the case where no donors were successfully evaluated (e.g., if the donor matrix was empty).
-        if not mse_results_for_single_donors:
-            raise MlsynthEstimationError("No donor units were successfully evaluated in the initial parallel step.")
-
-        # Initialize the best donor set with the single best donor found.
-        best_single_donor_index, best_initial_mse = mse_results_for_single_donors[0] # Get index and MSE of the best single donor
-        current_best_donor_index_set = [best_single_donor_index] # The initial best set contains only this donor
-        current_best_mse = best_initial_mse # This MSE is the sum of squared errors (V'V from SCopt), not yet RMSE.
-
-        # Step 2: Iterative Forward Selection - Add more donors to the pool if they improve the fit.
-        # Prepare sets of all donor indices and the remaining donors to try adding to the current best set.
-        set_of_all_donor_indices: set[int] = set(range(all_donors_outcomes_matrix_pre_treatment.shape[1]))
-        set_of_remaining_donor_indices_to_try: set[int] = set_of_all_donor_indices - set(current_best_donor_index_set)
-
-        current_best_donor_index_combination: List[int] = current_best_donor_index_set # Track the current optimal combination of donor indices
-        mse_for_current_best_combination: float = current_best_mse # Track the MSE for this combination
-
-        # Iterate through the remaining donor units, trying to add each one to the current best set.
-        for candidate_donor_index_to_add in set_of_remaining_donor_indices_to_try:
-            # Create a candidate donor set by adding the new donor to the current best combination.
-            candidate_donor_index_set_for_evaluation: List[int] = current_best_donor_index_combination + [candidate_donor_index_to_add]
-            # Get the outcome matrix for this candidate set of donors.
-            outcomes_matrix_for_candidate_donor_set: np.ndarray = all_donors_outcomes_matrix_pre_treatment[:, candidate_donor_index_set_for_evaluation]
-
-            try:
-                # Perform SCM optimization (SIMPLEX constraint) for the candidate donor set.
-                optimization_problem_result = Opt.SCopt(
-                    len(candidate_donor_index_set_for_evaluation), # Number of donors in the candidate set
-                    treated_outcome_pre_treatment_vector,
-                    num_pre_treatment_periods,
-                    outcomes_matrix_for_candidate_donor_set,
-                    scm_model_type="SIMPLEX" # Use SIMPLEX for constrained optimization (weights sum to 1, non-negative)
-                )
-                # Check if the optimization was successful and yielded an optimal value (MSE).
-                if optimization_problem_result.solution.opt_val is None:
-                    # If optimization failed or didn't converge, treat MSE as infinite for this candidate.
-                    current_mse_for_candidate_set = float('inf')
-                else:
-                    # `opt_val` from SCopt is typically the sum of squared errors (V'V).
-                    current_mse_for_candidate_set = optimization_problem_result.solution.opt_val
-            except cp.error.SolverError as e: # Handle CVXPY solver errors specifically.
-                current_mse_for_candidate_set = float('inf') # Treat MSE as infinite if solver fails.
-                print(f"Warning: CVXPY solver error during forward selection for donor set {candidate_donor_index_set_for_evaluation}: {e}") # Log a warning.
-            except Exception as e: # Handle other unexpected errors during optimization.
-                raise MlsynthEstimationError(f"Unexpected error during SCM optimization in forward selection for donor set {candidate_donor_index_set_for_evaluation}: {e}") from e
-
-            # If the MSE for the current candidate set is better (lower) than the MSE of the current best combination,
-            # update the best combination and its MSE.
-            if current_mse_for_candidate_set < mse_for_current_best_combination: # Comparing sum of squared errors directly
-                mse_for_current_best_combination = current_mse_for_candidate_set
-                current_best_donor_index_combination = candidate_donor_index_set_for_evaluation
-
-        # Ensure that an optimal combination of donors was found (should always be true if at least one donor exists).
-        if not current_best_donor_index_combination:
-            raise MlsynthEstimationError("Optimal combination of donors could not be determined after forward selection.")
-
-        # Step 3: Final Optimization with the Selected Optimal Donor Set.
-        # The `current_best_donor_index_combination` now holds the indices of the final selected donors.
-        final_optimal_donor_indices: List[int] = current_best_donor_index_combination
-        # Get the outcome matrix for this final optimal set of donors.
-        outcomes_matrix_for_final_optimal_donors: np.ndarray = all_donors_outcomes_matrix_pre_treatment[:, final_optimal_donor_indices]
-
-        try:
-            # Perform the final SCM optimization using the selected optimal donor set to get the final weights and MSE.
-            final_optimization_result = Opt.SCopt(
-                len(final_optimal_donor_indices),
-                treated_outcome_pre_treatment_vector,
-                num_pre_treatment_periods,
-                outcomes_matrix_for_final_optimal_donors,
-                scm_model_type="SIMPLEX"
-            )
-            # Check if donor weights were successfully obtained from the optimization.
-            if final_optimization_result.solution.primal_vars is None or not final_optimization_result.solution.primal_vars:
-                raise MlsynthEstimationError("Final SCM optimization did not yield donor weights.")
-
-            # Extract the optimal donor weights.
-            # `primal_vars` is a dictionary; the weights are typically the value associated with the first (and likely only) key.
-            first_key = list(final_optimization_result.solution.primal_vars.keys())[0]
-            final_optimal_donor_weights_array: np.ndarray = final_optimization_result.solution.primal_vars[first_key]
-
-            # Check if an optimal MSE value was obtained and calculate the Root Mean Squared Error (RMSE).
-            if final_optimization_result.solution.opt_val is None:
-                 raise MlsynthEstimationError("Final SCM optimization did not yield an optimal value (MSE).")
-            final_mse = final_optimization_result.solution.opt_val # This is the Sum of Squared Errors (V'V).
-            # Calculate RMSE from the final MSE.
-            final_optimal_rmse = np.sqrt(final_mse / num_pre_treatment_periods) if num_pre_treatment_periods > 0 else float('inf')
-
-        except cp.error.SolverError as e: # Handle CVXPY solver errors in the final optimization.
-            raise MlsynthEstimationError(f"CVXPY solver error during final SCM optimization: {e}") from e
-        except Exception as e: # Handle other unexpected errors in the final optimization.
-            raise MlsynthEstimationError(f"Unexpected error during final SCM optimization: {e}") from e
-
-        # Return the selected donor indices, their weights, the final RMSE, the outcome matrix for these donors,
-        # and the original treated outcome vector (for consistency, though it's an input).
-        return final_optimal_donor_indices, final_optimal_donor_weights_array, final_optimal_rmse, outcomes_matrix_for_final_optimal_donors, treated_outcome_pre_treatment_vector
-
-    def fit(self) -> BaseEstimatorResults: # Main method to fit the FSCM estimator
+    def fit(self) -> BaseEstimatorResults:  # Main method to fit the FSCM estimator
         """
         Fits the Forward Selected Synthetic Control Method (FSCM) model.
 
@@ -553,13 +355,13 @@ class FSCM:
         """
         try:
             # Step 1: Validate data balance (ensures each unit has the same time periods)
-            balance(self.df, self.unitid, self.time) # This can raise MlsynthDataError
+            balance(self.df, self.unitid, self.time)  # This can raise MlsynthDataError
 
             # Step 2: Prepare data using the dataprep utility
             # This separates data into treated/control, pre/post periods, and formats it.
             prepared_data_dict: Dict[str, Any] = dataprep(
                 self.df, self.unitid, self.time, self.outcome, self.treat
-            ) # This can raise MlsynthDataError or MlsynthConfigError
+            )  # This can raise MlsynthDataError or MlsynthConfigError
             # Step 3: Perform essential checks on the output of dataprep
             required_keys = ["donor_matrix", "pre_periods", "y", "donor_names", "treated_unit_name"]
             for key in required_keys:
@@ -584,116 +386,206 @@ class FSCM:
             if all_donors_outcomes_matrix_pre_treatment.shape[1] == 0:
                 raise MlsynthEstimationError("No donor units available after data preparation.")
 
-            # Step 4: Run FSCM to get selected donor indices and weights
-            (
-                selected_optimal_donor_indices,
-                selected_donor_weights,
-                final_pre_treatment_rmse,
-                outcomes_matrix_for_optimal_donors_pre_treatment,
-                _,
-            ) = self.fSCM(
-                treated_outcome_pre_treatment_vector,
-                all_donors_outcomes_matrix_pre_treatment,
-                num_pre_treatment_periods,
-            )
-
-            # Step 5: Convert short weights to full-length vector w0
-            n_donors_total = all_donors_outcomes_matrix_pre_treatment.shape[1]
-            w0 = np.zeros(n_donors_total)
-            for idx, donor_idx in enumerate(selected_optimal_donor_indices):
-                w0[donor_idx] = selected_donor_weights[idx]
-
-            # Step 6: Optionally apply affine refinement (with full-length weights)
             if self.use_augmented:
-                w0[np.abs(w0) < 0.001] = 0.0  # Zero out small weights
-                w0, beta_opt = fit_affine_hull_scm(
-                    prepared_data_dict["donor_matrix"][:num_pre_treatment_periods],
-                    prepared_data_dict["y"][:num_pre_treatment_periods],
-                    w0
+                selected_optimal_donor_indices, w_augmented, w_original = fSCM(
+                    treated_outcome_pre_treatment_vector,
+                    all_donors_outcomes_matrix_pre_treatment,
+                    num_pre_treatment_periods,
+                    augmented=True
+                )
+                # Compute both counterfactuals
+                y_hat_fscm = np.dot(prepared_data_dict["donor_matrix"], w_original)
+                y_hat_aug = np.dot(prepared_data_dict["donor_matrix"], w_augmented)
+
+                # Calculate effects for both
+                effects_fscm, fit_fscm, vectors_fscm = effects.calculate(
+                    prepared_data_dict["y"],
+                    y_hat_fscm,
+                    prepared_data_dict["pre_periods"],
+                    prepared_data_dict["post_periods"],
                 )
 
-            # Step 7: Construct counterfactual with full-length weights
-            # Get outcome data for *all* donors across all time periods
-            all_donors_outcomes_all_periods = prepared_data_dict["donor_matrix"]
+                effects_aug, fit_aug, vectors_aug = effects.calculate(
+                    prepared_data_dict["y"],
+                    y_hat_aug,
+                    prepared_data_dict["pre_periods"],
+                    prepared_data_dict["post_periods"],
+                )
 
-            if all_donors_outcomes_all_periods.shape[1] != len(w0):
-                raise MlsynthEstimationError("Mismatch between donor matrix width and weight vector length.")
+                # Package both
+                raw_estimation_output_dict = {
+                    "Effects (FSCM)": effects_fscm,
+                    "Fit (FSCM)": fit_fscm,
+                    "Vectors (FSCM)": vectors_fscm,
+                    "Effects (Augmented)": effects_aug,
+                    "Fit (Augmented)": fit_aug,
+                    "Vectors (Augmented)": vectors_aug,
+                    "Weights": [
+                        {
+                            "Donor Weights (FSCM)": {
+                                name: round(weight, 3)
+                                for name, weight in zip(prepared_data_dict["donor_names"], w_original)
+                            },
+                            "Donor Weights (Augmented)": {
+                                name: round(weight, 3)
+                                for name, weight in zip(prepared_data_dict["donor_names"], w_augmented)
+                            },
+                        },
+                        {
+                            "Cardinality (FSCM)": int(np.sum(np.abs(w_original) > 0.001)),
+                            "Cardinality (Augmented)": int(np.sum(np.abs(w_augmented) > 0.001)),
+                        },
+                    ],
+                }
 
-            full_counterfactual_outcome_fscm = np.dot(all_donors_outcomes_all_periods, w0)
-            # Step 6: Prepare donor names and weights for results
-            all_donor_names_from_prepared_data: List[str] = prepared_data_dict["donor_names"]
+                # Use w_augmented as the primary weights for downstream summary
+                final_weight_vector = w_augmented
 
-            # Ensure all donor names are strings
-            if not all(isinstance(name, str) for name in all_donor_names_from_prepared_data):
-                raise MlsynthEstimationError("Donor names from dataprep are not all strings.")
-
-            # Use full-length weight vector w0 if affine refinement was used
-            if self.use_augmented:
-                final_weight_vector = w0
             else:
-                # Otherwise, construct full-length weight vector from selected donors
-                final_weight_vector = np.zeros(len(all_donor_names_from_prepared_data))
-                for idx, donor_idx in enumerate(selected_optimal_donor_indices):
-                    final_weight_vector[donor_idx] = selected_donor_weights[idx]
-                # Optional: Set near-zero weights to zero
-                final_weight_vector[np.abs(final_weight_vector) < 0.001] = 0.0
+                selected_optimal_donor_indices, w0 = fSCM(
+                    treated_outcome_pre_treatment_vector,
+                    all_donors_outcomes_matrix_pre_treatment,
+                    num_pre_treatment_periods,
+                    augmented=False
+                )
 
-            # Create a dictionary mapping all donor names to their weights (rounded for display)
-            final_donor_weights_map_for_results: Dict[str, float] = {
-                donor_name: round(weight, 3)
-                for donor_name, weight in zip(all_donor_names_from_prepared_data, final_weight_vector)
-            }
+                y_hat_fscm = np.dot(prepared_data_dict["donor_matrix"], w0)
 
-            # Step 7: Calculate overall effects, fit diagnostics, and time series components
-            calculated_effects_fscm, calculated_fit_diagnostics_fscm, calculated_time_series_components_fscm = effects.calculate(
-                prepared_data_dict["y"],  # Observed outcome for treated unit
-                full_counterfactual_outcome_fscm,  # Synthetic counterfactual
-                prepared_data_dict["pre_periods"],  # Pre-treatment length
-                prepared_data_dict["post_periods"],  # Post-treatment length
-            )
+                effects_fscm, fit_fscm, vectors_fscm = effects.calculate(
+                    prepared_data_dict["y"],
+                    y_hat_fscm,
+                    prepared_data_dict["pre_periods"],
+                    prepared_data_dict["post_periods"],
+                )
 
-            # Step 8: Package raw results into a dictionary for return or downstream analysis
-            raw_estimation_output_dict = {
-                "Effects": calculated_effects_fscm,
-                "Fit": calculated_fit_diagnostics_fscm,
-                "Vectors": calculated_time_series_components_fscm,
-                "Weights": [
-                    final_donor_weights_map_for_results,
-                    {
-                        "Cardinality of Positive Donors": int(np.sum(np.abs(final_weight_vector) > 0.001)),
-                        "Cardinality of Selected Donor Pool": int(len(selected_optimal_donor_indices)),
-                    },
-                ],
-            }
+                raw_estimation_output_dict = {
+                    "Effects": effects_fscm,
+                    "Fit": fit_fscm,
+                    "Vectors": vectors_fscm,
+                    "Weights": [
+                        {
+                            name: round(weight, 3)
+                            for name, weight in zip(prepared_data_dict["donor_names"], w0)
+                        },
+                        {
+                            "Cardinality": int(np.sum(np.abs(w0) > 0.001)),
+                        },
+                    ],
+                }
 
-            # Step 9: Construct the final standardized results object
-            fscm_estimator_results_obj = self._create_estimator_results(
-                raw_estimation_output=raw_estimation_output_dict,
+            # Create FSCM results
+
+            if self.use_augmented:
+
+                raw_estimation_outputfscm = {
+                    "Effects": raw_estimation_output_dict["Effects (FSCM)"],
+                    "Fit": raw_estimation_output_dict["Fit (FSCM)"],
+                    "Vectors": raw_estimation_output_dict["Vectors (FSCM)"],
+                    "Weights": raw_estimation_output_dict['Weights'][0]['Donor Weights (FSCM)'],
+                }
+            else:
+
+                raw_estimation_outputfscm = {
+                    "Effects": raw_estimation_output_dict["Effects"],
+                    "Fit": raw_estimation_output_dict["Fit"],
+                    "Vectors": raw_estimation_output_dict["Vectors"],
+                    "Weights": raw_estimation_output_dict['Weights'][0],
+                }
+
+            if self.use_augmented:
+                w0 = w_original
+
+            fscm_results = self._create_estimator_results(
+                raw_estimation_output=raw_estimation_outputfscm,
                 prepared_data_dict=prepared_data_dict,
                 selected_optimal_donor_indices=selected_optimal_donor_indices,
-                final_pre_treatment_rmse=final_pre_treatment_rmse,
-                optimal_donor_weights_array=final_weight_vector,
+                final_pre_treatment_rmse=raw_estimation_outputfscm['Fit']['T0 RMSE'],
+                optimal_donor_weights_array=w0,
                 names_of_selected_donors=[
-                    name for name, weight in zip(all_donor_names_from_prepared_data, final_weight_vector) if
-                    abs(weight) > 0.001
-                ]
+                    name for name, weight in zip(prepared_data_dict['donor_names'], w0)
+                    if abs(weight) > 0.001
+                ],
             )
+
+            if self.use_augmented:
+
+                raw_estimation_outputasc = {
+                    "Effects": raw_estimation_output_dict["Effects (Augmented)"],
+                    "Fit": raw_estimation_output_dict["Fit (Augmented)"],
+                    "Vectors": raw_estimation_output_dict["Vectors (Augmented)"],
+                    "Weights": raw_estimation_output_dict['Weights'][0]['Donor Weights (Augmented)'],
+                }
+
+                # Create Augmented results
+                augmented_results = self._create_estimator_results(
+                    raw_estimation_output=raw_estimation_outputasc,
+                    prepared_data_dict=prepared_data_dict,
+                    selected_optimal_donor_indices=selected_optimal_donor_indices,
+                    final_pre_treatment_rmse=raw_estimation_output_dict['Fit (Augmented)']['T0 RMSE'],
+                    optimal_donor_weights_array=w_augmented,
+                    names_of_selected_donors=[
+                        name for name, weight in zip(prepared_data_dict['donor_names'], w_augmented)
+                        if abs(weight) > 0.001
+                    ],
+                )
+
+                # Return a parent results object with sub-method results keyed by method name
+                fscm_estimator_results_obj = BaseEstimatorResults(
+                    method_details=MethodDetailsResults(
+                        name="FSCM",
+                        parameters_used={
+                            "note": "This is a composite result with FSCM and Augmented sub-methods."}
+                    ),
+                    sub_method_results={
+                        "FSCM": fscm_results,
+                        "Augmented": augmented_results,
+                    },
+                    raw_results=raw_estimation_output_dict,  # raw dict includes both methods
+                )
+
+            else:
+
+                # Return a parent results object with sub-method results keyed by method name
+                fscm_estimator_results_obj = BaseEstimatorResults(
+                    method_details=MethodDetailsResults(
+                        name="FSCM",
+                        parameters_used={
+                            "note": "This is a composite result with FSCM and Augmented sub-methods."}
+                    ),
+                    sub_method_results={
+                        "FSCM": fscm_results
+                    },
+                    raw_results=raw_estimation_output_dict,  # raw dict includes both methods
+                )
+
         # Step 10: Handle specific and general exceptions during the fitting process.
-        except (MlsynthDataError, MlsynthConfigError) as e: # Propagate custom Mlsynth errors directly.
+        except (MlsynthDataError, MlsynthConfigError) as e:  # Propagate custom Mlsynth errors directly.
             raise e
-        except KeyError as e: # Handle errors due to missing keys in data structures.
+        except KeyError as e:  # Handle errors due to missing keys in data structures.
             raise MlsynthEstimationError(f"Missing expected key in data structures: {e}") from e
-        except IndexError as e: # Handle errors due to invalid indexing.
-            raise MlsynthEstimationError(f"Index out of bounds, likely during donor selection or data processing: {e}") from e
-        except ValueError as e: # Catch other ValueErrors (e.g., from np.dot if shapes mismatch).
+        except IndexError as e:  # Handle errors due to invalid indexing.
+            raise MlsynthEstimationError(
+                f"Index out of bounds, likely during donor selection or data processing: {e}") from e
+        except ValueError as e:  # Catch other ValueErrors (e.g., from np.dot if shapes mismatch).
             raise MlsynthEstimationError(f"ValueError during FSCM estimation: {e}") from e
-        except Exception as e: # Catch-all for any other unexpected errors.
+        except Exception as e:  # Catch-all for any other unexpected errors.
             raise MlsynthEstimationError(f"An unexpected error occurred during FSCM fitting: {e}") from e
 
         # Step 11: Display graphs if requested by the user configuration.
         try:
+
             if self.display_graphs:
-                counterfactual_vector_for_plot = full_counterfactual_outcome_fscm
+
+                if self.use_augmented:
+                    counterfactual_vector_for_plot = [
+                        fscm_estimator_results_obj.sub_method_results['FSCM'].time_series.counterfactual_outcome.flatten(),
+                        fscm_estimator_results_obj.sub_method_results[
+                            'Augmented'].time_series.counterfactual_outcome.flatten()]
+                    cflist = ["FSCM", "FASC"]
+                else:
+                    counterfactual_vector_for_plot = [
+                        fscm_estimator_results_obj.sub_method_results['FSCM'].time_series.counterfactual_outcome.flatten()]
+                    cflist = ["FSCM"]
 
                 plot_estimates(
                     processed_data_dict=prepared_data_dict,
@@ -703,18 +595,18 @@ class FSCM:
                     treatment_name_label=self.treat,
                     treated_unit_name=prepared_data_dict["treated_unit_name"],
                     observed_outcome_series=prepared_data_dict["y"],  # Observed outcome vector.
-                    counterfactual_series_list=[counterfactual_vector_for_plot.flatten()],  # List of counterfactual vectors.
+                    counterfactual_series_list=counterfactual_vector_for_plot,  # List of counterfactual vectors.
                     estimation_method_name="FSCM",
-                    counterfactual_names=["Forward SCM"],  # Names for legend.
+                    counterfactual_names=cflist,  # Names for legend.
                     treated_series_color=self.treated_color,
                     counterfactual_series_colors=self.counterfactual_color,
                     save_plot_config=self.save)
-                
-        except MlsynthPlottingError as e: # Handle specific plotting errors defined in Mlsynth.
+
+        except MlsynthPlottingError as e:  # Handle specific plotting errors defined in Mlsynth.
             print(f"Warning: Plotting failed with MlsynthPlottingError: {e}")
-        except MlsynthDataError as e: # Handle data-related errors that might occur during plotting.
+        except MlsynthDataError as e:  # Handle data-related errors that might occur during plotting.
             print(f"Warning: Plotting failed due to data issues: {e}")
-        except Exception as e: # Catch-all for any other unexpected errors during plotting.
+        except Exception as e:  # Catch-all for any other unexpected errors during plotting.
             print(f"Warning: An unexpected error occurred during plotting: {e}")
-            
+
         return fscm_estimator_results_obj
