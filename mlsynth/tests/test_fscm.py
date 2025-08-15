@@ -14,7 +14,7 @@ from mlsynth.exceptions import (
     MlsynthEstimationError,
     MlsynthPlottingError,
 )
-from ..utils.estutils import fSCM
+from mlsynth.utils.estutils import fSCM
 
 # Base configuration dictionary containing all parameters used in tests.
 # We will extract Pydantic-valid fields from this for FSCMConfig instantiation.
