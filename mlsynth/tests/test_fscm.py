@@ -14,7 +14,7 @@ from mlsynth.exceptions import (
     MlsynthEstimationError,
     MlsynthPlottingError,
 )
-
+from ..utils.estutils import fSCM
 
 # Base configuration dictionary containing all parameters used in tests.
 # We will extract Pydantic-valid fields from this for FSCMConfig instantiation.
@@ -288,7 +288,7 @@ def test_fscm_fit_no_donors_after_dataprep(basic_panel_data_with_treatment: pd.D
         with pytest.raises(MlsynthEstimationError, match="No donor units available after data preparation."):
             estimator.fit()
 
-@patch('mlsynth.estimators.fscm.FSCM.fSCM')
+@patch('mlsynth.utils.estutils.fSCM')
 def test_fscm_fit_fscm_method_raises_error(mock_fscm_method, basic_panel_data_with_treatment: pd.DataFrame):
     """Test fit handles errors from the internal fSCM optimization method."""
     pydantic_dict = _get_pydantic_config_dict(FSCM_FULL_TEST_CONFIG_BASE, basic_panel_data_with_treatment)
