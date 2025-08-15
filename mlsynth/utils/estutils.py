@@ -4321,7 +4321,7 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50):
         return np.sqrt(np.mean(residuals ** 2))
 
     # Search log10(beta) in [-4, 3] → beta in [1e-4, 1e3]
-    search_space = [Real(np.log10(1e-4), np.log10(1e3), name='log_beta')]
+    search_space = [Real(np.log10(1e-2), np.log10(1e3), name='log_beta')]
     result = gp_minimize(
         objective,
         search_space,
@@ -4340,3 +4340,125 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50):
     prob_final.solve(warm_start=True)
 
     return w_final.value, best_beta
+
+
+
+def fSCM(
+        self,
+        treated_outcome_pre_treatment_vector: np.ndarray,
+        all_donors_outcomes_matrix_pre_treatment: np.ndarray,
+        num_pre_treatment_periods: int,
+        augmented: bool = False,
+) -> Tuple[List[int], np.ndarray, float, np.ndarray, np.ndarray]:
+    """
+    Forward Selection SCM with optional affine refinement (augmented).
+    If augmented=True, refine weights via affine hull SCM warm-started at forward selection weights.
+    """
+
+    J = all_donors_outcomes_matrix_pre_treatment.shape[1]
+    all_indices = set(range(J))
+    selected_indices: List[int] = []
+
+    best_overall_rmse = float("inf")
+    best_overall_indices = []
+    best_overall_weights = None
+    best_overall_matrix = None
+
+    current_indices = []
+
+    for _ in range(J):
+        best_candidate_mse = float("inf")
+        best_candidate_index = None
+
+        for j in all_indices - set(current_indices):
+            candidate_indices = current_indices + [j]
+            candidate_matrix = all_donors_outcomes_matrix_pre_treatment[:, candidate_indices]
+
+            try:
+                result = Opt.SCopt(
+                    len(candidate_indices),
+                    treated_outcome_pre_treatment_vector,
+                    num_pre_treatment_periods,
+                    candidate_matrix,
+                    scm_model_type="SIMPLEX"
+                )
+                mse = result.solution.opt_val if result.solution.opt_val is not None else float("inf")
+            except cp.error.SolverError as e:
+                print(f"Warning: CVXPY solver error for donor set {candidate_indices}: {e}")
+                continue
+            except Exception as e:
+                raise MlsynthEstimationError(
+                    f"Unexpected error during SCM optimization with donor set {candidate_indices}: {e}"
+                ) from e
+
+            if mse < best_candidate_mse:
+                best_candidate_mse = mse
+                best_candidate_index = j
+
+        if best_candidate_index is None:
+            break  # All candidates failed or returned inf
+
+        current_indices.append(best_candidate_index)
+        current_matrix = all_donors_outcomes_matrix_pre_treatment[:, current_indices]
+
+        try:
+            result = Opt.SCopt(
+                len(current_indices),
+                treated_outcome_pre_treatment_vector,
+                num_pre_treatment_periods,
+                current_matrix,
+                scm_model_type="SIMPLEX"
+            )
+
+            if not result.solution.primal_vars:
+                continue
+
+            key = next(iter(result.solution.primal_vars))
+            weights = result.solution.primal_vars[key]
+
+            if result.solution.opt_val is None:
+                continue
+
+            rmse = np.sqrt(result.solution.opt_val / num_pre_treatment_periods)
+
+            if rmse < best_overall_rmse:
+                best_overall_rmse = rmse
+                best_overall_indices = current_indices.copy()
+                best_overall_weights = weights
+                best_overall_matrix = current_matrix
+
+        except cp.error.SolverError as e:
+            print(f"Warning: CVXPY solver error during final evaluation: {e}")
+            continue
+        except Exception as e:
+            raise MlsynthEstimationError(
+                f"Unexpected error during final evaluation with donor set {current_indices}: {e}"
+            ) from e
+
+    if not best_overall_indices:
+        raise MlsynthEstimationError("Forward selection failed to find any valid donor subset.")
+
+    full_weights = np.zeros(all_donors_outcomes_matrix_pre_treatment.shape[1])
+    full_weights[np.array(best_overall_indices)] = best_overall_weights
+    full_weights[np.abs(full_weights) < 0.001] = 0.0
+
+    if not augmented:
+        # Return original forward selection results
+        return (
+            best_overall_indices,
+            full_weights
+        )
+    else:
+        # Run your affine hull SCM fit - warm start with w0
+        w_affine, beta_opt = fit_affine_hull_scm(
+            all_donors_outcomes_matrix_pre_treatment[:num_pre_treatment_periods],
+            treated_outcome_pre_treatment_vector,
+            full_weights
+        )
+
+        return (
+            best_overall_indices,
+            w_affine, full_weights
+        )
+
+
