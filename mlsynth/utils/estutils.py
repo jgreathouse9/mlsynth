@@ -1372,7 +1372,7 @@ def pcr(
         and SCM weight fitting. Default is 10.
     enable_clustering : bool, optional
         If True, perform SVD-based clustering on donors using pre-treatment data
-        before applying SVT and fitting SCM weights. Default is False.
+        before applying SVT and fitting SCM weights. Defaults to False.
     use_frequentist_scm : bool, optional
         If True, use a Frequentist SCM optimization approach (`Opt.SCopt`) to find
         weights. If False, use a Bayesian SCM approach (`BayesSCM`). Default is False.
@@ -4566,6 +4566,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
