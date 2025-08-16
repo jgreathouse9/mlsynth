@@ -1734,7 +1734,7 @@ class Opt:
         )
         
         problem_simplex = cp.Problem(objective_simplex, constraints_simplex)
-        problem_simplex.solve(solver=_SOLVER_CLARABEL_STR) # Solve the optimization problem
+        problem_simplex.solve(solver=cp.ECOS) # Solve the optimization problem
         return problem_simplex
 
     @staticmethod
@@ -4279,97 +4279,160 @@ def fit_l2_relaxation(X_pre, y_pre, tau):
     return w.value
 
 
-
-# Affine hull SCM fit function
-def fit_affine_hull_scm(X, y, w0, num_iterations=50):
+def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
     """
-    Fit affine-hull synthetic control weights using Bayesian optimization
-    over a regularization parameter β that penalizes distance from initial weights w0.
+    Fit affine-hull synthetic control weights using regularized optimization.
+
+    This method refines an initial weight vector `w0` (e.g., from vanilla SCM)
+    by solving a penalized least squares problem over the affine hull of the donor pool.
+    The refinement uses a ridge-type penalty that shrinks the solution towards `w0`.
+    The regularization strength (β) is selected via Bayesian optimization
+    over a split of the pre-treatment period.
+
+    The final output is a weight vector `w_affine` that minimizes:
+        || y - X @ w ||² + β * || w - w0 ||²
+    subject to:
+        sum(w) = 1
 
     Parameters
     ----------
     X : np.ndarray of shape (T0, J)
-        Pre-treatment donor matrix.
+        Matrix of pre-treatment outcomes for the J donor units over T0 time periods.
+        Each column corresponds to a donor unit.
     y : np.ndarray of shape (T0,)
-        Pre-treatment outcomes for treated unit.
+        Vector of pre-treatment outcomes for the treated unit.
     w0 : np.ndarray of shape (J,)
-        Initial weight vector (e.g. SCM weights).
-    num_iterations : int
-        Number of calls to the Bayesian optimizer.
+        Initial weight vector to shrink towards. Typically obtained from standard SCM.
+    num_iterations : int, default=50
+        Total number of objective evaluations used in Bayesian optimization.
+    num_initial : int, default=5
+        Number of initial random evaluations before the Gaussian Process surrogate is used.
 
     Returns
     -------
-    best_w : np.ndarray of shape (J,)
-        Optimal affine-hull weights.
+    w_affine : np.ndarray of shape (J,)
+        Optimized donor weights after affine-hull regularization.
     best_beta : float
-        Optimal regularization hyperparameter (beta).
+        Optimal regularization hyperparameter selected via cross-validation.
+
+    Notes
+    -----
+    - The optimization is performed in log₁₀(β) space over the range [1e-2, 1e3].
+    - The pre-treatment period is split in half for cross-validation:
+        - First half is used for fitting candidate weights.
+        - Second half is used to evaluate RMSE on validation residuals.
+    - The solution is constrained to lie in the affine hull (sum of weights = 1),
+      but weights are not required to be non-negative.
     """
-    T0, J = X.shape
-    split = T0 // 2
-    X_train, X_val = X[:split], X[split:]
-    y_train, y_val = y[:split], y[split:]
 
-    def objective(params):
-        log_beta = params[0]
-        beta = 10 ** log_beta
-        w = cp.Variable(J)
-        obj = cp.sum_squares(y_train - X_train @ w) + beta * cp.sum_squares(w - w0)
-        prob = cp.Problem(cp.Minimize(obj), [cp.sum(w) == 1])
-        prob.solve(warm_start=True)
-        w_candidate = w.value
-        residuals = y_val - X_val @ w_candidate
-        return np.sqrt(np.mean(residuals ** 2))
-
-    # Search log10(beta) in [-4, 3] → beta in [1e-4, 1e3]
-    search_space = [Real(np.log10(1e-2), np.log10(1e3), name='log_beta')]
-    result = gp_minimize(
-        objective,
-        search_space,
-        n_calls=num_iterations,
-        n_initial_points=10,
-        random_state=42
-    )
-
-    # Best beta found
-    best_beta = 10 ** result.x[0]
-
-    # Final model fit on full pre-treatment data
-    w_final = cp.Variable(J)
-    obj_full = cp.sum_squares(y - X @ w_final) + best_beta * cp.sum_squares(w_final - w0)
-    prob_final = cp.Problem(cp.Minimize(obj_full), [cp.sum(w_final) == 1])
-    prob_final.solve(warm_start=True)
-
-    return w_final.value, best_beta
 
 
 
 def fSCM(
-        treated_outcome_pre_treatment_vector: np.ndarray,
-        all_donors_outcomes_matrix_pre_treatment: np.ndarray,
-        num_pre_treatment_periods: int,
-        augmented: bool = False,
+    treated_outcome_pre_treatment_vector: np.ndarray,
+    all_donors_outcomes_matrix_pre_treatment: np.ndarray,
+    num_pre_treatment_periods: int,
+    augmented: bool = False,
+    full_selection: bool = True,
+    selection_fraction: float = 1.0,
+    bo_n_iter: int = 25,
+    bo_initial_evals: int = 5
 ) -> Tuple[List[int], np.ndarray, float, np.ndarray, np.ndarray]:
     """
-    Forward Selection SCM with optional affine refinement (augmented).
-    If augmented=True, refine weights via affine hull SCM warm-started at forward selection weights.
+    Perform Forward Selection Synthetic Control Method (FSCM), with optional
+    affine refinement (Augmented FSCM). Supports early stopping using
+    an information criterion (mBIC), or full model enumeration.
+
+    Parameters
+    ----------
+    treated_outcome_pre_treatment_vector : np.ndarray, shape (T0,)
+        Pre-treatment outcome vector for the treated unit.
+
+    all_donors_outcomes_matrix_pre_treatment : np.ndarray, shape (T0, J)
+        Pre-treatment outcome matrix for J donor units (each column is a donor).
+
+    num_pre_treatment_periods : int
+        Number of pre-treatment time periods (T0). Used for computing RMSE and mBIC.
+
+    augmented : bool, default=False
+        If True, refine the selected sparse weights using Affine Synthetic Control.
+        Returns additional weight vectors.
+
+    full_selection : bool, default=True
+        If True, performs full forward selection regardless of improvement in mBIC.
+        If False, stops early when mBIC no longer improves.
+
+    selection_fraction : float, default=1.0
+        Fraction of donor pool to consider for selection (0 < fraction <= 1).
+        Reduces computational cost by limiting number of donor units.
+
+    Returns
+    -------
+    If augmented is False:
+        selected_indices : List[int]
+            List of indices (column positions) of selected donor units.
+
+        full_weights : np.ndarray, shape (J,)
+            Final synthetic control weights over all donors (zeros for unselected donors).
+
+    If augmented is True:
+        selected_indices : List[int]
+            List of indices (column positions) of selected donor units.
+
+        refined_weights : np.ndarray, shape (J,)
+            Affine-refined weights based on sparse initialization.
+
+        initial_sparse_weights : np.ndarray, shape (J,)
+            Original sparse weights (before affine refinement).
+
+    Raises
+    ------
+    ValueError
+        If selection_fraction <= 0.
+
+    MlsynthEstimationError
+        If no valid donor subset could be found or unexpected errors occur during optimization.
+
+    Warnings
+    --------
+    RuntimeWarning
+        If `full_selection=True` or `selection_fraction=1.0` and the donor pool is large (>= 200),
+        a warning is raised due to high computational cost.
+
+    Notes
+    -----
+    - Internally uses forward selection based on mBIC (modified BIC) to iteratively select donors.
+    - Weights are computed using convex optimization (via CVXPY).
+    - If affine refinement is used, the final weights live in the affine hull of the selected donors
+      and are warm-started from the sparse weights.
     """
-
     J = all_donors_outcomes_matrix_pre_treatment.shape[1]
-    all_indices = set(range(J))
-    selected_indices: List[int] = []
+    if selection_fraction <= 0:
+        raise ValueError("selection_fraction must be > 0.")
 
+    selected_indices: List[int] = []
+    best_overall_mBIC = float("inf")
     best_overall_rmse = float("inf")
     best_overall_indices = []
     best_overall_weights = None
     best_overall_matrix = None
-
     current_indices = []
 
-    for _ in range(J):
+    # Warn if donor pool is large and full selection is requested
+    if (full_selection or selection_fraction >= 1.0) and J >= 200:
+        total_models_to_fit = (J * (J + 1)) // 2
+        warnings.warn(
+            f"[fSCM WARNING] Donor pool contains {J} units. "
+            f"Full forward selection will compute {total_models_to_fit} candidate models. "
+            f"To reduce runtime, consider setting `selection_fraction` < 1.0.",
+            RuntimeWarning
+        )
+
+    for _ in range(min(J, max(1, int(np.floor(J * selection_fraction))))):
         best_candidate_mse = float("inf")
         best_candidate_index = None
 
-        for j in all_indices - set(current_indices):
+        for j in set(range(J)) - set(current_indices):
             candidate_indices = current_indices + [j]
             candidate_matrix = all_donors_outcomes_matrix_pre_treatment[:, candidate_indices]
 
@@ -4382,8 +4445,7 @@ def fSCM(
                     scm_model_type="SIMPLEX"
                 )
                 mse = result.solution.opt_val if result.solution.opt_val is not None else float("inf")
-            except cp.error.SolverError as e:
-                print(f"Warning: CVXPY solver error for donor set {candidate_indices}: {e}")
+            except cp.error.SolverError:
                 continue
             except Exception as e:
                 raise MlsynthEstimationError(
@@ -4395,7 +4457,7 @@ def fSCM(
                 best_candidate_index = j
 
         if best_candidate_index is None:
-            break  # All candidates failed or returned inf
+            break  # All candidates failed
 
         current_indices.append(best_candidate_index)
         current_matrix = all_donors_outcomes_matrix_pre_treatment[:, current_indices]
@@ -4409,56 +4471,59 @@ def fSCM(
                 scm_model_type="SIMPLEX"
             )
 
-            if not result.solution.primal_vars:
+            if not result.solution.primal_vars or result.solution.opt_val is None:
                 continue
 
             key = next(iter(result.solution.primal_vars))
             weights = result.solution.primal_vars[key]
-
-            if result.solution.opt_val is None:
-                continue
-
             rmse = np.sqrt(result.solution.opt_val / num_pre_treatment_periods)
+            mse = rmse ** 2
+            k = len(current_indices)
+            mBIC = num_pre_treatment_periods * np.log(mse) + k * np.log(num_pre_treatment_periods)
 
+            # Update the best RMSE solution regardless of mBIC
             if rmse < best_overall_rmse:
                 best_overall_rmse = rmse
                 best_overall_indices = current_indices.copy()
                 best_overall_weights = weights
                 best_overall_matrix = current_matrix
 
-        except cp.error.SolverError as e:
-            print(f"Warning: CVXPY solver error during final evaluation: {e}")
+            # mBIC governs early stopping
+            if mBIC < best_overall_mBIC:
+                best_overall_mBIC = mBIC
+            else:
+                if not full_selection:
+                    break  # Early stop
+
+        except cp.error.SolverError:
             continue
         except Exception as e:
             raise MlsynthEstimationError(
-                f"Unexpected error during final evaluation with donor set {current_indices}: {e}"
+                f"Unexpected error during evaluation with donor set {current_indices}: {e}"
             ) from e
 
     if not best_overall_indices:
         raise MlsynthEstimationError("Forward selection failed to find any valid donor subset.")
 
-    full_weights = np.zeros(all_donors_outcomes_matrix_pre_treatment.shape[1])
+    full_weights = np.zeros(J)
     full_weights[np.array(best_overall_indices)] = best_overall_weights
     full_weights[np.abs(full_weights) < 0.001] = 0.0
 
     if not augmented:
-        # Return original forward selection results
         return (
             best_overall_indices,
             full_weights
         )
     else:
-        # Run your affine hull SCM fit - warm start with w0
         w_affine, beta_opt = fit_affine_hull_scm(
             all_donors_outcomes_matrix_pre_treatment[:num_pre_treatment_periods],
             treated_outcome_pre_treatment_vector,
-            full_weights
+            full_weights, num_iterations=bo_n_iter,
+            num_initial=bo_initial_evals
         )
-
         return (
             best_overall_indices,
-            w_affine, full_weights
+            w_affine,
+            full_weights
         )
-
-
 
