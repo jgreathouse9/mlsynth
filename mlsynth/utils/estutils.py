@@ -4324,7 +4324,42 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
     - The solution is constrained to lie in the affine hull (sum of weights = 1),
       but weights are not required to be non-negative.
     """
+    T0, J = X.shape
+    split = T0 // 2
+    X_train, X_val = X[:split], X[split:]
+    y_train, y_val = y[:split], y[split:]
 
+    def objective(params):
+        log_beta = params[0]
+        beta = 10 ** log_beta
+        w = cp.Variable(J)
+        obj = cp.sum_squares(y_train - X_train @ w) + beta * cp.sum_squares(w - w0)
+        prob = cp.Problem(cp.Minimize(obj), [cp.sum(w) == 1])
+        prob.solve(warm_start=True)
+        w_candidate = w.value
+        residuals = y_val - X_val @ w_candidate
+        return np.sqrt(np.mean(residuals ** 2))
+
+    # Search log10(beta) in [-4, 3] → beta in [1e-4, 1e3]
+    search_space = [Real(np.log10(1e-2), np.log10(1e3), name='log_beta')]
+    result = gp_minimize(
+        objective,
+        search_space,
+        n_calls=num_iterations,
+        n_initial_points=10,
+        random_state=42
+    )
+
+    # Best beta found
+    best_beta = 10 ** result.x[0]
+
+    # Final model fit on full pre-treatment data
+    w_final = cp.Variable(J)
+    obj_full = cp.sum_squares(y - X @ w_final) + best_beta * cp.sum_squares(w_final - w0)
+    prob_final = cp.Problem(cp.Minimize(obj_full), [cp.sum(w_final) == 1])
+    prob_final.solve(warm_start=True)
+
+    return w_final.value, best_beta
 
 
 
@@ -4526,6 +4561,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
