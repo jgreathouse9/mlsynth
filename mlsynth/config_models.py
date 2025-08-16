@@ -155,10 +155,71 @@ class PROXIMALConfig(BaseEstimatorConfig):
 class FSCMConfig(BaseEstimatorConfig):
     """
     Configuration for the Forward Selected Synthetic Control Method (FSCM) estimator.
-    This estimator currently uses only the common configuration parameters.
+    This estimator supports sparse model selection using mBIC, with optional
+    full selection and affine refinement (augmented FSCM).
+
+    References
+    ----------
+    Shi, Zhentao, and Jingyi Huang. 2023.
+    "Forward-selected panel data approach for program evaluation."
+    Journal of Econometrics 234 (2): 512–535.
+    https://doi.org/10.1016/j.jeconom.2021.04.009
+
+    Cerulli, Giovanni. 2024.
+    “Optimal initial donor selection for the synthetic control method.”
+    Economics Letters, 244: 111976.
+    https://doi.org/10.1016/j.econlet.2024.111976
+
+    Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
+    "The Augmented Synthetic Control Method."
+    Journal of the American Statistical Association 116 (536): 1789–1803.
+    https://doi.org/10.1080/01621459.2021.1929245
     """
-    use_augmented: bool = Field(default=False, description="Use Augmented FSCM variant.")
-    pass
+
+    use_augmented: bool = Field(
+        default=False,
+        description=(
+            "If True, refine selected sparse weights using Affine Synthetic Control "
+            "(Augmented FSCM). Uses ridge regularization tuned via Bayesian optimization."
+        )
+    )
+
+    full_selection: bool = Field(
+        default=True,
+        description=(
+            "If True, performs full forward selection through all possible models. "
+            "If False, stops early once mBIC no longer improves."
+        )
+    )
+
+    selection_fraction: float = Field(
+        default=1.0,
+        ge=0.01,
+        le=1.0,
+        description=(
+            "Fraction (0 < fraction ≤ 1.0) of donor pool to consider during forward selection. "
+            "Reduces computation time by limiting candidate donor units. "
+            "Use values < 1.0 for high-dimensional donor settings."
+        )
+    )
+
+    bo_n_iter: int = Field(
+        default=25,
+        ge=1,
+        description=(
+            "Number of iterations for Bayesian optimization of the ridge penalty "
+            "used in affine refinement."
+        )
+    )
+
+    bo_initial_evals: int = Field(
+        default=5,
+        ge=1,
+        description=(
+            "Number of initial random evaluations before fitting the surrogate model "
+            "in Bayesian optimization."
+        )
+    )
 
 class SRCConfig(BaseEstimatorConfig):
     """
@@ -348,5 +409,6 @@ class BaseEstimatorResults(BaseModel):
             np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()] if arr is not None else None
             # This explicitly converts np.nan (which becomes float('nan') in tolist()) to Python None.
         }
+
 
 
