@@ -121,7 +121,9 @@ class FSCM:
         config : FSCMConfig
             A Pydantic model instance containing all configuration parameters
             for the FSCM estimator. `FSCMConfig` inherits from `BaseEstimatorConfig`.
-            The fields include:
+
+            Core panel data structure:
+            --------------------------
             df : pd.DataFrame
                 The input panel data. Must contain columns for outcome, treatment
                 indicator, unit identifier, and time identifier.
@@ -133,6 +135,9 @@ class FSCM:
                 Name of the unit identifier (e.g., country, individual ID) column in `df`.
             time : str
                 Name of the time period column in `df`.
+
+            Plotting and display:
+            ---------------------
             display_graphs : bool, default=True
                 Whether to display plots of the results after fitting.
             save : Union[bool, str], default=False
@@ -140,11 +145,45 @@ class FSCM:
                 If a string, it's used as a prefix for saved plot filenames.
             counterfactual_color : str, default="red"
                 Color for the counterfactual line(s) in plots.
-                (Note: The internal `plot_estimates` function might handle a list of colors,
-                but `FSCMConfig` defines it as `str`).
             treated_color : str, default="black"
                 Color for the treated unit line in plots.
+
+            Forward selection configuration:
+            --------------------------------
+            use_augmented : bool, default=False
+                Whether to refine weights after selection using affine hull optimization.
+            selection_fraction : float, default=1.0
+                Fraction of the donor pool to use in forward selection. Reducing this can
+                substantially reduce runtime in high-dimensional settings.
+            full_selection : bool, default=False
+                Whether to force forward selection to run through all possible donor subsets,
+                even after mBIC fails to improve. Can be computationally expensive.
+
+            Affine refinement tuning (used only if `use_augmented=True`):
+            -------------------------------------------------------------
+            bo_n_iter : int, default=25
+                Number of iterations to run in Bayesian optimization.
+            bo_initial_evals : int, default=5
+                Number of initial random evaluations before surrogate modeling begins.
+
+        References
+        ----------
+        Shi, Zhentao, and Jingyi Huang. 2023.
+        "Forward-selected panel data approach for program evaluation."
+        Journal of Econometrics 234 (2): 512–535.
+        https://doi.org/10.1016/j.jeconom.2021.04.009
+
+        Cerulli, Giovanni. 2024.
+        “Optimal initial donor selection for the synthetic control method.”
+        Economics Letters, 244: 111976.
+        https://doi.org/10.1016/j.econlet.2024.111976
+
+        Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
+        "The Augmented Synthetic Control Method."
+        Journal of the American Statistical Association 116 (536): 1789–1803.
+        https://doi.org/10.1080/01621459.2021.1929245
         """
+
         if isinstance(config, dict):
             config = FSCMConfig(**config)  # convert dict to config object
         self.config = config  # Store the config object
@@ -157,7 +196,14 @@ class FSCM:
         self.treated_color: str = config.treated_color
         self.display_graphs: bool = config.display_graphs
         self.save: Union[bool, str] = config.save  # Align with BaseEstimatorConfig
-        self.use_augmented = config.use_augmented
+        # FSCM-specific config
+        self.use_augmented: bool = config.use_augmented
+        self.full_selection: bool = config.full_selection
+        self.selection_fraction: float = config.selection_fraction
+
+        # Affine tuning parameters for augmented FSCM
+        self.bo_n_iter: int = config.bo_n_iter
+        self.bo_initial_evals: int = config.bo_initial_evals
 
     def _create_estimator_results(  # Helper method to package results into the standard Pydantic model
             self,
@@ -391,7 +437,7 @@ class FSCM:
                     treated_outcome_pre_treatment_vector,
                     all_donors_outcomes_matrix_pre_treatment,
                     num_pre_treatment_periods,
-                    augmented=True
+                    augmented=True, full_selection=self.full_selection, selection_fraction=self.selection_fraction
                 )
                 # Compute both counterfactuals
                 y_hat_fscm = np.dot(prepared_data_dict["donor_matrix"], w_original)
@@ -446,7 +492,7 @@ class FSCM:
                     treated_outcome_pre_treatment_vector,
                     all_donors_outcomes_matrix_pre_treatment,
                     num_pre_treatment_periods,
-                    augmented=False
+                    augmented=False, full_selection=self.full_selection, selection_fraction=self.selection_fraction
                 )
 
                 y_hat_fscm = np.dot(prepared_data_dict["donor_matrix"], w0)
@@ -550,7 +596,7 @@ class FSCM:
                     method_details=MethodDetailsResults(
                         name="FSCM",
                         parameters_used={
-                            "note": "This is a composite result with FSCM and Augmented sub-methods."}
+                            "note": "Contains both the FSCM and Augmented SCM results."}
                     ),
                     sub_method_results={
                         "FSCM": fscm_results
