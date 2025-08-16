@@ -4291,13 +4291,7 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
 
     .. math::
 
-        \min_{w} \ \| y - Xw \|^2 + \beta \| w - w_0 \|^2
-
-    subject to:
-
-    .. math::
-
-        \sum_j w_j = 1
+        \\min_{\\mathbf{w}} \\ \\| y - X\\mathbf{w} \\|^2 + \\beta \\| \\mathbf{w} - \\mathbf{w}_0 \\|^2 \quad \sum_j w_j = 1
 
     Parameters
     ----------
@@ -4566,6 +4560,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
