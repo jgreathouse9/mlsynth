@@ -4278,20 +4278,34 @@ def fit_l2_relaxation(X_pre, y_pre, tau):
 
     return w.value
 
-
 def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
     """
     Fit affine-hull synthetic control weights using regularized optimization.
 
-    This method refines an initial weight vector `w0` (e.g., from vanilla SCM)
+    This method refines an initial weight vector `w0` (e.g., from vanilla SCM or FSCM)
     by solving a penalized least squares problem over the affine hull of the donor pool.
-    The refinement uses a ridge-type penalty that shrinks the solution towards `w0`.
+    The refinement uses a ridge-type penalty that shrinks the solution toward `w0`.
     The regularization strength (:math:`\\beta`) is selected via Bayesian optimization
     over a split of the pre-treatment period.
 
+    Formally, given:
+        - :math:`\\mathbf{y}_1 \\in \\mathbb{R}^{T_0}`: pre-treatment outcomes for the treated unit
+        - :math:`\\mathbf{Y}_0 \\in \\mathbb{R}^{T_0 \\times J}`: matrix of pre-treatment outcomes for the donor units
+        - :math:`\\mathbf{w}^{\\text{FSCM}} \\in \\mathbb{R}^{J}`: initial donor weights (e.g., from FSCM)
+
+    The optimization problem solved is:
+
     .. math::
 
-        \\min_{\\mathbf{w}} \\ \\| y - X\\mathbf{w} \\|^2 + \\beta \\| \\mathbf{w} - \\mathbf{w}_0 \\|^2 \quad \sum_j w_j = 1
+        \\min_{\\mathbf{w}^{\\text{FASC}}} \\ 
+        \\left\\| \\mathbf{y}_1 - \\mathbf{Y}_0 \\mathbf{w}^{\\text{FASC}} \\right\\|_2^2 
+        + \\beta \\left\\| \\mathbf{w}^{\\text{FASC}} - \\mathbf{w}^{\\text{FSCM}} \\right\\|_2^2
+
+    subject to:
+
+    .. math::
+
+        \\left\\| \\mathbf{w}^{\\text{FASC}} \\right\\|_1 = 1
 
     Parameters
     ----------
@@ -4301,7 +4315,7 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
     y : np.ndarray of shape (T0,)
         Vector of pre-treatment outcomes for the treated unit.
     w0 : np.ndarray of shape (J,)
-        Initial weight vector to shrink towards. Typically obtained from standard SCM.
+        Initial weight vector to shrink towards. Typically obtained from standard SCM or FSCM.
     num_iterations : int, default=50
         Total number of objective evaluations used in Bayesian optimization.
     num_initial : int, default=5
@@ -4320,45 +4334,9 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
     - The pre-treatment period is split in half for cross-validation:
         - First half is used for fitting candidate weights.
         - Second half is used to evaluate RMSE on validation residuals.
-    - The solution is constrained to lie in the affine hull (sum of weights = 1),
+    - The solution is constrained to lie in the affine hull (ℓ₁ norm = 1),
       but weights are not required to be non-negative.
     """
-    T0, J = X.shape
-    split = T0 // 2
-    X_train, X_val = X[:split], X[split:]
-    y_train, y_val = y[:split], y[split:]
-
-    def objective(params):
-        log_beta = params[0]
-        beta = 10 ** log_beta
-        w = cp.Variable(J)
-        obj = cp.sum_squares(y_train - X_train @ w) + beta * cp.sum_squares(w - w0)
-        prob = cp.Problem(cp.Minimize(obj), [cp.sum(w) == 1])
-        prob.solve(warm_start=True)
-        w_candidate = w.value
-        residuals = y_val - X_val @ w_candidate
-        return np.sqrt(np.mean(residuals ** 2))
-
-    # Search log10(beta) in [-4, 3] → beta in [1e-4, 1e3]
-    search_space = [Real(np.log10(1e-2), np.log10(1e3), name='log_beta')]
-    result = gp_minimize(
-        objective,
-        search_space,
-        n_calls=num_iterations,
-        n_initial_points=10,
-        random_state=42
-    )
-
-    # Best beta found
-    best_beta = 10 ** result.x[0]
-
-    # Final model fit on full pre-treatment data
-    w_final = cp.Variable(J)
-    obj_full = cp.sum_squares(y - X @ w_final) + best_beta * cp.sum_squares(w_final - w0)
-    prob_final = cp.Problem(cp.Minimize(obj_full), [cp.sum(w_final) == 1])
-    prob_final.solve(warm_start=True)
-
-    return w_final.value, best_beta
 
 
 
@@ -4560,6 +4538,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
