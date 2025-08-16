@@ -4289,7 +4289,7 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
     The regularization strength ($\beta$) is selected via Bayesian optimization
     over a split of the pre-treatment period.
 
-    The final output is a weight vector  `w_affine`  that minimizes:
+    The final output is a weight vector  `w_affine`  which is the minimizer for:
         || y - X @ w ||² + β * || w - w0 ||²
     subject to:
         sum(w) = 1
@@ -4526,6 +4526,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
