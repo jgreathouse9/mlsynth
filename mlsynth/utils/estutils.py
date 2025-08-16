@@ -4375,7 +4375,6 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
 
     return w_final.value, best_beta
 
-
 def fSCM(
     treated_outcome_pre_treatment_vector: np.ndarray,
     all_donors_outcomes_matrix_pre_treatment: np.ndarray,
@@ -4391,34 +4390,34 @@ def fSCM(
     refinement via a ridge-penalized convex program. 
 
     The goal is to construct a synthetic control for a treated unit by selecting a sparse subset 
-    of donor units using forward selection, minimizing pre-treatment error, and refining weights 
-    via convex optimization.
+    of donor units using forward selection, minimizing pre-treatment error, and optionally 
+    refining weights via convex optimization.
 
     **Mathematical Description**
 
     Let:
 
-    - :math:`Y_0 \in \mathbb{R}^{T_0}` be the pre-treatment outcomes for the treated unit.
-    - :math:`X \in \mathbb{R}^{T_0 \times J}` be the donor matrix with :math:`J` units.
-    - :math:`w \in \mathbb{R}^{J}` be the synthetic control weights.
+    - :math:`\mathbf{y}_1 \in \mathbb{R}^{T_0}` be the pre-treatment outcomes for the treated unit.
+    - :math:`\mathbf{Y}_0 \in \mathbb{R}^{T_0 \times J}` be the donor matrix with :math:`J` units.
+    - :math:`\mathbf{w} \in \mathbb{R}^{J}` be the synthetic control weights.
 
-    The synthetic control is computed by solving:
+    The standard forward-selection SCM computes a sparse synthetic control by solving:
 
     .. math::
 
-        \min_{w \in \mathbb{R}^J} \quad \| Y_0 - Xw \|_2^2 
-        \quad \text{s.t.} \quad w_j \geq 0, \ \sum_{j=1}^J w_j = 1
+        \min_{\mathbf{w} \in \mathbb{R}^J} \quad \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2
+        \quad \text{s.t.} \quad \mathbf{w}_j \ge 0, \ \sum_{j=1}^J \mathbf{w}_j = 1
 
     **Forward Selection Algorithm**
 
     Initialize empty set :math:`S = \emptyset`. At each step:
 
     1. For each donor :math:`j \notin S`, form :math:`S' = S \cup \{j\}`.
-    2. Solve the above optimization over columns in :math:`S'`.
+    2. Solve the SCM optimization over columns in :math:`S'`.
     3. Choose :math:`j^*` that yields the lowest pre-treatment RMSE.
 
     Stop when:
-    
+
     - Either all donors are exhausted, or
     - The modified BIC (mBIC) increases and `full_selection=False`.
 
@@ -4428,18 +4427,45 @@ def fSCM(
 
         \text{mBIC}(S) = T_0 \cdot \log(\text{MSE}) + |S| \cdot \log(T_0)
 
-    where :math:`\text{MSE} = \frac{1}{T_0} \| Y_0 - X_S w_S \|_2^2`.
+    where :math:`\text{MSE} = \frac{1}{T_0} \|\mathbf{y}_1 - \mathbf{Y}_0^S \mathbf{w}_S\|_2^2`.
 
     **Affine Refinement (Optional)**
 
-    If `augmented=True`, the weights :math:`w_S` are refined over the affine hull of :math:`X_S`:
+    If `augmented=True`, the sparse FSCM weights corresponding to the selected donor
+    subset :math:`\widehat{U}_0\ldots N` are used as a starting point. The weights are refined
+    over the affine hull of :math:`\mathbf{Y}_0` restricted to the selected donors by solving:
 
     .. math::
 
-        \min_{w \in \mathbb{R}^J} \quad \| Y_0 - Xw \|_2^2 + \lambda \|w\|_2^2 
-        \quad \text{s.t.} \quad \mathbf{1}^\top w = 1, \ \text{supp}(w) \subseteq S
+        \min_{\mathbf{w} \in \mathbb{R}^J} 
+        \quad \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2
+        + \beta \|\mathbf{w} - \mathbf{w}^{\text{FSCM}}\|_2^2
+        \quad \text{s.t.} \quad \|\mathbf{w}\|_1 = 1, \ \text{supp}(\mathbf{w}) \subseteq \widehat{U}_0\ldots N
 
-    The penalty :math:`\lambda` is tuned via Bayesian optimization.
+    Here:
+
+    - :math:`\beta` is the ridge penalty that shrinks the solution toward the original FSCM weights.
+    - The :math:`\ell_1` constraint ensures the solution lies in the affine hull of the selected donors.
+    - The support restriction :math:`\text{supp}(\mathbf{w}) \subseteq \widehat{U}_0\ldots N` ensures that
+      only FSCM-selected donors are used, but weights can **extrapolate beyond the original convex-hull solution** while remaining bounded relative to it.
+
+    **Conceptual Note on Supremum and Infimum**
+
+    We can conceptualize the set of all possible affine-hull objective values over the feasible
+    set:
+
+    .. math::
+
+        \mathcal{F} = \{ f(\mathbf{w}) = \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2 
+        + \beta \|\mathbf{w} - \mathbf{w}^{\text{FSCM}}\|_2^2 : 
+        \mathbf{w} \in \mathcal{W} \},
+
+    where :math:`\mathcal{W} = \{\mathbf{w} : \|\mathbf{w}\|_1 = 1, \text{supp}(\mathbf{w}) \subseteq \widehat{U}_0\ldots N \}`.  
+
+    - The **infimum** of this set is exactly the FASC solution (minimized objective).  
+    - The **FSCM objective value** corresponds to one feasible point in this set.  
+    - If :math:`\beta \to \infty`, FSCM is the **only feasible point**, and its objective equals both the infimum and supremum.  
+    - For finite :math:`\beta`, FSCM is a reference value inside the set :math:`\mathcal{F}`, and the affine-hull solution may decrease the objective slightly by extrapolating within the allowed support.
 
     Parameters
     ----------
@@ -4482,10 +4508,10 @@ def fSCM(
             Indices of selected donor units.
 
         refined_weights : np.ndarray, shape (J,)
-            Affine-refined synthetic control weights.
+            Affine-refined synthetic control weights after ridge-penalized refinement.
 
         initial_sparse_weights : np.ndarray, shape (J,)
-            Original sparse weights before affine refinement.
+            Original sparse FSCM weights before affine refinement.
 
     Raises
     ------
@@ -4500,6 +4526,7 @@ def fSCM(
     RuntimeWarning
         If donor pool is large and full enumeration is requested.
     """
+
     J = all_donors_outcomes_matrix_pre_treatment.shape[1]
     if selection_fraction <= 0:
         raise ValueError("selection_fraction must be > 0.")
@@ -4620,6 +4647,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
