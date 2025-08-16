@@ -4286,7 +4286,7 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
     This method refines an initial weight vector `w0` (e.g., from vanilla SCM)
     by solving a penalized least squares problem over the affine hull of the donor pool.
     The refinement uses a ridge-type penalty that shrinks the solution towards `w0`.
-    The regularization strength ($\beta$) is selected via Bayesian optimization
+    The regularization strength (:math:`\beta`) is selected via Bayesian optimization
     over a split of the pre-treatment period.
 
     The final output is a weight vector  `w_affine`  which is the minimizer for:
@@ -4526,6 +4526,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
