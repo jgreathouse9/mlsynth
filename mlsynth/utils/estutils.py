@@ -1734,7 +1734,7 @@ class Opt:
         )
         
         problem_simplex = cp.Problem(objective_simplex, constraints_simplex)
-        problem_simplex.solve(solver=cp.ECOS) # Solve the optimization problem
+        problem_simplex.solve(solver=_SOLVER_CLARABEL_STR) # Solve the optimization problem
         return problem_simplex
 
     @staticmethod
@@ -4526,4 +4526,5 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
