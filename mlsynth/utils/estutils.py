@@ -4297,8 +4297,8 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
 
     .. math::
 
-        \\min_{\\mathbf{w}^{\\text{FASC}}} \\ 
-        \\left\\| \\mathbf{y}_1 - \\mathbf{Y}_0 \\mathbf{w}^{\\text{FASC}} \\right\\|_2^2 
+        \\min_{\\mathbf{w}^{\\text{FASC}}} \\
+        \\left\\| \\mathbf{y}_1 - \\mathbf{Y}_0 \\mathbf{w}^{\\text{FASC}} \\right\\|_2^2
         + \\beta \\left\\| \\mathbf{w}^{\\text{FASC}} - \\mathbf{w}^{\\text{FSCM}} \\right\\|_2^2
 
     subject to:
