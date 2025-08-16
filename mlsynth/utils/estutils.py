@@ -4413,11 +4413,37 @@ def fSCM(
 
     Notes
     -----
-    - Internally uses forward selection based on mBIC (modified BIC) to iteratively select donors.
-    - Weights are computed using convex optimization (via CVXPY).
-    - If affine refinement is used, the final weights live in the affine hull of the selected donors
-      and are warm-started from the sparse weights.
-    """
+    The FSCM algorithm performs greedy forward selection over donor units, minimizing a
+    modified Bayesian Information Criterion (mBIC) at each step. Optionally, the sparse
+    weights are refined by solving an affine-constrained SCM optimization using warm starts.
+
+    .. math::
+
+        \\text{mBIC}(S) = T_0 \\cdot \\log\\left(\\text{MSE}(S)\\right) + |S| \\cdot \\log(T_0)
+
+    where :math:`S \\subseteq \\{1, ..., J\\}` is the index set of selected donors,
+    and MSE is the mean squared error from fitting SCM with donor set :math:`S`.
+
+    For each candidate :math:`j \\notin S`, compute
+
+    .. math::
+
+        \\text{MSE}(S \\cup \\{j\\}) = \\min_{w \\in \\Delta^{|S| + 1}} \\left\\| Y_1^{(0)} - Y_S^{(0)} w \\right\\|_2^2
+
+    where :math:`Y_1^{(0)}` is the treated pre-treatment vector,
+    and :math:`Y_S^{(0)}` is the matrix of donor vectors in :math:`S \\cup \\{j\\}`.
+
+    At each iteration, select the donor that minimizes the MSE and update :math:`S`.
+
+    If `augmented=True`, the final weight vector is refined via:
+
+    .. math::
+
+        w^{\\text{affine}} = \\arg\\min_{w} \\left\\| Y_1^{(0)} - Y^{(0)} w \\right\\|_2^2,
+        \\quad \\text{subject to } w \\in \\mathcal{A}(\\hat{S})
+
+    where :math:`\\mathcal{A}(\\hat{S})` is the affine hull of the selected donor columns,
+    with warm-start initialization from the sparse weights.
     J = all_donors_outcomes_matrix_pre_treatment.shape[1]
     if selection_fraction <= 0:
         raise ValueError("selection_fraction must be > 0.")
@@ -4538,6 +4564,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
