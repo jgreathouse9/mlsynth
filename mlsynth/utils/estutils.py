@@ -4349,73 +4349,119 @@ def fSCM(
     bo_n_iter: int = 25,
     bo_initial_evals: int = 5
 ) -> Tuple[List[int], np.ndarray, float, np.ndarray, np.ndarray]:
-    """
-    Perform Forward Selection Synthetic Control Method (FSCM), with optional
-    affine refinement (Augmented FSCM). Supports early stopping using
-    an information criterion (mBIC), or full model enumeration.
+    r"""
+    Forward Selection Synthetic Control Method (FSCM), optionally augmented with affine
+    refinement via a ridge-penalized convex program. 
+
+    The goal is to construct a synthetic control for a treated unit by selecting a sparse subset 
+    of donor units using forward selection, minimizing pre-treatment error, and refining weights 
+    via convex optimization.
+
+    **Mathematical Description**
+
+    Let:
+
+    - :math:`Y_0 \in \mathbb{R}^{T_0}` be the pre-treatment outcomes for the treated unit.
+    - :math:`X \in \mathbb{R}^{T_0 \times J}` be the donor matrix with :math:`J` units.
+    - :math:`w \in \mathbb{R}^{J}` be the synthetic control weights.
+
+    The synthetic control is computed by solving:
+
+    .. math::
+
+        \min_{w \in \mathbb{R}^J} \quad \| Y_0 - Xw \|_2^2 
+        \quad \text{s.t.} \quad w_j \geq 0, \ \sum_{j=1}^J w_j = 1
+
+    **Forward Selection Algorithm**
+
+    Initialize empty set :math:`S = \emptyset`. At each step:
+
+    1. For each donor :math:`j \notin S`, form :math:`S' = S \cup \{j\}`.
+    2. Solve the above optimization over columns in :math:`S'`.
+    3. Choose :math:`j^*` that yields the lowest pre-treatment RMSE.
+
+    Stop when:
+    
+    - Either all donors are exhausted, or
+    - The modified BIC (mBIC) increases and `full_selection=False`.
+
+    The modified BIC is computed as:
+
+    .. math::
+
+        \text{mBIC}(S) = T_0 \cdot \log(\text{MSE}) + |S| \cdot \log(T_0)
+
+    where :math:`\text{MSE} = \frac{1}{T_0} \| Y_0 - X_S w_S \|_2^2`.
+
+    **Affine Refinement (Optional)**
+
+    If `augmented=True`, the weights :math:`w_S` are refined over the affine hull of :math:`X_S`:
+
+    .. math::
+
+        \min_{w \in \mathbb{R}^J} \quad \| Y_0 - Xw \|_2^2 + \lambda \|w\|_2^2 
+        \quad \text{s.t.} \quad \mathbf{1}^\top w = 1, \ \text{supp}(w) \subseteq S
+
+    The penalty :math:`\lambda` is tuned via Bayesian optimization.
 
     Parameters
     ----------
     treated_outcome_pre_treatment_vector : np.ndarray, shape (T0,)
-        Pre-treatment outcome vector for the treated unit.
+        Vector of outcomes for the treated unit before treatment.
 
     all_donors_outcomes_matrix_pre_treatment : np.ndarray, shape (T0, J)
-        Pre-treatment outcome matrix for J donor units (each column is a donor).
+        Matrix of donor unit outcomes before treatment. Each column is a donor.
 
     num_pre_treatment_periods : int
-        Number of pre-treatment time periods (T0). Used for computing RMSE and mBIC.
+        Number of pre-treatment time periods, :math:`T_0`.
 
     augmented : bool, default=False
-        If True, refine the selected sparse weights using Affine Synthetic Control.
-        Returns additional weight vectors.
+        If True, performs affine refinement using a ridge-penalized convex program.
 
     full_selection : bool, default=True
-        If True, performs full forward selection regardless of improvement in mBIC.
-        If False, stops early when mBIC no longer improves.
+        If True, continue forward selection until all donors are exhausted.
+        If False, stop early if mBIC increases.
 
     selection_fraction : float, default=1.0
-        Fraction of donor pool to consider for selection (0 < fraction <= 1).
-        Reduces computational cost by limiting number of donor units.
+        Fraction of donors to consider for selection. Useful for speeding up the process.
+
+    bo_n_iter : int, default=25
+        Number of Bayesian optimization iterations for affine refinement.
+
+    bo_initial_evals : int, default=5
+        Number of initial random points for Bayesian optimization.
 
     Returns
     -------
     If augmented is False:
         selected_indices : List[int]
-            List of indices (column positions) of selected donor units.
+            Indices of selected donor units.
 
         full_weights : np.ndarray, shape (J,)
-            Final synthetic control weights over all donors (zeros for unselected donors).
+            Sparse synthetic control weights over the full donor pool.
 
     If augmented is True:
         selected_indices : List[int]
-            List of indices (column positions) of selected donor units.
+            Indices of selected donor units.
 
         refined_weights : np.ndarray, shape (J,)
-            Affine-refined weights based on sparse initialization.
+            Affine-refined synthetic control weights.
 
         initial_sparse_weights : np.ndarray, shape (J,)
-            Original sparse weights (before affine refinement).
+            Original sparse weights before affine refinement.
 
     Raises
     ------
     ValueError
-        If selection_fraction <= 0.
+        If `selection_fraction <= 0`.
 
     MlsynthEstimationError
-        If no valid donor subset could be found or unexpected errors occur during optimization.
+        If no valid donor subset could be found or optimization fails.
 
     Warnings
     --------
     RuntimeWarning
-        If `full_selection=True` or `selection_fraction=1.0` and the donor pool is large (>= 200),
-        a warning is raised due to high computational cost.
-
-    Notes
-    -----
-    - Internally uses forward selection based on mBIC (modified BIC) to iteratively select donors.
-    - Weights are computed using convex optimization (via CVXPY).
-    - If affine refinement is used, the final weights live in the affine hull of the selected donors
-      and are warm-started from the sparse weights.
+        If donor pool is large and full enumeration is requested.
     """
     J = all_donors_outcomes_matrix_pre_treatment.shape[1]
     if selection_fraction <= 0:
@@ -4537,4 +4583,5 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
