@@ -15,11 +15,8 @@ Uses Forward Selection to choose the donor pool for the vanilla SCM.
 
     url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/smoking_data.csv"
 
-    # Feel free to change "smoking" with "basque" above in the URL
-
     data = pd.read_csv(url)
 
-    # Our method inputs
     config = {
         "df": data,
         "outcome": data.columns[2],
@@ -37,24 +34,26 @@ Uses Forward Selection to choose the donor pool for the vanilla SCM.
 fSCM function
 =====================
 
-.. autofunction:: mlsynth.fSCM
+.. autofunction:: mlsynth.utils.estutils.fSCM
+   :noindex:
 
 Performs Forward Selection Synthetic Control (FSCM) estimation.  
-If ``augmented=True``, post-selection refinement is performed using affine-hull regularization, to correct for imperfect fit.
+If ``augmented=True``, post-selection refinement is performed using affine-hull regularization.
 
-This method returns:
-
-- The selected donor indices,
-- Augmented weights (if applicable),
-- Original SCM weights,
+Returns:
+- Augmented weights (if applicable)
+- Original SCM weights
 
 
 fit_affine_hull_scm
 =====================
 
-.. autofunction:: mlsynth.fit_affine_hull_scm
+.. autofunction:: mlsynth.utils.estutils.fit_affine_hull_scm
+   :noindex:
 
-Refines a given weight vector using affine-hull constrained ridge regression.  
-The ridge penalty is tuned using Bayesian optimization with a training-validation split on pre-treatment data.
+Refines synthetic control weights using affine-hull constrained ridge regression.  
+The ridge penalty is tuned via Bayesian optimization with a training-validation split on pre-treatment data.
 
-Useful for post-FSCM refinement when ``augmented=True``.
+Returns:
+- Refined weight vector
+- Optimal regularization parameter (beta)
