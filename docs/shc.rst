@@ -1,4 +1,4 @@
-Example: Estimating the Impact of the Asian Financial Crisis on the Malaysian Ringgit
+Synthetic Historical Control
 -------------------------------------------------------------------------------------
 
 This example uses the **Synthetic Historical Control (SHC)** estimator from
