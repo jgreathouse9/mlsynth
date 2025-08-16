@@ -34,8 +34,8 @@ class FDID:
 
     The `fit` method returns results for all three estimators. Configuration is
     managed via a Pydantic model. Key instance attributes are derived from this
-    configuration object. Refer to the `__init__` method for detailed parameter
-    descriptions.
+    configuration object. Refer to the `__init__` method for a more detailed parameter
+    description.
 
     References
     ----------
