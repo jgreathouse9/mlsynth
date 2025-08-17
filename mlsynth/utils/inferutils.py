@@ -6,7 +6,7 @@ from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 def quantileconformal_intervals(treated: np.ndarray, predicted: np.ndarray, T0: int, alpha: float = 0.1):
     """
     Vectorized Facure-style conformal prediction bounds with pre-treatment padding.
-    
+
     Parameters
     ----------
     treated : np.ndarray
@@ -17,7 +17,7 @@ def quantileconformal_intervals(treated: np.ndarray, predicted: np.ndarray, T0: 
         Pre-treatment period length.
     alpha : float
         Miscoverage rate (default 0.1 for 90% prediction intervals).
-        
+
     Returns
     -------
     lower_full : np.ndarray
