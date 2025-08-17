@@ -3,6 +3,35 @@ import numpy as np
 from typing import Tuple, Any, Union
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 
+def quantileconformal_intervals(obs, cf, T0, alpha=0.1):
+    """
+    Construct pointwise conformal intervals for a treated unit.
+
+    Parameters:
+    - obs: observed treated unit outcome (array-like)
+    - cf: estimated counterfactual (array-like)
+    - T0: number of pre-treatment periods (int)
+    - alpha: miscoverage rate (e.g., 0.1 for 90% CI)
+
+    Returns:
+    - lower_bounds: lower bound of prediction interval (post-treatment only)
+    - upper_bounds: upper bound of prediction interval (post-treatment only)
+    - q_hat: conformal quantile
+    """
+    residuals = obs[:T0] - cf[:T0]
+    q_hat = np.quantile(np.abs(residuals), 1 - alpha)
+    mean_residual = np.mean(residuals)
+
+    pred_post = cf[T0:]
+    lower_bounds_post = pred_post + mean_residual - q_hat
+    upper_bounds_post = pred_post + mean_residual + q_hat
+
+    # Pad pre-treatment with zeros to align with full time series
+    lower_bounds = np.concatenate([np.full(T0, np.nan), lower_bounds_post])
+    upper_bounds = np.concatenate([np.full(T0, np.nan), upper_bounds_post])
+
+    return lower_bounds, upper_bounds
+
 
 def step2(
     restriction_matrix_h0a: np.ndarray,
@@ -431,3 +460,4 @@ def ag_conformal(
 
     # Ensure the output arrays are 1D
     return lower_bounds_full_series.flatten(), upper_bounds_full_series.flatten()
+
