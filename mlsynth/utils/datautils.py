@@ -29,7 +29,7 @@ KEY_SURROGATE_VARS = "surrogatevars"
 def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
     """Analyze a treatment matrix to determine treatment timings and unit counts.
 
-    Identifies pre-treatment and post-treatment periods for single or multiple
+    Identifies the pre-treatment and post-treatment periods for single or multiple
     treated units. For multiple treated units, it determines the first treatment
     period for each.
 
@@ -624,3 +624,4 @@ def build_donor_segments(ell_hat, m, T0, n):
     ell_eval = ell_hat[-m:]
     L_post = np.column_stack([ell_hat[i + m:i + m + n] for i in range(N)])
     return L_full, L_post, ell_eval
+
