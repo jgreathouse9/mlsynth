@@ -123,6 +123,23 @@ class FSCM:
             A Pydantic model instance containing all configuration parameters
             for the FSCM estimator. `FSCMConfig` inherits from `BaseEstimatorConfig`.
 
+        References
+        ----------
+        Shi, Zhentao, and Jingyi Huang. 2023.
+        "Forward-selected panel data approach for program evaluation."
+        Journal of Econometrics 234 (2): 512–535.
+        https://doi.org/10.1016/j.jeconom.2021.04.009
+
+        Cerulli, Giovanni. 2024.
+        “Optimal initial donor selection for the synthetic control method.”
+        Economics Letters, 244: 111976.
+        https://doi.org/10.1016/j.econlet.2024.111976
+
+        Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
+        "The Augmented Synthetic Control Method."
+        Journal of the American Statistical Association 116 (536): 1789–1803.
+        https://doi.org/10.1080/01621459.2021.1929245
+
             Core panel data structure:
             --------------------------
             df : pd.DataFrame
@@ -166,23 +183,6 @@ class FSCM:
                 Number of iterations to run in Bayesian optimization.
             bo_initial_evals : int, default=5
                 Number of initial random evaluations before surrogate modeling begins.
-
-        References
-        ----------
-        Shi, Zhentao, and Jingyi Huang. 2023.
-        "Forward-selected panel data approach for program evaluation."
-        Journal of Econometrics 234 (2): 512–535.
-        https://doi.org/10.1016/j.jeconom.2021.04.009
-
-        Cerulli, Giovanni. 2024.
-        “Optimal initial donor selection for the synthetic control method.”
-        Economics Letters, 244: 111976.
-        https://doi.org/10.1016/j.econlet.2024.111976
-
-        Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
-        "The Augmented Synthetic Control Method."
-        Journal of the American Statistical Association 116 (536): 1789–1803.
-        https://doi.org/10.1080/01621459.2021.1929245
         """
 
         if isinstance(config, dict):
@@ -358,7 +358,7 @@ class FSCM:
             treated_outcome_pre_treatment_vector = prepared_data_dict["y"][: prepared_data_dict["pre_periods"]]
             num_pre_treatment_periods = prepared_data_dict["pre_periods"]
 
-            if all_donors_outcomes_matrix_pre_treatment.shape[0] != num_pre_treatment_periods or \
+            if all_donors_outcomes_matrix_pre_treatment.shape[0] != num_pre_treatment_periods or\
                     treated_outcome_pre_treatment_vector.shape[0] != num_pre_treatment_periods:
                 raise MlsynthEstimationError(
                     "Mismatch in pre-treatment period lengths between donor matrix and treated vector.")
