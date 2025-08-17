@@ -3,34 +3,53 @@ import numpy as np
 from typing import Tuple, Any, Union
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 
-def quantileconformal_intervals(obs, cf, T0, alpha=0.1):
+def quantileconformal_intervals(treated: np.ndarray, predicted: np.ndarray, T0: int, alpha: float = 0.1):
     """
-    Construct pointwise conformal intervals for a treated unit.
-
-    Parameters:
-    - obs: observed treated unit outcome (array-like)
-    - cf: estimated counterfactual (array-like)
-    - T0: number of pre-treatment periods (int)
-    - alpha: miscoverage rate (e.g., 0.1 for 90% CI)
-
-    Returns:
-    - lower_bounds: lower bound of prediction interval (post-treatment only)
-    - upper_bounds: upper bound of prediction interval (post-treatment only)
-    - q_hat: conformal quantile
+    Vectorized Facure-style conformal prediction bounds with pre-treatment padding.
+    
+    Parameters
+    ----------
+    treated : np.ndarray
+        Observed outcome vector (1D, length T_pre + T_post).
+    predicted : np.ndarray
+        Counterfactual prediction vector (1D, same length as treated).
+    T0 : int
+        Pre-treatment period length.
+    alpha : float
+        Miscoverage rate (default 0.1 for 90% prediction intervals).
+        
+    Returns
+    -------
+    lower_full : np.ndarray
+        Lower bound vector, full series with pre-treatment padded as np.nan.
+    upper_full : np.ndarray
+        Upper bound vector, full series with pre-treatment padded as np.nan.
     """
-    residuals = obs[:T0] - cf[:T0]
-    q_hat = np.quantile(np.abs(residuals), 1 - alpha)
-    mean_residual = np.mean(residuals)
+    # Pre-treatment residuals
+    resid = treated[:T0] - predicted[:T0]
+    
+    # Circular permutations
+    permuted_resid = np.roll(resid[:, None], np.arange(T0), axis=0)  # shape (T0, T0)
+    
+    # Compute test statistic: mean absolute residual
+    test_stats = np.mean(np.abs(permuted_resid), axis=0)  # shape (T0,)
+    
+    # Determine threshold for desired coverage
+    q_hat = np.quantile(test_stats, 1 - alpha)
+    
+    # Center post-treatment predictions by mean pre-treatment residual
+    mean_resid = np.mean(resid)
+    post_pred = predicted[T0:]
+    lower_post = post_pred + mean_resid - q_hat
+    upper_post = post_pred + mean_resid + q_hat
+    
+    # Pad pre-treatment with np.nan
+    pad = np.full(T0, np.nan)
+    lower_full = np.concatenate([pad, lower_post])
+    upper_full = np.concatenate([pad, upper_post])
+    
+    return lower_full, upper_full
 
-    pred_post = cf[T0:]
-    lower_bounds_post = pred_post + mean_residual - q_hat
-    upper_bounds_post = pred_post + mean_residual + q_hat
-
-    # Pad pre-treatment with zeros to align with full time series
-    lower_bounds = np.concatenate([np.full(T0, np.nan), lower_bounds_post])
-    upper_bounds = np.concatenate([np.full(T0, np.nan), upper_bounds_post])
-
-    return lower_bounds, upper_bounds
 
 
 def step2(
@@ -460,4 +479,5 @@ def ag_conformal(
 
     # Ensure the output arrays are 1D
     return lower_bounds_full_series.flatten(), upper_bounds_full_series.flatten()
+
 
