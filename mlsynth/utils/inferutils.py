@@ -3,54 +3,55 @@ import numpy as np
 from typing import Tuple, Any, Union
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 
-def quantileconformal_intervals(treated: np.ndarray, predicted: np.ndarray, T0: int, alpha: float = 0.1):
+def quantileconformal_intervals(y_obs, y_cf, T0, alpha=0.1):
     """
-    Vectorized Facure-style conformal prediction bounds with pre-treatment padding.
+    Facure-style conformal prediction interval using block permutations.
 
     Parameters
     ----------
-    treated : np.ndarray
-        Observed outcome vector (1D, length T_pre + T_post).
-    predicted : np.ndarray
-        Counterfactual prediction vector (1D, same length as treated).
+    y_obs : np.ndarray
+        Observed treated unit (1D array)
+    y_cf : np.ndarray
+        Predicted counterfactual (1D array)
     T0 : int
-        Pre-treatment period length.
+        Index separating pre- and post-treatment
     alpha : float
-        Miscoverage rate (default 0.1 for 90% prediction intervals).
+        Miscoverage level (e.g., 0.1 for 90% interval)
 
     Returns
     -------
-    lower_full : np.ndarray
-        Lower bound vector, full series with pre-treatment padded as np.nan.
-    upper_full : np.ndarray
-        Upper bound vector, full series with pre-treatment padded as np.nan.
+    lower_bound : np.ndarray
+        Lower bound of conformal interval (NaN padded pre-treatment)
+    upper_bound : np.ndarray
+        Upper bound of conformal interval (NaN padded pre-treatment)
     """
-    # Pre-treatment residuals
-    resid = treated[:T0] - predicted[:T0]
-    
-    # Circular permutations
-    permuted_resid = np.roll(resid[:, None], np.arange(T0), axis=0)  # shape (T0, T0)
-    
-    # Compute test statistic: mean absolute residual
-    test_stats = np.mean(np.abs(permuted_resid), axis=0)  # shape (T0,)
-    
-    # Determine threshold for desired coverage
-    q_hat = np.quantile(test_stats, 1 - alpha)
-    
-    # Center post-treatment predictions by mean pre-treatment residual
-    mean_resid = np.mean(resid)
-    post_pred = predicted[T0:]
-    lower_post = post_pred + mean_resid - q_hat
-    upper_post = post_pred + mean_resid + q_hat
-    
-    # Pad pre-treatment with np.nan
+    # Residuals
+    resid = y_obs - y_cf
+    post = resid[T0:]
+    pre = resid[:T0]
+
+    # Block permutation matrix: roll pre+post residuals
+    u = resid
+    permuted = np.stack([np.roll(u, k)[T0:] for k in range(len(u))])
+
+    # Compute L1 norms across permutations (including original)
+    stats = np.mean(np.abs(permuted), axis=1)
+
+    # Get the original stat (unpermuted) and compute threshold
+    threshold = np.quantile(stats, 1 - alpha)
+
+    # Add interval centered at prediction + original residual mean
+    center = y_cf[T0:] + np.mean(pre)
+
+    lower = center - threshold
+    upper = center + threshold
+
+    # Pad pre-treatment with NaN
     pad = np.full(T0, np.nan)
-    lower_full = np.concatenate([pad, lower_post])
-    upper_full = np.concatenate([pad, upper_post])
-    
-    return lower_full, upper_full
+    lower = np.concatenate([pad, lower])
+    upper = np.concatenate([pad, upper])
 
-
+    return lower, upper
 
 def step2(
     restriction_matrix_h0a: np.ndarray,
@@ -479,5 +480,6 @@ def ag_conformal(
 
     # Ensure the output arrays are 1D
     return lower_bounds_full_series.flatten(), upper_bounds_full_series.flatten()
+
 
 
