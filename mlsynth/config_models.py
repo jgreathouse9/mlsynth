@@ -1,6 +1,6 @@
 from typing import List, Optional, Any, Dict, Union
 import pandas as pd
-import numpy as np # Added for potential use in other models, e.g. np.ndarray
+import numpy as np # Added for use in other models, e.g. np.ndarray
 from pydantic import BaseModel, Field, model_validator
 from typing import Any # Ensure Any is imported for the validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
@@ -409,6 +409,7 @@ class BaseEstimatorResults(BaseModel):
             np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()] if arr is not None else None
             # This explicitly converts np.nan (which becomes float('nan') in tolist()) to Python None.
         }
+
 
 
 
