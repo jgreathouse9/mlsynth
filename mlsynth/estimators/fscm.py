@@ -542,7 +542,8 @@ class FSCM:
                     raw_results=raw_estimation_output_dict,  # raw dict includes both methods
                 )
 
-        ln, ub = quantileconformal_intervals(prepared_data_dict["y"], y_hat_fscm,prepared_data_dict["pre_periods"])
+                ln, ub = quantileconformal_intervals(prepared_data_dict["y"], y_hat_fscm,prepared_data_dict["pre_periods"])
+                intervals = np.vstack([ln, ub]).T
 
         # Step 10: Handle specific and general exceptions during the fitting process.
         except (MlsynthDataError, MlsynthConfigError) as e:  # Propagate custom Mlsynth errors directly.
