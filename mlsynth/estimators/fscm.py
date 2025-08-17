@@ -6,7 +6,8 @@ import cvxpy as cp  # For catching solver errors
 from pydantic import ValidationError  # For catching Pydantic errors if models are created internally
 
 from ..utils.datautils import balance, dataprep
-from ..utils.resultutils import effects, plot_estimates, quantileconformal_intervals
+from ..utils.resultutils import effects, plot_estimates
+from ..utils.inferutils import quantileconformal_intervals
 from ..utils.estutils import Opt, fit_affine_hull_scm, fSCM
 from ..exceptions import (
     MlsynthDataError,
