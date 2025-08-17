@@ -6,7 +6,7 @@ import cvxpy as cp  # For catching solver errors
 from pydantic import ValidationError  # For catching Pydantic errors if models are created internally
 
 from ..utils.datautils import balance, dataprep
-from ..utils.resultutils import effects, plot_estimates
+from ..utils.resultutils import effects, plot_estimates, quantileconformal_intervals
 from ..utils.estutils import Opt, fit_affine_hull_scm, fSCM
 from ..exceptions import (
     MlsynthDataError,
@@ -122,23 +122,6 @@ class FSCM:
             A Pydantic model instance containing all configuration parameters
             for the FSCM estimator. `FSCMConfig` inherits from `BaseEstimatorConfig`.
 
-        References
-        ----------
-        Shi, Zhentao, and Jingyi Huang. 2023.
-        "Forward-selected panel data approach for program evaluation."
-        Journal of Econometrics 234 (2): 512–535.
-        https://doi.org/10.1016/j.jeconom.2021.04.009
-
-        Cerulli, Giovanni. 2024.
-        “Optimal initial donor selection for the synthetic control method.”
-        Economics Letters, 244: 111976.
-        https://doi.org/10.1016/j.econlet.2024.111976
-
-        Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
-        "The Augmented Synthetic Control Method."
-        Journal of the American Statistical Association 116 (536): 1789–1803.
-        https://doi.org/10.1080/01621459.2021.1929245
-
             Core panel data structure:
             --------------------------
             df : pd.DataFrame
@@ -182,6 +165,23 @@ class FSCM:
                 Number of iterations to run in Bayesian optimization.
             bo_initial_evals : int, default=5
                 Number of initial random evaluations before surrogate modeling begins.
+
+        References
+        ----------
+        Shi, Zhentao, and Jingyi Huang. 2023.
+        "Forward-selected panel data approach for program evaluation."
+        Journal of Econometrics 234 (2): 512–535.
+        https://doi.org/10.1016/j.jeconom.2021.04.009
+
+        Cerulli, Giovanni. 2024.
+        “Optimal initial donor selection for the synthetic control method.”
+        Economics Letters, 244: 111976.
+        https://doi.org/10.1016/j.econlet.2024.111976
+
+        Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
+        "The Augmented Synthetic Control Method."
+        Journal of the American Statistical Association 116 (536): 1789–1803.
+        https://doi.org/10.1080/01621459.2021.1929245
         """
 
         if isinstance(config, dict):
@@ -332,73 +332,6 @@ class FSCM:
 
 
     def fit(self) -> BaseEstimatorResults:  # Main method to fit the FSCM estimator
-        """
-        Fits the Forward Selected Synthetic Control Method (FSCM) model.
-
-        This method prepares the data using `dataprep`, then applies the `fSCM`
-        optimization algorithm to select an optimal set of donor units and their
-        weights. It constructs the counterfactual outcome for the treated unit,
-        calculates treatment effects, and formats the results into a
-        `BaseEstimatorResults` object. Optionally, it can display and/or save
-        plots of the outcomes and effects.
-
-        Returns
-        -------
-        BaseEstimatorResults
-            An object containing the standardized estimation results. Key fields include:
-            - `effects` (EffectsResults): Contains `att` (Average Treatment Effect
-              on the Treated) and `att_percent` (Percentage ATT).
-            - `fit_diagnostics` (FitDiagnosticsResults): Contains `pre_treatment_rmse`
-              (the optimal RMSE from the forward selection), `pre_treatment_r_squared`
-              (if calculable from `effects.calculate`), and `additional_metrics`
-              (e.g., standard deviation of the post-treatment gap).
-            - `time_series` (TimeSeriesResults): Contains `observed_outcome`
-              (for the treated unit), `counterfactual_outcome`, `estimated_gap`
-              (effect over time), and `time_periods` (actual time values or
-              event time indices).
-            - `weights` (WeightsResults): Contains `donor_weights`, a dictionary mapping
-              selected donor unit names to their optimal weights.
-            - `method_details` (MethodDetailsResults): Contains the method `name` ("FSCM")
-              and `parameters_used` (including optimal donor indices, optimal
-              pre-treatment RMSE, and donor cardinality statistics).
-            - `inference` (InferenceResults): Typically not populated by FSCM's core
-              logic (fields default to `None`), as standard errors and p-values are
-              not directly computed by this algorithm.
-            - `raw_results` (Dict[str, Any]): The original dictionary of results
-              from the internal estimation functions, including "Effects", "Fit",
-              "Vectors", and "Weights" sub-dictionaries.
-
-        Examples
-        --------
-        >>> import pandas as pd
-        >>> import numpy as np
-        >>> from mlsynth.estimators.fscm import FSCM
-        >>> from mlsynth.config_models import FSCMConfig
-        >>> # Create sample data
-        >>> data = pd.DataFrame({
-        ...     'unit': np.tile(np.arange(1, 5), 10), # 4 units, 10 time periods each
-        ...     'time_period': np.repeat(np.arange(1, 11), 4),
-        ...     'outcome_val': np.random.rand(40) + \
-        ...                    np.tile(np.arange(1, 5), 10)*0.3 + \
-        ...                    np.repeat(np.arange(1,11),4)*0.05,
-        ...     'treated_indicator': ((np.tile(np.arange(1, 5), 10) == 1) & \
-        ...                           (np.repeat(np.arange(1, 11), 4) >= 6)).astype(int)
-        ... }) # Unit 1 treated from period 6 onwards
-        >>> fscm_config = FSCMConfig(
-        ...     df=data,
-        ...     outcome="outcome_val",
-        ...     treat="treated_indicator",
-        ...     unitid="unit",
-        ...     time="time_period",
-        ...     display_graphs=False # Disable plots for example
-        ... )
-        >>> fscm_estimator = FSCM(config=fscm_config)
-        >>> results = fscm_estimator.fit() # doctest: +SKIP
-        >>> # Example: Accessing results (actual values will vary due to random data)
-        >>> print(f"Estimated ATT: {results.effects.att}") # doctest: +SKIP
-        >>> if results.weights and results.weights.donor_weights: # doctest: +SKIP
-        ...     print(f"Selected donor weights: {results.weights.donor_weights}") # doctest: +SKIP
-        """
         try:
             # Step 1: Validate data balance (ensures each unit has the same time periods)
             balance(self.df, self.unitid, self.time)  # This can raise MlsynthDataError
@@ -424,7 +357,7 @@ class FSCM:
             treated_outcome_pre_treatment_vector = prepared_data_dict["y"][: prepared_data_dict["pre_periods"]]
             num_pre_treatment_periods = prepared_data_dict["pre_periods"]
 
-            if all_donors_outcomes_matrix_pre_treatment.shape[0] != num_pre_treatment_periods or\
+            if all_donors_outcomes_matrix_pre_treatment.shape[0] != num_pre_treatment_periods or \
                     treated_outcome_pre_treatment_vector.shape[0] != num_pre_treatment_periods:
                 raise MlsynthEstimationError(
                     "Mismatch in pre-treatment period lengths between donor matrix and treated vector.")
@@ -589,6 +522,10 @@ class FSCM:
                     raw_results=raw_estimation_output_dict,  # raw dict includes both methods
                 )
 
+                ln, ub = quantileconformal_intervals(prepared_data_dict["y"], y_hat_aug,prepared_data_dict["pre_periods"])
+                intervals = np.vstack([ln, ub]).T
+
+
             else:
 
                 # Return a parent results object with sub-method results keyed by method name
@@ -596,13 +533,15 @@ class FSCM:
                     method_details=MethodDetailsResults(
                         name="FSCM",
                         parameters_used={
-                            "note": "Contains both the FSCM and Augmented SCM results."}
+                            "note": "Contains the FSCM."}
                     ),
                     sub_method_results={
                         "FSCM": fscm_results
                     },
                     raw_results=raw_estimation_output_dict,  # raw dict includes both methods
                 )
+
+        ln, ub = quantileconformal_intervals(prepared_data_dict["y"], y_hat_fscm,prepared_data_dict["pre_periods"])
 
         # Step 10: Handle specific and general exceptions during the fitting process.
         except (MlsynthDataError, MlsynthConfigError) as e:  # Propagate custom Mlsynth errors directly.
@@ -646,7 +585,7 @@ class FSCM:
                     counterfactual_names=cflist,  # Names for legend.
                     treated_series_color=self.treated_color,
                     counterfactual_series_colors=self.counterfactual_color,
-                    save_plot_config=self.save)
+                    save_plot_config=self.save, uncertainty_intervals_array=intervals)
 
         except MlsynthPlottingError as e:  # Handle specific plotting errors defined in Mlsynth.
             print(f"Warning: Plotting failed with MlsynthPlottingError: {e}")
