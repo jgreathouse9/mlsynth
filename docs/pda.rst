@@ -55,7 +55,7 @@ The code below replicates [l2relax]_ who themselves are replicating [HCW]_. The 
 
 .. code-block:: python
 
-   from mlsynth.mlsynth import PDA
+   from mlsynth import PDA
    import pandas as pd
    
    file = 'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/HongKong.csv'
