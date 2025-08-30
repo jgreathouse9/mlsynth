@@ -392,22 +392,28 @@ class TSSC:
             # Extract donor weights (WeightV from TSEST) and match with donor names.
             donor_weights_values_array: Optional[np.ndarray] = raw_sc_variant_output_dict.get(_KEY_WEIGHT_V)
             donor_names_list: Optional[List[str]] = prepared_panel_data.get("donor_names")
-            
+
             final_donor_weights_dict: Optional[Dict[str, float]] = None
+
             if donor_weights_values_array is not None and donor_names_list is not None:
-                # Ensure donor names are strings for dictionary keys, as Pydantic models might expect this.
                 string_donor_names_list = [str(name) for name in donor_names_list]
-                # Check for consistency between the number of weights and names.
-                # This is crucial for correctly mapping weights to their respective donors.
-                if len(donor_weights_values_array.flatten()) == len(string_donor_names_list):
-                    # Create a dictionary mapping donor names to their weights.
-                    final_donor_weights_dict = dict(zip(string_donor_names_list, donor_weights_values_array.flatten()))
+
+                # Add an "intercept" pseudo-donor if method includes one
+                intercept_methods = {"MSCa", "MSCc"}
+                if sc_method_variant_name in intercept_methods:
+                    string_donor_names_list = ["intercept"] + string_donor_names_list
+
+                n_weights = len(donor_weights_values_array.flatten())
+                n_donors = len(string_donor_names_list)
+
+                if n_weights == n_donors:
+                    final_donor_weights_dict = dict(
+                        zip(string_donor_names_list, donor_weights_values_array.flatten())
+                    )
                 else:
-                    # If there's a mismatch, log a warning. The weights dictionary will remain None.
-                    # This prevents errors from trying to zip lists of different lengths.
                     warnings.warn(
-                        f"Warning: Mismatch between number of donor weights ({len(donor_weights_values_array.flatten())}) "
-                        f"and names ({len(string_donor_names_list)}) for method {sc_method_variant_name}. "
+                        f"Warning: Unexpected mismatch between number of donor weights ({n_weights}) "
+                        f"and names ({n_donors}) for method {sc_method_variant_name}. "
                         "Donor weights will not be populated for this method.",
                         UserWarning
                     )
