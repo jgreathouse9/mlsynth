@@ -1,5 +1,5 @@
 import pandas as pd
-from mlsynth.mlsynth import TSSC
+from mlsynth import TSSC
 import matplotlib.pyplot as plt
 import os
 import numpy as np
@@ -92,6 +92,5 @@ config = {
     "save": save,
 }
 
-model = TSSC(config)
+model = TSSC(config).fit()
 
-sutff = model.fit()
