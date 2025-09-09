@@ -774,9 +774,9 @@ def sc_diagplot(config_list: List[Dict[str, Any]], save: Optional[str] = None) -
             ax_plot.legend()
 
         fig.suptitle("Treated vs Donor Trends", fontsize=16)
-        plt.tight_layout()
 
         if save:
             fig.savefig(save, bbox_inches="tight")
         else:
             plt.show()
+
