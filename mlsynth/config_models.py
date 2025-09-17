@@ -4,6 +4,88 @@ import numpy as np # Added for use in other models, e.g. np.ndarray
 from pydantic import BaseModel, Field, model_validator
 from typing import Any # Ensure Any is imported for the validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
+import warnings
+
+
+class MarketConfig(BaseModel):
+    """
+    Configuration for causal market experiment design in mlsynth.
+
+    Unlike BaseEstimatorConfig, this configuration does not take a treatment
+    indicator column as input. Instead, treatment assignment is optimized
+    internally during the design process.
+    """
+    df: pd.DataFrame = Field(
+        ..., description="Input panel data as a pandas DataFrame."
+    )
+    outcome: str = Field(
+        ..., description="Name of the outcome variable column in the DataFrame."
+    )
+    unitid: str = Field(
+        ..., description="Name of the unit identifier column in the DataFrame."
+    )
+    time: str = Field(
+        ..., description="Name of the time period column in the DataFrame."
+    )
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "forbid"
+
+    @model_validator(mode="after")
+    def check_df_and_columns(cls, values: Any) -> Any:
+        df = values.df
+        outcome = values.outcome
+        unitid = values.unitid
+        time = values.time
+
+        # Ensure DataFrame is not empty
+        if df.empty:
+            raise MlsynthDataError("Input DataFrame 'df' cannot be empty.")
+
+        # Ensure required columns exist
+        required_columns = {outcome, unitid, time}
+        missing_columns = required_columns - set(df.columns)
+        if missing_columns:
+            raise MlsynthDataError(
+                f"Missing required columns in DataFrame 'df': {', '.join(sorted(missing_columns))}"
+            )
+
+        # Check for missing values in required columns
+        missing_info = {
+            col: int(df[col].isna().sum())
+            for col in required_columns
+            if df[col].isna().any()
+        }
+        if missing_info:
+            details = ", ".join([f"{col}: {count}" for col, count in missing_info.items()])
+            raise MlsynthDataError(
+                f"Missing values detected in required columns -> {details}. "
+                "Please clean or impute these values before passing to MarketConfig."
+            )
+
+        # Check for uniqueness of (unitid, time) pairs
+        duplicate_count = df.duplicated(subset=[unitid, time]).sum()
+        if duplicate_count > 0:
+            raise MlsynthDataError(
+                f"Duplicate (unitid, time) pairs found: {duplicate_count}. "
+                f"Each (unitid, time) combination must be unique in panel data."
+            )
+
+        # Ensure time is sorted within each unit (auto-fix if not)
+        if not df.sort_values([unitid, time]).equals(df):
+            warnings.warn(
+                f"DataFrame was not sorted by [{unitid}, {time}] — auto-sorting applied.",
+                UserWarning
+            )
+            df = df.sort_values([unitid, time]).reset_index(drop=True)
+            values.df = df  # overwrite with sorted DataFrame
+
+        return values
+
+
+
+
 
 class BaseEstimatorConfig(BaseModel):
     """
@@ -409,6 +491,7 @@ class BaseEstimatorResults(BaseModel):
             np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()] if arr is not None else None
             # This explicitly converts np.nan (which becomes float('nan') in tolist()) to Python None.
         }
+
 
 
 
