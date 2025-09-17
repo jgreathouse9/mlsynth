@@ -14,7 +14,7 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..config_models import ( # Import the Pydantic model
-    SYNTHEXPConfig,
+    MAREXConfig,
     BaseEstimatorResults,
     EffectsResults,
     FitDiagnosticsResults,
@@ -25,12 +25,12 @@ from ..config_models import ( # Import the Pydantic model
 )
 
 
-class MARKETEX:
+class MAREX:
 
-    def __init__(self, config: SYNTHEXPConfig) -> None: # Changed to SYNTHEXPConfig
+    def __init__(self, config: MAREXConfig) -> None: # Changed to MAREXConfig
 
         if isinstance(config, dict):
-            config =SYNTHEXPConfig(**config)  # convert dict to config object
+            config =MAREXConfig(**config)  # convert dict to config object
         # Panel data
 
         # Panel data
@@ -224,4 +224,5 @@ class MARKETEX:
         result = SCMEXP(**scm_kwargs)
 
         return result
+
 
