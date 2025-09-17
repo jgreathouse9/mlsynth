@@ -11,10 +11,17 @@ class MarketConfig(BaseModel):
     """
     Configuration for causal market experiment design in mlsynth.
 
-    Unlike BaseEstimatorConfig, this configuration does not take a treatment
-    indicator column as input. Instead, treatment assignment is optimized
-    internally during the design process.
+    This configuration is strictly for **designing experiments** using
+    synthetic control methods. 
+
+    Unlike standard estimator configurations, users **cannot pre-specify
+    treated units** — treatment assignment is determined internally by
+    the optimization procedure. 
+
+    Therefore, the `treat` column is intentionally **not required**, and
+    the configuration only asks for `df`, `outcome`, `unitid`, and `time`.
     """
+
     df: pd.DataFrame = Field(
         ..., description="Input panel data as a pandas DataFrame."
     )
@@ -491,6 +498,7 @@ class BaseEstimatorResults(BaseModel):
             np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()] if arr is not None else None
             # This explicitly converts np.nan (which becomes float('nan') in tolist()) to Python None.
         }
+
 
 
 
