@@ -310,7 +310,7 @@ class RESCMConfig(BaseEstimatorConfig):
 
 
 
-class BaseSYNTHEXPConfig(BaseModel):
+class BaseMAREXConfig(BaseModel):
     """
     Base configuration for synthetic experiment designs.
     Contains fields common to all synthetic experiment-based estimators.
@@ -371,13 +371,13 @@ class BaseSYNTHEXPConfig(BaseModel):
         return values
 
 
-class SYNTHEXPConfig(BaseSYNTHEXPConfig):
+class MAREXConfig(BaseMAREXConfig):
     """
-    Configuration for the Synthetic Experiment Design estimator (SYNTHEXP) in mlsynth.
+    Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth.
 
     This configuration is specifically intended for **experimental design using synthetic control**.
     Unlike typical causal estimators, users do **not** pre-specify treated units because the
-    SYNTHEXP class internally optimizes treatment assignment to achieve balance in pre-treatment outcomes.
+    MAREX class internally optimizes treatment assignment to achieve balance in pre-treatment outcomes.
     This allows experimenters to design experiments even when post-treatment data does not yet exist.
 
     Key points:
@@ -548,6 +548,7 @@ class BaseEstimatorResults(BaseModel):
             np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()] if arr is not None else None
             # This explicitly converts np.nan (which becomes float('nan') in tolist()) to Python None.
         }
+
 
 
 
