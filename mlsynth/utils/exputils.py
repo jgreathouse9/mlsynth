@@ -2,6 +2,8 @@ import pandas as pd
 import cvxpy as cp
 import numpy as np
 
+
+
 def _get_per_cluster_param(param, klabel, default=None):
     """Helper: param may be None, scalar, or dict {klabel: val}."""
     if param is None:
@@ -125,6 +127,8 @@ def SCMEXP(
     arXiv:2108.02196. https://arxiv.org/abs/2108.02196
     """
     # --- validation of mutually exclusive design selection ---
+    widedf= Y_full
+    Y_full= Y_full.to_numpy()
     valid_designs = {"base", "weak", "eq11", "unit"}
     if design not in valid_designs:
         raise ValueError(f"design must be one of {valid_designs}; got '{design}'")
@@ -361,7 +365,9 @@ def SCMEXP(
         "beta": beta if design == "weak" else None,
         "lambda1": (lambda1 if design == "eq11" else (lambda1_unit if design == "unit" else None)),
         "lambda2": (lambda2 if design == "eq11" else (lambda2_unit if design == "unit" else None)),
-        "xi": (xi if design == "unit" else None)
+        "xi": (xi if design == "unit" else None),
+        "df": widedf,
+        "original_cluster_vector":  clusters
     }
     return result
 
