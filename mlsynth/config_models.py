@@ -1,10 +1,142 @@
 from typing import List, Optional, Any, Dict, Union
 import pandas as pd
-import numpy as np # Added for use in other models, e.g. np.ndarray
+import numpy as np # Added for potential use in other models, e.g. np.ndarray
 from pydantic import BaseModel, Field, model_validator
 from typing import Any # Ensure Any is imported for the validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import warnings
+
+
+
+class BaseMAREXConfig(BaseModel):
+    """
+    Base configuration for synthetic experiment designs.
+    Contains fields common to all synthetic experiment-based estimators.
+    """
+    df: pd.DataFrame = Field(..., description="Input panel data (units x time).")
+    outcome: str = Field(..., description="Column name for the outcome variable.")
+    unitid: str = Field(..., description="Column name for the unit identifier.")
+    time: str = Field(..., description="Column name for the time period.")
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "forbid"
+
+    @model_validator(mode="after")
+    def check_df_columns(cls, values: Any) -> Any:
+        df = values.df
+        outcome = values.outcome
+        unitid = values.unitid
+        time = values.time
+
+        if df.empty:
+            raise MlsynthDataError("Input DataFrame 'df' cannot be empty.")
+
+        # Ensure required columns exist
+        required_columns = {outcome, unitid, time}
+        missing_columns = required_columns - set(df.columns)
+        if missing_columns:
+            raise MlsynthDataError(
+                f"Missing required columns in DataFrame: {', '.join(sorted(missing_columns))}"
+            )
+
+        # Check for missing values in required columns
+        missing_info = {col: int(df[col].isna().sum()) for col in required_columns if df[col].isna().any()}
+        if missing_info:
+            details = ", ".join([f"{col}: {count}" for col, count in missing_info.items()])
+            raise MlsynthDataError(
+                f"Missing values detected in required columns -> {details}. "
+                "Please clean or impute these values before passing to BaseMAREXConfig."
+            )
+
+        # Check for uniqueness of (unitid, time) pairs
+        duplicate_count = df.duplicated(subset=[unitid, time]).sum()
+        if duplicate_count > 0:
+            raise MlsynthDataError(
+                f"Duplicate (unitid, time) pairs found: {duplicate_count}. "
+                f"Each (unitid, time) combination must be unique in panel data."
+            )
+
+        # Ensure time is sorted within each unit (auto-fix if not)
+        if not df.sort_values([unitid, time]).equals(df):
+            warnings.warn(
+                f"DataFrame was not sorted by [{unitid}, {time}] — auto-sorting applied.",
+                UserWarning
+            )
+            df = df.sort_values([unitid, time]).reset_index(drop=True)
+            values.df = df  # overwrite with sorted DataFrame
+
+        return values
+
+
+class MAREXConfig(BaseMAREXConfig):
+    """
+    Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth.
+
+    This configuration is specifically intended for **experimental design using synthetic control**.
+    Unlike typical causal estimators, users do **not** pre-specify treated units because the
+    MAREX class internally optimizes treatment assignment to achieve balance in pre-treatment outcomes.
+    This allows experimenters to design experiments even when post-treatment data does not yet exist.
+
+    Key points:
+    - `treat` is intentionally omitted: treatment assignment is optimized internally.
+    - Users may provide a `clusters` vector to indicate groupings for synthetic treated/control units.
+    - `T0` allows limiting pre-treatment periods used for optimization.
+    - `design` selects the type of synthetic control optimization:
+        - `"base"`: cluster-targeted fit to cluster mean
+        - `"weak"`: weakly-targeted fit with optional penalty `beta`
+        - `"eq11"`: penalized design with lambda1/lambda2 weights
+        - `"unit"`: unit-level penalized design (xi, lambda1_unit, lambda2_unit)
+    - This configuration is designed for iterative or exploratory experiment design,
+      where treatment may later be applied in a real-world study.
+    """
+
+    # Core design parameters
+    T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
+    cluster: Optional[str] = Field(
+        default=None,
+        description="Column name in df indicating cluster membership for each unit."
+    )
+
+    design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
+
+    # Penalization parameters
+    beta: float = Field(default=1e-6, description="Weak-targeting penalty (used if design='weak').")
+    lambda1: float = Field(default=0.0, description="Treated distance penalty (used if design='eq11').")
+    lambda2: float = Field(default=0.0, description="Control distance penalty (used if design='eq11').")
+    xi: float = Field(default=0.0, description="Unit-level OA.1 penalty (used if design='unit').")
+    lambda1_unit: float = Field(default=0.0, description="Unit-level OA.2 penalty (used if design='unit').")
+    lambda2_unit: float = Field(default=0.0, description="Unit-level OA.3 penalty (used if design='unit').")
+
+    # Additional SCMEXP options
+    blank_periods: int = Field(default=0, description="Number of blank periods at the start of Y_full.")
+    m_eq: Optional[int] = Field(default=None, description="Optional exact number of treated units per cluster.")
+    m_min: Optional[int] = Field(default=None, description="Optional minimum treated units per cluster.")
+    m_max: Optional[int] = Field(default=None, description="Optional maximum treated units per cluster.")
+    exclusive: bool = Field(default=True, description="Whether treated units are mutually exclusive across clusters.")
+    solver: Any = Field(default=None, description="Optional cvxpy solver to use (e.g., cp.ECOS_BB).")
+    verbose: bool = Field(default=False, description="Whether to display solver/logging output.")
+
+    @model_validator(mode="after")
+    def validate_design_params(cls, values: Any) -> Any:
+        df = values.df
+        T0 = values.T0
+        design = values.design
+
+        # Validate T0
+        n_periods = df[values.time].nunique()
+        if T0 is not None and (T0 <= 0 or T0 > n_periods):
+            raise MlsynthDataError(f"T0 must be between 1 and the number of time periods ({n_periods}).")
+
+        # Validate design
+        valid_designs = {"base", "weak", "eq11", "unit"}
+        if design not in valid_designs:
+            raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
+
+        return values
+
+
+
 
 
 
@@ -155,6 +287,7 @@ class PROXIMALConfig(BaseEstimatorConfig):
             raise MlsynthConfigError("Config 'vars' must contain a non-empty list for 'surrogatevars' when surrogates are provided.")
         return values
 
+
 class FSCMConfig(BaseEstimatorConfig):
     """
     Configuration for the Forward Selected Synthetic Control Method (FSCM) estimator.
@@ -223,6 +356,7 @@ class FSCMConfig(BaseEstimatorConfig):
             "in Bayesian optimization."
         )
     )
+
 
 class SRCConfig(BaseEstimatorConfig):
     """
@@ -305,142 +439,6 @@ class SHCConfig(BaseEstimatorConfig):
 
 class RESCMConfig(BaseEstimatorConfig):
     pass
-
-
-
-
-
-class BaseMAREXConfig(BaseModel):
-    """
-    Base configuration for synthetic experiment designs.
-    Contains fields common to all synthetic experiment-based estimators.
-    """
-    df: pd.DataFrame = Field(..., description="Input panel data (units x time).")
-    outcome: str = Field(..., description="Column name for the outcome variable.")
-    unitid: str = Field(..., description="Column name for the unit identifier.")
-    time: str = Field(..., description="Column name for the time period.")
-
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "forbid"
-
-    @model_validator(mode="after")
-    def check_df_columns(cls, values: Any) -> Any:
-        df = values.df
-        outcome = values.outcome
-        unitid = values.unitid
-        time = values.time
-
-        if df.empty:
-            raise MlsynthDataError("Input DataFrame 'df' cannot be empty.")
-
-        # Ensure required columns exist
-        required_columns = {outcome, unitid, time}
-        missing_columns = required_columns - set(df.columns)
-        if missing_columns:
-            raise MlsynthDataError(
-                f"Missing required columns in DataFrame: {', '.join(sorted(missing_columns))}"
-            )
-
-        # Check for missing values in required columns
-        missing_info = {col: int(df[col].isna().sum()) for col in required_columns if df[col].isna().any()}
-        if missing_info:
-            details = ", ".join([f"{col}: {count}" for col, count in missing_info.items()])
-            raise MlsynthDataError(
-                f"Missing values detected in required columns -> {details}. "
-                "Please clean or impute these values before passing to BaseSYNTHEXPConfig."
-            )
-
-        # Check for uniqueness of (unitid, time) pairs
-        duplicate_count = df.duplicated(subset=[unitid, time]).sum()
-        if duplicate_count > 0:
-            raise MlsynthDataError(
-                f"Duplicate (unitid, time) pairs found: {duplicate_count}. "
-                f"Each (unitid, time) combination must be unique in panel data."
-            )
-
-        # Ensure time is sorted within each unit (auto-fix if not)
-        if not df.sort_values([unitid, time]).equals(df):
-            warnings.warn(
-                f"DataFrame was not sorted by [{unitid}, {time}] — auto-sorting applied.",
-                UserWarning
-            )
-            df = df.sort_values([unitid, time]).reset_index(drop=True)
-            values.df = df  # overwrite with sorted DataFrame
-
-        return values
-
-
-class MAREXConfig(BaseMAREXConfig):
-    """
-    Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth.
-
-    This configuration is specifically intended for **experimental design using synthetic control**.
-    Unlike typical causal estimators, users do **not** pre-specify treated units because the
-    MAREX class internally optimizes treatment assignment to achieve balance in pre-treatment outcomes.
-    This allows experimenters to design experiments even when post-treatment data does not yet exist.
-
-    Key points:
-    - `treat` is intentionally omitted: treatment assignment is optimized internally.
-    - Users may provide a `clusters` vector to indicate groupings for synthetic treated/control units.
-    - `T0` allows limiting pre-treatment periods used for optimization.
-    - `design` selects the type of synthetic control optimization:
-        - `"base"`: cluster-targeted fit to cluster mean
-        - `"weak"`: weakly-targeted fit with optional penalty `beta`
-        - `"eq11"`: penalized design with lambda1/lambda2 weights
-        - `"unit"`: unit-level penalized design (xi, lambda1_unit, lambda2_unit)
-    - This configuration is designed for iterative or exploratory experiment design,
-      where treatment may later be applied in a real-world study.
-    """
-
-    # Core design parameters
-    T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
-    clusters: Optional[np.ndarray] = Field(default=None, description="Cluster labels per unit.")
-    design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
-
-    # Penalization parameters
-    beta: float = Field(default=1e-6, description="Weak-targeting penalty (used if design='weak').")
-    lambda1: float = Field(default=0.0, description="Treated distance penalty (used if design='eq11').")
-    lambda2: float = Field(default=0.0, description="Control distance penalty (used if design='eq11').")
-    xi: float = Field(default=0.0, description="Unit-level OA.1 penalty (used if design='unit').")
-    lambda1_unit: float = Field(default=0.0, description="Unit-level OA.2 penalty (used if design='unit').")
-    lambda2_unit: float = Field(default=0.0, description="Unit-level OA.3 penalty (used if design='unit').")
-
-    # Additional SCMEXP options
-    blank_periods: int = Field(default=0, description="Number of blank periods at the start of Y_full.")
-    m_eq: Optional[int] = Field(default=None, description="Optional exact number of treated units per cluster.")
-    m_min: Optional[int] = Field(default=None, description="Optional minimum treated units per cluster.")
-    m_max: Optional[int] = Field(default=None, description="Optional maximum treated units per cluster.")
-    exclusive: bool = Field(default=True, description="Whether treated units are mutually exclusive across clusters.")
-    solver: Any = Field(default=None, description="Optional cvxpy solver to use (e.g., cp.ECOS_BB).")
-    verbose: bool = Field(default=False, description="Whether to display solver/logging output.")
-
-    @model_validator(mode="after")
-    def validate_design_params(cls, values: Any) -> Any:
-        df = values.df
-        clusters = values.clusters
-        T0 = values.T0
-        design = values.design
-
-        # Validate clusters length
-        if clusters is not None and len(clusters) != len(df):
-            raise MlsynthDataError("Length of clusters vector must equal number of rows in df.")
-
-        # Validate T0
-        n_periods = df[values.time].nunique()
-        if T0 is not None and (T0 <= 0 or T0 > n_periods):
-            raise MlsynthDataError(f"T0 must be between 1 and the number of time periods ({n_periods}).")
-
-        # Validate design
-        valid_designs = {"base", "weak", "eq11", "unit"}
-        if design not in valid_designs:
-            raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
-
-        return values
-
-
-
-
 
 
 # --- Pydantic Models for Standardized Estimator Results ---
@@ -551,8 +549,78 @@ class BaseEstimatorResults(BaseModel):
 
 
 
+class StudyConfig(BaseModel):
+    """
+    Holds hyperparameters and design characteristics of the SCMEXP study.
+    """
+    beta: float
+    lambda1: float
+    lambda2: float
+    xi: float
+    T0: int
+    blank_periods: int
+    design: str
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "forbid"
+
+
+class GlobalResults(BaseModel):
+    """
+    Aggregated global results from the synthetic control fitting,
+    before any treatment effect calculations.
+    """
+    Y_fit: Optional[np.ndarray]           # Full fitted matrix (units x time)
+    Y_blank: Optional[np.ndarray]         # Blank / missing periods
+    Y_full: Optional[np.ndarray]          # Original observed matrix
+    treated_weights_agg: np.ndarray       # Flattened treated weights across all units
+    control_weights_agg: np.ndarray       # Flattened control weights across all units
+    rmse_clusters: Optional[np.ndarray] = None  # Pre-treatment RMSE for each cluster
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "forbid"
+
+
+class ClusterResults(BaseModel):
+    """
+    Results for a single cluster in the SCMEXP design.
+    """
+    members: List[str]                        # unit IDs in this cluster
+    cluster_cardinality: int                  # number of units
+    rmse: Optional[float] = None              # pre-treatment fit error
+
+    # Synthetic outcomes
+    synthetic_treated: np.ndarray
+    synthetic_control: np.ndarray
+
+    # Weights
+    treated_weights: np.ndarray
+    control_weights: np.ndarray
+    selection_indicators: np.ndarray
+
+    # Diagnostics
+    pre_treatment_means: Optional[np.ndarray] = None
+
+    unit_weight_map: Optional[dict] = None
+
+    # Allow arbitrary types like np.ndarray
+    model_config = {
+        "arbitrary_types_allowed": True
+    }
 
 
 
+class MAREXResults(BaseModel):
+    """
+    Results of a MAREX synthetic experiment design.
+    Contains cluster-level results, study configuration, and global pre-treatment results.
+    """
+    clusters: Dict[str, ClusterResults]
+    study: StudyConfig
+    globres: GlobalResults
 
-
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "forbid"
