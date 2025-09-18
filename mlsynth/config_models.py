@@ -550,9 +550,7 @@ class BaseEstimatorResults(BaseModel):
 
 
 class StudyConfig(BaseModel):
-    """
-    Holds hyperparameters and design characteristics of the SCMEXP study.
-    """
+    """Holds hyperparameters and design characteristics of the SCMEXP study."""
     beta: float
     lambda1: float
     lambda2: float
@@ -584,9 +582,7 @@ class GlobalResults(BaseModel):
 
 
 class ClusterResults(BaseModel):
-    """
-    Results for a single cluster in the SCMEXP design.
-    """
+    """Results for a single cluster in the SCMEXP design."""
     members: List[str]                        # unit IDs in this cluster
     cluster_cardinality: int                  # number of units
     rmse: Optional[float] = None              # pre-treatment fit error
