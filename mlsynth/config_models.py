@@ -70,9 +70,7 @@ class BaseMAREXConfig(BaseModel):
 
 
 class MAREXConfig(BaseMAREXConfig):
-    """
-    Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth.
-    """
+    """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
 
     # Core design parameters
     T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
