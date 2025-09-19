@@ -261,9 +261,33 @@ def test_valid_m_min_and_m_max(curacao_sim_data):
 
 
 
+def test_fit_minimal_config(curacao_sim_data):
+    config = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": 50,  # within range
+        "m_eq": 1
+    }
+    marex = MAREX(config=MAREXConfig(**config))
+    results = marex.fit()
+    assert results is not None
+    assert hasattr(results, "study")
 
 
 
+def test_default_lambdas(curacao_sim_data):
+    config = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "m_eq": 1
+    }
+    cfg = MAREXConfig(**config)
+    assert cfg.lambda1 == 0.0
+    assert cfg.lambda2 == 0.0
 
 
 
