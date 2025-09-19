@@ -192,11 +192,21 @@ class MAREX:
         # Reshape data: units as rows, time as columns
         Y_full = self.df.pivot(index=self.unitid, columns=self.time, values=self.outcome).reindex(unit_labels)
 
+        # Determine total time and T0
         T_total = len(self.df[self.time].unique())
-        
-        T0 = self.T0 if self.T0 is not None else T_total - 1
-        
-        blanks = T_total - T0
+        T0 = self.T0 if self.T0 is not None else T_total - 1  # default T0 = T-1
+    
+        # Determine blank_periods
+        if hasattr(self, "blank_periods") and self.blank_periods is not None:
+            blanks = self.blank_periods
+        else:
+            blanks = T_total - T0  # default blank periods = post-treatment periods
+    
+        # Validate blank_periods
+        if not (0 <= blanks < T0):
+            raise ValueError(
+                f"blank_periods must be 0 <= blank_periods < T0 (T0={T0}, got blank_periods={blanks})"
+            )
         
         # Prepare SCMEXP arguments
         scm_kwargs = dict(
@@ -238,6 +248,7 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
 
 
 
