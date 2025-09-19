@@ -95,23 +95,27 @@ class MAREXConfig(BaseMAREXConfig):
     verbose: bool = Field(default=False)
 
     @model_validator(mode="after")
-    def validate_design_params(cls, values: Any) -> Any:
+    def validate_design_params(cls, values: "MAREXConfig") -> "MAREXConfig":
         df = values.df
         T0 = values.T0
         design = values.design
         cluster_col = values.cluster
 
-        # Validate T0
+        # --- T0 validation ---
         n_periods = df[values.time].nunique()
         if T0 is not None and (T0 <= 0 or T0 > n_periods):
-            raise MlsynthDataError(f"T0 must be between 1 and the number of time periods ({n_periods}).")
+            raise MlsynthDataError(
+                f"T0 must be between 1 and the number of time periods ({n_periods})."
+            )
 
-        # Validate design
+        # --- design validation ---
         valid_designs = {"base", "weak", "eq11", "unit"}
         if design not in valid_designs:
-            raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
+            raise MlsynthDataError(
+                f"design must be one of {valid_designs}; got '{design}'"
+            )
 
-        # --- Cluster handling ---
+        # --- cluster handling ---
         if cluster_col is not None:
             if cluster_col not in df.columns:
                 raise MlsynthDataError(f"Cluster column '{cluster_col}' not found in df.")
@@ -123,27 +127,40 @@ class MAREXConfig(BaseMAREXConfig):
                 warnings.warn(
                     f"Cluster column '{cluster_col}' contains strings or categories. "
                     "Automatically converting to integer codes.",
-                    UserWarning
+                    UserWarning,
                 )
                 df[cluster_col] = pd.Categorical(col).codes
                 col = df[cluster_col]
 
             # Check for emptiness
             if col.isna().all():
-                raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values")
-            
+                raise MlsynthDataError(
+                    f"Cluster column '{cluster_col}' contains only missing values"
+                )
+
             # Warn if some values are missing
             if col.isna().any():
                 n_missing = col.isna().sum()
                 warnings.warn(
                     f"Cluster column '{cluster_col}' contains {n_missing} missing values. "
                     "These units may be ignored in clustering.",
-                    UserWarning
+                    UserWarning,
                 )
 
             values.df = df  # overwrite DataFrame in Pydantic model
 
+            # --- m_eq validation ---
+            if values.m_eq is not None:
+                cluster_sizes = df.groupby(cluster_col).size()
+                print(cluster_sizes)
+                if values.m_eq > cluster_sizes.max():
+                    raise MlsynthDataError(
+                        f"m_eq ({values.m_eq}) cannot be greater than the number of units "
+                        f"in any cluster (max cluster size = {cluster_sizes.max()})"
+                    )
+
         return values
+
 
 
 
@@ -627,5 +644,6 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
