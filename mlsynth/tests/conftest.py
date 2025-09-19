@@ -1,7 +1,7 @@
-# tests/conftest.py
+# mlsynth/tests/conftest.py
 import pytest
 import numpy as np
-from exp_simdata import simulate_districts, sim_to_long_df  # Import from your stashed file
+from exp_simdata import simulate_districts, sim_to_long_df, districts  # Added districts
 
 @pytest.fixture
 def curacao_sim_data():
