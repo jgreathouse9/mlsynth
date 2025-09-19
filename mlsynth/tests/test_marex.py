@@ -155,12 +155,12 @@ def test_init_invalid_T0(curacao_sim_data):
 
 
 def test_clusters_column_as_string(curacao_sim_data):
-
+    # Make a copy and force Region to string
     df = curacao_sim_data["df"].copy()
-    df["Region"] = df["Region"].astype(str)  # force Region to string
+    df["Region"] = df["Region"].astype(str)
 
     config_data = {
-        "df": df,  # use the modified df here
+        "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
@@ -168,14 +168,12 @@ def test_clusters_column_as_string(curacao_sim_data):
         "m_eq": 1
     }
 
-    try:
-        MAREX(config=MAREXConfig(**config_data))
-    except Exception as e:
-        print(f"Caught exception type: {type(e).__name__}")
-        print(f"Exception message: {e}")
-        raise  # optionally re-raise so pytest sees the failure
+    # Check that a UserWarning is raised for automatic integer conversion
+    with pytest.warns(UserWarning, match="Cluster column 'Region' contains non-integer values"):
+        marex_config = MAREXConfig(**config_data)
 
-
+    # Optional: check that the df column is now integer-coded
+    assert pd.api.types.is_integer_dtype(marex_config.df["Region"])
 
 
 
