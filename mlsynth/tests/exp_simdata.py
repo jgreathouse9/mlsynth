@@ -1,4 +1,4 @@
-# tests/sim_functions.py
+# mlsynth/tests/exp_simdata.py
 import numpy as np
 import pandas as pd
 
@@ -28,47 +28,11 @@ densities = {
 
 # -------------------- Simulation --------------------
 def simulate_districts(districts, R_town=6, F_town=3,
-                       R_dist=4, F_dist=1,
-                       T0=104, T1=24, sigma2=.25,
-                       phi=0.95, treated_units=None, seed=None):
+                      R_dist=4, F_dist=1,
+                      T0=104, T1=24, sigma2=.25,
+                      phi=0.95, treated_units=None, seed=None):
     """
     Simulate panel data of weekly tourism spending across districts and towns.
-
-    Parameters
-    ----------
-    districts : dict
-        Dictionary mapping district name -> list of town/locality names.
-    R_town : int
-        Number of town-level covariates.
-    F_town : int
-        Number of town-specific latent factors.
-    R_dist : int
-        Number of district-level covariates.
-    F_dist : int
-        Number of district latent factors.
-    T0 : int
-        Pre-treatment periods.
-    T1 : int
-        Post-treatment periods.
-    sigma2 : float
-        Base variance of noise terms.
-    phi : float
-        AR(1) persistence parameter for temporal dependence.
-    treated_units : list
-        Indices of towns that are treated post-T0.
-    seed : int or None
-        Random seed for reproducibility.
-
-    Returns
-    -------
-    dict with keys:
-        - Y_N : untreated potential outcomes
-        - Y_I : treated potential outcomes
-        - Y_obs : observed outcomes
-        - district_labels : district for each unit
-        - town_labels : town name for each unit
-        - treated_units : list of treated units
-        - tourism_spending : global tourism shock
     """
     if seed is not None:
         np.random.seed(seed)
@@ -174,19 +138,6 @@ def simulate_districts(districts, R_town=6, F_town=3,
 def sim_to_long_df(sim_data, T0=104):
     """
     Convert simulation output to long-format DataFrame.
-
-    Parameters
-    ----------
-    sim_data : dict
-        Output from `simulate_districts`.
-    T0 : int
-        Number of pre-treatment periods (used to mark treated periods).
-
-    Returns
-    -------
-    pd.DataFrame
-        Long-format DataFrame with columns:
-        ['district', 'town', 'time', 'Y_N', 'Y_I', 'Y_obs', 'treated', 'tourism_spending', 'population']
     """
     district_labels = sim_data["district_labels"]
     town_labels = sim_data["town_labels"]
@@ -215,3 +166,12 @@ def sim_to_long_df(sim_data, T0=104):
             })
 
     return pd.DataFrame(rows)
+
+# -------------------- District Setup --------------------
+districts = {
+    "Bandabou": ["Barber", "Lagún", "Sint Willibrordus", "Soto", "Tera Corá", "Westpunt"],
+    "Bandariba": ["Oostpunt", "Santa Rosa", "Spaanse Water"],
+    "Willemstad": ["Brievengat", "Groot Kwartier", "Groot Piscadera",
+                   "Hato", "Koraal Partir", "Otrobanda", "Pietermaai",
+                   "Piscadera Bay", "Saliña", "Scharloo", "Sint Michiel", "Steenrijk"]
+}
