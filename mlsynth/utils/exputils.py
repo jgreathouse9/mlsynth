@@ -74,6 +74,51 @@ def _validate_scm_inputs(Y_full, T0, blank_periods, design,
     if design != "unit" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
         raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit'")
 
+def _validate_costs_budget(costs, budget, N, cluster_labels, K):
+    """
+    Validate and process cost and budget inputs for SCM.
+
+    Parameters
+    ----------
+    costs : array-like or None
+        Vector of costs per unit, length N.
+    budget : scalar, dict, or None
+        Total budget constraint.
+    N : int
+        Number of units.
+    cluster_labels : array-like
+        Unique cluster labels.
+    K : int
+        Number of clusters.
+
+    Returns
+    -------
+    costs_np : np.ndarray or None
+        Costs as a NumPy array.
+    budget_dict : dict or None
+        Budget per cluster.
+    """
+    if costs is None:
+        return None, None
+
+    costs_np = np.asarray(costs)
+    if costs_np.shape[0] != N:
+        raise ValueError("costs must have length N (rows of Y).")
+    if budget is None:
+        raise ValueError("budget must be provided if costs are specified.")
+
+    if isinstance(budget, (int, float)):
+        budget_dict = {lab: budget / K for lab in cluster_labels}  # Even split
+    elif isinstance(budget, dict):
+        for lab in cluster_labels:
+            if lab not in budget:
+                raise ValueError(f"budget missing entry for cluster '{lab}'.")
+        budget_dict = budget
+    else:
+        raise TypeError("budget must be scalar or dict if costs are provided.")
+
+    return costs_np, budget_dict
+
 
 
 
@@ -113,19 +158,12 @@ def SCMEXP(
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = _prepare_clusters(Y_full, clusters)
 
 
-    # --- validate costs and budget ---
-    if costs is not None:
-        costs = np.asarray(costs)
-        if costs.shape[0] != N:
-            raise ValueError("costs must have length N (rows of Y).")
-        if budget is None:
-            raise ValueError("budget must be provided if costs are specified.")
-        if isinstance(budget, (int, float)):
-            budget = {lab: budget / K for lab in cluster_labels}  # Even split
-        elif isinstance(budget, dict):
-            for lab in cluster_labels:
-                if lab not in budget:
-                    raise ValueError(f"budget missing entry for cluster '{lab}'.")
+    if costs_np is not None:
+        B_k = _get_per_cluster_param(budget_dict, lab)
+        c_k = costs_np[members]
+        constraints += [cp.sum(cp.multiply(c_k, w[members, k_idx])) <= B_k]
+
+
 
     # --- prepare fit slices ---
     T_fit = T0 - blank_periods
