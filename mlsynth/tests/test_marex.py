@@ -4,6 +4,7 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from pydantic import ValidationError
 from mlsynth.exceptions import MlsynthDataError
+import numpy as np
 
 def test_initialization_valid_config(curacao_sim_data):
     config_data = {
