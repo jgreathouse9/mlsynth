@@ -178,10 +178,20 @@ def test_clusters_column_as_string(curacao_sim_data):
 
 def test_cluster_not_empty(curacao_sim_data):
     df = curacao_sim_data["df"].copy()
-    df["Region"] = pd.NA
-    config = MAREXConfig(df=df, outcome="Y_obs", unitid="town", time="time", cluster="Region")
-    with pytest.raises(MlsynthDataError):
-        MAREX(config)
+    df["Region"] = np.nan  # force the cluster column to be empty
+
+    config_data = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "cluster": "Region",
+        "m_eq": 1
+    }
+
+    with pytest.raises(MlsynthDataError, match="Cluster column 'Region' contains only missing values"):
+        MAREXConfig(**config_data)
+
 
 def test_m_eq_greater_than_cluster(curacao_sim_data):
     config = MAREXConfig(df=curacao_sim_data["df"], outcome="Y_obs", unitid="town", time="time",
