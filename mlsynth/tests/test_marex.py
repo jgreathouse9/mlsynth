@@ -176,12 +176,17 @@ def test_clusters_column_as_string(curacao_sim_data):
     assert pd.api.types.is_integer_dtype(marex_config.df["Region"])
 
 
-def test_cluster_not_empty(curacao_sim_data):
-    df = curacao_sim_data["df"].copy()
-    df["Region"] = np.nan  # force the cluster column to be empty
+def test_cluster_missing_values(curacao_sim_data):
+    df_base = curacao_sim_data["df"].copy()
 
-    config_data = {
-        "df": df,
+    # --------------------------
+    # Case 1: Entire cluster column missing → should raise error
+    # --------------------------
+    df_all_missing = df_base.copy()
+    df_all_missing["Region"] = pd.NA  # all missing
+
+    config_all_missing = {
+        "df": df_all_missing,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
@@ -190,7 +195,28 @@ def test_cluster_not_empty(curacao_sim_data):
     }
 
     with pytest.raises(MlsynthDataError, match="Cluster column 'Region' contains only missing values"):
-        MAREXConfig(**config_data)
+        MAREXConfig(**config_all_missing)
+
+    # --------------------------
+    # Case 2: Some missing values → should warn
+    # --------------------------
+    df_some_missing = df_base.copy()
+    df_some_missing.loc[df_some_missing.index[:3], "Region"] = pd.NA  # first 3 missing
+
+    config_some_missing = {
+        "df": df_some_missing,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "cluster": "Region",
+        "m_eq": 1
+    }
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        cfg = MAREXConfig(**config_some_missing)
+        # Expect a warning about missing cluster values
+        assert any("contains 3 missing values" in str(warn.message) for warn in w)
 
 
 def test_m_eq_greater_than_cluster(curacao_sim_data):
