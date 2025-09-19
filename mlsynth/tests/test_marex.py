@@ -6,6 +6,8 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
+from ..utils.exputils import _get_per_cluster_param, SCMEXP
+
 
 # ----------------------------------------------------
 # Initialization Tests
@@ -543,3 +545,112 @@ def test_explicit_blank_periods(curacao_sim_data):
     marex = MAREX(config=MAREXConfig(**config))
     results = marex.fit()
     assert results.study.blank_periods == explicit_blanks
+
+
+# -------------------------
+# Fixtures
+# -------------------------
+@pytest.fixture
+def simple_data():
+    """
+    Small dataset:
+    - 4 units
+    - 5 time periods
+    - 2 clusters: "c1" with 2 units, "c2" with 2 units
+    """
+    Y = np.array([
+        [1, 2, 3, 4, 5],  # unit 0
+        [2, 3, 4, 5, 6],  # unit 1
+        [3, 4, 5, 6, 7],  # unit 2
+        [4, 5, 6, 7, 8],  # unit 3
+    ], dtype=float)
+
+    clusters = np.array(["c1", "c1", "c2", "c2"])
+    return Y, clusters
+
+# -------------------------
+# Helper function tests
+# -------------------------
+def test_get_per_cluster_param():
+    # None returns default
+    assert _get_per_cluster_param(None, "c1") is None
+    assert _get_per_cluster_param(None, "c1", default=5) == 5
+
+    # Scalar returns itself
+    assert _get_per_cluster_param(7, "c1") == 7
+
+    # Dict returns correct value or default
+    d = {"c1": 3, "c2": 4}
+    assert _get_per_cluster_param(d, "c1") == 3
+    assert _get_per_cluster_param(d, "c3", default=10) == 10
+
+# -------------------------
+# SCMEXP design tests
+# -------------------------
+@pytest.mark.parametrize("design", ["base", "weak", "eq11", "unit"])
+def test_scmexp_basic(simple_data, design):
+    Y, clusters = simple_data
+    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, design=design)
+
+    N = Y.shape[0]
+    K = len(np.unique(clusters))
+
+    # Check shapes
+    assert res["w_opt"].shape == (N, K)
+    assert res["v_opt"].shape == (N, K)
+    assert res["z_opt"].shape == (N, K)
+    assert len(res["cluster_labels"]) == K
+    assert len(res["cluster_members"]) == K
+    assert len(res["Xbar_clusters"]) == K
+
+    # Check aggregation
+    assert res["w_agg"].shape[0] == N
+    assert res["v_agg"].shape[0] == N
+
+# -------------------------
+# Test cardinality parameters
+# -------------------------
+def test_scmexp_cardinality(simple_data):
+    Y, clusters = simple_data
+    m_eq = {"c1": 1, "c2": 2}
+    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, design="base", m_eq=m_eq)
+
+    # Check z_opt respects m_eq
+    cluster_labels = res["cluster_labels"]
+    for idx, lab in enumerate(cluster_labels):
+        selected_count = int(np.sum(res["z_opt"][:, idx] > 0.5))
+        assert selected_count == m_eq[lab]
+
+# -------------------------
+# Test costs and budgets
+# -------------------------
+def test_scmexp_cost_budget(simple_data):
+    Y, clusters = simple_data
+    costs = np.array([1, 2, 1, 2], dtype=float)
+    budget = {"c1": 2, "c2": 3}
+    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, design="base", costs=costs, budget=budget)
+
+    # Each cluster total cost should not exceed budget
+    for idx, lab in enumerate(res["cluster_labels"]):
+        members = res["cluster_members"][idx]
+        total_cost = np.sum(res["w_opt"][members, idx] * costs[members])
+        assert total_cost <= budget[lab] + 1e-6  # numerical tolerance
+
+# -------------------------
+# Test invalid inputs
+# -------------------------
+def test_scmexp_invalid_T0(simple_data):
+    Y, clusters = simple_data
+    with pytest.raises(ValueError):
+        SCMEXP(Y_full=Y, T0=0, clusters=clusters)
+
+def test_scmexp_invalid_clusters_length(simple_data):
+    Y, clusters = simple_data
+    with pytest.raises(ValueError):
+        SCMEXP(Y_full=Y, T0=3, clusters=np.array(["c1", "c2"]))  # wrong length
+
+def test_scmexp_invalid_design(simple_data):
+    Y, clusters = simple_data
+    with pytest.raises(ValueError):
+        SCMEXP(Y_full=Y, T0=3, clusters=clusters, design="invalid_design")
+
