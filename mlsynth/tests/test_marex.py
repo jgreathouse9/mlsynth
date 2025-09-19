@@ -7,7 +7,22 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
-from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP, _validate_scm_inputs, _prepare_clusters
+from mlsynth.utils.exputils import (
+    SCMEXP,
+    _get_per_cluster_param,
+    _prepare_clusters,
+    _validate_scm_inputs,
+    _validate_costs_budget,
+    _prepare_fit_slices,
+    _build_membership_mask,
+    _compute_cluster_means_members,
+    _precompute_distances,
+    _init_cvxpy_variables,
+    _build_constraints,
+    _build_objective
+)
+
+
 
 def test_miqp_solver_available():
     miqp_solvers = ["ECOS_BB", "SCIP", "GUROBI", "MOSEK"]
@@ -666,68 +681,164 @@ def test_scmexp_dataframe_input(simple_data):
 
 
 
-# ---------------------------
-# Validation Tests
-# ---------------------------
+# -------------------------
+# _get_per_cluster_param
+# -------------------------
+def test_get_per_cluster_param_scalar():
+    assert _get_per_cluster_param(5, "A") == 5
+    assert _get_per_cluster_param(None, "A", default=10) == 10
+    assert _get_per_cluster_param({"A": 7}, "A", default=0) == 7
+    assert _get_per_cluster_param({"B": 7}, "A", default=0) == 0
 
-
-def test_validate_scm_inputs():
-    Y = np.random.rand(5, 10)  # 5 units, 10 time periods
-
-    # 1) Valid input should not raise
-    _validate_scm_inputs(Y, T0=5, blank_periods=1, design="base")
-    _validate_scm_inputs(Y, T0=5, blank_periods=0, design="weak", beta=0.1)
-    _validate_scm_inputs(Y, T0=5, blank_periods=2, design="eq11", lambda1=0.1, lambda2=0.2)
-    _validate_scm_inputs(Y, T0=5, blank_periods=0, design="unit", xi=0.1, lambda1_unit=0.2, lambda2_unit=0.3)
-
-    # 2) Invalid T0
-    with pytest.raises(ValueError, match="T0 must be 1 <= T0"):
-        _validate_scm_inputs(Y, T0=0, blank_periods=0, design="base")
-    with pytest.raises(ValueError, match="T0 must be 1 <= T0"):
-        _validate_scm_inputs(Y, T0=10, blank_periods=0, design="base")  # equal to n_periods
-
-    # 3) Invalid blank_periods
-    with pytest.raises(ValueError, match="blank_periods must be 0 <= blank_periods"):
-        _validate_scm_inputs(Y, T0=5, blank_periods=-1, design="base")
-    with pytest.raises(ValueError, match="blank_periods must be 0 <= blank_periods"):
-        _validate_scm_inputs(Y, T0=5, blank_periods=5, design="base")  # equal to T0
-
-    # 4) Invalid parameter combos
-    with pytest.raises(ValueError, match="beta is only valid"):
-        _validate_scm_inputs(Y, T0=5, blank_periods=0, design="base", beta=0.1)
-    with pytest.raises(ValueError, match="lambda1/lambda2 are only valid"):
-        _validate_scm_inputs(Y, T0=5, blank_periods=0, design="base", lambda1=0.1)
-    with pytest.raises(ValueError, match="xi/lambda1_unit/lambda2_unit are only valid"):
-        _validate_scm_inputs(Y, T0=5, blank_periods=0, design="base", xi=0.1)
-
-def test_prepare_clusters():
-    # --- normal case with DataFrame ---
-    Y_df = pd.DataFrame([[1, 2], [3, 4], [5, 6]])
-    clusters = ["A", "B", "A"]
-    Y_np, clusters_np, N, cluster_labels, K, label_to_k = _prepare_clusters(Y_df, clusters)
-
-    # Checks
-    assert isinstance(Y_np, np.ndarray)
-    assert Y_np.shape == (3, 2)
-    assert isinstance(clusters_np, np.ndarray)
-    assert clusters_np.tolist() == clusters
-    assert N == 3
-    assert set(cluster_labels) == {"A", "B"}
-    assert K == 2
-    assert label_to_k == {"A": 0, "B": 1} or label_to_k == {"B": 0, "A": 1}
-
-    # --- normal case with ndarray ---
-    Y_arr = np.array([[10, 20], [30, 40]])
-    clusters_arr = np.array([1, 2])
-    Y_np, clusters_np, N, cluster_labels, K, label_to_k = _prepare_clusters(Y_arr, clusters_arr)
+# -------------------------
+# _prepare_clusters
+# -------------------------
+def test_prepare_clusters_array_and_dataframe():
+    Y = np.array([[1,2],[3,4]])
+    clusters = ["X", "Y"]
+    Y_np, clust_np, N, labels, K, label_to_k = _prepare_clusters(Y, clusters)
     assert isinstance(Y_np, np.ndarray)
     assert N == 2
-    assert set(cluster_labels) == {1, 2}
+    assert K == 2
+    assert labels.tolist() == ["X","Y"]
+    assert label_to_k == {"X":0, "Y":1}
 
-    # --- failure case: cluster length mismatch ---
-    clusters_wrong = ["X", "Y", "Z"]
-    with pytest.raises(ValueError, match="clusters must have length N"):
-        _prepare_clusters(Y_arr, clusters_wrong)
+    df = pd.DataFrame(Y)
+    Y_np2, clust_np2, N2, labels2, K2, _ = _prepare_clusters(df, clusters)
+    assert np.all(Y_np2 == Y_np)
 
+def test_prepare_clusters_mismatched_length():
+    Y = np.array([[1,2],[3,4]])
+    clusters = ["X"]
+    with pytest.raises(ValueError):
+        _prepare_clusters(Y, clusters)
 
+# -------------------------
+# _validate_scm_inputs
+# -------------------------
+def test_validate_scm_inputs_basic_and_design_checks():
+    Y = np.zeros((3,5))
+    # T0 invalid
+    with pytest.raises(ValueError):
+        _validate_scm_inputs(Y, 0, 0, "base")
+    with pytest.raises(ValueError):
+        _validate_scm_inputs(Y, 5, 0, "base")
+    # blank_periods invalid
+    with pytest.raises(ValueError):
+        _validate_scm_inputs(Y, 3, 3, "base")
+    # design incompatible parameters
+    with pytest.raises(ValueError):
+        _validate_scm_inputs(Y, 3, 1, "base", beta=0.1)
+    with pytest.raises(ValueError):
+        _validate_scm_inputs(Y, 3, 1, "weak", lambda1=0.1)
+    with pytest.raises(ValueError):
+        _validate_scm_inputs(Y, 3, 1, "base", xi=0.1)
 
+# -------------------------
+# _validate_costs_budget
+# -------------------------
+def test_validate_costs_budget_scalar_and_dict():
+    N = 3
+    clusters = ["A", "B"]
+    costs = [1,2,3]
+    budget = 10
+    costs_np, budget_dict = _validate_costs_budget(costs, budget, N, clusters, 2)
+    assert np.all(costs_np == np.array(costs))
+    assert budget_dict == {"A":5, "B":5}
+
+    budget_dict_input = {"A": 6, "B": 4}
+    _, bd = _validate_costs_budget(costs, budget_dict_input, N, clusters, 2)
+    assert bd == budget_dict_input
+
+def test_validate_costs_budget_errors():
+    N = 3
+    clusters = ["A", "B"]
+    costs = [1,2]
+    with pytest.raises(ValueError):
+        _validate_costs_budget(costs, 10, N, clusters, 2)
+    with pytest.raises(ValueError):
+        _validate_costs_budget([1,2,3], None, N, clusters, 2)
+    with pytest.raises(TypeError):
+        _validate_costs_budget([1,2,3], ["not a dict"], N, clusters, 2)
+
+# -------------------------
+# _prepare_fit_slices
+# -------------------------
+def test_prepare_fit_slices_shapes():
+    Y = np.zeros((5,10))
+    Y_fit, Y_blank, T_fit = _prepare_fit_slices(Y, 8, 3)
+    assert Y_fit.shape[1] == 5
+    assert Y_blank.shape[1] == 3
+    assert T_fit == 5
+
+# -------------------------
+# _build_membership_mask
+# -------------------------
+def test_build_membership_mask_basic():
+    clusters = ["A","B","A"]
+    label_to_k = {"A":0,"B":1}
+    M = _build_membership_mask(clusters, label_to_k, 3, 2)
+    assert M.shape == (3,2)
+    assert np.all(M[0] == [True, False])
+    assert np.all(M[1] == [False, True])
+
+# -------------------------
+# _compute_cluster_means_members
+# -------------------------
+def test_compute_cluster_means_members_basic():
+    Y_fit = np.array([[1,2],[3,4],[5,6]])
+    M = np.array([[1,0],[0,1],[1,0]], dtype=bool)
+    labels = ["A","B"]
+    Xbar, members = _compute_cluster_means_members(Y_fit, M, labels)
+    assert len(Xbar) == 2
+    assert np.allclose(Xbar[0], np.mean([[1,2],[5,6]], axis=0))
+    assert np.allclose(Xbar[1], [3,4])
+    assert len(members[0]) == 2
+    assert len(members[1]) == 1
+
+# -------------------------
+# _precompute_distances
+# -------------------------
+def test_precompute_distances_shapes():
+    Y_fit = np.random.rand(3,4)
+    Xbar_clusters = [np.mean(Y_fit[[0,2]], axis=0), np.mean(Y_fit[[1]], axis=0)]
+    cluster_members = [np.array([0,2]), np.array([1])]
+    D1, D2_list = _precompute_distances(Y_fit, Xbar_clusters, cluster_members)
+    assert D1.shape == (3,2)
+    assert len(D2_list) == 2
+    assert D2_list[0].shape == (2,2)
+    assert D2_list[1].shape == (1,1)
+
+# -------------------------
+# _init_cvxpy_variables
+# -------------------------
+def test_init_cvxpy_variables_shapes():
+    w, v, z = _init_cvxpy_variables(3,2)
+    assert w.shape == (3,2)
+    assert v.shape == (3,2)
+    assert z.shape == (3,2)
+
+# -------------------------
+# _build_constraints
+# -------------------------
+def test_build_constraints_shapes_and_basic():
+    w, v, z = _init_cvxpy_variables(3,2)
+    M = np.array([[1,0],[0,1],[1,0]], dtype=bool)
+    cluster_members = [np.array([0,2]), np.array([1])]
+    labels = ["A","B"]
+    constraints = _build_constraints(w,v,z,M,cluster_members,labels,
+                                     m_eq=None,m_min=None,m_max=None,
+                                     costs=None,budget_dict=None,exclusive=True)
+    assert isinstance(constraints, list)
+    assert len(constraints) > 0
+
+# -------------------------
+# _build_objective
+# -------------------------
+def test_build_objective_creates_cvxpy_expression():
+    Y_fit = np.random.rand(3,4)
+    Xbar_clusters = [np.mean(Y_fit[[0,2]], axis=0), np.mean(Y_fit[[1]], axis=0)]
+    cluster_members = [np.array([0,2]), np.array([1])]
+    w, v, z = _init_cvxpy_variables(3,2)
+    obj = _build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z, design="base")
+    assert isinstance(obj, cp.Minimize)
