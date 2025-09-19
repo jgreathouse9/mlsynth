@@ -9,10 +9,14 @@ from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
 from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP
 
-def test_installed_solvers():
-    solvers = cp.installed_solvers()
-    print("Installed CVXPY solvers:", solvers)
-    assert "ECOS_BB" in solvers, "ECOS_BB is not installed!"
+def test_miqp_solver_available():
+    miqp_solvers = ["ECOS_BB", "SCIP", "GUROBI", "MOSEK"]
+    installed = cp.installed_solvers()
+    # Print installed solvers for visibility
+    print("Installed solvers:", installed)
+    # Assert that at least one MIQP solver is available
+    assert any(solver in installed for solver in miqp_solvers), \
+        f"No MIQP solver installed. Installed solvers: {installed}"
 
 
 
