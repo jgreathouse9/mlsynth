@@ -153,6 +153,23 @@ def test_init_invalid_T0(curacao_sim_data):
     with pytest.raises(MlsynthDataError):
         MAREXConfig(**config)
 
+
+def test_clusters_as_string(curacao_sim_data):
+    # Use a string column instead of integer cluster IDs
+    config_data = {
+        "df": curacao_sim_data["df"].copy(),
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "clusters": curacao_sim_data["df"]["Region"].astype(str).values,  # STRING instead of int
+        "m_eq": 1
+    }
+    
+    # Expect a validation error if clusters must be integers
+    with pytest.raises(MlsynthDataError):
+        MAREX(config=MAREXConfig(**config_data))
+
+
 # ----------------------------------------------------
 # fit() Method Tests
 # ----------------------------------------------------
