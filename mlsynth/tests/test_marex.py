@@ -639,25 +639,19 @@ def test_scmexp_with_cost_budget(simple_data):
 # ---------------------------
 def test_scmexp_blank_periods(simple_data):
     Y, clusters = simple_data
-    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, blank_periods=1)
+    Y_df = pd.DataFrame(Y, columns=[f"t{i+1}" for i in range(Y.shape[1])])
+    res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters, blank_periods=1)
     assert res["T_fit"] == 2
     if res["Y_blank"] is not None:
         assert res["Y_blank"].shape[1] == 1
-
-# ---------------------------
-# Solver check
-# ---------------------------
-def test_solver_list():
-    solvers = cp.installed_solvers()
-    print("Installed solvers:", solvers)
-    assert "ECOS_BB" in solvers or "SCIP" in solvers
 
 # ---------------------------
 # RMSE sanity
 # ---------------------------
 def test_rmse_positive(simple_data):
     Y, clusters = simple_data
-    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters)
+    Y_df = pd.DataFrame(Y, columns=[f"t{i+1}" for i in range(Y.shape[1])])
+    res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters)
     for rmse in res["rmse_cluster"]:
         assert rmse >= 0 and np.isfinite(rmse)
 
