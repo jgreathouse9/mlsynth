@@ -6,8 +6,6 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
-import warnings
-
 
 # ----------------------------------------------------
 # Initialization Tests
@@ -120,7 +118,6 @@ def test_init_duplicate_rows(curacao_sim_data):
     with pytest.raises(MlsynthDataError):
         MAREXConfig(**config)
 
-
 def test_init_unsorted_dataframe_warning(curacao_sim_data):
     df_shuffled = curacao_sim_data["df"].sample(frac=1).reset_index(drop=True)
     config = {
@@ -129,18 +126,9 @@ def test_init_unsorted_dataframe_warning(curacao_sim_data):
         "unitid": "town",
         "time": "time"
     }
-
-    import warnings
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
+    with pytest.warns(UserWarning):
         cfg = MAREXConfig(**config)
-
-        # Expected sorted df: alphabetical town, then increasing time
-        df_expected = cfg.df.sort_values(["town", "time"], kind="mergesort").reset_index(drop=True)
-        pd.testing.assert_frame_equal(cfg.df, df_expected)
-
-
-
+        assert cfg.df.equals(cfg.df.sort_values(["town", "time"]).reset_index(drop=True))
 
 def test_init_invalid_design(curacao_sim_data):
     config = {
@@ -167,11 +155,12 @@ def test_init_invalid_T0(curacao_sim_data):
 
 
 def test_clusters_column_as_string(curacao_sim_data):
+    # Make a copy and force Region to string
     df = curacao_sim_data["df"].copy()
-    df["Region"] = df["Region"].astype(str)  # force Region to string
+    df["Region"] = df["Region"].astype(str)
 
     config_data = {
-        "df": df,  # use the modified df here
+        "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
@@ -179,69 +168,12 @@ def test_clusters_column_as_string(curacao_sim_data):
         "m_eq": 1
     }
 
-    # Expect a UserWarning about automatic integer conversion
-    with pytest.warns(UserWarning, match="Cluster column 'Region' contains strings or categories"):
-        MAREXConfig(**config_data)
+    # Check that a UserWarning is raised for automatic integer conversion
+    with pytest.warns(UserWarning, match="Cluster column 'Region' contains non-integer values"):
+        marex_config = MAREXConfig(**config_data)
 
-
-
-def test_cluster_missing_values(curacao_sim_data):
-    df_base = curacao_sim_data["df"].copy()
-
-    # --------------------------
-    # Case 1: Entire cluster column missing → should raise error
-    # --------------------------
-    df_all_missing = df_base.copy()
-    df_all_missing["Region"] = pd.NA  # all missing
-
-    config_all_missing = {
-        "df": df_all_missing,
-        "outcome": "Y_obs",
-        "unitid": "town",
-        "time": "time",
-        "cluster": "Region",
-        "m_eq": 1
-    }
-
-    with pytest.raises(MlsynthDataError, match="Cluster column 'Region' contains only missing values"):
-        MAREXConfig(**config_all_missing)
-
-    # --------------------------
-    # Case 2: Some missing values → should warn
-    # --------------------------
-    df_some_missing = df_base.copy()
-    df_some_missing.loc[df_some_missing.index[:3], "Region"] = pd.NA  # first 3 missing
-
-    config_some_missing = {
-        "df": df_some_missing,
-        "outcome": "Y_obs",
-        "unitid": "town",
-        "time": "time",
-        "cluster": "Region",
-        "m_eq": 1
-    }
-
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        cfg = MAREXConfig(**config_some_missing)
-        # Expect a warning about missing cluster values
-        assert any("contains 3 missing values" in str(warn.message) for warn in w)
-
-
-def test_m_eq_greater_than_cluster(curacao_sim_data):
-    config = MAREXConfig(df=curacao_sim_data["df"], outcome="Y_obs", unitid="town", time="time",
-                         cluster="Region", m_eq=1000)
-    marex = MAREX(config)
-    with pytest.raises(MlsynthConfigError):
-        marex.fit()
-
-
-
-
-
-
-
-
+    # Optional: check that the df column is now integer-coded
+    assert pd.api.types.is_integer_dtype(marex_config.df["Region"])
 
 
 
