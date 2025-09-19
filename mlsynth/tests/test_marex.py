@@ -2,7 +2,8 @@
 import pytest
 from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
-from pydantic import ValidationError  # Keep this import
+from pydantic import ValidationError
+from mlsynth.exceptions import MlsynthDataError
 
 def test_initialization_valid_config(curacao_sim_data):
     config_data = {
@@ -11,7 +12,7 @@ def test_initialization_valid_config(curacao_sim_data):
         "unitid": "town",
         "time": "time",
         "T0": 104,
-        "cluster": "Region",  # Use column name as per schema
+        "cluster": "Region",
         "design": "eq11",
         "m_eq": 1,
         "lambda1": 0.2,
@@ -22,6 +23,76 @@ def test_initialization_valid_config(curacao_sim_data):
         assert marex.df is not None
         assert marex.outcome == "Y_obs"
         assert marex.T0 == 104
-        assert marex.cluster is not None  # Check that clusters is derived
+        assert marex.cluster == "Region"  # Precise check
     except ValidationError as e:
         assert False, f"Initialization failed with ValidationError: {e}"
+
+def test_initialization_invalid_config(curacao_sim_data):
+    config_data = {
+        "df": curacao_sim_data["df"],
+        "unitid": "town",  # Missing outcome
+        "time": "time",
+        "T0": 104,
+        "cluster": "Region",
+        "design": "eq11",
+        "m_eq": 1,
+        "lambda1": 0.2,
+        "lambda2": 0.2
+    }
+    with pytest.raises(ValidationError):
+        MAREXConfig(**config_data)
+
+def test_initialization_invalid_cluster_column(curacao_sim_data):
+    config_data = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": 104,
+        "cluster": "InvalidColumn",  # Non-existent column
+        "design": "eq11",
+        "m_eq": 1,
+        "lambda1": 0.2,
+        "lambda2": 0.2
+    }
+    marex = MAREX(config=MAREXConfig(**config_data))
+    with pytest.raises(MlsynthDataError):
+        marex.fit()  # Error should occur during fit due to invalid cluster
+
+def test_fit_valid_config(curacao_sim_data):
+    config_data = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": 104,
+        "cluster": "Region",
+        "design": "eq11",
+        "m_eq": 1,
+        "lambda1": 0.2,
+        "lambda2": 0.2
+    }
+    marex = MAREX(config=MAREXConfig(**config_data))
+    results = marex.fit()
+    assert results is not None
+    assert hasattr(results, "clusters")  # Check MAREXResults structure
+    assert hasattr(results, "study")
+    assert hasattr(results, "globres")
+
+def test_fit_no_cluster(curacao_sim_data):
+    config_data = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": 104,
+        "cluster": None,  # No cluster column
+        "design": "eq11",
+        "m_eq": 1,
+        "lambda1": 0.2,
+        "lambda2": 0.2
+    }
+    marex = MAREX(config=MAREXConfig(**config_data))
+    results = marex.fit()
+    assert results is not None
+    assert hasattr(results, "clusters")  # Should work with default zero clusters
