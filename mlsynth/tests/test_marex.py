@@ -7,7 +7,7 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
-from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP, _validate_scm_inputs, _prepare_clusters
+from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP, _validate_scm_inputs, _prepare_clusters, _validate_costs_budget
 
 def test_miqp_solver_available():
     miqp_solvers = ["ECOS_BB", "SCIP", "GUROBI", "MOSEK"]
@@ -728,4 +728,37 @@ def test_prepare_clusters():
     clusters_wrong = ["X", "Y", "Z"]
     with pytest.raises(ValueError, match="clusters must have length N"):
         _prepare_clusters(Y_arr, clusters_wrong)
+
+def test_validate_costs_budget():
+    N = 4
+    cluster_labels = ["A", "B"]
+    K = 2
+
+    # --- normal case: scalar budget ---
+    costs = [10, 20, 30, 40]
+    budget = 100
+    costs_np, budget_dict = _validate_costs_budget(costs, budget, N, cluster_labels, K)
+    assert isinstance(costs_np, np.ndarray)
+    assert costs_np.tolist() == costs
+    assert budget_dict == {"A": 50.0, "B": 50.0}
+
+    # --- normal case: dict budget ---
+    budget_d = {"A": 60, "B": 40}
+    costs_np, budget_dict = _validate_costs_budget(costs, budget_d, N, cluster_labels, K)
+    assert budget_dict == budget_d
+
+    # --- error: costs length mismatch ---
+    costs_wrong = [1, 2]
+    with pytest.raises(ValueError, match="costs must have length N"):
+        _validate_costs_budget(costs_wrong, budget, N, cluster_labels, K)
+
+    # --- error: budget missing ---
+    with pytest.raises(ValueError, match="budget must be provided"):
+        _validate_costs_budget(costs, None, N, cluster_labels, K)
+
+    # --- error: missing cluster in dict budget ---
+    budget_bad = {"A": 50}
+    with pytest.raises(ValueError, match="budget missing entry for cluster 'B'"):
+        _validate_costs_budget(costs, budget_bad, N, cluster_labels, K)
+
 
