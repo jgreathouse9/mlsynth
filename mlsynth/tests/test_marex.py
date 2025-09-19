@@ -23,7 +23,7 @@ def test_initialization_valid_config(curacao_sim_data):
         assert marex.df is not None
         assert marex.outcome == "Y_obs"
         assert marex.T0 == 104
-        assert marex.cluster == "Region"  # Precise check
+        assert marex.cluster == "Region"
     except ValidationError as e:
         assert False, f"Initialization failed with ValidationError: {e}"
 
@@ -35,6 +35,66 @@ def test_initialization_invalid_config(curacao_sim_data):
         "T0": 104,
         "cluster": "Region",
         "design": "eq11",
+        "m_eq": 1,
+        "lambda1": 0.2,
+        "lambda2": 0.2
+    }
+    with pytest.raises(ValidationError):
+        MAREXConfig(**config_data)
+
+def test_initialization_invalid_cluster_column(curacao_sim_data):
+    config_data = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": 104,
+        "cluster": "InvalidColumn",  # Non-existent column
+        "design": "eq11",
+        "m_eq": 1,
+        "lambda1": 0.2,
+        "lambda2": 0.2
+    }
+    with pytest.raises(MlsynthDataError):  # Moved to initialization
+        MAREX(config=MAREXConfig(**config_data))
+
+def test_fit_valid_config(curacao_sim_data):
+    config_data = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": 104,
+        "cluster": "Region",
+        "design": "eq11",
+        "m_eq": 1,
+        "lambda1": 0.2,
+        "lambda2": 0.2
+    }
+    marex = MAREX(config=MAREXConfig(**config_data))
+    results = marex.fit()
+    assert results is not None
+    assert hasattr(results, "clusters")
+    assert hasattr(results, "study")
+    assert hasattr(results, "globres")
+
+def test_fit_no_cluster(curacao_sim_data):
+    config_data = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": 104,
+        "cluster": None,
+        "design": "eq11",
+        "m_eq": 1,
+        "lambda1": 0.2,
+        "lambda2": 0.2
+    }
+    marex = MAREX(config=MAREXConfig(**config_data))
+    results = marex.fit()
+    assert results is not None
+    assert hasattr(results, "clusters")        "design": "eq11",
         "m_eq": 1,
         "lambda1": 0.2,
         "lambda2": 0.2
