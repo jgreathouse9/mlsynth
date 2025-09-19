@@ -164,7 +164,7 @@ def test_clusters_column_as_string(curacao_sim_data):
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
-        "clusters": "Region",  # pass column name
+        "cluster": "Region",  # pass column name
         "m_eq": 1
     }
 
