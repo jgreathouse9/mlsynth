@@ -72,23 +72,6 @@ class BaseMAREXConfig(BaseModel):
 class MAREXConfig(BaseMAREXConfig):
     """
     Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth.
-
-    This configuration is specifically intended for **experimental design using synthetic control**.
-    Unlike typical causal estimators, users do **not** pre-specify treated units because the
-    MAREX class internally optimizes treatment assignment to achieve balance in pre-treatment outcomes.
-    This allows experimenters to design experiments even when post-treatment data does not yet exist.
-
-    Key points:
-    - `treat` is intentionally omitted: treatment assignment is optimized internally.
-    - Users may provide a `clusters` vector to indicate groupings for synthetic treated/control units.
-    - `T0` allows limiting pre-treatment periods used for optimization.
-    - `design` selects the type of synthetic control optimization:
-        - `"base"`: cluster-targeted fit to cluster mean
-        - `"weak"`: weakly-targeted fit with optional penalty `beta`
-        - `"eq11"`: penalized design with lambda1/lambda2 weights
-        - `"unit"`: unit-level penalized design (xi, lambda1_unit, lambda2_unit)
-    - This configuration is designed for iterative or exploratory experiment design,
-      where treatment may later be applied in a real-world study.
     """
 
     # Core design parameters
@@ -97,7 +80,6 @@ class MAREXConfig(BaseMAREXConfig):
         default=None,
         description="Column name in df indicating cluster membership for each unit."
     )
-
     design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
 
     # Penalization parameters
@@ -132,6 +114,23 @@ class MAREXConfig(BaseMAREXConfig):
         valid_designs = {"base", "weak", "eq11", "unit"}
         if design not in valid_designs:
             raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
+
+        return values
+
+    @model_validator(mode="after")
+    def enforce_cluster_integer_codes(cls, values: Any) -> Any:
+        """Force cluster column into integer codes if it contains strings or categories."""
+        df = values.df
+        cluster_col = values.cluster
+
+        if cluster_col is not None:
+            if cluster_col not in df.columns:
+                raise MlsynthDataError(f"Cluster column '{cluster_col}' not found in df.")
+
+            col = df[cluster_col]
+            if not pd.api.types.is_integer_dtype(col):
+                df[cluster_col] = pd.Categorical(col).codes
+                values.df = df  # overwrite DataFrame in Pydantic model
 
         return values
 
@@ -620,3 +619,4 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
