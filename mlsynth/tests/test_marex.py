@@ -7,7 +7,7 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
-from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP, _validate_scm_inputs
+from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP, _validate_scm_inputs, _prepare_clusters
 
 def test_miqp_solver_available():
     miqp_solvers = ["ECOS_BB", "SCIP", "GUROBI", "MOSEK"]
@@ -665,6 +665,12 @@ def test_scmexp_dataframe_input(simple_data):
     assert isinstance(res["df"], pd.DataFrame)
 
 
+
+# ---------------------------
+# Validation Tests
+# ---------------------------
+
+
 def test_validate_scm_inputs():
     Y = np.random.rand(5, 10)  # 5 units, 10 time periods
 
@@ -694,4 +700,32 @@ def test_validate_scm_inputs():
     with pytest.raises(ValueError, match="xi/lambda1_unit/lambda2_unit are only valid"):
         _validate_scm_inputs(Y, T0=5, blank_periods=0, design="base", xi=0.1)
 
+def test_prepare_clusters():
+    # --- normal case with DataFrame ---
+    Y_df = pd.DataFrame([[1, 2], [3, 4], [5, 6]])
+    clusters = ["A", "B", "A"]
+    Y_np, clusters_np, N, cluster_labels, K, label_to_k = _prepare_clusters(Y_df, clusters)
+
+    # Checks
+    assert isinstance(Y_np, np.ndarray)
+    assert Y_np.shape == (3, 2)
+    assert isinstance(clusters_np, np.ndarray)
+    assert clusters_np.tolist() == clusters
+    assert N == 3
+    assert set(cluster_labels) == {"A", "B"}
+    assert K == 2
+    assert label_to_k == {"A": 0, "B": 1} or label_to_k == {"B": 0, "A": 1}
+
+    # --- normal case with ndarray ---
+    Y_arr = np.array([[10, 20], [30, 40]])
+    clusters_arr = np.array([1, 2])
+    Y_np, clusters_np, N, cluster_labels, K, label_to_k = _prepare_clusters(Y_arr, clusters_arr)
+    assert isinstance(Y_np, np.ndarray)
+    assert N == 2
+    assert set(cluster_labels) == {1, 2}
+
+    # --- failure case: cluster length mismatch ---
+    clusters_wrong = ["X", "Y", "Z"]
+    with pytest.raises(ValueError, match="clusters must have length N"):
+        _prepare_clusters(Y_arr, clusters_wrong)
 
