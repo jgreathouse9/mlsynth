@@ -2,11 +2,18 @@
 import pytest
 import pandas as pd
 import numpy as np
+import cvxpy as cp
 from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
 from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP
+
+def test_installed_solvers():
+    solvers = cp.installed_solvers()
+    print("Installed CVXPY solvers:", solvers)
+    assert "ECOS_BB" in solvers, "ECOS_BB is not installed!"
+
 
 
 # ----------------------------------------------------
