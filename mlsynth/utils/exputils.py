@@ -230,7 +230,7 @@ def SCMEXP(
 
     # Solve
     prob = cp.Problem(cp.Minimize(cp.sum(obj_terms)), constraints)
-    prob.solve(solver=solver, verbose=verbose)
+    prob.solve(solver=cp.SCIP, verbose=verbose)
 
     # Extract results
     w_opt = w.value
