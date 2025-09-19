@@ -1,11 +1,9 @@
 from typing import List, Optional, Any, Dict, Union
 import pandas as pd
-import numpy as np # Added for potential use in other models, e.g. np.ndarray
+import numpy as np
 from pydantic import BaseModel, Field, model_validator
-from typing import Any # Ensure Any is imported for the validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import warnings
-
 
 
 class BaseMAREXConfig(BaseModel):
@@ -70,8 +68,9 @@ class BaseMAREXConfig(BaseModel):
 
 
 class MAREXConfig(BaseMAREXConfig):
-    """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
-
+    """
+    Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth.
+    """
     # Core design parameters
     T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
     cluster: Optional[str] = Field(
@@ -81,27 +80,28 @@ class MAREXConfig(BaseMAREXConfig):
     design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
 
     # Penalization parameters
-    beta: float = Field(default=1e-6, description="Weak-targeting penalty (used if design='weak').")
-    lambda1: float = Field(default=0.0, description="Treated distance penalty (used if design='eq11').")
-    lambda2: float = Field(default=0.0, description="Control distance penalty (used if design='eq11').")
-    xi: float = Field(default=0.0, description="Unit-level OA.1 penalty (used if design='unit').")
-    lambda1_unit: float = Field(default=0.0, description="Unit-level OA.2 penalty (used if design='unit').")
-    lambda2_unit: float = Field(default=0.0, description="Unit-level OA.3 penalty (used if design='unit').")
+    beta: float = Field(default=1e-6)
+    lambda1: float = Field(default=0.0)
+    lambda2: float = Field(default=0.0)
+    xi: float = Field(default=0.0)
+    lambda1_unit: float = Field(default=0.0)
+    lambda2_unit: float = Field(default=0.0)
 
     # Additional SCMEXP options
-    blank_periods: int = Field(default=0, description="Number of blank periods at the start of Y_full.")
-    m_eq: Optional[int] = Field(default=None, description="Optional exact number of treated units per cluster.")
-    m_min: Optional[int] = Field(default=None, description="Optional minimum treated units per cluster.")
-    m_max: Optional[int] = Field(default=None, description="Optional maximum treated units per cluster.")
-    exclusive: bool = Field(default=True, description="Whether treated units are mutually exclusive across clusters.")
-    solver: Any = Field(default=None, description="Optional cvxpy solver to use (e.g., cp.ECOS_BB).")
-    verbose: bool = Field(default=False, description="Whether to display solver/logging output.")
+    blank_periods: int = Field(default=0)
+    m_eq: Optional[int] = Field(default=None)
+    m_min: Optional[int] = Field(default=None)
+    m_max: Optional[int] = Field(default=None)
+    exclusive: bool = Field(default=True)
+    solver: Any = Field(default=None)
+    verbose: bool = Field(default=False)
 
     @model_validator(mode="after")
     def validate_design_params(cls, values: Any) -> Any:
         df = values.df
         T0 = values.T0
         design = values.design
+        cluster_col = values.cluster
 
         # Validate T0
         n_periods = df[values.time].nunique()
@@ -113,31 +113,40 @@ class MAREXConfig(BaseMAREXConfig):
         if design not in valid_designs:
             raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
 
-        return values
-
-    @model_validator(mode="after")
-    def enforce_cluster_integer_codes(cls, values: Any) -> Any:
-        """Force cluster column into integer codes if it contains strings or categories."""
-        df = values.df
-        cluster_col = values.cluster
-    
+        # --- Cluster handling ---
         if cluster_col is not None:
             if cluster_col not in df.columns:
                 raise MlsynthDataError(f"Cluster column '{cluster_col}' not found in df.")
-    
+
             col = df[cluster_col]
+
+            # Convert strings/categoricals to integer codes
             if not pd.api.types.is_integer_dtype(col):
-                # Warn user that conversion is happening
                 warnings.warn(
-                    f"Cluster column '{cluster_col}' contains non-integer values. "
+                    f"Cluster column '{cluster_col}' contains strings or categories. "
                     "Automatically converting to integer codes.",
                     UserWarning
                 )
-                # Convert string or categorical clusters to integer codes
                 df[cluster_col] = pd.Categorical(col).codes
-                values.df = df  # overwrite DataFrame in Pydantic model
-    
+                col = df[cluster_col]
+
+            # Check for emptiness
+            if col.isna().all():
+                raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values")
+            
+            # Warn if some values are missing
+            if col.isna().any():
+                n_missing = col.isna().sum()
+                warnings.warn(
+                    f"Cluster column '{cluster_col}' contains {n_missing} missing values. "
+                    "These units may be ignored in clustering.",
+                    UserWarning
+                )
+
+            values.df = df  # overwrite DataFrame in Pydantic model
+
         return values
+
 
 
 class BaseEstimatorConfig(BaseModel):
@@ -620,5 +629,6 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
