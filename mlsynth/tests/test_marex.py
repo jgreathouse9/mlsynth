@@ -290,6 +290,49 @@ def test_default_lambdas(curacao_sim_data):
     assert cfg.lambda2 == 0.0
 
 
+def test_unit_invariant_cluster(curacao_sim_data):
+    """
+    Ensure that if a cluster column is specified, each unit is assigned to
+    exactly one cluster across all time periods. If a unit appears in multiple
+    clusters, the validator should raise a MlsynthDataError.
+    """
+    df = curacao_sim_data["df"].copy()
+
+    # Pick a unit and break invariance: assign different clusters at different times
+    example_unit = df["town"].iloc[0]
+    unit_mask = df["town"] == example_unit
+    df.loc[unit_mask, "Region"] = [0, 1] + [0] * (unit_mask.sum() - 2)  # first two rows conflicting
+
+    config_data = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "cluster": "Region",
+        "T0": 50,
+        "m_eq": 1
+    }
+
+    # Should raise error due to multiple clusters per unit
+    with pytest.raises(MlsynthDataError, match="multiple cluster assignments"):
+        MAREXConfig(**config_data)
+
+    # Now test a valid case: all units invariant
+    df_valid = curacao_sim_data["df"].copy()
+    config_data_valid = {
+        "df": df_valid,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "cluster": "Region",
+        "T0": 50,
+        "m_eq": 1
+    }
+
+    cfg = MAREXConfig(**config_data_valid)
+    assert cfg.df.equals(df_valid)
+
+
 
 # ----------------------------------------------------
 # fit() Method Tests
