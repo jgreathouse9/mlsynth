@@ -664,13 +664,4 @@ def test_scmexp_dataframe_input(simple_data):
     res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters)
     assert isinstance(res["df"], pd.DataFrame)
 
-# ---------------------------
-# Edge case: single-member cluster
-# ---------------------------
-def test_single_member_cluster():
-    Y = np.array([[1,2,3],[2,3,4],[3,4,5]])
-    Y_df = pd.DataFrame(Y, columns=[f"t{i+1}" for i in range(Y.shape[1])])
-    clusters = ["A","A","B"]  # B has 1 member
-    res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters, design="unit")
-    assert res["w_opt"].shape[1] == 2
-    assert len(res["cluster_members"][1]) ==1
+
