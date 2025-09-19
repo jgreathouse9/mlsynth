@@ -38,7 +38,7 @@ def SCMEXP(
     lambda2_unit=0.0,
     costs=None,
     budget=None,
-    solver=None,
+    solver=cp.SCIP,
     verbose=False
 ):
     """
