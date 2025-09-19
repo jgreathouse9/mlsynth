@@ -179,16 +179,15 @@ class MAREX:
                 "You must specify either 'm_eq' or at least one of 'm_min'/'m_max' to define treated units."
             )
 
+        # Define unit_labels unconditionally
+        unit_labels = self.df[self.unitid].unique()
+
+        # Handle clusters based on whether cluster is specified
         if self.cluster is not None:
-            # Take the cluster column, index it by unitid, and get a vector aligned with unit_labels
-            unit_labels = self.df[self.unitid].unique()
             clusters = self.df.drop_duplicates(subset=[self.unitid]).set_index(self.unitid)[self.cluster].reindex(
                 unit_labels).to_numpy()
         else:
-            # If no cluster column provided, assign all zeros
             clusters = np.zeros(len(unit_labels), dtype=int)
-
-        unit_labels = unit_labels
 
         # Reshape data: units as rows, time as columns
         Y_full = self.df.pivot(index=self.unitid, columns=self.time, values=self.outcome).reindex(unit_labels)
@@ -237,5 +236,6 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
 
 
