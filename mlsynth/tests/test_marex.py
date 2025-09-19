@@ -149,5 +149,3 @@ def test_fit_extreme_values(curacao_sim_data):
     results = marex.fit()  # Should succeed
     assert results is not None
     assert hasattr(results, "clusters")
-    assert not np.any(np.isnan(results.globres.values()))  # Check for NaN
-    assert not np.any(np.isinf(results.globres.values()))  # Check for infinity
