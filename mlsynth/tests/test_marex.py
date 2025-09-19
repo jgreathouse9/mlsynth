@@ -637,8 +637,8 @@ def test_scmexp_with_cost_budget(simple_data):
 # ---------------------------
 # Blank periods
 # ---------------------------
-def test_scmexp_blank_periods(small_dataset):
-    Y, clusters = small_dataset
+def test_scmexp_blank_periods(simple_data):
+    Y, clusters = simple_data
     res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, blank_periods=1)
     assert res["T_fit"] == 2
     if res["Y_blank"] is not None:
@@ -655,8 +655,8 @@ def test_solver_list():
 # ---------------------------
 # RMSE sanity
 # ---------------------------
-def test_rmse_positive(small_dataset):
-    Y, clusters = small_dataset
+def test_rmse_positive(simple_data):
+    Y, clusters = simple_data
     res = SCMEXP(Y_full=Y, T0=3, clusters=clusters)
     for rmse in res["rmse_cluster"]:
         assert rmse >= 0 and np.isfinite(rmse)
@@ -664,8 +664,8 @@ def test_rmse_positive(small_dataset):
 # ---------------------------
 # DataFrame input
 # ---------------------------
-def test_scmexp_dataframe_input(small_dataset):
-    Y_df, clusters = small_dataset
+def test_scmexp_dataframe_input(simple_data):
+    Y_df, clusters = simple_data
     res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters)
     assert isinstance(res["df"], pd.DataFrame)
 
