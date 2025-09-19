@@ -84,6 +84,7 @@ def SCMEXP(
     """
     # Preserve original for output
     Y_input = Y_full
+    # Convert to numpy for calculations
     if hasattr(Y_full, "to_numpy"):
         Y_full = Y_full.to_numpy()
     N, T_total = Y_full.shape
