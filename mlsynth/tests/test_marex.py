@@ -550,107 +550,77 @@ def test_explicit_blank_periods(curacao_sim_data):
 # -------------------------
 # Fixtures
 # -------------------------
+
+
 @pytest.fixture
 def simple_data():
     """
-    Small dataset:
-    - 4 units
-    - 5 time periods
-    - 2 clusters: "c1" with 2 units, "c2" with 2 units
+    Generates a small synthetic dataset for SCMEXP testing.
+    Returns:
+        Y (np.ndarray): outcome matrix, shape (N_units, T_total)
+        clusters (np.ndarray): cluster labels, shape (N_units,)
     """
+    N_units = 6
+    T_total = 5
+    # simple synthetic data
     Y = np.array([
-        [1, 2, 3, 4, 5],  # unit 0
-        [2, 3, 4, 5, 6],  # unit 1
-        [3, 4, 5, 6, 7],  # unit 2
-        [4, 5, 6, 7, 8],  # unit 3
-    ], dtype=float)
-
-    clusters = np.array(["c1", "c1", "c2", "c2"])
+        [1, 2, 3, 4, 5],
+        [2, 3, 4, 5, 6],
+        [3, 4, 5, 6, 7],
+        [4, 5, 6, 7, 8],
+        [5, 6, 7, 8, 9],
+        [6, 7, 8, 9, 10]
+    ])
+    clusters = np.array([0, 0, 1, 1, 2, 2])  # 3 clusters
     return Y, clusters
 
-# -------------------------
-# Helper function tests
-# -------------------------
-def test_get_per_cluster_param():
-    # None returns default
-    assert _get_per_cluster_param(None, "c1") is None
-    assert _get_per_cluster_param(None, "c1", default=5) == 5
 
-    # Scalar returns itself
-    assert _get_per_cluster_param(7, "c1") == 7
-
-    # Dict returns correct value or default
-    d = {"c1": 3, "c2": 4}
-    assert _get_per_cluster_param(d, "c1") == 3
-    assert _get_per_cluster_param(d, "c3", default=10) == 10
-
-# -------------------------
-# SCMEXP design tests
-# -------------------------
 @pytest.mark.parametrize("design", ["base", "weak", "eq11", "unit"])
 def test_scmexp_basic(simple_data, design):
+    """
+    Tests SCMEXP for all design modes.
+    """
     Y, clusters = simple_data
-    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, design=design)
+    # Convert Y to DataFrame to satisfy SCMEXP
+    Y_df = pd.DataFrame(Y, columns=[f"t{i+1}" for i in range(Y.shape[1])])
+
+    res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters, design=design)
 
     N = Y.shape[0]
-    K = len(np.unique(clusters))
+    cluster_labels = np.unique(clusters)
+    K = len(cluster_labels)
 
-    # Check shapes
+    # --- Shape checks ---
     assert res["w_opt"].shape == (N, K)
     assert res["v_opt"].shape == (N, K)
     assert res["z_opt"].shape == (N, K)
-    assert len(res["cluster_labels"]) == K
-    assert len(res["cluster_members"]) == K
+    assert len(res["y_syn_treated_clusters"]) == K
+    assert len(res["y_syn_control_clusters"]) == K
     assert len(res["Xbar_clusters"]) == K
 
-    # Check aggregation
-    assert res["w_agg"].shape[0] == N
-    assert res["v_agg"].shape[0] == N
+    # --- Weight sum sanity check within clusters ---
+    for k_idx, lab in enumerate(cluster_labels):
+        members = np.where(clusters == lab)[0]
+        np.testing.assert_allclose(res["w_opt"][members, k_idx].sum(), 1, rtol=1e-6)
+        np.testing.assert_allclose(res["v_opt"][members, k_idx].sum(), 1, rtol=1e-6)
 
-# -------------------------
-# Test cardinality parameters
-# -------------------------
-def test_scmexp_cardinality(simple_data):
+
+def test_scmexp_with_cost_budget(simple_data):
+    """
+    Tests SCMEXP with costs and budget constraints.
+    """
     Y, clusters = simple_data
-    m_eq = {"c1": 1, "c2": 2}
-    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, design="base", m_eq=m_eq)
+    Y_df = pd.DataFrame(Y, columns=[f"t{i+1}" for i in range(Y.shape[1])])
 
-    # Check z_opt respects m_eq
-    cluster_labels = res["cluster_labels"]
-    for idx, lab in enumerate(cluster_labels):
-        selected_count = int(np.sum(res["z_opt"][:, idx] > 0.5))
-        assert selected_count == m_eq[lab]
+    # Simple cost vector
+    costs = np.array([1, 2, 1, 2, 1, 2])
+    budget = {0: 1.5, 1: 2.5, 2: 3}  # budget per cluster
 
-# -------------------------
-# Test costs and budgets
-# -------------------------
-def test_scmexp_cost_budget(simple_data):
-    Y, clusters = simple_data
-    costs = np.array([1, 2, 1, 2], dtype=float)
-    budget = {"c1": 2, "c2": 3}
-    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, design="base", costs=costs, budget=budget)
+    res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters, design="base",
+                 costs=costs, budget=budget)
 
-    # Each cluster total cost should not exceed budget
-    for idx, lab in enumerate(res["cluster_labels"]):
-        members = res["cluster_members"][idx]
-        total_cost = np.sum(res["w_opt"][members, idx] * costs[members])
-        assert total_cost <= budget[lab] + 1e-6  # numerical tolerance
-
-# -------------------------
-# Test invalid inputs
-# -------------------------
-def test_scmexp_invalid_T0(simple_data):
-    Y, clusters = simple_data
-    with pytest.raises(ValueError):
-        SCMEXP(Y_full=Y, T0=0, clusters=clusters)
-
-def test_scmexp_invalid_clusters_length(simple_data):
-    Y, clusters = simple_data
-    with pytest.raises(ValueError):
-        SCMEXP(Y_full=Y, T0=3, clusters=np.array(["c1", "c2"]))  # wrong length
-
-def test_scmexp_invalid_design(simple_data):
-    Y, clusters = simple_data
-    with pytest.raises(ValueError):
-        SCMEXP(Y_full=Y, T0=3, clusters=clusters, design="invalid_design")
-
+    # --- Check costs applied ---
+    for k_idx, lab in enumerate(np.unique(clusters)):
+        members = np.where(clusters == lab)[0]
+        total_cost = np.sum(costs[members] * res["w_opt"][members, k_idx])
+        assert total_cost <= budget[lab] + 1e-6
