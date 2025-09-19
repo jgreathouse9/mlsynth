@@ -7,7 +7,7 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
-from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP
+from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP, _validate_scm_inputs
 
 def test_miqp_solver_available():
     miqp_solvers = ["ECOS_BB", "SCIP", "GUROBI", "MOSEK"]
@@ -663,5 +663,35 @@ def test_scmexp_dataframe_input(simple_data):
     Y_df = pd.DataFrame(Y, columns=[f"t{i+1}" for i in range(Y.shape[1])])
     res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters)
     assert isinstance(res["df"], pd.DataFrame)
+
+
+def test_validate_scm_inputs():
+    Y = np.random.rand(5, 10)  # 5 units, 10 time periods
+
+    # 1) Valid input should not raise
+    _validate_scm_inputs(Y, T0=5, blank_periods=1, design="base")
+    _validate_scm_inputs(Y, T0=5, blank_periods=0, design="weak", beta=0.1)
+    _validate_scm_inputs(Y, T0=5, blank_periods=2, design="eq11", lambda1=0.1, lambda2=0.2)
+    _validate_scm_inputs(Y, T0=5, blank_periods=0, design="unit", xi=0.1, lambda1_unit=0.2, lambda2_unit=0.3)
+
+    # 2) Invalid T0
+    with pytest.raises(ValueError, match="T0 must be 1 <= T0"):
+        _validate_scm_inputs(Y, T0=0, blank_periods=0, design="base")
+    with pytest.raises(ValueError, match="T0 must be 1 <= T0"):
+        _validate_scm_inputs(Y, T0=10, blank_periods=0, design="base")  # equal to n_periods
+
+    # 3) Invalid blank_periods
+    with pytest.raises(ValueError, match="blank_periods must be 0 <= blank_periods"):
+        _validate_scm_inputs(Y, T0=5, blank_periods=-1, design="base")
+    with pytest.raises(ValueError, match="blank_periods must be 0 <= blank_periods"):
+        _validate_scm_inputs(Y, T0=5, blank_periods=5, design="base")  # equal to T0
+
+    # 4) Invalid parameter combos
+    with pytest.raises(ValueError, match="beta is only valid"):
+        _validate_scm_inputs(Y, T0=5, blank_periods=0, design="base", beta=0.1)
+    with pytest.raises(ValueError, match="lambda1/lambda2 are only valid"):
+        _validate_scm_inputs(Y, T0=5, blank_periods=0, design="base", lambda1=0.1)
+    with pytest.raises(ValueError, match="xi/lambda1_unit/lambda2_unit are only valid"):
+        _validate_scm_inputs(Y, T0=5, blank_periods=0, design="base", xi=0.1)
 
 
