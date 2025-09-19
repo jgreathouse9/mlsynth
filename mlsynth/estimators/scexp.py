@@ -53,9 +53,7 @@ class MAREX:
         self.verbose: bool = getattr(config, "verbose", False)
 
     class DesignResultsProcessor:
-        """
-        Process raw SCMEXP output into structured MAREXResults.
-        """
+        """Process raw SCMEXP output into structured MAREXResults."""
 
         def __init__(self, scm_result: dict, beta: float, lambda1: float, lambda2: float, xi: float, design: str):
             self.scm_result = scm_result
