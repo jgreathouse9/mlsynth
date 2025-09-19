@@ -298,7 +298,7 @@ def test_fit_extreme_penalty_values(curacao_sim_data):
         "cluster": "Region",
         "lambda1": 1e6,
         "lambda2": 1e6,
-        "xi": 1e6,
+        "design": "eq11,
         "m_eq": 1
     }
     marex = MAREX(config=MAREXConfig(**config))
