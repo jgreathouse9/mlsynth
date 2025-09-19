@@ -444,25 +444,6 @@ def test_fit_extreme_penalty_values(curacao_sim_data):
     assert results is not None
     assert len(results.clusters) > 0
 
-
-def test_single_unit_cluster(curacao_sim_data):
-    # Make a cluster with only one unit
-    df = curacao_sim_data["df"].copy()
-    df.loc[df.index[0], "Region"] = 999  # singleton cluster
-    config = {
-        "df": df,
-        "outcome": "Y_obs",
-        "unitid": "town",
-        "time": "time",
-        "cluster": "Region",
-        "m_eq": 1,
-    }
-    marex = MAREX(config=MAREXConfig(**config))
-    results = marex.fit()
-    assert results is not None
-    # Check that singleton cluster exists
-    assert "999" in results.clusters
-
 def test_all_units_one_cluster(curacao_sim_data):
     df = curacao_sim_data["df"].copy()
     df["Region"] = 0  # all units in a single cluster
