@@ -5,7 +5,45 @@ import numpy as np
 
 
 def _get_per_cluster_param(param, klabel, default=None):
-    """Helper: param may be None, scalar, or dict {klabel: val}."""
+    """
+    Retrieve a parameter value specific to a cluster or apply a default.
+
+    This helper function processes a parameter that may be provided as None, a scalar
+    value, or a dictionary mapping cluster labels to values. It returns the value
+    associated with the given cluster label if a dictionary is provided, falls back
+    to a default value if the label is not found, uses the scalar value if provided,
+    or returns the default if the parameter is None.
+
+    Parameters
+    ----------
+    param : None, int, float, or dict
+        The parameter to process. If None, returns the default. If a scalar (int or
+        float), returns that value for all clusters. If a dict, maps cluster labels
+        to specific values (e.g., {"Willemstad": 12, "non-Willemstad": 8}).
+    klabel : hashable
+        The cluster label (e.g., string or integer) to look up in the param dict.
+    default : any, optional (default=None)
+        The fallback value to return if param is None or if klabel is not found in
+        a param dict.
+
+    Returns
+    -------
+    any
+        The parameter value for the given cluster label. Returns default if param
+        is None, param.get(klabel, default) if param is a dict, or param if it is
+        a scalar.
+
+    Examples
+    --------
+    >>> _get_per_cluster_param(None, "Willemstad")
+    None
+    >>> _get_per_cluster_param(5, "Willemstad")
+    5
+    >>> _get_per_cluster_param({"Willemstad": 12, "non-Willemstad": 8}, "Willemstad")
+    12
+    >>> _get_per_cluster_param({"Willemstad": 12}, "non-Willemstad", default=5)
+    5
+    """
     if param is None:
         return default
     if isinstance(param, dict):
@@ -32,6 +70,9 @@ def SCMEXP(
     xi=0.0,        # OA.1
     lambda1_unit=0.0,  # OA.2 (treated side)
     lambda2_unit=0.0,  # OA.3 pairwise (treated-control pairwise term)
+    # New: cost and budget constraints
+    costs=None,    # Vector of costs per unit, shape (N,)
+    budget=None,   # Total budget, scalar or dict {klabel: val}
     solver=cp.ECOS_BB,
     verbose=False
 ):
@@ -40,7 +81,8 @@ def SCMEXP(
 
     Constructs synthetic treated and control units within clusters to approximate
     pre-treatment trajectories, enabling targeted experimental design when full
-    randomization is infeasible or unethical.
+    randomization is infeasible or unethical. Supports optional cost and budget
+    constraints to limit treated unit selection based on financial feasibility.
 
     Parameters
     ----------
@@ -81,6 +123,13 @@ def SCMEXP(
         Unit-level OA.2 penalty, penalizes treated deviation from cluster mean (used if design='unit').
     lambda2_unit : float, default=0.0
         Unit-level OA.3 penalty, penalizes pairwise differences between treated and control (used if design='unit').
+    costs : ndarray, shape (N_units,), optional
+        Vector of costs per unit (e.g., audit fees or implementation expenses).
+        If provided, enables budget-constrained optimization for treated units.
+    budget : float, int, or dict, optional
+        Total budget constraint. If scalar, splits evenly across clusters. If dict,
+        maps cluster labels to specific budgets (e.g., {"Willemstad": 12, "non-Willemstad": 8}).
+        Requires `costs` to be provided. Enforces ∑ c_j * w_j <= budget per cluster.
     solver : cvxpy Solver, default=cp.ECOS_BB
         Solver used for the optimization problem.
     verbose : bool, default=False
@@ -111,6 +160,10 @@ def SCMEXP(
             rmse_cluster : list of float
                 RMSE between synthetic treated and control fit to cluster mean (pre-treatment).
             design-specific parameters (lambda1, lambda2, beta, xi) returned as applicable.
+            costs_used : ndarray or None
+                The costs vector if provided, else None.
+            budget_used : dict or float
+                The effective budget(s) applied per cluster.
 
     Notes
     -----
@@ -118,8 +171,12 @@ def SCMEXP(
       randomization by ensuring pre-treatment similarity between treated and control.
     - The optimization enforces similarity while allowing cardinality constraints
       and penalized deviations.
+    - Cost/budget constraints apply only to treated weights (w) per cluster, ensuring
+      ∑ c_j * w_j <= budget_k for feasibility in resource-limited designs.
     - Realized post-treatment differences between synthetic treated and control
       units provide an estimate of the ATT.
+    - If costs and budget are provided, the solver prioritizes affordable units
+      while maintaining feature matching; may select fewer than m_max if over budget.
 
     References
     ----------
@@ -146,6 +203,21 @@ def SCMEXP(
         raise ValueError("lambda1/lambda2 are only valid when design == 'eq11'")
     if design != "unit" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
         raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit'")
+
+    # New: Validate costs and budget
+    if costs is not None:
+        costs = np.asarray(costs)
+        N, _ = Y_full.shape
+        if costs.shape[0] != N:
+            raise ValueError("costs must have length N (rows of Y).")
+        if budget is None:
+            raise ValueError("budget must be provided if costs are specified.")
+        if isinstance(budget, (int, float)):
+            budget = {lab: budget / K for lab in cluster_labels}  # Even split; but K not defined yet - fix below
+        elif isinstance(budget, dict):
+            for lab in cluster_labels:
+                if lab not in budget:
+                    raise ValueError(f"budget missing entry for cluster '{lab}'.")
 
     # --- prepare data slices ---
     T_fit = T0 - blank_periods
@@ -176,6 +248,10 @@ def SCMEXP(
         cluster_members.append(members)
         Xbar_clusters.append(Y_fit[members, :].mean(axis=0))  # shape (T_fit,)
 
+    # New: Fix budget split if scalar (now K is defined)
+    if costs is not None and isinstance(budget, (int, float)):
+        budget = {lab: budget / K for lab in cluster_labels}
+
     # Precompute D1 = || Xbar_k - X_j ||^2 (N x K) if needed for eq11 or unit
     D1 = np.zeros((N, K))
     for k_idx in range(K):
@@ -203,7 +279,7 @@ def SCMEXP(
             if not M[j, k]:
                 constraints += [w[j, k] == 0, v[j, k] == 0, z[j, k] == 0]
 
-    # per-cluster normalization + cardinality + linking constraints
+    # per-cluster normalization + cardinality + linking constraints + cost
     for k_idx, lab in enumerate(cluster_labels):
         members = cluster_members[k_idx]
         constraints += [cp.sum(w[members, k_idx]) == 1]
@@ -223,6 +299,12 @@ def SCMEXP(
         for j in members:
             constraints += [w[j, k_idx] <= z[j, k_idx]]
             constraints += [v[j, k_idx] <= 1 - z[j, k_idx]]
+
+        # New: Add cost constraint per cluster
+        if costs is not None:
+            B_k = _get_per_cluster_param(budget, lab)
+            c_k = costs[members]  # Costs for members of this cluster
+            constraints += [cp.sum(cp.multiply(c_k, w[members, k_idx])) <= B_k]
 
     if exclusive:
         for j in range(N):
@@ -295,7 +377,7 @@ def SCMEXP(
                 if len(members) > 0:
                     Dmat = D2_list[k_idx]               # numpy (m, m)
                     v_m = v[members, k_idx]            # cp (m,)
-                    inner_vec = Dmat.dot(v_m)          # yields cp expression (m,)
+                    inner_vec = Dmat @ v_m.value if v_m.value is None else Dmat.dot(v_m)  # Fix for cvxpy compatibility
                     w_m = w[members, k_idx]            # cp (m,)
                     obj_terms.append(lambda2_unit * cp.sum(cp.multiply(w_m, inner_vec)))
 
@@ -367,7 +449,9 @@ def SCMEXP(
         "lambda2": (lambda2 if design == "eq11" else (lambda2_unit if design == "unit" else None)),
         "xi": (xi if design == "unit" else None),
         "df": widedf,
-        "original_cluster_vector":  clusters
+        "original_cluster_vector":  clusters,
+        # New: Cost-related outputs
+        "costs_used": costs if costs is not None else None,
+        "budget_used": budget
     }
     return result
-
