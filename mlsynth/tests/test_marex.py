@@ -22,6 +22,6 @@ def test_initialization_valid_config(curacao_sim_data):
         assert marex.df is not None
         assert marex.outcome == "Y_obs"
         assert marex.T0 == 104
-        assert marex.clusters is not None  # Check that clusters is derived
+        assert marex.cluster is not None  # Check that clusters is derived
     except ValidationError as e:
         assert False, f"Initialization failed with ValidationError: {e}"
