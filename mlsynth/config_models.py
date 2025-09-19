@@ -95,27 +95,23 @@ class MAREXConfig(BaseMAREXConfig):
     verbose: bool = Field(default=False)
 
     @model_validator(mode="after")
-    def validate_design_params(cls, values: "MAREXConfig") -> "MAREXConfig":
+    def validate_design_params(cls, values: Any) -> Any:
         df = values.df
         T0 = values.T0
         design = values.design
         cluster_col = values.cluster
 
-        # --- T0 validation ---
+        # Validate T0
         n_periods = df[values.time].nunique()
         if T0 is not None and (T0 <= 0 or T0 > n_periods):
-            raise MlsynthDataError(
-                f"T0 must be between 1 and the number of time periods ({n_periods})."
-            )
+            raise MlsynthDataError(f"T0 must be between 1 and the number of time periods ({n_periods}).")
 
-        # --- design validation ---
+        # Validate design
         valid_designs = {"base", "weak", "eq11", "unit"}
         if design not in valid_designs:
-            raise MlsynthDataError(
-                f"design must be one of {valid_designs}; got '{design}'"
-            )
+            raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
 
-        # --- cluster handling ---
+        # --- Cluster handling ---
         if cluster_col is not None:
             if cluster_col not in df.columns:
                 raise MlsynthDataError(f"Cluster column '{cluster_col}' not found in df.")
@@ -127,16 +123,14 @@ class MAREXConfig(BaseMAREXConfig):
                 warnings.warn(
                     f"Cluster column '{cluster_col}' contains strings or categories. "
                     "Automatically converting to integer codes.",
-                    UserWarning,
+                    UserWarning
                 )
                 df[cluster_col] = pd.Categorical(col).codes
                 col = df[cluster_col]
 
             # Check for emptiness
             if col.isna().all():
-                raise MlsynthDataError(
-                    f"Cluster column '{cluster_col}' contains only missing values"
-                )
+                raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values")
 
             # Warn if some values are missing
             if col.isna().any():
@@ -144,22 +138,45 @@ class MAREXConfig(BaseMAREXConfig):
                 warnings.warn(
                     f"Cluster column '{cluster_col}' contains {n_missing} missing values. "
                     "These units may be ignored in clustering.",
-                    UserWarning,
+                    UserWarning
                 )
-
-            values.df = df  # overwrite DataFrame in Pydantic model
 
             # --- m_eq validation ---
             if values.m_eq is not None:
                 cluster_sizes = df.groupby(cluster_col).size()
-                print(cluster_sizes)
                 if values.m_eq > cluster_sizes.max():
                     raise MlsynthDataError(
                         f"m_eq ({values.m_eq}) cannot be greater than the number of units "
                         f"in any cluster (max cluster size = {cluster_sizes.max()})"
                     )
 
+            # --- m_min / m_max validation ---
+            if values.m_min is not None or values.m_max is not None:
+                cluster_sizes = df.groupby(cluster_col).size()
+
+                if values.m_min is not None and values.m_min < 1:
+                    raise MlsynthDataError("m_min must be >= 1.")
+
+                if values.m_max is not None:
+                    if values.m_max > cluster_sizes.min():
+                        raise MlsynthDataError(
+                            f"m_max ({values.m_max}) cannot be greater than the smallest cluster size "
+                            f"({cluster_sizes.min()})."
+                        )
+
+                if (
+                    values.m_min is not None
+                    and values.m_max is not None
+                    and values.m_min > values.m_max
+                ):
+                    raise MlsynthDataError(
+                        f"m_min ({values.m_min}) cannot be greater than m_max ({values.m_max})."
+                    )
+
+            values.df = df  # overwrite DataFrame in Pydantic model
+
         return values
+
 
 
 
@@ -644,6 +661,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
