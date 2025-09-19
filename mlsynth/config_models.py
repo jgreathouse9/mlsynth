@@ -141,6 +141,14 @@ class MAREXConfig(BaseMAREXConfig):
                     UserWarning
                 )
 
+            # --- Unit-invariant cluster check ---
+            cluster_per_unit = df.groupby(values.unitid)[cluster_col].nunique()
+            if (cluster_per_unit > 1).any():
+                bad_units = cluster_per_unit[cluster_per_unit > 1].index.to_list()
+                raise MlsynthDataError(
+                    f"The following units have multiple cluster assignments across time: {bad_units}"
+                )
+
             # --- m_eq validation ---
             if values.m_eq is not None:
                 cluster_sizes = df.groupby(cluster_col).size()
@@ -661,6 +669,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
