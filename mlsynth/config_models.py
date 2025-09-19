@@ -141,12 +141,13 @@ class MAREXConfig(BaseMAREXConfig):
                     UserWarning
                 )
 
-            # --- Unit-invariant cluster check ---
-            cluster_per_unit = df.groupby(values.unitid)[cluster_col].nunique()
-            if (cluster_per_unit > 1).any():
-                bad_units = cluster_per_unit[cluster_per_unit > 1].index.to_list()
+            # --- Enforce cluster invariance per unit ---
+            unit_groups = df.groupby(values.unitid)[cluster_col].apply(lambda x: set(x))
+            non_invariant_units = unit_groups[unit_groups.apply(len) != 1]
+
+            if not non_invariant_units.empty:
                 raise MlsynthDataError(
-                    f"The following units have multiple cluster assignments across time: {bad_units}"
+                    f"Units assigned to multiple clusters detected: {list(non_invariant_units.index)}"
                 )
 
             # --- m_eq validation ---
@@ -184,6 +185,7 @@ class MAREXConfig(BaseMAREXConfig):
             values.df = df  # overwrite DataFrame in Pydantic model
 
         return values
+
 
 
 
@@ -669,6 +671,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
