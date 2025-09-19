@@ -52,6 +52,10 @@ class MAREX:
         self.solver = getattr(config, "solver", None)
         self.verbose: bool = getattr(config, "verbose", False)
 
+        # Validate cluster column if provided
+        if self.cluster and self.cluster not in self.df.columns:
+            raise MlsynthDataError(f"Cluster column '{self.cluster}' not found in DataFrame.")
+
     class DesignResultsProcessor:
         """Process raw SCMEXP output into structured MAREXResults."""
 
@@ -233,4 +237,5 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
 
