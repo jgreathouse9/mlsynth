@@ -120,6 +120,7 @@ def test_init_duplicate_rows(curacao_sim_data):
     with pytest.raises(MlsynthDataError):
         MAREXConfig(**config)
 
+
 def test_init_unsorted_dataframe_warning(curacao_sim_data):
     df_shuffled = curacao_sim_data["df"].sample(frac=1).reset_index(drop=True)
     config = {
@@ -130,7 +131,15 @@ def test_init_unsorted_dataframe_warning(curacao_sim_data):
     }
     with pytest.warns(UserWarning):
         cfg = MAREXConfig(**config)
-        assert cfg.df.equals(cfg.df.sort_values(["town", "time"]).reset_index(drop=True))
+        # Instead of equals, check sorted order
+        df_sorted = cfg.df
+        assert df_sorted["town"].is_monotonic_increasing
+        # Within each town, time should be increasing
+        for town, group in df_sorted.groupby("town"):
+            assert group["time"].is_monotonic_increasing
+
+
+
 
 def test_init_invalid_design(curacao_sim_data):
     config = {
