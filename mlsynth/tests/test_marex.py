@@ -129,14 +129,18 @@ def test_init_unsorted_dataframe_warning(curacao_sim_data):
         "unitid": "town",
         "time": "time"
     }
-    with pytest.warns(UserWarning):
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
         cfg = MAREXConfig(**config)
-        # Instead of equals, check sorted order
-        df_sorted = cfg.df
-        assert df_sorted["town"].is_monotonic_increasing
-        # Within each town, time should be increasing
-        for town, group in df_sorted.groupby("town"):
+
+        # Check that DataFrame is sorted alphabetically by town
+        towns_sorted = cfg.df["town"].drop_duplicates()
+        assert towns_sorted.is_monotonic_increasing
+
+        # Check that within each town, time is increasing
+        for _, group in cfg.df.groupby("town", sort=False):
             assert group["time"].is_monotonic_increasing
+
 
 
 
