@@ -6,6 +6,8 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
+import warnings
+
 
 # ----------------------------------------------------
 # Initialization Tests
