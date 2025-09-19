@@ -300,7 +300,7 @@ def SCMEXP(
 
     Constructs synthetic control weights per cluster for experimental design,
     optionally enforcing cost and budget constraints, cardinality constraints,
-    and design-specific penalization terms. Supports a range of design choices 
+    and design-specific penalization terms. Supports a range of design choices
     including baseline, weak-targeted, eq11, and unit-level objectives.
 
     Parameters
@@ -364,7 +364,7 @@ def SCMEXP(
 
     Notes
     -----
-    - The function enforces zeros outside clusters, cardinality constraints, 
+    - The function enforces zeros outside clusters, cardinality constraints,
       linking constraints between weights and selection masks, and budget limits.
     - Supports multiple design options for experimental SCM, allowing
       flexible penalization at the cluster or unit level.
