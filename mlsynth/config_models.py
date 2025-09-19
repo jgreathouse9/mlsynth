@@ -68,6 +68,84 @@ class BaseMAREXConfig(BaseModel):
 
 
 
+class MAREXConfig(BaseMAREXConfig):
+    """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
+    # Core design parameters
+    T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
+    cluster: Optional[str] = Field(
+        default=None,
+        description="Column name in df indicating cluster membership for each unit."
+    )
+    design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
+
+    # Penalization parameters
+    beta: float = Field(default=1e-6)
+    lambda1: float = Field(default=0.0)
+    lambda2: float = Field(default=0.0)
+    xi: float = Field(default=0.0)
+    lambda1_unit: float = Field(default=0.0)
+    lambda2_unit: float = Field(default=0.0)
+
+    # Additional SCMEXP options
+    blank_periods: int = Field(default=0)
+    m_eq: Optional[int] = Field(default=None)
+    m_min: Optional[int] = Field(default=None)
+    m_max: Optional[int] = Field(default=None)
+    exclusive: bool = Field(default=True)
+    solver: Any = Field(default=None)
+    verbose: bool = Field(default=False)
+
+    @model_validator(mode="after")
+    def validate_design_params(cls, values: Any) -> Any:
+        df = values.df
+        T0 = values.T0
+        design = values.design
+        cluster_col = values.cluster
+
+        # Validate T0
+        n_periods = df[values.time].nunique()
+        if T0 is not None and (T0 <= 0 or T0 > n_periods):
+            raise MlsynthDataError(f"T0 must be between 1 and the number of time periods ({n_periods}).")
+
+        # Validate design
+        valid_designs = {"base", "weak", "eq11", "unit"}
+        if design not in valid_designs:
+            raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
+
+        # --- Cluster handling ---
+        if cluster_col is not None:
+            if cluster_col not in df.columns:
+                raise MlsynthDataError(f"Cluster column '{cluster_col}' not found in df.")
+        
+            col = df[cluster_col]
+        
+            # Check for emptiness / all missing before conversion
+            if col.isna().all():
+                raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values")
+        
+            # Warn about any missing values
+            if col.isna().any():
+                warnings.warn(f"Cluster column '{cluster_col}' contains missing values", UserWarning)
+        
+            # Convert string or categorical clusters to integer codes
+            if not pd.api.types.is_integer_dtype(col):
+                warnings.warn(
+                    f"Cluster column '{cluster_col}' contains strings or categories. "
+                    "Automatically converting to integer codes.",
+                    UserWarning
+                )
+                df[cluster_col] = pd.Categorical(col).codes
+                values.df = df
+
+
+        return values
+
+
+
+
+
+
+
 
 
 class BaseEstimatorConfig(BaseModel):
@@ -550,6 +628,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
