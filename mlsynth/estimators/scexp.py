@@ -192,10 +192,12 @@ class MAREX:
         # Reshape data: units as rows, time as columns
         Y_full = self.df.pivot(index=self.unitid, columns=self.time, values=self.outcome).reindex(unit_labels)
 
-        # Determine pre-treatment periods
-        T0 = self.T0 if self.T0 is not None else len(self.df[self.time].unique()-1)
-        blanks = Y_full.shape[1] - T0
-
+        T_total = len(self.df[self.time].unique())
+        
+        T0 = self.T0 if self.T0 is not None else T_total - 1
+        
+        blanks = T_total - T0
+        
         # Prepare SCMEXP arguments
         scm_kwargs = dict(
             Y_full=Y_full,
@@ -236,6 +238,7 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
 
 
 
