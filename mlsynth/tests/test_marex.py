@@ -664,8 +664,8 @@ def test_rmse_positive(small_dataset):
 # ---------------------------
 # DataFrame input
 # ---------------------------
-def test_scmexp_dataframe_input(small_dataset_df):
-    Y_df, clusters = small_dataset_df
+def test_scmexp_dataframe_input(small_dataset):
+    Y_df, clusters = small_dataset
     res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters)
     assert isinstance(res["df"], pd.DataFrame)
 
