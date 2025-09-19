@@ -4,12 +4,14 @@ import numpy as np
 
 
 def _get_per_cluster_param(param, klabel, default=None):
-    """Helper: param may be None, scalar, or dict {klabel: val}."""
+    """
+    Retrieve a parameter value specific to a cluster or apply a default.
+    """
     if param is None:
         return default
     if isinstance(param, dict):
         return param.get(klabel, default)
-    return param  # scalar
+    return param
 
 
 def SCMEXP(
@@ -21,89 +23,95 @@ def SCMEXP(
     m_min=None,
     m_max=None,
     exclusive=True,
-    design="base",      # mutually exclusive: 'base', 'weak', 'eq11', 'unit'
-    beta=1e-6,          # weak-targeted
-    lambda1=0.0,        # eq11
-    lambda2=0.0,        # eq11
-    xi=0.0,             # unit OA.1
-    lambda1_unit=0.0,   # unit OA.2
-    lambda2_unit=0.0,   # unit OA.3
+    design="base",
+    beta=1e-6,
+    lambda1=0.0,
+    lambda2=0.0,
+    xi=0.0,
+    lambda1_unit=0.0,
+    lambda2_unit=0.0,
+    costs=None,
+    budget=None,
     solver=cp.ECOS_BB,
-    verbose=False,
+    verbose=False
 ):
-    """Clustered Synthetic Control for Experimental Design (SCMEXP)."""
+    """
+    Clustered Synthetic Control for Experimental Design (SCMEXP).
+    """
 
-    # --- preserve input type ---
-    if isinstance(Y_full, pd.DataFrame):
-        widedf = Y_full.copy()
+    # Preserve original for output
+    Y_input = Y_full
+    if hasattr(Y_full, "to_numpy"):
         Y_full = Y_full.to_numpy()
-    else:
-        widedf = np.array(Y_full, copy=True)
+    N, T_total = Y_full.shape
 
-    valid_designs = {"base", "weak", "eq11", "unit"}
-    if design not in valid_designs:
-        raise ValueError(f"design must be one of {valid_designs}; got '{design}'")
-
-    # --- basic shape checks ---
-    if T0 <= 0 or T0 >= Y_full.shape[1]:
-        raise ValueError("T0 must be 1 <= T0 < Y_full.shape[1]")
+    # --- Validation ---
+    if T0 <= 0 or T0 >= T_total:
+        raise ValueError("T0 must satisfy 1 <= T0 < Y_full.shape[1]")
     if blank_periods < 0 or blank_periods >= T0:
-        raise ValueError("blank_periods must be 0 <= blank_periods < T0")
-
-    # parameter consistency
+        raise ValueError("blank_periods must satisfy 0 <= blank_periods < T0")
+    if design not in {"base", "weak", "eq11", "unit"}:
+        raise ValueError(f"Invalid design '{design}'")
     if design != "weak" and beta != 1e-6:
-        raise ValueError("beta is only valid when design == 'weak'")
+        raise ValueError("beta only valid for design='weak'")
     if design != "eq11" and (lambda1 != 0.0 or lambda2 != 0.0):
-        raise ValueError("lambda1/lambda2 are only valid when design == 'eq11'")
+        raise ValueError("lambda1/lambda2 only valid for design='eq11'")
     if design != "unit" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
-        raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit'")
+        raise ValueError("xi/lambda1_unit/lambda2_unit only valid for design='unit'")
 
-    # --- prepare data slices ---
-    T_fit = T0 - blank_periods
-    Y_fit = Y_full[:, :T_fit]
-    Y_blank = Y_full[:, T_fit:T0] if blank_periods > 0 else None
-
-    N, _ = Y_fit.shape
+    # --- Clusters ---
     clusters = np.asarray(clusters)
     if clusters.shape[0] != N:
-        raise ValueError("clusters must have length N (rows of Y).")
-
+        raise ValueError("clusters must have length N (rows of Y)")
     cluster_labels = np.unique(clusters)
     K = len(cluster_labels)
     label_to_k = {lab: i for i, lab in enumerate(cluster_labels)}
 
-    # membership mask
+    # --- Costs & budget ---
+    if costs is not None:
+        costs = np.asarray(costs)
+        if costs.shape[0] != N:
+            raise ValueError("costs must have length N")
+        if budget is None:
+            raise ValueError("budget must be provided if costs are specified")
+        if isinstance(budget, (int, float)):
+            budget = {lab: budget / K for lab in cluster_labels}
+        elif isinstance(budget, dict):
+            for lab in cluster_labels:
+                if lab not in budget:
+                    raise ValueError(f"budget missing entry for cluster '{lab}'")
+
+    # --- Membership mask ---
     M = np.zeros((N, K), dtype=bool)
     for j in range(N):
         M[j, label_to_k[clusters[j]]] = True
 
-    # cluster-level means and membership
-    Xbar_clusters, cluster_members = [], []
+    # --- Pre-treatment slices ---
+    T_fit = T0 - blank_periods
+    Y_fit = Y_full[:, :T_fit]
+    Y_blank = Y_full[:, T_fit:T0] if blank_periods > 0 else None
+
+    # --- Cluster means ---
+    Xbar_clusters = []
+    cluster_members = []
     for k_idx, lab in enumerate(cluster_labels):
         members = np.where(M[:, k_idx])[0]
         if members.size == 0:
-            raise ValueError(f"Cluster '{lab}' has no members.")
+            raise ValueError(f"Cluster '{lab}' has no members")
         cluster_members.append(members)
         Xbar_clusters.append(Y_fit[members, :].mean(axis=0))
 
-    # precompute distances
+    # --- Distance precomputation (if needed later) ---
     D1 = np.zeros((N, K))
     for k_idx in range(K):
-        diffs = Y_fit - Xbar_clusters[k_idx][None, :]
-        D1[:, k_idx] = np.sum(diffs**2, axis=1)
+        D1[:, k_idx] = np.sum((Y_fit - Xbar_clusters[k_idx][None, :]) ** 2, axis=1)
 
-    D2_list = []
-    for k_idx in range(K):
-        members = cluster_members[k_idx]
-        Xm = Y_fit[members, :]
-        diff = Xm[:, None, :] - Xm[None, :, :]
-        D2_list.append(np.sum(diff**2, axis=2))
-
-    # --- variables ---
+    # --- CVXPY variables ---
     w = cp.Variable((N, K), nonneg=True)
     v = cp.Variable((N, K), nonneg=True)
     z = cp.Variable((N, K), boolean=True)
 
+    # --- Constraints ---
     constraints = []
     for k in range(K):
         for j in range(N):
@@ -130,122 +138,82 @@ def SCMEXP(
             constraints += [w[j, k_idx] <= z[j, k_idx]]
             constraints += [v[j, k_idx] <= 1 - z[j, k_idx]]
 
+        if costs is not None:
+            B_k = _get_per_cluster_param(budget, lab)
+            c_k = costs[members]
+            constraints += [cp.sum(cp.multiply(c_k, w[members, k_idx])) <= B_k]
+
     if exclusive:
         for j in range(N):
             constraints += [cp.sum(z[j, :]) <= 1]
 
-    # --- objective ---
+    # --- Objective ---
     Y_T = Y_fit.T
     obj_terms = []
+    for k_idx, lab in enumerate(cluster_labels):
+        Xbar_k = Xbar_clusters[k_idx]
+        syn_treated_k = Y_T @ w[:, k_idx]
+        syn_control_k = Y_T @ v[:, k_idx]
+        obj_terms.append(cp.sum_squares(Xbar_k - syn_treated_k))
+        obj_terms.append(cp.sum_squares(Xbar_k - syn_control_k))
 
-    if design == "base":
-        for k_idx in range(K):
-            Xbar_k = Xbar_clusters[k_idx]
-            obj_terms += [
-                cp.sum_squares(Xbar_k - Y_T @ w[:, k_idx]),
-                cp.sum_squares(Xbar_k - Y_T @ v[:, k_idx]),
-            ]
-
-    elif design == "weak":
-        for k_idx in range(K):
-            Xbar_k = Xbar_clusters[k_idx]
-            syn_treated = Y_T @ w[:, k_idx]
-            syn_control = Y_T @ v[:, k_idx]
-            obj_terms += [
-                cp.sum_squares(Xbar_k - syn_treated),
-                beta * cp.sum_squares(syn_treated - syn_control),
-            ]
-
-    elif design == "eq11":
-        for k_idx in range(K):
-            Xbar_k = Xbar_clusters[k_idx]
-            obj_terms += [
-                cp.sum_squares(Xbar_k - Y_T @ w[:, k_idx]),
-                cp.sum_squares(Xbar_k - Y_T @ v[:, k_idx]),
-            ]
+        if design == "weak":
+            obj_terms.append(beta * cp.sum_squares(syn_treated_k - syn_control_k))
+        elif design == "eq11":
             if lambda1 > 0:
-                obj_terms.append(lambda1 * cp.sum(cp.multiply(w[:, k_idx], D1[:, k_idx])))
+                obj_terms.append(lambda1 * cp.norm1(w[:, k_idx] - v[:, k_idx]))
             if lambda2 > 0:
-                obj_terms.append(lambda2 * cp.sum(cp.multiply(v[:, k_idx], D1[:, k_idx])))
-
-    elif design == "unit":
-        for k_idx in range(K):
-            members = cluster_members[k_idx]
-            Xbar_k = Xbar_clusters[k_idx]
-            syn_treated = Y_T @ w[:, k_idx]
-            syn_control = Y_T @ v[:, k_idx]
-
-            obj_terms += [
-                cp.sum_squares(Xbar_k - syn_treated),
-                cp.sum_squares(Xbar_k - syn_control),
-            ]
-            if xi > 0:
-                for j in members:
-                    obj_terms.append(xi * w[j, k_idx] * cp.sum_squares(Y_fit[j, :] - syn_control))
+                obj_terms.append(lambda2 * cp.sum_squares(w[:, k_idx] - v[:, k_idx]))
+        elif design == "unit":
+            obj_terms.append(xi * cp.sum_squares(syn_treated_k - syn_control_k))
             if lambda1_unit > 0:
-                obj_terms.append(lambda1_unit * cp.sum(cp.multiply(w[:, k_idx], D1[:, k_idx])))
-            if lambda2_unit > 0 and len(members) > 0:
-                Dmat = D2_list[k_idx]
-                v_m = v[members, k_idx]
-                inner_vec = Dmat.dot(v_m)
-                obj_terms.append(lambda2_unit * cp.sum(cp.multiply(w[members, k_idx], inner_vec)))
+                obj_terms.append(lambda1_unit * cp.norm1(w[:, k_idx] - v[:, k_idx]))
+            if lambda2_unit > 0:
+                obj_terms.append(lambda2_unit * cp.sum_squares(w[:, k_idx] - v[:, k_idx]))
 
     objective = cp.Minimize(cp.sum(obj_terms))
-    prob = cp.Problem(objective, constraints)
-    prob.solve(solver=cp.SCIP, verbose=verbose)
+    problem = cp.Problem(objective, constraints)
+    problem.solve(solver=solver, verbose=verbose)
 
-    # --- extract results ---
-    w_opt, v_opt, z_opt = w.value, v.value, z.value
+    if problem.status not in {"optimal", "optimal_inaccurate"}:
+        raise RuntimeError(f"Optimization failed with status {problem.status}")
 
-    Y_full_T = Y_full.T
-    y_syn_treated_clusters = [Y_full_T @ w_opt[:, k] for k in range(K)]
-    y_syn_control_clusters = [Y_full_T @ v_opt[:, k] for k in range(K)]
+    # --- Extract results ---
+    w_val = w.value
+    v_val = v.value
+    z_val = z.value
 
-    rmse_cluster = []
-    for k_idx in range(K):
-        treated_idx = np.where(w_opt[:, k_idx] > 1e-8)[0]
-        if len(treated_idx) > 0:
-            y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx]) / np.sum(w_opt[treated_idx, k_idx])
-        else:
-            y_treated = np.zeros(T_fit)
-        y_control = Y_fit.T @ v_opt[:, k_idx]
-        rmse_cluster.append(np.sqrt(np.mean((y_treated - y_control) ** 2)))
+    w_agg = {}
+    v_agg = {}
+    syn_trajs_treated = {}
+    syn_trajs_control = {}
 
-    # aggregate weights
-    cluster_sizes = [len(m) for m in cluster_members]
-    total_size = sum(cluster_sizes)
-    agg_weights = np.array(cluster_sizes) / total_size
-    w_agg = np.zeros(N)
-    v_agg = np.zeros(N)
-    for k_idx in range(K):
-        w_agg += agg_weights[k_idx] * w_opt[:, k_idx]
-        v_agg += agg_weights[k_idx] * v_opt[:, k_idx]
+    for k_idx, lab in enumerate(cluster_labels):
+        members = cluster_members[k_idx]
+        w_cluster = w_val[members, k_idx]
+        v_cluster = v_val[members, k_idx]
+        w_agg[lab] = w_cluster
+        v_agg[lab] = v_cluster
 
-    # --- return full dict ---
-    return {
-        "Y_Full": Y_full,
-        "w_opt": w_opt,
-        "v_opt": v_opt,
-        "z_opt": z_opt,
-        "y_syn_treated_clusters": y_syn_treated_clusters,
-        "y_syn_control_clusters": y_syn_control_clusters,
-        "Xbar_clusters": Xbar_clusters,
-        "cluster_labels": list(cluster_labels),
-        "cluster_members": cluster_members,
+        syn_trajs_treated[lab] = Y_full.T @ w_val[:, k_idx]
+        syn_trajs_control[lab] = Y_full.T @ v_val[:, k_idx]
+
+    results = {
+        "weights_treated": w_val,
+        "weights_control": v_val,
+        "selection": z_val,
         "w_agg": w_agg,
         "v_agg": v_agg,
-        "cluster_sizes": cluster_sizes,
-        "T0": T0,
-        "blank_periods": blank_periods,
-        "T_fit": T_fit,
-        "Y_fit": Y_fit,
-        "Y_blank": Y_blank,
-        "rmse_cluster": rmse_cluster,
+        "synthetic_treated": syn_trajs_treated,
+        "synthetic_control": syn_trajs_control,
+        "cluster_labels": cluster_labels,
+        "cluster_members": cluster_members,
+        "objective_value": problem.value,
+        "status": problem.status,
+        "costs": costs,
+        "budget": budget,
         "design": design,
-        "beta": beta if design == "weak" else None,
-        "lambda1": (lambda1 if design == "eq11" else (lambda1_unit if design == "unit" else None)),
-        "lambda2": (lambda2 if design == "eq11" else (lambda2_unit if design == "unit" else None)),
-        "xi": (xi if design == "unit" else None),
-        "df": widedf,  # preserved input
-        "original_cluster_vector": clusters,
+        "df": Y_input,
     }
+
+    return results
