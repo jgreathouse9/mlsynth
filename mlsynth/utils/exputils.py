@@ -7,17 +7,24 @@ def _get_per_cluster_param(param, klabel, default=None):
     """
     Retrieve a parameter value specific to a cluster or apply a default.
 
-    This helper function processes a parameter that may be provided as None, a scalar
-    value, or a dictionary mapping cluster labels to values. It returns the value
-    associated with the given cluster label if a dictionary is provided, falls back
-    to a default value if the label is not found, uses the scalar value if provided,
-    or returns the default if the parameter is None.
+    Parameters
+    ----------
+    param : None, scalar, or dict
+        Parameter specification. If dict, maps cluster label to value.
+    klabel : hashable
+        Cluster label to look up.
+    default : any
+        Fallback if param is None or key not in dict.
+
+    Returns
+    -------
+    value for the given cluster
     """
     if param is None:
         return default
     if isinstance(param, dict):
         return param.get(klabel, default)
-    return param  # scalar
+    return param
 
 
 def SCMEXP(
@@ -44,55 +51,50 @@ def SCMEXP(
     """
     Clustered Synthetic Control for Experimental Design (SCMEXP).
 
-    Constructs synthetic treated and control units within clusters to approximate
-    pre-treatment trajectories, enabling targeted experimental design when full
-    randomization is infeasible or unethical. Supports optional cost and budget
-    constraints to limit treated unit selection based on financial feasibility.
-
     Parameters
     ----------
     Y_full : pd.DataFrame or ndarray, shape (N_units, T_total)
-        Outcome matrix with units as rows and time periods as columns.
+        Outcome matrix.
     T0 : int
-        Number of pre-treatment periods used for fitting synthetic controls.
-    clusters : array-like, shape (N_units,)
+        Number of pre-treatment periods for fitting.
+    clusters : array-like, length N_units
         Cluster labels for each unit.
     blank_periods : int, default=0
-        Number of initial periods within T0 to ignore in fitting.
+        Initial periods to ignore in fitting.
     m_eq, m_min, m_max : int, dict, or None
-        Exact/min/max cardinality of selected units per cluster.
-    exclusive : bool, default=True
+        Exact/min/max cardinality per cluster.
+    exclusive : bool
         Each unit assigned to at most one cluster if True.
-    design : {'base', 'weak', 'eq11', 'unit'}, default='base'
+    design : {'base','weak','eq11','unit'}
         Type of synthetic control design.
-    beta, lambda1, lambda2, xi, lambda1_unit, lambda2_unit : floats
+    beta, lambda1, lambda2, xi, lambda1_unit, lambda2_unit : float
         Design-specific penalties.
-    costs : ndarray, shape (N_units,), optional
+    costs : ndarray, optional
         Cost per unit.
     budget : float, int, or dict, optional
-        Budget constraint. Must be provided if costs are specified.
-    solver : cvxpy solver, optional
-    verbose : bool, default=False
-        Solver output verbosity.
+        Budget constraint; must be provided if costs are set.
+    solver : cvxpy solver
+    verbose : bool
 
     Returns
     -------
-    result : dict
-        Synthetic control solution and diagnostics.
+    dict
+        Includes weights, synthetic trajectories, cluster info, costs/budget,
+        and original input in 'df'.
     """
-    # --- convert to numpy if needed ---
+    # Preserve original for output
+    Y_input = Y_full
     if hasattr(Y_full, "to_numpy"):
         Y_full = Y_full.to_numpy()
     N, T_total = Y_full.shape
 
-    # --- basic validation ---
+    # Basic validation
     if T0 <= 0 or T0 >= T_total:
-        raise ValueError("T0 must be 1 <= T0 < Y_full.shape[1]")
+        raise ValueError("T0 must satisfy 1 <= T0 < Y_full.shape[1]")
     if blank_periods < 0 or blank_periods >= T0:
-        raise ValueError("blank_periods must be 0 <= blank_periods < T0")
+        raise ValueError("blank_periods must satisfy 0 <= blank_periods < T0")
     if design not in {"base", "weak", "eq11", "unit"}:
         raise ValueError(f"Invalid design '{design}'")
-
     if design != "weak" and beta != 1e-6:
         raise ValueError("beta only valid for design='weak'")
     if design != "eq11" and (lambda1 != 0.0 or lambda2 != 0.0):
@@ -100,7 +102,7 @@ def SCMEXP(
     if design != "unit" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
         raise ValueError("xi/lambda1_unit/lambda2_unit only valid for design='unit'")
 
-    # --- cluster handling ---
+    # Clusters
     clusters = np.asarray(clusters)
     if clusters.shape[0] != N:
         raise ValueError("clusters must have length N (rows of Y)")
@@ -108,11 +110,11 @@ def SCMEXP(
     K = len(cluster_labels)
     label_to_k = {lab: i for i, lab in enumerate(cluster_labels)}
 
-    # --- validate costs & budget ---
+    # Costs & budget
     if costs is not None:
         costs = np.asarray(costs)
         if costs.shape[0] != N:
-            raise ValueError("costs must have length N (rows of Y)")
+            raise ValueError("costs must have length N")
         if budget is None:
             raise ValueError("budget must be provided if costs are specified")
         if isinstance(budget, (int, float)):
@@ -122,17 +124,17 @@ def SCMEXP(
                 if lab not in budget:
                     raise ValueError(f"budget missing entry for cluster '{lab}'")
 
-    # --- create membership mask ---
+    # Membership mask
     M = np.zeros((N, K), dtype=bool)
     for j in range(N):
         M[j, label_to_k[clusters[j]]] = True
 
-    # --- prepare pre-treatment slices ---
+    # Pre-treatment slices
     T_fit = T0 - blank_periods
     Y_fit = Y_full[:, :T_fit]
     Y_blank = Y_full[:, T_fit:T0] if blank_periods > 0 else None
 
-    # --- cluster means & members ---
+    # Cluster means & members
     Xbar_clusters = []
     cluster_members = []
     for k_idx, lab in enumerate(cluster_labels):
@@ -142,11 +144,10 @@ def SCMEXP(
         cluster_members.append(members)
         Xbar_clusters.append(Y_fit[members, :].mean(axis=0))
 
-    # --- precompute distances ---
+    # Precompute distances
     D1 = np.zeros((N, K))
     for k_idx in range(K):
-        diffs = Y_fit - Xbar_clusters[k_idx][None, :]
-        D1[:, k_idx] = np.sum(diffs**2, axis=1)
+        D1[:, k_idx] = np.sum((Y_fit - Xbar_clusters[k_idx][None, :]) ** 2, axis=1)
 
     D2_list = []
     for k_idx in range(K):
@@ -155,12 +156,12 @@ def SCMEXP(
         diff = Xm[:, None, :] - Xm[None, :, :]
         D2_list.append(np.sum(diff**2, axis=2))
 
-    # --- cvxpy variables ---
+    # CVXPY variables
     w = cp.Variable((N, K), nonneg=True)
     v = cp.Variable((N, K), nonneg=True)
     z = cp.Variable((N, K), boolean=True)
 
-    # --- constraints ---
+    # Constraints
     constraints = []
     for k in range(K):
         for j in range(N):
@@ -196,10 +197,9 @@ def SCMEXP(
         for j in range(N):
             constraints += [cp.sum(z[j, :]) <= 1]
 
-    # --- objective construction ---
+    # Objective
     Y_T = Y_fit.T
     obj_terms = []
-
     for k_idx, lab in enumerate(cluster_labels):
         Xbar_k = Xbar_clusters[k_idx]
         syn_treated_k = Y_T @ w[:, k_idx]
@@ -228,15 +228,14 @@ def SCMEXP(
                 w_m = w[members, k_idx]
                 obj_terms.append(lambda2_unit * cp.sum(cp.multiply(w_m, Dmat @ v_m)))
 
-    # --- solve ---
+    # Solve
     prob = cp.Problem(cp.Minimize(cp.sum(obj_terms)), constraints)
-    prob.solve(solver=cp.SCIP, verbose=verbose)
+    prob.solve(solver=solver, verbose=verbose)
 
-    # --- extract results ---
+    # Extract results
     w_opt = w.value
     v_opt = v.value
     z_opt = z.value
-
     Y_full_T = Y_full.T
     y_syn_treated_clusters = [Y_full_T @ w_opt[:, k] for k in range(K)]
     y_syn_control_clusters = [Y_full_T @ v_opt[:, k] for k in range(K)]
@@ -244,14 +243,11 @@ def SCMEXP(
     rmse_cluster = []
     for k_idx in range(K):
         treated_idx = np.where(w_opt[:, k_idx] > 1e-8)[0]
-        if len(treated_idx) > 0:
-            y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx]) / np.sum(w_opt[treated_idx, k_idx])
-        else:
-            y_treated = np.zeros(T_fit)
+        y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx]) / np.sum(w_opt[treated_idx, k_idx]) \
+            if len(treated_idx) > 0 else np.zeros(T_fit)
         y_control = Y_fit.T @ v_opt[:, k_idx]
         rmse_cluster.append(np.sqrt(np.mean((y_treated - y_control) ** 2)))
 
-    # --- aggregated weights ---
     cluster_sizes = [len(m) for m in cluster_members]
     total_size = sum(cluster_sizes)
     w_agg = sum((cluster_sizes[k]/total_size) * w_opt[:, k] for k in range(K))
@@ -281,10 +277,11 @@ def SCMEXP(
         "lambda1": lambda1 if design=="eq11" else (lambda1_unit if design=="unit" else None),
         "lambda2": lambda2 if design=="eq11" else (lambda2_unit if design=="unit" else None),
         "xi": xi if design=="unit" else None,
-        "df": Y_full,
+        "df": Y_input,  # preserve original for indexing
         "original_cluster_vector": clusters,
         "costs_used": costs if costs is not None else None,
         "budget_used": budget
     }
 
     return result
+
