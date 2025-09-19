@@ -310,20 +310,19 @@ def test_unit_invariant_cluster_valid(curacao_sim_data):
 
 
 def test_unit_invariant_cluster_invalid(curacao_sim_data):
-    # Create a violation: assign one town to two different clusters
-    df = curacao_sim_data["df"].copy()
-    unit_to_violate = df["town"].iloc[0]
-    df.loc[df["town"] == unit_to_violate, "Region"] = [0, 1] + [0] * (len(df[df["town"] == unit_to_violate]) - 2)
+    df_invalid = curacao_sim_data["df"].copy()
+    # Introduce a unit with multiple cluster assignments
+    df_invalid.loc[df_invalid.index[:2], "Region"] = [0, 1]  # same unit, different clusters
 
     config_data = {
-        "df": df,
+        "df": df_invalid,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
     }
 
-    with pytest.raises(MlsynthDataError, match="Units assigned to multiple clusters detected"):
+    with pytest.raises(MlsynthDataError, match=r"The following units have multiple cluster assignments"):
         MAREXConfig(**config_data)
 
 
