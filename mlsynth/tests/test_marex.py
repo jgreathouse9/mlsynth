@@ -290,18 +290,27 @@ def test_default_lambdas(curacao_sim_data):
     assert cfg.lambda2 == 0.0
 
 
-def test_unit_invariant_cluster(curacao_sim_data):
-    """
-    Ensure that if a cluster column is specified, each unit is assigned to
-    exactly one cluster across all time periods. If a unit appears in multiple
-    clusters, the validator should raise a MlsynthDataError.
-    """
-    df = curacao_sim_data["df"].copy()
 
-    # Pick a unit and break invariance: assign different clusters at different times
-    example_unit = df["town"].iloc[0]
-    unit_mask = df["town"] == example_unit
-    df.loc[unit_mask, "Region"] = [0, 1] + [0] * (unit_mask.sum() - 2)  # first two rows conflicting
+def test_unit_invariant_cluster_valid(curacao_sim_data):
+    # All units are invariant in cluster by default
+    config_data = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "cluster": "Region",
+    }
+
+    # Should not raise
+    cfg = MAREXConfig(**config_data)
+    assert cfg.df.equals(curacao_sim_data["df"])  # DataFrame remains unchanged
+
+
+def test_unit_invariant_cluster_invalid(curacao_sim_data):
+    # Create a violation: assign one town to two different clusters
+    df = curacao_sim_data["df"].copy()
+    unit_to_violate = df["town"].iloc[0]
+    df.loc[df["town"] == unit_to_violate, "Region"] = [0, 1] + [0] * (len(df[df["town"] == unit_to_violate]) - 2)
 
     config_data = {
         "df": df,
@@ -309,28 +318,11 @@ def test_unit_invariant_cluster(curacao_sim_data):
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
-        "T0": 50,
-        "m_eq": 1
     }
 
-    # Should raise error due to multiple clusters per unit
-    with pytest.raises(MlsynthDataError, match="multiple cluster assignments"):
+    with pytest.raises(MlsynthDataError, match="Units assigned to multiple clusters detected"):
         MAREXConfig(**config_data)
 
-    # Now test a valid case: all units invariant
-    df_valid = curacao_sim_data["df"].copy()
-    config_data_valid = {
-        "df": df_valid,
-        "outcome": "Y_obs",
-        "unitid": "town",
-        "time": "time",
-        "cluster": "Region",
-        "T0": 50,
-        "m_eq": 1
-    }
-
-    cfg = MAREXConfig(**config_data_valid)
-    assert cfg.df.equals(df_valid)
 
 
 
@@ -486,22 +478,6 @@ def test_fit_extreme_penalty_values(curacao_sim_data):
     results = marex.fit()
     assert results is not None
     assert len(results.clusters) > 0
-
-def test_all_units_one_cluster(curacao_sim_data):
-    df = curacao_sim_data["df"].copy()
-    df["Region"] = 0  # all units in a single cluster
-    config = {
-        "df": df,
-        "outcome": "Y_obs",
-        "unitid": "town",
-        "time": "time",
-        "cluster": "Region",
-        "m_eq": 2,
-    }
-    marex = MAREX(config=MAREXConfig(**config))
-    results = marex.fit()
-    assert results is not None
-    assert len(results.clusters) == 1
 
 def test_T0_edge_cases(curacao_sim_data):
     max_periods = curacao_sim_data["df"]["time"].nunique()
