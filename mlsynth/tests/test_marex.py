@@ -7,7 +7,7 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
-from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP, _validate_scm_inputs, _prepare_clusters, _validate_costs_budget
+from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP, _validate_scm_inputs, _prepare_clusters
 
 def test_miqp_solver_available():
     miqp_solvers = ["ECOS_BB", "SCIP", "GUROBI", "MOSEK"]
