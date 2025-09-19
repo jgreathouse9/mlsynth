@@ -7,10 +7,7 @@ import warnings
 
 
 class BaseMAREXConfig(BaseModel):
-    """
-    Base configuration for synthetic experiment designs.
-    Contains fields common to all synthetic experiment-based estimators.
-    """
+    """Base configuration for synthetic experiment designs."""
     df: pd.DataFrame = Field(..., description="Input panel data (units x time).")
     outcome: str = Field(..., description="Column name for the outcome variable.")
     unitid: str = Field(..., description="Column name for the unit identifier.")
@@ -30,7 +27,6 @@ class BaseMAREXConfig(BaseModel):
         if df.empty:
             raise MlsynthDataError("Input DataFrame 'df' cannot be empty.")
 
-        # Ensure required columns exist
         required_columns = {outcome, unitid, time}
         missing_columns = required_columns - set(df.columns)
         if missing_columns:
@@ -38,46 +34,38 @@ class BaseMAREXConfig(BaseModel):
                 f"Missing required columns in DataFrame: {', '.join(sorted(missing_columns))}"
             )
 
-        # Check for missing values in required columns
         missing_info = {col: int(df[col].isna().sum()) for col in required_columns if df[col].isna().any()}
         if missing_info:
             details = ", ".join([f"{col}: {count}" for col, count in missing_info.items()])
             raise MlsynthDataError(
-                f"Missing values detected in required columns -> {details}. "
-                "Please clean or impute these values before passing to BaseMAREXConfig."
+                f"Missing values detected in required columns -> {details}."
             )
 
-        # Check for uniqueness of (unitid, time) pairs
         duplicate_count = df.duplicated(subset=[unitid, time]).sum()
         if duplicate_count > 0:
             raise MlsynthDataError(
-                f"Duplicate (unitid, time) pairs found: {duplicate_count}. "
-                f"Each (unitid, time) combination must be unique in panel data."
+                f"Duplicate (unitid, time) pairs found: {duplicate_count}."
             )
 
-        # Ensure time is sorted within each unit (auto-fix if not)
+        # Ensure time is sorted within each unit
         if not df.sort_values([unitid, time]).equals(df):
             warnings.warn(
                 f"DataFrame was not sorted by [{unitid}, {time}] — auto-sorting applied.",
                 UserWarning
             )
             df = df.sort_values([unitid, time]).reset_index(drop=True)
-            values.df = df  # overwrite with sorted DataFrame
+            values.df = df
 
         return values
 
 
-
 class MAREXConfig(BaseMAREXConfig):
-    """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
+    """Configuration for the MAREX Synthetic Experiment Design estimator."""
 
     # Core design parameters
-    T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
-    cluster: Optional[str] = Field(
-        default=None,
-        description="Column name in df indicating cluster membership for each unit."
-    )
-    design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
+    T0: Optional[int] = Field(default=None)
+    cluster: Optional[str] = Field(default=None)
+    design: str = Field(default="base")
 
     # Penalization parameters
     beta: float = Field(default=1e-6)
@@ -103,19 +91,15 @@ class MAREXConfig(BaseMAREXConfig):
         design = values.design
         cluster_col = values.cluster
 
-        # --- Validate T0 ---
+        # Validate T0
         n_periods = df[values.time].nunique()
         if T0 is not None and (T0 <= 0 or T0 > n_periods):
-            raise MlsynthDataError(
-                f"T0 must be between 1 and the number of time periods ({n_periods})."
-            )
+            raise MlsynthDataError(f"T0 must be between 1 and the number of time periods ({n_periods}).")
 
-        # --- Validate design ---
+        # Validate design
         valid_designs = {"base", "weak", "eq11", "unit"}
         if design not in valid_designs:
-            raise MlsynthDataError(
-                f"design must be one of {valid_designs}; got '{design}'"
-            )
+            raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
 
         # --- Cluster handling ---
         if cluster_col is not None:
@@ -124,30 +108,27 @@ class MAREXConfig(BaseMAREXConfig):
 
             col = df[cluster_col]
 
-            # Check for all missing values (emptiness)
+            # Check for emptiness / all missing
             if col.isna().all():
                 raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values")
 
             # Warn about any missing values
             if col.isna().any():
-                warnings.warn(
-                    f"Cluster column '{cluster_col}' contains {col.isna().sum()} missing values",
-                    UserWarning
-                )
+                warnings.warn(f"Cluster column '{cluster_col}' contains {col.isna().sum()} missing values", UserWarning)
 
             # Convert string or categorical clusters to integer codes
             if not pd.api.types.is_integer_dtype(col):
                 warnings.warn(
-                    f"Cluster column '{cluster_col}' contains strings or categories. "
-                    "Automatically converting to integer codes.",
+                    f"Cluster column '{cluster_col}' contains strings or categories. Automatically converting to integer codes.",
                     UserWarning
                 )
                 df[cluster_col] = pd.Categorical(col).codes
                 values.df = df
+                col = df[cluster_col]  # update col after conversion
 
-            # --- Validate m_eq does not exceed the cluster size ---
+            # --- Validate m_eq does not exceed cluster size ---
             if values.m_eq is not None:
-                cluster_sizes = df[cluster_col].value_counts()
+                cluster_sizes = col.value_counts()
                 if any(values.m_eq > cluster_sizes):
                     raise MlsynthDataError(
                         f"m_eq ({values.m_eq}) is greater than the number of units in one or more clusters"
@@ -639,6 +620,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
