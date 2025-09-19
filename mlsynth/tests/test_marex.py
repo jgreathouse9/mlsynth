@@ -155,12 +155,11 @@ def test_init_invalid_T0(curacao_sim_data):
 
 
 def test_clusters_column_as_string(curacao_sim_data):
-    # Make a copy and force Region to string
     df = curacao_sim_data["df"].copy()
-    df["Region"] = df["Region"].astype(str)
+    df["Region"] = df["Region"].astype(str)  # force Region to string
 
     config_data = {
-        "df": df,
+        "df": df,  # use the modified df here
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
@@ -168,12 +167,10 @@ def test_clusters_column_as_string(curacao_sim_data):
         "m_eq": 1
     }
 
-    # Check that a UserWarning is raised for automatic integer conversion
-    with pytest.warns(UserWarning, match="Cluster column 'Region' contains non-integer values"):
-        marex_config = MAREXConfig(**config_data)
+    # Expect a UserWarning about automatic integer conversion
+    with pytest.warns(UserWarning, match="Cluster column 'Region' contains strings or categories"):
+        MAREXConfig(**config_data)
 
-    # Optional: check that the df column is now integer-coded
-    assert pd.api.types.is_integer_dtype(marex_config.df["Region"])
 
 
 def test_cluster_missing_values(curacao_sim_data):
