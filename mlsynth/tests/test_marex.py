@@ -176,6 +176,29 @@ def test_clusters_column_as_string(curacao_sim_data):
     assert pd.api.types.is_integer_dtype(marex_config.df["Region"])
 
 
+def test_cluster_not_empty(curacao_sim_data):
+    df = curacao_sim_data["df"].copy()
+    df["Region"] = pd.NA
+    config = MAREXConfig(df=df, outcome="Y_obs", unitid="town", time="time", cluster="Region")
+    with pytest.raises(MlsynthDataError):
+        MAREX(config)
+
+def test_m_eq_greater_than_cluster(curacao_sim_data):
+    config = MAREXConfig(df=curacao_sim_data["df"], outcome="Y_obs", unitid="town", time="time",
+                         cluster="Region", m_eq=1000)
+    marex = MAREX(config)
+    with pytest.raises(MlsynthConfigError):
+        marex.fit()
+
+
+
+
+
+
+
+
+
+
 
 # ----------------------------------------------------
 # fit() Method Tests
