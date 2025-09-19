@@ -297,7 +297,80 @@ def SCMEXP(
 ):
     """
     Clustered Synthetic Control for Experimental Design (SCMEXP).
-    Supports optional cost and budget constraints per cluster.
+
+    Constructs synthetic control weights per cluster for experimental design,
+    optionally enforcing cost and budget constraints, cardinality constraints,
+    and design-specific penalization terms. Supports a range of design choices 
+    including baseline, weak-targeted, eq11, and unit-level objectives.
+
+    Parameters
+    ----------
+    Y_full : pd.DataFrame or np.ndarray
+        Outcome matrix with units as rows and time periods as columns.
+    T0 : int
+        Number of pre-treatment periods to use for fitting.
+    clusters : array-like
+        Cluster label for each unit.
+    blank_periods : int, default=0
+        Number of "blank" pre-treatment periods excluded from fitting for validation.
+    m_eq : int or dict, optional
+        Number of units to select per cluster for exact cardinality constraints.
+        If dict, keys correspond to cluster labels.
+    m_min : int or dict, optional
+        Minimum number of units to select per cluster.
+    m_max : int or dict, optional
+        Maximum number of units to select per cluster.
+    exclusive : bool, default=True
+        If True, each unit may belong to at most one cluster for selection purposes.
+    design : str, default='base'
+        Choice of SCM objective function:
+            - 'base' : standard squared error between cluster mean and synthetic units
+            - 'weak' : weakly-targeted design with beta penalization
+            - 'eq11' : design with lambda1/lambda2 cluster-level penalization
+            - 'unit' : unit-level penalization with xi, lambda1_unit, lambda2_unit
+    beta : float, default=1e-6
+        Penalization for weak-targeted design (only used if design='weak').
+    lambda1, lambda2 : float, default=0.0
+        Cluster-level penalization weights (used if design='eq11').
+    xi : float, default=0.0
+        Unit-level squared-error penalization (used if design='unit').
+    lambda1_unit, lambda2_unit : float, default=0.0
+        Unit-level penalization weights (used if design='unit').
+    costs : array-like, optional
+        Vector of costs per unit (length N). If provided, budget must be specified.
+    budget : float or dict, optional
+        Scalar total budget or dictionary of cluster budgets. Required if `costs` is provided.
+    solver : cvxpy solver, default=cp.ECOS_BB
+        CVXPY solver used to solve the optimization problem.
+    verbose : bool, default=False
+        If True, print solver output.
+
+    Returns
+    -------
+    result : dict
+        Dictionary containing:
+            - 'df' : original Y_full DataFrame/array
+            - 'w_opt', 'v_opt', 'z_opt' : optimized CVXPY variables (treated/control weights, selection mask)
+            - 'y_syn_treated_clusters', 'y_syn_control_clusters' : synthetic outcomes per cluster
+            - 'Xbar_clusters' : cluster-level means of pre-treatment outcomes
+            - 'cluster_labels', 'cluster_members' : cluster info
+            - 'w_agg', 'v_agg' : aggregated synthetic weights across clusters
+            - 'cluster_sizes' : number of units per cluster
+            - 'T0', 'blank_periods', 'T_fit', 'Y_fit', 'Y_blank' : fitting info
+            - 'rmse_cluster' : root-mean-squared-error per cluster
+            - 'design', 'beta', 'lambda1', 'lambda2', 'xi' : design and penalization parameters
+            - 'original_cluster_vector' : input cluster vector
+            - 'costs_used', 'budget_used' : cost and budget info if provided
+
+    Notes
+    -----
+    - The function enforces zeros outside clusters, cardinality constraints, 
+      linking constraints between weights and selection masks, and budget limits.
+    - Supports multiple design options for experimental SCM, allowing
+      flexible penalization at the cluster or unit level.
+    - Blank periods allow evaluation on holdout pre-treatment periods.
+    - CVXPY Boolean variables (z) are used for unit selection; may require
+      a mixed-integer solver such as `cp.SCIP` or `cp.ECOS_BB`.
     """
 
     # --- validate inputs ---
