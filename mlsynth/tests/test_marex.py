@@ -512,19 +512,19 @@ def test_T0_edge_cases(curacao_sim_data):
 
 def test_non_consecutive_time_indices(curacao_sim_data):
     df = curacao_sim_data["df"].copy()
-    # Drop some time points
-    df = df[df["time"] % 5 != 0]
+    # Remove some time points to create gaps
+    df = df[~df["time"].isin([5, 10, 15, 20])]
     config = {
         "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
-        "time": "time",
-        "m_eq": 1
+        "time": "time"
     }
-    marex = MAREX(config=MAREXConfig(**config))
-    results = marex.fit()
-    assert results is not None
-    assert results.globres.Y_fit.shape[1] == df["time"].nunique()
+
+    # Should raise error due to non-consecutive times
+    with pytest.raises(MlsynthDataError, match=r"Time periods in column 'time' are not consecutive"):
+        MAREXConfig(**config)
+
 
 def test_explicit_blank_periods(curacao_sim_data):
     df = curacao_sim_data["df"].copy()
