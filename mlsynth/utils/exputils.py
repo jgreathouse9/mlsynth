@@ -273,6 +273,89 @@ def _build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
     return cp.Minimize(cp.sum(obj_terms))
 
 
+def _extract_results(Y_full_np, Y_fit, w, v, cluster_members, T_fit):
+    """
+    Extract optimized weights, compute synthetic outcomes, cluster RMSEs, and aggregated weights.
+
+    Parameters
+    ----------
+    Y_full_np : np.ndarray
+        Full outcome matrix (units x time periods).
+    Y_fit : np.ndarray
+        Pre-treatment/fitting period data (units x time periods).
+    w : cp.Variable
+        Optimized treatment weights.
+    v : cp.Variable
+        Optimized control weights.
+    cluster_members : list of np.ndarray
+        Indices of units per cluster.
+    T_fit : int
+        Number of fit periods.
+
+    Returns
+    -------
+    results : dict
+        {
+            'w_opt': np.ndarray,
+            'v_opt': np.ndarray,
+            'z_opt': np.ndarray or None,
+            'y_syn_treated_clusters': list of np.ndarray,
+            'y_syn_control_clusters': list of np.ndarray,
+            'rmse_cluster': list of floats,
+            'w_agg': np.ndarray,
+            'v_agg': np.ndarray
+        }
+    """
+    K = len(cluster_members)
+    N = Y_full_np.shape[0]
+
+    # --- extract optimized values ---
+    w_opt = w.value
+    v_opt = v.value
+    z_opt = None
+    if hasattr(w, 'shape') and hasattr(v, 'shape'):
+        try:
+            z_opt = w.parent.variables()[2].value
+        except Exception:
+            pass  # optional if boolean z not needed
+
+    # --- synthetic outcomes per cluster ---
+    Y_full_T = Y_full_np.T
+    y_syn_treated_clusters = [Y_full_T @ w_opt[:, k_idx] for k_idx in range(K)]
+    y_syn_control_clusters = [Y_full_T @ v_opt[:, k_idx] for k_idx in range(K)]
+
+    # --- cluster-level RMSE ---
+    rmse_cluster = []
+    for k_idx in range(K):
+        treated_idx = np.where(w_opt[:, k_idx] > 1e-8)[0]
+        if len(treated_idx) > 0:
+            y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx]) / np.sum(w_opt[treated_idx, k_idx])
+        else:
+            y_treated = np.zeros(T_fit)
+        y_control = Y_fit.T @ v_opt[:, k_idx]
+        rmse_cluster.append(np.sqrt(np.mean((y_treated - y_control) ** 2)))
+
+    # --- aggregate weights ---
+    cluster_sizes = [len(m) for m in cluster_members]
+    total_size = sum(cluster_sizes)
+    w_agg = np.zeros(N)
+    v_agg = np.zeros(N)
+    for k_idx in range(K):
+        w_agg += (cluster_sizes[k_idx] / total_size) * w_opt[:, k_idx]
+        v_agg += (cluster_sizes[k_idx] / total_size) * v_opt[:, k_idx]
+
+    return {
+        'w_opt': w_opt,
+        'v_opt': v_opt,
+        'z_opt': z_opt,
+        'y_syn_treated_clusters': y_syn_treated_clusters,
+        'y_syn_control_clusters': y_syn_control_clusters,
+        'rmse_cluster': rmse_cluster,
+        'w_agg': w_agg,
+        'v_agg': v_agg
+    }
+
+
 
 def SCMEXP(
     Y_full,
@@ -335,59 +418,48 @@ def SCMEXP(
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=cp.SCIP, verbose=verbose)
 
-    # --- extract ---
-    w_opt = w.value
-    v_opt = v.value
-    z_opt = z.value
+# --- extract results ---
+results = _extract_results(Y_full_np, Y_fit, w, v, cluster_members, T_fit)
 
-    Y_full_T = Y_full_np.T
-    y_syn_treated_clusters = [Y_full_T @ w_opt[:, k_idx] for k_idx in range(K)]
-    y_syn_control_clusters = [Y_full_T @ v_opt[:, k_idx] for k_idx in range(K)]
+# unpack for convenience
+w_opt = results['w_opt']
+v_opt = results['v_opt']
+z_opt = results['z_opt']
+y_syn_treated_clusters = results['y_syn_treated_clusters']
+y_syn_control_clusters = results['y_syn_control_clusters']
+rmse_cluster = results['rmse_cluster']
+w_agg = results['w_agg']
+v_agg = results['v_agg']
 
-    # cluster RMSE
-    rmse_cluster = []
-    for k_idx in range(K):
-        treated_idx = np.where(w_opt[:, k_idx] > 1e-8)[0]
-        y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx] / np.sum(w_opt[treated_idx, k_idx])) if len(treated_idx) > 0 else np.zeros(T_fit)
-        y_control = Y_fit.T @ v_opt[:, k_idx]
-        rmse_cluster.append(np.sqrt(np.mean((y_treated - y_control) ** 2)))
+# --- prepare result dictionary ---
+result = {
+    "df": Y_full,
+    "w_opt": w_opt,
+    "v_opt": v_opt,
+    "z_opt": z_opt,
+    "y_syn_treated_clusters": y_syn_treated_clusters,
+    "y_syn_control_clusters": y_syn_control_clusters,
+    "Xbar_clusters": Xbar_clusters,
+    "cluster_labels": list(cluster_labels),
+    "cluster_members": cluster_members,
+    "w_agg": w_agg,
+    "v_agg": v_agg,
+    "cluster_sizes": [len(m) for m in cluster_members],
+    "T0": T0,
+    "blank_periods": blank_periods,
+    "T_fit": T_fit,
+    "Y_fit": Y_fit,
+    "Y_blank": Y_blank,
+    "rmse_cluster": rmse_cluster,
+    "design": design,
+    "beta": beta if design == "weak" else None,
+    "lambda1": lambda1 if design == "eq11" else (lambda1_unit if design == "unit" else None),
+    "lambda2": lambda2 if design == "eq11" else (lambda2_unit if design == "unit" else None),
+    "xi": xi if design == "unit" else None,
+    "original_cluster_vector": clusters,
+    "costs_used": costs if costs is not None else None,
+    "budget_used": budget
+}
 
-    # aggregate weights
-    cluster_sizes = [len(m) for m in cluster_members]
-    total_size = sum(cluster_sizes)
-    w_agg = np.zeros(N)
-    v_agg = np.zeros(N)
-    for k_idx in range(K):
-        w_agg += (cluster_sizes[k_idx] / total_size) * w_opt[:, k_idx]
-        v_agg += (cluster_sizes[k_idx] / total_size) * v_opt[:, k_idx]
-
-    result = {
-        "df": Y_full,
-        "w_opt": w_opt,
-        "v_opt": v_opt,
-        "z_opt": z_opt,
-        "y_syn_treated_clusters": y_syn_treated_clusters,
-        "y_syn_control_clusters": y_syn_control_clusters,
-        "Xbar_clusters": Xbar_clusters,
-        "cluster_labels": list(cluster_labels),
-        "cluster_members": cluster_members,
-        "w_agg": w_agg,
-        "v_agg": v_agg,
-        "cluster_sizes": cluster_sizes,
-        "T0": T0,
-        "blank_periods": blank_periods,
-        "T_fit": T_fit,
-        "Y_fit": Y_fit,
-        "Y_blank": Y_blank,
-        "rmse_cluster": rmse_cluster,
-        "design": design,
-        "beta": beta if design == "weak" else None,
-        "lambda1": (lambda1 if design == "eq11" else (lambda1_unit if design == "unit" else None)),
-        "lambda2": (lambda2 if design == "eq11" else (lambda2_unit if design == "unit" else None)),
-        "xi": xi if design == "unit" else None,
-        "original_cluster_vector": clusters,
-        "costs_used": costs if costs is not None else None,
-        "budget_used": budget
-    }
 
     return result
