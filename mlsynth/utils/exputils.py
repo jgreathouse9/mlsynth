@@ -333,7 +333,7 @@ def SCMEXP(
 
     # --- solve problem ---
     prob = cp.Problem(objective, constraints)
-    prob.solve(solver=solver, verbose=verbose)
+    prob.solve(solver=cp.SCIP, verbose=verbose)
 
     # --- extract ---
     w_opt = w.value
