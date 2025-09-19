@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, model_validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import warnings
 
+
 class BaseMAREXConfig(BaseModel):
     df: pd.DataFrame = Field(..., description="Input panel data (units x time).")
     outcome: str = Field(..., description="Outcome column name.")
@@ -16,9 +17,12 @@ class BaseMAREXConfig(BaseModel):
         extra = "forbid"
 
     @model_validator(mode="after")
-    def check_df_columns(cls, values: Any) -> Any:
+    def check_df_columns(cls, values: "BaseMAREXConfig") -> "BaseMAREXConfig":
         df = values.df
         outcome, unitid, time = values.outcome, values.unitid, values.time
+
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("'df' must be a pandas DataFrame")
 
         if df.empty:
             raise MlsynthDataError("Input DataFrame 'df' cannot be empty.")
@@ -41,30 +45,33 @@ class BaseMAREXConfig(BaseModel):
         if not df.sort_values([unitid, time]).equals(df):
             warnings.warn(f"DataFrame was not sorted by [{unitid}, {time}] — auto-sorting applied.")
             df = df.sort_values([unitid, time]).reset_index(drop=True)
-            values.df = df
+            values = values.model_copy(update={"df": df})
 
         return values
 
+# --------------------------
+# MAREX Config
+# --------------------------
 class MAREXConfig(BaseMAREXConfig):
-    T0: Optional[int] = Field(default=None)
-    cluster: Optional[str] = Field(default=None, description="Cluster column name.")
-    design: str = Field(default="base")
-    beta: float = Field(default=1e-6)
-    lambda1: float = Field(default=0.0)
-    lambda2: float = Field(default=0.0)
-    xi: float = Field(default=0.0)
-    lambda1_unit: float = Field(default=0.0)
-    lambda2_unit: float = Field(default=0.0)
-    blank_periods: int = Field(default=0)
-    m_eq: Optional[int] = Field(default=None)
-    m_min: Optional[int] = Field(default=None)
-    m_max: Optional[int] = Field(default=None)
-    exclusive: bool = Field(default=True)
-    solver: Any = Field(default=None)
-    verbose: bool = Field(default=False)
+    T0: Optional[int] = None
+    cluster: Optional[str] = None
+    design: str = "base"
+    beta: float = 1e-6
+    lambda1: float = 0.0
+    lambda2: float = 0.0
+    xi: float = 0.0
+    lambda1_unit: float = 0.0
+    lambda2_unit: float = 0.0
+    blank_periods: int = 0
+    m_eq: Optional[int] = None
+    m_min: Optional[int] = None
+    m_max: Optional[int] = None
+    exclusive: bool = True
+    solver: Any = None
+    verbose: bool = False
 
     @model_validator(mode="after")
-    def validate_design_params(cls, values: Any) -> Any:
+    def validate_design_params(cls, values: "MAREXConfig") -> "MAREXConfig":
         df = values.df
         T0, design, cluster_col = values.T0, values.design, values.cluster
 
@@ -100,12 +107,12 @@ class MAREXConfig(BaseMAREXConfig):
                     UserWarning
                 )
                 df[cluster_col] = pd.Categorical(col).codes
-                values.df = df
+                values = values.model_copy(update={"df": df})
 
             # Check m_eq against cluster sizes
             if values.m_eq is not None:
                 cluster_sizes = df.groupby(cluster_col).size()
-                if any(values.m_eq > cluster_sizes):
+                if (cluster_sizes < values.m_eq).any():
                     raise MlsynthDataError(
                         f"m_eq ({values.m_eq}) cannot be greater than the number of units "
                         f"in any cluster (max cluster size = {cluster_sizes.max()})"
@@ -595,6 +602,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
