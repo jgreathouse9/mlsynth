@@ -6,19 +6,6 @@ import numpy as np
 def _get_per_cluster_param(param, klabel, default=None):
     """
     Retrieve a parameter value specific to a cluster or apply a default.
-
-    Parameters
-    ----------
-    param : None, scalar, or dict
-        Parameter specification. If dict, maps cluster label to value.
-    klabel : hashable
-        Cluster label to look up.
-    default : any
-        Fallback if param is None or key not in dict.
-
-    Returns
-    -------
-    value for the given cluster
     """
     if param is None:
         return default
@@ -82,11 +69,13 @@ def SCMEXP(
         Includes weights, synthetic trajectories, cluster info, costs/budget,
         and original input in 'df'.
     """
-    # Preserve original for output
-    Y_input = Y_full
-    # Convert to numpy for calculations
-    if hasattr(Y_full, "to_numpy"):
+    # Preserve original type for output
+    if isinstance(Y_full, pd.DataFrame):
+        Y_input = Y_full.copy()
         Y_full = Y_full.to_numpy()
+    else:
+        Y_input = np.array(Y_full, copy=True)
+
     N, T_total = Y_full.shape
 
     # Basic validation
@@ -212,77 +201,39 @@ def SCMEXP(
             obj_terms.append(beta * cp.sum_squares(syn_treated_k - syn_control_k))
         elif design == "eq11":
             if lambda1 > 0:
-                obj_terms.append(lambda1 * cp.sum(cp.multiply(w[:, k_idx], D1[:, k_idx])))
+                obj_terms.append(lambda1 * cp.norm(w[:, k_idx], 1))
             if lambda2 > 0:
-                obj_terms.append(lambda2 * cp.sum(cp.multiply(v[:, k_idx], D1[:, k_idx])))
+                obj_terms.append(lambda2 * cp.norm(w[:, k_idx], 2))
         elif design == "unit":
-            members = cluster_members[k_idx]
             if xi > 0:
-                for j in members:
-                    X_j = Y_fit[j, :]
-                    obj_terms.append(xi * w[j, k_idx] * cp.sum_squares(X_j - syn_control_k))
+                obj_terms.append(xi * cp.sum(z[:, k_idx]))
             if lambda1_unit > 0:
-                obj_terms.append(lambda1_unit * cp.sum(cp.multiply(w[members, k_idx], D1[members, k_idx])))
-            if lambda2_unit > 0 and len(members) > 1:
-                Dmat = D2_list[k_idx]
-                v_m = v[members, k_idx]
-                w_m = w[members, k_idx]
-                obj_terms.append(lambda2_unit * cp.sum(cp.multiply(w_m, Dmat @ v_m)))
+                obj_terms.append(lambda1_unit * cp.norm(v[:, k_idx], 1))
+            if lambda2_unit > 0:
+                obj_terms.append(lambda2_unit * cp.norm(v[:, k_idx], 2))
 
-    # Solve
-    prob = cp.Problem(cp.Minimize(cp.sum(obj_terms)), constraints)
-    prob.solve(solver=cp.SCIP, verbose=verbose)
+    objective = cp.Minimize(cp.sum(obj_terms))
+    problem = cp.Problem(objective, constraints)
+    problem.solve(solver=solver, verbose=verbose)
 
-    # Extract results
+    # Collect results
     w_opt = w.value
     v_opt = v.value
     z_opt = z.value
-    Y_full_T = Y_full.T
-    y_syn_treated_clusters = [Y_full_T @ w_opt[:, k] for k in range(K)]
-    y_syn_control_clusters = [Y_full_T @ v_opt[:, k] for k in range(K)]
+
+    y_syn_treated_clusters = [Y_T @ w_opt[:, k] for k in range(K)]
+    y_syn_control_clusters = [Y_T @ v_opt[:, k] for k in range(K)]
 
     rmse_cluster = []
-    for k_idx in range(K):
-        treated_idx = np.where(w_opt[:, k_idx] > 1e-8)[0]
-        y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx]) / np.sum(w_opt[treated_idx, k_idx]) \
-            if len(treated_idx) > 0 else np.zeros(T_fit)
-        y_control = Y_fit.T @ v_opt[:, k_idx]
-        rmse_cluster.append(np.sqrt(np.mean((y_treated - y_control) ** 2)))
+    for k_idx, lab in enumerate(cluster_labels):
+        members = cluster_members[k_idx]
+        true_mean = Xbar_clusters[k_idx]
+        syn_mean = y_syn_treated_clusters[k_idx]
+        rmse_cluster.append(
+            np.sqrt(np.mean((true_mean - syn_mean) ** 2))
+        )
 
-    cluster_sizes = [len(m) for m in cluster_members]
-    total_size = sum(cluster_sizes)
-    w_agg = sum((cluster_sizes[k]/total_size) * w_opt[:, k] for k in range(K))
-    v_agg = sum((cluster_sizes[k]/total_size) * v_opt[:, k] for k in range(K))
-
-    result = {
-        "Y_Full": Y_full,
-        "w_opt": w_opt,
-        "v_opt": v_opt,
-        "z_opt": z_opt,
-        "y_syn_treated_clusters": y_syn_treated_clusters,
-        "y_syn_control_clusters": y_syn_control_clusters,
-        "Xbar_clusters": Xbar_clusters,
-        "cluster_labels": list(cluster_labels),
-        "cluster_members": cluster_members,
-        "w_agg": w_agg,
-        "v_agg": v_agg,
-        "cluster_sizes": cluster_sizes,
-        "T0": T0,
-        "blank_periods": blank_periods,
-        "T_fit": T_fit,
-        "Y_fit": Y_fit,
-        "Y_blank": Y_blank,
-        "rmse_cluster": rmse_cluster,
-        "design": design,
-        "beta": beta if design=="weak" else None,
-        "lambda1": lambda1 if design=="eq11" else (lambda1_unit if design=="unit" else None),
-        "lambda2": lambda2 if design=="eq11" else (lambda2_unit if design=="unit" else None),
-        "xi": xi if design=="unit" else None,
-        "df": Y_input,  # preserve original for indexing
-        "original_cluster_vector": clusters,
-        "costs_used": costs if costs is not None else None,
-        "budget_used": budget
-    }
+    result = {"Y_Full": Y_full, "w_opt": w_opt, "v_opt": v_opt, "z_opt": z_opt, "y_syn_treated_clusters": y_syn_treated_clusters, "y_syn_control_clusters": y_syn_control_clusters, "Xbar_clusters": Xbar_clusters, "cluster_labels": list(cluster_labels), "cluster_members": cluster_members, "w_agg": w_agg, "v_agg": v_agg, "cluster_sizes": cluster_sizes, "T0": T0, "blank_periods": blank_periods, "T_fit": T_fit, "Y_fit": Y_fit,
+              "Y_blank": Y_blank, "rmse_cluster": rmse_cluster, "design": design, "beta": beta if design == "weak" else None, "lambda1": (lambda1 if design == "eq11" else (lambda1_unit if design == "unit" else None)), "lambda2": (lambda2 if design == "eq11" else (lambda2_unit if design == "unit" else None)), "xi": (xi if design == "unit" else None), "df": widedf, "original_cluster_vector": clusters}
 
     return result
-
