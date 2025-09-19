@@ -6,7 +6,7 @@ import pydantic # For ValidationError
 import cvxpy as cp # For cvxpy.error types
 
 from ..utils.datautils import balance
-from ..utils.extutils import _get_per_cluster_param, SCMEXP
+from ..utils.exputils import _get_per_cluster_param, SCMEXP
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -233,3 +233,4 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
