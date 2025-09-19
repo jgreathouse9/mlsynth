@@ -1,7 +1,7 @@
 # tests/conftest.py
 import pytest
 import numpy as np
-from sim_functions import simulate_districts, sim_to_long_df  # Import from your stashed file
+from exp_simdata import simulate_districts, sim_to_long_df  # Import from your stashed file
 
 @pytest.fixture
 def curacao_sim_data():
