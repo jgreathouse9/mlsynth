@@ -137,7 +137,7 @@ def SCMEXP(
     Y_fit = Y_full_np[:, :T_fit]
     Y_blank = Y_full_np[:, T_fit:T0] if blank_periods > 0 else None
 
-    # --- membership mask ---
+    # --- cluster membership mask ---
     M = np.zeros((N, K), dtype=bool)
     for j in range(N):
         M[j, label_to_k[clusters[j]]] = True
