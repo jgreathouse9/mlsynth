@@ -443,3 +443,101 @@ def test_fit_extreme_penalty_values(curacao_sim_data):
     results = marex.fit()
     assert results is not None
     assert len(results.clusters) > 0
+
+
+def test_single_unit_cluster(curacao_sim_data):
+    # Make a cluster with only one unit
+    df = curacao_sim_data["df"].copy()
+    df.loc[df.index[0], "Region"] = 999  # singleton cluster
+    config = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "cluster": "Region",
+        "m_eq": 1,
+    }
+    marex = MAREX(config=MAREXConfig(**config))
+    results = marex.fit()
+    assert results is not None
+    # Check that singleton cluster exists
+    assert "999" in results.clusters
+
+def test_all_units_one_cluster(curacao_sim_data):
+    df = curacao_sim_data["df"].copy()
+    df["Region"] = 0  # all units in a single cluster
+    config = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "cluster": "Region",
+        "m_eq": 2,
+    }
+    marex = MAREX(config=MAREXConfig(**config))
+    results = marex.fit()
+    assert results is not None
+    assert len(results.clusters) == 1
+
+def test_T0_edge_cases(curacao_sim_data):
+    max_periods = curacao_sim_data["df"]["time"].nunique()
+    
+    # T0 = 1 (minimal pre-treatment)
+    config1 = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": 1,
+        "m_eq": 1
+    }
+    marex1 = MAREX(config=MAREXConfig(**config1))
+    results1 = marex1.fit()
+    assert results1.study.T0 == 1
+
+    # T0 = max_periods - 1
+    config2 = {
+        "df": curacao_sim_data["df"],
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": max_periods - 1,
+        "m_eq": 1
+    }
+    marex2 = MAREX(config=MAREXConfig(**config2))
+    results2 = marex2.fit()
+    assert results2.study.T0 == max_periods - 1
+
+def test_non_consecutive_time_indices(curacao_sim_data):
+    df = curacao_sim_data["df"].copy()
+    # Drop some time points
+    df = df[df["time"] % 5 != 0]
+    config = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "m_eq": 1
+    }
+    marex = MAREX(config=MAREXConfig(**config))
+    results = marex.fit()
+    assert results is not None
+    assert results.globres.Y_fit.shape[1] == df["time"].nunique()
+
+def test_explicit_blank_periods(curacao_sim_data):
+    df = curacao_sim_data["df"].copy()
+    max_periods = df["time"].nunique()
+    T0 = max_periods - 2
+    explicit_blanks = 2  # should match max_periods - T0
+    config = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "T0": T0,
+        "blank_periods": explicit_blanks,
+        "m_eq": 1
+    }
+    marex = MAREX(config=MAREXConfig(**config))
+    results = marex.fit()
+    assert results.study.blank_periods == explicit_blanks
