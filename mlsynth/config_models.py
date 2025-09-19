@@ -145,7 +145,7 @@ class MAREXConfig(BaseMAREXConfig):
                 df[cluster_col] = pd.Categorical(col).codes
                 values.df = df
 
-            # --- Validate m_eq does not exceed cluster size ---
+            # --- Validate m_eq does not exceed the cluster size ---
             if values.m_eq is not None:
                 cluster_sizes = df[cluster_col].value_counts()
                 if any(values.m_eq > cluster_sizes):
@@ -639,6 +639,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
