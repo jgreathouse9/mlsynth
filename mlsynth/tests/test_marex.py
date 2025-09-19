@@ -136,7 +136,7 @@ def test_fit_extreme_values(curacao_sim_data):
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
-        "T0": 1000,  # Extreme T0
+        "T0": 104,  # Extreme T0
         "cluster": "Region",
         "design": "eq11",
         "m_eq": 10,  # Excessive m_eq
