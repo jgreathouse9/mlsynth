@@ -157,6 +157,7 @@ def SCMEXP(
 
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = _prepare_clusters(Y_full, clusters)
 
+    costs_np, budget_dict = _validate_costs_budget(costs, budget, N, cluster_labels, K)
 
     if costs_np is not None:
         B_k = _get_per_cluster_param(budget_dict, lab)
