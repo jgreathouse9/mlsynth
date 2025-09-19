@@ -9,6 +9,49 @@ def _get_per_cluster_param(param, klabel, default=None):
         return param.get(klabel, default)
     return param  # scalar
 
+def _prepare_clusters(Y_full, clusters):
+    """
+    Convert Y and clusters to NumPy arrays, check dimensions, and return cluster info.
+
+    Parameters
+    ----------
+    Y_full : pd.DataFrame or np.ndarray
+        Outcome matrix with units as rows and time periods as columns.
+    clusters : array-like
+        Cluster labels for each unit.
+
+    Returns
+    -------
+    Y_full_np : np.ndarray
+        Converted outcome matrix.
+    clusters : np.ndarray
+        Cluster labels as NumPy array.
+    N : int
+        Number of units (rows of Y_full).
+    cluster_labels : np.ndarray
+        Unique cluster labels.
+    K : int
+        Number of clusters.
+    label_to_k : dict
+        Mapping from cluster label to index (0..K-1).
+    """
+    if isinstance(Y_full, pd.DataFrame):
+        Y_full_np = Y_full.to_numpy()
+    else:
+        Y_full_np = np.asarray(Y_full)
+
+    clusters = np.asarray(clusters)
+    N = Y_full_np.shape[0]
+    if clusters.shape[0] != N:
+        raise ValueError("clusters must have length N (rows of Y)")
+
+    cluster_labels = np.unique(clusters)
+    K = len(cluster_labels)
+    label_to_k = {lab: i for i, lab in enumerate(cluster_labels)}
+
+    return Y_full_np, clusters, N, cluster_labels, K, label_to_k
+
+
 
 def _validate_scm_inputs(Y_full, T0, blank_periods, design,
                         beta=1e-6, lambda1=0.0, lambda2=0.0,
@@ -67,17 +110,8 @@ def SCMEXP(
 
     dfwide = Y_full
 
-    # --- convert Y and clusters ---
-    Y_full_np = Y_full.to_numpy()
-    clusters = np.asarray(clusters)
-    N = Y_full_np.shape[0]
-    if clusters.shape[0] != N:
-        raise ValueError("clusters must have length N (rows of Y)")
+    Y_full_np, clusters, N, cluster_labels, K, label_to_k = _prepare_clusters(Y_full, clusters)
 
-    # --- cluster labels and count ---
-    cluster_labels = np.unique(clusters)
-    K = len(cluster_labels)
-    label_to_k = {lab: i for i, lab in enumerate(cluster_labels)}
 
     # --- validate costs and budget ---
     if costs is not None:
