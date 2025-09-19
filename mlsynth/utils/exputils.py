@@ -9,6 +9,32 @@ def _get_per_cluster_param(param, klabel, default=None):
         return param.get(klabel, default)
     return param  # scalar
 
+
+def _validate_scm_inputs(Y_full, T0, blank_periods, design,
+                        beta=1e-6, lambda1=0.0, lambda2=0.0,
+                        xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0):
+    """
+    Validate SCM input arguments for shape, design compatibility, and parameter usage.
+    Raises ValueError if any check fails.
+    """
+    # --- basic shape checks ---
+    if T0 <= 0 or T0 >= Y_full.shape[1]:
+        raise ValueError("T0 must be 1 <= T0 < Y_full.shape[1]")
+    if blank_periods < 0 or blank_periods >= T0:
+        raise ValueError("blank_periods must be 0 <= blank_periods < T0 (need at least 1 fit period)")
+
+    # --- incompatible parameter usage ---
+    if design != "weak" and beta != 1e-6:
+        raise ValueError("beta is only valid when design == 'weak'")
+    if design != "eq11" and (lambda1 != 0.0 or lambda2 != 0.0):
+        raise ValueError("lambda1/lambda2 are only valid when design == 'eq11'")
+    if design != "unit" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
+        raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit'")
+
+
+
+
+
 def SCMEXP(
     Y_full,
     T0,
@@ -35,24 +61,9 @@ def SCMEXP(
     Supports optional cost and budget constraints per cluster.
     """
 
-    # --- validate design ---
-    valid_designs = {"base", "weak", "eq11", "unit"}
-    if design not in valid_designs:
-        raise ValueError(f"design must be one of {valid_designs}; got '{design}'")
+    _validate_scm_inputs(Y_full, T0, blank_periods, design,
+                        beta, lambda1, lambda2, xi, lambda1_unit, lambda2_unit)
 
-    # --- basic shape checks ---
-    if T0 <= 0 or T0 >= Y_full.shape[1]:
-        raise ValueError("T0 must be 1 <= T0 < Y_full.shape[1]")
-    if blank_periods < 0 or blank_periods >= T0:
-        raise ValueError("blank_periods must be 0 <= blank_periods < T0 (need at least 1 fit period)")
-
-    # --- incompatible parameter usage ---
-    if design != "weak" and beta != 1e-6:
-        raise ValueError("beta is only valid when design == 'weak'")
-    if design != "eq11" and (lambda1 != 0.0 or lambda2 != 0.0):
-        raise ValueError("lambda1/lambda2 are only valid when design == 'eq11'")
-    if design != "unit" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
-        raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit'")
 
     dfwide = Y_full
 
