@@ -347,42 +347,38 @@ def SCMEXP(
 
     elif design == "unit":
         # Unit-level penalized design (OA.1 + OA.2 + OA.3)
-        # OA.1 (xi): sum_j w_j * || X_j - (Y_fit^T v) ||^2
-        # OA.2 (lambda1_unit): sum_j w_j ||Xbar - X_j||^2
-        # OA.3 (lambda2_unit): sum_j w_j * sum_i v_i ||X_j - X_i||^2  (pairwise inside cluster)
-        for k_idx in range(K):
+        # OA.1 (xi): sum_j w_jk * || X_j - syn_control_k ||^2
+        # OA.2 (lambda1_unit): sum_j w_jk * || Xbar_k - X_j ||^2
+        # OA.3 (lambda2_unit): sum_j w_jk * (Dmat @ v_m)_j (pairwise inside cluster)
+        for k_idx, lab in enumerate(cluster_labels):
             members = cluster_members[k_idx]
             Xbar_k = Xbar_clusters[k_idx]
             syn_treated_k = Y_T @ w[:, k_idx]    # (T_fit,)
             syn_control_k = Y_T @ v[:, k_idx]    # (T_fit,)
-
+    
             # cluster-level fits
             obj_terms.append(cp.sum_squares(Xbar_k - syn_treated_k))
             obj_terms.append(cp.sum_squares(Xbar_k - syn_control_k))
-
-            # OA.1: xi * sum_{j in members} w_jk * || X_j - syn_control_k ||^2
+    
+            # OA.1: xi * sum_j w_jk * || X_j - syn_control_k ||^2
             if xi > 0:
-                for local_idx, j in enumerate(members):
+                for j in members:
                     X_j = Y_fit[j, :]  # numpy (T_fit,)
-                    # cp expression: xi * w[j,k] * || X_j - syn_control_k ||^2
                     obj_terms.append(xi * w[j, k_idx] * cp.sum_squares(X_j - syn_control_k))
-
+    
             # OA.2: lambda1_unit * sum_j w_jk * || Xbar_k - X_j ||^2
             if lambda1_unit > 0:
-                obj_terms.append(lambda1_unit * cp.sum(cp.multiply(w[:, k_idx], D1[:, k_idx])))
+                obj_terms.append(lambda1_unit * cp.sum(cp.multiply(w[members, k_idx], D1[members, k_idx])))
+    
+            # OA.3: lambda2_unit * sum_j w_jk * (Dmat @ v_m)_j
+            # Only apply if cluster has more than 1 member
+            if lambda2_unit > 0 and len(members) > 1:
+                Dmat = D2_list[k_idx]  # (m,m)
+                v_m = v[members, k_idx]  # cvxpy Variable slice
+                w_m = w[members, k_idx]
+                inner_vec = Dmat @ v_m   # symbolic matrix-vector multiply
+                obj_terms.append(lambda2_unit * cp.sum(cp.multiply(w_m, inner_vec)))
 
-            # OA.3: lambda2_unit * sum_j w_jk * ( Dmat @ v_m )_j
-            if lambda2_unit > 0:
-                # D2_list[k_idx] is (m,m) for members
-                if len(members) > 0:
-                    Dmat = D2_list[k_idx]               # numpy (m, m)
-                    v_m = v[members, k_idx]            # cp (m,)
-                    inner_vec = Dmat @ v_m.value if v_m.value is None else Dmat.dot(v_m)  # Fix for cvxpy compatibility
-                    w_m = w[members, k_idx]            # cp (m,)
-                    obj_terms.append(lambda2_unit * cp.sum(cp.multiply(w_m, inner_vec)))
-
-    else:
-        raise RuntimeError("unhandled design branch (this should not happen)")
 
     objective = cp.Minimize(cp.sum(obj_terms))
     prob = cp.Problem(objective, constraints)
