@@ -6,7 +6,7 @@ from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
-from ..utils.exputils import _get_per_cluster_param, SCMEXP
+from mlsynth.utils.exputils import _get_per_cluster_param, SCMEXP
 
 
 # ----------------------------------------------------
