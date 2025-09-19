@@ -631,3 +631,50 @@ def test_scmexp_with_cost_budget(simple_data):
         members = np.where(clusters == lab)[0]
         total_cost = np.sum(costs[members] * res["w_opt"][members, k_idx])
         assert total_cost <= budget[lab] + 1e-6
+
+
+
+# ---------------------------
+# Blank periods
+# ---------------------------
+def test_scmexp_blank_periods(small_dataset):
+    Y, clusters = small_dataset
+    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, blank_periods=1)
+    assert res["T_fit"] == 2
+    if res["Y_blank"] is not None:
+        assert res["Y_blank"].shape[1] == 1
+
+# ---------------------------
+# Solver check
+# ---------------------------
+def test_solver_list():
+    solvers = cp.installed_solvers()
+    print("Installed solvers:", solvers)
+    assert "ECOS_BB" in solvers or "SCIP" in solvers
+
+# ---------------------------
+# RMSE sanity
+# ---------------------------
+def test_rmse_positive(small_dataset):
+    Y, clusters = small_dataset
+    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters)
+    for rmse in res["rmse_cluster"]:
+        assert rmse >= 0 and np.isfinite(rmse)
+
+# ---------------------------
+# DataFrame input
+# ---------------------------
+def test_scmexp_dataframe_input(small_dataset_df):
+    Y_df, clusters = small_dataset_df
+    res = SCMEXP(Y_full=Y_df, T0=3, clusters=clusters)
+    assert isinstance(res["df"], pd.DataFrame)
+
+# ---------------------------
+# Edge case: single-member cluster
+# ---------------------------
+def test_single_member_cluster():
+    Y = np.array([[1,2,3],[2,3,4],[3,4,5]])
+    clusters = ["A","A","B"]  # B has 1 member
+    res = SCMEXP(Y_full=Y, T0=3, clusters=clusters, design="unit")
+    assert res["w_opt"].shape[1] == 2
+    assert len(res["cluster_members"][1]) ==1
