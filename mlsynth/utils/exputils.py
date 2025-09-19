@@ -54,8 +54,10 @@ def SCMEXP(
     if design != "unit" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
         raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit'")
 
+    dfwide = Y_full
+
     # --- convert Y and clusters ---
-    Y_full_np = Y_full.to_numpy() if isinstance(Y_full, pd.DataFrame) else np.asarray(Y_full)
+    Y_full_np = Y_full.to_numpy()
     clusters = np.asarray(clusters)
     N = Y_full_np.shape[0]
     if clusters.shape[0] != N:
@@ -239,7 +241,7 @@ def SCMEXP(
         v_agg += (cluster_sizes[k_idx] / total_size) * v_opt[:, k_idx]
 
     result = {
-        "df": Y_full,
+        "df": dfwide,
         "w_opt": w_opt,
         "v_opt": v_opt,
         "z_opt": z_opt,
