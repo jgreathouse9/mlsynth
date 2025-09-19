@@ -9,3 +9,4 @@ pyscipopt>=4.4.0  # For SCIP as fallback
 screenot
 statsmodels>=0.14.0
 pydantic>=2.0.0
+ecos
