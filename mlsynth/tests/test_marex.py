@@ -122,7 +122,6 @@ def test_init_duplicate_rows(curacao_sim_data):
 
 
 def test_init_unsorted_dataframe_warning(curacao_sim_data):
-    # Shuffle rows
     df_shuffled = curacao_sim_data["df"].sample(frac=1).reset_index(drop=True)
     config = {
         "df": df_shuffled,
@@ -136,13 +135,10 @@ def test_init_unsorted_dataframe_warning(curacao_sim_data):
         warnings.simplefilter("always")
         cfg = MAREXConfig(**config)
 
-        # Check: town order alphabetically
-        towns_sorted = cfg.df[["town", "time"]].drop_duplicates(subset="town")
-        assert towns_sorted["town"].is_monotonic_increasing
+        # Expected sorted df: alphabetical town, then increasing time
+        df_expected = cfg.df.sort_values(["town", "time"], kind="mergesort").reset_index(drop=True)
+        pd.testing.assert_frame_equal(cfg.df, df_expected)
 
-        # Check: time sorted within each town
-        for _, group in cfg.df.groupby("town", sort=False):
-            assert group["time"].is_monotonic_increasing
 
 
 
