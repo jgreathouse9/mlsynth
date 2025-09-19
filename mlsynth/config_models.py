@@ -120,21 +120,24 @@ class MAREXConfig(BaseMAREXConfig):
         """Force cluster column into integer codes if it contains strings or categories."""
         df = values.df
         cluster_col = values.cluster
-
+    
         if cluster_col is not None:
             if cluster_col not in df.columns:
                 raise MlsynthDataError(f"Cluster column '{cluster_col}' not found in df.")
-
+    
             col = df[cluster_col]
             if not pd.api.types.is_integer_dtype(col):
+                # Warn user that conversion is happening
+                warnings.warn(
+                    f"Cluster column '{cluster_col}' contains non-integer values. "
+                    "Automatically converting to integer codes.",
+                    UserWarning
+                )
+                # Convert string or categorical clusters to integer codes
                 df[cluster_col] = pd.Categorical(col).codes
                 values.df = df  # overwrite DataFrame in Pydantic model
-
+    
         return values
-
-
-
-
 
 
 class BaseEstimatorConfig(BaseModel):
@@ -617,4 +620,5 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
