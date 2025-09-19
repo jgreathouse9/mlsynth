@@ -31,9 +31,7 @@ def simulate_districts(districts, R_town=6, F_town=3,
                       R_dist=4, F_dist=1,
                       T0=104, T1=24, sigma2=.25,
                       phi=0.95, treated_units=None, seed=None):
-    """
-    Simulate panel data of weekly tourism spending across districts and towns.
-    """
+    """Simulate panel data of weekly tourism spending across districts and towns."""
     if seed is not None:
         np.random.seed(seed)
 
@@ -98,8 +96,8 @@ def simulate_districts(districts, R_town=6, F_town=3,
 
             # Initialize
             district_component = Delta[0] + Theta[0] @ U
-            Y_N[j, 0] = district_component + town_factor + \
-                        tourism_weight * tourism_spending[0] * pop_scale + \
+            Y_N[j, 0] = district_component + town_factor +\
+                        tourism_weight * tourism_spending[0] * pop_scale +\
                         seasonal_component[0] + eps[0]
             Y_I[j, 0] = Y_N[j, 0] + 2 + xi[0]
 
@@ -136,9 +134,7 @@ def simulate_districts(districts, R_town=6, F_town=3,
     }
 
 def sim_to_long_df(sim_data, T0=104):
-    """
-    Convert simulation output to long-format DataFrame.
-    """
+    """Convert simulation output to long-format DataFrame."""
     district_labels = sim_data["district_labels"]
     town_labels = sim_data["town_labels"]
     Y_N = sim_data["Y_N"]
