@@ -577,9 +577,7 @@ def simple_data():
 
 @pytest.mark.parametrize("design", ["base", "weak", "eq11", "unit"])
 def test_scmexp_basic(simple_data, design):
-    """
-    Tests SCMEXP for all design modes.
-    """
+    """Tests SCMEXP for all design modes."""
     Y, clusters = simple_data
     # Convert Y to DataFrame to satisfy SCMEXP
     Y_df = pd.DataFrame(Y, columns=[f"t{i+1}" for i in range(Y.shape[1])])
@@ -606,9 +604,7 @@ def test_scmexp_basic(simple_data, design):
 
 
 def test_scmexp_with_cost_budget(simple_data):
-    """
-    Tests SCMEXP with costs and budget constraints.
-    """
+    """Tests SCMEXP with costs and budget constraints."""
     Y, clusters = simple_data
     Y_df = pd.DataFrame(Y, columns=[f"t{i+1}" for i in range(Y.shape[1])])
 
