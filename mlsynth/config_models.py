@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from pydantic import BaseModel, Field, model_validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
+import warnings
 
 class BaseMAREXConfig(BaseModel):
     df: pd.DataFrame = Field(..., description="Input panel data (units x time).")
@@ -597,6 +598,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
