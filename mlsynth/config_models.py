@@ -6,6 +6,14 @@ from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import warnings
 
 
+from typing import List, Optional, Any, Dict, Union
+import pandas as pd
+import numpy as np
+from pydantic import BaseModel, Field, model_validator
+from mlsynth.exceptions import MlsynthDataError
+import warnings
+
+
 class BaseMAREXConfig(BaseModel):
     """
     Base configuration for synthetic experiment designs.
@@ -69,7 +77,6 @@ class BaseMAREXConfig(BaseModel):
 
 class MAREXConfig(BaseMAREXConfig):
     """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
-    # Core design parameters
     T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
     cluster: Optional[str] = Field(
         default=None,
@@ -100,9 +107,10 @@ class MAREXConfig(BaseMAREXConfig):
         T0 = values.T0
         design = values.design
         cluster_col = values.cluster
+        time_col = values.time
 
         # Validate T0
-        n_periods = df[values.time].nunique()
+        n_periods = df[time_col].nunique()
         if T0 is not None and (T0 <= 0 or T0 > n_periods):
             raise MlsynthDataError(f"T0 must be between 1 and the number of time periods ({n_periods}).")
 
@@ -110,6 +118,28 @@ class MAREXConfig(BaseMAREXConfig):
         valid_designs = {"base", "weak", "eq11", "unit"}
         if design not in valid_designs:
             raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
+
+        # --- Consecutive time validation ---
+        time_vals = df[time_col].sort_values().unique()
+        if np.issubdtype(time_vals.dtype, np.number):
+            diffs = np.diff(time_vals)
+            if not np.all(diffs == 1):
+                raise MlsynthDataError(
+                    f"Time periods in column '{time_col}' are not consecutive. "
+                    f"Found gaps between periods: {time_vals}"
+                )
+        elif np.issubdtype(time_vals.dtype, np.datetime64):
+            diffs = np.diff(time_vals)
+            expected = pd.to_timedelta(np.ones(len(diffs)), unit="D")
+            if not np.all(diffs == diffs[0]):
+                raise MlsynthDataError(
+                    f"Datetime time periods in column '{time_col}' are not consecutive. "
+                    f"Found differences: {diffs}"
+                )
+        else:
+            raise MlsynthDataError(
+                f"Unsupported dtype for time column '{time_col}': {time_vals.dtype}"
+            )
 
         # --- Cluster handling ---
         if cluster_col is not None:
@@ -141,13 +171,12 @@ class MAREXConfig(BaseMAREXConfig):
                     UserWarning
                 )
 
-            # --- Enforce cluster invariance per unit ---
-            unit_groups = df.groupby(values.unitid)[cluster_col].apply(lambda x: set(x))
-            non_invariant_units = unit_groups[unit_groups.apply(len) != 1]
-
-            if not non_invariant_units.empty:
+            # --- Unit-invariant cluster check ---
+            unit_to_clusters = df.groupby(values.unitid)[cluster_col].apply(lambda x: set(x.dropna()))
+            non_invariant = unit_to_clusters[unit_to_clusters.apply(len) != 1]
+            if not non_invariant.empty:
                 raise MlsynthDataError(
-                    f"Units assigned to multiple clusters detected: {list(non_invariant_units.index)}"
+                    f"The following units have multiple cluster assignments: {non_invariant.to_dict()}"
                 )
 
             # --- m_eq validation ---
@@ -185,6 +214,7 @@ class MAREXConfig(BaseMAREXConfig):
             values.df = df  # overwrite DataFrame in Pydantic model
 
         return values
+
 
 
 
@@ -671,6 +701,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
