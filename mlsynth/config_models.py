@@ -125,7 +125,11 @@ class MAREXConfig(BaseMAREXConfig):
         
             # Warn about any missing values
             if col.isna().any():
-                warnings.warn(f"Cluster column '{cluster_col}' contains missing values", UserWarning)
+                n_missing = col.isna().sum()
+                warnings.warn(
+                    f"Cluster column '{cluster_col}' contains {n_missing} missing values",
+                    UserWarning
+                )
         
             # Convert string or categorical clusters to integer codes
             if not pd.api.types.is_integer_dtype(col):
@@ -628,6 +632,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
