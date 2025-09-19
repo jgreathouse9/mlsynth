@@ -239,7 +239,7 @@ def SCMEXP(
         v_agg += (cluster_sizes[k_idx] / total_size) * v_opt[:, k_idx]
 
     result = {
-        "Y_Full": Y_full_np,
+        "df": Y_full,
         "w_opt": w_opt,
         "v_opt": v_opt,
         "z_opt": z_opt,
