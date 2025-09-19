@@ -6,23 +6,14 @@ import pydantic # For ValidationError
 import cvxpy as cp # For cvxpy.error types
 
 from ..utils.datautils import balance
-from ..utils.exputils import _get_per_cluster_param, SCMEXP
+from ..utils.extutils import _get_per_cluster_param, SCMEXP
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
     MlsynthEstimationError,
-    MlsynthPlottingError,
 )
-from ..config_models import ( # Import the Pydantic model
-    MAREXConfig,
-    BaseEstimatorResults,
-    EffectsResults,
-    FitDiagnosticsResults,
-    TimeSeriesResults,
-    WeightsResults,
-    InferenceResults,
-    MethodDetailsResults,
-)
+
+from ..config_models import ClusterResults, MAREXResults, MAREXConfig, GlobalResults, StudyConfig
 
 
 class MAREX:
@@ -41,7 +32,7 @@ class MAREX:
 
         # Optional design parameters
         self.T0: Optional[int] = config.T0
-        self.clusters: Optional[np.ndarray] = config.clusters
+        self.cluster: str = config.cluster
         self.design: str = config.design
 
         # Penalization parameters
@@ -61,120 +52,121 @@ class MAREX:
         self.solver = getattr(config, "solver", None)
         self.verbose: bool = getattr(config, "verbose", False)
 
-    def _create_estimator_results(
-        self, raw_sdid_estimation_output: Dict[str, Any], prepared_panel_data: Dict[str, Any]
-    ) -> BaseEstimatorResults:
-        # Effects
-        att = raw_sdid_estimation_output.get("att")
-        att_se = raw_sdid_estimation_output.get("att_se")
-        att_ci = raw_sdid_estimation_output.get("att_ci")
-        additional_effects = {}
-        if att_se is not None:
-            additional_effects["att_standard_error"] = att_se
-        if att_ci is not None:
-            additional_effects["att_confidence_interval"] = att_ci
-        
-        effects_results = EffectsResults(
-            att=att,
-            additional_effects=additional_effects
-        )
+    class DesignResultsProcessor:
+        """
+        Process raw SCMEXP output into structured MAREXResults.
+        """
 
-        # Fit Diagnostics - SDID doesn't typically produce standard fit metrics like RMSE/R-squared.
-        # These are more common in methods that explicitly model an outcome variable (e.g., SCM).
-        fit_diagnostics_results = FitDiagnosticsResults() # Intentionally left empty.
+        def __init__(self, scm_result: dict, beta: float, lambda1: float, lambda2: float, xi: float, design: str):
+            self.scm_result = scm_result
+            self.beta = beta
+            self.lambda1 = lambda1
+            self.lambda2 = lambda2
+            self.xi = xi
+            self.design = design
 
-        # Time Series
-        # Extract event study estimates (dynamic treatment effects over time) for time_series representation.
-        # pooled_estimates: Dict[event_time, {'tau': float, 'se': float, 'ci': List[float]}]
-        pooled_estimates = raw_sdid_estimation_output.get("pooled_estimates", {})
-        time_periods_event_study = None
-        estimated_effects_over_time = None # This will be tau from pooled_estimates
-        
-        if pooled_estimates:
-            sorted_event_times = sorted(pooled_estimates.keys())
-            time_periods_event_study = np.array(sorted_event_times)
-            estimated_effects_over_time = np.array([pooled_estimates[t]['tau'] for t in sorted_event_times])
+        def get_results(self) -> MAREXResults:
+            clusters_out = {}
 
-        # SDID doesn't have a single "counterfactual_outcome" series in the same way as SCM.
-        # The primary time-varying output is the sequence of event-time specific ATTs (taus).
-        # We store these event study taus in the 'estimated_gap' field.
-        time_series_results = TimeSeriesResults(
-            time_periods=time_periods_event_study, # Event times (e.g., -2, -1, 0, 1, 2)
-            estimated_gap=estimated_effects_over_time, # Dynamic treatment effects (taus) for each event time
-            # `observed_outcome` and `counterfactual_outcome` series are not directly populated here
-            # as they are not primary outputs of `estimate_event_study_sdid` in a simple vector form.
-            # Reconstructing them would involve applying internal weights to original data.
-        )
+            w_opt = self.scm_result.get("w_opt")
+            v_opt = self.scm_result.get("v_opt")
+            z_opt = self.scm_result.get("z_opt")
+            Y_fit = self.scm_result.get("Y_fit")
+            Y_blank = self.scm_result.get("Y_blank")
+            Y_full = self.scm_result.get("Y_full")
 
-        # Weights - SDID calculates unit (omega) and time (lambda) weights internally.
-        # These are not directly in raw_sdid_estimation_output from estimate_event_study_sdid.
-        # They are calculated within sdid_est, which is called by estimate_event_study_sdid.
-        # For now, we'll leave this empty unless we modify sdidutils to return them.
-        # Placeholder:
-        # If weights were available, e.g., raw_sdid_estimation_output.get("omega_hat"), raw_sdid_estimation_output.get("lambda_hat")
-        # omega_hat = raw_sdid_estimation_output.get("omega_hat") # Unit weights
-        # lambda_hat = raw_sdid_estimation_output.get("lambda_hat") # Time weights
-        # donor_weights_dict = {str(name): val for name, val in zip(prepared_panel_data.get("donor_names", []), omega_hat)} if omega_hat is not None else {}
-        
-        weights_results = WeightsResults(
-            # donor_weights=donor_weights_dict, # If omega_hat was available
-            # additional_metrics={"time_weights_lambda": lambda_hat.tolist() if lambda_hat is not None else None}
-        )
+            clusters_vector = self.scm_result.get("original_cluster_vector")
+            unit_labels = self.scm_result['df'].index.to_list()
+            T0 = self.scm_result.get('T0', Y_fit.shape[1] if Y_fit is not None else 0)
+            unique_clusters = np.unique(clusters_vector)
 
-        # Inference
-        # p_value might be derived from placebo_taus if B > 0 (i.e., placebo tests were run).
-        placebo_taus = raw_sdid_estimation_output.get("placebo_att_values") # Raw ATT estimates from placebo runs.
-        p_value = None
-        # Calculate p-value: proportion of placebo ATTs as or more extreme than the observed ATT.
-        # Ensure observed ATT is valid and placebo results exist.
-        if att is not None and not np.isnan(att) and placebo_taus is not None and len(placebo_taus) > 0:
-            # Standard two-sided p-value calculation for placebo tests.
-            p_value = (np.sum(np.abs(placebo_taus) >= np.abs(att)) + 1) / (len(placebo_taus) + 1)
+            for c in unique_clusters:
+                cluster_units_idx = np.where(clusters_vector == c)[0]
+                members = [unit_labels[i] for i in cluster_units_idx]
+                selection_indicators = z_opt[cluster_units_idx, c] if z_opt is not None else np.zeros(
+                    len(cluster_units_idx))
+                treated_weights = np.where(
+                    selection_indicators == 1,
+                    w_opt[cluster_units_idx, c],  # pick only column c
+                    0.0
+                )
+                control_weights = np.where(
+                    selection_indicators == 0,
+                    v_opt[cluster_units_idx, c],
+                    0.0
+                )
 
-        inference_results = InferenceResults(
-            method="Synthetic Difference-in-Differences with Placebo Inference" if self.B > 0 else "Synthetic Difference-in-Differences", # Describe inference method.
-            p_value=p_value,
-            confidence_interval=att_ci # Store the main ATT CI here as well
-        )
-        
-        # Method Details
-        # Store cohort_estimates and other detailed outputs
-        method_details_additional = {
-            "cohort_estimates": raw_sdid_estimation_output.get("cohort_estimates"),
-            "tau_a_ell": raw_sdid_estimation_output.get("tau_a_ell"),
-            "tau_ell": raw_sdid_estimation_output.get("tau_ell"),
-            "placebo_att_values": placebo_taus if placebo_taus is not None else None, # Removed .tolist()
-            "Y_donors_pre_means": raw_sdid_estimation_output.get("Y_donors_pre_means"),
-            "Y_treated_pre_means": raw_sdid_estimation_output.get("Y_treated_pre_means"),
-            "Y_donors_post_means": raw_sdid_estimation_output.get("Y_donors_post_means"),
-            "Y_treated_post_means": raw_sdid_estimation_output.get("Y_treated_post_means"),
-            # If omega_hat and lambda_hat were available:
-            # "omega_hat": raw_sdid_estimation_output.get("omega_hat").tolist() if raw_sdid_estimation_output.get("omega_hat") is not None else None,
-            # "lambda_hat": raw_sdid_estimation_output.get("lambda_hat").tolist() if raw_sdid_estimation_output.get("lambda_hat") is not None else None,
-        }
+                unit_weight_map = {
+                    "Treated": {
+                        members[i]: treated_weights[i]
+                        for i in range(len(members))
+                        if selection_indicators[i] == 1
+                    },
+                    "Control": {
+                        members[i]: control_weights[i]
+                        for i in range(len(members))
+                        if selection_indicators[i] == 0 and control_weights[i] > 0
+                    }
+                }
 
-        method_details_results = MethodDetailsResults(
-            name="SDID",
-            parameters_used=self.config.model_dump(exclude={'df'}),
-            additional_details={k: v for k, v in method_details_additional.items() if v is not None}
-        )
 
-        return BaseEstimatorResults(
-            effects=effects_results,
-            fit_diagnostics=fit_diagnostics_results,
-            time_series=time_series_results,
-            weights=weights_results,
-            inference=inference_results,
-            method_details=method_details_results,
-            raw_results=raw_sdid_estimation_output,
-        )
 
-    def fit(self) -> BaseEstimatorResults:
+                pre_means = self.scm_result['Xbar_clusters'][c]
+                synthetic_treated, synthetic_control = [
+                    self.scm_result[f'y_syn_{grp}_clusters'][c][:T0] for grp in ['treated', 'control']
+                ]
 
-        # Ensure the panel data is balanced (all units observed for all time periods).
+                clusters_out[str(c)] = ClusterResults(
+                    members=members,
+                    cluster_cardinality=len(members),
+                    synthetic_treated=synthetic_treated,
+                    synthetic_control=synthetic_control,
+                    treated_weights=treated_weights,
+                    control_weights=control_weights,
+                    selection_indicators=selection_indicators,
+                    pre_treatment_means=pre_means,
+                    rmse=self.scm_result['rmse_cluster'][c],
+                    unit_weight_map=unit_weight_map
+                )
+
+            # Global pre-treatment results
+            w_agg = self.scm_result['w_agg']
+            v_agg = self.scm_result['v_agg']
+            z_diag = np.array([z_opt[i, c] for i, c in enumerate(clusters_vector)])
+            adjusted_treated_weights_agg = np.where(z_diag == 1, w_agg, 0.0)
+            adjusted_control_weights_agg = np.where(z_diag == 1, 0.0, v_agg)
+
+            study_config = StudyConfig(
+                beta=self.beta,
+                lambda1=self.lambda1,
+                lambda2=self.lambda2,
+                xi=self.xi,
+                T0=T0,
+                blank_periods=self.scm_result.get("blank_periods", 0),
+                design=self.design
+            )
+
+            global_pre_results = GlobalResults(
+                Y_fit=Y_fit,
+                Y_blank=Y_blank,
+                Y_full=Y_full,
+                treated_weights_agg=adjusted_treated_weights_agg,
+                control_weights_agg=adjusted_control_weights_agg
+            )
+
+            return MAREXResults(
+                clusters=clusters_out,
+                study=study_config,
+                globres=global_pre_results
+            )
+
+
+
+    def fit(self) -> MAREXResults:
+        # Ensure the panel data is balanced
         balance(self.df, self.unitid, self.time)
 
-        # Check treatment specification
+        # Validate treatment specification
         if self.m_eq is not None and (self.m_min is not None or self.m_max is not None):
             raise MlsynthConfigError(
                 "Cannot specify both 'm_eq' and 'm_min/m_max' at the same time. "
@@ -185,10 +177,16 @@ class MAREX:
                 "You must specify either 'm_eq' or at least one of 'm_min'/'m_max' to define treated units."
             )
 
-        # Assign clusters if not provided
-        clusters = self.clusters if self.clusters is not None else np.zeros(len(self.df[self.unitid].unique()),
-                                                                            dtype=int)
-        unit_labels = self.df[self.unitid].unique()
+        if self.cluster is not None:
+            # Take the cluster column, index it by unitid, and get a vector aligned with unit_labels
+            unit_labels = self.df[self.unitid].unique()
+            clusters = self.df.drop_duplicates(subset=[self.unitid]).set_index(self.unitid)[self.cluster].reindex(
+                unit_labels).to_numpy()
+        else:
+            # If no cluster column provided, assign all zeros
+            clusters = np.zeros(len(unit_labels), dtype=int)
+
+        unit_labels = unit_labels
 
         # Reshape data: units as rows, time as columns
         Y_full = self.df.pivot(index=self.unitid, columns=self.time, values=self.outcome).reindex(unit_labels)
@@ -197,9 +195,9 @@ class MAREX:
         T0 = self.T0 if self.T0 is not None else len(self.df[self.time].unique())
         blanks = Y_full.shape[1] - T0
 
-        # Call SCMEXP with either equality or range treatment
+        # Prepare SCMEXP arguments
         scm_kwargs = dict(
-            Y_full=Y_full.to_numpy(),
+            Y_full=Y_full,
             T0=T0,
             clusters=clusters,
             blank_periods=blanks,
@@ -221,8 +219,19 @@ class MAREX:
             scm_kwargs["m_min"] = self.m_min
             scm_kwargs["m_max"] = self.m_max
 
-        result = SCMEXP(**scm_kwargs)
+        # Run SCMEXP
+        raw_results = SCMEXP(**scm_kwargs)
 
-        return result
+        # Process results with DesignResultsProcessor
+        processor = self.DesignResultsProcessor(
+            scm_result=raw_results,
+            beta=self.beta,
+            lambda1=self.lambda1,
+            lambda2=self.lambda2,
+            xi=self.xi,
+            design=self.design
+        )
 
+        marex_results = processor.get_results()
 
+        return marex_results
