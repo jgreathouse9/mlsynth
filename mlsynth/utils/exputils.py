@@ -4,9 +4,7 @@ import numpy as np
 
 
 def _get_per_cluster_param(param, klabel, default=None):
-    """
-    Retrieve a parameter value specific to a cluster or apply a default.
-    """
+    """Retrieve a parameter value specific to a cluster or apply a default."""
     if param is None:
         return default
     if isinstance(param, dict):
