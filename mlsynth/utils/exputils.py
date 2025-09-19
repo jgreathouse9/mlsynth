@@ -277,7 +277,7 @@ def SCMEXP(
         "lambda1": lambda1 if design=="eq11" else (lambda1_unit if design=="unit" else None),
         "lambda2": lambda2 if design=="eq11" else (lambda2_unit if design=="unit" else None),
         "xi": xi if design=="unit" else None,
-        "df": pd.DataFrame(Y_full) if not isinstance(Y_full, pd.DataFrame) else Y_full,  # preserve original for indexing
+        "df": Y_full,  # preserve original for indexing
         "original_cluster_vector": clusters,
         "costs_used": costs if costs is not None else None,
         "budget_used": budget
