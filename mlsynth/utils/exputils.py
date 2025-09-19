@@ -170,7 +170,7 @@ def SCMEXP(
     # --- solve ---
     objective = cp.Minimize(cp.sum_squares(Y_fit.T @ w - Y_fit.T))
     prob = cp.Problem(objective, constraints)
-    prob.solve(solver=solver, verbose=verbose)
+    prob.solve(solver=cp.SCIP, verbose=verbose)
 
     # --- extract results ---
     results = _extract_results(Y_full_np, Y_fit, w, v, cluster_members, T_fit)
