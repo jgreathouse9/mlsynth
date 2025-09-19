@@ -45,9 +45,9 @@ class MAREX:
 
         # Additional SCMEXP options
         self.blank_periods: int = getattr(config, "blank_periods", 0)
-        self.m_eq: Optional[int] = getattr(config, "m_eq", None)
-        self.m_min: Optional[int] = getattr(config, "m_min", None)
-        self.m_max: Optional[int] = getattr(config, "m_max", None)
+        self.m_eq: Optional[int] = getattr(config, "m_eq", 1)
+        self.m_min: Optional[int] = getattr(config, "m_min", 1)
+        self.m_max: Optional[int] = getattr(config, "m_max", 1)
         self.exclusive: bool = getattr(config, "exclusive", True)
         self.solver = getattr(config, "solver", None)
         self.verbose: bool = getattr(config, "verbose", False)
@@ -248,6 +248,7 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
 
 
 
