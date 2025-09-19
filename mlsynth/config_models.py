@@ -42,10 +42,11 @@ class BaseMAREXConfig(BaseModel):
             raise MlsynthDataError("Duplicate (unitid, time) pairs found.")
 
         # Auto-sort
-        if not df.sort_values([unitid, time]).equals(df):
-            warnings.warn(f"DataFrame was not sorted by [{unitid}, {time}] — auto-sorting applied.")
-            df = df.sort_values([unitid, time]).reset_index(drop=True)
+        if not df.sort_values([values.unitid, values.time], kind='mergesort').equals(df):
+            warnings.warn(f"DataFrame was not sorted by [{values.unitid}, {values.time}] — auto-sorting applied.")
+            df = df.sort_values([values.unitid, values.time], kind='mergesort').reset_index(drop=True)
             values = values.model_copy(update={"df": df})
+
 
         return values
 
@@ -602,6 +603,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
