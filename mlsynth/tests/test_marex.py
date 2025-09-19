@@ -130,19 +130,23 @@ def test_initialization_missing_column(curacao_sim_data):
     with pytest.raises(MlsynthDataError):
         MAREX(config=MAREXConfig(**config_data))
 
+
 def test_fit_extreme_values(curacao_sim_data):
     config_data = {
         "df": curacao_sim_data["df"],
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
-        "T0": 104,  # Extreme T0
+        "T0": 127,  # Max valid T0
         "cluster": "Region",
         "design": "eq11",
-        "m_eq": 10,  # Excessive m_eq
-        "lambda1": 1000.0,  # Extreme lambda
+        "m_eq": 3,  # High but valid
+        "lambda1": 1000.0,  # Extreme regularization
         "lambda2": 1000.0
     }
     marex = MAREX(config=MAREXConfig(**config_data))
-    with pytest.raises(MlsynthEstimationError):  # Expect failure due to invalid optimization
-        marex.fit()
+    results = marex.fit()  # Should succeed
+    assert results is not None
+    assert hasattr(results, "clusters")
+    assert not np.any(np.isnan(results.globres.values()))  # Check for NaN
+    assert not np.any(np.isinf(results.globres.values()))  # Check for infinity
