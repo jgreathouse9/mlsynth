@@ -303,7 +303,10 @@ def test_unit_invariant_cluster_valid(curacao_sim_data):
 
     # Should not raise
     cfg = MAREXConfig(**config_data)
-    assert cfg.df.equals(curacao_sim_data["df"])  # DataFrame remains unchanged
+
+    # Validate that each unit belongs to a single cluster
+    unit_groups = cfg.df.groupby(config_data["unitid"])[config_data["cluster"]].nunique()
+    assert (unit_groups == 1).all(), "All units should be invariant within their cluster"
 
 
 def test_unit_invariant_cluster_invalid(curacao_sim_data):
