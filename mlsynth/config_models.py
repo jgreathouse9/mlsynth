@@ -84,7 +84,7 @@ class MAREXConfig(BaseMAREXConfig):
     )
     design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
     program_type: str = Field(
-        default="QP",
+        default="MIQP",
         description="Optimization type: 'QP' (relaxed, continuous) or 'MIQP' (binary assignment)."
     )
 
@@ -714,6 +714,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
