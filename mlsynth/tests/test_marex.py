@@ -845,8 +845,6 @@ def test_build_objective_creates_cvxpy_expression():
     assert isinstance(obj, cp.Minimize)
 
 
-from mlsynth.exprelutils import _post_hoc_discretize
-
 # ---------------------------
 # SINGLE-CLUSTER TESTS
 # ---------------------------
