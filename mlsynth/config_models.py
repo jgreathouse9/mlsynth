@@ -83,6 +83,10 @@ class MAREXConfig(BaseMAREXConfig):
         description="Column name in df indicating cluster membership for each unit."
     )
     design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
+    program_type: str = Field(
+        default="QP",
+        description="Optimization type: 'QP' (relaxed, continuous) or 'MIQP' (binary assignment)."
+    )
 
     # Penalization parameters
     beta: float = Field(default=1e-6)
@@ -106,8 +110,16 @@ class MAREXConfig(BaseMAREXConfig):
         df = values.df
         T0 = values.T0
         design = values.design
+        program_type = values.program_type
         cluster_col = values.cluster
         time_col = values.time
+
+        # --- validate program_type ---
+        valid_types = {"QP", "MIQP"}
+        if program_type not in valid_types:
+            raise MlsynthDataError(
+                f"program_type must be one of {valid_types}; got '{program_type}'"
+            )
 
         # Validate T0
         n_periods = df[time_col].nunique()
@@ -214,6 +226,7 @@ class MAREXConfig(BaseMAREXConfig):
             values.df = df  # overwrite DataFrame in Pydantic model
 
         return values
+
 
 
 
@@ -701,6 +714,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
