@@ -976,3 +976,153 @@ def test_empty_w_nonzero_min():
     # Control weights sum to 1
     if len(sel_ctrl[0]) > 0:
         assert np.isclose(v_d[sel_ctrl[0], 0].sum(), 1.0)
+
+# -------------------------------
+# Fixtures for multi-cluster testing
+# -------------------------------
+@pytest.fixture
+def simple_clusters():
+    # 6 units in 2 clusters
+    cluster_members = [np.array([0, 1, 2]), np.array([3, 4, 5])]
+    cluster_labels = ["A", "B"]
+    return cluster_members, cluster_labels
+
+@pytest.fixture
+def simple_weights(simple_clusters):
+    cluster_members, cluster_labels = simple_clusters
+    N = 6
+    K = len(cluster_labels)
+    # Create relaxed weights
+    w_opt = np.zeros((N, K))
+    v_opt = np.zeros((N, K))
+    w_opt[0,0] = 0.6
+    w_opt[1,0] = 0.3
+    w_opt[2,0] = 0.05
+    w_opt[3,1] = 0.7
+    w_opt[4,1] = 0.2
+    w_opt[5,1] = 0.05
+
+    v_opt[0,0] = 0.2
+    v_opt[1,0] = 0.5
+    v_opt[2,0] = 0.3
+    v_opt[3,1] = 0.3
+    v_opt[4,1] = 0.4
+    v_opt[5,1] = 0.3
+
+    return w_opt, v_opt, cluster_members, cluster_labels
+
+@pytest.fixture
+def blank_periods_matrix():
+    # Simple blank periods for RMSE
+    Y_blank = np.array([
+        [1.0, 2.0],
+        [2.0, 3.0],
+        [1.5, 2.5],
+        [2.0, 1.0],
+        [1.0, 0.5],
+        [0.5, 1.0]
+    ])
+    return Y_blank
+
+# -------------------------------
+# Tests
+# -------------------------------
+
+def test_basic_posthoc_selection(simple_weights):
+    w_opt, v_opt, cluster_members, cluster_labels = simple_weights
+    w_discrete, v_discrete, sel_treat, sel_control, rmse_blank = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels, trim_threshold=0.05
+    )
+    # Weights sum to 1 per cluster for treated
+    for k_idx, members in enumerate(cluster_members):
+        assert np.isclose(w_discrete[members, k_idx].sum(), 1.0)
+        # Control weights sum to 1 if any controls
+        if len(sel_control[k_idx]) > 0:
+            assert np.isclose(v_discrete[members, k_idx].sum(), 1.0)
+
+def test_trim_threshold_behavior(simple_weights):
+    w_opt, v_opt, cluster_members, cluster_labels = simple_weights
+    # Use high trim threshold to zero out some weights
+    w_discrete, _, sel_treat, _, _ = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels, trim_threshold=0.5
+    )
+    # Only the largest weight should be selected per cluster
+    for k_idx in range(len(cluster_labels)):
+        assert len(sel_treat[k_idx]) == 1
+
+def test_zero_weights_fallback(simple_clusters):
+    cluster_members, cluster_labels = simple_clusters
+    N = 6; K = len(cluster_labels)
+    # All zeros
+    w_opt = np.zeros((N, K))
+    v_opt = np.zeros((N, K))
+    w_discrete, v_discrete, sel_treat, sel_control, _ = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels
+    )
+    for k_idx, members in enumerate(cluster_members):
+        # Should fallback to uniform selection of first member
+        assert len(sel_treat[k_idx]) == 1
+        assert np.isclose(w_discrete[members, k_idx].sum(), 1.0)
+
+def test_m_eq_m_min_m_max_bounds(simple_weights):
+    w_opt, v_opt, cluster_members, cluster_labels = simple_weights
+    m_eq = {"A": 2, "B": 1}
+    m_min = {"A": 1, "B": 1}
+    m_max = {"A": 3, "B": 2}
+    w_discrete, _, sel_treat, _, _ = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels,
+        m_eq=m_eq, m_min=m_min, m_max=m_max
+    )
+    assert len(sel_treat[0]) == 2  # A
+    assert len(sel_treat[1]) == 1  # B
+
+def test_multi_cluster_selection(simple_weights):
+    w_opt, v_opt, cluster_members, cluster_labels = simple_weights
+    w_discrete, v_discrete, sel_treat, sel_control, _ = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels
+    )
+    # Each selected unit should belong to its cluster
+    for k_idx, members in enumerate(cluster_members):
+        for idx in sel_treat[k_idx]:
+            assert idx in members
+        for idx in sel_control[k_idx]:
+            assert idx in members
+
+def test_rmse_blank_computation(simple_weights, blank_periods_matrix):
+    w_opt, v_opt, cluster_members, cluster_labels = simple_weights
+    Y_blank = blank_periods_matrix
+    _, _, sel_treat, sel_control, rmse_blank = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels, Y_blank=Y_blank
+    )
+    # RMSE should be numeric for clusters with treated and control
+    for k_idx in range(len(cluster_labels)):
+        if len(sel_treat[k_idx]) > 0 and len(sel_control[k_idx]) > 0:
+            assert rmse_blank[k_idx] is not None
+            assert rmse_blank[k_idx] >= 0.0
+        else:
+            assert rmse_blank[k_idx] is None
+
+def test_single_member_cluster():
+    w_opt = np.array([[1.0], [0.0]])
+    v_opt = np.array([[0.0], [1.0]])
+    cluster_members = [np.array([0, 1])]
+    cluster_labels = ["X"]
+    w_discrete, v_discrete, sel_treat, sel_control, rmse_blank = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels
+    )
+    # Only one treated selected
+    assert len(sel_treat[0]) == 1
+    # Weights sum to 1
+    assert np.isclose(w_discrete.sum(), 1.0)
+
+def test_all_zero_weights_multi_cluster():
+    w_opt = np.zeros((4, 2))
+    v_opt = np.zeros((4, 2))
+    cluster_members = [np.array([0,1]), np.array([2,3])]
+    cluster_labels = ["A", "B"]
+    w_discrete, v_discrete, sel_treat, sel_control, _ = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels
+    )
+    for k_idx in range(2):
+        assert len(sel_treat[k_idx]) == 1
+        assert np.isclose(w_discrete[cluster_members[k_idx], k_idx].sum(), 1.0)
