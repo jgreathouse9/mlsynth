@@ -853,9 +853,10 @@ def test_basic_discretization_with_eq():
     cluster_labels = ["A"]
 
     # Force exactly 2 treated units
-    w_d, v_d, sel_treat, sel_ctrl, rmse = _post_hoc_discretize(
-        w_opt, v_opt, cluster_members, cluster_labels, m_eq=2
+    w_d, v_d, sel_treat, sel_ctrl, _ = _post_hoc_discretize(
+    w_opt, v_opt, cluster_members, cluster_labels, m_min=2, m_max=3
     )
+
 
     # Treated: top 2 weights (indices 0,1)
     assert set(sel_treat[0]) == {0, 1}
