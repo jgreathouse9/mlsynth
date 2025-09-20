@@ -8,7 +8,7 @@ from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
 from mlsynth.utils.exputils import (
-    SCMEXP, SCMEXP_REL,
+    SCMEXP,
     _get_per_cluster_param,
     _prepare_clusters,
     _validate_scm_inputs,
@@ -21,7 +21,7 @@ from mlsynth.utils.exputils import (
     _build_constraints,
     _build_objective
 )
-from mlsynth.utils.exprelutils import _post_hoc_discretize
+from mlsynth.utils.exprelutils import _post_hoc_discretize, SCMEXP_REL
 
 
 
