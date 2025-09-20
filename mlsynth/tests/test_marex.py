@@ -1148,7 +1148,7 @@ def test_scmexp_rel_basic_int_clusters():
         blank_periods=1,
         m_min=1,
         m_max=2,
-        design='base',
+        design='eq11',
         zeta=0.0
     )
 
