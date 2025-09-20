@@ -7,6 +7,7 @@ import cvxpy as cp # For cvxpy.error types
 
 from ..utils.datautils import balance
 from ..utils.exputils import _get_per_cluster_param, SCMEXP
+from ..utils.exprelutils import SCMEXP_REL
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -248,6 +249,7 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
 
 
 
