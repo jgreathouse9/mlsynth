@@ -8,7 +8,7 @@ from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
 from mlsynth.utils.exputils import (
-    SCMEXP,
+    SCMEXP, SCMEXP_REL,
     _get_per_cluster_param,
     _prepare_clusters,
     _validate_scm_inputs,
@@ -1126,3 +1126,43 @@ def test_all_zero_weights_multi_cluster():
     for k_idx in range(2):
         assert len(sel_treat[k_idx]) == 1
         assert np.isclose(w_discrete[cluster_members[k_idx], k_idx].sum(), 1.0)
+
+
+def test_scmexp_rel_basic_int_clusters():
+    # --- Tiny synthetic dataset ---
+    # 4 units, 3 time periods
+    Y = pd.DataFrame({
+        'unit1': [1, 2, 3],
+        'unit2': [2, 1, 0],
+        'unit3': [0, 1, 2],
+        'unit4': [1, 0, 1]
+    }).T  # units x time
+
+    clusters = np.array([0, 0, 1, 1])  # integer cluster labels
+
+    # --- Run relaxed SCM ---
+    res = SCMEXP_REL(
+        Y_full=Y,
+        T0=2,  # first 2 periods pre-treatment
+        clusters=clusters,
+        blank_periods=1,
+        m_min=1,
+        m_max=2,
+        design='base',
+        zeta=0.0
+    )
+
+    # --- Assertions ---
+    # Check dimensions
+    assert res['w_opt'].shape == Y.shape, "w_opt shape mismatch"
+    assert res['v_opt'].shape == Y.shape, "v_opt shape mismatch"
+    assert len(res['selected_treated']) == 2, "Number of clusters mismatch"
+
+    # Check that at least one treated unit per cluster is selected
+    for sel in res['selected_treated']:
+        assert len(sel) >= 1, "No treated units selected in cluster"
+
+    print("Minimal relaxed SCM test passed.")
+
+# Run the test
+test_scmexp_rel_basic_int_clusters()
