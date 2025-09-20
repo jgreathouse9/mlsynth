@@ -1154,8 +1154,8 @@ def test_scmexp_rel_basic_int_clusters():
 
     # --- Assertions ---
     # Check dimensions
-    assert res['w_opt'].shape == Y.shape, "w_opt shape mismatch"
-    assert res['v_opt'].shape == Y.shape, "v_opt shape mismatch"
+    assert res['w_opt'].shape == (Y.shape[0], len(np.unique(clusters))), "w_opt shape mismatch"
+    assert res['v_opt'].shape == (Y.shape[0], len(np.unique(clusters))), "v_opt shape mismatch"
     assert len(res['selected_treated']) == 2, "Number of clusters mismatch"
 
     # Check that at least one treated unit per cluster is selected
