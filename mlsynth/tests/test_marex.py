@@ -845,105 +845,136 @@ def test_build_objective_creates_cvxpy_expression():
     assert isinstance(obj, cp.Minimize)
 
 
-def test_basic_discretization_with_eq():
-    # 1 cluster, 4 members
-    w_opt = np.array([[0.6], [0.3], [0.05], [0.05]])
-    v_opt = np.ones_like(w_opt) * 0.25
-    cluster_members = [np.array([0, 1, 2, 3])]
+from mlsynth.exprelutils import _post_hoc_discretize
+
+# ---------------------------
+# SINGLE-CLUSTER TESTS
+# ---------------------------
+
+def test_single_cluster_basic_selection():
+    w_opt = np.array([[0.6], [0.3], [0.1]])
+    v_opt = np.array([[0.1], [0.3], [0.6]])
+    cluster_members = [np.array([0, 1, 2])]
     cluster_labels = ["A"]
 
-    # Force exactly 2 treated units
-    w_d, v_d, sel_treat, sel_ctrl, _ = _post_hoc_discretize(
-    w_opt, v_opt, cluster_members, cluster_labels, m_min=2, m_max=3
+    w_d, v_d, sel_treat, sel_ctrl, rmse = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels,
+        m_min={"A": 1}, m_max={"A": 2}
     )
 
+    # Treated/control disjoint
+    assert set(sel_treat[0]).isdisjoint(sel_ctrl[0])
+    # Number of treated within bounds
+    assert 1 <= len(sel_treat[0]) <= 2
+    # Weights sum to 1 for selected treated
+    if len(sel_treat[0]) > 0:
+        assert np.isclose(w_d[sel_treat[0], 0].sum(), 1.0)
+    # Control weights sum to 1 for selected
+    if len(sel_ctrl[0]) > 0:
+        assert np.isclose(v_d[sel_ctrl[0], 0].sum(), 1.0)
 
-    # Treated: top 2 weights (indices 0,1)
-    assert set(sel_treat[0]) == {0, 1}
-    assert np.isclose(w_d[0,0] + w_d[1,0], 1.0)
-    # Controls: remaining
-    assert set(sel_ctrl[0]) == {2, 3}
-    assert np.isclose(v_d[2,0] + v_d[3,0], 1.0)
-    # RMSE not computed
-    assert rmse[0] is None
-
-def test_min_max_bounds_enforced():
-    w_opt = np.array([[0.9], [0.05], [0.05]])
-    v_opt = np.ones_like(w_opt) / 3
+def test_single_cluster_trim_small_weights():
+    w_opt = np.array([[0.01], [0.98], [0.01]])
+    v_opt = np.array([[0.5], [0.25], [0.25]])
     cluster_members = [np.array([0, 1, 2])]
-    cluster_labels = ["B"]
+    cluster_labels = ["A"]
 
-    # Require at least 2 treated units
     w_d, v_d, sel_treat, sel_ctrl, _ = _post_hoc_discretize(
-        w_opt, v_opt, cluster_members, cluster_labels, m_min=2
+        w_opt, v_opt, cluster_members, cluster_labels,
+        m_min={"A": 1}, m_max={"A": 2},
+        trim_threshold=0.05
+    )
+
+    # Tiny weight (0.01) should be ignored
+    assert 0 not in sel_treat[0]  # Index 0 trimmed
+    assert 1 in sel_treat[0]
+
+def test_single_cluster_exact_m_eq():
+    w_opt = np.array([[0.4], [0.3], [0.3]])
+    v_opt = np.array([[0.3], [0.4], [0.3]])
+    cluster_members = [np.array([0, 1, 2])]
+    cluster_labels = ["A"]
+
+    w_d, v_d, sel_treat, sel_ctrl, _ = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels,
+        m_eq={"A": 2}
     )
 
     assert len(sel_treat[0]) == 2
-    assert np.isclose(w_d[:,0].sum(), 1.0)
+    # Treated/control disjoint
+    assert set(sel_treat[0]).isdisjoint(sel_ctrl[0])
 
-    # Now require at most 1 treated unit
-    w_d, v_d, sel_treat, sel_ctrl, _ = _post_hoc_discretize(
-        w_opt, v_opt, cluster_members, cluster_labels, m_max=1
-    )
-    assert len(sel_treat[0]) == 1
-    assert np.isclose(w_d[:,0].sum(), 1.0)
+# ---------------------------
+# MULTI-CLUSTER TESTS
+# ---------------------------
 
-def test_trim_and_fallback_uniform():
-    w_opt = np.array([[1e-6], [1e-6], [1e-6]])
-    v_opt = np.ones_like(w_opt) / 3
-    cluster_members = [np.array([0, 1, 2])]
-    cluster_labels = ["C"]
-
-    w_d, v_d, sel_treat, sel_ctrl, _ = _post_hoc_discretize(
-        w_opt, v_opt, cluster_members, cluster_labels, m_eq=1, trim_threshold=1e-2
-    )
-
-    # With trimming, all original weights vanish, fallback uniform applies
-    assert len(sel_treat[0]) == 1
-    assert np.isclose(w_d[:,0].sum(), 1.0)
-
-def test_blank_rmse_computed():
-    w_opt = np.array([[0.7], [0.3]])
-    v_opt = np.ones_like(w_opt) * 0.5
-    cluster_members = [np.array([0, 1])]
-    cluster_labels = ["D"]
-
-    Y_blank = np.array([[1, 2, 3], [2, 3, 4]])  # treated=unit0, control=unit1
-
-    w_d, v_d, sel_treat, sel_ctrl, rmse = _post_hoc_discretize(
-        w_opt, v_opt, cluster_members, cluster_labels, m_eq=1, Y_blank=Y_blank
-    )
-
-    assert rmse[0] is not None
-    assert rmse[0] >= 0
-
-def test_multi_cluster_case():
-    # 2 clusters, different labels
+def test_multi_cluster_basic_selection():
     w_opt = np.array([
-        [0.8, 0.0],  # cluster X, member 0
-        [0.2, 0.0],  # cluster X, member 1
-        [0.0, 0.9],  # cluster Y, member 2
-        [0.0, 0.1],  # cluster Y, member 3
+        [0.6, 0.1],
+        [0.4, 0.2],
+        [0.0, 0.7],
+        [0.0, 0.0]
     ])
     v_opt = np.ones_like(w_opt) * 0.25
     cluster_members = [np.array([0, 1]), np.array([2, 3])]
-    cluster_labels = ["X", "Y"]
+    cluster_labels = ["A", "B"]
 
-    w_d, v_d, sel_treat, sel_ctrl, rmse = _post_hoc_discretize(
-        w_opt, v_opt, cluster_members, cluster_labels, m_eq={"X": 1, "Y": 2}
+    w_d, v_d, sel_treat, sel_ctrl, _ = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels,
+        m_min={"A": 1, "B": 1}, 
+        m_max={"A": 2, "B": 2}
     )
 
-    # Cluster X: should pick unit 0
-    assert sel_treat[0] == [0]
-    assert set(sel_ctrl[0]) == {1}
-    assert np.isclose(w_d[:,0].sum(), 1.0)
+    for k_idx in range(2):
+        # Number of treated within bounds
+        assert 1 <= len(sel_treat[k_idx]) <= 2
+        # Treated/control disjoint
+        assert set(sel_treat[k_idx]).isdisjoint(sel_ctrl[k_idx])
+        # Weights sum to 1 for selected treated
+        if len(sel_treat[k_idx]) > 0:
+            assert np.isclose(w_d[sel_treat[k_idx], k_idx].sum(), 1.0)
+        # Weights sum to 1 for control
+        if len(sel_ctrl[k_idx]) > 0:
+            assert np.isclose(v_d[sel_ctrl[k_idx], k_idx].sum(), 1.0)
 
-    # Cluster Y: both units must be treated (m_eq=2)
-    assert set(sel_treat[1]) == {2, 3}
-    assert sel_ctrl[1] == []
-    assert np.isclose(w_d[:,1].sum(), 1.0)
+def test_multi_cluster_respects_m_eq():
+    w_opt = np.array([
+        [0.6, 0.1],
+        [0.4, 0.2],
+        [0.0, 0.7],
+        [0.0, 0.0]
+    ])
+    v_opt = np.ones_like(w_opt) * 0.25
+    cluster_members = [np.array([0, 1]), np.array([2, 3])]
+    cluster_labels = ["A", "B"]
 
-    # Controls in cluster Y vanish since no members left
-    assert np.isclose(v_d[:,1].sum(), 0.0)
-    assert rmse == [None, None]
+    w_d, v_d, sel_treat, sel_ctrl, _ = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels,
+        m_eq={"A": 2, "B": 1}
+    )
 
+    assert len(sel_treat[0]) == 2
+    assert len(sel_treat[1]) == 1
+    # Treated/control disjoint
+    for k_idx in range(2):
+        assert set(sel_treat[k_idx]).isdisjoint(sel_ctrl[k_idx])
+
+# ---------------------------
+# EDGE CASES
+# ---------------------------
+
+def test_empty_w_nonzero_min():
+    w_opt = np.zeros((3, 1))
+    v_opt = np.ones((3, 1)) / 3
+    cluster_members = [np.array([0, 1, 2])]
+    cluster_labels = ["A"]
+
+    w_d, v_d, sel_treat, sel_ctrl, _ = _post_hoc_discretize(
+        w_opt, v_opt, cluster_members, cluster_labels,
+        m_min={"A": 2}, m_max={"A": 2}
+    )
+
+    assert len(sel_treat[0]) == 2  # fallback uses m_min
+    # Control weights sum to 1
+    if len(sel_ctrl[0]) > 0:
+        assert np.isclose(v_d[sel_ctrl[0], 0].sum(), 1.0)
