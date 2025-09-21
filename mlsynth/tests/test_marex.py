@@ -186,8 +186,7 @@ def test_init_invalid_T0(curacao_sim_data):
 
 def test_clusters_column_as_string(curacao_sim_data):
     df = curacao_sim_data["df"].copy()
-    # Force cluster column to string
-    df["Region"] = df["Region"].astype(str)
+    df["Region"] = df["Region"].astype(str)  # force string
 
     config_data = {
         "df": df,
@@ -198,11 +197,10 @@ def test_clusters_column_as_string(curacao_sim_data):
         "m_eq": 1
     }
 
-    # Should warn about string->integer conversion
-    with pytest.warns(UserWarning, match="Cluster column 'Region' contains strings or categories"):
+    # Updated regex to match the actual emitted warning
+    with pytest.warns(UserWarning, match="Cluster column 'Region' contains non-integers; converting to codes."):
         cfg = MAREXConfig(**config_data)
 
-    # Column should now be integer-coded
     assert pd.api.types.is_integer_dtype(cfg.df["Region"])
 
 
