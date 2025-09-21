@@ -205,11 +205,13 @@ def test_clusters_column_as_string(curacao_sim_data):
 
 
 def test_m_eq_greater_than_cluster(curacao_sim_data):
+    # Make a copy and ensure cluster column is integer-coded
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
 
+    # Recompute cluster sizes after conversion
     cluster_sizes = df.groupby("Region").size()
-    too_large = cluster_sizes.max() + 1
+    too_large = cluster_sizes.max() + 1  # definitely larger than any cluster
 
     config = {
         "df": df,
@@ -222,6 +224,7 @@ def test_m_eq_greater_than_cluster(curacao_sim_data):
 
     with pytest.raises(MlsynthDataError, match="cannot be greater than"):
         MAREXConfig(**config)
+
 
 
 def test_m_min_less_than_one(curacao_sim_data):
