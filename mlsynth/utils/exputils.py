@@ -468,7 +468,7 @@ def SCMEXP(
 def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_cluster=None, alpha=0.05):
     """
     Vectorized computation of placebo CI and p-values for global or cluster-level SCM inference.
-    
+
     Args:
         tau_hat : np.ndarray
             Per-period treatment effects. Shape (T_post,) for global or (K, T_post) for clusters.
@@ -484,7 +484,7 @@ def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_clu
             Cluster-specific RMSPE for scaling, shape (K,)
         alpha : float
             Significance level for CI
-    
+
     Returns:
         ci_lower, ci_upper, p_values : np.ndarray
             Confidence intervals and p-values with same shape as tau_hat
@@ -520,7 +520,7 @@ def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_clu
 def inference_scm_vectorized(result, Y_full, T_post, alpha=0.05, method='placebo'):
     """
     Vectorized SCM inference for global and cluster-specific effects.
-    
+
     Args:
         result : dict
             SCM output including 'w_opt', 'v_opt', 'w_agg', 'v_agg', 'Y_fit', 'Y_blank', 'rmse_cluster', 'T0'
@@ -532,7 +532,7 @@ def inference_scm_vectorized(result, Y_full, T_post, alpha=0.05, method='placebo
             Significance level
         method : str
             Only 'placebo' supported
-    
+
     Returns:
         dict with global and cluster-specific inference
     """
