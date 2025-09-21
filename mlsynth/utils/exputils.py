@@ -467,12 +467,11 @@ def SCMEXP(
 
 def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_cluster=None, alpha=0.05):
     """
-    Vectorized computation of placebo CI and p-values for multiple clusters simultaneously.
-
+    Vectorized computation of placebo CI and p-values for global or cluster-level SCM inference.
+    
     Args:
         tau_hat : np.ndarray
-            Per-period treatment effects. Shape can be (T_post,) for global
-            or (K, T_post) for clusters.
+            Per-period treatment effects. Shape (T_post,) for global or (K, T_post) for clusters.
         Y_blank_T : np.ndarray
             Transposed blank periods, shape (blank_periods, N_units)
         w : np.ndarray
@@ -480,18 +479,20 @@ def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_clu
         v : np.ndarray
             Control weight vectors, same shape as w
         rmspe_pre : float
-            Pre-treatment RMSPE for scaling global effects
+            Pre-treatment RMSPE for scaling
         rmse_cluster : np.ndarray or None
             Cluster-specific RMSPE for scaling, shape (K,)
         alpha : float
             Significance level for CI
-
+    
     Returns:
         ci_lower, ci_upper, p_values : np.ndarray
             Confidence intervals and p-values with same shape as tau_hat
     """
-    # Compute placebo gaps
+    assert Y_blank_T.shape[1] == w.shape[0], "Mismatch between Y_blank_T and weight vector dimensions."
+
     if w.ndim == 1:
+        # Global inference
         u_blank = Y_blank_T @ w - Y_blank_T @ v
         scale = np.sqrt(np.mean(u_blank**2)) / rmspe_pre if rmspe_pre > 0 else 1
         q = np.quantile(np.abs(u_blank), 1 - alpha)
@@ -499,13 +500,12 @@ def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_clu
         ci_upper = tau_hat + q * scale
         p_values = np.array([np.mean(np.abs(u_blank) >= np.abs(t)) for t in tau_hat])
     else:
-        # Cluster-level vectorized
-        # u_blank shape: (blank_periods, K)
+        # Cluster-level inference
         u_blank = Y_blank_T @ w - Y_blank_T @ v  # (blank_periods, K)
         abs_u_blank = np.abs(u_blank)
-        q = np.quantile(abs_u_blank, 1 - alpha, axis=0)  # shape (K,)
+        q = np.quantile(abs_u_blank, 1 - alpha, axis=0)  # (K,)
         scale = np.sqrt(np.mean(u_blank**2, axis=0)) / rmse_cluster
-        tau_hat = np.atleast_2d(tau_hat)  # ensure shape (K, T_post)
+        tau_hat = np.atleast_2d(tau_hat)
         ci_lower = tau_hat - q[:, None] * scale[:, None]
         ci_upper = tau_hat + q[:, None] * scale[:, None]
         # p-values
@@ -520,7 +520,7 @@ def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_clu
 def inference_scm_vectorized(result, Y_full, T_post, alpha=0.05, method='placebo'):
     """
     Vectorized SCM inference for global and cluster-specific effects.
-
+    
     Args:
         result : dict
             SCM output including 'w_opt', 'v_opt', 'w_agg', 'v_agg', 'Y_fit', 'Y_blank', 'rmse_cluster', 'T0'
@@ -532,7 +532,7 @@ def inference_scm_vectorized(result, Y_full, T_post, alpha=0.05, method='placebo
             Significance level
         method : str
             Only 'placebo' supported
-
+    
     Returns:
         dict with global and cluster-specific inference
     """
@@ -556,7 +556,7 @@ def inference_scm_vectorized(result, Y_full, T_post, alpha=0.05, method='placebo
     avg_tau_hat = np.mean(tau_hat) if T_post > 0 else 0.0
 
     # Cluster effects
-    tau_hat_cluster = (Y_post_T @ w_opt - Y_post_T @ v_opt).T  # shape (K, T_post)
+    tau_hat_cluster = (Y_post_T @ w_opt - Y_post_T @ v_opt).T  # (K, T_post)
     avg_tau_cluster = np.mean(tau_hat_cluster, axis=1) if T_post > 0 else np.zeros(w_opt.shape[1])
 
     # Pre-fit RMSPE (global)
@@ -566,7 +566,9 @@ def inference_scm_vectorized(result, Y_full, T_post, alpha=0.05, method='placebo
 
     # Placebo inference
     Y_blank_T = Y_blank.T
-    ci_lower, ci_upper, p_values = _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w_agg, v_agg, rmspe_pre, alpha=alpha)
+    ci_lower, ci_upper, p_values = _compute_placebo_ci_vectorized(
+        tau_hat, Y_blank_T, w_agg, v_agg, rmspe_pre, alpha=alpha
+    )
     ci_lower_cluster, ci_upper_cluster, p_values_cluster = _compute_placebo_ci_vectorized(
         tau_hat_cluster, Y_blank_T, w_opt, v_opt, rmspe_pre, rmse_cluster, alpha=alpha
     )
