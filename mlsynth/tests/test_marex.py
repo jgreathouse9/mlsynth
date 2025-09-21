@@ -19,8 +19,9 @@ from mlsynth.utils.exputils import (
     _precompute_distances,
     _init_cvxpy_variables,
     _build_constraints,
-    _build_objective
-)
+    _build_objective, inference_scm_vectorized, 
+_compute_placebo_ci_vectorized)
+
 from mlsynth.utils.exprelutils import _post_hoc_discretize, SCMEXP_REL
 
 
@@ -1166,3 +1167,65 @@ def test_scmexp_rel_basic_int_clusters():
 
 # Run the test
 test_scmexp_rel_basic_int_clusters()
+
+
+
+# Inference 
+
+def test_global_inference_shapes():
+    np.random.seed(123)
+    N_units = 10
+    T_total = 20
+    T_post = 5
+    Y_full = np.random.randn(N_units, T_total)
+    Y_fit = Y_full[:, :15]
+    Y_blank = np.random.randn(N_units, 3)
+    w_agg = np.random.rand(N_units)
+    v_agg = np.random.rand(N_units)
+
+    result = {
+        "T0": 15,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_agg[:, None],
+        "v_opt": v_agg[:, None],
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": np.array([0.5])
+    }
+
+    out = inference_scm_vectorized(result, Y_full, T_post)
+    assert out["tau_hat"].shape == (T_post,)
+    assert out["tau_hat_cluster"].shape == (1, T_post)
+    assert out["ci_lower"].shape == (T_post,)
+    assert out["ci_lower_cluster"].shape == (1, T_post)
+    assert out["p_values"].shape == (T_post,)
+    assert out["p_values_cluster"].shape == (1, T_post)
+
+def test_compute_placebo_ci_vectorized_global():
+    np.random.seed(42)
+    tau_hat = np.array([1.0, 2.0])
+    Y_blank_T = np.random.randn(5, 3)
+    w = np.array([0.2, 0.5, 0.3])
+    v = np.array([0.1, 0.6, 0.3])
+    rmspe_pre = 0.5
+
+    ci_lower, ci_upper, p_values = _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre)
+    assert ci_lower.shape == tau_hat.shape
+    assert ci_upper.shape == tau_hat.shape
+    assert p_values.shape == tau_hat.shape
+
+def test_compute_placebo_ci_vectorized_cluster():
+    np.random.seed(42)
+    tau_hat = np.array([[1.0, 2.0], [0.5, 1.5]])
+    Y_blank_T = np.random.randn(5, 4)
+    w = np.random.rand(4, 2)
+    v = np.random.rand(4, 2)
+    rmspe_pre = 1.0
+    rmse_cluster = np.array([0.5, 0.8])
+
+    ci_lower, ci_upper, p_values = _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_cluster)
+    assert ci_lower.shape == tau_hat.shape
+    assert ci_upper.shape == tau_hat.shape
+    assert p_values.shape == tau_hat.shape
+
