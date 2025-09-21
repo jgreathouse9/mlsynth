@@ -516,9 +516,7 @@ def compute_placebo_inference(Y_T, w_matrix, v_matrix, rmse_reference, alpha=0.0
 
 
 def inference_scm(result, Y_full, T_post, alpha=0.05, method='placebo'):
-    """
-    Perform global and cluster-specific inference for SCM using placebo method.
-    """
+    """Perform global and cluster-specific inference for SCM using placebo method."""
     if method != 'placebo':
         raise ValueError("Only 'placebo' method is supported, as advocated in the paper.")
 
