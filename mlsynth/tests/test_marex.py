@@ -204,14 +204,11 @@ def test_clusters_column_as_string(curacao_sim_data):
     assert pd.api.types.is_integer_dtype(cfg.df["Region"])
 
 
-def test_m_eq_greater_than_cluster(curacao_sim_data):
-    # Make a copy and ensure cluster column is integer-coded
+def test_m_eq_too_large(curacao_sim_data):
+    """m_eq cannot exceed max cluster size"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
-
-    # Recompute cluster sizes after conversion
-    cluster_sizes = df.groupby("Region").size()
-    too_large = cluster_sizes.max() + 1  # definitely larger than any cluster
+    max_size = df.groupby("Region").size().max()
 
     config = {
         "df": df,
@@ -219,15 +216,15 @@ def test_m_eq_greater_than_cluster(curacao_sim_data):
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
-        "m_eq": too_large,
+        "m_eq": max_size + 1
     }
 
-    with pytest.raises(MlsynthDataError, match="cannot be greater than"):
+    with pytest.raises(MlsynthDataError, match="cannot be greater than max cluster size"):
         MAREXConfig(**config)
 
 
-
 def test_m_min_less_than_one(curacao_sim_data):
+    """m_min must be >= 1"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
 
@@ -237,7 +234,7 @@ def test_m_min_less_than_one(curacao_sim_data):
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
-        "m_min": 0,  # invalid
+        "m_min": 0
     }
 
     with pytest.raises(MlsynthDataError, match="m_min must be >= 1"):
@@ -245,11 +242,10 @@ def test_m_min_less_than_one(curacao_sim_data):
 
 
 def test_m_max_greater_than_smallest_cluster(curacao_sim_data):
+    """m_max cannot exceed min cluster size"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
-
-    cluster_sizes = df.groupby("Region").size()
-    too_large = cluster_sizes.min() + 1
+    min_size = df.groupby("Region").size().min()
 
     config = {
         "df": df,
@@ -257,14 +253,15 @@ def test_m_max_greater_than_smallest_cluster(curacao_sim_data):
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
-        "m_max": too_large,
+        "m_max": min_size + 1
     }
 
-    with pytest.raises(MlsynthDataError, match="cannot be greater than the smallest cluster size"):
+    with pytest.raises(MlsynthDataError, match="cannot be greater than min cluster size"):
         MAREXConfig(**config)
 
 
 def test_m_min_greater_than_m_max(curacao_sim_data):
+    """m_min cannot be greater than m_max"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
 
@@ -275,20 +272,18 @@ def test_m_min_greater_than_m_max(curacao_sim_data):
         "time": "time",
         "cluster": "Region",
         "m_min": 5,
-        "m_max": 3,
+        "m_max": 3
     }
 
-    with pytest.raises(MlsynthDataError, match="m_min .* cannot be greater than m_max"):
+    with pytest.raises(MlsynthDataError, match="cannot be greater than m_max"):
         MAREXConfig(**config)
 
 
 def test_valid_m_min_and_m_max(curacao_sim_data):
+    """Valid m_min and m_max should pass"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
-
     cluster_sizes = df.groupby("Region").size()
-    valid_min = 1
-    valid_max = cluster_sizes.min()
 
     config = {
         "df": df,
@@ -296,14 +291,33 @@ def test_valid_m_min_and_m_max(curacao_sim_data):
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
-        "m_min": valid_min,
-        "m_max": valid_max,
+        "m_min": 1,
+        "m_max": cluster_sizes.min()
     }
 
-    # Should not raise
     cfg = MAREXConfig(**config)
-    assert cfg.m_min == valid_min
-    assert cfg.m_max == valid_max
+    assert cfg.m_min == 1
+    assert cfg.m_max == cluster_sizes.min()
+
+
+def test_valid_m_eq(curacao_sim_data):
+    """m_eq within max cluster size should pass"""
+    df = curacao_sim_data["df"].copy()
+    df["Region"] = pd.Categorical(df["Region"]).codes
+    max_size = df.groupby("Region").size().max()
+
+    config = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "cluster": "Region",
+        "m_eq": max_size
+    }
+
+    cfg = MAREXConfig(**config)
+    assert cfg.m_eq == max_size
+
 
 
 
