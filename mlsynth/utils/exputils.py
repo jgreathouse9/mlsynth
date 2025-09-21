@@ -464,3 +464,111 @@ def SCMEXP(
     }
 
     return result
+
+
+def compute_placebo_inference(Y_T, w_matrix, v_matrix, rmse_reference, alpha=0.05):
+    """
+    Compute treatment effects, confidence intervals, and p-values using placebo distributions.
+
+    Args:
+        Y_T : np.ndarray, shape (T, N) -- Transposed data (time x units).
+        w_matrix : np.ndarray, shape (N, K) -- Treated weights (global: K=1, cluster: K>1).
+        v_matrix : np.ndarray, shape (N, K) -- Control weights.
+        rmse_reference : float or np.ndarray -- Reference RMSPE(s) for scaling.
+        alpha : float -- Significance level for CI.
+
+    Returns:
+        tau_hat : np.ndarray, shape (K, T) -- Estimated treatment effects.
+        ci_lower : np.ndarray, shape (K, T) -- Lower bounds of CI.
+        ci_upper : np.ndarray, shape (K, T) -- Upper bounds of CI.
+        p_values : np.ndarray, shape (K, T) -- P-values.
+    """
+    N, K = w_matrix.shape
+    T = Y_T.shape[0]
+    tau_hat = np.zeros((K, T))
+    ci_lower = np.zeros((K, T))
+    ci_upper = np.zeros((K, T))
+    p_values = np.zeros((K, T))
+
+    for k in range(K):
+        w_k = w_matrix[:, k]
+        v_k = v_matrix[:, k]
+
+        # Treatment effect
+        tau_hat[k, :] = Y_T @ w_k - Y_T @ v_k
+
+        # Placebo distribution
+        u_blank_k = Y_T @ w_k - Y_T @ v_k
+        abs_u_blank_k = np.abs(u_blank_k)
+        q_k = np.quantile(abs_u_blank_k, 1 - alpha)
+
+        # Scale by RMSPE
+        scale_k = rmse_reference[k] / np.sqrt(np.mean(u_blank_k**2)) if np.ndim(rmse_reference) > 0 else rmse_reference / np.sqrt(np.mean(u_blank_k**2))
+
+        # Confidence intervals
+        ci_lower[k, :] = tau_hat[k, :] - q_k * scale_k
+        ci_upper[k, :] = tau_hat[k, :] + q_k * scale_k
+
+        # P-values
+        p_values[k, :] = [np.mean(abs_u_blank_k >= np.abs(t)) for t in tau_hat[k, :]]
+
+    return tau_hat, ci_lower, ci_upper, p_values
+
+
+def inference_scm(result, Y_full, T_post, alpha=0.05, method='placebo'):
+    """
+    Perform global and cluster-specific inference for SCM using placebo method.
+    """
+    if method != 'placebo':
+        raise ValueError("Only 'placebo' method is supported, as advocated in the paper.")
+
+    T0 = result["T0"]
+    Y_fit = result["Y_fit"]
+    Y_blank = result["Y_blank"]
+    w_opt = result["w_opt"]
+    v_opt = result["v_opt"]
+    w_agg = result["w_agg"]
+    v_agg = result["v_agg"]
+    rmse_cluster = result["rmse_cluster"]
+
+    if Y_blank is None:
+        raise ValueError("Blank periods are required for placebo inference.")
+
+    Y_post_T = Y_full[:, T0:T0+T_post].T
+    Y_blank_T = Y_blank.T
+
+    # Global effects (reshape to 2D for helper)
+    tau_hat_global, ci_lower_global, ci_upper_global, p_values_global = compute_placebo_inference(
+        Y_blank_T, w_agg[:, np.newaxis], v_agg[:, np.newaxis], np.sqrt(np.mean((Y_fit.T @ w_agg - Y_fit.T @ v_agg)**2)), alpha=alpha
+    )
+
+    tau_hat_global = tau_hat_global.flatten()
+    ci_lower_global = ci_lower_global.flatten()
+    ci_upper_global = ci_upper_global.flatten()
+    p_values_global = p_values_global.flatten()
+    avg_tau_hat = np.mean(tau_hat_global) if T_post > 0 else 0.0
+
+    # Cluster-specific effects
+    tau_hat_cluster, ci_lower_cluster, ci_upper_cluster, p_values_cluster = compute_placebo_inference(
+        Y_blank_T, w_opt, v_opt, rmse_cluster, alpha=alpha
+    )
+    avg_tau_cluster = np.mean(tau_hat_cluster, axis=1) if T_post > 0 else np.zeros(w_opt.shape[1])
+
+    # Pre-fit RMSPE (global)
+    Y_fit_T = Y_fit.T
+    rmspe_pre = np.sqrt(np.mean((Y_fit_T @ w_agg - Y_fit_T @ v_agg) ** 2))
+
+    return {
+        "tau_hat": tau_hat_global,
+        "avg_tau_hat": avg_tau_hat,
+        "tau_hat_cluster": tau_hat_cluster,
+        "avg_tau_cluster": avg_tau_cluster,
+        "p_values": p_values_global,
+        "ci_lower": ci_lower_global,
+        "ci_upper": ci_upper_global,
+        "p_values_cluster": p_values_cluster,
+        "ci_lower_cluster": ci_lower_cluster,
+        "ci_upper_cluster": ci_upper_cluster,
+        "rmspe_pre": rmspe_pre,
+        "rmse_cluster": rmse_cluster
+    }
