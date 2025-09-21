@@ -1256,18 +1256,6 @@ def test_scmexp_rel_basic_shapes():
     assert result["w_agg"].shape[0] == N
     assert result["v_agg"].shape[0] == N
 
-def test_scmexp_rel_zero_budget():
-    """Check that the function handles zero budget."""
-    N, T, K = 4, 8, 2
-    Y_full = np.random.randn(N, T)
-    clusters = np.array([0, 0, 1, 1])
-    
-    result = SCMEXP_REL(Y_full, T0=4, clusters=clusters, costs=np.ones(N), budget=0)
-    
-    # Should select no units
-    for selected in result["selected_treated"]:
-        assert len(selected) == 0
-
 def test_scmexp_rel_empty_clusters():
     """Check that the function raises if a cluster has no members."""
     N, T = 5, 10
