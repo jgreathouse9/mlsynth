@@ -143,10 +143,29 @@ class MAREXConfig(BaseMAREXConfig):
             if col.isna().all():
                 raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values.")
 
+            # --- unit-invariant cluster check ---
             unit_to_clusters = df.groupby(values.unitid)[cluster_col].apply(lambda x: set(x.dropna()))
             non_invariant = unit_to_clusters[unit_to_clusters.apply(len) != 1]
             if not non_invariant.empty:
                 raise MlsynthDataError(f"Units with multiple cluster assignments: {non_invariant.to_dict()}")
+
+            # --- m_eq / m_min / m_max validation ---
+            cluster_sizes = df.groupby(cluster_col).size()
+
+            if values.m_eq is not None and values.m_eq > cluster_sizes.max():
+                raise MlsynthDataError(
+                    f"m_eq ({values.m_eq}) cannot be greater than max cluster size ({cluster_sizes.max()})"
+                )
+            if values.m_min is not None and values.m_min < 1:
+                raise MlsynthDataError("m_min must be >= 1")
+            if values.m_max is not None and values.m_max > cluster_sizes.min():
+                raise MlsynthDataError(
+                    f"m_max ({values.m_max}) cannot be greater than min cluster size ({cluster_sizes.min()})"
+                )
+            if values.m_min is not None and values.m_max is not None and values.m_min > values.m_max:
+                raise MlsynthDataError(
+                    f"m_min ({values.m_min}) cannot be greater than m_max ({values.m_max})"
+                )
 
         # --- costs validation ---
         if values.costs is not None:
@@ -658,6 +677,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
