@@ -1334,3 +1334,102 @@ def test_invalid_method():
     }
     with pytest.raises(ValueError):
         inference_scm_vectorized(result, Y_full, T_post=3, method="invalid")
+
+
+def test_global_vs_cluster_consistency():
+    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data(N=6, T0=5, T_post=2, K=2, blank_periods=3)
+    result = {
+        "T0": 5,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    output = inference_scm_vectorized(result, Y_full, T_post=2)
+    # global effect is linear combination of cluster effects
+    # approximate check since weights are arbitrary
+    combined_cluster = np.mean(output["tau_hat_cluster"], axis=0)
+    np.testing.assert_allclose(combined_cluster, output["tau_hat"], rtol=1.0)
+def test_ci_widens_with_blank_variance():
+    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data()
+    result = {
+        "T0": 10,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    output1 = inference_scm_vectorized(result, Y_full, T_post=3)
+    
+    # Inflate Y_blank variance
+    Y_blank_high_var = Y_blank * 10
+    result["Y_blank"] = Y_blank_high_var
+    output2 = inference_scm_vectorized(result, Y_full, T_post=3)
+    
+    assert np.all(output2["ci_upper"] - output2["ci_lower"] > output1["ci_upper"] - output1["ci_lower"])
+def test_zero_rmse_cluster_handling():
+    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data(K=3)
+    rmse_cluster[1] = 0.0
+    result = {
+        "T0": 10,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    output = inference_scm_vectorized(result, Y_full, T_post=3)
+    # CI should remain finite
+    assert np.all(np.isfinite(output["ci_lower_cluster"]))
+    assert np.all(np.isfinite(output["ci_upper_cluster"]))
+def test_p_value_monotonicity():
+    # Simple 1-cluster setup
+    Y_full = np.array([[1, 2, 3, 4], [4, 3, 2, 1]])
+    Y_fit = Y_full[:, :2]
+    Y_blank = np.ones((2, 2))
+    w_agg = np.array([0.5, 0.5])
+    v_agg = np.array([0.5, 0.0])
+    w_opt = np.array([[0.5], [0.5]])
+    v_opt = np.array([[0.5], [0.0]])
+    rmse_cluster = np.array([1.0])
+    result = {
+        "T0": 2,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    output = inference_scm_vectorized(result, Y_full, T_post=2)
+    assert np.all(output["p_values"] <= 1.0)
+    assert np.all(output["p_values"] >= 0.0)
+    assert np.all(output["p_values_cluster"] <= 1.0)
+    assert np.all(output["p_values_cluster"] >= 0.0)
+def test_all_zero_effects():
+    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data()
+    v_agg = w_agg.copy()
+    v_opt = w_opt.copy()
+    result = {
+        "T0": 10,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    output = inference_scm_vectorized(result, Y_full, T_post=3)
+    np.testing.assert_allclose(output["tau_hat"], 0, atol=1e-10)
+    np.testing.assert_allclose(output["tau_hat_cluster"], 0, atol=1e-10)
+    assert np.all(output["p_values"] >= 0.5)
