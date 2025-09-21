@@ -1229,3 +1229,108 @@ def test_compute_placebo_ci_vectorized_cluster():
     assert ci_upper.shape == tau_hat.shape
     assert p_values.shape == tau_hat.shape
 
+
+def make_dummy_data(N=5, T0=10, T_post=3, K=2, blank_periods=4, seed=123):
+    np.random.seed(seed)
+    Y_full = np.random.rand(N, T0 + T_post)
+    Y_fit = np.random.rand(N, T0)
+    Y_blank = np.random.rand(N, blank_periods)
+    w_agg = np.random.rand(N)
+    w_agg /= w_agg.sum()
+    v_agg = np.random.rand(N)
+    v_agg /= v_agg.sum()
+    w_opt = np.random.rand(N, K)
+    w_opt /= w_opt.sum(axis=0)
+    v_opt = np.random.rand(N, K)
+    v_opt /= v_opt.sum(axis=0)
+    rmse_cluster = np.random.rand(K) * 0.1 + 0.05
+    return Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster
+
+def test_global_output_shapes():
+    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data()
+    result = {
+        "T0": 10,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    T_post = 3
+    output = inference_scm_vectorized(result, Y_full, T_post)
+    assert output["tau_hat"].shape == (T_post,)
+    assert output["tau_hat_cluster"].shape == (w_opt.shape[1], T_post)
+    assert output["ci_lower"].shape == (T_post,)
+    assert output["ci_lower_cluster"].shape == (w_opt.shape[1], T_post)
+    assert output["p_values"].shape == (T_post,)
+    assert output["p_values_cluster"].shape == (w_opt.shape[1], T_post)
+
+def test_ci_bounds_order():
+    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data()
+    result = {
+        "T0": 10,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    output = inference_scm_vectorized(result, Y_full, T_post=3)
+    # CI lower <= tau <= CI upper
+    assert np.all(output["ci_lower"] <= output["tau_hat"])
+    assert np.all(output["ci_upper"] >= output["tau_hat"])
+    assert np.all(output["ci_lower_cluster"] <= output["tau_hat_cluster"])
+    assert np.all(output["ci_upper_cluster"] >= output["tau_hat_cluster"])
+
+def test_p_values_between_0_1():
+    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data()
+    result = {
+        "T0": 10,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    output = inference_scm_vectorized(result, Y_full, T_post=3)
+    assert np.all((output["p_values"] >= 0) & (output["p_values"] <= 1))
+    assert np.all((output["p_values_cluster"] >= 0) & (output["p_values_cluster"] <= 1))
+
+def test_edge_case_zero_rmspe():
+    # Pre-RMSPE = 0
+    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data()
+    result = {
+        "T0": 10,
+        "w_agg": w_agg,
+        "v_agg": w_agg.copy(),  # identical weights -> zero RMSPE
+        "w_opt": w_opt,
+        "v_opt": w_opt.copy(),
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    output = inference_scm_vectorized(result, Y_full, T_post=3)
+    # CI should still be finite
+    assert np.all(np.isfinite(output["ci_lower"]))
+    assert np.all(np.isfinite(output["ci_upper"]))
+
+def test_invalid_method():
+    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data()
+    result = {
+        "T0": 10,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster
+    }
+    with pytest.raises(ValueError):
+        inference_scm_vectorized(result, Y_full, T_post=3, method="invalid")
