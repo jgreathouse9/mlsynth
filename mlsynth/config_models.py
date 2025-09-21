@@ -96,6 +96,11 @@ class MAREXConfig(BaseMAREXConfig):
     solver: Any = Field(default=None)
     verbose: bool = Field(default=False)
 
+    # --- NEW inference options ---
+    inference: bool = Field(default=False, description="Whether to run post-fit inference (placebo CI/p-values).")
+    T_post: Optional[int] = Field(default=None, description="Number of post-intervention periods for inference.")
+
+
     @model_validator(mode="after")
     def validate_design_params(cls, values: Any) -> Any:
         df = values.df
@@ -188,6 +193,17 @@ class MAREXConfig(BaseMAREXConfig):
                 raise MlsynthDataError(f"'budget' must be int or dict, got {type(values.budget)}")
 
         values.df = df
+
+        # --- inference validation ---
+        if values.inference:
+            n_periods = values.df[values.time].nunique()
+            T0 = values.T0 if values.T0 is not None else n_periods - 1
+            max_post = n_periods - T0
+            if values.T_post is None:
+                values.T_post = max_post
+            elif values.T_post <= 0 or values.T_post > max_post:
+                raise MlsynthDataError(f"T_post must be between 1 and {max_post} (T0={T0}, total periods={n_periods})")
+
         return values
 
 
