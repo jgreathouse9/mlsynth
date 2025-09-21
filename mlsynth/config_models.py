@@ -6,19 +6,12 @@ from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import warnings
 
 
-from typing import List, Optional, Any, Dict, Union
-import pandas as pd
-import numpy as np
-from pydantic import BaseModel, Field, model_validator
-from mlsynth.exceptions import MlsynthDataError
-import warnings
-
-
 class BaseMAREXConfig(BaseModel):
     """
     Base configuration for synthetic experiment designs.
     Contains fields common to all synthetic experiment-based estimators.
     """
+
     df: pd.DataFrame = Field(..., description="Input panel data (units x time).")
     outcome: str = Field(..., description="Column name for the outcome variable.")
     unitid: str = Field(..., description="Column name for the unit identifier.")
@@ -77,6 +70,7 @@ class BaseMAREXConfig(BaseModel):
 
 class MAREXConfig(BaseMAREXConfig):
     """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
+
     T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
     cluster: Optional[str] = Field(
         default=None,
@@ -226,6 +220,7 @@ class MAREXConfig(BaseMAREXConfig):
             values.df = df  # overwrite DataFrame in Pydantic model
 
         return values
+
 
 
 
@@ -714,6 +709,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
