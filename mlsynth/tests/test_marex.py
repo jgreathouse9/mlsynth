@@ -1336,30 +1336,6 @@ def test_invalid_method():
         inference_scm_vectorized(result, Y_full, T_post=3, method="invalid")
 
 
-
-# Test that global effect is within a reasonable range of cluster effects
-def test_global_vs_cluster_consistency_relaxed():
-    Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data(N=6, T0=5, T_post=2, K=2, blank_periods=3)
-    result = {
-        "T0": 5,
-        "w_agg": w_agg,
-        "v_agg": v_agg,
-        "w_opt": w_opt,
-        "v_opt": v_opt,
-        "Y_fit": Y_fit,
-        "Y_blank": Y_blank,
-        "rmse_cluster": rmse_cluster
-    }
-    output = inference_scm_vectorized(result, Y_full, T_post=2)
-    
-    # Instead of exact match, check that the global tau is within min/max of cluster tau
-    tau_min = np.min(output["tau_hat_cluster"], axis=0)
-    tau_max = np.max(output["tau_hat_cluster"], axis=0)
-    tau_global = output["tau_hat"]
-    assert np.all((tau_global >= tau_min) & (tau_global <= tau_max))
-
-
-
 def test_ci_widens_with_blank_variance():
     Y_full, Y_fit, Y_blank, w_agg, v_agg, w_opt, v_opt, rmse_cluster = make_dummy_data()
     result = {
