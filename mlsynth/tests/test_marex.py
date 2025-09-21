@@ -607,8 +607,9 @@ def test_non_consecutive_time_indices(curacao_sim_data):
     }
 
     # Should raise error due to non-consecutive times
-    with pytest.raises(MlsynthDataError, match=r"Time periods in column 'time' are not consecutive"):
+    with pytest.raises(MlsynthDataError, match=r"Time periods in 'time' are not consecutive.*"):
         MAREXConfig(**config)
+
 
 
 def test_explicit_blank_periods(curacao_sim_data):
