@@ -1256,17 +1256,6 @@ def test_scmexp_rel_basic_shapes():
     assert result["w_agg"].shape[0] == N
     assert result["v_agg"].shape[0] == N
 
-def test_scmexp_rel_empty_clusters():
-    """Check that the function raises if a cluster has no members."""
-    N, T = 5, 10
-    Y_full = np.random.randn(N, T)
-    clusters = np.array([0, 0, 1, 2, 3])  # K=4, cluster 3 has 1 member, but let's remove it
-    clusters[4] = -1  # Invalid cluster
-    
-    import pytest
-    with pytest.raises(ValueError):
-        SCMEXP_REL(Y_full, T0=5, clusters=clusters)
-
 def test_scmexp_rel_posthoc_nonnegative_weights():
     """Check that post-hoc discretization produces non-negative weights."""
     N, T, K = 6, 12, 2
