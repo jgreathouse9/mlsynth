@@ -1301,12 +1301,22 @@ def test_output_shapes():
     clusters = np.array([0]*3 + [1]*3)
 
     result = SCMEXP_REL(Y_full, T0=4, clusters=clusters)
+    
+    # weights
     assert result["w_opt"].shape == (N, K)
     assert result["v_opt"].shape == (N, K)
     assert result["w_opt_rel"].shape == (N, K)
     assert result["v_opt_rel"].shape == (N, K)
+    
+    # synthetic cluster outcomes
     assert len(result["y_syn_treated_clusters"]) == K
-    assert result["Xbar_clusters"].shape == (K, 4)
+    assert len(result["y_syn_control_clusters"]) == K
+    
+    # Xbar_clusters is a list of length K, each element length T0
+    assert isinstance(result["Xbar_clusters"], list)
+    assert len(result["Xbar_clusters"]) == K
+    for vec in result["Xbar_clusters"]:
+        assert len(vec) == 4  # T0
 
 
 
