@@ -183,6 +183,7 @@ def test_init_invalid_T0(curacao_sim_data):
     with pytest.raises(MlsynthDataError):
         MAREXConfig(**config)
 
+
 def test_clusters_column_as_string(curacao_sim_data):
     # force Region to string
     df = curacao_sim_data["df"].copy()
@@ -198,11 +199,13 @@ def test_clusters_column_as_string(curacao_sim_data):
     }
 
     # Check that a UserWarning is raised for automatic integer conversion
-    with pytest.warns(UserWarning, match="Cluster column 'Region' contains strings or categories"):
+    with pytest.warns(UserWarning, match="Cluster column 'Region' contains non-integers; converting to codes."):
         marex_config = MAREXConfig(**config_data)
 
     # Check that the df column is now integer-coded
     assert pd.api.types.is_integer_dtype(marex_config.df["Region"])
+
+    
 
 
 
