@@ -184,7 +184,7 @@ def test_init_invalid_T0(curacao_sim_data):
         MAREXConfig(**config)
 
 def test_clusters_column_as_string(curacao_sim_data):
-    # Make a copy and force Region to string
+    # force Region to string
     df = curacao_sim_data["df"].copy()
     df["Region"] = df["Region"].astype(str)
 
