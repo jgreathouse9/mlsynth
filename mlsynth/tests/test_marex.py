@@ -205,31 +205,51 @@ def test_clusters_column_as_string(curacao_sim_data):
     # Check that the df column is now integer-coded
     assert pd.api.types.is_integer_dtype(marex_config.df["Region"])
 
-    
 
+def test_clusters_column_as_string(curacao_sim_data):
+    df = curacao_sim_data["df"].copy()
+    # Force cluster column to string
+    df["Region"] = df["Region"].astype(str)
 
+    config_data = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "cluster": "Region",
+        "m_eq": 1
+    }
+
+    # Should warn about string->integer conversion
+    with pytest.warns(UserWarning, match="Cluster column 'Region' contains strings or categories"):
+        cfg = MAREXConfig(**config_data)
+
+    # Column should now be integer-coded
+    assert pd.api.types.is_integer_dtype(cfg.df["Region"])
 
 
 def test_m_eq_greater_than_cluster(curacao_sim_data):
-    # Find the max cluster size
-    cluster_sizes = curacao_sim_data["df"].groupby("Region").size()
+    df = curacao_sim_data["df"]
+    cluster_sizes = df.groupby("Region").size()
     too_large = cluster_sizes.max() + 1
 
     config = {
-        "df": curacao_sim_data["df"],
+        "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
         "m_eq": too_large,
     }
+
     with pytest.raises(MlsynthDataError, match="cannot be greater than"):
         MAREXConfig(**config)
 
 
 def test_m_min_less_than_one(curacao_sim_data):
+    df = curacao_sim_data["df"]
     config = {
-        "df": curacao_sim_data["df"],
+        "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
@@ -241,25 +261,28 @@ def test_m_min_less_than_one(curacao_sim_data):
 
 
 def test_m_max_greater_than_smallest_cluster(curacao_sim_data):
-    # Find the smallest cluster size
-    min_cluster_size = curacao_sim_data["df"].groupby("Region").size().min()
+    df = curacao_sim_data["df"]
+    min_cluster_size = df.groupby("Region").size().min()
     too_large = min_cluster_size + 1
 
     config = {
-        "df": curacao_sim_data["df"],
+        "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
         "m_max": too_large,
     }
+
     with pytest.raises(MlsynthDataError, match="cannot be greater than the smallest cluster size"):
         MAREXConfig(**config)
 
 
 def test_m_min_greater_than_m_max(curacao_sim_data):
+    df = curacao_sim_data["df"]
+
     config = {
-        "df": curacao_sim_data["df"],
+        "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
@@ -267,18 +290,19 @@ def test_m_min_greater_than_m_max(curacao_sim_data):
         "m_min": 5,
         "m_max": 3,
     }
+
     with pytest.raises(MlsynthDataError, match="m_min .* cannot be greater than m_max"):
         MAREXConfig(**config)
 
 
 def test_valid_m_min_and_m_max(curacao_sim_data):
-    # Choose values within bounds
-    cluster_sizes = curacao_sim_data["df"].groupby("Region").size()
+    df = curacao_sim_data["df"]
+    cluster_sizes = df.groupby("Region").size()
     valid_min = 1
     valid_max = cluster_sizes.min()
 
     config = {
-        "df": curacao_sim_data["df"],
+        "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
@@ -287,10 +311,10 @@ def test_valid_m_min_and_m_max(curacao_sim_data):
         "m_max": valid_max,
     }
 
-    # Should not raise
     cfg = MAREXConfig(**config)
     assert cfg.m_min == valid_min
     assert cfg.m_max == valid_max
+
 
 
 
