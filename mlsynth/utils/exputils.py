@@ -64,7 +64,7 @@ def _validate_scm_inputs(Y_full, T0, blank_periods, design,
 
     # --- basic shape checks ---
     if T0 <= 0 or T0 >= Y_full.shape[1]:  # strict inequality
-        raise ValueError(f"T0 must be 1 <= T0 < Y_full.shape[1}")
+        raise ValueError("T0 must be 1 <= T0 < Y_full.shape[1]")
     if blank_periods < 0 or blank_periods >= T0:
         raise ValueError("blank_periods must be 0 <= blank_periods < T0 (need at least 1 fit period)")
 
