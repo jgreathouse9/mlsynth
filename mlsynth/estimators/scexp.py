@@ -52,6 +52,8 @@ class MAREX:
         self.exclusive: bool = getattr(config, "exclusive", True)
         self.solver = getattr(config, "solver", None)
         self.verbose: bool = getattr(config, "verbose", False)
+        self.inference: bool = getattr(config, "inference", False)
+        self.T_post: int = getattr(config, "T_post", 0)
 
         # Validate cluster column if provided
         if self.cluster and self.cluster not in self.df.columns:
@@ -196,19 +198,23 @@ class MAREX:
         # Determine total time and T0
         T_total = len(self.df[self.time].unique())
         T0 = self.T0 if self.T0 is not None else T_total - 1  # default T0 = T-1
-    
-        # Determine blank_periods
-        if hasattr(self, "blank_periods") and self.blank_periods is not None:
-            blanks = self.blank_periods
+
+        # Determine blank_periods only if inference or T_post is specified
+        if self.inference:
+            if hasattr(self, "blank_periods") and self.blank_periods is not None:
+                blanks = self.blank_periods
+            else:
+                # default blank_periods = eventual post-treatment periods
+                blanks = getattr(self, "T_post", T_total - T0)
+
+            # Validate blank_periods
+            if blanks < 0 or blanks >= T0:
+                raise ValueError(
+                    f"blank_periods must be 0 <= blank_periods < T0 (T0={T0}, got blank_periods={blanks})"
+                )
         else:
-            blanks = T_total - T0  # default blank periods = post-treatment periods
-    
-        # Validate blank_periods
-        if not (0 <= blanks < T0):
-            raise ValueError(
-                f"blank_periods must be 0 <= blank_periods < T0 (T0={T0}, got blank_periods={blanks})"
-            )
-        
+            blanks = self.blank_periods  # pre-treatment only, no blanks needed
+
         # Prepare SCMEXP arguments
         scm_kwargs = dict(
             Y_full=Y_full,
@@ -233,18 +239,13 @@ class MAREX:
             scm_kwargs["m_min"] = self.m_min
             scm_kwargs["m_max"] = self.m_max
 
-        # Run SCMEXP
+        # After raw_results = SCMEXP(**scm_kwargs)
         raw_results = SCMEXP(**scm_kwargs)
 
-        from ..utils.exputils import inference_scm_vectorized  # or wherever it lives
-        T_post = Y_full.shape[1] - T0  # number of post-treatment periods
-        inference_out = inference_scm_vectorized(
-        result=raw_results,
-        Y_full=Y_full.to_numpy(),
-        T_post=T_post,
-        alpha=0.05,
-        method="placebo"
-        )
+        if self.inference:
+            T_post = T_total - T0 - blanks
+            inf_results = inference_scm_vectorized(raw_results, Y_full, T_post=T_post)
+            raw_results["inference"] = inf_results
 
         # Process results with DesignResultsProcessor
         processor = self.DesignResultsProcessor(
