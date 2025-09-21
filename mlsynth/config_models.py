@@ -68,21 +68,17 @@ class BaseMAREXConfig(BaseModel):
         return values
 
 
+
+
+
 class MAREXConfig(BaseMAREXConfig):
     """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
 
     T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
-    cluster: Optional[str] = Field(
-        default=None,
-        description="Column name in df indicating cluster membership for each unit."
-    )
+    cluster: Optional[str] = Field(default=None, description="Column name for cluster membership.")
     design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
-    program_type: str = Field(
-        default="MIQP",
-        description="Optimization type: 'QP' (relaxed, continuous) or 'MIQP' (binary assignment)."
-    )
+    program_type: str = Field(default="MIQP", description="Optimization type: 'QP' or 'MIQP'.")
 
-    # Penalization parameters
     beta: float = Field(default=1e-6)
     lambda1: float = Field(default=0.0)
     lambda2: float = Field(default=0.0)
@@ -92,7 +88,6 @@ class MAREXConfig(BaseMAREXConfig):
     costs: Optional[List[float]] = None
     budget: Optional[Union[int, Dict[int, int]]] = None
 
-    # Additional SCMEXP options
     blank_periods: int = Field(default=0)
     m_eq: Optional[int] = Field(default=None)
     m_min: Optional[int] = Field(default=None)
@@ -110,119 +105,71 @@ class MAREXConfig(BaseMAREXConfig):
         cluster_col = values.cluster
         time_col = values.time
 
-        # --- validate program_type ---
-        valid_types = {"QP", "MIQP"}
-        if program_type not in valid_types:
-            raise MlsynthDataError(
-                f"program_type must be one of {valid_types}; got '{program_type}'"
-            )
+        # --- program_type ---
+        if program_type not in {"QP", "MIQP"}:
+            raise MlsynthDataError(f"program_type must be 'QP' or 'MIQP', got '{program_type}'")
 
-        # Validate T0
+        # --- T0 ---
         n_periods = df[time_col].nunique()
         if T0 is not None and (T0 <= 0 or T0 > n_periods):
-            raise MlsynthDataError(f"T0 must be between 1 and the number of time periods ({n_periods}).")
+            raise MlsynthDataError(f"T0 must be between 1 and {n_periods}.")
 
-        # Validate design
-        valid_designs = {"base", "weak", "eq11", "unit"}
-        if design not in valid_designs:
-            raise MlsynthDataError(f"design must be one of {valid_designs}; got '{design}'")
+        # --- design ---
+        if design not in {"base", "weak", "eq11", "unit"}:
+            raise MlsynthDataError(f"design must be one of 'base', 'weak', 'eq11', 'unit', got '{design}'")
 
-        # --- Consecutive time validation ---
+        # --- consecutive time check ---
         time_vals = df[time_col].sort_values().unique()
         if np.issubdtype(time_vals.dtype, np.number):
-            diffs = np.diff(time_vals)
-            if not np.all(diffs == 1):
-                raise MlsynthDataError(
-                    f"Time periods in column '{time_col}' are not consecutive. "
-                    f"Found gaps between periods: {time_vals}"
-                )
+            if not np.all(np.diff(time_vals) == 1):
+                raise MlsynthDataError(f"Time periods in '{time_col}' are not consecutive: {time_vals}")
         elif np.issubdtype(time_vals.dtype, np.datetime64):
-            diffs = np.diff(time_vals)
-            expected = pd.to_timedelta(np.ones(len(diffs)), unit="D")
-            if not np.all(diffs == diffs[0]):
-                raise MlsynthDataError(
-                    f"Datetime time periods in column '{time_col}' are not consecutive. "
-                    f"Found differences: {diffs}"
-                )
+            if not np.all(np.diff(time_vals) == np.diff(time_vals)[0]):
+                raise MlsynthDataError(f"Datetime time periods in '{time_col}' are not consecutive.")
         else:
-            raise MlsynthDataError(
-                f"Unsupported dtype for time column '{time_col}': {time_vals.dtype}"
-            )
+            raise MlsynthDataError(f"Unsupported dtype for time column '{time_col}': {time_vals.dtype}")
 
-        # --- Cluster handling ---
+        # --- cluster handling ---
         if cluster_col is not None:
             if cluster_col not in df.columns:
                 raise MlsynthDataError(f"Cluster column '{cluster_col}' not found in df.")
 
             col = df[cluster_col]
-
-            # Convert strings/categoricals to integer codes
             if not pd.api.types.is_integer_dtype(col):
-                warnings.warn(
-                    f"Cluster column '{cluster_col}' contains strings or categories. "
-                    "Automatically converting to integer codes.",
-                    UserWarning
-                )
+                warnings.warn(f"Cluster column '{cluster_col}' contains non-integers; converting to codes.", UserWarning)
                 df[cluster_col] = pd.Categorical(col).codes
                 col = df[cluster_col]
 
-            # Check for emptiness
             if col.isna().all():
-                raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values")
+                raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values.")
 
-            # Warn if some values are missing
-            if col.isna().any():
-                n_missing = col.isna().sum()
-                warnings.warn(
-                    f"Cluster column '{cluster_col}' contains {n_missing} missing values. "
-                    "These units may be ignored in clustering.",
-                    UserWarning
-                )
-
-            # --- Unit-invariant cluster check ---
             unit_to_clusters = df.groupby(values.unitid)[cluster_col].apply(lambda x: set(x.dropna()))
             non_invariant = unit_to_clusters[unit_to_clusters.apply(len) != 1]
             if not non_invariant.empty:
-                raise MlsynthDataError(
-                    f"The following units have multiple cluster assignments: {non_invariant.to_dict()}"
-                )
+                raise MlsynthDataError(f"Units with multiple cluster assignments: {non_invariant.to_dict()}")
 
-            # --- m_eq validation ---
-            if values.m_eq is not None:
-                cluster_sizes = df.groupby(cluster_col).size()
-                if values.m_eq > cluster_sizes.max():
-                    raise MlsynthDataError(
-                        f"m_eq ({values.m_eq}) cannot be greater than the number of units "
-                        f"in any cluster (max cluster size = {cluster_sizes.max()})"
-                    )
+        # --- costs validation ---
+        if values.costs is not None:
+            if not all(c > 0 for c in values.costs):
+                raise MlsynthDataError("All values in 'costs' must be strictly positive.")
 
-            # --- m_min / m_max validation ---
-            if values.m_min is not None or values.m_max is not None:
-                cluster_sizes = df.groupby(cluster_col).size()
+        # --- budget validation ---
+        if values.budget is not None:
+            if isinstance(values.budget, int):
+                if values.budget <= 0:
+                    raise MlsynthDataError("Scalar 'budget' must be strictly positive.")
+            elif isinstance(values.budget, dict):
+                clusters = df[cluster_col].unique() if cluster_col is not None else []
+                missing_clusters = [c for c in clusters if c not in values.budget]
+                if missing_clusters:
+                    raise MlsynthDataError(f"Budget dict missing entries for cluster(s): {missing_clusters}")
+                if any(b <= 0 for b in values.budget.values()):
+                    raise MlsynthDataError("All values in 'budget' dict must be strictly positive.")
+            else:
+                raise MlsynthDataError(f"'budget' must be int or dict, got {type(values.budget)}")
 
-                if values.m_min is not None and values.m_min < 1:
-                    raise MlsynthDataError("m_min must be >= 1.")
-
-                if values.m_max is not None:
-                    if values.m_max > cluster_sizes.min():
-                        raise MlsynthDataError(
-                            f"m_max ({values.m_max}) cannot be greater than the smallest cluster size "
-                            f"({cluster_sizes.min()})."
-                        )
-
-                if (
-                    values.m_min is not None
-                    and values.m_max is not None
-                    and values.m_min > values.m_max
-                ):
-                    raise MlsynthDataError(
-                        f"m_min ({values.m_min}) cannot be greater than m_max ({values.m_max})."
-                    )
-
-            values.df = df  # overwrite DataFrame in Pydantic model
-
+        values.df = df
         return values
-
 
 
 
@@ -711,6 +658,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
