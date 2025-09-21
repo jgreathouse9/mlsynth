@@ -89,6 +89,8 @@ class MAREXConfig(BaseMAREXConfig):
     xi: float = Field(default=0.0)
     lambda1_unit: float = Field(default=0.0)
     lambda2_unit: float = Field(default=0.0)
+    costs: Optional[List[float]] = None
+    budget: Optional[Union[int, Dict[int, int]]] = None
 
     # Additional SCMEXP options
     blank_periods: int = Field(default=0)
@@ -709,6 +711,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
