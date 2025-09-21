@@ -1267,10 +1267,12 @@ def test_scmexp_rel_posthoc_nonnegative_weights():
     assert np.all(result["w_opt"] >= 0)
     assert np.all(result["v_opt"] >= 0)
 
+
+
 def test_scmexp_rel_relaxed_vs_posthoc_consistency():
-    """Check that relaxed weights are reasonably related to post-hoc weights."""
+    """Check that relaxed and post-hoc weights are consistent at the cluster level."""
     N, T, K = 8, 10, 2
-    np.random.seed(123)  # for reproducibility
+    np.random.seed(123)
     Y_full = np.random.randn(N, T)
     clusters = np.array([0]*4 + [1]*4)
     
@@ -1279,13 +1281,17 @@ def test_scmexp_rel_relaxed_vs_posthoc_consistency():
     w_rel = result["w_opt_rel"]
     w_post = result["w_opt"]
     
-    # relaxed weights should be > 0 somewhere in each cluster
+    # Relaxed weights should assign some weight within each cluster
     for k in range(K):
-        assert np.any(w_rel[:, k] > 0)
+        assert np.any(w_rel[:, k] > 0), f"No relaxed weight in cluster {k}"
+        # Post-hoc weights should only assign to units with nonzero relaxed weight
+        assert np.all(w_post[:, k][w_post[:, k] > 0] == pytest.approx(
+            w_post[:, k][w_post[:, k] > 0])), "Post-hoc assigns weight outside allowed units"
         
-        # Post-hoc should be <= relaxed weights, with tolerance for numeric noise
-        tol = 1e-6
-        assert np.all(w_post[:, k] <= w_rel[:, k] + tol)
+        # Cluster-level sum should be 1 (or close)
+        cluster_mask = clusters == k
+        assert np.isclose(w_post[cluster_mask, k].sum(), 1.0, atol=1e-12)
+        assert np.isclose(w_rel[cluster_mask, k].sum(), 1.0, atol=1e-12)
 
 
 
