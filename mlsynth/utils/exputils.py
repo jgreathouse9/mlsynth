@@ -492,7 +492,7 @@ def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_clu
     assert Y_blank_T.shape[1] == w.shape[0], "Mismatch between Y_blank_T and weight vector dimensions."
 
     if np.isnan(Y_blank_T).any():
-    raise ValueError("Y_blank contains NaNs, cannot compute placebo inference.")
+        raise ValueError("Y_blank contains NaNs, cannot compute placebo inference.")
 
 
     if w.ndim == 1:
