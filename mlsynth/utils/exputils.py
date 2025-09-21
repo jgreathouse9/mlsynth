@@ -1,5 +1,6 @@
 import pandas as pd
 import cvxpy as cp
+import matplotlib.pyplot as plt
 import numpy as np
 
 def _get_per_cluster_param(param, klabel, default=None):
@@ -60,9 +61,10 @@ def _validate_scm_inputs(Y_full, T0, blank_periods, design,
     Validate SCM input arguments for shape, design compatibility, and parameter usage.
     Raises ValueError if any check fails.
     """
+
     # --- basic shape checks ---
-    if T0 <= 0 or T0 >= Y_full.shape[1]:
-        raise ValueError("T0 must be 1 <= T0 < Y_full.shape[1]")
+    if T0 <= 0 or T0 > Y_full.shape[1]:  # allow equality
+        raise ValueError(f"T0 must be 1 <= T0 <= Y_full.shape[1] (got T0={T0}, Y_full.shape[1]={Y_full.shape[1]})")
     if blank_periods < 0 or blank_periods >= T0:
         raise ValueError("blank_periods must be 0 <= blank_periods < T0 (need at least 1 fit period)")
 
@@ -592,3 +594,93 @@ def inference_scm_vectorized(result, Y_full, T_post, alpha=0.05, method='placebo
         "rmspe_pre": rmspe_pre,
         "rmse_cluster": rmse_cluster
     }
+
+def plot_cluster_full(df, marex_results, show=True, save_path=None):
+    """
+    Plots all units in each cluster (thin gray), synthetic treated (black),
+    and synthetic control (blue). Blank periods (predicted but not fitted) are shaded in orange.
+    """
+    style_params = {
+        "figure.figsize": (10, 6),
+        "figure.dpi": 100,
+        "savefig.dpi": 300,
+        "savefig.bbox": "tight",
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "font.size": 14,
+        "font.family": "sans-serif",
+        "axes.titlesize": 18,
+        "axes.titleweight": "bold",
+        "axes.labelsize": "large",
+        "xtick.labelsize": "medium",
+        "ytick.labelsize": "medium",
+        "legend.fontsize": 10,
+        "axes.grid": True,
+        "axes.axisbelow": True,
+        "grid.color": "#d3d3d3",
+        "grid.linestyle": ":",
+        "grid.linewidth": 1.0,
+        "lines.linewidth": 1.0,
+        "lines.marker": "",
+        "lines.markersize": 0,
+    }
+
+    clusters = marex_results.clusters
+    n_clusters = len(clusters)
+    n_cols = min(3, n_clusters)
+    n_rows = (n_clusters + n_cols - 1) // n_cols
+
+    # Determine blank period indices from global Y_blank
+    Y_blank = marex_results.globres.Y_blank
+    if Y_blank is not None:
+        blank_mask = ~np.isnan(Y_blank[0])  # True for blank periods
+        if blank_mask.any():
+            blank_start = marex_results.study.T0 - Y_blank.shape[1]
+            blank_end = blank_start + blank_mask.sum()
+        else:
+            blank_start = blank_end = None
+    else:
+        blank_start = blank_end = None
+
+    with plt.rc_context(style_params):
+        fig, axes = plt.subplots(
+            n_rows,
+            n_cols,
+            figsize=(style_params["figure.figsize"][0], style_params["figure.figsize"][1] * n_rows)
+        )
+        axes = axes.flatten() if n_clusters > 1 else [axes]
+
+        for i, (cluster_id, cluster_res) in enumerate(clusters.items()):
+            ax = axes[i]
+
+            # Plot all units as thin gray lines
+            for member in cluster_res.members:
+                member_data = df[df[df.columns[0]] == member].sort_values('time')  # first col is unitid
+                ax.plot(member_data['time'], member_data['Y_obs'], color='lightgray', linewidth=0.8)
+
+            # Plot synthetic treated and control
+            x = range(1, len(cluster_res.synthetic_treated) + 1)
+            ax.plot(x, cluster_res.synthetic_treated, color='black', linewidth=2, label='Synthetic Treated')
+            ax.plot(x, cluster_res.synthetic_control, color='blue', linewidth=2, label='Synthetic Control')
+
+            # Shade blank periods
+            if blank_start is not None and blank_end is not None:
+                ax.axvspan(blank_start + 1, blank_end, color='orange', alpha=0.2, label='Blank Periods')
+
+            ax.set_title(f'Cluster {cluster_id}')
+            ax.set_xlabel('Time Period')
+            ax.set_ylabel('Outcome')
+            ax.grid(True)
+            ax.legend(fontsize=8)
+
+        # Turn off unused axes
+        for j in range(i + 1, len(axes)):
+            axes[j].axis('off')
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path)
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
