@@ -504,8 +504,9 @@ def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_clu
         u_blank = Y_blank_T @ w - Y_blank_T @ v  # (blank_periods, K)
         abs_u_blank = np.abs(u_blank)
         q = np.quantile(abs_u_blank, 1 - alpha, axis=0)  # (K,)
-        scale = np.sqrt(np.mean(u_blank**2, axis=0)) / rmse_cluster
         tau_hat = np.atleast_2d(tau_hat)
+        safe_rmse = np.where(rmse_cluster > 0, rmse_cluster, 1.0)
+        scale = np.sqrt(np.mean(u_blank**2, axis=0)) / safe_rmse
         ci_lower = tau_hat - q[:, None] * scale[:, None]
         ci_upper = tau_hat + q[:, None] * scale[:, None]
         # p-values
