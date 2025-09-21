@@ -1416,3 +1416,128 @@ def test_all_zero_effects():
     np.testing.assert_allclose(output["tau_hat"], 0, atol=1e-10)
     np.testing.assert_allclose(output["tau_hat_cluster"], 0, atol=1e-10)
     assert np.all(output["p_values"] >= 0.5)
+
+
+@pytest.mark.parametrize("T_post", [0, 1, 5])
+def test_post_period_edge_cases(T_post):
+    """Test very small T_post values (0 or 1)"""
+    N = 4
+    K = 2
+    T0 = 10
+    Y_full = np.random.randn(N, T0 + max(1, T_post))
+    w_opt = np.random.rand(N, K)
+    v_opt = np.random.rand(N, K)
+    w_agg = np.random.rand(N)
+    v_agg = np.random.rand(N)
+    Y_fit = np.random.randn(N, T0)
+    Y_blank = np.random.randn(N, T0)
+    rmse_cluster = np.ones(K)
+
+    result = {
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster,
+        "T0": T0
+    }
+
+    output = inference_scm_vectorized(result, Y_full, T_post)
+    # Should return shapes correctly even for T_post=0 or 1
+    assert output["tau_hat"].shape[0] == T_post
+    assert output["tau_hat_cluster"].shape[1] == T_post
+
+def test_single_unit_cluster():
+    """Test cluster inference when a cluster has only one unit"""
+    N = 3
+    K = 3
+    T0 = 5
+    T_post = 2
+    Y_full = np.random.randn(N, T0 + T_post)
+    w_opt = np.eye(N)  # each unit its own cluster
+    v_opt = np.zeros((N, N))
+    w_agg = np.ones(N)/N
+    v_agg = np.zeros(N)
+    Y_fit = np.random.randn(N, T0)
+    Y_blank = np.random.randn(N, T0)
+    rmse_cluster = np.ones(N)
+
+    result = {
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster,
+        "T0": T0
+    }
+
+    output = inference_scm_vectorized(result, Y_full, T_post)
+    assert np.all(np.isfinite(output["ci_lower_cluster"]))
+    assert np.all(np.isfinite(output["ci_upper_cluster"]))
+
+def test_nan_in_blank_periods():
+    """Ensure inference handles NaNs in Y_blank gracefully"""
+    N = 4
+    K = 2
+    T0 = 10
+    T_post = 3
+    Y_full = np.random.randn(N, T0 + T_post)
+    w_opt = np.random.rand(N, K)
+    v_opt = np.random.rand(N, K)
+    w_agg = np.random.rand(N)
+    v_agg = np.random.rand(N)
+    Y_fit = np.random.randn(N, T0)
+    Y_blank = np.random.randn(N, T0)
+    Y_blank[0, 1] = np.nan
+    rmse_cluster = np.ones(K)
+
+    result = {
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster,
+        "T0": T0
+    }
+
+    with pytest.raises(ValueError):
+        # Could also modify the function to handle NaNs, but currently should error
+        inference_scm_vectorized(result, Y_full, T_post)
+
+def test_extreme_values_scaling():
+    """Check that extremely large values do not break CI computation"""
+    N = 5
+    K = 2
+    T0 = 10
+    T_post = 2
+    Y_full = np.random.randn(N, T0 + T_post) * 1e6
+    w_opt = np.random.rand(N, K)
+    v_opt = np.random.rand(N, K)
+    w_agg = np.random.rand(N)
+    v_agg = np.random.rand(N)
+    Y_fit = np.random.randn(N, T0) * 1e6
+    Y_blank = np.random.randn(N, T0) * 1e6
+    rmse_cluster = np.ones(K)
+
+    result = {
+        "w_opt": w_opt,
+        "v_opt": v_opt,
+        "w_agg": w_agg,
+        "v_agg": v_agg,
+        "Y_fit": Y_fit,
+        "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster,
+        "T0": T0
+    }
+
+    output = inference_scm_vectorized(result, Y_full, T_post)
+    assert np.all(np.isfinite(output["ci_lower"]))
+    assert np.all(np.isfinite(output["ci_upper"]))
+    assert np.all(np.isfinite(output["ci_lower_cluster"]))
+    assert np.all(np.isfinite(output["ci_upper_cluster"]))
