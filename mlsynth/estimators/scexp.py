@@ -236,6 +236,16 @@ class MAREX:
         # Run SCMEXP
         raw_results = SCMEXP(**scm_kwargs)
 
+        from ..utils.exputils import inference_scm_vectorized  # or wherever it lives
+        T_post = Y_full.shape[1] - T0  # number of post-treatment periods
+        inference_out = inference_scm_vectorized(
+        result=result,
+        Y_full=Y_full,
+        T_post=T_post,
+        alpha=0.05,
+        method="placebo"
+        )
+
         # Process results with DesignResultsProcessor
         processor = self.DesignResultsProcessor(
             scm_result=raw_results,
@@ -249,6 +259,7 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
 
 
 
