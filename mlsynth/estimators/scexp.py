@@ -239,7 +239,7 @@ class MAREX:
         from ..utils.exputils import inference_scm_vectorized  # or wherever it lives
         T_post = Y_full.shape[1] - T0  # number of post-treatment periods
         inference_out = inference_scm_vectorized(
-        result=result,
+        result=raw_results,
         Y_full=Y_full,
         T_post=T_post,
         alpha=0.05,
@@ -259,6 +259,7 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
 
 
 
