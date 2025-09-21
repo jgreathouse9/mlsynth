@@ -1295,6 +1295,34 @@ def test_scmexp_rel_relaxed_vs_posthoc_consistency():
 
 
 
+def test_output_shapes():
+    N, T, K = 6, 8, 2
+    Y_full = np.random.randn(N, T)
+    clusters = np.array([0]*3 + [1]*3)
+
+    result = SCMEXP_REL(Y_full, T0=4, clusters=clusters)
+    assert result["w_opt"].shape == (N, K)
+    assert result["v_opt"].shape == (N, K)
+    assert result["w_opt_rel"].shape == (N, K)
+    assert result["v_opt_rel"].shape == (N, K)
+    assert len(result["y_syn_treated_clusters"]) == K
+    assert result["Xbar_clusters"].shape == (K, 4)
+
+
+
+def test_clusters_consistency():
+    N, T, K = 8, 10, 2
+    Y_full = np.random.randn(N, T)
+    clusters = np.array([0]*4 + [1]*4)
+
+    result = SCMEXP_REL(Y_full, T0=5, clusters=clusters)
+    assert set(result["cluster_labels"]) == {0, 1}
+    assert len(result["cluster_members"]) == 2
+    assert np.all(result["original_cluster_vector"] == clusters)
+
+
+
+
 # Inference 
 
 def test_global_inference_shapes():
