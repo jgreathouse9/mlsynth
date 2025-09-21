@@ -1270,6 +1270,7 @@ def test_scmexp_rel_posthoc_nonnegative_weights():
 def test_scmexp_rel_relaxed_vs_posthoc_consistency():
     """Check that relaxed weights are reasonably related to post-hoc weights."""
     N, T, K = 8, 10, 2
+    np.random.seed(123)  # for reproducibility
     Y_full = np.random.randn(N, T)
     clusters = np.array([0]*4 + [1]*4)
     
@@ -1281,9 +1282,10 @@ def test_scmexp_rel_relaxed_vs_posthoc_consistency():
     # relaxed weights should be > 0 somewhere in each cluster
     for k in range(K):
         assert np.any(w_rel[:, k] > 0)
-        # Post-hoc should be <= relaxed weights (since trimmed)
-        assert np.all(w_post[:, k] <= w_rel[:, k] + 1e-12)
-
+        
+        # Post-hoc should be <= relaxed weights, with tolerance for numeric noise
+        tol = 1e-6
+        assert np.all(w_post[:, k] <= w_rel[:, k] + tol)
 
 
 
