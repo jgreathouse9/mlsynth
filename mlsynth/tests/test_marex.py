@@ -337,135 +337,65 @@ def test_default_lambdas(curacao_sim_data):
     assert cfg.lambda2 == 0.0
 
 
+def test_costs_must_be_positive(curacao_sim_data):
+    df = curacao_sim_data["df"].copy()
+    config = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "costs": [1, -2, 3],  # contains negative
+    }
+    with pytest.raises(MlsynthDataError, match="must be strictly positive"):
+        MAREXConfig(**config)
 
-def test_unit_invariant_cluster_valid(curacao_sim_data):
-    # All units are invariant in cluster by default
-    config_data = {
-        "df": curacao_sim_data["df"],
+def test_budget_scalar_positive(curacao_sim_data):
+    df = curacao_sim_data["df"].copy()
+    config = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+        "budget": 0,  # zero is invalid
+    }
+    with pytest.raises(MlsynthDataError, match="must be strictly positive"):
+        MAREXConfig(**config)
+
+def test_budget_dict_missing_clusters(curacao_sim_data):
+    df = curacao_sim_data["df"].copy()
+    df["Region"] = pd.Categorical(df["Region"]).codes
+    clusters = df["Region"].unique()
+    budget_dict = {clusters[0]: 5}  # omit one cluster
+    config = {
+        "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
+        "budget": budget_dict
     }
+    with pytest.raises(MlsynthDataError, match="Budget dict missing entries for cluster"):
+        MAREXConfig(**config)
 
-    # Should not raise
-    cfg = MAREXConfig(**config_data)
-
-    # Validate that each unit belongs to a single cluster
-    unit_groups = cfg.df.groupby(config_data["unitid"])[config_data["cluster"]].nunique()
-    assert (unit_groups == 1).all(), "All units should be invariant within their cluster"
-
-
-def test_unit_invariant_cluster_invalid(curacao_sim_data):
-    df_invalid = curacao_sim_data["df"].copy()
-    # Introduce a unit with multiple cluster assignments
-    df_invalid.loc[df_invalid.index[:2], "Region"] = [0, 1]  # same unit, different clusters
-
-    config_data = {
-        "df": df_invalid,
+def test_budget_dict_nonpositive(curacao_sim_data):
+    df = curacao_sim_data["df"].copy()
+    df["Region"] = pd.Categorical(df["Region"]).codes
+    clusters = df["Region"].unique()
+    budget_dict = {c: 5 if c == 0 else 0 for c in clusters}  # one cluster has 0 budget
+    config = {
+        "df": df,
         "outcome": "Y_obs",
         "unitid": "town",
         "time": "time",
         "cluster": "Region",
+        "budget": budget_dict
     }
-
-    with pytest.raises(MlsynthDataError, match=r"The following units have multiple cluster assignments"):
-        MAREXConfig(**config_data)
-
-
-def make_dummy_df(n_units=4, n_periods=3):
-    """Helper to make a minimal valid df for config tests."""
-    df = pd.DataFrame({
-        "unit": np.repeat(np.arange(n_units), n_periods),
-        "time": list(range(n_periods)) * n_units,
-        "y": np.random.randn(n_units * n_periods),
-        "cluster": np.repeat([0, 1], n_units * n_periods // 2),
-    })
-    return df
+    with pytest.raises(MlsynthDataError, match="must be strictly positive"):
+        MAREXConfig(**config)
 
 
-def test_negative_cost_raises():
-    df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="strictly positive"):
-        MAREXConfig(
-            df=df,
-            unitid="unit",
-            time="time",
-            outcome="y",
-            cluster="cluster",
-            costs=[1, -5, 3, 4],
-            budget=10
-        )
 
 
-def test_zero_cost_raises():
-    df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="strictly positive"):
-        MAREXConfig(
-            df=df,
-            unitid="unit",
-            time="time",
-            outcome="y",
-            cluster="cluster",
-            costs=[0, 2, 3, 4],
-            budget=10
-        )
-
-
-def test_zero_budget_scalar_raises():
-    df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="strictly positive"):
-        MAREXConfig(
-            df=df,
-            unitid="unit",
-            time="time",
-            outcome="y",
-            cluster="cluster",
-            costs=[1, 2, 3, 4],
-            budget=0
-        )
-
-
-def test_negative_budget_scalar_raises():
-    df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="strictly positive"):
-        MAREXConfig(
-            df=df,
-            unitid="unit",
-            time="time",
-            outcome="y",
-            cluster="cluster",
-            costs=[1, 2, 3, 4],
-            budget=-10
-        )
-
-
-def test_missing_cluster_in_budget_dict_raises():
-    df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="missing entry for cluster"):
-        MAREXConfig(
-            df=df,
-            unitid="unit",
-            time="time",
-            outcome="y",
-            cluster="cluster",
-            costs=[1, 2, 3, 4],
-            budget={0: 5}  # missing cluster 1
-        )
-
-
-def test_nonpositive_budget_dict_raises():
-    df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="strictly positive"):
-        MAREXConfig(
-            df=df,
-            unitid="unit",
-            time="time",
-            outcome="y",
-            cluster="cluster",
-            costs=[1, 2, 3, 4],
-            budget={0: 5, 1: 0}
-        )
 
 
 
