@@ -77,6 +77,7 @@ def _validate_scm_inputs(Y_full, T0, blank_periods, design,
         raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit'")
 
 
+
 def _validate_costs_budget(costs, budget, N, cluster_labels, K):
     """
     Validate and process cost and budget inputs for SCM.
