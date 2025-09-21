@@ -399,7 +399,7 @@ def test_valid_costs_and_budget_dict():
 
 def test_negative_cost_raises():
     df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="must be strictly positive"):
+    with pytest.raises(ValidationError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -410,10 +410,9 @@ def test_negative_cost_raises():
             budget=10
         )
 
-
 def test_zero_cost_raises():
     df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="must be strictly positive"):
+    with pytest.raises(ValidationError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -424,10 +423,9 @@ def test_zero_cost_raises():
             budget=10
         )
 
-
 def test_zero_budget_scalar_raises():
     df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="must be strictly positive"):
+    with pytest.raises(ValidationError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -438,10 +436,9 @@ def test_zero_budget_scalar_raises():
             budget=0
         )
 
-
 def test_negative_budget_scalar_raises():
     df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="must be strictly positive"):
+    with pytest.raises(ValidationError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -452,10 +449,9 @@ def test_negative_budget_scalar_raises():
             budget=-10
         )
 
-
 def test_missing_cluster_in_budget_dict_raises():
     df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="missing entry for cluster"):
+    with pytest.raises(ValidationError, match="missing entry for cluster"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -466,10 +462,9 @@ def test_missing_cluster_in_budget_dict_raises():
             budget={0: 5}  # missing cluster 1
         )
 
-
 def test_nonpositive_budget_dict_raises():
     df = make_dummy_df()
-    with pytest.raises(MlsynthDataError, match="must be strictly positive"):
+    with pytest.raises(ValidationError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -479,7 +474,6 @@ def test_nonpositive_budget_dict_raises():
             costs=[1, 2, 3, 4],
             budget={0: 5, 1: 0}
         )
-
 
 
 
