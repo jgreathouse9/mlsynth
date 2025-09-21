@@ -32,7 +32,7 @@ def test_miqp_solver_available():
     # Print installed solvers for visibility
     print("Installed solvers:", installed)
     # Assert that at least one MIQP solver is available
-    assert any(solver in installed for solver in miqp_solvers), \
+    assert any(solver in installed for solver in miqp_solvers),\
         f"No MIQP solver installed. Installed solvers: {installed}"
 
 
@@ -205,7 +205,7 @@ def test_clusters_column_as_string(curacao_sim_data):
 
 
 def test_m_eq_too_large(curacao_sim_data):
-    """m_eq cannot exceed max cluster size"""
+    """M_eq cannot exceed max cluster size"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
     max_size = df.groupby("Region").size().max()
@@ -224,7 +224,7 @@ def test_m_eq_too_large(curacao_sim_data):
 
 
 def test_m_min_less_than_one(curacao_sim_data):
-    """m_min must be >= 1"""
+    """M_min must be >= 1"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
 
@@ -242,7 +242,7 @@ def test_m_min_less_than_one(curacao_sim_data):
 
 
 def test_m_max_greater_than_smallest_cluster(curacao_sim_data):
-    """m_max cannot exceed min cluster size"""
+    """M_max cannot exceed min cluster size"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
     min_size = df.groupby("Region").size().min()
@@ -261,7 +261,7 @@ def test_m_max_greater_than_smallest_cluster(curacao_sim_data):
 
 
 def test_m_min_greater_than_m_max(curacao_sim_data):
-    """m_min cannot be greater than m_max"""
+    """M_min cannot be greater than m_max"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
 
@@ -301,7 +301,7 @@ def test_valid_m_min_and_m_max(curacao_sim_data):
 
 
 def test_valid_m_eq(curacao_sim_data):
-    """m_eq within max cluster size should pass"""
+    """M_eq within max cluster size should pass"""
     df = curacao_sim_data["df"].copy()
     df["Region"] = pd.Categorical(df["Region"]).codes
     max_size = df.groupby("Region").size().max()
