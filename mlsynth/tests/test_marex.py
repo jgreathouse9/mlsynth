@@ -1170,6 +1170,90 @@ test_scmexp_rel_basic_int_clusters()
 
 
 
+def test_scmexp_rel_basic_shapes():
+    """Check that SCMEXP_REL returns expected keys and shapes for small input."""
+    N, T, K = 6, 10, 2
+    Y_full = np.random.randn(N, T)
+    clusters = np.array([0, 0, 0, 1, 1, 1])
+    
+    result = SCMEXP_REL(Y_full, T0=5, clusters=clusters, blank_periods=2, verbose=False)
+    
+    # Expected keys
+    keys = [
+        "w_opt_rel", "v_opt_rel", "z_opt_rel", "w_opt", "v_opt",
+        "selected_treated", "selected_control", "y_syn_treated_clusters",
+        "y_syn_control_clusters", "Xbar_clusters", "cluster_labels",
+        "cluster_members", "w_agg", "v_agg", "cluster_sizes",
+        "T0", "blank_periods", "T_fit", "Y_fit", "Y_blank",
+        "rmse_cluster", "rmse_blank", "design", "beta", "lambda1",
+        "lambda2", "xi", "zeta", "original_cluster_vector"
+    ]
+    for k in keys:
+        assert k in result
+
+    # Shapes sanity checks
+    assert result["w_opt_rel"].shape == (N, K)
+    assert result["v_opt_rel"].shape == (N, K)
+    assert result["w_opt"].shape == (N, K)
+    assert result["v_opt"].shape == (N, K)
+    assert len(result["cluster_members"]) == K
+    assert result["w_agg"].shape[0] == N
+    assert result["v_agg"].shape[0] == N
+
+def test_scmexp_rel_zero_budget():
+    """Check that the function handles zero budget."""
+    N, T, K = 4, 8, 2
+    Y_full = np.random.randn(N, T)
+    clusters = np.array([0, 0, 1, 1])
+    
+    result = SCMEXP_REL(Y_full, T0=4, clusters=clusters, costs=np.ones(N), budget=0)
+    
+    # Should select no units
+    for selected in result["selected_treated"]:
+        assert len(selected) == 0
+
+def test_scmexp_rel_empty_clusters():
+    """Check that the function raises if a cluster has no members."""
+    N, T = 5, 10
+    Y_full = np.random.randn(N, T)
+    clusters = np.array([0, 0, 1, 2, 3])  # K=4, cluster 3 has 1 member, but let's remove it
+    clusters[4] = -1  # Invalid cluster
+    
+    import pytest
+    with pytest.raises(ValueError):
+        SCMEXP_REL(Y_full, T0=5, clusters=clusters)
+
+def test_scmexp_rel_posthoc_nonnegative_weights():
+    """Check that post-hoc discretization produces non-negative weights."""
+    N, T, K = 6, 12, 2
+    Y_full = np.random.randn(N, T)
+    clusters = np.array([0, 0, 0, 1, 1, 1])
+    
+    result = SCMEXP_REL(Y_full, T0=6, clusters=clusters)
+    
+    assert np.all(result["w_opt"] >= 0)
+    assert np.all(result["v_opt"] >= 0)
+
+def test_scmexp_rel_relaxed_vs_posthoc_consistency():
+    """Check that relaxed weights are reasonably related to post-hoc weights."""
+    N, T, K = 8, 10, 2
+    Y_full = np.random.randn(N, T)
+    clusters = np.array([0]*4 + [1]*4)
+    
+    result = SCMEXP_REL(Y_full, T0=5, clusters=clusters)
+    
+    w_rel = result["w_opt_rel"]
+    w_post = result["w_opt"]
+    
+    # relaxed weights should be > 0 somewhere in each cluster
+    for k in range(K):
+        assert np.any(w_rel[:, k] > 0)
+        # Post-hoc should be <= relaxed weights (since trimmed)
+        assert np.all(w_post[:, k] <= w_rel[:, k] + 1e-12)
+
+
+
+
 # Inference 
 
 def test_global_inference_shapes():
