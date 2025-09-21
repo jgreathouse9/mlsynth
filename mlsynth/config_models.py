@@ -6,77 +6,18 @@ from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import warnings
 
 
-from typing import List, Optional, Any, Dict, Union
-import pandas as pd
-import numpy as np
-from pydantic import BaseModel, Field, model_validator
-from mlsynth.exceptions import MlsynthDataError
-import warnings
-
-
 class BaseMAREXConfig(BaseModel):
-    """
-    Base configuration for synthetic experiment designs.
-    Contains fields common to all synthetic experiment-based estimators.
-    """
-    df: pd.DataFrame = Field(..., description="Input panel data (units x time).")
-    outcome: str = Field(..., description="Column name for the outcome variable.")
-    unitid: str = Field(..., description="Column name for the unit identifier.")
-    time: str = Field(..., description="Column name for the time period.")
-
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "forbid"
-
-    @model_validator(mode="after")
-    def check_df_columns(cls, values: Any) -> Any:
-        df = values.df
-        outcome = values.outcome
-        unitid = values.unitid
-        time = values.time
-
-        if df.empty:
-            raise MlsynthDataError("Input DataFrame 'df' cannot be empty.")
-
-        # Ensure required columns exist
-        required_columns = {outcome, unitid, time}
-        missing_columns = required_columns - set(df.columns)
-        if missing_columns:
-            raise MlsynthDataError(
-                f"Missing required columns in DataFrame: {', '.join(sorted(missing_columns))}"
-            )
-
-        # Check for missing values in required columns
-        missing_info = {col: int(df[col].isna().sum()) for col in required_columns if df[col].isna().any()}
-        if missing_info:
-            details = ", ".join([f"{col}: {count}" for col, count in missing_info.items()])
-            raise MlsynthDataError(
-                f"Missing values detected in required columns -> {details}. "
-                "Please clean or impute these values before passing to BaseMAREXConfig."
-            )
-
-        # Check for uniqueness of (unitid, time) pairs
-        duplicate_count = df.duplicated(subset=[unitid, time]).sum()
-        if duplicate_count > 0:
-            raise MlsynthDataError(
-                f"Duplicate (unitid, time) pairs found: {duplicate_count}. "
-                f"Each (unitid, time) combination must be unique in panel data."
-            )
-
-        # Ensure time is sorted within each unit (auto-fix if not)
-        if not df.sort_values([unitid, time]).equals(df):
-            warnings.warn(
-                f"DataFrame was not sorted by [{unitid}, {time}] — auto-sorting applied.",
-                UserWarning
-            )
-            df = df.sort_values([unitid, time]).reset_index(drop=True)
-            values.df = df  # overwrite with sorted DataFrame
-
-        return values
+    """Base configuration shared across estimators."""
+    df: pd.DataFrame
+    unitid: str
+    time: str
+    costs: Optional[np.ndarray] = None
+    budget: Optional[Any] = None
 
 
 class MAREXConfig(BaseMAREXConfig):
     """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
+
     T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
     cluster: Optional[str] = Field(
         default=None,
@@ -124,7 +65,9 @@ class MAREXConfig(BaseMAREXConfig):
         # Validate T0
         n_periods = df[time_col].nunique()
         if T0 is not None and (T0 <= 0 or T0 > n_periods):
-            raise MlsynthDataError(f"T0 must be between 1 and the number of time periods ({n_periods}).")
+            raise MlsynthDataError(
+                f"T0 must be between 1 and the number of time periods ({n_periods})."
+            )
 
         # Validate design
         valid_designs = {"base", "weak", "eq11", "unit"}
@@ -172,7 +115,9 @@ class MAREXConfig(BaseMAREXConfig):
 
             # Check for emptiness
             if col.isna().all():
-                raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values")
+                raise MlsynthDataError(
+                    f"Cluster column '{cluster_col}' contains only missing values"
+                )
 
             # Warn if some values are missing
             if col.isna().any():
@@ -225,9 +170,36 @@ class MAREXConfig(BaseMAREXConfig):
 
             values.df = df  # overwrite DataFrame in Pydantic model
 
+        # --- Costs and budget validation ---
+        costs = values.costs
+        budget = values.budget
+
+        if costs is not None:
+            costs = np.asarray(costs)
+            if np.any(costs <= 0):
+                raise MlsynthDataError(
+                    f"All costs must be strictly positive; found values {costs[costs <= 0]}"
+                )
+            if budget is None:
+                raise MlsynthDataError("budget must be specified if costs are provided")
+
+            if isinstance(budget, (int, float)):
+                if budget <= 0:
+                    raise MlsynthDataError(f"Budget must be > 0; got {budget}")
+            elif isinstance(budget, dict):
+                bad = {k: v for k, v in budget.items() if v <= 0}
+                if bad:
+                    raise MlsynthDataError(
+                        f"Budget must be > 0 for all clusters; found invalid entries: {bad}"
+                    )
+            else:
+                raise MlsynthDataError(
+                    f"budget must be scalar or dict; got type {type(budget).__name__}"
+                )
+
+            values.costs = costs
+
         return values
-
-
 
 
 
@@ -714,6 +686,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
