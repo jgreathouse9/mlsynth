@@ -240,7 +240,7 @@ class MAREX:
         T_post = Y_full.shape[1] - T0  # number of post-treatment periods
         inference_out = inference_scm_vectorized(
         result=raw_results,
-        Y_full=Y_full,
+        Y_full=Y_full.to_numpy(),
         T_post=T_post,
         alpha=0.05,
         method="placebo"
@@ -259,6 +259,7 @@ class MAREX:
         marex_results = processor.get_results()
 
         return marex_results
+
 
 
 
