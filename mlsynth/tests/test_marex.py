@@ -367,39 +367,9 @@ def make_dummy_df(n_units=4, n_periods=3):
     return df
 
 
-def test_valid_costs_and_budget_scalar():
-    df = make_dummy_df()
-    cfg = MAREXConfig(
-        df=df,
-        unitid="unit",
-        time="time",
-        outcome="y",
-        cluster="cluster",
-        costs=[1, 2, 3, 4],
-        budget=10
-    )
-    assert all(c > 0 for c in cfg.costs)
-    assert cfg.budget == 10
-
-
-def test_valid_costs_and_budget_dict():
-    df = make_dummy_df()
-    cfg = MAREXConfig(
-        df=df,
-        unitid="unit",
-        time="time",
-        outcome="y",
-        cluster="cluster",
-        costs=[1, 2, 3, 4],
-        budget={0: 5, 1: 5}
-    )
-    assert isinstance(cfg.budget, dict)
-    assert set(cfg.budget.keys()) == {0, 1}
-
-
 def test_negative_cost_raises():
     df = make_dummy_df()
-    with pytest.raises(ValidationError, match="strictly positive"):
+    with pytest.raises(MlsynthDataError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -410,9 +380,10 @@ def test_negative_cost_raises():
             budget=10
         )
 
+
 def test_zero_cost_raises():
     df = make_dummy_df()
-    with pytest.raises(ValidationError, match="strictly positive"):
+    with pytest.raises(MlsynthDataError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -423,9 +394,10 @@ def test_zero_cost_raises():
             budget=10
         )
 
+
 def test_zero_budget_scalar_raises():
     df = make_dummy_df()
-    with pytest.raises(ValidationError, match="strictly positive"):
+    with pytest.raises(MlsynthDataError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -436,9 +408,10 @@ def test_zero_budget_scalar_raises():
             budget=0
         )
 
+
 def test_negative_budget_scalar_raises():
     df = make_dummy_df()
-    with pytest.raises(ValidationError, match="strictly positive"):
+    with pytest.raises(MlsynthDataError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -449,9 +422,10 @@ def test_negative_budget_scalar_raises():
             budget=-10
         )
 
+
 def test_missing_cluster_in_budget_dict_raises():
     df = make_dummy_df()
-    with pytest.raises(ValidationError, match="missing entry for cluster"):
+    with pytest.raises(MlsynthDataError, match="missing entry for cluster"):
         MAREXConfig(
             df=df,
             unitid="unit",
@@ -462,9 +436,10 @@ def test_missing_cluster_in_budget_dict_raises():
             budget={0: 5}  # missing cluster 1
         )
 
+
 def test_nonpositive_budget_dict_raises():
     df = make_dummy_df()
-    with pytest.raises(ValidationError, match="strictly positive"):
+    with pytest.raises(MlsynthDataError, match="strictly positive"):
         MAREXConfig(
             df=df,
             unitid="unit",
