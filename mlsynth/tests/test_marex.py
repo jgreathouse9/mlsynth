@@ -19,7 +19,7 @@ from mlsynth.utils.exputils import (
     _precompute_distances,
     _init_cvxpy_variables,
     _build_constraints,
-    _build_objective, inference_scm_vectorized, 
+    _build_objective, 
 _compute_placebo_ci_vectorized)
 
 from mlsynth.utils.exprelutils import _post_hoc_discretize, SCMEXP_REL
