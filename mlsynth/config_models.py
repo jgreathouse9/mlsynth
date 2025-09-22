@@ -648,6 +648,8 @@ class GlobalResults(BaseModel):
     treated_weights_agg: np.ndarray       # Flattened treated weights across all units
     control_weights_agg: np.ndarray       # Flattened control weights across all units
     rmse_clusters: Optional[np.ndarray] = None  # Pre-treatment RMSE for each cluster
+    synthetic_treated: np.ndarray       # Treated Average
+    synthetic_control: np.ndarray       # Control Average
 
     class Config:
         arbitrary_types_allowed = True
