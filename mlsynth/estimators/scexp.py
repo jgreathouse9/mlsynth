@@ -76,9 +76,9 @@ class MAREX:
             w_opt = self.scm_result.get("w_opt")
             v_opt = self.scm_result.get("v_opt")
             z_opt = self.scm_result.get("z_opt")
+            Y_full = self.scm_result.get("Y_full")
             Y_fit = self.scm_result.get("Y_fit")
             Y_blank = self.scm_result.get("Y_blank")
-            Y_full = self.scm_result.get("Y_full")
 
             clusters_vector = self.scm_result.get("original_cluster_vector")
             unit_labels = self.scm_result['df'].index.to_list()
@@ -86,40 +86,31 @@ class MAREX:
             unique_clusters = np.unique(clusters_vector)
 
             for c in unique_clusters:
+                # Get units in this cluster
                 cluster_units_idx = np.where(clusters_vector == c)[0]
                 members = [unit_labels[i] for i in cluster_units_idx]
+
+                # Selection mask
                 selection_indicators = z_opt[cluster_units_idx, c] if z_opt is not None else np.zeros(
                     len(cluster_units_idx))
-                treated_weights = np.where(
-                    selection_indicators == 1,
-                    w_opt[cluster_units_idx, c],  # pick only column c
-                    0.0
-                )
-                control_weights = np.where(
-                    selection_indicators == 0,
-                    v_opt[cluster_units_idx, c],
-                    0.0
-                )
 
+                # Take the full cluster column directly
+                treated_weights = w_opt[:, c]  # all treated weights for this cluster
+                control_weights = v_opt[:, c]  # all control weights for this cluster
+
+                # Precompute full synthetic treated/control vectors
+                synthetic_treated = treated_weights.T @ self.scm_result['df'].to_numpy()
+                synthetic_control = control_weights.T @ self.scm_result['df'].to_numpy()
+
+                # Map of unit → weight
                 unit_weight_map = {
-                    "Treated": {
-                        members[i]: treated_weights[i]
-                        for i in range(len(members))
-                        if selection_indicators[i] == 1
-                    },
-                    "Control": {
-                        members[i]: control_weights[i]
-                        for i in range(len(members))
-                        if selection_indicators[i] == 0 and control_weights[i] > 0
-                    }
+                    "Treated": {unit_labels[i]: treated_weights[i] for i in range(len(unit_labels)) if
+                                treated_weights[i] > 0},
+                    "Control": {unit_labels[i]: control_weights[i] for i in range(len(unit_labels)) if
+                                control_weights[i] > 0}
                 }
 
-
-
                 pre_means = self.scm_result['Xbar_clusters'][c]
-                synthetic_treated, synthetic_control = [
-                    self.scm_result[f'y_syn_{grp}_clusters'][c][:T0] for grp in ['treated', 'control']
-                ]
 
                 clusters_out[str(c)] = ClusterResults(
                     members=members,
@@ -154,9 +145,11 @@ class MAREX:
             global_pre_results = GlobalResults(
                 Y_fit=Y_fit,
                 Y_blank=Y_blank,
-                Y_full=Y_full,
+                Y_full=self.scm_result['df'].to_numpy(),
                 treated_weights_agg=adjusted_treated_weights_agg,
-                control_weights_agg=adjusted_control_weights_agg
+                control_weights_agg=adjusted_control_weights_agg,
+                synthetic_treated = adjusted_treated_weights_agg.T @ self.scm_result['df'].to_numpy(),
+                synthetic_control=adjusted_control_weights_agg.T @ self.scm_result['df'].to_numpy()
             )
 
             return MAREXResults(
@@ -164,8 +157,6 @@ class MAREX:
                 study=study_config,
                 globres=global_pre_results
             )
-
-
 
     def fit(self) -> MAREXResults:
         # Ensure the panel data is balanced
