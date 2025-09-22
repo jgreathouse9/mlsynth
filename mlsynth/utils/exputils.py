@@ -63,8 +63,8 @@ def _validate_scm_inputs(Y_full, T0, blank_periods, design,
     """
 
     # --- basic shape checks ---
-    if T0 <= 0 or T0 >= Y_full.shape[1]:  # strict inequality
-        raise ValueError("T0 must be 1 <= T0 < Y_full.shape[1]")
+    if T0 <= 0 or T0 > Y_full.shape[1]:  # allow equality
+        raise ValueError(f"T0 must be 1 <= T0 <= Y_full.shape[1] (got T0={T0}, Y_full.shape[1]={Y_full.shape[1]})")
     if blank_periods < 0 or blank_periods >= T0:
         raise ValueError("blank_periods must be 0 <= blank_periods < T0 (need at least 1 fit period)")
 
@@ -75,7 +75,6 @@ def _validate_scm_inputs(Y_full, T0, blank_periods, design,
         raise ValueError("lambda1/lambda2 are only valid when design == 'eq11'")
     if design != "unit" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
         raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit'")
-
 
 
 def _validate_costs_budget(costs, budget, N, cluster_labels, K):
@@ -468,133 +467,101 @@ def SCMEXP(
 
     return result
 
-def _compute_placebo_ci_vectorized(tau_hat, Y_blank_T, w, v, rmspe_pre, rmse_cluster=None, alpha=0.05):
+def marexinf(
+    Y_treated, Y_control, T0, TcE, Tb, alpha=0.05, max_combinations=1000, random_state=None
+):
     """
-    Vectorized computation of placebo CI and p-values for global or cluster-level SCM inference.
+    Approximate inference for synthetic control using random subsampling.
 
-    Args:
-        tau_hat : np.ndarray
-            Per-period treatment effects. Shape (T_post,) for global or (K, T_post) for clusters.
-        Y_blank_T : np.ndarray
-            Transposed blank periods, shape (blank_periods, N_units)
-        w : np.ndarray
-            Weight vectors, shape (N_units,) for global or (N_units, K) for clusters
-        v : np.ndarray
-            Control weight vectors, same shape as w
-        rmspe_pre : float
-            Pre-treatment RMSPE for scaling
-        rmse_cluster : np.ndarray or None
-            Cluster-specific RMSPE for scaling, shape (K,)
-        alpha : float
-            Significance level for CI
+    This function computes treatment effects, split-conformal confidence intervals,
+    and permutation-based p-values for both global and per-period tests using
+    pre-treatment "blank" periods as placebos. It follows the approach described
+    in Abadie and Zhao (2025).
 
-    Returns:
-        ci_lower, ci_upper, p_values : np.ndarray
-            Confidence intervals and p-values with same shape as tau_hat
+    Parameters
+    ----------
+    Y_treated : array-like
+        Outcomes for the treated unit (length = T0 + post-treatment).
+    Y_control : array-like
+        Outcomes for the synthetic control (same length as Y_treated).
+    T0 : int
+        Number of pre-treatment periods.
+    TcE : int
+        Number of pre-treatment periods used for fitting the synthetic control.
+    Tb : int
+        Number of blank pre-treatment periods (not used in fitting).
+    alpha : float, default=0.05
+        Significance level for confidence intervals.
+    max_combinations : int, default=1000
+        Number of random subsets sampled for the global permutation test.
+    random_state : int, optional
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    dict
+        Dictionary containing:
+        - 'treated_effects': array of treatment effects for post-treatment periods
+        - 'placebo_effects': array of effects in blank pre-treatment periods
+        - 'S_obs': observed global test statistic
+        - 'global_p_value': p-value for the global test
+        - 'per_period_pvals': p-values for each post-treatment period
+        - 'CI': array of split-conformal confidence intervals (lower, upper)
+
+    References
+    ----------
+    Abadie, A., & Zhao, J. (2025). Synthetic Controls for Experimental Design.
+    arXiv:2108.02196 [stat.ME]. Retrieved from https://arxiv.org/abs/2108.02196
     """
-    assert Y_blank_T.shape[1] == w.shape[0], "Mismatch between Y_blank_T and weight vector dimensions."
 
-    if np.isnan(Y_blank_T).any():
-        raise ValueError("Y_blank contains NaNs, cannot compute placebo inference.")
+    rng = np.random.default_rng(random_state)
+    T_post = len(Y_treated) - T0
 
+    # Effects
+    blank_indices = np.arange(TcE, TcE + Tb)
+    post_indices = np.arange(T0, T0 + T_post)
 
-    if w.ndim == 1:
-        # Global inference
-        u_blank = Y_blank_T @ w - Y_blank_T @ v
-        scale = np.sqrt(np.mean(u_blank**2)) / rmspe_pre if rmspe_pre > 0 else 1
-        q = np.quantile(np.abs(u_blank), 1 - alpha)
-        ci_lower = tau_hat - q * scale
-        ci_upper = tau_hat + q * scale
-        p_values = np.array([np.mean(np.abs(u_blank) >= np.abs(t)) for t in tau_hat])
-    else:
-        # Cluster-level inference
-        u_blank = Y_blank_T @ w - Y_blank_T @ v  # (blank_periods, K)
-        abs_u_blank = np.abs(u_blank)
-        q = np.quantile(abs_u_blank, 1 - alpha, axis=0)  # (K,)
-        tau_hat = np.atleast_2d(tau_hat)
-        safe_rmse = np.where(rmse_cluster > 0, rmse_cluster, 1.0)
-        scale = np.sqrt(np.mean(u_blank**2, axis=0)) / safe_rmse
-        ci_lower = tau_hat - q[:, None] * scale[:, None]
-        ci_upper = tau_hat + q[:, None] * scale[:, None]
-        # p-values
-        T_post = tau_hat.shape[1]
-        p_values = np.zeros_like(tau_hat)
-        for t in range(T_post):
-            p_values[:, t] = np.mean(abs_u_blank >= np.abs(tau_hat[:, t]), axis=0)
+    placebo_effects = Y_treated[blank_indices] - Y_control[blank_indices]
+    treated_effects = Y_treated[post_indices] - Y_control[post_indices]
 
-    return ci_lower, ci_upper, p_values
+    # Combine for permutation test
+    all_effects = np.concatenate([placebo_effects, treated_effects])
+    n_total = len(all_effects)
 
+    # Random subsampling of subsets
+    pi_list = np.array([
+        rng.choice(n_total, size=T_post, replace=False)
+        for _ in range(max_combinations)
+    ])
 
-def inference_scm_vectorized(result, Y_full, T_post, alpha=0.05, method='placebo'):
-    """
-    Vectorized SCM inference for global and cluster-specific effects.
+    # Global test statistic
+    S_obs = np.mean(np.abs(treated_effects))
+    S_perm = np.mean(np.abs(all_effects[pi_list]), axis=1)
+    global_p_value = np.mean(S_perm >= S_obs)
 
-    Args:
-        result : dict
-            SCM output including 'w_opt', 'v_opt', 'w_agg', 'v_agg', 'Y_fit', 'Y_blank', 'rmse_cluster', 'T0'
-        Y_full : np.ndarray
-            Full outcome data (N_units x T_total)
-        T_post : int
-            Number of post-intervention periods
-        alpha : float
-            Significance level
-        method : str
-            Only 'placebo' supported
-
-    Returns:
-        dict with global and cluster-specific inference
-    """
-    if method != 'placebo':
-        raise ValueError("Only 'placebo' method is supported.")
-
-    T0 = result["T0"]
-    w_agg = result["w_agg"]
-    v_agg = result["v_agg"]
-    w_opt = result["w_opt"]
-    v_opt = result["v_opt"]
-    Y_fit = result["Y_fit"]
-    Y_blank = result["Y_blank"]
-    rmse_cluster = result["rmse_cluster"]
-
-    # Post-intervention outcomes
-    Y_post_T = Y_full[:, T0:T0 + T_post].T  # (T_post, N_units)
-
-    # Global effects
-    tau_hat = Y_post_T @ w_agg - Y_post_T @ v_agg
-    avg_tau_hat = np.mean(tau_hat) if T_post > 0 else 0.0
-
-    # Cluster effects
-    tau_hat_cluster = (Y_post_T @ w_opt - Y_post_T @ v_opt).T  # (K, T_post)
-    avg_tau_cluster = np.mean(tau_hat_cluster, axis=1) if T_post > 0 else np.zeros(w_opt.shape[1])
-
-    # Pre-fit RMSPE (global)
-    syn_fit_treated = Y_fit.T @ w_agg
-    syn_fit_control = Y_fit.T @ v_agg
-    rmspe_pre = np.sqrt(np.mean((syn_fit_treated - syn_fit_control) ** 2))
-
-    # Placebo inference
-    Y_blank_T = Y_blank.T
-    ci_lower, ci_upper, p_values = _compute_placebo_ci_vectorized(
-        tau_hat, Y_blank_T, w_agg, v_agg, rmspe_pre, alpha=alpha
+    # Per-period p-values
+    per_period_pvals = np.mean(
+        np.abs(placebo_effects)[:, None] >= np.abs(treated_effects)[None, :],
+        axis=0
     )
-    ci_lower_cluster, ci_upper_cluster, p_values_cluster = _compute_placebo_ci_vectorized(
-        tau_hat_cluster, Y_blank_T, w_opt, v_opt, rmspe_pre, rmse_cluster, alpha=alpha
-    )
+
+    # Confidence intervals (split conformal)
+    q = np.quantile(np.abs(placebo_effects), 1 - alpha)
+    CI = np.column_stack([treated_effects - q, treated_effects + q])
 
     return {
-        "tau_hat": tau_hat,
-        "avg_tau_hat": avg_tau_hat,
-        "tau_hat_cluster": tau_hat_cluster,
-        "avg_tau_cluster": avg_tau_cluster,
-        "p_values": p_values,
-        "ci_lower": ci_lower,
-        "ci_upper": ci_upper,
-        "p_values_cluster": p_values_cluster,
-        "ci_lower_cluster": ci_lower_cluster,
-        "ci_upper_cluster": ci_upper_cluster,
-        "rmspe_pre": rmspe_pre,
-        "rmse_cluster": rmse_cluster
+        "treated_effects": treated_effects,
+        "placebo_effects": placebo_effects,
+        "S_obs": S_obs,
+        "global_p_value": global_p_value,
+        "per_period_pvals": per_period_pvals,
+        "CI": CI
     }
+
+
+
+
+
 
 def plot_cluster_full(df, marex_results, show=True, save_path=None):
     """
