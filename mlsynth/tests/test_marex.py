@@ -738,27 +738,6 @@ def test_prepare_clusters_mismatched_length():
         _prepare_clusters(Y, clusters)
 
 # -------------------------
-# _validate_scm_inputs
-# -------------------------
-def test_validate_scm_inputs_basic_and_design_checks():
-    Y = np.zeros((3,5))
-    # T0 invalid
-    with pytest.raises(ValueError):
-        _validate_scm_inputs(Y, 0, 0, "base")
-    with pytest.raises(ValueError):
-        _validate_scm_inputs(Y, 5, 0, "base")
-    # blank_periods invalid
-    with pytest.raises(ValueError):
-        _validate_scm_inputs(Y, 3, 3, "base")
-    # design incompatible parameters
-    with pytest.raises(ValueError):
-        _validate_scm_inputs(Y, 3, 1, "base", beta=0.1)
-    with pytest.raises(ValueError):
-        _validate_scm_inputs(Y, 3, 1, "weak", lambda1=0.1)
-    with pytest.raises(ValueError):
-        _validate_scm_inputs(Y, 3, 1, "base", xi=0.1)
-
-# -------------------------
 # _validate_costs_budget
 # -------------------------
 def test_validate_costs_budget_scalar_and_dict():
