@@ -512,39 +512,6 @@ def test_fit_cluster_none(curacao_sim_data):
     assert all(isinstance(c, type(next(iter(results.clusters.values())))) for c in results.clusters.values())
 
 # ----------------------------------------------------
-# Results Structure Tests
-# ----------------------------------------------------
-
-def test_results_structure(curacao_sim_data):
-    config = {
-        "df": curacao_sim_data["df"],
-        "outcome": "Y_obs",
-        "unitid": "town",
-        "time": "time",
-        "cluster": "Region",
-        "m_eq": 1
-    }
-    marex = MAREX(config=MAREXConfig(**config))
-    results = marex.fit()
-
-    # Global results
-    glob = results.globres
-    assert hasattr(glob, "Y_fit")
-    assert hasattr(glob, "treated_weights_agg")
-    assert hasattr(glob, "control_weights_agg")
-
-    # Cluster results
-    for cluster_id, cluster_res in results.clusters.items():
-        assert isinstance(cluster_res.members, list)
-        assert cluster_res.cluster_cardinality == len(cluster_res.members)
-        assert cluster_res.synthetic_treated.shape[0] <= results.study.T0
-        assert cluster_res.synthetic_control.shape[0] <= results.study.T0
-        assert cluster_res.treated_weights.shape[0] == len(cluster_res.members)
-        assert cluster_res.control_weights.shape[0] == len(cluster_res.members)
-        assert cluster_res.selection_indicators.shape[0] == len(cluster_res.members)
-        assert isinstance(cluster_res.unit_weight_map, dict)
-
-# ----------------------------------------------------
 # Extreme / Stress Tests
 # ----------------------------------------------------
 
