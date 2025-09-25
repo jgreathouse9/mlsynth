@@ -4,67 +4,7 @@ import numpy as np
 from pydantic import BaseModel, Field, model_validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import warnings
-
-class InferenceResults(BaseModel):
-    """Approximate synthetic control inference results computed from raw data."""
-    
-    # Input parameters (optional to store)
-    Y_treated: np.ndarray
-    Y_control: np.ndarray
-    T0: int
-    TcE: int
-    Tb: int
-    alpha: float = 0.05
-    max_combinations: int = 1000
-    random_state: Optional[int] = None
-
-    # Output results (filled after computation)
-    treated_effects: Optional[np.ndarray] = None
-    placebo_effects: Optional[np.ndarray] = None
-    S_obs: Optional[float] = None
-    global_p_value: Optional[float] = None
-    per_period_pvals: Optional[np.ndarray] = None
-    CI: Optional[np.ndarray] = None
-
-    # Allow np.ndarray types
-    model_config = {"arbitrary_types_allowed": True}
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.compute_inference()
-
-    def compute_inference(self):
-        rng = np.random.default_rng(self.random_state)
-        T_post = len(self.Y_treated) - self.T0
-
-        # Indices
-        blank_indices = np.arange(self.TcE, self.TcE + self.Tb)
-        post_indices = np.arange(self.T0, self.T0 + T_post)
-
-        # Compute effects
-        self.placebo_effects = self.Y_treated[blank_indices] - self.Y_control[blank_indices]
-        self.treated_effects = self.Y_treated[post_indices] - self.Y_control[post_indices]
-
-        # Global permutation test
-        all_effects = np.concatenate([self.placebo_effects, self.treated_effects])
-        n_total = len(all_effects)
-        pi_list = np.array([rng.choice(n_total, size=T_post, replace=False)
-                            for _ in range(self.max_combinations)])
-        self.S_obs = np.mean(np.abs(self.treated_effects))
-        S_perm = np.mean(np.abs(all_effects[pi_list]), axis=1)
-        self.global_p_value = np.mean(S_perm >= self.S_obs)
-
-        # Per-period p-values
-        self.per_period_pvals = np.mean(
-            np.abs(self.placebo_effects)[:, None] >= np.abs(self.treated_effects)[None, :],
-            axis=0
-        )
-
-        # Split-conformal confidence intervals
-        q = np.quantile(np.abs(self.placebo_effects), 1 - self.alpha)
-        self.CI = np.column_stack([self.treated_effects - q, self.treated_effects + q])
-
-
+from mlsynth.utils.exputils import InferenceResults
 
 class BaseMAREXConfig(BaseModel):
     """
@@ -710,6 +650,7 @@ class GlobalResults(BaseModel):
     rmse_clusters: Optional[np.ndarray] = None  # Pre-treatment RMSE for each cluster
     synthetic_treated: np.ndarray       # Treated Average
     synthetic_control: np.ndarray       # Control Average
+    inference: Optional[InferenceResults] = None  # Add this field
 
     class Config:
         arbitrary_types_allowed = True
@@ -735,6 +676,7 @@ class ClusterResults(BaseModel):
     pre_treatment_means: Optional[np.ndarray] = None
 
     unit_weight_map: Optional[dict] = None
+    inference: Optional[Any] = None  # Add this line
 
     # Allow arbitrary types like np.ndarray
     model_config = {
@@ -751,11 +693,11 @@ class MAREXResults(BaseModel):
     clusters: Dict[str, ClusterResults]
     study: StudyConfig
     globres: GlobalResults
+    inferences: Optional[Dict[str, InferenceResults]] = None  # NEW FIELD
 
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
-
 
 
 
