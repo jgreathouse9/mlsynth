@@ -233,11 +233,6 @@ class MAREX:
         # After raw_results = SCMEXP(**scm_kwargs)
         raw_results = SCMEXP(**scm_kwargs)
 
-        if self.inference:
-            T_post = T_total - T0 - blanks
-            inf_results = inference_scm_vectorized(raw_results, Y_full, T_post=T_post)
-            raw_results["inference"] = inf_results
-
         # Process results with DesignResultsProcessor
         processor = self.DesignResultsProcessor(
             scm_result=raw_results,
@@ -249,6 +244,45 @@ class MAREX:
         )
 
         marex_results = processor.get_results()
+
+        synthetic_dict = {}
+
+        # Cluster-level synthetics
+        for cluster_id, cluster_res in marex_results.clusters.items():
+            synthetic_dict[cluster_id] = {
+                "synthetic_treated": cluster_res.synthetic_treated,
+                "synthetic_control": cluster_res.synthetic_control
+            }
+
+        # Global synthetics
+        synthetic_dict["global"] = {
+            "synthetic_treated": marex_results.globres.synthetic_treated,
+            "synthetic_control": marex_results.globres.synthetic_control
+        }
+
+        if self.inference:
+            from ..utils.exputils import InferenceResults
+
+            inferences = {}
+
+            for key, syn in synthetic_dict.items():
+                inf_res = InferenceResults(
+                    Y_treated=syn["synthetic_treated"],
+                    Y_control=syn["synthetic_control"],
+                    T0=marex_results.study.T0,
+                    TcE=marex_results.study.blank_periods,
+                    Tb=marex_results.study.blank_periods,
+                    alpha=0.05,
+                    max_combinations=1000,
+                    random_state=42
+                )
+                inferences[key] = inf_res
+
+                if key == "global":
+                    marex_results.globres.inference = inf_res
+                else:
+                    # Add inference to each cluster
+                    marex_results.clusters[key].inference = inf_res
 
         return marex_results
 
