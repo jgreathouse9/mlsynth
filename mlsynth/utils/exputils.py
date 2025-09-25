@@ -2,6 +2,8 @@ import pandas as pd
 import cvxpy as cp
 import matplotlib.pyplot as plt
 import numpy as np
+from pydantic import BaseModel
+from typing import List, Optional, Any, Dict, Union
 
 def _get_per_cluster_param(param, klabel, default=None):
     if param is None:
@@ -467,100 +469,68 @@ def SCMEXP(
 
     return result
 
-def marexinf(
-    Y_treated, Y_control, T0, TcE, Tb, alpha=0.05, max_combinations=1000, random_state=None
-):
-    """
-    Approximate inference for synthetic control using random subsampling.
 
-    This function computes treatment effects, split-conformal confidence intervals,
-    and permutation-based p-values for both global and per-period tests using
-    pre-treatment "blank" periods as placebos. It follows the approach described
-    in Abadie and Zhao (2025).
+class InferenceResults(BaseModel):
+    """Approximate synthetic control inference results computed from raw data."""
 
-    Parameters
-    ----------
-    Y_treated : array-like
-        Outcomes for the treated unit (length = T0 + post-treatment).
-    Y_control : array-like
-        Outcomes for the synthetic control (same length as Y_treated).
-    T0 : int
-        Number of pre-treatment periods.
-    TcE : int
-        Number of pre-treatment periods used for fitting the synthetic control.
-    Tb : int
-        Number of blank pre-treatment periods (not used in fitting).
-    alpha : float, default=0.05
-        Significance level for confidence intervals.
-    max_combinations : int, default=1000
-        Number of random subsets sampled for the global permutation test.
-    random_state : int, optional
-        Random seed for reproducibility.
+    # Input parameters (optional to store)
+    Y_treated: np.ndarray
+    Y_control: np.ndarray
+    T0: int
+    TcE: int
+    Tb: int
+    alpha: float = 0.05
+    max_combinations: int = 1000
+    random_state: Optional[int] = None
 
-    Returns
-    -------
-    dict
-        Dictionary containing:
-        - 'treated_effects': array of treatment effects for post-treatment periods
-        - 'placebo_effects': array of effects in blank pre-treatment periods
-        - 'S_obs': observed global test statistic
-        - 'global_p_value': p-value for the global test
-        - 'per_period_pvals': p-values for each post-treatment period
-        - 'CI': array of split-conformal confidence intervals (lower, upper)
+    # Output results (filled after computation)
+    treated_effects: Optional[np.ndarray] = None
+    fulltreated_effects: Optional[np.ndarray] = None
+    placebo_effects: Optional[np.ndarray] = None
+    S_obs: Optional[float] = None
+    global_p_value: Optional[float] = None
+    per_period_pvals: Optional[np.ndarray] = None
+    CI: Optional[np.ndarray] = None
 
-    References
-    ----------
-    Abadie, A., & Zhao, J. (2025). Synthetic Controls for Experimental Design.
-    arXiv:2108.02196 [stat.ME]. Retrieved from https://arxiv.org/abs/2108.02196
-    """
+    # Allow np.ndarray types
+    model_config = {"arbitrary_types_allowed": True}
 
-    rng = np.random.default_rng(random_state)
-    T_post = len(Y_treated) - T0
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.compute_inference()
 
-    # Effects
-    blank_indices = np.arange(TcE, TcE + Tb)
-    post_indices = np.arange(T0, T0 + T_post)
+    def compute_inference(self):
+        rng = np.random.default_rng(self.random_state)
+        T_post = len(self.Y_treated) - self.T0
 
-    placebo_effects = Y_treated[blank_indices] - Y_control[blank_indices]
-    treated_effects = Y_treated[post_indices] - Y_control[post_indices]
+        # Indices
+        blank_indices = np.arange(self.TcE, self.TcE + self.Tb)
+        post_indices = np.arange(self.T0, self.T0 + T_post)
 
-    # Combine for permutation test
-    all_effects = np.concatenate([placebo_effects, treated_effects])
-    n_total = len(all_effects)
+        # Compute effects
+        self.placebo_effects = self.Y_treated[blank_indices] - self.Y_control[blank_indices]
+        self.treated_effects = self.Y_treated[post_indices] - self.Y_control[post_indices]
+        self.fulltreated_effects = self.Y_treated - self.Y_control
 
-    # Random subsampling of subsets
-    pi_list = np.array([
-        rng.choice(n_total, size=T_post, replace=False)
-        for _ in range(max_combinations)
-    ])
+        # Global permutation test
+        all_effects = np.concatenate([self.placebo_effects, self.treated_effects])
+        n_total = len(all_effects)
+        pi_list = np.array([rng.choice(n_total, size=T_post, replace=False)
+                            for _ in range(self.max_combinations)])
+        self.S_obs = np.mean(np.abs(self.treated_effects))
+        S_perm = np.mean(np.abs(all_effects[pi_list]), axis=1)
+        self.global_p_value = np.mean(S_perm >= self.S_obs)
 
-    # Global test statistic
-    S_obs = np.mean(np.abs(treated_effects))
-    S_perm = np.mean(np.abs(all_effects[pi_list]), axis=1)
-    global_p_value = np.mean(S_perm >= S_obs)
+        # Per-period p-values
+        self.per_period_pvals = np.mean(
+            np.abs(self.placebo_effects)[:, None] >= np.abs(self.treated_effects)[None, :],
+            axis=0
+        )
 
-    # Per-period p-values
-    per_period_pvals = np.mean(
-        np.abs(placebo_effects)[:, None] >= np.abs(treated_effects)[None, :],
-        axis=0
-    )
-
-    # Confidence intervals (split conformal)
-    q = np.quantile(np.abs(placebo_effects), 1 - alpha)
-    CI = np.column_stack([treated_effects - q, treated_effects + q])
-
-    return {
-        "treated_effects": treated_effects,
-        "placebo_effects": placebo_effects,
-        "S_obs": S_obs,
-        "global_p_value": global_p_value,
-        "per_period_pvals": per_period_pvals,
-        "CI": CI
-    }
-
-
-
-
+        # Split-conformal confidence intervals
+        q = np.quantile(np.abs(self.placebo_effects), 1 - self.alpha)
+        interval = np.column_stack([self.treated_effects - q, self.treated_effects + q])
+        self.CI = np.vstack([np.full((self.T0, 2), np.nan), interval])
 
 
 def plot_cluster_full(df, marex_results, show=True, save_path=None):
