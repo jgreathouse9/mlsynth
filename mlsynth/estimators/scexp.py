@@ -6,7 +6,7 @@ import pydantic # For ValidationError
 import cvxpy as cp # For cvxpy.error types
 
 from ..utils.datautils import balance
-from ..utils.exputils import _get_per_cluster_param, SCMEXP
+from ..utils.exputils import _get_per_cluster_param, SCMEXP, plot_marex_results
 from ..utils.exprelutils import SCMEXP_REL
 from ..exceptions import (
     MlsynthConfigError,
@@ -54,6 +54,7 @@ class MAREX:
         self.verbose: bool = getattr(config, "verbose", False)
         self.inference: bool = getattr(config, "inference", False)
         self.T_post: int = getattr(config, "T_post", 0)
+        self.display_graph: int = getattr(config, "display_graph", False)
 
         # Validate cluster column if provided
         if self.cluster and self.cluster not in self.df.columns:
@@ -284,90 +285,14 @@ class MAREX:
                     # Add inference to each cluster
                     marex_results.clusters[key].inference = inf_res
 
+        if self.display_graph:
+
+            plot_marex_results(marex_results, plot_type="treatment")
+
         return marex_results
 
 
 
-def plot_marex_results(
-    marex_results,
-    clusters: Optional[List[str]] = None,   # List of cluster IDs or None for all
-    plot_type: str = "treatment",           # "treatment" or "prediction"
-    global_result: bool = True,
-    figsize: tuple = (12, 6)
-):
-    """
-    Plot treatment effects or predictions from a MAREXResults object, optionally with confidence intervals.
-
-    Parameters
-    ----------
-    marex_results : MAREXResults
-        The results object from a MAREX fit.
-    clusters : list of str, optional
-        Cluster IDs to plot. Default is all clusters.
-    plot_type : str
-        "treatment" for treatment effects, "prediction" for synthetic predictions.
-    global_result : bool
-        Whether to include the global synthetic/control results.
-    figsize : tuple
-        Figure size.
-    """
-
-    if clusters is None:
-        clusters = list(marex_results.clusters.keys())
-    
-    plt.figure(figsize=figsize)
-
-    # Function to plot one series with optional CI
-    def plot_series(y_treated, y_control, label_prefix, inference=None):
-        if plot_type == "treatment":
-            y = y_treated - y_control
-            plt.plot(y, label=label_prefix)
-            if inference is not None:
-                ci = inference.CI  # shape: (time, 2)
-                if ci is not None:
-                    plt.fill_between(np.arange(len(y)), ci[:, 0], ci[:, 1], alpha=0.2)
-        else:  # prediction
-            plt.plot(y_treated, linestyle='--', label=f"{label_prefix} treated")
-            plt.plot(y_control, linestyle=':', label=f"{label_prefix} control")
-            if inference is not None:
-                ci_treated = getattr(inference, "CI_treated", None)
-                ci_control = getattr(inference, "CI_control", None)
-                # Optional: fill for treated CI
-                if ci_treated is not None:
-                    plt.fill_between(np.arange(len(y_treated)), ci_treated[:, 0], ci_treated[:, 1], alpha=0.2)
-                # Optional: fill for control CI
-                if ci_control is not None:
-                    plt.fill_between(np.arange(len(y_control)), ci_control[:, 0], ci_control[:, 1], alpha=0.2)
-
-    # Plot cluster-level results
-    for cid in clusters:
-        cluster_res = marex_results.clusters[cid]
-        inference = getattr(cluster_res, "inference", None)
-        plot_series(
-            cluster_res.synthetic_treated,
-            cluster_res.synthetic_control,
-            label_prefix=f"Cluster {cid}",
-            inference=inference
-        )
-
-    # Plot global results if requested
-    if global_result:
-        glob = marex_results.globres
-        inference = getattr(glob, "inference", None)
-        plot_series(
-            glob.synthetic_treated,
-            glob.synthetic_control,
-            label_prefix="Global",
-            inference=inference
-        )
-
-    plt.xlabel("Time")
-    plt.ylabel("Outcome" if plot_type == "prediction" else "Treatment Effect")
-    plt.title("MAREX " + ("Treatment Effects" if plot_type == "treatment" else "Predictions"))
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
 
 
 
