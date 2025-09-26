@@ -79,6 +79,9 @@ class MAREXConfig(BaseMAREXConfig):
     design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
     program_type: str = Field(default="MIQP", description="Optimization type: 'QP' or 'MIQP'.")
 
+    # --- NEW display option ---
+    display_graph: bool = Field(default=False, description="Whether to display plots.")
+
     beta: float = Field(default=1e-6)
     lambda1: float = Field(default=0.0)
     lambda2: float = Field(default=0.0)
