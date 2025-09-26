@@ -533,6 +533,32 @@ class InferenceResults(BaseModel):
         self.CI = np.vstack([np.full((self.T0, 2), np.nan), interval])
 
 
+
+style_params = {
+    "figure.figsize": (10, 6),
+    "figure.dpi": 100,
+    "savefig.dpi": 300,
+    "savefig.bbox": "tight",
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "font.size": 14,
+    "font.family": "sans-serif",
+    "axes.titlesize": 18,
+    "axes.titleweight": "bold",
+    "axes.labelsize": "large",
+    "xtick.labelsize": "medium",
+    "ytick.labelsize": "medium",
+    "legend.fontsize": 10,
+    "axes.grid": True,
+    "axes.axisbelow": True,
+    "grid.color": "#d3d3d3",
+    "grid.linestyle": ":",
+    "grid.linewidth": 1.0,
+    "lines.linewidth": 1.0,
+    "lines.marker": "",
+    "lines.markersize": 0,
+}
+
 def plot_marex_results(
     marex_results,
     clusters: Optional[List[str]] = None,
@@ -541,83 +567,75 @@ def plot_marex_results(
     figsize: tuple = (12, 6)
 ):
     """
-    Plot treatment effects or predictions from a MAREXResults object, optionally with confidence intervals.
-    Shaded regions indicate blank periods.
-
-    Parameters
-    ----------
-    marex_results : MAREXResults
-        The results object from a MAREX fit.
-    clusters : list of str, optional
-        Cluster IDs to plot. Default is all clusters.
-    plot_type : str
-        "treatment" for treatment effects, "prediction" for synthetic predictions.
-    global_result : bool
-        Whether to include the global synthetic/control results.
-    figsize : tuple
-        Figure size.
+    Plot treatment effects or predictions from a MAREXResults object, one subplot per cluster/global.
+    Shaded regions indicate blank periods. Applies consistent styling using style_params.
     """
 
-    # Determine clusters to plot
-    if clusters is None:
-        clusters = list(marex_results.clusters.keys())
+    with plt.rc_context(style_params):
+        # Determine clusters to plot
+        if clusters is None:
+            clusters = list(marex_results.clusters.keys())
 
-    # Skip cluster "0" if it's the only cluster
-    if len(clusters) == 1 and clusters[0] == "0":
-        clusters = []
+        # Skip cluster "0" if it's the only cluster
+        if len(clusters) == 1 and clusters[0] == "0":
+            clusters = []
 
-    plt.figure(figsize=figsize)
+        # Total number of subplots
+        n_subplots = len(clusters) + (1 if global_result else 0)
+        if n_subplots == 0:
+            print("No clusters to plot.")
+            return
 
-    def plot_series(y_treated, y_control, label_prefix, inference=None):
-        if plot_type == "treatment":
-            y = y_treated - y_control
-            plt.plot(y, label=label_prefix)
-            if inference is not None and hasattr(inference, "CI") and inference.CI is not None:
-                ci = inference.CI
-                plt.fill_between(np.arange(len(y)), ci[:, 0], ci[:, 1], alpha=0.2)
-        else:  # prediction
-            plt.plot(y_treated, linestyle='--', label=f"{label_prefix} treated")
-            plt.plot(y_control, linestyle=':', label=f"{label_prefix} control")
-            if inference is not None:
-                ci_treated = getattr(inference, "CI_treated", None)
-                ci_control = getattr(inference, "CI_control", None)
-                if ci_treated is not None:
-                    plt.fill_between(np.arange(len(y_treated)), ci_treated[:, 0], ci_treated[:, 1], alpha=0.2)
-                if ci_control is not None:
-                    plt.fill_between(np.arange(len(y_control)), ci_control[:, 0], ci_control[:, 1], alpha=0.2)
+        fig, axes = plt.subplots(n_subplots, 1, figsize=(figsize[0], figsize[1] * n_subplots), sharex=True)
+        if n_subplots == 1:
+            axes = [axes]  # Make iterable
 
-    # Plot cluster-level results
-    for cid in clusters:
-        cluster_res = marex_results.clusters[cid]
-        inference = getattr(cluster_res, "inference", None)
-        plot_series(
-            cluster_res.synthetic_treated,
-            cluster_res.synthetic_control,
-            label_prefix=f"Cluster {cid}",
-            inference=inference
-        )
+        def plot_series(ax, y_treated, y_control, label_prefix, inference=None):
+            if plot_type == "treatment":
+                y = y_treated - y_control
+                ax.plot(y, label=label_prefix)
+                if inference is not None and hasattr(inference, "CI") and inference.CI is not None:
+                    ci = inference.CI
+                    ax.fill_between(np.arange(len(y)), ci[:, 0], ci[:, 1], alpha=0.2)
+            else:  # prediction
+                ax.plot(y_treated, linestyle='--', label=f"{label_prefix} treated")
+                ax.plot(y_control, linestyle=':', label=f"{label_prefix} control")
+                if inference is not None:
+                    ci_treated = getattr(inference, "CI_treated", None)
+                    ci_control = getattr(inference, "CI_control", None)
+                    if ci_treated is not None:
+                        ax.fill_between(np.arange(len(y_treated)), ci_treated[:, 0], ci_treated[:, 1], alpha=0.2)
+                    if ci_control is not None:
+                        ax.fill_between(np.arange(len(y_control)), ci_control[:, 0], ci_control[:, 1], alpha=0.2)
 
-    # Plot global results
-    if global_result:
-        glob = marex_results.globres
-        inference = getattr(glob, "inference", None)
-        plot_series(
-            glob.synthetic_treated,
-            glob.synthetic_control,
-            label_prefix="Global",
-            inference=inference
-        )
+        subplot_idx = 0
+        # Cluster-level plots
+        for cid in clusters:
+            cluster_res = marex_results.clusters[cid]
+            inference = getattr(cluster_res, "inference", None)
+            plot_series(axes[subplot_idx], cluster_res.synthetic_treated, cluster_res.synthetic_control,
+                        label_prefix=f"Cluster {cid}", inference=inference)
+            axes[subplot_idx].set_ylabel("Outcome" if plot_type=="prediction" else "Treatment Effect")
+            axes[subplot_idx].legend()
+            subplot_idx += 1
 
-    # Shade the blank period
-    T0 = marex_results.study.T0
-    blank_periods = marex_results.study.blank_periods
-    if blank_periods > 0:
-        plt.axvspan(T0 - blank_periods, T0, color='gray', alpha=0.2, label="Blank periods")
+        # Global plot
+        if global_result:
+            glob = marex_results.globres
+            inference = getattr(glob, "inference", None)
+            plot_series(axes[subplot_idx], glob.synthetic_treated, glob.synthetic_control,
+                        label_prefix="Global", inference=inference)
+            axes[subplot_idx].set_ylabel("Outcome" if plot_type=="prediction" else "Treatment Effect")
+            axes[subplot_idx].legend()
 
-    plt.xlabel("Time")
-    plt.ylabel("Outcome" if plot_type == "prediction" else "Treatment Effect")
-    plt.title("MAREX " + ("Treatment Effects" if plot_type == "treatment" else "Predictions"))
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+        # Shade blank periods
+        T0 = marex_results.study.T0
+        blank_periods = marex_results.study.blank_periods
+        if blank_periods > 0:
+            for ax in axes:
+                ax.axvspan(T0 - blank_periods, T0, color='gray', alpha=0.2, label="Blank periods")
+
+        axes[-1].set_xlabel("Time")
+        plt.suptitle("MAREX " + ("Treatment Effects" if plot_type=="treatment" else "Predictions"))
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.show()
