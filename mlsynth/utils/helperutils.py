@@ -654,129 +654,110 @@ def sc_diagplot(config_list: List[Dict[str, Any]], save: Optional[str] = None) -
 
     n_plots = len(config_list)
 
-    # Use same theme as before
-    ubertheme = {
-        "figure.facecolor": "white",
-        "figure.dpi": 100,
-        "font.size": 14,
-        "font.family": "sans-serif",
-        "font.sans-serif": ["DejaVu Sans"],
-        "axes.grid": True,
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-        "axes.spines.left": False,
-        "axes.spines.bottom": False,
-        "grid.alpha": 0.1,
-        "grid.linewidth": 0.5,
-        "grid.color": "#000000",
-        "legend.fontsize": "small",
-    }
+    fig, axes = plt.subplots(1, n_plots, figsize=(6 * n_plots, 5), sharey=True)
 
-    with rc_context(rc=ubertheme):
-        fig, axes = plt.subplots(1, n_plots, figsize=(6 * n_plots, 5), sharey=True)
+    if n_plots == 1:
+        axes = [axes]  # make iterable for zip
 
-        if n_plots == 1:
-            axes = [axes]  # make iterable for zip
+    for ax_plot, config_item_plot in zip(axes, config_list):
+        # Prepare data using the provided configuration
+        # This step transforms the raw DataFrame into structured arrays needed for plotting.
+        # The keys in `config_item_plot` (e.g., "unitid", "time") are passed to `dataprep`.
+        prepared_data_for_plot = dataprep(
+            df=config_item_plot["df"],
+            unit_id_column_name=config_item_plot["unitid"],
+            time_period_column_name=config_item_plot["time"],
+            outcome_column_name=config_item_plot["outcome"],
+            treatment_indicator_column_name=config_item_plot["treat"],
+            # Other dataprep parameters will use their defaults or are assumed not critical for this diagnostic plot.
+        )
 
-        for ax_plot, config_item_plot in zip(axes, config_list):
-            # Prepare data using the provided configuration
-            # This step transforms the raw DataFrame into structured arrays needed for plotting.
-            # The keys in `config_item_plot` (e.g., "unitid", "time") are passed to `dataprep`.
-            prepared_data_for_plot = dataprep(
-                df=config_item_plot["df"],
-                unit_id_column_name=config_item_plot["unitid"], 
-                time_period_column_name=config_item_plot["time"],
-                outcome_column_name=config_item_plot["outcome"],
-                treatment_indicator_column_name=config_item_plot["treat"],
-                # Other dataprep parameters will use their defaults or are assumed not critical for this diagnostic plot.
+        cohort_key_from_config = config_item_plot.get("cohort", None)
+
+        # Determine which data to plot based on whether `dataprep` returned single or multiple cohorts.
+        if "cohorts" in prepared_data_for_plot: # Multiple cohorts were found
+            if cohort_key_from_config is None and len(prepared_data_for_plot["cohorts"]) > 1:
+                # If multiple cohorts exist and no specific cohort is requested, it's ambiguous.
+                raise MlsynthConfigError(
+                    "Multiple cohorts found in data. Please specify a 'cohort' in the plot configuration to resolve ambiguity."
+                )
+            # Determine the actual cohort identifier to use for plotting.
+            # If a cohort is specified in config, use it. Otherwise, if only one cohort, use its key.
+            actual_cohort_identifier = (
+                cohort_key_from_config
+                if cohort_key_from_config is not None
+                else list(prepared_data_for_plot["cohorts"].keys())[0]
             )
+            plot_specific_data = prepared_data_for_plot["cohorts"][actual_cohort_identifier]
+            # If multiple units are treated in this cohort, average their outcomes for the plot.
+            treated_unit_trajectory = plot_specific_data["y"].mean(axis=1)
+            treated_unit_names_string = "_".join(map(str, plot_specific_data["treated_units"]))
+            plot_treatment_label = (
+                f"Cohort {actual_cohort_identifier} (Treated at {actual_cohort_identifier})"
+            )
+            plot_title_label = f"Unit(s): {treated_unit_names_string}"
+        else: # Single cohort (or no cohort structure from dataprep)
+            plot_specific_data = prepared_data_for_plot
+            treated_unit_trajectory = plot_specific_data["y"]
+            treated_unit_names_string = str(prepared_data_for_plot["treated_unit_name"])
+            plot_treatment_label = prepared_data_for_plot['treated_unit_name']
+            plot_title_label = f"Unit: {treated_unit_names_string}"
 
-            cohort_key_from_config = config_item_plot.get("cohort", None)
-
-            # Determine which data to plot based on whether `dataprep` returned single or multiple cohorts.
-            if "cohorts" in prepared_data_for_plot: # Multiple cohorts were found
-                if cohort_key_from_config is None and len(prepared_data_for_plot["cohorts"]) > 1:
-                    # If multiple cohorts exist and no specific cohort is requested, it's ambiguous.
-                    raise MlsynthConfigError(
-                        "Multiple cohorts found in data. Please specify a 'cohort' in the plot configuration to resolve ambiguity."
-                    )
-                # Determine the actual cohort identifier to use for plotting.
-                # If a cohort is specified in config, use it. Otherwise, if only one cohort, use its key.
-                actual_cohort_identifier = (
-                    cohort_key_from_config
-                    if cohort_key_from_config is not None
-                    else list(prepared_data_for_plot["cohorts"].keys())[0]
-                )
-                plot_specific_data = prepared_data_for_plot["cohorts"][actual_cohort_identifier]
-                # If multiple units are treated in this cohort, average their outcomes for the plot.
-                treated_unit_trajectory = plot_specific_data["y"].mean(axis=1) 
-                treated_unit_names_string = "_".join(map(str, plot_specific_data["treated_units"]))
-                plot_treatment_label = (
-                    f"Cohort {actual_cohort_identifier} (Treated at {actual_cohort_identifier})"
-                )
-                plot_title_label = f"Unit(s): {treated_unit_names_string}"
-            else: # Single cohort (or no cohort structure from dataprep)
-                plot_specific_data = prepared_data_for_plot
-                treated_unit_trajectory = plot_specific_data["y"]
-                treated_unit_names_string = str(prepared_data_for_plot["treated_unit_name"])
-                plot_treatment_label = "Treated Unit"
-                plot_title_label = f"Unit: {treated_unit_names_string}"
-
-            donor_outcomes_matrix_for_plot = plot_specific_data["donor_matrix"]
-            donor_mean_outcome_trajectory = donor_outcomes_matrix_for_plot.mean(axis=1)
-            # Use the index from 'Ywide' (wide format outcome data from dataprep) for the time axis labels.
-            # 'Ywide' is expected to be in the outer scope of `prepared_data_for_plot` if cohorts are present.
-            time_period_axis_index = prepared_data_for_plot.get("Ywide", plot_specific_data.get("Ywide")).index
+        donor_outcomes_matrix_for_plot = plot_specific_data["donor_matrix"]
+        donor_mean_outcome_trajectory = donor_outcomes_matrix_for_plot.mean(axis=1)
+        # Use the index from 'Ywide' (wide format outcome data from dataprep) for the time axis labels.
+        # 'Ywide' is expected to be in the outer scope of `prepared_data_for_plot` if cohorts are present.
+        time_period_axis_index = prepared_data_for_plot.get("Ywide", plot_specific_data.get("Ywide")).index
 
 
-            # Plot individual donor trajectories (light gray, low alpha)
-            for i in range(donor_outcomes_matrix_for_plot.shape[1]):
-                ax_plot.plot(
-                    time_period_axis_index,
-                    donor_outcomes_matrix_for_plot[:, i],
-                    color="gray",
-                    linewidth=0.8,
-                    alpha=0.3,
-                    zorder=1,
-                )
-
-        # Plot donor mean trajectory
+        # Plot individual donor trajectories (light gray, low alpha)
+        for i in range(donor_outcomes_matrix_for_plot.shape[1]):
             ax_plot.plot(
                 time_period_axis_index,
-                donor_mean_outcome_trajectory,
-                label="Donor Mean", # Label for the legend
-                color="blue",
-                linewidth=2,
-                zorder=2, # Ensure donor mean is plotted above individual donors
-            )
-            # Plot treated unit trajectory (black, prominent)
-            ax_plot.plot(
-                time_period_axis_index,
-                treated_unit_trajectory,
-                label=plot_treatment_label, # Label for the legend
-                color="black",
-                linewidth=2,
-                zorder=3, # Ensure treated unit is plotted on top
-            )
-            # Add a vertical dashed line to indicate the start of the treatment period.
-            # `plot_specific_data["pre_periods"]` gives the number of pre-treatment periods,
-            # so this index points to the first post-treatment (or treatment start) time point.
-            ax_plot.axvline(
-                x=time_period_axis_index[plot_specific_data["pre_periods"]],
-                color="black",
-                linestyle="--",
-                linewidth=1,
+                donor_outcomes_matrix_for_plot[:, i],
+                color="gray",
+                linewidth=0.8,
+                alpha=0.3,
+                zorder=1,
             )
 
-            ax_plot.set_title(plot_title_label, loc="left") # Set plot title
-            ax_plot.set_xlabel(config_item_plot["time"]) # Set x-axis label from config
-            ax_plot.set_ylabel(config_item_plot["outcome"])
-            ax_plot.legend()
+    # Plot donor mean trajectory
+        ax_plot.plot(
+            time_period_axis_index,
+            donor_mean_outcome_trajectory,
+            label="Donor Pool Mean", # Label for the legend
+            color="blue",
+            linewidth=2,
+            zorder=2, # Ensure donor mean is plotted above individual donors
+        )
+        # Plot treated unit trajectory (black, prominent)
+        ax_plot.plot(
+            time_period_axis_index,
+            treated_unit_trajectory,
+            label=plot_treatment_label, # Label for the legend
+            color="black",
+            linewidth=2,
+            zorder=3, # Ensure treated unit is plotted on top
+        )
+        # Add a vertical dashed line to indicate the start of the treatment period.
+        # `plot_specific_data["pre_periods"]` gives the number of pre-treatment periods,
+        # so this index points to the first post-treatment (or treatment start) time point.
+        ax_plot.axvline(
+            x=time_period_axis_index[plot_specific_data["pre_periods"]],
+            color="black",
+            linestyle="--",
+            linewidth=1, label=config_item_plot['treat']
+        )
 
-        fig.suptitle("Treated vs Donor Trends", fontsize=16)
+        ax_plot.set_title(plot_title_label, loc="left") # Set plot title
+        ax_plot.set_xlabel(config_item_plot["time"]) # Set x-axis label from config
+        ax_plot.set_ylabel(config_item_plot["outcome"])
+        ax_plot.legend()
 
-        if save:
-            fig.savefig(save, bbox_inches="tight")
-        else:
-            plt.show()
+    fig.suptitle("Treated vs Donor Trends", fontsize=16)
+
+    if save:
+        fig.savefig(save, bbox_inches="tight")
+    else:
+        plt.show()
 
