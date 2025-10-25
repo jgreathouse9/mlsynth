@@ -313,53 +313,52 @@ def dataprep(
             "time_labels": outcome_matrix_wide.index, # Time labels (e.g., dates, years) from the index.
         }
 
-    # Case: Multiple treated units (group by treatment timing)
-    # This path handles scenarios where logictreat finds more than one treated unit.
-    # Units are grouped into "cohorts" based on their first treatment time.
+    # Multiple treated units case
     else:
-        outcome_matrix_wide = df.pivot(index=time_period_column_name, columns=unit_id_column_name, values=outcome_column_name)
-        # Re-pivot treatment_matrix_wide to ensure it's based on the same df instance and available for cohort logic.
-        treatment_matrix_wide_multi = df.pivot(index=time_period_column_name, columns=unit_id_column_name, values=treatment_indicator_column_name)
+        outcome_matrix_wide = df.pivot(index=time_period_column_name, columns=unit_id_column_name,
+                                       values=outcome_column_name)
+        treatment_matrix_wide_multi = df.pivot(index=time_period_column_name, columns=unit_id_column_name,
+                                               values=treatment_indicator_column_name)
 
-        # Determine the first time period each unit was treated.
-        # `idxmax()` returns the first index (time period) where the value is True (1 for treatment).
+        # Determine first treatment period by unit
         first_treatment_time_by_unit = (treatment_matrix_wide_multi == 1).idxmax().to_dict()
-        cohort_treatment_start_times_map = {} # Map: treatment_start_time -> list of unit_ids in that cohort
 
-        # Group units by their first treatment start time to form cohorts.
-        for unit_identifier, treatment_start_time_value in first_treatment_time_by_unit.items():
-            # Ensure the identified start time actually corresponds to a treatment (value of 1).
-            if treatment_matrix_wide_multi.loc[treatment_start_time_value, unit_identifier] == 1:
-                cohort_treatment_start_times_map.setdefault(treatment_start_time_value, []).append(unit_identifier)
+        # Map treatment_start_time -> cohort units
+        cohort_treatment_start_times_map = {}
+        for unit_id, start_time in first_treatment_time_by_unit.items():
+            if treatment_matrix_wide_multi.loc[start_time, unit_id] == 1:
+                cohort_treatment_start_times_map.setdefault(start_time, []).append(unit_id)
 
-        cohort_details_map = {} # Stores prepared data for each cohort.
+        # All treated units across all cohorts
+        all_treated_units = set()
+        for units in cohort_treatment_start_times_map.values():
+            all_treated_units.update(units)
 
-        # Process each cohort.
-        for treatment_start_time_value, cohort_unit_identifiers in cohort_treatment_start_times_map.items():
-            # Extract outcome data for the treated units in the current cohort.
-            cohort_treated_units_outcome_matrix = outcome_matrix_wide[cohort_unit_identifiers].to_numpy()
-            # Calculate pre and post periods relative to this cohort's treatment start time.
-            # `get_loc` finds the integer position of the treatment start time in the index.
-            num_post_treatment_periods_for_cohort = outcome_matrix_wide.shape[0] - outcome_matrix_wide.index.get_loc(treatment_start_time_value)
-            num_pre_treatment_periods_for_cohort = outcome_matrix_wide.index.get_loc(treatment_start_time_value)
-            # Donor units for this cohort are all units NOT in this cohort.
-            cohort_donor_outcome_df_wide = outcome_matrix_wide.drop(columns=cohort_unit_identifiers)
-            cohort_donor_outcome_array_wide = cohort_donor_outcome_df_wide.to_numpy()
-            
-            cohort_details_map[treatment_start_time_value] = {
-                "treated_units": cohort_unit_identifiers,
-                "y": cohort_treated_units_outcome_matrix,
-                "donor_names": cohort_donor_outcome_df_wide.columns,
-                "donor_matrix": cohort_donor_outcome_array_wide,
+        cohort_details_map = {}
+        for start_time, cohort_units in cohort_treatment_start_times_map.items():
+            cohort_treated_matrix = outcome_matrix_wide[cohort_units].to_numpy()
+
+            num_post = outcome_matrix_wide.shape[0] - outcome_matrix_wide.index.get_loc(start_time)
+            num_pre = outcome_matrix_wide.index.get_loc(start_time)
+
+            # Donor units = all units NOT treated in any cohort
+            donor_units = [u for u in outcome_matrix_wide.columns if u not in all_treated_units]
+            cohort_donor_matrix = outcome_matrix_wide[donor_units].to_numpy()
+
+            cohort_details_map[start_time] = {
+                "treated_units": cohort_units,
+                "y": cohort_treated_matrix,
+                "donor_names": donor_units,
+                "donor_matrix": cohort_donor_matrix,
                 "total_periods": outcome_matrix_wide.shape[0],
-                "pre_periods": num_pre_treatment_periods_for_cohort,
-                "post_periods": num_post_treatment_periods_for_cohort,
+                "pre_periods": num_pre,
+                "post_periods": num_post,
             }
 
         return {
             "Ywide": outcome_matrix_wide,
             "cohorts": cohort_details_map,
-            "time_labels": outcome_matrix_wide.index, # Time labels from the index.
+            "time_labels": outcome_matrix_wide.index,
         }
 
 
