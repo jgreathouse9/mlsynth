@@ -9,10 +9,10 @@ Formally, I lay out the notations. Indexed by :math:`j`, we observe :math:`\math
 With this in mind, we may describe the algorithm. By design, we are agnostic as to which sub-matrix of units we should use or how even many controls we should use. The Forward DID method is an iterative, data driven algorithm which chooses the controls. The Forward DID method updates the selected control set :math:`\widehat{U}_k` iteratively over :math:`k = 1, 2, \ldots, N_0`. The process begins with an empty control set :math:`\widehat{U}_0 = \emptyset` and an empty candidate set :math:`\mathcal{U} = \emptyset`. For :math:`k = 1`, we estimate :math:`N_0` DID models using the outcome vector of each control unit as a predictor, computing the :math:`R^2` statistic for each control unit. The optimization is
 
 .. math::
-    \operatorname*{argmin}_{\boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}}} \left\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}_{k-1} \cup \{i\}} \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} \right\|_2^2,
+    \operatorname*{argmin}_{\boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}}} \left\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}_{k-1} \cup \{i\}} \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} -\beta}_{\text{cons}\right\|_2^2,
     \quad \text{subject to } \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} = \frac{1}{|\widehat{U}_{k-1}| + 1}.
 
-where we have a :math:`T_1 \times 1` pre-intervention vector of outcomes for the treated unit, :math:`\mathbf{y}_1`, and a :math:`T_1 \times N_0` matrix of outcomes for our control group, :math:`\mathbf{Y}_0`. After iterating over all controls, we then select the control unit that maximizes the pre-intervention :math:`R^2`:  
+where we have a :math:`T_1 \times 1` pre-intervention vector of outcomes for the treated unit, :math:`\mathbf{y}_1`, and a :math:`T_1 \times N_0` matrix of outcomes for our control group, :math:`\mathbf{Y}_0` and an intercept :math`\beta}_{\text{cons}`. After iterating over all controls, we then select the control unit that maximizes the pre-intervention :math:`R^2`:  
 
 .. math::
 
