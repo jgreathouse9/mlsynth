@@ -366,6 +366,7 @@ class RESCM:
                 "Effects": attdict, # Dictionary of ATT and related effect measures.
                 "Fit": fitdict, # Dictionary of fit statistics (RMSE, R-squared).
                 "Vectors": Vectors, # Dictionary of observed, counterfactual, and gap series.
+                "Weights": donor_weights
             }
 
 
