@@ -4274,7 +4274,7 @@ def fit_l2_relaxation(X_pre, y_pre, tau):
         cp.pnorm(X_pre.T @ (X_pre @ w - y_pre) / T + gam*np.ones(J), p='inf') <= tau,
     ]
     prob = cp.Problem(obj, constraints)
-    prob.solve(solver=cp.CLARABEL, verbose=True)
+    prob.solve(solver=cp.CLARABEL, verbose=False)
 
     return w.value
 
@@ -4647,6 +4647,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
