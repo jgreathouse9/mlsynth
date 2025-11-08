@@ -5,7 +5,7 @@ from numpy.testing import assert_array_almost_equal
 from mlsynth.utils.datautils import dataprep, balance, logictreat, clean_surrogates2, proxy_dataprep
 from mlsynth.exceptions import MlsynthDataError
 
-# === Test Data Helpers ===
+# === Test Data Functions===
 
 def make_single_treated_df():
     """Creates a panel with a single treated unit"""
