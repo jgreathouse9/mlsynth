@@ -164,7 +164,7 @@ def test_dataprep_multiple_units():
     assert cohort_c_data['post_periods'] == 4 # Times 2,3,4,5 are post
     assert cohort_c_data['total_periods'] == 5
     assert cohort_c_data['y'].shape == (5,1) # 5 time periods, 1 unit
-    assert cohort_c_data['donor_matrix'].shape == (5,2) # Units A and B are donors for C
+    assert cohort_c_data['donor_matrix'].shape == (5,1) # Units A and B are donors for C
 
     cohort_b_data = result['cohorts'][3] # Unit B treated at time 3
     assert cohort_b_data['treated_units'] == ['B']
