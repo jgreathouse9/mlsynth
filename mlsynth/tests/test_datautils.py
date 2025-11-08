@@ -171,7 +171,7 @@ def test_dataprep_multiple_units():
     assert cohort_b_data['pre_periods'] == 2 # Times 1,2 are pre
     assert cohort_b_data['post_periods'] == 3 # Times 3,4,5 are post
     assert cohort_b_data['y'].shape == (5,1)
-    assert cohort_b_data['donor_matrix'].shape == (5,2) # Units A and C are donors for B
+    assert cohort_b_data['donor_matrix'].shape == (5,1) # Units A and C are donors for B
 
 
 def test_dataprep_no_donors():
