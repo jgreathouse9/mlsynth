@@ -35,6 +35,7 @@ MLSYNTH
    scmo
    shc
    si
+   data
 
 
 .. toctree::
