@@ -144,6 +144,9 @@ Estimating ``CLUSTERSC``
 
 .. autoclass:: mlsynth.CLUSTERSC
    :show-inheritance:
+   :members:
+   :undoc-members:
+   :private-members:
    :special-members: __init__
 
 We can now turn to an empirical example, namely the reanalysis of West Germany' Reunification with East Germany and its effect upon West Germany's GDP per Capita.
