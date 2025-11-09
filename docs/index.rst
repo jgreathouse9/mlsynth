@@ -39,6 +39,7 @@ MLSYNTH
    selector
    spill
    helpers
+   exp
 
 
 .. toctree::
