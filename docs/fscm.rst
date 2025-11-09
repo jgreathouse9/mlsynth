@@ -3,7 +3,11 @@ Forward SCM
 
 .. autoclass:: mlsynth.FSCM
    :show-inheritance:
+   :members:
+   :undoc-members:
+   :private-members:
    :special-members: __init__
+
 
 Uses Forward Selection to choose the donor pool for the vanilla SCM.
 
@@ -31,29 +35,3 @@ Uses Forward Selection to choose the donor pool for the vanilla SCM.
     arco = FSCM(config).fit()
 
 
-fSCM function
-=====================
-
-.. autofunction:: mlsynth.utils.estutils.fSCM
-   :noindex:
-
-Performs Forward Selection Synthetic Control (FSCM) estimation.  
-If ``augmented=True``, post-selection refinement is performed using affine-hull regularization.
-
-Returns:
-- Augmented weights (if applicable)
-- Original SCM weights
-
-
-fit_affine_hull_scm
-=====================
-
-.. autofunction:: mlsynth.utils.estutils.fit_affine_hull_scm
-   :noindex:
-
-Refines synthetic control weights using affine-hull constrained ridge regression.  
-The ridge penalty is tuned via Bayesian optimization with a training-validation split on pre-treatment data.
-
-Returns:
-- Refined weight vector
-- Optimal regularization parameter (beta)
