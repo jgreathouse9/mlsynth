@@ -138,7 +138,11 @@ class CLUSTERSC:
         self.cluster: bool = config.cluster
         self.Frequentist: bool = config.Frequentist
         self.ROB: str = config.ROB
-        self.method: str = config.method # Pydantic model ensures it's one of "PCR", "RPCA", "BOTH" (uppercase)
+        self.method: str = config.method
+        # === New Regularization Parameters (PCR only) ===
+        self.lambda_penalty: Optional[float] = getattr(config, "lambda_penalty", None)
+        self.p: Optional[float] = getattr(config, "p", None)
+        self.q: Optional[float] = getattr(config, "q", None)
 
     def _create_single_method_results(
         self,
@@ -387,6 +391,26 @@ class CLUSTERSC:
             # --- Run Estimation based on the configured method ---
             # If method is "PCR" or "BOTH", execute the Principal Component Regression.
             if self.method.upper() == "PCR" or self.method.upper() == "BOTH":
+
+                def standardize_columns(X: np.ndarray) -> np.ndarray:
+                    """
+                    Standardize each column of matrix X to mean 0 and variance 1.
+
+                    Parameters
+                    ----------
+                    X : np.ndarray
+                        Input matrix of shape (T, N), where columns represent variables (e.g., donors).
+
+                    Returns
+                    -------
+                    X_std : np.ndarray
+                        Standardized matrix with mean 0 and variance 1 in each column.
+                    """
+                    means = X.mean(axis=0)
+                    stds = X.std(axis=0, ddof=1)  # unbiased estimate (divide by T-1)
+                    X_std = (X - means) / stds
+                    return X_std
+
                 # Call the pcr utility function with prepared data and configuration.
                 # This can raise MlsynthDataError, MlsynthConfigError, or MlsynthEstimationError.
                 pcr_output: Dict[str, Any] = pcr( 
@@ -397,6 +421,9 @@ class CLUSTERSC:
                     num_pre_treatment_periods=prepared_data["pre_periods"],
                     enable_clustering=self.cluster,
                     use_frequentist_scm=self.Frequentist,
+                    lambda_penalty=self.lambda_penalty,
+                    p=self.p,
+                    q=self.q,
                 )
                 # Calculate effects, fit diagnostics, and time series components from PCR output.
                 calculated_effects, calculated_fit_diagnostics, calculated_time_series_components = effects.calculate(
