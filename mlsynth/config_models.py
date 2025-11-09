@@ -306,14 +306,59 @@ class GSCConfig(BaseEstimatorConfig):
     # in the implementation. If 'save' functionality specific to GSC is re-added,
     # it might need to be defined here if different from BaseEstimatorConfig.save.
 
+
+
+
+
 class CLUSTERSCConfig(BaseEstimatorConfig):
     """Configuration for the Cluster-based Synthetic Control (CLUSTERSC) estimator."""
-    objective: str = Field(default="OLS", description="Constraint for PCR ('OLS', 'SIMPLEX').", pattern="^(OLS|SIMPLEX|)$")
-    cluster: bool = Field(default=True, description="Whether to apply clustering for PCR.")
-    Frequentist: bool = Field(default=True, description="If True, use Frequentist Robust SCM; False for Bayesian (for PCR method).")
-    ROB: str = Field(default="PCP", description="Robust method for RPCA ('PCP' or 'HQF').", pattern="^(PCP|HQF)$") # Parameter name is ROB in code
-    method: str = Field(default="PCR", description="Estimation method: 'PCR', 'RPCA', or 'BOTH'.", pattern="^(PCR|RPCA|BOTH)$")
-    Robust: Optional[str] = Field(default=None, exclude=True, description="Temporary field to catch phantom 'Robust' param from pytest issue.")
+
+    objective: str = Field(
+        default="OLS",
+        description="Constraint for PCR ('OLS', 'SIMPLEX').",
+        pattern="^(OLS|SIMPLEX|)$"
+    )
+    cluster: bool = Field(
+        default=True,
+        description="Whether to apply clustering for PCR."
+    )
+    Frequentist: bool = Field(
+        default=True,
+        description="If True, use Frequentist Robust SCM; False for Bayesian (for PCR method)."
+    )
+    ROB: str = Field(
+        default="PCP",
+        description="Robust method for RPCA ('PCP' or 'HQF').",
+        pattern="^(PCP|HQF)$"
+    )  # Parameter name is ROB in code
+    method: str = Field(
+        default="PCR",
+        description="Estimation method: 'PCR', 'RPCA', or 'BOTH'.",
+        pattern="^(PCR|RPCA|BOTH)$"
+    )
+    Robust: Optional[str] = Field(
+        default=None,
+        exclude=True,
+        description="Temporary field to catch phantom 'Robust' param from pytest issue."
+    )
+
+    # --- 🧩 NEW Regularization and Norm Parameters ---
+    lambda_penalty: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        description="Regularization strength (λ) applied to the SCM optimization problem. "
+                    "Higher values impose stronger shrinkage on donor weights."
+    )
+    p: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        description="Norm parameter p for the regularization term. Common values: 1 (L1), 2 (L2)."
+    )
+    q: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        description="Optional secondary norm parameter q, e.g. for mixed-norm penalties."
+    )
 
     @model_validator(mode='before')
     @classmethod
@@ -321,20 +366,18 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         if isinstance(data, dict):
             if 'Robust' in data:
                 robust_value = data.pop('Robust')
-                # If 'ROB' is not already in data or if 'ROB' is present but from a default,
-                # let 'Robust' (if it was the one explicitly passed due to the phantom issue) set 'ROB'.
-                # This prioritizes the phantom 'Robust' to become the actual 'ROB' value.
+                # Allow phantom 'Robust' param to map to 'ROB' if appropriate
                 if 'ROB' not in data or data.get('ROB') == cls.model_fields['ROB'].default:
                     data['ROB'] = robust_value
-                # If 'ROB' was also explicitly passed and is different from default, it means
-                # both 'Robust' (phantom) and 'ROB' (intended) were in the input.
-                # In this specific scenario, the original 'ROB' (if not default) would have been overwritten by 'Robust'
-                # when config_dict was formed: config_dict = {**base_config_dict, **rpca_config_override}
-                # if rpca_config_override was {'Robust': 'HQF'}.
-                # The pop('Robust') already removed it. If 'ROB' is already set from rpca_config_override,
-                # this logic is fine. The main goal is to ensure 'Robust' doesn't cause validation error
-                # and its value is used for 'ROB' if 'ROB' wasn't more specifically provided.
         return data
+
+
+
+
+
+
+
+
 
 class PROXIMALConfig(BaseEstimatorConfig):
     """Configuration for the Proximal Inference (PROXIMAL) estimator."""
@@ -701,6 +744,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
