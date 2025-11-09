@@ -7,7 +7,12 @@ This example uses the **Synthetic Historical Control (SHC)** estimator from
 
 .. autoclass:: mlsynth.SHC
    :show-inheritance:
+   :members:
+   :undoc-members:
+   :private-members:
    :special-members: __init__
+
+
 
 .. code-block:: python
 
