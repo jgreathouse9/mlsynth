@@ -333,6 +333,8 @@ def compute_t_stat_and_ci(
 
 
 
+
+
 def l2_relax(
     num_pre_treatment_estimation_periods: int,
     treated_unit_outcome_vector: np.ndarray,
@@ -373,6 +375,10 @@ def l2_relax(
     predicted_counterfactuals = donor_outcomes_matrix @ estimated_coefficients + estimated_intercept
 
     return estimated_coefficients, estimated_intercept, predicted_counterfactuals
+
+
+
+
 
 
 def adaptive_cross_validate_tau(
@@ -4570,6 +4576,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
