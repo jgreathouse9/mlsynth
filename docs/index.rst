@@ -40,6 +40,7 @@ MLSYNTH
    spill
    helpers
    exp
+   est
 
 
 .. toctree::
