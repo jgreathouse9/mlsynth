@@ -1,8 +1,11 @@
 Two-Step Synthetic Control
 ==========================
 
-.. autoclass:: mlsynth.mlsynth.TSSC
+.. autoclass:: mlsynth.TSSC
    :show-inheritance:
+   :members:
+   :undoc-members:
+   :private-members:
    :special-members: __init__
 
 Sometimes with synthetic control methods, treated units are a little too extreme relative to their donor pool. As a result, analysts may sometimes need to use intecepts or relax the nonnegativiety constraint, but it's unclear, a priori, in which situations this is necessary or beneficial. The Two Step SCM is actually the only method in ``mlsynth`` that does not rely on machine-learning methods; it does, however, allow analysts to choose between these different modifications to SCM where it may be warranted. This is the benefit of the two-step synthetic control method, as detailed by Li and Shankar [TSSC]_.
