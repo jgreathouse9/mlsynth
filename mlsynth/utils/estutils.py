@@ -3719,7 +3719,7 @@ def NSC_opt(
     l2_penalty_factor: float
 ) -> np.ndarray:
     """
-    Normalized Synthetic Control (NSC) weight optimization.
+    Nonlinear Synthetic Control (NSC) weight optimization.
 
     Solves for weights minimizing error between treated unit's outcome (pre_treatment_treated_outcome)
     and an affine combination of control units' outcomes (pre_treatment_donor_outcomes),
@@ -3842,7 +3842,7 @@ def NSCcv(
     num_cv_folds: int = 5
 ) -> Tuple[float, float]:
     """
-    K-fold cross-validation for Normalized Synthetic Control (NSC).
+    K-fold cross-validation for Nonlinear Synthetic Control (NSC).
 
     Selects the best tuning parameters `l1_discrepancy_penalty_factor` (a_reg)
     and `l2_penalty_factor` (b_reg) for the Normalized Synthetic Control (NSC)
@@ -4647,6 +4647,7 @@ def fSCM(
             w_affine,
             full_weights
         )
+
 
 
 
