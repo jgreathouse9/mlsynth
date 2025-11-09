@@ -36,6 +36,7 @@ MLSYNTH
    shc
    si
    data
+   selector
 
 
 .. toctree::
