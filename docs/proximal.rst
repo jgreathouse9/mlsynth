@@ -238,8 +238,10 @@ Our GMM optimization becomes:
 
 .. autoclass:: mlsynth.mlsynth.PROXIMAL
    :show-inheritance:
+   :members:
+   :undoc-members:
+   :private-members:
    :special-members: __init__
-
 
 
 
