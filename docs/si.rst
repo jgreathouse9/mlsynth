@@ -1,9 +1,13 @@
 Synthetic Interventions
 =====================
 
-.. autoclass:: mlsynth SI
+.. autoclass:: mlsynth.SI
    :show-inheritance:
+   :members:
+   :undoc-members:
+   :private-members:
    :special-members: __init__
+
 
 
 Uses Synthetic Interventions to estimate how Louisiana's tobacco trends would have evolved had they done taxes on tobacco, or had they done a state-wide tobacco program.
