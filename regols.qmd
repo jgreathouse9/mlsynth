@@ -1,0 +1,1019 @@
+# On Penalized Regression Models
+
+::: {.epigraph}
+> "I'll keep it simple, baby... I'ma keep it simple with you, baby. You know I don't ever play no games. You know I don't ever complicate it."  
+> — [*Jhené Aiko Efuru Chilombo*](https://genius.com/Jhene-aiko-sativa-lyrics)
+:::
+
+In the last chapter we saw how OLS can fit the pre-treatment data almost perfectly, yet fail catastrophically out of sample. This behavior is a textbook example of *overfitting*. Overfitting occurs when a model captures not only the systematic patterns in the data but also the random noise specific to the sample at hand. An overfit model performs tends to perform extremely well on the data it was trained on but generalizes poorly to new or unseen data. In our case, the OLS synthetic control overfits the pre-treatment outcomes of the Basque Country by adjusting the donor weights so precisely that it reproduces every wiggle in the historical GDP series, including idiosyncratic shocks that have nothing to do with long-run economic structure. Formally, overfitting is a manifestation of the bias–variance tradeoff. A highly flexible model has low bias—it can approximate the training data closely—but high variance, meaning that small perturbations in the data can cause large swings in the estimated parameters. Bias, by extension, is about the difference between the model prediction and the true values; the OLS synthetic control has very low bias in the pre-treatment period, but has extremely high variance in the post-intervention period. That is, the close fit OLS obtains comes at the cost of having high post-intervention variance in the out of sample predictions.
+
+To make OLS behave more responsibly, we need to give it boundaries — some way to tell the model that a perfect fit is not always desirable if it means using bizarre or extreme weights. Statistically, this is called **regularization**. In optimization terms, it means we trade off fidelity for discipline: we still want the in-sample (pre-treatment) prediction to fit well, but not so well that it memorizes noise or violates interpretability. Regularization is a method for tempering this variance by constraining or penalizing the size of the coefficient vector. In this setting, we accept a small amount of bias in exchange for substantial reductions in variance and improved stability of the predictions. Regularization modifies the least squares objective by adding a penalty term that discourages overly complex or extreme coefficients. When we say penalty term, we usually talk about adding a norm to the regression problem. In geometric terms, regularization shrinks the solution space from an open field to a smaller playground—the model can still move, but not run off into absurd directions. This trades off fit (the first term) against simplicity (the second). The tuning parameter $\lambda$ controls how much we’re willing to sacrifice accuracy to gain stability. The general form of a regularized least squares problem is
+
+
+
+$$
+\mathbf{w}^{\ast} = \underset{\mathbf{w} \in \mathbb{R}^{N_0}}{\operatorname*{argmin}} \; \| \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w} \|_2^2 + \lambda \| \mathbf{w} \|_p^p,
+$$
+
+where $\lambda \ge 0$ controls the strength of the penalty and $p$ determines its type.
+
+To develop intuition, consider an analogy from the music industry—one that reflects how access, selectivity, and diversity shape outcomes.
+
+### The Sparse World: Motown and the $\ell_1$ Norm
+
+Back in the 1960s and 70s, the music world was dominated by a handful of major record labels and A&R gatekeepers. Recording equipment was expensive, and access to distribution channels was limited. Only a select few artists ever made it to the airwaves. This was the era of Motown, Prince, and the Jackson 5—a small, elite set of artists who carried enormous weight in defining popular music in the United States and globally.
+
+This is the world of the $\ell_1$ norm. Under $\ell_1$ regularization, each coefficient pays a *flat fee* simply for existing—just as every artist must pass through an expensive and highly selective gatekeeping process. As a result, only a few coefficients "make it big." The rest are driven exactly to zero, left unsigned and unheard. The resulting model is *sparse*: only the most essential features or donor units remain active. Mathematically, if our unpenalized mean squared error (MSE) is 12 for weights $(0.03, 0.9, 12)$ and we apply an $\ell_1$ penalty with $\lambda = 1$, the total loss becomes
+
+$$
+\text{Loss}_1(\mathbf{w}) = \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2 + \lambda \|\mathbf{w}\|_1,
+$$
+
+where $\|\mathbf{w}\|_1 = \sum |w_i|$ penalizes the sum of the absolute values of the coefficients. For example, with weights $\mathbf{w} = (0.03, 0.9, 12)$, an unpenalized MSE of 12, and $\lambda = 1$, the total loss is:
+
+$$
+12 + (|0.03| + |0.9| + |12|) = 12 + 0.03 + 0.9 + 12 = 24.93.
+$$
+
+The large coefficient (12) incurs a hefty penalty, so the optimizer may shrink it or set it to zero unless it significantly improves the fit. Unless it drastically improves the fit, the optimizer will prefer to zero it out entirely—just as only a handful of artists survive the Motown audition process. The $\ell_1$ norm thus rewards exclusivity in variable selection: few stars, high impact.
+
+Consider weights $\mathbf{w} = (0.03, 0.9, 12)$ with an unpenalized MSE of $12$. Let’s explore two scenarios with different $\lambda$ values. A small $\lambda$ is like a lenient A&R manager, allowing more artists to get a deal. The $\ell_1$ penalty is:
+
+$$ \Vert \mathbf{w} \Vert_1 = |0.03| + |0.9| + |12| = 0.03 + 0.9 + 12 = 12.93, $$
+
+and the total loss is:
+
+$$ \text{Loss}_1(\mathbf{w}) = 12 + 0.1 \cdot 12.93 = 12 + 1.293 = 13.293. $$
+
+The penalty is small, so the optimizer may keep all coefficients, as the cost of including even the large weight ($12$) is modest. The model remains close to the unpenalized OLS solution, prioritizing fit over sparsity.
+
+
+A large $\lambda$ is like a ruthless gatekeeper, signing only the biggest stars. The penalty becomes:
+
+$$ \Vert \mathbf{w} \Vert_1 = 12.93, $$
+
+and the total loss is:
+
+$$ \text{Loss}_1(\mathbf{w}) = 12 + 10 \cdot 12.93 = 12 + 129.3 = 141.3. $$
+
+The large penalty, especially for the weight $12$, pressures the optimizer to shrink or eliminate coefficients. The optimizer is likely to set smaller weights (e.g., $0.03$ and $0.9$) to zero and reduce the large weight, favoring a sparse model with only the most essential donor units.
+
+As $\lambda$ becomes very large, the $\ell_1$ penalty term $\lambda \Vert \mathbf{w} \Vert_1$ dominates the objective function. To keep the total loss finite, the optimizer must minimize $\Vert \mathbf{w} \Vert_1$, driving all coefficients to zero ($\mathbf{w} = \mathbf{0}$). In this limit, the loss becomes:
+
+$$ \text{Loss}_1(\mathbf{w}) \approx \Vert \mathbf{y}_1 \Vert_2^2, $$
+
+since $\mathbf{Y}_0 \mathbf{w} = \mathbf{0}$, and the penalty term vanishes ($\Vert \mathbf{w} \Vert_1 = 0$). The model predicts $\mathbf{y}_1 \approx \mathbf{0}$, ignoring the data entirely, resulting in high bias but zero variance. In the Motown analogy, this is like an impossibly high entry cost—no artists get signed, and the label produces no music. Such a model is useless for prediction but illustrates how $\ell_1$ enforces extreme sparsity as $\lambda$ grows. The $\ell_1$ norm thus rewards exclusivity: only a few coefficients—our "star artists"—remain non-zero, creating a simpler, more interpretable model that avoids overfitting by focusing on the most essential donor units.
+
+::: {.problem title="Computing the l1 Norm"}
+Compute the $\ell_1$ norm of the weight vector $\mathbf{w} = (0.5, -1.2, 3.4, 0)$.  
+:::
+
+::: {.problem title="Total Loss with Small lambda"}
+Suppose the unpenalized MSE is $5$ and $\mathbf{w} = (0.5, -1.2, 3.4, 0)$. Compute the total $\ell_1$-penalized loss for $\lambda = 0.1$.  
+:::
+
+::: {.problem title="Total Loss with Large lambda"}
+Using the same weights and unpenalized MSE as in Problem 2, compute the total loss for $\lambda = 10$.  
+:::
+
+::: {.problem title="Effect of Increasing lambda"}
+Explain in one sentence what happens to small coefficients when $\lambda$ increases in $\ell_1$ penalization. Then compute the total loss if $\mathbf{w}$ is shrunk to $(0, 0, 2, 0)$ with $\lambda = 5$ and unpenalized MSE $5$.  
+:::
+
+::: {.problem title="Extreme Sparsity Limit"}
+If $\lambda$ becomes extremely large, the optimizer drives all weights to zero. Compute the approximate total loss if $\mathbf{y}_1$ has norm $\|\mathbf{y}_1\|_2^2 = 20$ and $\mathbf{w} = \mathbf{0}$.  
+:::
+
+### The Dense World: TikTok and the $\ell_2$ Norm
+
+Now, fast forward to today. In today’s music industry, digital production, social media, and streaming platforms have democratized access. Artists from Lagos, Medellín, or London (think Burna Boy and Tems, Karol G, and Ego Ella May) can all reach a global audience in ways that would be impossible even in the 1990s. Distribution of music is *relatively* cheap. Beyond, methods of discovery (like Instagram, SoundCloud, or Spotify) are close to free, open to countless creators. The practical result of this is that we have a dense, inclusive ecosystem where many artists share the spotlight/different sugments of the spotlight. This is the world of the $\ell_2$ norm in regularization. The $\ell_2$ penalty adds a cost to the loss function based on the squared magnitudes of the coefficients:
+
+$$
+\text{Loss}_2(\mathbf{w}) = \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2 + \lambda \|\mathbf{w}\|_2^2,
+$$
+
+where $\|\mathbf{w}\|_2^2 = \sum w_i^2$. For example, with weights $\mathbf{w} = (0.03, 0.9, 12)$, an unpenalized MSE of $12$, and $\lambda = 1$, the total loss is:
+
+$$
+12 + (0.03^2 + 0.9^2 + 12^2) = 12 + (0.0009 + 0.81 + 144) = 156.8109.
+$$
+
+The quadratic penalty scales sharply: small coefficients, like $0.03$, contribute almost nothing ($0.0009$), while large ones, like $12$, are heavily penalized ($144$). This encourages the optimizer to shrink all coefficients rather than eliminate them, keeping every donor unit in the model but reducing their individual impact. The result is a smooth, balanced ensemble—no single unit dominates, mirroring the diverse, inclusive world of modern music streaming.
+
+As above, we can think about what happens as the penality term $\lambda$ increases or decreases. Consider weights $\mathbf{w} = (0.03, 0.9, 12)$ with an unpenalized MSE of $12$. Let’s examine two scenarios. A small $\lambda$ is like a low streaming platform fee, allowing artists to thrive with minimal restriction. The $\ell_2$ penalty is:
+
+$$
+\Vert \mathbf{w} \Vert_2^2 = 0.03^2 + 0.9^2 + 12^2 = 0.0009 + 0.81 + 144 = 144.8109,
+$$
+
+and the total loss is:
+
+$$
+\text{Loss}_2(\mathbf{w}) = 12 + 0.1 \cdot 144.8109 = 12 + 14.48109 = 26.48109.
+$$
+
+The penalty is moderate, so the optimizer slightly shrinks the coefficients, especially the large one ($12$), but keeps all non-zero. The model remains close to the OLS solution, prioritizing fit over aggressive shrinkage.
+
+A large $\lambda$ is like a steep tax on popularity, heavily penalizing dominant artists. The penalty remains:
+
+$$
+\Vert \mathbf{w} \Vert_2^2 = 144.8109,
+$$
+
+but the total loss is:
+
+$$
+\text{Loss}_2(\mathbf{w}) = 12 + 10 \cdot 144.8109 = 12 + 1448.109 = 1460.109.
+$$
+
+The large penalty, driven by the $12^2 = 144$ term, pushes the optimizer to significantly shrink all coefficients, especially the largest. The model becomes smoother, with no single donor unit dominating, resembling a diverse playlist where many artists contribute modestly. As $\lambda$ grows very large, the $\ell_2$ penalty term $\lambda \Vert \mathbf{w} \Vert_2^2$ dominates the objective. To keep the loss finite, the optimizer minimizes $\Vert \mathbf{w} \Vert_2^2$, driving all coefficients toward zero ($\mathbf{w} \to \mathbf{0}$). The loss approaches:
+
+$$
+\text{Loss}_2(\mathbf{w}) \approx \Vert \mathbf{y}_1 \Vert_2^2,
+$$
+
+since $\mathbf{Y}_0 \mathbf{w} \to \mathbf{0}$ and the penalty term vanishes ($\Vert \mathbf{w} \Vert_2^2 \to 0$). The model predicts $\mathbf{y}_1 \approx \mathbf{0}$, sacrificing fit for extreme simplicity, resulting in high bias but low variance. In the streaming analogy, this is like a platform charging such high fees that no artist can afford to stand out—everyone’s presence shrinks to nearly nothing. Unlike $\ell_1$, $\ell_2$ doesn’t produce sparsity; coefficients approach zero smoothly, maintaining a balanced but minimal model. The $\ell_2$ norm thus fosters inclusivity: all coefficients—our "global artists"—remain in the model, but their contributions are shrunk, creating a smooth, balanced ensemble that avoids overfitting by distributing influence evenly.
+
+
+::: {.problem title="Computing the $\ell_2$ Norm Squared"}
+Compute the squared $\ell_2$ norm of the weight vector $\mathbf{w} = (0.5, -1.2, 3.4, 0)$.  
+:::
+
+::: {.problem title="Total Loss with Small $\lambda$"}
+Suppose the unpenalized MSE is $5$ and $\mathbf{w} = (0.5, -1.2, 3.4, 0)$. Compute the total $\ell_2$-penalized loss for $\lambda = 0.1$.  
+:::
+
+::: {.problem title="Total Loss with Large $\lambda$"}
+Using the same weights and unpenalized MSE as in Problem 2, compute the total loss for $\lambda = 10$.  
+:::
+
+::: {.problem title="Effect of Increasing $\lambda$"}
+Explain in one sentence how increasing $\lambda$ affects large coefficients in $\ell_2$ penalization. Then compute the total loss if $\mathbf{w}$ is shrunk to $(0.1, -0.2, 0.5, 0)$ with $\lambda = 5$ and unpenalized MSE $5$.  
+:::
+
+::: {.problem title="Extreme Shrinkage Limit"}
+If $\lambda$ becomes extremely large, the optimizer drives all weights toward zero. Compute the approximate total loss if $\|\mathbf{y}_1\|_2^2 = 20$ and $\mathbf{w} \approx \mathbf{0}$.  
+:::
+
+
+### The Tradeoff
+
+The contrast between these two regimes mirrors the evolution of music. The $\ell_1$ norm enforces scarcity, pushing only the most valuable features into the spotlight. The $\ell_2$ norm promotes inclusivity, blending many small contributions into a harmonious whole. Both approaches combat overfitting by introducing discipline—one through *selectivity*, the other through *shrinkage*. In econometric terms, regularization constrains the solution space of $\mathbf{w}$ and prevents the unconstrained OLS estimator from taking extreme values just to eliminate small residuals. The difference lies in how each penalty shapes this constraint: $\ell_2$ encourages smooth shrinkage across all donors, while $\ell_1$ encourages sparsity by zeroing out many coefficients entirely. Both serve the same purpose—to teach our model not to memorize noise, but to focus on structure that generalizes.
+
+
+
+
+## Implementing Penalized OLS Models
+
+Okay, now let's do this in code. We can return to the Basque Country from the last chapter. At this point, we will begin to write script that does the estimation tasks we need. Consider the following function in Python:
+
+
+```{python}
+
+#| eval: False
+#| echo: True
+
+def fit_penalized(Y0_full, 
+  y_full, 
+  T0, 
+  donor_names=None, 
+  p_list=[1, 2], 
+  lam=0.2, 
+  include_ols=True):
+    
+    """
+    Fit penalized synthetic control on pre-treatment
+    data and predict full counterfactuals.
+    Also returns donor weights mapped to
+    names if donor_names is provided,
+    and RMSE on the pre-treatment period.
+
+    Parameters
+    ----------
+    Y0_full : np.ndarray
+        Full donor matrix (T x N)
+    y_full : np.ndarray
+        Full treated vector (T,)
+    T0 : int
+        Number of pre-treatment periods
+    donor_names : list of str, optional
+        Names of donor units (length N)
+    p_list : list of int
+        Norms to use (1 for LASSO, 2 for Ridge)
+    lam : float
+        Regularization parameter (>0 for penalized)
+    include_ols : bool
+        Whether to also return OLS weights (p=2, lam=0)
+
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - "weights": {label: np.ndarray of weights}
+        - "y_hat": {label: np.ndarray of counterfactual predictions}
+        - "donor_weights": {label: dict of donor_name -> weight}
+        - "pre_rmse": {label: RMSE on pre-treatment period}
+    """
+    
+    results = {"weights": {}, "y_hat": {}, "donor_weights": {}, "pre_rmse": {}}
+
+    # Slice pre-treatment data
+    Y0_pre = Y0_full[:T0, :]
+    y_pre = y_full[:T0]
+
+    # Helper to map weights to donor names if provided
+    def map_weights(w):
+        if donor_names is None:
+            return None
+        return dict(zip(donor_names, w))
+
+    # Helper to compute pre-treatment RMSE
+    def compute_rmse(y_true, y_pred):
+        return np.sqrt(np.mean((y_true - y_pred) ** 2))
+
+    # --- OLS ---
+    if include_ols:
+        w_ols = np.linalg.lstsq(Y0_pre, y_pre, rcond=None)[0]
+        y_hat_ols = Y0_full @ w_ols
+        results["weights"]["OLS"] = w_ols
+        results["y_hat"]["OLS"] = y_hat_ols
+        results["donor_weights"]["OLS"] = map_weights(w_ols)
+        results["pre_rmse"]["OLS"] = compute_rmse(y_pre, y_hat_ols[:T0])
+
+    # --- Penalized versions ---
+    for p in p_list:
+        if p not in [1, 2]:
+            raise ValueError("Only p=1 or p=2 supported.")
+        w = cp.Variable(Y0_pre.shape[1])
+        residual = y_pre - Y0_pre @ w
+        penalty = lam * cp.norm1(w) if p == 1 else lam * cp.sum_squares(w)
+        problem = cp.Problem(cp.Minimize(cp.sum_squares(residual) + penalty))
+        problem.solve(solver=cp.CLARABEL)
+        name = "LASSO" if p == 1 else "Ridge"
+        w_val = w.value
+        y_hat = Y0_full @ w_val
+        results["weights"][f"{name} (lambda={lam})"] = w_val
+        results["y_hat"][f"{name} (lambda={lam})"] = y_hat
+        results["donor_weights"][f"{name} (lambda={lam})"] = map_weights(w_val)
+        results["pre_rmse"][f"{name} (lambda={lam})"] = compute_rmse(y_pre, y_hat[:T0])
+
+    return results
+```
+
+
+The `fit_penalized` function is the first major piece of script that we will go over. It is a general tool for fitting penalized regression models. It produces the weights that indicate how much each donor contributes, the predicted counterfactual trajectory for the treated unit, and additional information such as the pre-treatment RMSE and a mapping of donor names to weights. The inputs include the donor matrix `Y0_full`, where each column represents a control unit and each row is a time period, the treated unit `y_full` that we want to construct a counterfactual for, and `T0`, the number of pre-treatment periods used to fit the model. Optional inputs are `donor_names` for easier reading of weights, `p_list` to specify which penalties to apply (1 for Lasso, 2 for Ridge), `lam` which sets the strength of the penalty, and `include_ols` which determines whether plain OLS weights are also computed. The function first slices the pre-treatment period from the full donor matrix and treated vector. It defines helper functions to map the weights to donor names and to compute the root mean squared error on the pre-treatment period. If OLS is included, the function solves the least squares problem on the pre-treatment data, computes the predicted full series, and records the corresponding weights and pre-treatment RMSE.
+
+For penalized models, the function loops over the specified norms. For each, it sets up a `cvxpy` optimization problem where the residual between the treated unit and the donor combination is minimized, subject to a penalty term. The function solves the problem, computes the predicted series, maps donor names, calculates pre-treatment RMSE, and stores all results. Finally, the function returns a dictionary containing the numeric weights, predicted synthetic series, donor-name mappings, and pre-treatment RMSE for each method. That way, we can compare all of these at once.
+
+
+```{python}
+
+import cvxpy as cp
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from mlsynth.utils.datautils import dataprep
+from IPython.display import display, Markdown
+from helpers import fit_penalized
+from style import set_book_style
+set_book_style()
+
+# --- Load Basque data ---
+url = ("https://raw.githubusercontent.com/"
+       "jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/"
+       "basque_data.csv")
+
+data = pd.read_csv(url)
+
+prepped_data = dataprep(
+    data,
+    "regionname",
+    "year",
+    "gdpcap",
+    "Terrorism"
+)
+
+y = prepped_data["y"]              # Target (Basque)
+Y0 = prepped_data["donor_matrix"]  # Donor pool
+T0 = prepped_data["pre_periods"]   # Pre-treatment periods
+time = prepped_data["time_labels"] # Time labels
+Ywide = prepped_data["Ywide"]
+
+T0 = prepped_data["pre_periods"]
+donor_names = prepped_data["donor_names"]
+
+results = fit_penalized(Y0, y, T0, donor_names=donor_names, p_list=[1,2], lam=0.2, include_ols=True)
+
+# Extract weights
+weights_dict = results["donor_weights"]
+
+# Convert to DataFrame
+weights_df = pd.DataFrame({method: w for method, w in weights_dict.items()},
+                          index=donor_names)
+
+# Optionally round for prettier display
+weights_df = weights_df.round(3)
+
+# Display nicely in Jupyter / IPython
+display(weights_df)
+
+
+```
+
+
+The pre-treatment RMSE for the LASSO with $\lambda=0.2$ is 0.083, for Ridge with $\lambda=0.2$ is 0.065, and for OLS is 0.002. For the LASSO, the weights are very sparse. Cataluna contributes the most with 0.757, followed by Madrid at 0.190 and Principado de Asturias at 0.066. All other donors have weights effectively zero, reflecting the L1 penalty's tendency to select only a few contributors. For Ridge, the weights are more evenly distributed across donors. The largest contributions come from Madrid at 0.299, Cataluna at 0.239, Principado de Asturias at 0.247, Rioja at 0.202, and Cantabria at 0.172. Other donors have moderate positive or negative weights, showing the L2 penalty spreads influence across many donors rather than selecting only a few. OLS produces more extreme weights, with Castilla Y Leon at 6.093, Andalucia at 4.177, and Castilla-La Mancha at -2.655, while most other donors have smaller positive or negative contributions. From these results, we can clearly see that OLS happens to fit the best out of all of these, but the weights are much different when we look across them. This is most obvious when we plot the counterfactual as we do in @fig-penlsest.
+
+
+```{python}
+
+
+#| label: fig-penlsest
+#| fig-cap: "Penalized Least Squares Counterfactual Estimates"
+
+
+# Access counterfactual predictions
+
+y_hat_dict = results["y_hat"]
+
+# Plot
+plt.figure(figsize=(10, 6))
+plt.plot(time, y, label="Actual Basque", color="black", linewidth=2)
+
+for label, yhat in y_hat_dict.items():
+    plt.plot(time, yhat, linestyle="--", label=label)
+
+plt.axvline(time[T0], color="red", linestyle="-", label="Treatment")
+plt.xlabel("Year")
+plt.ylabel("GDP per capita")
+plt.title("Penalized Least Squares Counterfactuals")
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+The out of sample estimates are much smoother than the OLS predictions which have much higher variance.
+
+
+```{python}
+
+# Extract counterfactual predictions
+y_hat_dict = results["y_hat"]
+
+# Initialize dictionary to store ATT
+att_dict = {}
+
+# Loop over each estimator
+for method, y_hat in y_hat_dict.items():
+    # ATT = average post-treatment difference
+    att = np.mean(y[T0:] - y_hat[T0:])
+    att_dict[method] = att
+
+# Convert to DataFrame for display
+att_df = pd.DataFrame.from_dict(att_dict, orient="index", columns=["ATT"])
+att_df = att_df.round(3)
+
+# Display nicely
+display(att_df)
+
+```
+
+Unlike the positive effect suggested by OLS, the penalized estimators tell a very different story. Both LASSO and Ridge produce negative ATT estimates: LASSO at -671 and Ridge at -758. This indicates that once we shrink or regularize the donor weights, the synthetic control tracks the treated unit more cautiously, and the apparent "boost" disappears, even turning negative. In machine learning terms, this reflects the bias-variance tradeoff: we accept slightly more bias in the pre-treatment fit if it reduces the variance of out-of-sample predictions, leading to more reliable post-treatment estimates.
+
+::: {.problem title="Understanding Function Inputs"}
+The `fit_penalized` function takes a donor matrix `Y0_full` and a treated vector `y_full`. If `Y0_full` has shape $(10, 5)$ and `y_full` has shape $(10,)$, what do these dimensions represent? How many donor units and time periods are included?
+:::
+
+::: {.problem title="Mapping Donor Weights"}
+Suppose the donor names are `["A", "B", "C", "D", "E"]` and the LASSO weights are `[0.8, 0, 0.1, 0, 0]`. Use Python dictionary notation to show how `map_weights` would represent this.
+:::
+
+::: {.problem title="Computing Pre-Treatment RMSE"}
+Given `y_pre = [2, 3, 5]` and `y_hat_pre = [2.1, 1.9, 4.8]`, compute the pre-treatment RMSE.
+:::
+
+::: {.problem title="Comparing LASSO and Ridge Effects"}
+Explain in one sentence why LASSO produces sparse weights while Ridge produces more evenly distributed weights. Then, for weights $\mathbf{w} = [0.5, 0.5, 0.5, 0.5]$ and $\lambda = 0.2$, compute the $\ell_1$ and $\ell_2$ penalties.
+:::
+
+::: {.problem title="Post-Treatment ATT Calculation"}
+Suppose the post-treatment actual values are $y = [10, 12, 14]$ and the predicted counterfactuals from a penalized model are $y_\text{hat} = [11, 11, 13]$. Compute the Average Treatment Effect on the Treated.
+:::
+
+
+
+## Cross Validation
+
+A crucial aspect of penalized synthetic control methods is the choice of the regularization parameter, lambda. For the $\ell_1$ norm, if lambda is too small, the method behaves much like OLS, producing many non-zero weights and potentially overfitting the pre-treatment period. If lambda is too large, most weights are shrunk toward zero, resulting in an overly sparse synthetic control that may underfit the treated unit. For the $\ell_2$, a small lambda allows weights to take extreme values, again risking overfitting, while a large lambda shrinks all weights toward zero, distributing influence more evenly but potentially introducing bias in the post-treatment counterfactual.
+
+::: {#def-cv}
+## Cross Validation
+
+Let $\mathcal{D} = \{(x_i, y_i)\}_{i=1}^n$ be a dataset of $n$ labeled observations and let $\mathcal{A}$ be a learning algorithm producing a model $\hat{f}$ given training data. Cross validation is a procedure to estimate the out-of-sample prediction error of $\hat{f}$ by partitioning $\mathcal{D}$ into $K$ disjoint folds $\mathcal{D}_1, \dots, \mathcal{D}_K$. For each fold $k = 1, \dots, K$, we train the model on the complement $\mathcal{D} \setminus \mathcal{D}_k$ and evaluate it on the holdout fold $\mathcal{D}_k$, producing a validation error $\text{Err}^{(k)}$. The cross-validated error is the arithmetic average over the folds:
+
+$$
+\text{CV}(\mathcal{A}, \mathcal{D}) = \frac{1}{K} \sum_{k=1}^K \text{Err}^{(k)}.
+$$
+
+:::
+
+
+To do this, we employ cross validation. Cross validation is used to select hyperparameters for machine-learning models. In our case we wish to select $\lambda$. The idea is simple: for a given section of the pre-treatment period and a candidate lambda, we fit the penalized least-squares model and compute the prediction error on held-out pre-treatment data. By repeating this process across multiple folds or rolling windows and averaging the validation errors, we identify the lambda that minimizes out-of-sample pre-treatment error, balancing the bias-variance tradeoff for more reliable post-treatment counterfactual predictions. Let $\mathbf{y}_1 \in \mathbb{R}^{T_0}$ be the vector of pre-treatment outcomes for the treated unit, and $\mathbf{Y}_0 \in \mathbb{R}^{T_0 \times N_0}$ the corresponding donor matrix. Define the rolling-origin splits of the pre-treatment period. For each window $k = 1, \dots, K$, let  
+
+$$
+\mathbf{y}_{1,\text{train}}^{(k)} \in \mathbb{R}^{|\mathcal{T}_{\text{train}}^{(k)}|}, \quad
+\mathbf{Y}_{0,\text{train}}^{(k)} \in \mathbb{R}^{|\mathcal{T}_{\text{train}}^{(k)}| \times N_0}
+$$
+
+$$
+\mathbf{y}_{1,\text{val}}^{(k)} \in \mathbb{R}^{|\mathcal{T}_{\text{val}}^{(k)}|}, \quad
+\mathbf{Y}_{0,\text{val}}^{(k)} \in \mathbb{R}^{|\mathcal{T}_{\text{val}}^{(k)}| \times N_0}
+$$
+
+be the training and validation vectors/matrices for that window.  
+
+For a given norm $p \in \{1,2\}$ and regularization $\lambda$, the penalized weights for the $k$-th training window are
+
+$$
+\mathbf{w}^{(k)}(\lambda) = \underset{\mathbf{w} \in \mathbb{R}^{N_0}}{\operatorname{argmin}} 
+\| \mathbf{y}_{1,\text{train}}^{(k)} - \mathbf{Y}_{0,\text{train}}^{(k)} \mathbf{w} \|_2^2 + \lambda \, \|\mathbf{w}\|_p^q
+$$
+
+where $q = 1$ for LASSO and $q = 2$ for Ridge.  
+
+The validation MSE for this window is  
+
+$$
+\text{MSE}^{(k)}(\lambda) = \frac{1}{|\mathcal{T}_{\text{val}}^{(k)}|} 
+\| \mathbf{y}_{1,\text{val}}^{(k)} - \mathbf{Y}_{0,\text{val}}^{(k)} \mathbf{w}^{(k)}(\lambda) \|_2^2
+$$
+
+The cross-validated MSE for each $\lambda$ is the average across all rolling windows:  
+
+$$
+\overline{\text{MSE}}(\lambda) = \frac{1}{K} \sum_{k=1}^{K} \text{MSE}^{(k)}(\lambda)
+$$
+
+The optimal regularization parameter is  
+
+$$
+\lambda^\ast = \underset{\lambda \in \{\lambda_1, \dots, \lambda_L\}}{\operatorname{argmin}} \;\; \overline{\text{MSE}}(\lambda)
+$$
+
+Finally, the weights for the full pre-treatment period using $\lambda^\ast$ are  
+
+$$
+\mathbf{w}^\ast = \underset{\mathbf{w} \in \mathbb{R}^{N_0}}{\operatorname{argmin}} 
+\| \mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w} \|_2^2 + \lambda^\ast \, \|\mathbf{w}\|_p^q
+$$
+
+
+We can even visualize this. For example, suppose we had pre-treatement data from 1900 to 1975. @fig-rocvex plots the folds of "training" and validation.
+
+
+```{python}
+
+#| label: fig-rocvex
+#| fig-cap: "Rolling-Origin Cross Validation"
+
+#| echo: false
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Years
+years = np.arange(1900, 1976)  # 1955 to 1975
+T = len(years)
+
+# Parameters for rolling-origin CV
+initial_train = 10
+step = 5
+
+# Create figure
+plt.figure(figsize=(12, 6))
+
+train_color = "#1f77b4"
+val_color = "#ff7f0e"
+
+# Track iteration number for vertical placement
+iteration = 0
+train_end = initial_train
+
+while train_end < T:
+    val_start = train_end
+    val_end = min(train_end + step, T)
+
+    # Plot training period as a semi-transparent thick line
+    plt.hlines(iteration, years[0], years[train_end - 1], color=train_color, linewidth=8, alpha=0.3)
+    # Plot validation period as an opaque thick line
+    plt.hlines(iteration, years[val_start], years[val_end - 1], color=val_color, linewidth=8, alpha=1.0)
+
+    iteration += 1
+    train_end += step
+
+# Labels
+plt.yticks(range(iteration), [f"Fold {i+1}" for i in range(iteration)])
+plt.xlabel("Year")
+plt.title("Rolling-Origin Cross-Validation (Initial train=10, step=1)")
+
+# Legend
+plt.plot([], [], color=train_color, linewidth=8, alpha=0.3, label="Training period")
+plt.plot([], [], color=val_color, linewidth=8, alpha=1.0, label="Validation period")
+plt.legend(loc="upper left")
+
+plt.xlim(years[0] - 1, years[-1] + 1)
+plt.ylim(-0.5, iteration - 0.5)
+plt.show()
+```
+
+
+After we cross validate, we use that value of lambda in the main optimization. When we do, we get @fig-cvlsbasque.
+
+
+
+```{python}
+
+
+#| label: fig-cvlsbasque
+#| fig-cap: "Cross Validated Counterfactual Estimates"
+
+import cvxpy as cp
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from mlsynth.utils.datautils import dataprep
+from IPython.display import display, Markdown
+
+# --- Load Basque data ---
+url = ("https://raw.githubusercontent.com/"
+       "jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/"
+       "basque_data.csv")
+
+data = pd.read_csv(url)
+
+prepped_data = dataprep(
+    data,
+    "regionname",
+    "year",
+    "gdpcap",
+    "Terrorism"
+)
+
+y = prepped_data["y"]              # Target (Basque)
+Y0 = prepped_data["donor_matrix"]  # Donor pool
+T0 = prepped_data["pre_periods"]   # Pre-treatment periods
+time = prepped_data["time_labels"] # Time labels
+Ywide = prepped_data["Ywide"]
+
+from helpers import fit_penalizedcv
+
+T0 = prepped_data["pre_periods"]
+donor_names = prepped_data["donor_names"]
+results = fit_penalizedcv(Y0, y, T0, donor_names=donor_names, p_list=[1,2], include_ols=True)
+
+
+# Access counterfactual predictions
+y_hat_dict = results["y_hat"]  # This now includes OLS, LASSO, and Ridge
+
+# Plot
+plt.figure(figsize=(10, 6))
+plt.plot(time, y, label="Actual (Basque)", color="black", linewidth=2)
+
+for label, yhat in y_hat_dict.items():
+    plt.plot(time, yhat, linestyle="--", label=label)
+
+plt.axvline(time[T0], color="red", linestyle=":", label="Treatment")
+plt.xlabel("Year")
+plt.ylabel("GDP per capita")
+plt.title("Penalized Synthetic Control Counterfactuals (Basque)")
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+We can see how we get good out-of sample fit as well with these estimates.
+
+::: {.problem title="Conceptual Understanding of Lambda"}
+Explain in your own words why choosing a very small $\lambda$ or a very large $\lambda$ can lead to poor out-of-sample performance for LASSO and Ridge. Use the bias-variance tradeoff in your explanation.
+:::
+
+::: {.problem title="Rolling-Origin Window Creation"}
+For pre-treatment years 1900–1910, create three rolling-origin windows with `initial_train = 5` and `step = 2`. List the training and validation indices for each fold.
+:::
+
+::: {.problem title="Custom Cross Validation Routine"}
+Write a short Python function that takes a donor matrix $Y_0$, treated vector $y$, and a list of candidate $\lambda$ values, and performs $K$-fold cross validation to select the best $\lambda$ for LASSO. You may use `cvxpy` for optimization.
+:::
+
+::: {.problem title="Interpreting CV Results"}
+After cross validation, suppose $\lambda^\ast = 0.3$ for LASSO and $\lambda^\ast = 0.1$ for Ridge. Sketch or describe how you expect the post-treatment counterfactual predictions to differ between these two models. Which would be sparser and why?
+:::
+
+
+## Principal Components Regression
+
+In the previous section, we used penalized regression to shrink or select donor weights. An alternative approach to control overfitting is Principal Component Regression (PCR) introduced by @RSC and @PCR. Principal Component Analysis is based on the idea that large datasets may be well approximated by only a few key dominant patterns. Now, imagine the outcome matrix of controls as a literal cloud of points whose shape we wish to explain using as few dimensions as possible, capturing the essence of the data without reproducing every detail. 
+
+We already know the idea of fitting a line of best fit in two dimensions: it’s just a line that summarizes the linear relationship among the points.  PCA is the natural extension of that idea to higher dimensions. Instead of one line, we now look for a few directions (principal components) through this cloud of points that capture the most variance. We have as many principal components as we have donor units. Each principal component is like a stiff line through the data that explains as much of the spread as possible. Once we’ve identified the top few directions, we can project the donor points onto these lines. This gives us a low-dimensional summary that preserves most of the original structure. Reconstructing the donor series from these projections is just like asking: “If I only knew the points’ positions along these main lines, what would the original points look like?” The reconstruction is never perfect, but with enough top components, it usually captures the bulk of the pattern, filtering out minor fluctuations or noise.
+
+### Introducing Singular Value Decomposition
+
+We can formalize the idea of projecting onto dominant patterns using Singular Value Decomposition (SVD). SVD decomposes the centered matrix $\mathbf{Y}_0 - \bar{\mathbf{Y}}_0$ as  
+
+$$
+\mathbf{Y}_0 - \bar{\mathbf{Y}}_0 = \mathbf{U} \boldsymbol{\Sigma} \mathbf{V}^\top,
+$$  
+
+where $\mathbf{U} \in \mathbb{R}^{T_0 \times T_0}$ and $\mathbf{V} \in \mathbb{R}^{N_0 \times N_0}$ are orthogonal matrices, and $\boldsymbol{\Sigma} \in \mathbb{R}^{T_0 \times N_0}$ is diagonal with non-negative singular values $\sigma_1 \ge \sigma_2 \ge \dots \ge 0$. Centering ensures PCA focuses on the variation around the mean, not the absolute values. The columns of $\mathbf{V}$ define the principal components, i.e., directions through the "cloud of donor points" that explain maximal variance. Projecting the donor series onto the top $K$ components,  
+
+$$
+\mathbf{Z}_K = (\mathbf{Y}_0 - \bar{\mathbf{Y}}_0) \mathbf{V}_K, \quad \mathbf{V}_K \in \mathbb{R}^{N_0 \times K},
+$$  
+
+provides a low-dimensional summary of the donor behavior. Each row of $\mathbf{Z}_K$ gives the coordinates of a donor in this $K$-dimensional subspace—analogous to the projected coordinates along a line of best fit in 2D. The original donor matrix can then be approximately reconstructed as  
+
+$$
+\hat{\mathbf{Y}}_0^{(K)} = \mathbf{Z}_K \mathbf{V}_K^\top + \bar{\mathbf{Y}}_0,
+$$  
+
+where $\hat{\mathbf{Y}}_0^{(K)}$ captures the bulk of the variation in the donors while filtering out minor fluctuations or noise. This is entirely analogous to fitting a line of best fit in two dimensions: here, instead of one line, we have a few stiff directions through the high-dimensional cloud of points.
+
+To visualize this in 2D, we load the Basque data and slice the donor matrix off by its pre-intervention period (before 1975).
+
+```{python}
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from mlsynth.utils.datautils import dataprep
+from style import set_book_style
+
+set_book_style()
+
+# --- Load Basque data ---
+url = ("https://raw.githubusercontent.com/"
+       "jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/"
+       "basque_data.csv")
+
+data = pd.read_csv(url)
+
+prepped_data = dataprep(
+    data,
+    "regionname",
+    "year",
+    "gdpcap",
+    "Terrorism"
+)
+
+y = prepped_data["y"]              # Target (Basque)
+Y0 = prepped_data["donor_matrix"]  # Donor pool (time x units)
+T0 = prepped_data["pre_periods"]   # Pre-treatment periods
+time = prepped_data["time_labels"] # Time labels
+
+# --- Slice pre-treatment and center ---
+Y0_pre = Y0[:T0]                   # pre-treatment slice
+Y0_mean = Y0_pre.mean(axis=0)
+Y0_centered = Y0_pre - Y0_mean
+
+```
+
+
+Next, we fit the principal components. I do this both in SVD and PCA, but either way is correct:
+
+```{python}
+
+
+# --- Number of top PCs to use ---
+K = 4
+
+# =========================
+# Method 1: sklearn PCA
+# =========================
+pca = PCA()
+pca.fit(Y0_centered.T)  # donors as samples (rows)
+proj_skl = pca.transform(Y0_centered.T)[:, :K]
+Y0_recon_skl = (proj_skl @ pca.components_[:K, :]).T + Y0_mean
+var_explained_skl = np.sum(pca.explained_variance_ratio_[:K]) * 100
+
+# =========================
+# Method 2: Exact SVD / Eigen-decomposition matching sklearn PCA
+# =========================
+X = Y0_centered.T  # donors x time (16 x 20)
+
+# Step 1: Covariance across features (time points)
+cov_X = np.cov(X, rowvar=False)  # shape: (time x time) = (20,20)
+
+# Step 2: Eigen-decomposition
+eigvals, eigvecs = np.linalg.eigh(cov_X)
+
+# Step 3: Sort eigenvalues descending
+idx = np.argsort(eigvals)[::-1]
+eigvals = eigvals[idx]
+eigvecs = eigvecs[:, idx]
+
+# Step 4: PCA scores
+scores = X @ eigvecs  # donors x time (16 x 20)
+
+# Step 5: Take top K
+scores_K = scores[:, :K]          # (16 x K)
+components_K = eigvecs[:, :K].T   # (K x 20)
+
+# Step 6: Reconstruct original data
+Y0_recon_svd_exact = (scores_K @ components_K).T + Y0_mean  # (20 x 16)
+
+# Step 7: Explained variance
+var_explained_svd_exact = np.sum(eigvals[:K]) / np.sum(eigvals) * 100
+
+
+# =========================
+# Plot original vs reconstructions
+plt.figure(figsize=(10,6))
+
+# Original donor series
+for j in range(Y0_pre.shape[1]):
+    plt.plot(time[:T0], Y0_pre[:, j], color='lightgray', lw=1)
+
+# Reconstructed (sklearn PCA)
+for j in range(Y0_pre.shape[1]):
+    plt.plot(time[:T0], Y0_recon_skl[:, j], lw=2, label=f"PC recon (sklearn)" if j==0 else "")
+
+plt.xlabel("Year")
+plt.ylabel("GDP per capita")
+plt.title(f"Original donors vs top {K} PC reconstruction\n"
+          f"Variance explained: {var_explained_skl:.2f}% (sklearn), {var_explained_svd_exact:.2f}% (SVD exact)")
+plt.show()
+```
+
+We can see that while we have 16 donor units at hand, we only need 4 or 5 components to explain 99.23 percent of the variation in the donors. The colorful lines are the values taken by the reconstructed donor matrix, and this is what we use to fit the target series that is treated.
+
+
+### Introducing Singular Value Thresholding
+
+To select K, we use  procedure called Universal Singular Value Thresholding developed by @USVT. USVT works by analyzing the singular values from the SVD of the centered donor matrix. Recall that our singular values measure the importance of each principal component, with larger values indicating directions that capture more variance. USVT selects $K$ by setting a threshold to distinguish significant singular values (signal) from smaller ones likely representing noise. To choose $K$ with USVT, we first calculate the matrix’s aspect ratio, defined as the ratio of its smaller dimension to its larger dimension, i.e.,
+
+$$
+r= \frac{\text{min}(T_0, N_0)}{\text{max}(T_0, N_0)},
+$$
+
+where $T_0$ is the number of pre-treatment periods and $N_0$ is the number of donor units. For the Basque data, the pre-treatment donor matrix has shape $20 \times 16$ (20 time periods, 16 donors), so the aspect ratio is $16/20 = 0.8$. Next, USVT computes a multiplier, called the omega factor, based on the aspect ratio using the formula:
+
+$$ \omega = 0.56 \cdot r^3 - 0.95 \cdot r^2 + 1.82 \cdot r + 1.43 $$
+
+Essentially, we adjust the threshold to account for how the matrix’s shape affects the distribution of singular values. For our Basque data with an aspect ratio of 0.8, we calculate:
+
+$$ \omega = 0.56 \cdot (0.8)^3 - 0.95 \cdot (0.8)^2 + 1.82 \cdot 0.8 + 1.43 \approx 2.584 $$
+
+The omega factor ensures the threshold is appropriately scaled for matrices of different shapes (e.g., tall and thin vs. wide and short). The threshold for retaining singular values is then set as:
+
+$$ \text{threshold} = \omega \cdot \text{median}(\sigma_1, \sigma_2, \dots, \sigma_{\min(T_0, N_0)}) $$
+
+The median singular value is used because it provides a robust measure of the typical scale of singular values, less sensitive to outliers than the mean. Singular values above this threshold are considered significant, capturing the main patterns in the data, while those below are treated as noise. The number of principal components, $K$, is the count of singular values greater than the threshold:
+
+$$ K = \text{number of } \sigma_i \text{ where } \sigma_i > \text{threshold} $$
+
+
+
+Once the rank $K$ has been selected, we rebuild the donor matrix using only the top $K$ singular components. Recall that the centered donor matrix can be decomposed by Singular Value Decomposition (SVD) as  
+
+$$
+\mathbf{Y}_0 - \bar{\mathbf{Y}}_0 = \mathbf{U} \boldsymbol{\Sigma} \mathbf{V}^\top,
+$$  
+
+where $\mathbf{U} \in \mathbb{R}^{T_0 \times T_0}$ and $\mathbf{V} \in \mathbb{R}^{N_0 \times N_0}$ are orthogonal matrices, and $\boldsymbol{\Sigma} \in \mathbb{R}^{T_0 \times N_0}$ is diagonal with singular values $\sigma_1 \ge \sigma_2 \ge \dots \ge 0$.  
+
+To obtain a low-rank approximation that captures the main structure of $\mathbf{Y}_0$, we retain only the first $K$ singular values and their corresponding singular vectors:
+
+$$
+\mathbf{U}_K = [\mathbf{u}_1, \dots, \mathbf{u}_K], \quad
+\boldsymbol{\Sigma}_K = \mathrm{diag}(\sigma_1, \dots, \sigma_K), \quad
+\mathbf{V}_K = [\mathbf{v}_1, \dots, \mathbf{v}_K].
+$$
+
+The low-rank reconstruction of the donor matrix is then given by  
+
+$$
+\mathbf{Y}_0^{(K)} = \mathbf{U}_K \boldsymbol{\Sigma}_K \mathbf{V}_K^\top + \bar{\mathbf{Y}}_0.
+$$
+
+This reconstruction, $\mathbf{Y}_0^{(K)}$, preserves the dominant co-movements across donors while filtering out minor, idiosyncratic variations. In practice, this means that each donor’s trajectory is projected into a $K$-dimensional subspace that captures the most important temporal and cross-sectional patterns.
+
+
+
+Now, we can perform linear regression. Like the above, our target vector is the pre-treatment outcome of the treated unit. However, instead of the raw donor matrix as predictors, we use the denoised version of the donor matrix:
+
+$$
+\mathbf{w}^\ast = 
+\underset{\mathbf{w} \in \mathbb{R}^{N_0}}{\operatorname*{argmin}} \;
+\| \mathbf{y}_1 - \mathbf{Y}_0^{(K)} \mathbf{w} \|_2^2.
+$$
+
+In practice, this optimization can be extended to include a general $p$–$q$ regularization term. The complete objective becomes:
+
+$$
+\mathbf{w}^\ast
+= 
+\underset{\mathbf{w} \in \mathbb{R}^{N_0}}{\operatorname*{argmin}}
+\;
+\| \mathbf{y}_1 - \mathbf{Y}_0^{(K)} \mathbf{w} \|_2^2
++ \lambda \, \| \mathbf{w} \|_p^q.
+$$
+
+Here, $\lambda > 0$ is a penalty term that controls how much the donor weights are shrunk toward zero. The parameters $p$ and $q$ determine the geometry of the regularization. Setting $p = q = 2$ yields the standard ridge-style penalty, while $p = q = 1$ gives a lasso-style penalty. Nonconvex or hybrid cases can also be specified, such as $p < 1$ for sparsity or $p = 2, q < 2$ for adaptive shrinkage. To do this, we use the ```CLUSTERSC```  class from ```mlsynth```. This method calls on the [```pcr```](https://mlsynth.readthedocs.io/en/latest/est.html#mlsynth.utils.estutils.pcr) method, which itself calls on the [```Opt.SCopt```](https://mlsynth.readthedocs.io/en/latest/est.html#mlsynth.utils.estutils.Opt) class,  buried within the lightless depths of the ```mlsynth``` API. Below, I run unregularized PCR (which I just refer to as OLS) and PCR with an $\ell_1$ and $\ell_2$ penalty on the weights. maintaining a lambda of 0.05 for both. First we have the weights.
+
+
+```{python}
+
+
+from mlsynth import CLUSTERSC
+import pandas as pd
+
+# Load Basque dataset
+url = (
+    "https://raw.githubusercontent.com/"
+    "jgreathouse9/mlsynth/"
+    "refs/heads/main/basedata/"
+    "basque_data.csv"
+)
+data = pd.read_csv(url)
+
+# Base configuration
+base_config = {
+    "df": data,
+    "outcome": data.columns[2],
+    "treat": data.columns[-1],
+    "unitid": data.columns[0],
+    "time": data.columns[1],
+    "display_graphs": False,
+    "save": False,
+    "counterfactual_color": ["red"],
+    "cluster": False,
+    "method": "PCR"
+}
+
+# Define model setups
+model_setups = {
+    "OLS": {"lambda_penalty": 0, "p": 1, "q": 1},
+    "Lasso": {"lambda_penalty": 0.05, "p": 1, "q": 1},
+    "Ridge": {"lambda_penalty": 0.05, "p": 2, "q": 2}
+}
+
+# Containers for results
+weight_dict = {}
+counterfactual_dict = {}
+att_dict = {}
+rmse_dict = {}
+
+# Fit each model
+for name, params in model_setups.items():
+    config = base_config.copy()
+    config.update(params)
+
+    model = CLUSTERSC(config)
+    arco = model.fit()
+
+    weights = arco.sub_method_results["PCR"].weights.donor_weights
+    counterfactual = arco.sub_method_results["PCR"].time_series.counterfactual_outcome
+
+    weight_dict[name] = weights
+    counterfactual_dict[name] = counterfactual
+
+    att_dict[name] = arco.sub_method_results["PCR"].effects.additional_effects.get("ATT", None)
+    rmse_dict[name] = arco.sub_method_results["PCR"].fit_diagnostics.additional_metrics.get("T0 RMSE", None)
+
+
+# Convert each donor_weights dict to a Series and round to 3 decimals
+weights_df = pd.DataFrame({
+    name: pd.Series({k: round(v, 3) for k, v in weights.items()})
+    for name, weights in weight_dict.items()
+})
+
+
+display(Markdown(weights_df.to_markdown()))
+
+```
+
+These weights return these predictions:
+
+
+```{python}
+import matplotlib.pyplot as plt
+
+# Get the time labels
+time_labels = arco.sub_method_results['PCR'].time_series.time_periods
+
+# Pre-treatment period index (assuming last column is treatment indicator)
+treated_unit = arco.sub_method_results['PCR'].time_series.observed_outcome
+
+
+# Plot the observed treated unit
+plt.plot(time_labels, treated_unit, label="Treated Unit", color="black", linewidth=2)
+
+# Plot the three counterfactuals
+colors = {"OLS": "blue", "Lasso": "green", "Ridge": "red"}
+for name, counterfactual in counterfactual_dict.items():
+    plt.plot(time_labels, counterfactual, label=f"{name} Basque", color=colors[name], linestyle="--", linewidth=2)
+
+# Optional: mark treatment start
+T0 = arco.sub_method_results['PCR'].fit_diagnostics.additional_metrics['Pre-Periods']
+plt.axvline(time_labels[T0], color="gray", linestyle="-", label="Terrorism")
+
+plt.xlabel("Year")
+plt.ylabel(base_config["outcome"])
+plt.title("Penalized SC Predictions")
+plt.legend()
+plt.tight_layout()
+plt.show()
+```
+
+along with these ATTs and RMSEs.
+
+```{python}
+# Build a summary DataFrame for ATT and pre-treatment RMSE
+metrics_df = pd.DataFrame({
+    "ATT": att_dict,
+    "Pre-treatment RMSE": rmse_dict
+}).round(3)
+
+
+display(Markdown(metrics_df.to_markdown()))
+```
+
+We can see that the PCR approach effectively regularizes the OLS fit compared to the non-PCR OLS fit. Although OLS in theory allows weights to freely adapt to noise, PCR implicitly regularizes the solution by expressing $\mathbf{Y}_0$ only in terms of its dominant components. This effectively smooths the fit, as high-variance, low-signal directions are penalized. This has the effect of distributing weight across donors that explain the largest share of GDP variation in the pre-treatment period, while downweighting minor, noisy fluctuations. As a result, the synthetic Basque GDP is smoother, more stable, and driven by the main patterns in the donor pool rather than overfitting to idiosyncratic deviations. Looking at the actual donor weights, we see that OLS assigns weight to multiple regions, including Cataluna (0.264) and Madrid (0.277), but also some negative weights such as Canarias (-0.218). Ridge regularization keeps a similar distribution but slightly shrinks extreme values toward zero, producing a smoother set of weights. Lasso, on the other hand, sparsifies the solution dramatically, assigning nearly all the weight to Cataluna (0.867) and Madrid (0.134) while zeroing out contributions from most other donors.
+
+These weight patterns are reflected in the treatment effect estimates and pre-treatment RMSE. OLS produces an ATT of -0.849 with an RMSE of 0.077, indicating tight pre-treatment fit. The regularized solutions give very similar results, with slight differences in fit and ATT. Ridge gives a slightly smaller ATT compared to OLS (-0.826) with effectively the same RMSE, maintaining stability while smoothing extreme weights. Lasso, by concentrating weight on a few donors, produces a smaller ATT in magnitude (-0.732) and slightly higher pre-treatment RMSE (0.083), reflecting a trade-off between sparsity and fit. Overall, regularization allows the PCR approach to balance fidelity to the pre-treatment data with stability and interpretability of the donor weights.
+
+## Downsides of Penalized Least Squares
+
+Beyond the basic bias–variance tradeoff, implementing penalized least squares requires several practical tuning decisions. We must choose the size of the candidate $\lambda$ grid, how to space the values (linearly, logarithmically, or geometrically), and the number of steps in the search. Each choice affects the outcome: a coarse grid may miss the optimal $\lambda$, while an overly fine grid increases computational cost without guaranteed improvement. The grid spacing also matters—a logarithmic scale can capture behavior when small changes in $\lambda$ have large effects, whereas a linear scale may suffice when sensitivity is low. In short, thoughtful selection of these hyperparameter search settings is as important as choosing the penalty itself, as it governs how well the model balances fit, sparsity, and stability.
+
+
+Another limitation is interpretability. LASSO’s sparsity can simplify interpretation by selecting a few donors, but the choice of which donors remain can be sensitive to small changes in the data. Ridge distributes weights more evenly, making the model stable, but at the cost of obscuring which units are most influential. In practice, both penalties can shift the relative importance of donors in ways that might not align with substantive knowledge. Penalized models rely on pre-treatment fit to guide the penalty. If the pre-treatment period is short, noisy, or unrepresentative, the regularization can either overcorrect or undercorrect, affecting post-treatment predictions. Cross-validation helps, but it is limited by the data available for validation. In short, while penalized least squares provides a disciplined way to control variance and extreme weights, it introduces new choices, tradeoffs, and potential biases that require careful consideration.
+
+These changes in some sense are present in PCR as well. PCR requires choosing how many top singular values to retain. USVT is one way of doing this, but other methods have been proposed in the literature as well. For example, @opthresh43 find the optimal threshold to be $\frac{4}{\sqrt{3}}$ [also see @screenot]. The practical consequences of this are simple: keeping too few components may miss important variation in the donor pool, underfitting the treated unit. Keeping too many may reintroduce noise, overfitting minor idiosyncrasies. There is no universally correct rule, and analysts may experiment according to different rules.
+
+
+## Onward to Convex SC
+
+Regularization teaches OLS restraint. By adding a penalty term, we give the model a sense of proportion: fit matters, but so does humility. The $\ell_1$ and $\ell_2$ norms are two ways of communicating that discipline—one selective, the other inclusive. Both make OLS behave less like an overzealous mimic and more like a thoughtful imitator. Yet, penalties still leave the model free to misbehave, for the reasons I mentioned above. To address this, we move from *penalized* to *constrained* optimization. Geometrically, we go from a soft, round penalty landscape to a sharp, polygonal constraint space. Conceptually, we shift from telling OLS to "behave" to explicitly defining what "behavior" is allowed. The result is a model that balances interpretability and fit—not through suggestion, but through structure.
+
+::: {.problem title="Analogy" data-link="#problem-example"}
+Come up with your own analogy to explain the $\ell_1$ and $\ell_2$ norms, to accompany my music analogy. 
+:::
+
+::: {.problem title="Understanding Overfitting" data-link="#problem-overfitting"}
+1. Define overfitting in the context of synthetic control.  
+2. Explain why OLS synthetic control tends to overfit the pre-treatment period in the Basque Country example.  
+3. How does overfitting affect out-of-sample (post-treatment) predictions?  
+:::
+
+::: {.problem title="L1 vs L2 Regularization" data-link="#problem-l1-l2-comparison"}
+1. For the same dataset, fit both LASSO (L1) and Ridge (L2) penalized regressions.  
+2. Compare the donor weights obtained from each method. Which donors are selected or shrunk more under each norm?  
+3. Explain how the choice of $\lambda$ affects the sparsity of the LASSO weights and the smoothness of Ridge weights.  
+:::
+
+::: {.problem title="Bias-Variance Tradeoff" data-link="#problem-bias-variance"}
+1. Explain the bias-variance tradeoff in your own words.  
+2. Using your OLS, LASSO, and Ridge results, describe which models have higher bias or higher variance.  
+3. How does regularization help balance this tradeoff in synthetic control?  
+:::
+
+::: {.problem title="Implementing Penalized OLS" data-link="#problem-penalized-ols"}
+1. Using the `fit_penalized` function, compute penalized weights for the Basque dataset with $\lambda = 0.1, 0.5, 1.0$.  
+2. Plot the predicted counterfactuals for each $\lambda$.  
+3. Discuss how increasing $\lambda$ affects the pre-treatment RMSE and the donor weight distribution.  
+:::
+
+::: {.problem title="Cross-Validation Setup" data-link="#problem-cross-validation"}
+1. Explain the purpose of rolling-origin cross-validation in the context of synthetic control.  
+2. Define training and validation periods for a rolling window with initial train size 10 and step 5.  
+3. Why might a logarithmic grid of $\lambda$ values be preferable to a linear grid in CV?  
+:::
+
+::: {.problem title="Selecting Optimal $\lambda$" data-link="#problem-optimal-lambda"}
+1. Perform rolling-origin cross-validation to select the optimal $\lambda$ for LASSO and Ridge.  
+2. Plot the cross-validated MSE against $\lambda$ for each norm.  
+3. Report the $\lambda$ that minimizes CV error and explain why it represents a balance between bias and variance.  
+:::
+
+::: {.problem title="ATT Estimation" data-link="#problem-att-estimation"}
+1. Compute the average post-treatment treatment effect (ATT) for OLS, LASSO, and Ridge synthetic controls.  
+2. Compare the magnitude and sign of the ATT estimates across models.  
+3. Interpret the differences in the context of penalization and overfitting.  
+:::
+
+::: {.problem title="Hyperparameter Sensitivity" data-link="#problem-hyperparameter-sensitivity"}
+1. Explore how changing the size of the $\lambda$ grid affects the CV-selected $\lambda$.  
+2. Try linear, logarithmic, and geometric grids.
+3. Discuss how grid choice could influence your synthetic control results.  
+:::
+
+
+
+
+
+
+
