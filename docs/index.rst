@@ -37,6 +37,7 @@ MLSYNTH
    si
    data
    selector
+   helpers
 
 
 .. toctree::
