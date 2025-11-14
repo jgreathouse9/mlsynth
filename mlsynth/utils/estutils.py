@@ -40,6 +40,8 @@ _SCM_MODEL_MSCB = "MSCb"
 _SCM_MODEL_MSCC = "MSCc"
 _SCM_MODEL_OLS = "OLS"
 _SCM_MODEL_MA = "MA" # Model Averaging
+_SCM_MODEL_AFFINE= "AFFINE"
+
 
 _PDA_METHOD_FS = "fs" # Forward Selection
 _PDA_METHOD_LASSO = "LASSO"
@@ -4947,6 +4949,7 @@ def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
     }
 
     return {"Convex SCM": full_results, "Forward SCM": fscm_results, "Forward Aumented SCM": affine_results}
+
 
 
 
