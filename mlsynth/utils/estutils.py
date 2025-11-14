@@ -1499,6 +1499,7 @@ def pcr(
         }
 
 
+
 class Opt:
 
     DEFAULT_LAMBDA_PENALTY: float = 0.0  # No regularization by default
@@ -1601,6 +1602,57 @@ class Opt:
             "w_MA": final_averaged_donor_weights_ma,
             "Counterfactual_pre": averaged_pre_treatment_counterfactual_ma,
         }
+
+    @staticmethod
+    def _solve_affine_model(target_outcomes: np.ndarray,
+                            donor_outcomes: np.ndarray,
+                            num_coefficients: int,
+                            w_convex: np.ndarray = None,
+                            lambda_penalty: float = 0.0) -> cp.Problem:
+        """
+        Solve an AFFINE SCM model: weights may be negative, but must sum to 1.
+        Optionally penalize deviation from convex weights.
+
+        Tries multiple solvers in order and returns the first successful solution.
+
+        Parameters
+        ----------
+        target_outcomes : np.ndarray
+            Pre-treatment outcomes for the treated unit.
+        donor_outcomes : np.ndarray
+            Pre-treatment outcomes for donor units.
+        num_coefficients : int
+            Number of donor units (length of weight vector).
+        w_convex : np.ndarray, optional
+            Convex SCM weights to penalize deviation from.
+        lambda_reg : float, default 0.0
+            Strength of penalty on deviation from convex weights.
+        """
+        _SOLVERS = ["CLARABEL", "OSQP", "ECOS", "SCS"]
+        w = cp.Variable(num_coefficients)
+
+        # Affine constraint: sum to 1
+        constraints = [cp.sum(w) == 1]
+
+        # Base L2 fit
+        objective_expr = cp.norm(target_outcomes - donor_outcomes @ w, 2) ** 2
+
+        # Add penalty if provided
+        if w_convex is not None and lambda_penalty > 0:
+            objective_expr += lambda_penalty * cp.norm(w - w_convex, 2) ** 2
+
+        objective = cp.Minimize(objective_expr)
+        problem = cp.Problem(objective, constraints)
+
+        for solver in _SOLVERS:
+            try:
+                problem.solve(solver=solver)
+                if problem.status not in ["infeasible", "unbounded", "unknown"]:
+                    return problem
+            except Exception:
+                continue
+
+        raise RuntimeError(f"Affine SCM could not be solved with any solver in {_SOLVERS}")
 
     @staticmethod
     def _solve_simplex_model(
@@ -1891,13 +1943,14 @@ class Opt:
         target_outcomes_pre_treatment: np.ndarray,
         num_pre_treatment_periods: int,
         donor_outcomes_pre_treatment: np.ndarray,
-        scm_model_type: str = _SCM_MODEL_MSCB, # Use constant
+        scm_model_type: str = _SCM_MODEL_MSCB,
         base_model_results_for_averaging: Optional[Dict[str, Dict[str, Any]]] = None,
         donor_names: Optional[List[str]] = None,
         # --- New regularization args ---
         lambda_penalty: Optional[float] = None,
         p: Optional[float] = None,
         q: Optional[float] = None,
+        w_convex = None
     ) -> Union[cp.Problem, Dict[str, Any]]:
         """Perform optimization for various Synthetic Control Method (SCM) variants.
 
@@ -2034,6 +2087,12 @@ class Opt:
                 base_model_results_for_averaging,
                 num_pre_treatment_periods,
             )
+        elif scm_model_type == _SCM_MODEL_AFFINE:
+            return Opt._solve_affine_model(
+                target_outcomes_pre_treatment_subset,
+                processed_donor_outcomes_pre_treatment_subset, # Original X, no intercept added here
+                current_num_control_units, w_convex,lambda_penalty # Original num_control_units
+            )
         elif scm_model_type == _SCM_MODEL_SIMPLEX:
             return Opt._solve_simplex_model(
                 target_outcomes_pre_treatment_subset,
@@ -2073,6 +2132,7 @@ class Opt:
                 f"{_SCM_MODEL_SIMPLEX}, {_SCM_MODEL_MSCA}, {_SCM_MODEL_MSCB}, "
                 f"{_SCM_MODEL_MSCC}, {_SCM_MODEL_OLS}, {_SCM_MODEL_MA}."
             )
+
 
 
 def pda(
@@ -4577,6 +4637,316 @@ def fSCM(
             full_weights
         )
 
+
+
+def tune_affine_lambda(
+        y: np.ndarray,
+        Y: np.ndarray,
+        T0: int,
+        donor_names: list[str],
+        w_convex: np.ndarray,
+        lambda_grid: list[float] = None,
+        train_frac: float = 1 / 3,
+        solver: str = "ECOS"
+):
+    """
+    Tune lambda for the affine SCM with L2 penalty toward convex weights.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Target unit pre-treatment outcomes (length T0).
+    Y : np.ndarray
+        Donor matrix for pre-treatment periods, shape (T0, N0).
+    T0 : int
+        Number of pre-treatment periods.
+    donor_names : list[str]
+        Names of donors.
+    w_convex : np.ndarray
+        Convex SCM weight vector to penalize deviation from.
+    lambda_grid : list[float], optional
+        Grid of lambda values to try. Defaults to log-spaced 10^-3 to 10^3.
+    train_frac : float, default=1/3
+        Fraction of T0 to use as training (for fitting weights).
+    solver : str, default="ECOS"
+        CVXPY solver to use.
+
+    Returns
+    -------
+    best_lambda : float
+        Lambda value with lowest validation MSE.
+    validation_results : dict
+        MSE for each lambda tested.
+    """
+    if lambda_grid is None:
+        lambda_grid = np.logspace(-3, 3, 10)
+
+    # Split training/validation
+    T_train = max(1, int(np.floor(T0 * train_frac)))
+    T_val = T0 - T_train
+
+    y_train = y[:T_train]
+    y_val = y[T_train:]
+    Y_train = Y[:T_train, :]
+    Y_val = Y[T_train:T0, :]
+
+
+    validation_results = {}
+    best_mse = float("inf")
+    best_lambda = None
+
+    for lam in lambda_grid:
+
+        affine_solution = Opt.SCopt(
+            num_control_units=Y_train.shape[1],
+            target_outcomes_pre_treatment=y_train,
+            num_pre_treatment_periods=T0,
+            donor_outcomes_pre_treatment=Y_train,
+            scm_model_type="AFFINE",
+            donor_names=donor_names,
+            w_convex=w_convex,
+            lambda_penalty=lam
+        )
+
+        var = next(iter(affine_solution.solution.primal_vars))
+
+        if affine_solution.solution.status not in ["infeasible", "unbounded", "unknown"]:
+            w_val = np.array(affine_solution.solution.primal_vars[var]).flatten()
+            # Evaluate validation MSE
+            val_mse = np.mean((y_val - Y_val @ w_val) ** 2)
+            validation_results[lam] = val_mse
+            if val_mse < best_mse:
+                best_mse = val_mse
+                best_lambda = lam
+
+    if best_lambda is None:
+        raise RuntimeError("No lambda produced a feasible solution.")
+
+    return best_lambda, validation_results
+
+
+def __organize_fscm_results(
+    y, Y, T0, selected, remaining, mse_list, weights_list,
+    donor_names, iteration, candidate_dict, best_candidate_info
+):
+    """
+    Organizes the results from a single iteration of forward-selection FSCM,
+    including mBIC for stopping rules.
+
+    Returns updated candidate_dict and best_candidate_info.
+    """
+    N0 = Y.shape[1]
+    candidate_dict[iteration] = []
+
+    for r, mse, weights in zip(remaining, mse_list, weights_list):
+        candidate_subset = selected + [r]
+
+        # dictionary of weights by donor name
+        weight_dict = {donor_names[i]: 0.0 for i in range(N0)}
+        for i, donor_idx in enumerate(candidate_subset):
+            weight_dict[donor_names[donor_idx]] = weights[i]
+
+        # full vector of weights
+        full_weight_vector = np.zeros(N0)
+        full_weight_vector[candidate_subset] = weights
+
+        # compute mBIC for this candidate
+        k = len(candidate_subset)
+        mBIC = T0 * np.log(mse) + k * np.log(T0)
+
+        candidate_record = {
+            "mse": mse,
+            "rmse": np.sqrt(mse),
+            "mBIC": mBIC,
+            "cardinality": k,
+            "candidate_indices": candidate_subset.copy(),
+            "candidate_names": {donor_names[i] for i in candidate_subset},
+            "weights": weight_dict.copy(),
+            "full_weight_vector": full_weight_vector.copy()
+        }
+
+        candidate_dict[iteration].append(candidate_record)
+
+        # Update best candidate across all iterations
+        if best_candidate_info is None or mse < best_candidate_info["mse"]:
+            best_candidate_info = candidate_record.copy()
+            best_candidate_info["iteration"] = iteration
+
+    return candidate_dict, best_candidate_info
+
+
+def _extract_weights(scm_solution):
+    """
+    Private helper to extract weights from an Opt.SCopt solution.
+
+    Parameters
+    ----------
+    scm_solution : Opt.SCopt solution object
+        The solution returned by Opt.SCopt.
+
+    Returns
+    -------
+    np.ndarray
+        Flattened array of weights.
+    """
+    # Take the first variable in the primal_vars dict
+    var = next(iter(scm_solution.solution.primal_vars))
+    return np.array(scm_solution.solution.primal_vars[var]).flatten()
+
+
+
+# --- Inner solver for a given donor subset ---
+def fscm_inner(y, Y, T0, candidate_indices, donor_names):
+    """
+    Solve FSCM for a given subset of donors and return MSE + weights.
+    Assumes candidate_indices is non-empty.
+    """
+
+    # Solve CVXPY problem via Opt.SCopt
+    solution = Opt.SCopt(
+        num_control_units=len(candidate_indices),
+        target_outcomes_pre_treatment=y[:T0],
+        num_pre_treatment_periods=T0,
+        donor_outcomes_pre_treatment=Y[:, candidate_indices][:T0],
+        scm_model_type="SIMPLEX",
+        donor_names=[donor_names[i] for i in candidate_indices],
+    )
+    return (solution.value ** 2) / T0, _extract_weights(solution)
+
+# --- Helper to evaluate all remaining candidates ---
+def evaluate_candidates(y, Y, T0, selected, remaining, donor_names):
+    """
+    Evaluate the inner FSCM problem for all remaining candidate donors.
+    Returns lists of MSEs and corresponding weights.
+    """
+    mse_list = []
+    weights_list = []
+
+    for j in remaining:
+        candidate_subset = selected + [j]
+        mse, weights = fscm_inner(y, Y, T0, candidate_subset, donor_names)
+        mse_list.append(mse)
+        weights_list.append(weights)
+
+    return mse_list, weights_list
+
+# --- Helper to pick best candidate from current iteration ---
+def pick_best_candidate(mse_list, weights_list, remaining, selected, donor_names):
+    """
+    Pick the donor with the lowest MSE from the candidate list, update selection.
+    Returns the best donor index, its MSE, and corresponding weights.
+    """
+    mse_array = np.array(mse_list)
+    best_idx = np.argmin(mse_array)
+
+    best_candidate = remaining[best_idx]
+    best_candidate_mse = mse_array[best_idx]
+    best_candidate_weights = weights_list[best_idx]
+
+    # Update selection
+    selected.append(best_candidate)
+    remaining.remove(best_candidate)
+
+    print(f"Iteration {len(selected)}: added donor {donor_names[best_candidate]}, MSE={best_candidate_mse:.4f}")
+
+    return best_candidate, best_candidate_mse, best_candidate_weights
+
+# --- Main forward-selection FSCM function ---
+def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
+    """
+    Forward-selection FSCM with optional stopping rules.
+    Returns results for full SCM, FSCM (with candidate_dict), and affine SCM.
+    """
+    N0 = Y.shape[1]
+    remaining = list(range(N0))
+    selected = []
+
+    iteration = 0
+    candidate_dict = {}
+    best_candidate_info = None
+    best_overall_mBIC = float("inf")
+
+    # --- Solve full SCM ---
+    full_solution = Opt.SCopt(
+        num_control_units=N0,
+        target_outcomes_pre_treatment=y[:T0],
+        num_pre_treatment_periods=T0,
+        donor_outcomes_pre_treatment=Y[:T0],
+        scm_model_type="SIMPLEX",
+        donor_names=donor_names,
+    )
+    full_weights = _extract_weights(full_solution)
+    weight_dict = {name: w for name, w in zip(donor_names, full_weights)}
+    full_results = {
+        "weights": full_weights,
+        "weight_dict": weight_dict,
+        "mse": np.mean((y[:T0] - Y[:T0] @ full_weights) ** 2),
+        "rmse": np.sqrt(np.mean((y[:T0] - Y[:T0] @ full_weights) ** 2))
+    }
+
+    # --- Forward-selection FSCM ---
+    max_steps = min(N0, max(1, int(np.floor(N0 * selection_fraction))))
+
+    while remaining and len(selected) < max_steps:
+        iteration += 1
+        mse_list, weights_list = evaluate_candidates(y, Y, T0, selected, remaining, donor_names)
+        candidate_dict, best_candidate_info = __organize_fscm_results(
+            y, Y, T0, selected, remaining,
+            mse_list, weights_list, donor_names,
+            iteration, candidate_dict, best_candidate_info
+        )
+
+        best_idx = np.argmin(np.array(mse_list))
+        best_candidate = remaining[best_idx]
+        best_candidate_mse = mse_list[best_idx]
+        k = len(selected) + 1
+        mBIC = T0 * np.log(best_candidate_mse) + k * np.log(T0)
+
+        if not full_selection and mBIC >= best_overall_mBIC:
+            print(f"Stopping early at iteration {iteration}: mBIC increased ({mBIC:.4f} >= {best_overall_mBIC:.4f})")
+            break
+
+        best_overall_mBIC = mBIC
+        selected.append(best_candidate)
+        remaining.remove(best_candidate)
+
+    fscm_results = {
+        **best_candidate_info,  # includes mse, rmse, weights, full_weight_vector, etc.
+        "candidate_dict": candidate_dict  # full iteration-level info
+    }
+
+    # --- Affine SCM ---
+    best_lambda, val_results = tune_affine_lambda(
+        y=y[:T0],
+        Y=Y,
+        T0=T0,
+        donor_names=donor_names,
+        w_convex=fscm_results['full_weight_vector'],
+    )
+
+    affine_solution = Opt.SCopt(
+        num_control_units=Y.shape[1],
+        target_outcomes_pre_treatment=y[:T0],
+        num_pre_treatment_periods=T0,
+        donor_outcomes_pre_treatment=Y[:T0],
+        scm_model_type="AFFINE",
+        donor_names=donor_names,
+        w_convex=fscm_results['full_weight_vector'],
+        lambda_penalty=best_lambda
+    )
+
+    affine_weights = _extract_weights(affine_solution)
+    affine_weight_dict = {name: round(w, 3) for name, w in zip(donor_names, affine_weights)}
+    affine_results = {
+        "weights": affine_weights,
+        "weight_dict": affine_weight_dict,
+        "mse": np.mean((y[:T0] - Y[:T0] @ affine_weights) ** 2),
+        "rmse": np.sqrt(np.mean((y[:T0] - Y[:T0] @ affine_weights) ** 2)),
+        "lambda": best_lambda,
+        "validation_results": val_results
+    }
+
+    return {"Convex SCM": full_results, "Forward SCM": fscm_results, "Forward Aumented SCM": affine_results}
 
 
 
