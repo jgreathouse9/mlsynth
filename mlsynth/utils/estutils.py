@@ -4953,4 +4953,181 @@ def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
 
 
 
+def DID(treated_outcome_all_periods: np.ndarray, control_outcomes_all_periods: np.ndarray,
+        num_pre_treatment_periods: int, placebo_iteration_num: int = 0
+) -> Dict[str, Any]:
+    """
+    Computes standard Difference-in-Differences (DID) estimates.
+
+    This method calculates the DID effect by comparing the change in outcomes
+    for the treated unit to the change in outcomes for the (average of) control units.
+
+    Parameters
+    ----------
+    treated_outcome_all_periods : np.ndarray
+        Outcome vector for the treated unit, shape (T, 1), where T is the total
+        number of time periods.
+    control_outcomes_all_periods : np.ndarray
+        Outcome matrix for control units, shape (T, N_controls), where N_controls
+        is the number of control units.
+    num_pre_treatment_periods : int
+        Number of pre-treatment periods (T0).
+    placebo_iteration_num : int, optional
+        Placeholder for placebo iteration, not actively used in this method.
+        Default is 0.
+
+    Returns
+    -------
+    Dict[str, Any]
+        A dictionary containing raw estimation results for the DID method.
+        The dictionary includes the following keys and sub-keys:
+        - "Effects" (Dict[str, float]):
+            - "ATT": Average Treatment Effect on the Treated.
+            - "Percent ATT": Percentage ATT.
+            - "SATT": Standardized ATT.
+        - "Vectors" (Dict[str, np.ndarray]):
+            - "Observed Unit": Outcome vector for the treated unit, shape (T, 1).
+            - "Counterfactual": Estimated counterfactual outcome vector, shape (T, 1).
+            - "Gap": Treatment effect over time, shape (T, 2), where columns are
+              [gap_value, event_time_index].
+        - "Fit" (Dict[str, Union[float, int]]):
+            - "T0 RMSE": Root Mean Squared Error in the pre-treatment period.
+            - "R-Squared": R-squared value in the pre-treatment period.
+            - "Pre-Periods": Number of pre-treatment periods (t1).
+        - "Inference" (Dict[str, float]):
+            - "P-Value": P-value for the ATT.
+            - "95 LB": Lower bound of the 95% confidence interval for ATT.
+            - "95 UB": Upper bound of the 95% confidence interval for ATT.
+            - "Width": Width of the 95% confidence interval.
+        - "SE": Standard error of the ATT.
+        - "Intercept": Estimated DID intercept.
+    """
+    total_periods: int = len(treated_outcome_all_periods)
+    # Ensure control_outcomes_all_periods is a 2D array (T x N_controls) even if only one control unit.
+    if control_outcomes_all_periods.ndim == 1:
+        control_outcomes_all_periods = control_outcomes_all_periods.reshape(-1, 1)
+
+    # Calculate the average outcome of control units for pre and post-treatment periods.
+    mean_control_outcome_pre_treatment: np.ndarray = np.mean(
+        control_outcomes_all_periods[:num_pre_treatment_periods], axis=1).reshape(-1, 1)
+    mean_control_outcome_post_treatment: np.ndarray = np.mean(
+        control_outcomes_all_periods[num_pre_treatment_periods:total_periods], axis=1).reshape(-1, 1)
+
+    # The DID intercept is the average difference between the treated unit's outcome and the mean control outcome during the pre-treatment period.
+    # This captures the baseline difference.
+    did_intercept: float = np.mean(
+        treated_outcome_all_periods[:num_pre_treatment_periods] - mean_control_outcome_pre_treatment).item()
+
+    # Construct the counterfactual for the treated unit.
+    # Pre-treatment: fitted values based on the intercept and mean control pre-treatment outcomes.
+    fitted_treated_outcome_pre_treatment: np.ndarray = did_intercept + mean_control_outcome_pre_treatment
+    # Post-treatment: predicted values based on the intercept and mean control post-treatment outcomes (assuming parallel trends).
+    predicted_treated_outcome_post_treatment: np.ndarray = did_intercept + mean_control_outcome_post_treatment
+    counterfactual_outcome_did: np.ndarray = did_intercept + np.mean(control_outcomes_all_periods, axis=1).reshape(
+        -1, 1)
+
+    # Calculate the Average Treatment Effect on the Treated (ATT).
+    # This is the average difference between the observed outcome and the counterfactual outcome in the post-treatment period.
+    att_did: float = np.mean(
+        treated_outcome_all_periods[num_pre_treatment_periods:total_periods] - counterfactual_outcome_did[
+                                                                               num_pre_treatment_periods:total_periods]).item()
+    mean_counterfactual_outcome_post_treatment_did: float = np.mean(
+        counterfactual_outcome_did[num_pre_treatment_periods:total_periods]).item()
+    # Calculate ATT as a percentage of the mean counterfactual outcome in the post-treatment period.
+    att_percentage_did: float = (
+        100 * att_did / mean_counterfactual_outcome_post_treatment_did if mean_counterfactual_outcome_post_treatment_did != 0 else np.nan
+    )
+
+    # Calculate R-squared for the pre-treatment period to assess goodness of fit.
+    # Handle cases where variance of treated_outcome_all_periods[:num_pre_treatment_periods] is zero (e.g., num_pre_treatment_periods <= 1) to avoid division by zero.
+    if num_pre_treatment_periods == 0:  # No pre-periods to calculate R-squared.
+        r_squared_pre_treatment_did = np.nan
+    else:
+        variance_treated_outcome_pre_treatment = np.var(
+            treated_outcome_all_periods[:num_pre_treatment_periods])  # Total sum of squares (proportional).
+        if num_pre_treatment_periods <= 1 or np.isclose(variance_treated_outcome_pre_treatment,
+                                                        0):  # If constant or single point, R2 is undefined.
+            r_squared_pre_treatment_did = np.nan
+        else:
+            mse_model_pre_treatment_did = np.mean((treated_outcome_all_periods[
+                                                   :num_pre_treatment_periods] - counterfactual_outcome_did[
+                                                                                 :num_pre_treatment_periods]) ** 2)  # Residual sum of squares (proportional).
+            r_squared_pre_treatment_did = 1 - (mse_model_pre_treatment_did / variance_treated_outcome_pre_treatment)
+
+    # Calculate residuals and variance components for statistical inference.
+    residuals_pre_treatment_did: np.ndarray = treated_outcome_all_periods[
+                                              :num_pre_treatment_periods] - counterfactual_outcome_did[
+                                                                            :num_pre_treatment_periods]
+    num_post_treatment_periods: int = total_periods - num_pre_treatment_periods
+
+    # Estimate variance components omega1 and omega2 based on pre-treatment residuals.
+    # Handle num_pre_treatment_periods=0 case for omega1_hat_did to avoid division by zero.
+    omega1_hat_did: float = (
+        (num_post_treatment_periods / num_pre_treatment_periods) * np.mean(
+            residuals_pre_treatment_did ** 2) if num_pre_treatment_periods > 0 else np.nan
+    )
+    omega2_hat_did: float = np.mean(
+        residuals_pre_treatment_did ** 2) if num_pre_treatment_periods > 0 else np.nan  # Ensure omega2_hat is also nan if no pre-periods
+    std_omega_hat_did: float = np.sqrt(omega1_hat_did + omega2_hat_did) if not (
+                np.isnan(omega1_hat_did) or np.isnan(omega2_hat_did)) else np.nan
+
+    # Calculate Standardized ATT (SATT) and p-value.
+    standardized_att_did: float = (
+        np.sqrt(num_post_treatment_periods) * att_did / std_omega_hat_did
+        if std_omega_hat_did != 0 and not np.isnan(std_omega_hat_did) and num_post_treatment_periods > 0 else np.nan
+    )
+    p_value_did: float = 2 * (1 - norm.cdf(np.abs(standardized_att_did))) if not np.isnan(
+        standardized_att_did) else np.nan
+
+    # Calculate 95% Confidence Interval for ATT.
+    z_critical: float = norm.ppf(0.975)  # Z-score for 95% CI.
+    standard_error_att_did: float = std_omega_hat_did / np.sqrt(
+        num_post_treatment_periods) if num_post_treatment_periods > 0 and not np.isnan(
+        std_omega_hat_did) else np.nan
+
+    ci_95_lower_bound_did: float = att_did - z_critical * standard_error_att_did if not np.isnan(
+        standard_error_att_did) else np.nan
+    ci_95_upper_bound_did: float = att_did + z_critical * standard_error_att_did if not np.isnan(
+        standard_error_att_did) else np.nan
+
+    # Compile fit diagnostics results.
+    fit_diagnostics_results_did: Dict[str, Any] = {
+        "T0 RMSE": round(float(np.std(residuals_pre_treatment_did)),
+                         3) if num_pre_treatment_periods > 0 else np.nan,
+        "R-Squared": r_squared_pre_treatment_did if not np.isnan(r_squared_pre_treatment_did) else np.nan,
+        "Pre-Periods": num_pre_treatment_periods,
+    }
+    # Compile effects results.
+    effects_results_did: Dict[str, float] = {
+        "ATT": round(att_did, 3),
+        "Percent ATT": round(att_percentage_did, 3) if not np.isnan(att_percentage_did) else np.nan,
+        "SATT": round(standardized_att_did, 3) if not np.isnan(standardized_att_did) else np.nan,
+    }
+    # Compile inference results.
+    inference_results_did: Dict[str, Any] = {
+        "P-Value": round(p_value_did, 3) if not np.isnan(p_value_did) else np.nan,
+        "95 LB": round(ci_95_lower_bound_did, 3) if not np.isnan(ci_95_lower_bound_did) else np.nan,
+        "95 UB": round(ci_95_upper_bound_did, 3) if not np.isnan(ci_95_upper_bound_did) else np.nan,
+        "Width": ci_95_upper_bound_did - ci_95_lower_bound_did if not (
+                    np.isnan(ci_95_lower_bound_did) or np.isnan(ci_95_upper_bound_did)) else np.nan,
+        "SE": round(standard_error_att_did, 4) if not np.isnan(standard_error_att_did) else np.nan,
+        "Intercept": round(did_intercept, 3),
+    }
+    # Calculate the treatment effect (gap) over time.
+    gap_over_time_did: np.ndarray = treated_outcome_all_periods - counterfactual_outcome_did
+    # Create a matrix with gap values and corresponding event time indices.
+    gap_matrix_did: np.ndarray = np.column_stack(
+        (gap_over_time_did, np.arange(gap_over_time_did.shape[0]) - num_pre_treatment_periods + 1))
+    # Compile time series results.
+    time_series_results_did: Dict[str, np.ndarray] = {
+        "Observed Unit": np.round(treated_outcome_all_periods, 3),
+        "Counterfactual": np.round(counterfactual_outcome_did, 3),
+        "Gap": np.round(gap_matrix_did, 3),
+    }
+    # Return all compiled results.
+    return {
+        "Effects": effects_results_did, "Vectors": time_series_results_did,
+        "Fit": fit_diagnostics_results_did, "Inference": inference_results_did,
+    }
+
 
