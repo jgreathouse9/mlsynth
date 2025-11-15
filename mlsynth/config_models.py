@@ -8,7 +8,7 @@ from mlsynth.utils.exputils import InferenceResults
 
 class BaseMAREXConfig(BaseModel):
     """
-    Base configuration for synthetic experiment designs.
+    The base configuration for synthetic experiment designs.
     Contains fields common to all synthetic experiment-based estimators.
     """
 
@@ -744,6 +744,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
