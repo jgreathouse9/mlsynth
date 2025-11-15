@@ -9,6 +9,88 @@ from typing import Tuple, List, Any, Dict
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEstimationError
 
 
+def DID_selector(
+    treated_outcome: np.ndarray,        # shape (T,)
+    control_outcomes: np.ndarray,       # shape (T, N_controls)
+    T0: int,                            # pre-treatment periods
+    control_names: list                 # names or labels of controls
+) -> Dict[str, Any]:
+    """
+    Forward-selection FDID returning:
+        - candidate_dict: intermediary results for all candidates at each iteration
+        - R2_at_each_step: best R² at each iteration
+        - best_candidate_info: info for the candidate added at the iteration with max R²
+        - selected_controls: final set of selected control indices
+    Each candidate info now also includes 'selected_names' as a set of donor names.
+    """
+    from ..utils.estutils import DID
+    N_controls = control_outcomes.shape[1]
+    remaining = list(range(N_controls))
+    selected = []
+    candidate_dict = {}
+    R2_at_each_step = []
+
+    treated_pre = treated_outcome.reshape(-1, 1)
+
+    for iteration in range(1, N_controls + 1):
+        candidate_info = {}
+        R2_candidates = []
+
+        for j in remaining:
+            # Outcomes for current candidate set
+            if selected:
+                Y_candidate = control_outcomes[:, selected + [j]]
+                current_names = [control_names[idx] for idx in selected + [j]]
+            else:
+                Y_candidate = control_outcomes[:, [j]]
+                current_names = [control_names[j]]
+
+            # Compute DID
+            did_result = DID(treated_pre, Y_candidate, T0)
+            R2_value = did_result["Fit"]["R-Squared"]
+
+            candidate_info[j] = {
+                "R2": R2_value,
+                "rmse": did_result["Fit"]["T0 RMSE"],
+                "effects": did_result["Effects"],
+                "fit_vectors": did_result["Vectors"],
+                "Inference Results": did_result['Inference'],
+                "selected_names": set(current_names)  # add set of control names
+            }
+            R2_candidates.append(R2_value)
+
+        # Select the best candidate for this iteration
+        best_idx = np.nanargmax(R2_candidates)
+        best_candidate = remaining[best_idx]
+        best_R2 = R2_candidates[best_idx]
+
+        selected.append(best_candidate)
+        remaining.remove(best_candidate)
+        R2_at_each_step.append(best_R2)
+        candidate_dict[iteration] = candidate_info
+
+    # Find iteration with highest R²
+    best_iteration = np.nanargmax(R2_at_each_step) + 1  # +1 because iteration keys are 1-based
+    best_candidate_index = max(candidate_dict[best_iteration],
+                               key=lambda j: candidate_dict[best_iteration][j]['R2'])
+    best_candidate_info = {
+        best_candidate_index: candidate_dict[best_iteration][best_candidate_index]
+    }
+
+    # Final selection: controls up to the best iteration
+    final_selected_controls = selected[:best_iteration]
+
+    return {
+        "candidate_dict": candidate_dict,
+        "R2_at_each_step": np.array(R2_at_each_step),
+        "best_candidate_info": best_candidate_info,
+        "selected_controls": final_selected_controls
+    }
+
+
+
+
+
 def determine_optimal_clusters(X: np.ndarray) -> int:
     """Determine the optimal number of clusters using Silhouette score.
 
@@ -914,3 +996,4 @@ def stepwise_donor_selection(L_full, L_post, ell_eval, m, varsigma=1e-6, tol=1e-
         "mse_path": mse_list,
         "bic_path": bic_list
     }
+
