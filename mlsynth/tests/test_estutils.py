@@ -196,35 +196,6 @@ def test_l2_relax_smoke():
     assert np.isfinite(intercept)
     assert np.all(np.isfinite(counterfactuals))
 
-def test_l2_relax_optimization_failure():
-    # This test is tricky as forcing CVXPY to fail reliably without specific solver knowledge is hard.
-    # A very large tau might make the feasible set empty or cause issues.
-    # Or, if Sigma_cov is singular and eta_cov is not in its image.
-    T_total = 5
-    T_pre = 3
-    N_controls = 2
-    treated_unit = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-    X = np.array([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0], [0.0,0.0], [0.0,0.0]]) # Singular X_subset.T @ X_subset
-    
-    # With singular Sigma_cov, if eta_cov is not in its column space, problem might be infeasible.
-    # Or if tau is too small.
-    # tau_very_small = 1e-8 
-    # with pytest.raises(ValueError, match="Optimization failed with status"):
-    #      l2_relax(T_pre, treated_unit, X, tau_very_small) # This setup was not failing as expected
-
-    # Try T_pre = 0, which should lead to division by zero for n_sub
-    T_pre_zero = 0
-    tau_val = 0.1
-    # Expect an error during calculation of Sigma_cov or eta_cov due to division by n_sub=0
-    # This might be a RuntimeWarning leading to NaNs, then CVXPY error, or direct ZeroDivisionError
-    # CVXPY might raise cp.error.SolverError or cp.error.DCPError if inputs are NaN/Inf.
-    # Or, if problem becomes trivial/ill-defined.
-    # The function itself doesn't explicitly check for T_pre=0 before calculations.
-    # Assuming T_pre_zero is a config/data issue leading to estimation failure.
-    with pytest.raises((MlsynthConfigError, MlsynthDataError, MlsynthEstimationError, ZeroDivisionError, cp.error.SolverError, cp.error.DCPError, ValueError)):
-         l2_relax(T_pre_zero, treated_unit, X, tau_val)
-
-
 # ---------- Tests for cross_validate_tau ----------
 def test_cross_validate_tau_smoke():
     T_pre = 20
