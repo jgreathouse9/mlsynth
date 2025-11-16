@@ -92,18 +92,21 @@ class FSCM:
 
         Examples
         --------
+        >>> import pandas as pd
         >>> from mlsynth import FSCM
-        >>> from mlsynth.config_models import FSCMConfig
-        >>> import pandas as pd, numpy as np
-        >>> data = pd.DataFrame({
-        ...     'unit': np.repeat(np.arange(1,4), 10),
-        ...     'time': np.tile(np.arange(1,11), 3),
-        ...     'outcome': np.random.rand(30) + np.repeat(np.arange(0,3),10)*0.5,
-        ...     'treated_unit_1': ((np.repeat(np.arange(1,4),10)==1) & (np.tile(np.arange(1,11),3)>=6)).astype(int)
-        ... })
-        >>> config = FSCMConfig(df=data, outcome='outcome', treat='treated_unit_1', unitid='unit', time='time', display_graphs=False)
-        >>> estimator = FSCM(config=config)
-        >>> results = estimator.fit()  # doctest: +SKIP
+        >>> url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv"
+        >>> data = pd.read_csv(url)
+        >>> config = {
+        ...     "df": data,
+        ...     "outcome": data.columns[2],
+        ...     "treat": data.columns[-1],
+        ...     "unitid": data.columns[0],
+        ...     "time": data.columns[1],
+        ...     "display_graphs": True,
+        ...     "save": False,
+        ...     "counterfactual_color": ["red", "blue"]
+        ... }
+        >>> results = FSCM(config).fit()
         """
 
     def __init__(self, config: FSCMConfig) -> None:  # Changed to FSCMConfig
