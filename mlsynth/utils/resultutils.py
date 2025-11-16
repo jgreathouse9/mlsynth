@@ -727,3 +727,89 @@ def DID_org(result_dict: Dict, preppeddict, method_name: str = "FDID") -> BaseEs
 
     return base_results
 
+
+
+
+def _build_fscm_results(weight_dicts: Dict[str, any],
+        prepped_data: Dict[str, any],
+        resultfscm: Dict[str, any],
+        donor_names: list[str]
+) -> BaseEstimatorResults:
+    """
+    Construct a standardized master BaseEstimatorResults object
+    from weight vectors/dicts and prepped data for all SCM methods.
+    """
+    Y = prepped_data['donor_matrix']
+    y = prepped_data['y']
+    T_pre = prepped_data['pre_periods']
+    T_post = prepped_data['post_periods']
+
+    sub_results: Dict[str, BaseEstimatorResults] = {}
+
+    for method_name, w in weight_dicts.items():
+        # Convert numpy array to dict if needed
+        if isinstance(w, np.ndarray):
+            w = {name: float(val) for name, val in zip(donor_names, w)}
+
+        # Compute counterfactual
+        weights_array = np.array(list(w.values()))
+        y_hat = Y @ weights_array
+
+        # Compute effects
+        eff_dict, fit_dict, vectors_info = effects.calculate(y, y_hat, T_pre, T_post)
+
+        # Wrap effects into standardized EffectsResults
+        effects_res = EffectsResults(
+            att=eff_dict.get('ATT'),
+            att_percent=eff_dict.get('Percent ATT'),
+            att_std_err=eff_dict.get('ATT_SE'),
+            additional_effects={k: v for k, v in eff_dict.items() if k not in ['ATT', 'Percent ATT', 'ATT_SE']}
+        )
+
+        # Wrap fit dictionary into FitDiagnosticsResults
+        fit_res = FitDiagnosticsResults(
+            rmse_pre=fit_dict.get('T0 RMSE'),
+            rmse_post=fit_dict.get('T1 RMSE'),
+            r_squared_pre=fit_dict.get('R-Squared'),
+            additional_metrics={k: v for k, v in fit_dict.items() if k not in ['T0 RMSE', 'T1 RMSE', 'R-Squared']}
+        )
+
+        # Wrap time series
+        ts_res = TimeSeriesResults(
+            observed_outcome=vectors_info.get('Observed Unit'),
+            counterfactual_outcome=vectors_info.get('Counterfactual'),
+            estimated_gap=vectors_info.get('Gap'),
+            time_periods=vectors_info.get('Time Periods')
+        )
+
+        # Additional outputs for FSCM / augmented SCM
+        additional_outputs = {}
+        if method_name == "Forward SCM":
+            additional_outputs['candidate_dict'] = resultfscm['Forward SCM']['candidate_dict']
+        if method_name == "Forward Augmented SCM":
+            additional_outputs['validation_results'] = resultfscm['Forward Aumented SCM'].get('validation_results')
+            additional_outputs['lambda'] = resultfscm['Forward Aumented SCM'].get('lambda')
+
+        # Wrap weights
+        weights_res = WeightsResults(donor_weights=w)
+
+        # Construct BaseEstimatorResults for this method
+        sub_results[method_name] = BaseEstimatorResults(
+            effects=effects_res,
+            fit_diagnostics=fit_res,
+            time_series=ts_res,
+            weights=weights_res,
+            method_details={"name": method_name},
+            additional_outputs=additional_outputs,
+            raw_results=resultfscm.get(method_name)
+        )
+
+    # Construct master results object
+    master_results = BaseEstimatorResults(
+        sub_method_results=sub_results,
+        additional_outputs=prepped_data,
+        raw_results=resultfscm
+    )
+
+    return master_results
+
