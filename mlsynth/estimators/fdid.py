@@ -129,14 +129,14 @@ class FDID:
     def fit(self) -> FDIDOutput:
         """
         Fit the FDID and standard DID models.
-    
+
         This method performs the following steps:
         1. Balances the panel data to ensure consistent unit-time structure.
         2. Prepares the outcome and donor matrices for estimation.
         3. Runs forward selection to identify the best donor units for FDID.
         4. Constructs FDID and DID results using `DID_org`.
         5. Optionally plots the observed and counterfactual outcomes.
-    
+
         Returns
         -------
         FDIDOutput
@@ -144,7 +144,7 @@ class FDID:
             - `results`: A dictionary with "FDID" and "DID" keys containing
               the estimation results.
             - `prepped_data`: Dictionary of prepared data used internally.
-    
+
         Raises
         ------
         MlsynthDataError
