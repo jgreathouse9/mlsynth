@@ -8,9 +8,20 @@ Formally, I lay out the notations. Indexed by :math:`j`, we observe :math:`\math
 
 With this in mind, we may describe the algorithm. By design, we are agnostic as to which sub-matrix of units we should use or how even many controls we should use. The Forward DID method is an iterative, data driven algorithm which chooses the controls. The Forward DID method updates the selected control set :math:`\widehat{U}_k` iteratively over :math:`k = 1, 2, \ldots, N_0`. The process begins with an empty control set :math:`\widehat{U}_0 = \emptyset` and an empty candidate set :math:`\mathcal{U} = \emptyset`. For :math:`k = 1`, we estimate :math:`N_0` DID models using the outcome vector of each control unit as a predictor, computing the :math:`R^2` statistic for each control unit. The optimization is
 
+
 .. math::
-    \operatorname*{argmin}_{\boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}}} \left\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}_{k-1} \cup \{i\}} \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} -\beta}_{\text{cons}\right\|_2^2,
-    \quad \text{subject to } \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} = \frac{1}{|\widehat{U}_{k-1}| + 1}.
+    \operatorname*{argmin}_{\boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}}} 
+    \left\| 
+        \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}_{k-1} \cup \{i\}} \, 
+        \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} 
+        - \beta_{\text{cons}} 
+    \right\|_2^2,
+    \quad 
+    \text{subject to } 
+    \boldsymbol{\beta}_{\widehat{U}_{k-1} \cup \{i\}} = \frac{1}{|\widehat{U}_{k-1}| + 1}.
+
+
+
 
 where we have a :math:`T_1 \times 1` pre-intervention vector of outcomes for the treated unit, :math:`\mathbf{y}_1`, and a :math:`T_1 \times N_0` matrix of outcomes for our control group, :math:`\mathbf{Y}_0` and an intercept :math`\beta}_{\text{cons}`. After iterating over all controls, we then select the control unit that maximizes the pre-intervention :math:`R^2`:  
 
@@ -40,86 +51,3 @@ Here is the input FDID accepts:
    :members:
    :special-members: __init__
 
-
-The code below automates this process for the three standard datasets in the synthetic control literature. Users need simply change the "number" outside of the function to run the results for Basque, West Germany, or California's Prop 99 example, from 0, to 1 and 2, respectively. In this case, we use the Basque dataset. We begin with importing the libraries. I use my own custom plot, but naturally you can do this or not.
-
-
-.. code-block:: python
-
-    from mlsynth import FDID
-    import pandas as pd
-    
-    file = 'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv'
-    # Load the CSV file using pandas
-    df = pd.read_csv(file)
-    
-    treat = "Terrorism"
-    outcome = "gdpcap"
-    unitid = "regionname"
-    time = "year"
-    
-    config = {
-        "df": df,
-        "treat": treat,
-        "time": time,
-        "outcome": outcome,
-        "unitid": unitid,
-        "display_graphs": True
-    }
-    
-    model = FDID(config)
-    
-    arco = model.fit()
-
-
-
-
-
-This code produces this plot
-
-
-
-.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/examples/fdid/FDID_Basque.png
-   :alt: FDID Basque Plot
-   :align: center
-   :width: 600px
-
-
-Now suppose we wish to access the results. We can do this by printing the keys
-
-
-.. code-block:: python
-
-    fdidresult = model.fit()
-    
-    fdid_info = fdidresult[0]['FDID']
-    
-    keys = ['Effects', 'Fit', 'Inference', 'Weights']
-    
-    for key in keys:
-        print(f"\n{key}:")
-        print(fdid_info[key])
-
-
-
-Here is the raw output:
-
-.. code-block:: text
-
-    Effects:
-    {'ATT': -0.875, 'Percent ATT': -10.035, 'SATT': -37.587}
-
-    Fit:
-    {'T0 RMSE': 0.076, 'R-Squared': 0.994, 'Pre-Periods': 20}
-
-    Inference:
-    {'P-Value': 0.0, '95 LB': -0.921, '95 UB': -0.829, 'Width': 0.09125913731952662, 'SE': 0.1116508902713375, 'Intercept': array([0.84])}
-
-    Weights:
-    {'Cataluna': 0.5, 'Aragon': 0.5}
-
-
-To-Do List
-----------------
-
-- Extend both to staggered adoption (including inference)
