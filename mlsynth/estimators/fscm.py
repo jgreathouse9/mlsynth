@@ -39,11 +39,11 @@ class FSCM:
 
         .. math::
             \ell_{\\text{FSCM}}(\widehat{U}) =
-            \min_{\mathbf{w} \in \mathcal{W}_{\text{conv}}(\widehat{U})}
+            \min_{\mathbf{w} \in \mathcal{W}_{\\text{conv}}(\widehat{U})}
             \Big\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}} \mathbf{w} \Big\|_2^2
 
         .. math::
-            \widehat{U}^\ast_{\text{FSCM}} =\operatorname*{argmin}_{\widehat{U} \subseteq \mathcal{N}_0}\ell_{\\text{FSCM}}(\widehat{U})
+            \widehat{U}^\ast_{\\text{FSCM}} =\argmin_{\widehat{U} \subseteq \mathcal{N}_0}\ell_{\\text{FSCM}}(\widehat{U})
 
         Attributes
         ----------
