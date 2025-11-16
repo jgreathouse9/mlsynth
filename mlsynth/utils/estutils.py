@@ -4859,6 +4859,7 @@ def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
     Forward-selection FSCM with optional stopping rules.
     Returns results for full SCM, FSCM (with candidate_dict), and affine SCM.
     """
+    warnings.filterwarnings("ignore", category=UserWarning, module="cvxpy")
     N0 = Y.shape[1]
     remaining = list(range(N0))
     selected = []
@@ -5129,5 +5130,6 @@ def DID(treated_outcome_all_periods: np.ndarray, control_outcomes_all_periods: n
         "Effects": effects_results_did, "Vectors": time_series_results_did,
         "Fit": fit_diagnostics_results_did, "Inference": inference_results_did,
     }
+
 
 
