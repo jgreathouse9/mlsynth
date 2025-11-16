@@ -8,6 +8,16 @@ import random
 from typing import Optional, Dict, List, Tuple, Any, Union
 from mlsynth.exceptions import MlsynthDataError, MlsynthPlottingError # MlsynthConfigError, MlsynthEstimationError might be needed later
 
+from ..config_models import ( # Import the Pydantic models
+    BaseEstimatorResults,
+    EffectsResults,
+    FitDiagnosticsResults,
+    TimeSeriesResults,
+    WeightsResults,
+    InferenceResults,
+    MethodDetailsResults,
+)
+
 
 def plot_estimates(
     processed_data_dict: Dict[str, Any],
@@ -629,3 +639,91 @@ def SDID_plot(
     plt.grid(True, linestyle="--", alpha=0.7) # Add a light grid.
     plt.tight_layout() # Adjust plot to prevent labels from overlapping.
     plt.show() # Display the plot.
+
+
+
+def DID_org(result_dict: Dict, preppeddict, method_name: str = "FDID") -> BaseEstimatorResults:
+    """
+    Convert a FDID/DID result dictionary to a BaseEstimatorResults Pydantic model.
+
+    Parameters
+    ----------
+    result_dict : dict
+        The DID/FDID output dictionary.
+    method_name : str, optional
+        Name of the method (default is "FDID").
+
+    Returns
+    -------
+    BaseEstimatorResults
+        Standardized Pydantic model with all results mapped.
+    """
+    # --- Effects ---
+    effects_data = result_dict.get("effects", {})
+    effects_model = EffectsResults(
+        att=effects_data.get("ATT"),
+        att_percent=effects_data.get("Percent ATT"),
+        additional_effects={k: v for k, v in effects_data.items() if k not in ["ATT", "Percent ATT"]}
+    )
+
+    # --- Fit diagnostics ---
+    fit_model = FitDiagnosticsResults(
+        r_squared_pre=result_dict.get("R2"),
+        rmse_pre=result_dict.get("rmse")
+    )
+
+    # --- Time series ---
+    fit_vectors = result_dict.get("fit_vectors", {})
+    observed = fit_vectors.get("Observed Unit")
+    counterfactual = fit_vectors.get("Counterfactual")
+    gap = fit_vectors.get("Gap")
+
+    time_series_model = TimeSeriesResults(
+        observed_outcome=observed.flatten() if observed is not None else None,
+        counterfactual_outcome=counterfactual.flatten() if counterfactual is not None else None,
+        estimated_gap=gap[:, 0] if gap is not None else None,
+        time_periods=np.asarray(preppeddict['time_labels'])
+    )
+
+    # --- Weights ---
+    selected_names = result_dict.get("selected_names", set())
+    donor_weights = {name: 1.0 / len(selected_names) for name in selected_names} if selected_names else None
+
+    weights_model = WeightsResults(
+        donor_weights=donor_weights,
+        summary_stats={
+            "num_selected": len(selected_names),
+            "total_weight": sum(donor_weights.values()) if donor_weights else None
+        } if donor_weights else None
+    )
+
+    # --- Inference ---
+    inference_data = result_dict.get("Inference Results", {})
+    inference_model = InferenceResults(
+        p_value=inference_data.get("P-Value"),
+        ci_lower=inference_data.get("95 LB"),
+        ci_upper=inference_data.get("95 UB"),
+        standard_error=inference_data.get("SE"),
+        details={k: v for k, v in inference_data.items() if k not in ["P-Value", "95 LB", "95 UB", "SE"]}
+    )
+
+    # --- Method details ---
+    method_model = MethodDetailsResults(
+        method_name=method_name,
+        is_recommended=True,
+        parameters_used={"selected_names": list(selected_names)}
+    )
+
+    # --- Assemble BaseEstimatorResults ---
+    base_results = BaseEstimatorResults(
+        effects=effects_model,
+        fit_diagnostics=fit_model,
+        time_series=time_series_model,
+        weights=weights_model,
+        inference=inference_model,
+        method_details=method_model,
+        raw_results=result_dict
+    )
+
+    return base_results
+
