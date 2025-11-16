@@ -42,8 +42,7 @@ class FSCM:
         \Big\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}} \mathbf{w} \Big\|_2^2
 
     .. math::
-        \widehat{U}^\ast_{\\text{FSCM}} =
-        \argmin_{\widehat{U} \subseteq \mathcal{N}_0} \ell_{\\text{FSCM}}(\widehat{U})
+        \widehat{U}^\ast_{\\text{FSCM}}
 
     Attributes
     ----------
@@ -68,7 +67,7 @@ class FSCM:
     treated_color : str
         Color for the treated unit line in plots.
     selection_fraction : float
-        Fraction of the donor pool to consider in forward selection.
+        Fraction of the donor pool to consider in forward selection. By default this is 1.
     full_selection : bool
         Whether to run forward selection through all donors regardless of improvements.
 
@@ -167,7 +166,7 @@ class FSCM:
             selection_fraction : float, default=1.0
                 Fraction of the donor pool to use in forward selection. Reducing this can
                 substantially reduce runtime in high-dimensional settings.
-            full_selection : bool, default=False
+            full_selection : bool, default=True
                 Whether to force forward selection to run through all possible donor subsets,
                 even after mBIC fails to improve. Can be computationally expensive.
         """
@@ -247,7 +246,7 @@ class FSCM:
             resultfscm = fsSCM(prepared_data_dict["y"],
                                prepared_data_dict["donor_matrix"],
                                num_pre_treatment_periods,
-                               prepared_data_dict["donor_names"], selection_fraction=self.selection_fraction)
+                               prepared_data_dict["donor_names"], full_selection=self.full_selection, selection_fraction=self.selection_fraction)
 
             weight_dicts = {
                 "Convex SCM": resultfscm['Convex SCM']['weight_dict'],
