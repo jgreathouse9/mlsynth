@@ -45,7 +45,6 @@ class FSCM:
         \widehat{U}^\ast_{\\text{FSCM}} =
         \argmin_{\widehat{U} \subseteq \mathcal{N}_0} \ell_{\\text{FSCM}}(\widehat{U})
 
-
     Attributes
     ----------
     config : FSCMConfig
