@@ -21,7 +21,6 @@ from ..config_models import (
 )
 
 
-class FSCM:
     class FSCM:
         """
         Estimates the Average Treatment Effect on the Treated (ATT) using the Forward Selected Synthetic Control Method (FSCM).
@@ -43,7 +42,9 @@ class FSCM:
             \Big\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}} \mathbf{w} \Big\|_2^2
 
         .. math::
-            \widehat{U}^\ast_{\\text{FSCM}} =\argmin_{\widehat{U} \subseteq \mathcal{N}_0}\ell_{\\text{FSCM}}(\widehat{U})
+            \widehat{U}^\ast_{\\text{FSCM}} =
+            \argmin_{\widehat{U} \subseteq \mathcal{N}_0} \ell_{\\text{FSCM}}(\widehat{U})
+
 
         Attributes
         ----------
