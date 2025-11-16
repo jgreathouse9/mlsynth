@@ -21,94 +21,94 @@ from ..config_models import (
 )
 
 
-    class FSCM:
-        """
-        Estimates the Average Treatment Effect on the Treated (ATT) using the Forward Selected Synthetic Control Method (FSCM).
+class FSCM:
+    """
+    Estimates the Average Treatment Effect on the Treated (ATT) using the Forward Selected Synthetic Control Method (FSCM).
 
-        FSCM constructs a donor pool iteratively via forward selection. At each iteration,
-        it evaluates all candidate donor units using an inner loss function (pre-treatment Mean Squared Error, MSE)
-        and selects the donor that optimally improves fit. The outer optimization builds the subset of donors that
-        minimizes the total pre-treatment MSE.
+    FSCM constructs a donor pool iteratively via forward selection. At each iteration,
+    it evaluates all candidate donor units using an inner loss function (pre-treatment Mean Squared Error, MSE)
+    and selects the donor that optimally improves fit. The outer optimization builds the subset of donors that
+    minimizes the total pre-treatment MSE.
 
-        Inner and outer loss definitions:
+    Inner and outer loss definitions:
 
-        .. math::
-            \mathbf{w} \in \mathcal{W}_{\\text{conv}}(\widehat{U}) =
-            \Big\{ \mathbf{w} \in \mathbb{R}_{\geq 0}^{|\widehat{U}|} : \sum_{j \in \widehat{U}} w_j = 1 \Big\}
+    .. math::
+        \mathbf{w} \in \mathcal{W}_{\\text{conv}}(\widehat{U}) =
+        \Big\{ \mathbf{w} \in \mathbb{R}_{\geq 0}^{|\widehat{U}|} : \sum_{j \in \widehat{U}} w_j = 1 \Big\}
 
-        .. math::
-            \ell_{\\text{FSCM}}(\widehat{U}) =
-            \min_{\mathbf{w} \in \mathcal{W}_{\\text{conv}}(\widehat{U})}
-            \Big\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}} \mathbf{w} \Big\|_2^2
+    .. math::
+        \ell_{\\text{FSCM}}(\widehat{U}) =
+        \min_{\mathbf{w} \in \mathcal{W}_{\\text{conv}}(\widehat{U})}
+        \Big\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}} \mathbf{w} \Big\|_2^2
 
-        .. math::
-            \widehat{U}^\ast_{\\text{FSCM}} =
-            \argmin_{\widehat{U} \subseteq \mathcal{N}_0} \ell_{\\text{FSCM}}(\widehat{U})
+    .. math::
+        \widehat{U}^\ast_{\\text{FSCM}} =
+        \argmin_{\widehat{U} \subseteq \mathcal{N}_0} \ell_{\\text{FSCM}}(\widehat{U})
 
 
-        Attributes
-        ----------
-        config : FSCMConfig
-            Configuration object for the estimator.
-        df : pd.DataFrame
-            Input panel data.
-        outcome : str
-            Name of the outcome variable column.
-        treat : str
-            Name of the treatment indicator column.
-        unitid : str
-            Name of the unit identifier column.
-        time : str
-            Name of the time period column.
-        display_graphs : bool
-            Whether to display plots after fitting.
-        save : Union[bool, str]
-            Controls saving of plots; can be False, True, or a path prefix.
-        counterfactual_color : str or List[str]
-            Color(s) for counterfactual lines in plots.
-        treated_color : str
-            Color for the treated unit line in plots.
-        selection_fraction : float
-            Fraction of the donor pool to consider in forward selection.
-        full_selection : bool
-            Whether to run forward selection through all donors regardless of improvements.
+    Attributes
+    ----------
+    config : FSCMConfig
+        Configuration object for the estimator.
+    df : pd.DataFrame
+        Input panel data.
+    outcome : str
+        Name of the outcome variable column.
+    treat : str
+        Name of the treatment indicator column.
+    unitid : str
+        Name of the unit identifier column.
+    time : str
+        Name of the time period column.
+    display_graphs : bool
+        Whether to display plots after fitting.
+    save : Union[bool, str]
+        Controls saving of plots; can be False, True, or a path prefix.
+    counterfactual_color : str or List[str]
+        Color(s) for counterfactual lines in plots.
+    treated_color : str
+        Color for the treated unit line in plots.
+    selection_fraction : float
+        Fraction of the donor pool to consider in forward selection.
+    full_selection : bool
+        Whether to run forward selection through all donors regardless of improvements.
 
-        Methods
-        -------
-        fit()
-            Fits the FSCM estimator using forward selection and constrained optimization,
-            returning standardized results and prepped data.
+    Methods
+    -------
+    fit()
+        Fits the FSCM estimator using forward selection and constrained optimization,
+        returning standardized results and prepped data.
 
-        References
-        ----------
-        Cerulli, Giovanni. 2024.
-            "Optimal initial donor selection for the synthetic control method."
-            Economics Letters, 244: 111976. https://doi.org/10.1016/j.econlet.2024.111976
-        Shi, Zhentao, and Jingyi Huang. 2023.
-            "Forward-selected panel data approach for program evaluation."
-            Journal of Econometrics 234 (2): 512–535. https://doi.org/10.1016/j.jeconom.2021.04.009
-        Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
-            "The Augmented Synthetic Control Method."
-            Journal of the American Statistical Association 116 (536): 1789–1803. https://doi.org/10.1080/01621459.2021.1929245
+    References
+    ----------
+    Cerulli, Giovanni. 2024.
+        "Optimal initial donor selection for the synthetic control method."
+        Economics Letters, 244: 111976. https://doi.org/10.1016/j.econlet.2024.111976
+    Shi, Zhentao, and Jingyi Huang. 2023.
+        "Forward-selected panel data approach for program evaluation."
+        Journal of Econometrics 234 (2): 512–535. https://doi.org/10.1016/j.jeconom.2021.04.009
+    Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
+        "The Augmented Synthetic Control Method."
+        Journal of the American Statistical Association 116 (536): 1789–1803. https://doi.org/10.1080/01621459.2021.1929245
 
-        Examples
-        --------
-        >>> import pandas as pd
-        >>> from mlsynth import FSCM
-        >>> url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv"
-        >>> data = pd.read_csv(url)
-        >>> config = {
-        ...     "df": data,
-        ...     "outcome": data.columns[2],
-        ...     "treat": data.columns[-1],
-        ...     "unitid": data.columns[0],
-        ...     "time": data.columns[1],
-        ...     "display_graphs": True,
-        ...     "save": False,
-        ...     "counterfactual_color": ["red", "blue"]
-        ... }
-        >>> results = FSCM(config).fit()
-        """
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> from mlsynth import FSCM
+    >>> url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv"
+    >>> data = pd.read_csv(url)
+    >>> config = {
+    ...     "df": data,
+    ...     "outcome": data.columns[2],
+    ...     "treat": data.columns[-1],
+    ...     "unitid": data.columns[0],
+    ...     "time": data.columns[1],
+    ...     "display_graphs": True,
+    ...     "save": False,
+    ...     "counterfactual_color": ["red", "blue"]
+    ... }
+    >>> results = FSCM(config).fit()
+    """
 
     def __init__(self, config: FSCMConfig) -> None:  # Changed to FSCMConfig
         """
