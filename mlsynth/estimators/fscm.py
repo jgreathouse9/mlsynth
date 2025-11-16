@@ -34,18 +34,18 @@ class FSCM:
         Inner and outer loss definitions:
 
         .. math::
-            \mathbf{w} \in \mathcal{W}_{\text{conv}}(\widehat{U}) =
+            \mathbf{w} \in \mathcal{W}_{\\text{conv}}(\widehat{U}) =
             \Big\{ \mathbf{w} \in \mathbb{R}_+^{|\widehat{U}|} : \sum_{j \in \widehat{U}} w_j = 1 \Big\}
 
         .. math::
-            \ell_{\text{FSCM}}(\widehat{U}) =
+            \ell_{\\text{FSCM}}(\widehat{U}) =
             \min_{\mathbf{w} \in \mathcal{W}_{\text{conv}}(\widehat{U})}
             \Big\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}} \mathbf{w} \Big\|_2^2
 
         .. math::
             \widehat{U}^\ast_{\text{FSCM}} =
             \operatorname*{argmin}_{\widehat{U} \subseteq \mathcal{N}_0}
-            \ell_{\text{FSCM}}(\widehat{U})
+            \ell_{\\text{FSCM}}(\widehat{U})
 
         Attributes
         ----------
