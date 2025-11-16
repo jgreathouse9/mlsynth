@@ -7,8 +7,7 @@ from pydantic import ValidationError  # For catching Pydantic errors if models a
 from dataclasses import dataclass
 
 from ..utils.datautils import balance, dataprep
-from ..utils.resultutils import effects, plot_estimates
-from ..utils.inferutils import quantileconformal_intervals
+from ..utils.resultutils import effects, plot_estimates, _build_fscm_results
 from ..utils.estutils import fsSCM
 from ..exceptions import (
     MlsynthDataError,
@@ -18,101 +17,96 @@ from ..exceptions import (
 )
 from ..config_models import (
     FSCMConfig,
-    BaseEstimatorResults,
-    EffectsResults,
-    FitDiagnosticsResults,
-    TimeSeriesResults,
-    WeightsResults,
-    InferenceResults,
-    MethodDetailsResults,
+    BaseEstimatorResults
 )
 
 
 class FSCM:
-    """
-    Estimates Average Treatment Effect on the Treated (ATT) using the Forward Selected Synthetic Control Method (FSCM).
+    class FSCM:
+        """
+        Estimates the Average Treatment Effect on the Treated (ATT) using the Forward Selected Synthetic Control Method (FSCM).
 
-    This approach, based on Cerulli (2024), optimally selects a subset of donor
-    units using a forward selection algorithm. It begins by identifying the
-    single best-fitting donor unit. Then, it iteratively adds other donor units
-    to the pool if their inclusion improves the predictive fit (minimizes MSE)
-    for the treated unit's pre-treatment outcomes. The final weights for the
-    selected donor pool and the counterfactual outcome series are derived using
-    a constrained optimization procedure (SIMPLEX).
+        FSCM constructs a donor pool iteratively via forward selection. At each iteration,
+        it evaluates all candidate donor units using an **inner loss function** (pre-treatment Mean Squared Error, MSE) 
+        and selects the donor that optimally improves fit. The **outer optimization** builds the subset of donors that 
+        minimizes the total pre-treatment MSE.
 
-    Attributes
-    ----------
-    config : FSCMConfig
-        The configuration object holding all parameters for the estimator.
-    df : pd.DataFrame
-        The input DataFrame containing panel data.
-        (Inherited from `BaseEstimatorConfig` via `FSCMConfig`)
-    outcome : str
-        Name of the outcome variable column in `df`.
-        (Inherited from `BaseEstimatorConfig` via `FSCMConfig`)
-    treat : str
-        Name of the treatment indicator column in `df`.
-        (Inherited from `BaseEstimatorConfig` via `FSCMConfig`)
-    unitid : str
-        Name of the unit identifier column in `df`.
-        (Inherited from `BaseEstimatorConfig` via `FSCMConfig`)
-    time : str
-        Name of the time variable column in `df`.
-        (Inherited from `BaseEstimatorConfig` via `FSCMConfig`)
-    display_graphs : bool, default True
-        Whether to display graphs of results.
-        (Inherited from `BaseEstimatorConfig` via `FSCMConfig`)
-    save : Union[bool, str], default False
-        If False, plots are not saved. If True, plots are saved with default names.
-        If a string, it's used as the directory path to save plots.
-        (Inherited from `BaseEstimatorConfig` via `FSCMConfig`)
-    counterfactual_color : str, default "red"
-        Color for the counterfactual line in plots.
-        (Inherited from `BaseEstimatorConfig` via `FSCMConfig`)
-    treated_color : str, default "black"
-        Color for the treated unit line in plots.
-        (Inherited from `BaseEstimatorConfig` via `FSCMConfig`)
+        Inner and outer loss definitions:
 
-    Methods
-    -------
-    fit()
-        Fits the FSCM model and returns the standardized results.
-    evaluate_donor(donor_index, donor_columns, y_pre, T0)
-        Evaluates the Mean Squared Error (MSE) for a single potential donor.
-    fSCM(y_pre, Y0, T0)
-        Performs the core Forward Selected Synthetic Control Method optimization.
+        .. math::
+            \mathbf{w} \in \mathcal{W}_{\text{conv}}(\widehat{U}) =
+            \Big\{ \mathbf{w} \in \mathbb{R}_+^{|\widehat{U}|} : \sum_{j \in \widehat{U}} w_j = 1 \Big\}
 
-    References
-    ----------
-    Cerulli, Giovanni. "Optimal initial donor selection for the synthetic control method."
-    *Economics Letters*, 244 (2024): 111976. https://doi.org/10.1016/j.econlet.2024.111976
+        .. math::
+            \ell_{\text{FSCM}}(\widehat{U}) =
+            \min_{\mathbf{w} \in \mathcal{W}_{\text{conv}}(\widehat{U})} 
+            \Big\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}} \mathbf{w} \Big\|_2^2
 
-    Examples
-    --------
-    >>> from mlsynth import FSCM
-    >>> from mlsynth.config_models import FSCMConfig
-    >>> import pandas as pd
-    >>> import numpy as np
-    >>> # Create sample data for demonstration
-    >>> data = pd.DataFrame({
-    ...     'unit': np.repeat(np.arange(1, 4), 10), # 3 units
-    ...     'time': np.tile(np.arange(1, 11), 3),   # 10 time periods
-    ...     'outcome': np.random.rand(30) + np.repeat(np.arange(0,3),10)*0.5,
-    ...     'treated_unit_1': ((np.repeat(np.arange(1, 4), 10) == 1) & \
-    ...                        (np.tile(np.arange(1, 11), 3) >= 6)).astype(int)
-    ... })
-    >>> fscm_config = FSCMConfig(
-    ...     df=data,
-    ...     outcome='outcome',
-    ...     treat='treated_unit_1',
-    ...     unitid='unit',
-    ...     time='time',
-    ...     display_graphs=False # Typically True, False for non-interactive examples
-    ... )
-    >>> estimator = FSCM(config=fscm_config)
-    >>> # Results can be obtained by calling estimator.fit()
-    >>> # results = estimator.fit() # doctest: +SKIP
-    """
+        .. math::
+            \widehat{U}^\ast_{\text{FSCM}} = 
+            \operatorname*{argmin}_{\widehat{U} \subseteq \mathcal{N}_0} 
+            \ell_{\text{FSCM}}(\widehat{U})
+
+        Attributes
+        ----------
+        config : FSCMConfig
+            Configuration object for the estimator.
+        df : pd.DataFrame
+            Input panel data.
+        outcome : str
+            Name of the outcome variable column.
+        treat : str
+            Name of the treatment indicator column.
+        unitid : str
+            Name of the unit identifier column.
+        time : str
+            Name of the time period column.
+        display_graphs : bool
+            Whether to display plots after fitting.
+        save : Union[bool, str]
+            Controls saving of plots; can be False, True, or a path prefix.
+        counterfactual_color : str or List[str]
+            Color(s) for counterfactual lines in plots.
+        treated_color : str
+            Color for the treated unit line in plots.
+        selection_fraction : float
+            Fraction of the donor pool to consider in forward selection.
+        full_selection : bool
+            Whether to run forward selection through all donors regardless of improvements.
+
+        Methods
+        -------
+        fit()
+            Fits the FSCM estimator using forward selection and constrained optimization,
+            returning standardized results and prepped data.
+
+        References
+        ----------
+        Cerulli, Giovanni. 2024.
+            "Optimal initial donor selection for the synthetic control method."
+            Economics Letters, 244: 111976. https://doi.org/10.1016/j.econlet.2024.111976
+        Shi, Zhentao, and Jingyi Huang. 2023.
+            "Forward-selected panel data approach for program evaluation."
+            Journal of Econometrics 234 (2): 512–535. https://doi.org/10.1016/j.jeconom.2021.04.009
+        Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
+            "The Augmented Synthetic Control Method."
+            Journal of the American Statistical Association 116 (536): 1789–1803. https://doi.org/10.1080/01621459.2021.1929245
+
+        Examples
+        --------
+        >>> from mlsynth import FSCM
+        >>> from mlsynth.config_models import FSCMConfig
+        >>> import pandas as pd, numpy as np
+        >>> data = pd.DataFrame({
+        ...     'unit': np.repeat(np.arange(1,4), 10),
+        ...     'time': np.tile(np.arange(1,11), 3),
+        ...     'outcome': np.random.rand(30) + np.repeat(np.arange(0,3),10)*0.5,
+        ...     'treated_unit_1': ((np.repeat(np.arange(1,4),10)==1) & (np.tile(np.arange(1,11),3)>=6)).astype(int)
+        ... })
+        >>> config = FSCMConfig(df=data, outcome='outcome', treat='treated_unit_1', unitid='unit', time='time', display_graphs=False)
+        >>> estimator = FSCM(config=config)
+        >>> results = estimator.fit()  # doctest: +SKIP
+        """
 
     def __init__(self, config: FSCMConfig) -> None:  # Changed to FSCMConfig
         """
@@ -169,21 +163,12 @@ class FSCM:
 
             Forward selection configuration:
             --------------------------------
-            use_augmented : bool, default=False
-                Whether to refine weights after selection using affine hull optimization.
             selection_fraction : float, default=1.0
                 Fraction of the donor pool to use in forward selection. Reducing this can
                 substantially reduce runtime in high-dimensional settings.
             full_selection : bool, default=False
                 Whether to force forward selection to run through all possible donor subsets,
                 even after mBIC fails to improve. Can be computationally expensive.
-
-            Affine refinement tuning (used only if `use_augmented=True`):
-            -------------------------------------------------------------
-            bo_n_iter : int, default=25
-                Number of iterations to run in Bayesian optimization.
-            bo_initial_evals : int, default=5
-                Number of initial random evaluations before surrogate modeling begins.
         """
 
         if isinstance(config, dict):
@@ -199,99 +184,32 @@ class FSCM:
         self.display_graphs: bool = config.display_graphs
         self.save: Union[bool, str] = config.save  # Align with BaseEstimatorConfig
         # FSCM-specific config
-        self.use_augmented: bool = config.use_augmented
         self.full_selection: bool = config.full_selection
         self.selection_fraction: float = config.selection_fraction
 
-        # Affine tuning parameters for augmented FSCM
-        self.bo_n_iter: int = config.bo_n_iter
-        self.bo_initial_evals: int = config.bo_initial_evals
-
-    def _build_master_results(self,
-            weight_dicts: Dict[str, any],
-            prepped_data: Dict[str, any],
-            resultfscm: Dict[str, any],
-            donor_names: list[str]
-    ) -> BaseEstimatorResults:
-        """
-        Construct a standardized master BaseEstimatorResults object
-        from weight vectors/dicts and prepped data for all SCM methods.
-        """
-        Y = prepped_data['donor_matrix']
-        y = prepped_data['y']
-        T_pre = prepped_data['pre_periods']
-        T_post = prepped_data['post_periods']
-
-        sub_results: Dict[str, BaseEstimatorResults] = {}
-
-        for method_name, w in weight_dicts.items():
-            # Convert numpy array to dict if needed
-            if isinstance(w, np.ndarray):
-                w = {name: float(val) for name, val in zip(donor_names, w)}
-
-            # Compute counterfactual
-            weights_array = np.array(list(w.values()))
-            y_hat = Y @ weights_array
-
-            # Compute effects
-            eff_dict, fit_dict, vectors_info = effects.calculate(y, y_hat, T_pre, T_post)
-
-            # Wrap effects into standardized EffectsResults
-            effects_res = EffectsResults(
-                att=eff_dict.get('ATT'),
-                att_percent=eff_dict.get('Percent ATT'),
-                att_std_err=eff_dict.get('ATT_SE'),
-                additional_effects={k: v for k, v in eff_dict.items() if k not in ['ATT', 'Percent ATT', 'ATT_SE']}
-            )
-
-            # Wrap fit dictionary into FitDiagnosticsResults
-            fit_res = FitDiagnosticsResults(
-                rmse_pre=fit_dict.get('T0 RMSE'),
-                rmse_post=fit_dict.get('T1 RMSE'),
-                r_squared_pre=fit_dict.get('R-Squared'),
-                additional_metrics={k: v for k, v in fit_dict.items() if k not in ['T0 RMSE', 'T1 RMSE', 'R-Squared']}
-            )
-
-            # Wrap time series
-            ts_res = TimeSeriesResults(
-                observed_outcome=vectors_info.get('Observed Unit'),
-                counterfactual_outcome=vectors_info.get('Counterfactual'),
-                estimated_gap=vectors_info.get('Gap'),
-                time_periods=vectors_info.get('Time Periods')
-            )
-
-            # Additional outputs for FSCM / augmented SCM
-            additional_outputs = {}
-            if method_name == "Forward SCM":
-                additional_outputs['candidate_dict'] = resultfscm['Forward SCM']['candidate_dict']
-            if method_name == "Forward Augmented SCM":
-                additional_outputs['validation_results'] = resultfscm['Forward Aumented SCM'].get('validation_results')
-                additional_outputs['lambda'] = resultfscm['Forward Aumented SCM'].get('lambda')
-
-            # Wrap weights
-            weights_res = WeightsResults(donor_weights=w)
-
-            # Construct BaseEstimatorResults for this method
-            sub_results[method_name] = BaseEstimatorResults(
-                effects=effects_res,
-                fit_diagnostics=fit_res,
-                time_series=ts_res,
-                weights=weights_res,
-                method_details={"name": method_name},
-                additional_outputs=additional_outputs,
-                raw_results=resultfscm.get(method_name)
-            )
-
-        # Construct master results object
-        master_results = BaseEstimatorResults(
-            sub_method_results=sub_results,
-            additional_outputs=prepped_data,
-            raw_results=resultfscm
-        )
-
-        return master_results
-
     def fit(self) -> BaseEstimatorResults:  # Main method to fit the FSCM estimator
+
+        """
+        Performs Forward Selected Synthetic Control estimation.
+
+        Steps:
+        1. Validate panel balance and prepare the data.
+        2. Compute the inner loss (pre-treatment MSE) for each candidate donor.
+        3. Iteratively select donors that minimize the inner loss (forward selection).
+        4. For the selected donor subset, solve a constrained optimization problem
+           to obtain the final weights and counterfactual outcomes.
+        5. Optionally plot the treated vs counterfactual outcomes.
+
+        Returns
+        -------
+        FSCMOutput
+            A dataclass containing:
+            - results: dict of sub-method results, including Forward SCM, Forward Augmented SCM, and Convex SCM.
+            - prepped_data: dict of preprocessed inputs used in estimation.
+        """
+
+
+
         try:
             # Step 1: Validate data balance (ensures each unit has the same time periods)
             balance(self.df, self.unitid, self.time)  # This can raise MlsynthDataError
@@ -336,7 +254,8 @@ class FSCM:
                 "Forward SCM": resultfscm['Forward SCM']['weights']
             }
 
-            master_results = self._build_master_results(weight_dicts, prepared_data_dict, resultfscm, prepared_data_dict["donor_names"])
+            master_results = _build_fscm_results(weight_dicts, prepared_data_dict, resultfscm,
+                                                      prepared_data_dict["donor_names"])
 
             # Determine which counterfactuals to plot based on L2 similarity
             convex_cf = master_results.sub_method_results['Convex SCM'].time_series.counterfactual_outcome
