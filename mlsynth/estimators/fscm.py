@@ -27,15 +27,15 @@ class FSCM:
         Estimates the Average Treatment Effect on the Treated (ATT) using the Forward Selected Synthetic Control Method (FSCM).
 
         FSCM constructs a donor pool iteratively via forward selection. At each iteration,
-        it evaluates all candidate donor units using an **inner loss function** (pre-treatment Mean Squared Error, MSE)
-        and selects the donor that optimally improves fit. The **outer optimization** builds the subset of donors that
+        it evaluates all candidate donor units using an inner loss function (pre-treatment Mean Squared Error, MSE)
+        and selects the donor that optimally improves fit. The outer optimization builds the subset of donors that
         minimizes the total pre-treatment MSE.
 
         Inner and outer loss definitions:
 
         .. math::
             \mathbf{w} \in \mathcal{W}_{\\text{conv}}(\widehat{U}) =
-            \Big\{ \mathbf{w} \in \mathbb{R}_+^{|\widehat{U}|} : \sum_{j \in \widehat{U}} w_j = 1 \Big\}
+            \Big\{ \mathbf{w} \in \mathbb{R}_{\geq 0}^{|\widehat{U}|} : \sum_{j \in \widehat{U}} w_j = 1 \Big\}
 
         .. math::
             \ell_{\\text{FSCM}}(\widehat{U}) =
@@ -43,9 +43,7 @@ class FSCM:
             \Big\| \mathbf{y}_1 - \mathbf{Y}_{\widehat{U}} \mathbf{w} \Big\|_2^2
 
         .. math::
-            \widehat{U}^\ast_{\text{FSCM}} =
-            \operatorname*{argmin}_{\widehat{U} \subseteq \mathcal{N}_0}
-            \ell_{\\text{FSCM}}(\widehat{U})
+            \widehat{U}^\ast_{\text{FSCM}} =\operatorname*{argmin}_{\widehat{U} \subseteq \mathcal{N}_0}\ell_{\\text{FSCM}}(\widehat{U})
 
         Attributes
         ----------
