@@ -642,24 +642,32 @@ def SDID_plot(
 
 
 
-def DID_org(result_dict: Dict, preppeddict, method_name: str = "FDID") -> BaseEstimatorResults:
+
+def DID_org(result_dict: Dict, preppeddict: Dict, method_name: str = "FDID") -> BaseEstimatorResults:
     """
     Convert a FDID/DID result dictionary to a BaseEstimatorResults Pydantic model.
 
     Parameters
     ----------
     result_dict : dict
-        The DID/FDID output dictionary.
+        The DID/FDID output dictionary with nested 'Effects', 'Fit', 'Vectors', 'Inference'.
+    preppeddict : dict
+        Dictionary with prep info, e.g., 'time_labels'.
     method_name : str, optional
-        Name of the method (default is "FDID").
+        Name of the method (default "FDID").
 
     Returns
     -------
     BaseEstimatorResults
         Standardized Pydantic model with all results mapped.
     """
+    # Extract nested results
+    effects_data = result_dict.get("Effects", {})
+    fit_data = result_dict.get("Fit", {})
+    vectors_data = result_dict.get("Vectors", {})
+    inference_data = result_dict.get("Inference", {})
+
     # --- Effects ---
-    effects_data = result_dict.get("effects", {})
     effects_model = EffectsResults(
         att=effects_data.get("ATT"),
         att_percent=effects_data.get("Percent ATT"),
@@ -668,27 +676,21 @@ def DID_org(result_dict: Dict, preppeddict, method_name: str = "FDID") -> BaseEs
 
     # --- Fit diagnostics ---
     fit_model = FitDiagnosticsResults(
-        r_squared_pre=result_dict.get("R2"),
-        rmse_pre=result_dict.get("rmse")
+        r_squared_pre=fit_data.get("R-Squared"),
+        rmse_pre=fit_data.get("T0 RMSE")
     )
 
     # --- Time series ---
-    fit_vectors = result_dict.get("fit_vectors", {})
-    observed = fit_vectors.get("Observed Unit")
-    counterfactual = fit_vectors.get("Counterfactual")
-    gap = fit_vectors.get("Gap")
-
     time_series_model = TimeSeriesResults(
-        observed_outcome=observed.flatten() if observed is not None else None,
-        counterfactual_outcome=counterfactual.flatten() if counterfactual is not None else None,
-        estimated_gap=gap[:, 0] if gap is not None else None,
-        time_periods=np.asarray(preppeddict['time_labels'])
+        observed_outcome=vectors_data.get("Observed"),
+        counterfactual_outcome=vectors_data.get("Counterfactual"),
+        estimated_gap=vectors_data.get("Gap")[:, 0] if vectors_data.get("Gap") is not None else None,
+        time_periods=np.asarray(preppeddict.get("time_labels"))
     )
 
     # --- Weights ---
-    selected_names = result_dict.get("selected_names", set())
+    selected_names = result_dict.get("selected_names", [])
     donor_weights = {name: 1.0 / len(selected_names) for name in selected_names} if selected_names else None
-
     weights_model = WeightsResults(
         donor_weights=donor_weights,
         summary_stats={
@@ -698,19 +700,18 @@ def DID_org(result_dict: Dict, preppeddict, method_name: str = "FDID") -> BaseEs
     )
 
     # --- Inference ---
-    inference_data = result_dict.get("Inference Results", {})
     inference_model = InferenceResults(
         p_value=inference_data.get("P-Value"),
-        ci_lower=inference_data.get("95 LB"),
-        ci_upper=inference_data.get("95 UB"),
+        ci_lower=inference_data.get("95% CI", (None, None))[0],
+        ci_upper=inference_data.get("95% CI", (None, None))[1],
         standard_error=inference_data.get("SE"),
-        details={k: v for k, v in inference_data.items() if k not in ["P-Value", "95 LB", "95 UB", "SE"]}
+        details={k: v for k, v in inference_data.items() if k not in ["P-Value", "95% CI", "SE"]}
     )
 
     # --- Method details ---
     method_model = MethodDetailsResults(
         method_name=method_name,
-        is_recommended=True,
+        is_recommended=None,
         parameters_used={"selected_names": list(selected_names)}
     )
 
@@ -725,7 +726,13 @@ def DID_org(result_dict: Dict, preppeddict, method_name: str = "FDID") -> BaseEs
         raw_results=result_dict
     )
 
+    # Include intermediary if present
+    if "intermediary" in result_dict:
+        base_results.raw_results["intermediary"] = result_dict["intermediary"]
+
     return base_results
+
+
 
 
 
@@ -812,4 +819,5 @@ def _build_fscm_results(weight_dicts: Dict[str, any],
     )
 
     return master_results
+
 
