@@ -8,7 +8,7 @@ from mlsynth.utils.exputils import InferenceResults
 
 class BaseMAREXConfig(BaseModel):
     """
-    The base configuration for synthetic experiment designs.
+    Base configuration for synthetic experiment designs.
     Contains fields common to all synthetic experiment-based estimators.
     """
 
@@ -288,7 +288,9 @@ class FDIDConfig(BaseEstimatorConfig):
         Whether to display a plot for the standard DID estimator.
         Has no effect on FDID or ADID plots.
     """
-    plot_did: bool = Field(default=True, description="Whether to plot standard DID results.")
+    verbose: bool = Field(default=True, description="Whether to save intermediary Forward Selection Results.")
+
+    
 
 class GSCConfig(BaseEstimatorConfig):
     """Configuration for the Generalized Synthetic Control (GSC) estimator."""
@@ -305,8 +307,6 @@ class GSCConfig(BaseEstimatorConfig):
     # Note: The original GSC __init__ docstring mentioned 'save', but it was commented out
     # in the implementation. If 'save' functionality specific to GSC is re-added,
     # it might need to be defined here if different from BaseEstimatorConfig.save.
-
-
 
 
 
@@ -370,12 +370,6 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
                 if 'ROB' not in data or data.get('ROB') == cls.model_fields['ROB'].default:
                     data['ROB'] = robust_value
         return data
-
-
-
-
-
-
 
 
 
@@ -744,8 +738,6 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
-
-
 
 
 
