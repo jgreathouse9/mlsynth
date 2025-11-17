@@ -4,7 +4,7 @@ import pandas as pd
 from pydantic import ValidationError
 
 from ..utils.resultutils import DID_org
-from ..utils.selector_helpers import DID_selector
+from ..utils.estutils import fast_DID_selector
 from ..utils.datautils import balance, dataprep
 from ..utils.resultutils import plot_estimates
 from ..exceptions import (
@@ -125,18 +125,19 @@ class FDID:
         self.treated_color: str = config.treated_color
         self.display_graphs: bool = config.display_graphs
         self.save: Union[bool, dict] = config.save
+        self.verbose: bool = config.verbose
 
     def fit(self) -> FDIDOutput:
         """
         Fit the FDID and standard DID models.
-
+    
         This method performs the following steps:
         1. Balances the panel data to ensure consistent unit-time structure.
         2. Prepares the outcome and donor matrices for estimation.
         3. Runs forward selection to identify the best donor units for FDID.
         4. Constructs FDID and DID results using `DID_org`.
         5. Optionally plots the observed and counterfactual outcomes.
-
+    
         Returns
         -------
         FDIDOutput
@@ -144,7 +145,7 @@ class FDID:
             - `results`: A dictionary with "FDID" and "DID" keys containing
               the estimation results.
             - `prepped_data`: Dictionary of prepared data used internally.
-
+    
         Raises
         ------
         MlsynthDataError
@@ -155,10 +156,6 @@ class FDID:
         MlsynthPlottingError
             Raised if plotting fails (warning issued instead of exception).
         """
-        FDID_Result: Optional['BaseEstimatorResults'] = None
-        DID_Result: Optional['BaseEstimatorResults'] = None
-        prepared_data: Optional[dict] = None
-    
         # Step 1: Balance
         try:
             balance(self.df, self.unitid, self.time)
@@ -173,29 +170,22 @@ class FDID:
     
         # Step 3: Forward selection
         try:
-            selectorresults = DID_selector(
-                treated_outcome=prepared_data["y"],
-                control_outcomes=prepared_data["donor_matrix"],
-                T0=prepared_data["pre_periods"],
-                control_names=prepared_data["donor_names"]
-            )
-        except Exception as e:
-            raise MlsynthEstimationError(f"Error during forward selection: {str(e)}") from e
-    
-        # Step 4: Construct FDID/DID
-        try:
-            if not selectorresults.get('best_candidate_info'):
-                raise MlsynthEstimationError("No FDID candidates found during forward selection.")
-    
-            best_index = next(iter(selectorresults['best_candidate_info']))
-            FDID_Design = selectorresults['best_candidate_info'][best_index]
-            FDID_Result = DID_org(FDID_Design, preppeddict=prepared_data, method_name="FDID")
-    
-            last_group = selectorresults['candidate_dict'][max(selectorresults['candidate_dict'].keys())]
-            last_index = max(last_group, key=lambda j: last_group[j]['R2'])
-            DID_Design = last_group[last_index]
-            DID_Result = DID_org(DID_Design, preppeddict=prepared_data, method_name="DID")
-    
+            results = fast_DID_selector(prepared_data["y"],
+                                        prepared_data["donor_matrix"],
+                                        prepared_data["pre_periods"],
+                                        donor_names=prepared_data["donor_names"],
+                                        verbose=self.verbose)
+
+            gathered = {
+                key: DID_org(
+                    result_dict=results[key],  # pass the nested FDID or DID dict
+                    preppeddict=prepared_data,
+                    method_name=key
+                )
+                for key in ["FDID", "DID"]
+                if key in results
+            }
+
         except ValidationError as e:
             raise MlsynthEstimationError(f"Error creating results structure: {str(e)}") from e
         except Exception as e:
@@ -213,8 +203,7 @@ class FDID:
                     treated_unit_name=prepared_data["treated_unit_name"],
                     observed_outcome_series=prepared_data["y"],
                     counterfactual_series_list=[
-                        FDID_Result.time_series.counterfactual_outcome.flatten(),
-                        DID_Result.time_series.counterfactual_outcome.flatten()
+                        gathered['FDID'].time_series.counterfactual_outcome.flatten(),gathered['DID'].time_series.counterfactual_outcome.flatten()
                     ],
                     estimation_method_name="FDID",
                     counterfactual_names=[
@@ -232,4 +221,4 @@ class FDID:
                 import warnings
                 warnings.warn(f"Unexpected plotting error: {str(e)}", UserWarning)
     
-        return FDIDOutput(results={"FDID": FDID_Result, "DID": DID_Result}, prepped_data=prepared_data)
+        return FDIDOutput(results=gathered, prepped_data=prepared_data)
