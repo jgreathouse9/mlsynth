@@ -7,6 +7,7 @@ from mlsynth.utils.denoiseutils import (
     spectral_rank,
     RPCA_HQF,
 )
+from scipy.stats import norm
 from scipy.linalg import eigh
 from mlsynth.utils.resultutils import effects
 from mlsynth.utils.selector_helpers import (
@@ -35,13 +36,12 @@ from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEsti
 
 # --- Constants for SCM and PDA Method Names ---
 _SCM_MODEL_SIMPLEX = "SIMPLEX"
+_SCM_MODEL_AFFINE = "AFFINE"
 _SCM_MODEL_MSCA = "MSCa"
 _SCM_MODEL_MSCB = "MSCb"
 _SCM_MODEL_MSCC = "MSCc"
 _SCM_MODEL_OLS = "OLS"
 _SCM_MODEL_MA = "MA" # Model Averaging
-_SCM_MODEL_AFFINE= "AFFINE"
-
 
 _PDA_METHOD_FS = "fs" # Forward Selection
 _PDA_METHOD_LASSO = "LASSO"
@@ -335,8 +335,6 @@ def compute_t_stat_and_ci(
 
 
 
-
-
 def l2_relax(
     num_pre_treatment_estimation_periods: int,
     treated_unit_outcome_vector: np.ndarray,
@@ -377,10 +375,6 @@ def l2_relax(
     predicted_counterfactuals = donor_outcomes_matrix @ estimated_coefficients + estimated_intercept
 
     return estimated_coefficients, estimated_intercept, predicted_counterfactuals
-
-
-
-
 
 
 def adaptive_cross_validate_tau(
@@ -1432,21 +1426,26 @@ def pcr(
 
     # --- Frequentist SCM path ---
     if use_frequentist_scm:
-        scm_problem_frequentist = Opt.SCopt(
-            num_control_units=selected_low_rank_pre_treatment_donors.shape[1],
-            target_outcomes_pre_treatment=pre_treatment_treated_outcome,
-            num_pre_treatment_periods=num_pre_treatment_periods,
-            donor_outcomes_pre_treatment=selected_low_rank_pre_treatment_donors,
-            scm_model_type=scm_objective_model_type,
-            donor_names=current_selected_donor_names,
-            lambda_penalty=lambda_penalty,
-            p=p,
-            q=q,
-        )
+        # if lambda_penalty == 0 then closed-form OLS
+        if lambda_penalty == 0:
+            # build y and Y0 as above and compute w_ols
+            frequentist_scm_weights = np.linalg.pinv(selected_low_rank_pre_treatment_donors[:num_pre_treatment_periods]) @ pre_treatment_treated_outcome[:num_pre_treatment_periods]
+        else:
+            scm_problem_frequentist = Opt.SCopt(
+                num_control_units=selected_low_rank_pre_treatment_donors.shape[1],
+                target_outcomes_pre_treatment=pre_treatment_treated_outcome,
+                num_pre_treatment_periods=num_pre_treatment_periods,
+                donor_outcomes_pre_treatment=selected_low_rank_pre_treatment_donors,
+                scm_model_type=scm_objective_model_type,
+                donor_names=current_selected_donor_names,
+                lambda_penalty=lambda_penalty,
+                p=p,
+                q=q,
+            )
 
-        frequentist_scm_weights = scm_problem_frequentist.solution.primal_vars[
-            next(iter(scm_problem_frequentist.solution.primal_vars))
-        ]
+            frequentist_scm_weights = scm_problem_frequentist.solution.primal_vars[
+                next(iter(scm_problem_frequentist.solution.primal_vars))
+            ]
         frequentist_scm_weights_dict = dict(
             zip(current_selected_donor_names, frequentist_scm_weights)
         )
@@ -1499,7 +1498,6 @@ def pcr(
             "cf_mean": median_cf,
             "credible_interval": (lower_bound, upper_bound),
         }
-
 
 
 class Opt:
@@ -1557,7 +1555,7 @@ class Opt:
         model_averaging_weights_cvxpy_ma = cp.Variable(
             num_base_models_ma, nonneg=True # Weights must be non-negative
         )
-        
+
         # Objective: Minimize || Y_pre - sum(lambda_k * CF_k_pre) ||_2
         # This is equivalent to minimizing the L2 norm of the difference between
         # the actual pre-treatment outcomes and the weighted average of base model counterfactuals.
@@ -1570,7 +1568,7 @@ class Opt:
         )
         # Constraint: sum(lambda_k) = 1 (weights must sum to one)
         constraints_ma = [cp.sum(model_averaging_weights_cvxpy_ma) == 1]
-        
+
         problem_ma = cp.Problem(objective_ma, constraints_ma)
         problem_ma.solve(solver=_SOLVER_CLARABEL_STR) # Solve the optimization problem
 
@@ -1687,7 +1685,7 @@ class Opt:
         """
         # Define CVXPY variable for donor weights (coefficients)
         coefficients_cvxpy_simplex = cp.Variable(num_coefficients_simplex)
-        
+
         # Constraints for SIMPLEX model:
         # 1. Weights must be non-negative (w_j >= 0 for all j).
         # 2. Weights must sum to 1 (sum(w_j) = 1).
@@ -1695,7 +1693,7 @@ class Opt:
             coefficients_cvxpy_simplex >= 0,
             cp.sum(coefficients_cvxpy_simplex) == 1,
         ]
-        
+
         # Objective: Minimize || Y_pre - X_donors_pre * w ||_2
         # This minimizes the L2 norm of the difference between actual pre-treatment outcomes
         # and the synthetic control constructed from donor outcomes.
@@ -1706,7 +1704,7 @@ class Opt:
                 2, # L2 norm
             )
         )
-        
+
         problem_simplex = cp.Problem(objective_simplex, constraints_simplex)
         problem_simplex.solve(solver=_SOLVER_CLARABEL_STR) # Solve the optimization problem
         return problem_simplex
@@ -1770,7 +1768,7 @@ class Opt:
                 2, # L2 norm
             )
         )
-        
+
         problem_msca = cp.Problem(objective_function_msca, constraints_list_msca)
         problem_msca.solve(solver=_SOLVER_CLARABEL_STR) # Solve the optimization problem
         return problem_msca
@@ -1806,7 +1804,7 @@ class Opt:
         """
         # Define CVXPY variable for donor weights
         coefficients_cvxpy_mscb = cp.Variable(num_donors_mscb)
-        
+
         # Constraints for MSCb model:
         # 1. Donor weights must be non-negative (w_j >= 0 for all j).
         # No sum-to-one constraint and no explicit intercept in this model variant.
@@ -1820,7 +1818,7 @@ class Opt:
                 2, # L2 norm
             )
         )
-        
+
         problem_mscb = cp.Problem(objective_function_mscb, constraints_list_mscb)
         problem_mscb.solve(solver=_SOLVER_CLARABEL_STR) # Solve the optimization problem
         return problem_mscb
@@ -1881,7 +1879,7 @@ class Opt:
                 2, # L2 norm
             )
         )
-        
+
         problem_mscc = cp.Problem(objective_function_mscc, constraints_list_mscc)
         problem_mscc.solve(solver=_SOLVER_CLARABEL_STR) # Solve the optimization problem
         return problem_mscc
@@ -2079,7 +2077,7 @@ class Opt:
                 "For non-MA models, donor_outcomes_pre_treatment and target_outcomes_pre_treatment "
                 "(after slicing to num_pre_treatment_periods) must have matching row counts."
             )
-        
+
         current_num_control_units = num_control_units
         processed_donor_outcomes_pre_treatment_subset = donor_outcomes_pre_treatment_subset.copy()
 
@@ -2128,13 +2126,12 @@ class Opt:
                 p=p,  # norm for weight penalty
                 q=q,  # norm for residuals
             )
-        else: 
+        else:
             raise MlsynthConfigError(
                 f"Unsupported SCM model type: {scm_model_type}. Supported types are: "
                 f"{_SCM_MODEL_SIMPLEX}, {_SCM_MODEL_MSCA}, {_SCM_MODEL_MSCB}, "
                 f"{_SCM_MODEL_MSCC}, {_SCM_MODEL_OLS}, {_SCM_MODEL_MA}."
             )
-
 
 
 def pda(
@@ -4202,12 +4199,12 @@ def generate_taus(X_pre, y_pre, n_taus=50):
     prob.solve(solver=cp.CLARABEL, verbose=False)
     tau_max = prob.value
 
-    tau_min *= 1.01
-    tau_max *= 2.01
+    tau_min *=1.02
+    tau_max *= 2
     return np.geomspace(tau_max, tau_min, n_taus)
 
 
-def rescmcross_validate_tau(X_pre, y_pre, n_splits=2, n_taus=200):
+def rescmcross_validate_tau(X_pre, y_pre, n_splits=10, n_taus=200):
     """Cross-validate to pick tau."""
     taus = generate_taus(X_pre, y_pre, n_taus)
     kf = KFold(n_splits=n_splits, shuffle=False)
@@ -4258,7 +4255,7 @@ def fit_l2_relaxation(X_pre, y_pre, tau):
     T, J = X_pre.shape
     w = cp.Variable(J)
     gam = cp.Variable()
-    obj = cp.Minimize(cp.sum_squares(w))
+    obj = cp.Minimize(0.5 * cp.norm(w, 2) ** 2)
     constraints = [
         cp.sum(w) == 1,
         w >= 0,
@@ -4268,6 +4265,9 @@ def fit_l2_relaxation(X_pre, y_pre, tau):
     prob.solve(solver=cp.CLARABEL, verbose=False)
 
     return w.value
+
+
+
 
 def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
     """
@@ -4365,280 +4365,6 @@ def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
     prob_final.solve(warm_start=True)
 
     return w_final.value, best_beta
-
-def fSCM(
-    treated_outcome_pre_treatment_vector: np.ndarray,
-    all_donors_outcomes_matrix_pre_treatment: np.ndarray,
-    num_pre_treatment_periods: int,
-    augmented: bool = False,
-    full_selection: bool = True,
-    selection_fraction: float = 1.0,
-    bo_n_iter: int = 25,
-    bo_initial_evals: int = 5
-) -> Tuple[List[int], np.ndarray, float, np.ndarray, np.ndarray]:
-    r"""
-    Forward Selection Synthetic Control Method (FSCM), optionally augmented with affine
-    refinement via a ridge-penalized convex program. 
-
-    The goal is to construct a synthetic control for a treated unit by selecting a sparse subset 
-    of donor units using forward selection, minimizing pre-treatment error, and optionally 
-    refining weights via convex optimization.
-
-    **Mathematical Description**
-
-    Let:
-
-    - :math:`\mathbf{y}_1 \in \mathbb{R}^{T_0}` be the pre-treatment outcomes for the treated unit.
-    - :math:`\mathbf{Y}_0 \in \mathbb{R}^{T_0 \times J}` be the donor matrix with :math:`J` units.
-    - :math:`\mathbf{w} \in \mathbb{R}^{J}` be the synthetic control weights.
-
-    The standard forward-selection SCM computes a sparse synthetic control by solving:
-
-    .. math::
-
-        \min_{\mathbf{w} \in \mathbb{R}^J} \quad \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2
-        \quad \text{s.t.} \quad \mathbf{w}_j \ge 0, \ \sum_{j=1}^J \mathbf{w}_j = 1
-
-    **Forward Selection Algorithm**
-
-    Initialize empty set :math:`S = \emptyset`. At each step:
-
-    1. For each donor :math:`j \notin S`, form :math:`S' = S \cup \{j\}`.
-    2. Solve the SCM optimization over columns in :math:`S'`.
-    3. Choose :math:`j^*` that yields the lowest pre-treatment RMSE.
-
-    Stop when:
-
-    - Either all donors are exhausted, or
-    - The modified BIC (mBIC) increases and `full_selection=False`.
-
-    The modified BIC is computed as:
-
-    .. math::
-
-        \text{mBIC}(S) = T_0 \cdot \log(\text{MSE}) + |S| \cdot \log(T_0)
-
-    where :math:`\text{MSE} = \frac{1}{T_0} \|\mathbf{y}_1 - \mathbf{Y}_0^S \mathbf{w}_S\|_2^2`.
-
-    **Affine Refinement (Optional)**
-
-    If `augmented=True`, the sparse FSCM weights corresponding to the selected donor
-    subset :math:`\widehat{U}_0\ldots N` are used as a starting point. The weights are refined
-    over the affine hull of :math:`\mathbf{Y}_0` restricted to the selected donors by solving:
-
-    .. math::
-
-        \min_{\mathbf{w} \in \mathbb{R}^J} 
-        \quad \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2
-        + \beta \|\mathbf{w} - \mathbf{w}^{\text{FSCM}}\|_2^2
-        \quad \text{s.t.} \quad \|\mathbf{w}\|_1 = 1, \ \text{supp}(\mathbf{w}) \subseteq \widehat{U}_0\ldots N
-
-    Here:
-
-    - :math:`\beta` is the ridge penalty that shrinks the solution toward the original FSCM weights.
-    - The :math:`\ell_1` constraint ensures the solution lies in the affine hull of the selected donors.
-    - The support restriction :math:`\text{supp}(\mathbf{w}) \subseteq \widehat{U}_0\ldots N` ensures that
-      only FSCM-selected donors are used, but weights can **extrapolate beyond the original convex-hull solution** while remaining bounded relative to it.
-
-    **Conceptual Note on Supremum and Infimum**
-
-    We can conceptualize the set of all possible affine-hull objective values over the feasible
-    set:
-
-    .. math::
-
-        \mathcal{F} = \{ f(\mathbf{w}) = \|\mathbf{y}_1 - \mathbf{Y}_0 \mathbf{w}\|_2^2 
-        + \beta \|\mathbf{w} - \mathbf{w}^{\text{FSCM}}\|_2^2 : 
-        \mathbf{w} \in \mathcal{W} \},
-
-    where :math:`\mathcal{W} = \{\mathbf{w} : \|\mathbf{w}\|_1 = 1, \text{supp}(\mathbf{w}) \subseteq \widehat{U}_0\ldots N \}`.  
-
-    - The **infimum** of this set is exactly the FASC solution (minimized objective).  
-    - The **FSCM objective value** corresponds to one feasible point in this set.  
-    - If :math:`\beta \to \infty`, FSCM is the **only feasible point**, and its objective equals both the infimum and supremum.  
-    - For finite :math:`\beta`, FSCM is a reference value inside the set :math:`\mathcal{F}`, and the affine-hull solution may decrease the objective slightly by extrapolating within the allowed support.
-
-    Parameters
-    ----------
-    treated_outcome_pre_treatment_vector : np.ndarray, shape (T0,)
-        Vector of outcomes for the treated unit before treatment.
-
-    all_donors_outcomes_matrix_pre_treatment : np.ndarray, shape (T0, J)
-        Matrix of donor unit outcomes before treatment. Each column is a donor.
-
-    num_pre_treatment_periods : int
-        Number of pre-treatment time periods, :math:`T_0`.
-
-    augmented : bool, default=False
-        If True, performs affine refinement using a ridge-penalized convex program.
-
-    full_selection : bool, default=True
-        If True, continue forward selection until all donors are exhausted.
-        If False, stop early if mBIC increases.
-
-    selection_fraction : float, default=1.0
-        Fraction of donors to consider for selection. Useful for speeding up the process.
-
-    bo_n_iter : int, default=25
-        Number of Bayesian optimization iterations for affine refinement.
-
-    bo_initial_evals : int, default=5
-        Number of initial random points for Bayesian optimization.
-
-    Returns
-    -------
-    If augmented is False:
-        selected_indices : List[int]
-            Indices of selected donor units.
-
-        full_weights : np.ndarray, shape (J,)
-            Sparse synthetic control weights over the full donor pool.
-
-    If augmented is True:
-        selected_indices : List[int]
-            Indices of selected donor units.
-
-        refined_weights : np.ndarray, shape (J,)
-            Affine-refined synthetic control weights after ridge-penalized refinement.
-
-        initial_sparse_weights : np.ndarray, shape (J,)
-            Original sparse FSCM weights before affine refinement.
-
-    Raises
-    ------
-    ValueError
-        If `selection_fraction <= 0`.
-
-    MlsynthEstimationError
-        If no valid donor subset could be found or optimization fails.
-
-    Warnings
-    --------
-    RuntimeWarning
-        If donor pool is large and full enumeration is requested.
-    """
-
-    J = all_donors_outcomes_matrix_pre_treatment.shape[1]
-    if selection_fraction <= 0:
-        raise ValueError("selection_fraction must be > 0.")
-
-    selected_indices: List[int] = []
-    best_overall_mBIC = float("inf")
-    best_overall_rmse = float("inf")
-    best_overall_indices = []
-    best_overall_weights = None
-    best_overall_matrix = None
-    current_indices = []
-
-    # Warn if donor pool is large and full selection is requested
-    if (full_selection or selection_fraction >= 1.0) and J >= 200:
-        total_models_to_fit = (J * (J + 1)) // 2
-        warnings.warn(
-            f"[fSCM WARNING] Donor pool contains {J} units. "
-            f"Full forward selection will compute {total_models_to_fit} candidate models. "
-            f"To reduce runtime, consider setting `selection_fraction` < 1.0.",
-            RuntimeWarning
-        )
-
-    for _ in range(min(J, max(1, int(np.floor(J * selection_fraction))))):
-        best_candidate_mse = float("inf")
-        best_candidate_index = None
-
-        for j in set(range(J)) - set(current_indices):
-            candidate_indices = current_indices + [j]
-            candidate_matrix = all_donors_outcomes_matrix_pre_treatment[:, candidate_indices]
-
-            try:
-                result = Opt.SCopt(
-                    len(candidate_indices),
-                    treated_outcome_pre_treatment_vector,
-                    num_pre_treatment_periods,
-                    candidate_matrix,
-                    scm_model_type="SIMPLEX"
-                )
-                mse = result.solution.opt_val if result.solution.opt_val is not None else float("inf")
-            except cp.error.SolverError:
-                continue
-            except Exception as e:
-                raise MlsynthEstimationError(
-                    f"Unexpected error during SCM optimization with donor set {candidate_indices}: {e}"
-                ) from e
-
-            if mse < best_candidate_mse:
-                best_candidate_mse = mse
-                best_candidate_index = j
-
-        if best_candidate_index is None:
-            break  # All candidates failed
-
-        current_indices.append(best_candidate_index)
-        current_matrix = all_donors_outcomes_matrix_pre_treatment[:, current_indices]
-
-        try:
-            result = Opt.SCopt(
-                len(current_indices),
-                treated_outcome_pre_treatment_vector,
-                num_pre_treatment_periods,
-                current_matrix,
-                scm_model_type="SIMPLEX"
-            )
-
-            if not result.solution.primal_vars or result.solution.opt_val is None:
-                continue
-
-            key = next(iter(result.solution.primal_vars))
-            weights = result.solution.primal_vars[key]
-            rmse = np.sqrt(result.solution.opt_val / num_pre_treatment_periods)
-            mse = rmse ** 2
-            k = len(current_indices)
-            mBIC = num_pre_treatment_periods * np.log(mse) + k * np.log(num_pre_treatment_periods)
-
-            # Update the best RMSE solution regardless of mBIC
-            if rmse < best_overall_rmse:
-                best_overall_rmse = rmse
-                best_overall_indices = current_indices.copy()
-                best_overall_weights = weights
-                best_overall_matrix = current_matrix
-
-            # mBIC governs early stopping
-            if mBIC < best_overall_mBIC:
-                best_overall_mBIC = mBIC
-            else:
-                if not full_selection:
-                    break  # Early stop
-
-        except cp.error.SolverError:
-            continue
-        except Exception as e:
-            raise MlsynthEstimationError(
-                f"Unexpected error during evaluation with donor set {current_indices}: {e}"
-            ) from e
-
-    if not best_overall_indices:
-        raise MlsynthEstimationError("Forward selection failed to find any valid donor subset.")
-
-    full_weights = np.zeros(J)
-    full_weights[np.array(best_overall_indices)] = best_overall_weights
-    full_weights[np.abs(full_weights) < 0.001] = 0.0
-
-    if not augmented:
-        return (
-            best_overall_indices,
-            full_weights
-        )
-    else:
-        w_affine, beta_opt = fit_affine_hull_scm(
-            all_donors_outcomes_matrix_pre_treatment[:num_pre_treatment_periods],
-            treated_outcome_pre_treatment_vector,
-            full_weights, num_iterations=bo_n_iter,
-            num_initial=bo_initial_evals
-        )
-        return (
-            best_overall_indices,
-            w_affine,
-            full_weights
-        )
-
 
 
 def tune_affine_lambda(
@@ -4859,7 +4585,9 @@ def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
     Forward-selection FSCM with optional stopping rules.
     Returns results for full SCM, FSCM (with candidate_dict), and affine SCM.
     """
+
     warnings.filterwarnings("ignore", category=UserWarning, module="cvxpy")
+
     N0 = Y.shape[1]
     remaining = list(range(N0))
     selected = []
@@ -4954,182 +4682,219 @@ def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
 
 
 
-def DID(treated_outcome_all_periods: np.ndarray, control_outcomes_all_periods: np.ndarray,
-        num_pre_treatment_periods: int, placebo_iteration_num: int = 0
-) -> Dict[str, Any]:
+def r2_batch(y: np.ndarray, X: np.ndarray) -> np.ndarray:
     """
-    Computes standard Difference-in-Differences (DID) estimates.
-
-    This method calculates the DID effect by comparing the change in outcomes
-    for the treated unit to the change in outcomes for the (average of) control units.
+    Compute R² for each donor candidate vs the treated unit (pre-treatment).
 
     Parameters
     ----------
-    treated_outcome_all_periods : np.ndarray
-        Outcome vector for the treated unit, shape (T, 1), where T is the total
-        number of time periods.
-    control_outcomes_all_periods : np.ndarray
-        Outcome matrix for control units, shape (T, N_controls), where N_controls
-        is the number of control units.
-    num_pre_treatment_periods : int
-        Number of pre-treatment periods (T0).
-    placebo_iteration_num : int, optional
-        Placeholder for placebo iteration, not actively used in this method.
-        Default is 0.
+    y : np.ndarray
+        Treated unit pre-treatment outcomes, shape (T0,)
+    X : np.ndarray
+        Candidate donor pre-treatment outcomes, shape (T0, N)
 
     Returns
     -------
-    Dict[str, Any]
-        A dictionary containing raw estimation results for the DID method.
-        The dictionary includes the following keys and sub-keys:
-        - "Effects" (Dict[str, float]):
-            - "ATT": Average Treatment Effect on the Treated.
-            - "Percent ATT": Percentage ATT.
-            - "SATT": Standardized ATT.
-        - "Vectors" (Dict[str, np.ndarray]):
-            - "Observed Unit": Outcome vector for the treated unit, shape (T, 1).
-            - "Counterfactual": Estimated counterfactual outcome vector, shape (T, 1).
-            - "Gap": Treatment effect over time, shape (T, 2), where columns are
-              [gap_value, event_time_index].
-        - "Fit" (Dict[str, Union[float, int]]):
-            - "T0 RMSE": Root Mean Squared Error in the pre-treatment period.
-            - "R-Squared": R-squared value in the pre-treatment period.
-            - "Pre-Periods": Number of pre-treatment periods (t1).
-        - "Inference" (Dict[str, float]):
-            - "P-Value": P-value for the ATT.
-            - "95 LB": Lower bound of the 95% confidence interval for ATT.
-            - "95 UB": Upper bound of the 95% confidence interval for ATT.
-            - "Width": Width of the 95% confidence interval.
-        - "SE": Standard error of the ATT.
-        - "Intercept": Estimated DID intercept.
+    np.ndarray
+        R² for each candidate donor, shape (N,)
     """
-    total_periods: int = len(treated_outcome_all_periods)
-    # Ensure control_outcomes_all_periods is a 2D array (T x N_controls) even if only one control unit.
-    if control_outcomes_all_periods.ndim == 1:
-        control_outcomes_all_periods = control_outcomes_all_periods.reshape(-1, 1)
+    y_c = y - y.mean()
+    ss_tot = np.sum(y_c ** 2)
+    if ss_tot <= 1e-12:
+        return np.full(X.shape[1], -1e12)
 
-    # Calculate the average outcome of control units for pre and post-treatment periods.
-    mean_control_outcome_pre_treatment: np.ndarray = np.mean(
-        control_outcomes_all_periods[:num_pre_treatment_periods], axis=1).reshape(-1, 1)
-    mean_control_outcome_post_treatment: np.ndarray = np.mean(
-        control_outcomes_all_periods[num_pre_treatment_periods:total_periods], axis=1).reshape(-1, 1)
+    X_mean = X.mean(axis=0)
+    ss_X = np.sum((X - X_mean) ** 2, axis=0)
+    cross = np.dot(y_c, X - X_mean)
 
-    # The DID intercept is the average difference between the treated unit's outcome and the mean control outcome during the pre-treatment period.
-    # This captures the baseline difference.
-    did_intercept: float = np.mean(
-        treated_outcome_all_periods[:num_pre_treatment_periods] - mean_control_outcome_pre_treatment).item()
+    ss_res = ss_tot + ss_X - 2.0 * cross
+    return 1.0 - ss_res / ss_tot
 
-    # Construct the counterfactual for the treated unit.
-    # Pre-treatment: fitted values based on the intercept and mean control pre-treatment outcomes.
-    fitted_treated_outcome_pre_treatment: np.ndarray = did_intercept + mean_control_outcome_pre_treatment
-    # Post-treatment: predicted values based on the intercept and mean control post-treatment outcomes (assuming parallel trends).
-    predicted_treated_outcome_post_treatment: np.ndarray = did_intercept + mean_control_outcome_post_treatment
-    counterfactual_outcome_did: np.ndarray = did_intercept + np.mean(control_outcomes_all_periods, axis=1).reshape(
-        -1, 1)
 
-    # Calculate the Average Treatment Effect on the Treated (ATT).
-    # This is the average difference between the observed outcome and the counterfactual outcome in the post-treatment period.
-    att_did: float = np.mean(
-        treated_outcome_all_periods[num_pre_treatment_periods:total_periods] - counterfactual_outcome_did[
-                                                                               num_pre_treatment_periods:total_periods]).item()
-    mean_counterfactual_outcome_post_treatment_did: float = np.mean(
-        counterfactual_outcome_did[num_pre_treatment_periods:total_periods]).item()
-    # Calculate ATT as a percentage of the mean counterfactual outcome in the post-treatment period.
-    att_percentage_did: float = (
-        100 * att_did / mean_counterfactual_outcome_post_treatment_did if mean_counterfactual_outcome_post_treatment_did != 0 else np.nan
-    )
+def _did_from_mean(
+    treated: np.ndarray,
+    mean_ctrl: np.ndarray,
+    T0: int,
+    label: str = ""
+) -> Dict[str, Any]:
+    """
+    Compute full DID result from a pre-computed donor mean.
 
-    # Calculate R-squared for the pre-treatment period to assess goodness of fit.
-    # Handle cases where variance of treated_outcome_all_periods[:num_pre_treatment_periods] is zero (e.g., num_pre_treatment_periods <= 1) to avoid division by zero.
-    if num_pre_treatment_periods == 0:  # No pre-periods to calculate R-squared.
-        r_squared_pre_treatment_did = np.nan
-    else:
-        variance_treated_outcome_pre_treatment = np.var(
-            treated_outcome_all_periods[:num_pre_treatment_periods])  # Total sum of squares (proportional).
-        if num_pre_treatment_periods <= 1 or np.isclose(variance_treated_outcome_pre_treatment,
-                                                        0):  # If constant or single point, R2 is undefined.
-            r_squared_pre_treatment_did = np.nan
-        else:
-            mse_model_pre_treatment_did = np.mean((treated_outcome_all_periods[
-                                                   :num_pre_treatment_periods] - counterfactual_outcome_did[
-                                                                                 :num_pre_treatment_periods]) ** 2)  # Residual sum of squares (proportional).
-            r_squared_pre_treatment_did = 1 - (mse_model_pre_treatment_did / variance_treated_outcome_pre_treatment)
+    Parameters
+    ----------
+    treated : np.ndarray
+        Outcome vector for treated unit (T,)
+    mean_ctrl : np.ndarray
+        Pre-computed mean of selected donor pool (T,)
+    T0 : int
+        Number of pre-treatment periods
+    label : str, optional
+        Label for this result, by default ""
 
-    # Calculate residuals and variance components for statistical inference.
-    residuals_pre_treatment_did: np.ndarray = treated_outcome_all_periods[
-                                              :num_pre_treatment_periods] - counterfactual_outcome_did[
-                                                                            :num_pre_treatment_periods]
-    num_post_treatment_periods: int = total_periods - num_pre_treatment_periods
+    Returns
+    -------
+    dict
+        Dictionary containing ATT, fit metrics, inference, and vectors.
+    """
+    T = len(treated)
+    treated_pre, treated_post = treated[:T0], treated[T0:]
+    ctrl_pre, ctrl_post = mean_ctrl[:T0], mean_ctrl[T0:]
 
-    # Estimate variance components omega1 and omega2 based on pre-treatment residuals.
-    # Handle num_pre_treatment_periods=0 case for omega1_hat_did to avoid division by zero.
-    omega1_hat_did: float = (
-        (num_post_treatment_periods / num_pre_treatment_periods) * np.mean(
-            residuals_pre_treatment_did ** 2) if num_pre_treatment_periods > 0 else np.nan
-    )
-    omega2_hat_did: float = np.mean(
-        residuals_pre_treatment_did ** 2) if num_pre_treatment_periods > 0 else np.nan  # Ensure omega2_hat is also nan if no pre-periods
-    std_omega_hat_did: float = np.sqrt(omega1_hat_did + omega2_hat_did) if not (
-                np.isnan(omega1_hat_did) or np.isnan(omega2_hat_did)) else np.nan
+    # DID intercept
+    intercept = (treated_pre - ctrl_pre).mean()
+    counterfactual = intercept + mean_ctrl
 
-    # Calculate Standardized ATT (SATT) and p-value.
-    standardized_att_did: float = (
-        np.sqrt(num_post_treatment_periods) * att_did / std_omega_hat_did
-        if std_omega_hat_did != 0 and not np.isnan(std_omega_hat_did) and num_post_treatment_periods > 0 else np.nan
-    )
-    p_value_did: float = 2 * (1 - norm.cdf(np.abs(standardized_att_did))) if not np.isnan(
-        standardized_att_did) else np.nan
+    # ATT
+    att = (treated_post.mean() - treated_pre.mean()) - (ctrl_post.mean() - ctrl_pre.mean())
 
-    # Calculate 95% Confidence Interval for ATT.
-    z_critical: float = norm.ppf(0.975)  # Z-score for 95% CI.
-    standard_error_att_did: float = std_omega_hat_did / np.sqrt(
-        num_post_treatment_periods) if num_post_treatment_periods > 0 and not np.isnan(
-        std_omega_hat_did) else np.nan
+    # Fit
+    resid_pre = treated_pre - counterfactual[:T0]
+    rmse = np.sqrt(np.mean(resid_pre ** 2)) if T0 > 0 else np.nan
+    ss_tot = np.sum((treated_pre - treated_pre.mean()) ** 2)
+    ss_res = np.sum(resid_pre ** 2)
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 1e-12 else np.nan
 
-    ci_95_lower_bound_did: float = att_did - z_critical * standard_error_att_did if not np.isnan(
-        standard_error_att_did) else np.nan
-    ci_95_upper_bound_did: float = att_did + z_critical * standard_error_att_did if not np.isnan(
-        standard_error_att_did) else np.nan
+    # Inference
+    T1 = T - T0
+    omega2 = np.mean(resid_pre ** 2) if T0 > 0 else np.nan
+    omega1 = (T1 / T0) * omega2 if T0 > 0 else np.nan
+    se = np.sqrt(omega1 + omega2) / np.sqrt(T1) if T1 > 0 and not np.isnan(omega1) else np.nan
+    z = norm.ppf(0.975)
+    ci_lo = att - z * se if not np.isnan(se) else np.nan
+    ci_hi = att + z * se if not np.isnan(se) else np.nan
+    pval = 2 * (1 - norm.cdf(np.abs(att / se))) if se > 0 else np.nan
 
-    # Compile fit diagnostics results.
-    fit_diagnostics_results_did: Dict[str, Any] = {
-        "T0 RMSE": round(float(np.std(residuals_pre_treatment_did)),
-                         3) if num_pre_treatment_periods > 0 else np.nan,
-        "R-Squared": r_squared_pre_treatment_did if not np.isnan(r_squared_pre_treatment_did) else np.nan,
-        "Pre-Periods": num_pre_treatment_periods,
-    }
-    # Compile effects results.
-    effects_results_did: Dict[str, float] = {
-        "ATT": round(att_did, 3),
-        "Percent ATT": round(att_percentage_did, 3) if not np.isnan(att_percentage_did) else np.nan,
-        "SATT": round(standardized_att_did, 3) if not np.isnan(standardized_att_did) else np.nan,
-    }
-    # Compile inference results.
-    inference_results_did: Dict[str, Any] = {
-        "P-Value": round(p_value_did, 3) if not np.isnan(p_value_did) else np.nan,
-        "95 LB": round(ci_95_lower_bound_did, 3) if not np.isnan(ci_95_lower_bound_did) else np.nan,
-        "95 UB": round(ci_95_upper_bound_did, 3) if not np.isnan(ci_95_upper_bound_did) else np.nan,
-        "Width": ci_95_upper_bound_did - ci_95_lower_bound_did if not (
-                    np.isnan(ci_95_lower_bound_did) or np.isnan(ci_95_upper_bound_did)) else np.nan,
-        "SE": round(standard_error_att_did, 4) if not np.isnan(standard_error_att_did) else np.nan,
-        "Intercept": round(did_intercept, 3),
-    }
-    # Calculate the treatment effect (gap) over time.
-    gap_over_time_did: np.ndarray = treated_outcome_all_periods - counterfactual_outcome_did
-    # Create a matrix with gap values and corresponding event time indices.
-    gap_matrix_did: np.ndarray = np.column_stack(
-        (gap_over_time_did, np.arange(gap_over_time_did.shape[0]) - num_pre_treatment_periods + 1))
-    # Compile time series results.
-    time_series_results_did: Dict[str, np.ndarray] = {
-        "Observed Unit": np.round(treated_outcome_all_periods, 3),
-        "Counterfactual": np.round(counterfactual_outcome_did, 3),
-        "Gap": np.round(gap_matrix_did, 3),
-    }
-    # Return all compiled results.
     return {
-        "Effects": effects_results_did, "Vectors": time_series_results_did,
-        "Fit": fit_diagnostics_results_did, "Inference": inference_results_did,
+        "Effects": {
+            "ATT": round(float(att), 4),
+            "Percent ATT": round(100 * att / counterfactual[T0:].mean(), 3)
+            if counterfactual[T0:].mean() != 0 else np.nan,
+            "SATT": round(att / se * np.sqrt(T1), 3) if se > 0 else np.nan,
+        },
+        "Fit": {
+            "T0 RMSE": round(float(rmse), 4),
+            "R-Squared": round(float(r2), 4) if not np.isnan(r2) else np.nan,
+            "Pre-Periods": T0,
+        },
+        "Inference": {
+            "P-Value": round(float(pval), 4) if not np.isnan(pval) else np.nan,
+            "95% CI": (round(float(ci_lo), 4), round(float(ci_hi), 4))
+            if not np.isnan(ci_lo) else (np.nan, np.nan),
+            "SE": round(float(se), 4) if not np.isnan(se) else np.nan,
+            "Intercept": round(float(intercept), 4),
+        },
+        "Vectors": {
+            "Observed": np.round(treated, 3),
+            "Counterfactual": np.round(counterfactual, 3),
+            "Gap": np.round(
+                np.column_stack((treated - counterfactual, np.arange(T) - T0 + 1)),
+                3,
+            ),
+        },
     }
 
 
+def fast_DID_selector(
+    treated_outcome: np.ndarray,
+    control_outcomes: np.ndarray,
+    T0: int,
+    donor_names: List[str],
+    verbose: bool = False,
+) -> Dict[str, Any]:
+    """
+    Forward-selection Difference-in-Differences (FDID) algorithm with optional verbose output.
+
+    Parameters
+    ----------
+    treated_outcome : np.ndarray
+        Treated unit outcome vector, shape (T,)
+    control_outcomes : np.ndarray
+        Donor unit outcomes, shape (T, N)
+    T0 : int
+        Number of pre-treatment periods
+    donor_names : List[str]
+        Names of donor units, length N
+    verbose : bool, optional
+        If True, return intermediary results at each selection step, by default False
+
+    Returns
+    -------
+    dict
+        Dictionary containing:
+        - 'FDID': result for optimal donor pool
+        - 'DID': DID using all donors
+        - 'R2_at_each_step': R² path during forward selection
+        - 'selected_controls': list of selected donor indices
+        - 'selected_names': names of selected donors
+        - 'intermediary': optional list of dicts with running means, candidate R², and selected donor names
+    """
+    T, N = control_outcomes.shape
+    treated_pre = treated_outcome[:T0]
+
+    if len(donor_names) != N:
+        raise ValueError("Length of donor_names must match number of donors in control_outcomes")
+
+    # Baseline DID using all donors
+    mean_all = control_outcomes.mean(axis=1)
+    did_all = _did_from_mean(treated_outcome, mean_all, T0, label="DID")
+
+    # Forward selection
+    mean_ctrl = np.zeros(T, dtype=float)
+    remaining = np.arange(N, dtype=int)
+    selected: List[int] = []
+    R2_path = np.empty(N, dtype=float)
+    intermediary_results: List[Dict[str, Any]] = []
+
+    for it in range(N):
+        k = len(selected)
+        # Candidate means: (k * current + new donor) / (k+1)
+        cand_means = (mean_ctrl[:, None] * k + control_outcomes[:, remaining]) / (k + 1)
+        cand_pre = cand_means[:T0, :]
+
+        # Compute R²
+        r2_cand = r2_batch(treated_pre, cand_pre)
+
+        # Pick best candidate
+        best_pos = int(np.nanargmax(r2_cand))
+        best_idx = int(remaining[best_pos])
+        best_r2 = float(r2_cand[best_pos])
+
+        # Update running mean
+        mean_ctrl = (mean_ctrl * k + control_outcomes[:, best_idx]) / (k + 1)
+        selected.append(best_idx)
+        R2_path[it] = best_r2
+        remaining = np.delete(remaining, best_pos)
+
+        if verbose:
+            intermediary_results.append({
+                "iteration": it + 1,
+                "selected_idx": best_idx,
+                "selected_names": [donor_names[i] for i in selected],
+                "running_mean": mean_ctrl.copy(),
+                "R2_candidates": r2_cand.copy(),
+            })
+
+    # Best iteration
+    best_iter = int(np.argmax(R2_path))
+    optimal_selected = selected[:best_iter + 1]
+    optimal_mean = control_outcomes[:, optimal_selected].mean(axis=1)
+    fdid_result = _did_from_mean(treated_outcome, optimal_mean, T0, label="FDID")
+
+    # Append additional FDID info
+    fdid_result.update({
+        "R2_at_each_step": R2_path,
+        "selected_controls": optimal_selected,
+        "selected_names": [donor_names[i] for i in optimal_selected],
+    })
+
+    # Build result
+    result = {
+        "FDID": fdid_result,
+        "DID": did_all,
+    }
+
+    if verbose:
+        result["FDID"]["intermediary"] = intermediary_results
+
+    return result
 
