@@ -7,88 +7,184 @@ import pandas as pd # For PDAfs doctest and potentially internal DataFrame use
 from mlsynth.utils.denoiseutils import svt, spectral_rank # svt for SVDCluster, spectral_rank for fpca
 from typing import Tuple, List, Any, Dict
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEstimationError
+from scipy.stats import norm
+
+# ————————————————————————
+# Private helpers (extension points)
+# ————————————————————————
+
+def _r2_batch(y_c: np.ndarray, ss_tot: float, X_pre: np.ndarray) -> np.ndarray:
+    """
+    Compute R² for each candidate donor vs treated unit (pre-treatment).
+    y_c and ss_tot should be precomputed for efficiency.
+
+    Parameters
+    ----------
+    y_c : np.ndarray
+        Centered treated pre-treatment vector (y - mean(y))
+    ss_tot : float
+        Total sum of squares of y_c
+    X_pre : np.ndarray
+        Candidate pre-treatment vectors, shape (T0, N)
+
+    Returns
+    -------
+    np.ndarray
+        R² for each candidate, shape (N,)
+    """
+    X_mean = X_pre.mean(axis=0)
+    ss_X = np.sum((X_pre - X_mean) ** 2, axis=0)
+    cross = np.dot(y_c, X_pre - X_mean)
+    ss_res = ss_tot + ss_X - 2.0 * cross
+    return 1.0 - ss_res / ss_tot
 
 
-def DID_selector(
-    treated_outcome: np.ndarray,        # shape (T,)
-    control_outcomes: np.ndarray,       # shape (T, N_controls)
-    T0: int,                            # pre-treatment periods
-    control_names: list                 # names or labels of controls
+def _did_from_mean(
+    treated: np.ndarray,
+    mean_ctrl: np.ndarray,
+    T0: int,
+    label: str = ""
 ) -> Dict[str, Any]:
     """
-    Forward-selection FDID returning:
-        - candidate_dict: intermediary results for all candidates at each iteration
-        - R2_at_each_step: best R² at each iteration
-        - best_candidate_info: info for the candidate added at the iteration with max R²
-        - selected_controls: final set of selected control indices
-    Each candidate info now also includes 'selected_names' as a set of donor names.
+    Compute full DID result from a pre-computed donor mean.
+
+    Parameters
+    ----------
+    treated : np.ndarray
+        Outcome vector for treated unit (T,)
+    mean_ctrl : np.ndarray
+        Pre-computed mean of selected donor pool (T,)
+    T0 : int
+        Number of pre-treatment periods
+    label : str, optional
+        Label for this result, by default ""
+
+    Returns
+    -------
+    dict
+        Dictionary containing ATT, fit metrics, inference, and vectors.
     """
-    from ..utils.estutils import DID
-    N_controls = control_outcomes.shape[1]
-    remaining = list(range(N_controls))
-    selected = []
-    candidate_dict = {}
-    R2_at_each_step = []
+    T = len(treated)
+    treated_pre, treated_post = treated[:T0], treated[T0:]
+    ctrl_pre, ctrl_post = mean_ctrl[:T0], mean_ctrl[T0:]
 
-    treated_pre = treated_outcome.reshape(-1, 1)
+    # DID intercept
+    intercept = (treated_pre - ctrl_pre).mean()
+    counterfactual = intercept + mean_ctrl
 
-    for iteration in range(1, N_controls + 1):
-        candidate_info = {}
-        R2_candidates = []
+    # ATT
+    att = (treated_post.mean() - treated_pre.mean()) - (ctrl_post.mean() - ctrl_pre.mean())
 
-        for j in remaining:
-            # Outcomes for current candidate set
-            if selected:
-                Y_candidate = control_outcomes[:, selected + [j]]
-                current_names = [control_names[idx] for idx in selected + [j]]
-            else:
-                Y_candidate = control_outcomes[:, [j]]
-                current_names = [control_names[j]]
+    # Fit
+    resid_pre = treated_pre - counterfactual[:T0]
+    rmse = np.sqrt(np.mean(resid_pre ** 2)) if T0 > 0 else np.nan
+    ss_tot = np.sum((treated_pre - treated_pre.mean()) ** 2)
+    ss_res = np.sum(resid_pre ** 2)
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 1e-12 else np.nan
 
-            # Compute DID
-            did_result = DID(treated_pre, Y_candidate, T0)
-            R2_value = did_result["Fit"]["R-Squared"]
-
-            candidate_info[j] = {
-                "R2": R2_value,
-                "rmse": did_result["Fit"]["T0 RMSE"],
-                "effects": did_result["Effects"],
-                "fit_vectors": did_result["Vectors"],
-                "Inference Results": did_result['Inference'],
-                "selected_names": set(current_names)  # add set of control names
-            }
-            R2_candidates.append(R2_value)
-
-        # Select the best candidate for this iteration
-        best_idx = np.nanargmax(R2_candidates)
-        best_candidate = remaining[best_idx]
-        best_R2 = R2_candidates[best_idx]
-
-        selected.append(best_candidate)
-        remaining.remove(best_candidate)
-        R2_at_each_step.append(best_R2)
-        candidate_dict[iteration] = candidate_info
-
-    # Find iteration with highest R²
-    best_iteration = np.nanargmax(R2_at_each_step) + 1  # +1 because iteration keys are 1-based
-    best_candidate_index = max(candidate_dict[best_iteration],
-                               key=lambda j: candidate_dict[best_iteration][j]['R2'])
-    best_candidate_info = {
-        best_candidate_index: candidate_dict[best_iteration][best_candidate_index]
-    }
-
-    # Final selection: controls up to the best iteration
-    final_selected_controls = selected[:best_iteration]
+    # Inference
+    T1 = T - T0
+    omega2 = np.mean(resid_pre ** 2) if T0 > 0 else np.nan
+    omega1 = (T1 / T0) * omega2 if T0 > 0 else np.nan
+    se = np.sqrt(omega1 + omega2) / np.sqrt(T1) if T1 > 0 and not np.isnan(omega1) else np.nan
+    z = norm.ppf(0.975)
+    ci_lo = att - z * se if not np.isnan(se) else np.nan
+    ci_hi = att + z * se if not np.isnan(se) else np.nan
+    pval = 2 * (1 - norm.cdf(np.abs(att / se))) if se > 0 else np.nan
 
     return {
-        "candidate_dict": candidate_dict,
-        "R2_at_each_step": np.array(R2_at_each_step),
-        "best_candidate_info": best_candidate_info,
-        "selected_controls": final_selected_controls
+        "Effects": {
+            "ATT": round(float(att), 4),
+            "Percent ATT": round(100 * att / counterfactual[T0:].mean(), 3)
+            if counterfactual[T0:].mean() != 0 else np.nan,
+            "SATT": round(att / se * np.sqrt(T1), 3) if se > 0 else np.nan,
+        },
+        "Fit": {
+            "T0 RMSE": round(float(rmse), 4),
+            "R-Squared": round(float(r2), 4) if not np.isnan(r2) else np.nan,
+            "Pre-Periods": T0,
+        },
+        "Inference": {
+            "P-Value": round(float(pval), 4) if not np.isnan(pval) else np.nan,
+            "95% CI": (round(float(ci_lo), 4), round(float(ci_hi), 4))
+            if not np.isnan(ci_lo) else (np.nan, np.nan),
+            "SE": round(float(se), 4) if not np.isnan(se) else np.nan,
+            "Intercept": round(float(intercept), 4),
+        },
+        "Vectors": {
+            "Observed": np.round(treated, 3),
+            "Counterfactual": np.round(counterfactual, 3),
+            "Gap": np.round(
+                np.column_stack((treated - counterfactual, np.arange(T) - T0 + 1)),
+                3,
+            ),
+        },
     }
 
 
 
+def _precompute_treated_stats(treated_pre: np.ndarray):
+    y_c = treated_pre - treated_pre.mean()
+    ss_tot = np.sum(y_c ** 2)
+    if ss_tot <= 1e-12:
+        ss_tot = 1e-12
+    return y_c, ss_tot
+
+
+def _compute_did_all(treated_outcome, control_outcomes, T0):
+    mean_all = control_outcomes.mean(axis=1)
+    return _did_from_mean(treated_outcome, mean_all, T0, label="DID")
+
+
+def _select_best_donor(X_pre, current_mean_pre, k, remaining_idx, y_c, ss_tot):
+    candidates = X_pre[:, remaining_idx]
+    new_means = (current_mean_pre[:, None] * k + candidates) / (k + 1)
+    r2_cand = _r2_batch(y_c, ss_tot, new_means)
+    best_pos = int(np.nanargmax(r2_cand))
+    best_idx = int(remaining_idx[best_pos])
+    best_r2 = float(r2_cand[best_pos])
+    return best_idx, best_r2, r2_cand
+
+
+def _update_synthetic_control(current_mean, control_outcomes, best_idx, k):
+    diff = control_outcomes[:, best_idx] - current_mean
+    return current_mean + diff / (k + 1)
+
+
+def _record_verbose_step(
+    intermediary_results, it, best_idx, best_r2, r2_cand,
+    selected, donor_names, current_mean_pre, k
+):
+    intermediary_results.append({
+        "iteration": it + 1,
+        "selected_idx": best_idx,
+        "selected_name": donor_names[best_idx],
+        "selected_names": [donor_names[i] for i in selected],
+        "n_selected": k + 1,
+        "best_R2_this_step": best_r2,
+        "R2_all_candidates": r2_cand.copy(),
+        "running_mean_pre": current_mean_pre.copy(),
+    })
+
+
+def _choose_optimal_subset(selected, R2_path):
+    valid_steps = len(selected)
+    R2_path = R2_path[:valid_steps]
+    best_iter = int(np.argmax(R2_path))
+    optimal_idxs = selected[:best_iter + 1]
+    return optimal_idxs, R2_path
+
+
+def _compute_fdid_result(treated_outcome, control_outcomes, optimal_idxs, T0,
+                        R2_path, donor_names):
+    optimal_mean = control_outcomes[:, optimal_idxs].mean(axis=1)
+    result = _did_from_mean(treated_outcome, optimal_mean, T0, label="FDID")
+    result.update({
+        "R2_at_each_step": R2_path,
+        "selected_controls": optimal_idxs,
+        "selected_names": [donor_names[i] for i in optimal_idxs],
+    })
+    return result
 
 
 def determine_optimal_clusters(X: np.ndarray) -> int:
@@ -996,4 +1092,5 @@ def stepwise_donor_selection(L_full, L_post, ell_eval, m, varsigma=1e-6, tol=1e-
         "mse_path": mse_list,
         "bic_path": bic_list
     }
+
 
