@@ -448,10 +448,12 @@ def mock_plot_estimates(mocker):
     """Fixture to mock the plot_estimates function."""
     return mocker.patch("mlsynth.estimators.nsc.plot_estimates")
 
+
 @pytest.mark.parametrize("display_graphs_config", [True, False])
-@pytest.mark.parametrize("save_config", [False, True]) # Removed dict case for now
+@pytest.mark.parametrize("save_config", [False, True])  # Removed dict case for now
 def test_nsc_plotting_behavior(nsc_panel_data, mock_plot_estimates, display_graphs_config, save_config):
     """Test that plot_estimates is called (or not) based on config."""
+
     pydantic_dict = _get_pydantic_config_dict_nsc(NSC_FULL_TEST_CONFIG_BASE, nsc_panel_data)
     pydantic_dict["display_graphs"] = display_graphs_config
     pydantic_dict["save"] = save_config
@@ -460,20 +462,32 @@ def test_nsc_plotting_behavior(nsc_panel_data, mock_plot_estimates, display_grap
     
     try:
         results = estimator.fit()
-        assert isinstance(results, BaseEstimatorResults) # Ensure fit runs
+        assert isinstance(results, BaseEstimatorResults)  # Ensure fit runs
     except (np.linalg.LinAlgError, ValueError) as e:
-        if "singular" in str(e).lower() or "Optimization failed" in str(e).lower() or "optimal_inaccurate" in str(e).lower():
+        if "singular" in str(e).lower() or "optimization failed" in str(e).lower() or "optimal_inaccurate" in str(e).lower():
             pytest.skip(f"Skipping plotting test due to optimization issue: {e}")
         raise
 
     if display_graphs_config:
+        # Ensure plot_estimates was called exactly once
         mock_plot_estimates.assert_called_once()
-        call_args = mock_plot_estimates.call_args[1] 
-        assert call_args["df"] is results.raw_results["_prepped"]
-        assert call_args["method"] == "NSC"
-        assert call_args["save"] == save_config # Pydantic config value
-        assert call_args["treatedcolor"] == config_obj.treated_color
-        assert call_args["counterfactualcolors"] == [config_obj.counterfactual_color] \
-            if isinstance(config_obj.counterfactual_color, str) else config_obj.counterfactual_color
+
+        # Extract positional and keyword arguments from the mock call
+        call_args = mock_plot_estimates.call_args
+        pos_args = call_args[0]  # positional arguments tuple
+        kwargs = call_args[1]    # keyword arguments dict
+
+        # The first positional argument is the processed_data_dict
+        processed_dict_arg = kwargs.get("processed_data_dict", pos_args[0] if len(pos_args) > 0 else None)
+        assert processed_dict_arg is results.raw_results["_prepped"]
+
+        # Check remaining keyword arguments
+        assert kwargs.get("estimation_method_name", None) == "NSC"
+        assert kwargs.get("save_plot_config", save_config) == save_config
+        assert kwargs.get("treated_series_color", None) == config_obj.treated_color
+        counter_colors = kwargs.get("counterfactual_series_colors", None)
+        expected_colors = [config_obj.counterfactual_color] if isinstance(config_obj.counterfactual_color, str) else config_obj.counterfactual_color
+        assert counter_colors == expected_colors
     else:
+        # If display_graphs is False, plot_estimates should not be called
         mock_plot_estimates.assert_not_called()
