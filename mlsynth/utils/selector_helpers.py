@@ -168,11 +168,10 @@ def _record_verbose_step(
 
 
 def _choose_optimal_subset(selected, R2_path):
-    valid_steps = len(selected)
-    R2_path = R2_path[:valid_steps]
+    if len(selected) == 0:
+        return [], []
     best_iter = int(np.argmax(R2_path))
-    optimal_idxs = selected[:best_iter + 1]
-    return optimal_idxs, R2_path
+    return selected[:best_iter + 1], R2_path[:best_iter + 1]
 
 
 def _compute_fdid_result(treated_outcome, control_outcomes, optimal_idxs, T0,
@@ -1092,5 +1091,6 @@ def stepwise_donor_selection(L_full, L_post, ell_eval, m, varsigma=1e-6, tol=1e-
         "mse_path": mse_list,
         "bic_path": bic_list
     }
+
 
 
