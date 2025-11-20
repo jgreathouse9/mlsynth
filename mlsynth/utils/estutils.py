@@ -25,22 +25,18 @@ from mlsynth.utils.selector_helpers import (
     _select_best_donor,
     _update_synthetic_control,
 )
-from skopt import gp_minimize
-from skopt.space import Real
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score # Not used in this file
 from sklearn.model_selection import KFold
 from functools import partial # Not used in this file
 from statsmodels.tsa.stattools import acf
 from scipy.stats import norm # zconfint was not explicitly imported and not used
-from screenot.ScreeNOT import adaptiveHardThresholding # Not used in this file
 from sklearn.linear_model import LassoCV
 from scipy.stats import t as t_dist
 from mlsynth.utils.bayesutils import BayesSCM
 from mlsynth.utils.selector_helpers import fpca
 import warnings # For RPCASYNTH warning
 import pandas as pd
-
 from typing import Any, Tuple, List, Optional, Dict, Union, Callable
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEstimationError
 
@@ -4843,3 +4839,4 @@ def fast_DID_selector(
         fdid_result["intermediary"] = intermediary_results
 
     return {"DID": did_all, "FDID": fdid_result}
+
