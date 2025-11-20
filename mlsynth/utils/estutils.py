@@ -4272,107 +4272,6 @@ def fit_l2_relaxation(X_pre, y_pre, tau):
 
     return w.value
 
-
-
-
-def fit_affine_hull_scm(X, y, w0, num_iterations=50, num_initial=5):
-    """
-    Fit affine-hull synthetic control weights using regularized optimization.
-
-    This method refines an initial weight vector `w0` (e.g., from vanilla SCM or FSCM)
-    by solving a penalized least squares problem over the affine hull of the donor pool.
-    The refinement uses a ridge-type penalty that shrinks the solution toward `w0`.
-    The regularization strength (:math:`\\beta`) is selected via Bayesian optimization
-    over a split of the pre-treatment period.
-
-    Formally, given:
-        - :math:`\\mathbf{y}_1 \\in \\mathbb{R}^{T_0}`: pre-treatment outcomes for the treated unit
-        - :math:`\\mathbf{Y}_0 \\in \\mathbb{R}^{T_0 \\times J}`: matrix of pre-treatment outcomes for the donor units
-        - :math:`\\mathbf{w}^{\\text{FSCM}} \\in \\mathbb{R}^{J}`: initial donor weights (e.g., from FSCM)
-
-    The optimization problem solved is:
-
-    .. math::
-
-        \\min_{\\mathbf{w}^{\\text{FASC}}} \\
-        \\left\\| \\mathbf{y}_1 - \\mathbf{Y}_0 \\mathbf{w}^{\\text{FASC}} \\right\\|_2^2
-        + \\beta \\left\\| \\mathbf{w}^{\\text{FASC}} - \\mathbf{w}^{\\text{FSCM}} \\right\\|_2^2
-
-    subject to:
-
-    .. math::
-
-        \\left\\| \\mathbf{w}^{\\text{FASC}} \\right\\|_1 = 1
-
-    Parameters
-    ----------
-    X : np.ndarray of shape (T0, J)
-        Matrix of pre-treatment outcomes for the J donor units over T0 time periods.
-        Each column corresponds to a donor unit.
-    y : np.ndarray of shape (T0,)
-        Vector of pre-treatment outcomes for the treated unit.
-    w0 : np.ndarray of shape (J,)
-        Initial weight vector to shrink towards. Typically obtained from standard SCM or FSCM.
-    num_iterations : int, default=50
-        Total number of objective evaluations used in Bayesian optimization.
-    num_initial : int, default=5
-        Number of initial random evaluations before the Gaussian Process surrogate is used.
-
-    Returns
-    -------
-    w_affine : np.ndarray of shape (J,)
-        Optimized donor weights after affine-hull regularization.
-    best_beta : float
-        Optimal regularization hyperparameter selected via cross-validation.
-
-    Notes
-    -----
-    - The optimization is performed in log₁₀(β) space over the range [1e-2, 1e3].
-    - The pre-treatment period is split in half for cross-validation:
-        - First half is used for fitting candidate weights.
-        - Second half is used to evaluate RMSE on validation residuals.
-    - The solution is constrained to lie in the affine hull (ℓ₁ norm = 1),
-      but weights are not required to be non-negative.
-    """
-
-    T0, J = X.shape
-    split = T0 // 2
-    X_train, X_val = X[:split], X[split:]
-    y_train, y_val = y[:split], y[split:]
-
-    def objective(params):
-        log_beta = params[0]
-        beta = 10 ** log_beta
-        w = cp.Variable(J)
-        obj = cp.sum_squares(y_train - X_train @ w) + beta * cp.sum_squares(w - w0)
-        prob = cp.Problem(cp.Minimize(obj), [cp.sum(w) == 1])
-        prob.solve(warm_start=True)
-        w_candidate = w.value
-        residuals = y_val - X_val @ w_candidate
-        return np.sqrt(np.mean(residuals ** 2))
-
-    # Search log10(beta) in [-4, 3] → beta in [1e-4, 1e3]
-    search_space = [Real(np.log10(1e-2), np.log10(1e3), name='log_beta')]
-    result = gp_minimize(
-        objective,
-        search_space,
-        n_calls=num_iterations,
-        n_initial_points=10,
-        random_state=42
-    )
-
-    # Best beta found
-    best_beta = 10 ** result.x[0]
-
-    # Final model fit on full pre-treatment data
-    w_final = cp.Variable(J)
-    obj_full = cp.sum_squares(y - X @ w_final) + best_beta * cp.sum_squares(w_final - w0)
-    prob_final = cp.Problem(cp.Minimize(obj_full), [cp.sum(w_final) == 1])
-    prob_final.solve(warm_start=True)
-
-    return w_final.value, best_beta
-
-
 def tune_affine_lambda(
         y: np.ndarray,
         Y: np.ndarray,
@@ -4459,131 +4358,14 @@ def tune_affine_lambda(
     return best_lambda, validation_results
 
 
-def __organize_fscm_results(
-    y, Y, T0, selected, remaining, mse_list, weights_list,
-    donor_names, iteration, candidate_dict, best_candidate_info
-):
-    """
-    Organizes the results from a single iteration of forward-selection FSCM,
-    including mBIC for stopping rules.
 
-    Returns updated candidate_dict and best_candidate_info.
-    """
-    N0 = Y.shape[1]
-    candidate_dict[iteration] = []
+from mlsynth.utils.selector_helpers import (
+_fscm_evaluate_candidates, _fscm_pick_best_candidate, _fscm_extract_weights,
+_fscm_inner
+)
 
-    for r, mse, weights in zip(remaining, mse_list, weights_list):
-        candidate_subset = selected + [r]
+from mlsynth.utils.resultutils import __organize_fscm_results
 
-        # dictionary of weights by donor name
-        weight_dict = {donor_names[i]: 0.0 for i in range(N0)}
-        for i, donor_idx in enumerate(candidate_subset):
-            weight_dict[donor_names[donor_idx]] = weights[i]
-
-        # full vector of weights
-        full_weight_vector = np.zeros(N0)
-        full_weight_vector[candidate_subset] = weights
-
-        # compute mBIC for this candidate
-        k = len(candidate_subset)
-        mBIC = T0 * np.log(mse) + k * np.log(T0)
-
-        candidate_record = {
-            "mse": mse,
-            "rmse": np.sqrt(mse),
-            "mBIC": mBIC,
-            "cardinality": k,
-            "candidate_indices": candidate_subset.copy(),
-            "candidate_names": {donor_names[i] for i in candidate_subset},
-            "weights": weight_dict.copy(),
-            "full_weight_vector": full_weight_vector.copy()
-        }
-
-        candidate_dict[iteration].append(candidate_record)
-
-        # Update best candidate across all iterations
-        if best_candidate_info is None or mse < best_candidate_info["mse"]:
-            best_candidate_info = candidate_record.copy()
-            best_candidate_info["iteration"] = iteration
-
-    return candidate_dict, best_candidate_info
-
-
-def _extract_weights(scm_solution):
-    """
-    Private helper to extract weights from an Opt.SCopt solution.
-
-    Parameters
-    ----------
-    scm_solution : Opt.SCopt solution object
-        The solution returned by Opt.SCopt.
-
-    Returns
-    -------
-    np.ndarray
-        Flattened array of weights.
-    """
-    # Take the first variable in the primal_vars dict
-    var = next(iter(scm_solution.solution.primal_vars))
-    return np.array(scm_solution.solution.primal_vars[var]).flatten()
-
-
-
-# --- Inner solver for a given donor subset ---
-def fscm_inner(y, Y, T0, candidate_indices, donor_names):
-    """
-    Solve FSCM for a given subset of donors and return MSE + weights.
-    Assumes candidate_indices is non-empty.
-    """
-
-    # Solve CVXPY problem via Opt.SCopt
-    solution = Opt.SCopt(
-        num_control_units=len(candidate_indices),
-        target_outcomes_pre_treatment=y[:T0],
-        num_pre_treatment_periods=T0,
-        donor_outcomes_pre_treatment=Y[:, candidate_indices][:T0],
-        scm_model_type="SIMPLEX",
-        donor_names=[donor_names[i] for i in candidate_indices],
-    )
-    return (solution.value ** 2) / T0, _extract_weights(solution)
-
-# --- Helper to evaluate all remaining candidates ---
-def evaluate_candidates(y, Y, T0, selected, remaining, donor_names):
-    """
-    Evaluate the inner FSCM problem for all remaining candidate donors.
-    Returns lists of MSEs and corresponding weights.
-    """
-    mse_list = []
-    weights_list = []
-
-    for j in remaining:
-        candidate_subset = selected + [j]
-        mse, weights = fscm_inner(y, Y, T0, candidate_subset, donor_names)
-        mse_list.append(mse)
-        weights_list.append(weights)
-
-    return mse_list, weights_list
-
-# --- Helper to pick best candidate from current iteration ---
-def pick_best_candidate(mse_list, weights_list, remaining, selected, donor_names):
-    """
-    Pick the donor with the lowest MSE from the candidate list, update selection.
-    Returns the best donor index, its MSE, and corresponding weights.
-    """
-    mse_array = np.array(mse_list)
-    best_idx = np.argmin(mse_array)
-
-    best_candidate = remaining[best_idx]
-    best_candidate_mse = mse_array[best_idx]
-    best_candidate_weights = weights_list[best_idx]
-
-    # Update selection
-    selected.append(best_candidate)
-    remaining.remove(best_candidate)
-
-    print(f"Iteration {len(selected)}: added donor {donor_names[best_candidate]}, MSE={best_candidate_mse:.4f}")
-
-    return best_candidate, best_candidate_mse, best_candidate_weights
 
 # --- Main forward-selection FSCM function ---
 def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
@@ -4612,7 +4394,7 @@ def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
         scm_model_type="SIMPLEX",
         donor_names=donor_names,
     )
-    full_weights = _extract_weights(full_solution)
+    full_weights = _fscm_extract_weights(full_solution)
     weight_dict = {name: w for name, w in zip(donor_names, full_weights)}
     full_results = {
         "weights": full_weights,
@@ -4626,7 +4408,7 @@ def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
 
     while remaining and len(selected) < max_steps:
         iteration += 1
-        mse_list, weights_list = evaluate_candidates(y, Y, T0, selected, remaining, donor_names)
+        mse_list, weights_list = _fscm_evaluate_candidates(y, Y, T0, selected, remaining, donor_names)
         candidate_dict, best_candidate_info = __organize_fscm_results(
             y, Y, T0, selected, remaining,
             mse_list, weights_list, donor_names,
@@ -4672,7 +4454,7 @@ def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
         lambda_penalty=best_lambda
     )
 
-    affine_weights = _extract_weights(affine_solution)
+    affine_weights = _fscm_extract_weights(affine_solution)
     affine_weight_dict = {name: round(w, 3) for name, w in zip(donor_names, affine_weights)}
     affine_results = {
         "weights": affine_weights,
@@ -4684,7 +4466,6 @@ def fsSCM(y, Y, T0, donor_names, full_selection=True, selection_fraction=1.0):
     }
 
     return {"Convex SCM": full_results, "Forward SCM": fscm_results, "Forward Aumented SCM": affine_results}
-
 
 
 def fast_DID_selector(
@@ -4839,4 +4620,3 @@ def fast_DID_selector(
         fdid_result["intermediary"] = intermediary_results
 
     return {"DID": did_all, "FDID": fdid_result}
-
