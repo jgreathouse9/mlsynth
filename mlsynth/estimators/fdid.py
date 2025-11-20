@@ -130,14 +130,14 @@ class FDID:
     def fit(self) -> FDIDOutput:
         """
         Fit the FDID and standard DID models.
-
+    
         This method performs the following steps:
         1. Balances the panel data to ensure consistent unit-time structure.
         2. Prepares the outcome and donor matrices for estimation.
         3. Runs forward selection to identify the best donor units for FDID.
         4. Constructs FDID and DID results using `DID_org`.
         5. Optionally plots the observed and counterfactual outcomes.
-
+    
         Returns
         -------
         FDIDOutput
@@ -145,7 +145,7 @@ class FDID:
             - `results`: A dictionary with "FDID" and "DID" keys containing
               the estimation results.
             - `prepped_data`: Dictionary of prepared data used internally.
-
+    
         Raises
         ------
         MlsynthDataError
@@ -161,10 +161,18 @@ class FDID:
             balance(self.df, self.unitid, self.time)
         except Exception as e:
             raise MlsynthDataError(f"Error balancing panel data: {str(e)}") from e
-    
+
         # Step 2: Prepare matrices
         try:
             prepared_data = dataprep(self.df, self.unitid, self.time, self.outcome, self.treated)
+
+            # Must have at least two pre-periods to compute first differences reliably.
+            if prepared_data['pre_periods'] is None or prepared_data['pre_periods'] < 2:
+                raise MlsynthEstimationError("Insufficient pre-periods for estimation.")
+
+        except MlsynthEstimationError:
+            # <-- IMPORTANT: re-raise untouched
+            raise
         except Exception as e:
             raise MlsynthDataError(f"Error preparing data matrices: {str(e)}") from e
     
