@@ -735,8 +735,6 @@ def DID_org(result_dict: Dict, preppeddict: Dict, method_name: str = "FDID") -> 
 
 
 
-
-
 def _build_fscm_results(weight_dicts: Dict[str, any],
         prepped_data: Dict[str, any],
         resultfscm: Dict[str, any],
@@ -821,3 +819,52 @@ def _build_fscm_results(weight_dicts: Dict[str, any],
     return master_results
 
 
+
+def __organize_fscm_results(
+    y, Y, T0, selected, remaining, mse_list, weights_list,
+    donor_names, iteration, candidate_dict, best_candidate_info
+):
+    """
+    Organizes the results from a single iteration of forward-selection FSCM,
+    including mBIC for stopping rules.
+
+    Returns updated candidate_dict and best_candidate_info.
+    """
+    N0 = Y.shape[1]
+    candidate_dict[iteration] = []
+
+    for r, mse, weights in zip(remaining, mse_list, weights_list):
+        candidate_subset = selected + [r]
+
+        # dictionary of weights by donor name
+        weight_dict = {donor_names[i]: 0.0 for i in range(N0)}
+        for i, donor_idx in enumerate(candidate_subset):
+            weight_dict[donor_names[donor_idx]] = weights[i]
+
+        # full vector of weights
+        full_weight_vector = np.zeros(N0)
+        full_weight_vector[candidate_subset] = weights
+
+        # compute mBIC for this candidate
+        k = len(candidate_subset)
+        mBIC = T0 * np.log(mse) + k * np.log(T0)
+
+        candidate_record = {
+            "mse": mse,
+            "rmse": np.sqrt(mse),
+            "mBIC": mBIC,
+            "cardinality": k,
+            "candidate_indices": candidate_subset.copy(),
+            "candidate_names": {donor_names[i] for i in candidate_subset},
+            "weights": weight_dict.copy(),
+            "full_weight_vector": full_weight_vector.copy()
+        }
+
+        candidate_dict[iteration].append(candidate_record)
+
+        # Update best candidate across all iterations
+        if best_candidate_info is None or mse < best_candidate_info["mse"]:
+            best_candidate_info = candidate_record.copy()
+            best_candidate_info["iteration"] = iteration
+
+    return candidate_dict, best_candidate_info
