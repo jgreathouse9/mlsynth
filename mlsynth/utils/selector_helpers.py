@@ -10,7 +10,7 @@ from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEsti
 from scipy.stats import norm
 
 # ————————————————————————
-# Private helpers (extension points)
+# Private helpers for FDID (extension points)
 # ————————————————————————
 
 def _r2_batch(y_c: np.ndarray, ss_tot: float, X_pre: np.ndarray) -> np.ndarray:
@@ -184,6 +184,83 @@ def _compute_fdid_result(treated_outcome, control_outcomes, optimal_idxs, T0,
         "selected_names": [donor_names[i] for i in optimal_idxs],
     })
     return result
+
+
+
+def _fscm_extract_weights(scm_solution):
+    """
+    Private helper to extract weights from an Opt.SCopt solution.
+
+    Parameters
+    ----------
+    scm_solution : Opt.SCopt solution object
+        The solution returned by Opt.SCopt.
+
+    Returns
+    -------
+    np.ndarray
+        Flattened array of weights.
+    """
+    # Take the first variable in the primal_vars dict
+    var = next(iter(scm_solution.solution.primal_vars))
+    return np.array(scm_solution.solution.primal_vars[var]).flatten()
+
+# --- Inner solver for a given donor subset ---
+def _fscm_inner(y, Y, T0, candidate_indices, donor_names):
+    """
+    Solve FSCM for a given subset of donors and return MSE + weights.
+    Assumes candidate_indices is non-empty.
+    """
+    from ..utils.estutils import Opt
+
+    # Solve CVXPY problem via Opt.SCopt
+    solution = Opt.SCopt(
+        num_control_units=len(candidate_indices),
+        target_outcomes_pre_treatment=y[:T0],
+        num_pre_treatment_periods=T0,
+        donor_outcomes_pre_treatment=Y[:, candidate_indices][:T0],
+        scm_model_type="SIMPLEX",
+        donor_names=[donor_names[i] for i in candidate_indices],
+    )
+    return (solution.value ** 2) / T0, _fscm_extract_weights(solution)
+
+# --- Helper to evaluate all remaining candidates ---
+def _fscm_evaluate_candidates(y, Y, T0, selected, remaining, donor_names):
+    """
+    Evaluate the inner FSCM problem for all remaining candidate donors.
+    Returns lists of MSEs and corresponding weights.
+    """
+    mse_list = []
+    weights_list = []
+
+    for j in remaining:
+        candidate_subset = selected + [j]
+        mse, weights = _fscm_inner(y, Y, T0, candidate_subset, donor_names)
+        mse_list.append(mse)
+        weights_list.append(weights)
+
+    return mse_list, weights_list
+
+# --- Helper to pick best candidate from current iteration ---
+def _fscm_pick_best_candidate(mse_list, weights_list, remaining, selected, donor_names):
+    """
+    Pick the donor with the lowest MSE from the candidate list, update selection.
+    Returns the best donor index, its MSE, and corresponding weights.
+    """
+    mse_array = np.array(mse_list)
+    best_idx = np.argmin(mse_array)
+
+    best_candidate = remaining[best_idx]
+    best_candidate_mse = mse_array[best_idx]
+    best_candidate_weights = weights_list[best_idx]
+
+    # Update selection
+    selected.append(best_candidate)
+    remaining.remove(best_candidate)
+
+    print(f"Iteration {len(selected)}: added donor {donor_names[best_candidate]}, MSE={best_candidate_mse:.4f}")
+
+    return best_candidate, best_candidate_mse, best_candidate_weights
 
 
 def determine_optimal_clusters(X: np.ndarray) -> int:
@@ -1091,6 +1168,3 @@ def stepwise_donor_selection(L_full, L_post, ell_eval, m, varsigma=1e-6, tol=1e-
         "mse_path": mse_list,
         "bic_path": bic_list
     }
-
-
-
