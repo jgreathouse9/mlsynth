@@ -14,6 +14,7 @@ setup(
     author_email="jgreathouse3@student.gsu.edu",
     url="https://github.com/jgreathouse9/mlsynth",
     packages=find_packages(include=["mlsynth", "mlsynth.*"]),
+    include_package_data=True,
     install_requires=[  # Dependencies from requirements.txt
         "pandas",
         "numpy",
@@ -22,7 +23,7 @@ setup(
         "scikit-learn",
         "statsmodels",
         "cvxpy",
-        "screenot", "pydantic", "scikit-optimize"
+        "pydantic"
     ],
     classifiers=[  # Metadata about the package
         "Programming Language :: Python :: 3",
