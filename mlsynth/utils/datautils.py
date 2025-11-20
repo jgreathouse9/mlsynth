@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from typing import Optional, Dict, List, Tuple, Any
-from mlsynth.exceptions import MlsynthDataError # Assuming MlsynthTypeError is not defined, using MlsynthDataError
+from mlsynth.exceptions import MlsynthDataError # Assuming MlsynthTypeError is not defined, using the MlsynthDataError
 
 # Constants for dictionary keys used in logictreat and dataprep
 KEY_NUM_TREATED_UNITS = "Num Treated Units"
@@ -623,4 +623,5 @@ def build_donor_segments(ell_hat, m, T0, n):
     ell_eval = ell_hat[-m:]
     L_post = np.column_stack([ell_hat[i + m:i + m + n] for i in range(N)])
     return L_full, L_post, ell_eval
+
 
