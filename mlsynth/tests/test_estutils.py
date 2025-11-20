@@ -432,36 +432,42 @@ def test_pi_smoke():
     # se_tau can be nan if LinAlgError occurs or var_tau_effect is negative
     # assert np.isfinite(se_tau) # Not guaranteed if LinAlgError or var < 0
 
+
 def test_pi_with_covariates():
     T_total = 30
+    T0 = 10
     N_W_features = 2
     N_Z0_instruments = 2
     N_Cw_features = 1
     N_Cy_features = 1
-    
-    Y = np.random.rand(T_total)
-    W = np.random.rand(T_total, N_W_features)
-    Z0 = np.random.rand(T_total, N_Z0_instruments)
-    Cw = np.random.rand(T_total, N_Cw_features)
-    Cy = np.random.rand(T_total, N_Cy_features)
-    
-    T0 = 20
-    t1_post_eval = 10
-    lag_hac = 3
 
-    # Ensure augmented Z0W_pre is invertible
-    W_aug_pre_temp = np.random.rand(T0, N_W_features + N_Cw_features)
-    Z0_aug_pre_temp = W_aug_pre_temp @ np.random.rand(N_W_features + N_Cw_features, N_Z0_instruments + N_Cy_features)
-    
+    dim_aug = N_W_features + N_Cw_features + N_Z0_instruments + N_Cy_features
+    assert T0 >= dim_aug, "Pre-treatment period must be >= augmented feature dimension for invertibility"
+
+    # Generate a random full-rank matrix for pre-treatment augmented design
+    pre_aug = np.random.rand(T0, dim_aug)
+    while np.linalg.matrix_rank(pre_aug) < dim_aug:
+        pre_aug = np.random.rand(T0, dim_aug)
+
+    # Split into components
+    W_aug_pre_temp = pre_aug[:, :N_W_features + N_Cw_features]
+    Z0_aug_pre_temp = pre_aug[:, N_W_features + N_Cw_features:]
+
+    # Construct full matrices
     W_test = np.vstack((W_aug_pre_temp[:, :N_W_features], np.random.rand(T_total - T0, N_W_features)))
     Z0_test = np.vstack((Z0_aug_pre_temp[:, :N_Z0_instruments], np.random.rand(T_total - T0, N_Z0_instruments)))
     Cw_test = np.vstack((W_aug_pre_temp[:, N_W_features:], np.random.rand(T_total - T0, N_Cw_features)))
     Cy_test = np.vstack((Z0_aug_pre_temp[:, N_Z0_instruments:], np.random.rand(T_total - T0, N_Cy_features)))
 
+    Y = np.random.rand(T_total)
+    lag_hac = 3
+    t1_post_eval = T_total - T0
 
-    y_pi, alpha, se_tau = pi(Y, W_test, Z0_test, T0, t1_post_eval, T_total, lag_hac, common_aux_covariates_1=Cw_test, common_aux_covariates_2=Cy_test)
-    
-    assert alpha.shape == (N_W_features,) # Should be for original W
+    y_pi, alpha, se_tau = pi(Y, W_test, Z0_test, T0, t1_post_eval, T_total, lag_hac,
+                             common_aux_covariates_1=Cw_test, common_aux_covariates_2=Cy_test)
+
+    assert alpha.shape == (N_W_features,)
+
 
 # ---------- Tests for pi2 ----------
 from mlsynth.utils.estutils import pi2
