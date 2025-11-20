@@ -253,6 +253,20 @@ def test_sdid_fit_no_control_units(sdid_panel_data):
     with pytest.raises(MlsynthDataError, match="No donor units found after pivoting and selecting."):
         estimator.fit()
 
+
+def test_sdid_creation_with_dict(sdid_panel_data):
+    """Ensure SDID.__init__ handles config dict input."""
+    config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
+    
+    estimator = SDID(config_dict)  # <- pass dict, not SDIDConfig
+    assert isinstance(estimator, SDID)
+    assert estimator.df.equals(sdid_panel_data)
+    assert estimator.B == config_dict["B"]
+
+
+
+
+
 def test_sdid_fit_non_binary_treatment(sdid_panel_data):
     """Test SDID fit when the treatment indicator is not binary."""
     df_non_binary_treat = sdid_panel_data.copy()
