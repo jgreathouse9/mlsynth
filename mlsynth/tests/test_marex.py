@@ -86,10 +86,11 @@ def test_validate_clusters_all_missing():
     })
 
     config = BaseMAREXConfig(
-        unit_col="unit",
-        time_col="time",
-        outcome_col="y",
-        cluster_col="cluster",
+        df=df,
+        unitid="unit",
+        time="time",
+        outcome="y",
+        cluster="cluster",
     )
 
     with pytest.raises(MlsynthDataError, match="contains only missing"):
@@ -105,10 +106,11 @@ def test_validate_clusters_multiple_assignments():
     })
 
     config = BaseMAREXConfig(
-        unit_col="unit",
-        time_col="time",
-        outcome_col="y",
-        cluster_col="cluster",
+        df=df,
+        unitid="unit",
+        time="time",
+        outcome="y",
+        cluster="cluster",
     )
 
     with pytest.raises(MlsynthDataError, match="multiple cluster assignments"):
