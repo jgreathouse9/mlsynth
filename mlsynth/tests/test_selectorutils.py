@@ -549,12 +549,22 @@ def test_proximity_mask_invalid_alpha_value_high(proximity_mask_sample_data):
     with pytest.raises(MlsynthConfigError, match="Input `alpha` must be between 0 and 1"):
         proximity_mask(data["Y0"], data["T0"], alpha=1.0)
 
+
+def test_proximity_mask_empty_array_1d_triggers_size_check():
+    Y0_empty = np.array([])  # 1D empty array
+    T0 = 1
+    with pytest.raises(MlsynthDataError, match="cannot be empty"):
+        proximity_mask(Y0_empty, T0)
+
+
 @patch('scipy.stats.chi2.ppf')
 def test_proximity_mask_chi2_ppf_failure(mock_chi2_ppf, proximity_mask_sample_data):
     data = proximity_mask_sample_data
     mock_chi2_ppf.side_effect = ValueError("chi2 error")
     with pytest.raises(MlsynthEstimationError, match="Failed to compute chi-squared threshold: chi2 error"):
         proximity_mask(data["Y0"], data["T0"])
+
+
 
 # ----- Tests for rbf_scores -----
 
