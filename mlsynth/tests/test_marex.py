@@ -44,7 +44,7 @@ def test_miqp_solver_available():
 def test_time_column_unsupported_dtype():
     df = pd.DataFrame({
         "unit": [1, 1, 1],
-        "time": [1.1, 2.2, 3.3],  # float dtype → unsupported
+        "time": [1.1, 2.2, 3.3],   # float dtype → will fail consecutive check
         "y": [1, 2, 3],
     })
 
@@ -55,9 +55,9 @@ def test_time_column_unsupported_dtype():
         "outcome": "y",
     }
 
-    with pytest.raises(MlsynthDataError, match="Unsupported dtype for time column"):
-        marex = MAREXConfig(**config_data)
-
+    # Expect MlsynthDataError due to non-consecutive times
+    with pytest.raises(MlsynthDataError, match=r"Time periods in 'time' are not consecutive"):
+        MAREXConfig(**config_data)
 
 
 
@@ -97,9 +97,9 @@ def test_cluster_column_all_missing():
         "cluster": "cluster",
     }
 
-    with pytest.raises(MlsynthDataError, match="contains only missing values"):
-        marex = MAREXConfig(**config_data)
-
+    # Expect MlsynthDataError because cluster column has only missing values
+    with pytest.raises(MlsynthDataError, match=r"Cluster column 'cluster' contains only missing values"):
+        MAREXConfig(**config_data)
 
 def test_cluster_column_multiple_assignments():
     df = pd.DataFrame({
