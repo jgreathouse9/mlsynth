@@ -129,8 +129,10 @@ class MAREXConfig(BaseMAREXConfig):
             if not np.all(np.diff(time_vals) == 1):
                 raise MlsynthDataError(f"Time periods in '{time_col}' are not consecutive: {time_vals}")
         elif np.issubdtype(time_vals.dtype, np.datetime64):
-            if not np.all(np.diff(time_vals) == np.diff(time_vals)[0]):
+            diffs = np.diff(time_vals)
+            if len(diffs) > 0 and not np.all(diffs == diffs[0]):
                 raise MlsynthDataError(f"Datetime time periods in '{time_col}' are not consecutive.")
+
         else:
             raise MlsynthDataError(f"Unsupported dtype for time column '{time_col}': {time_vals.dtype}")
 
@@ -740,6 +742,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
