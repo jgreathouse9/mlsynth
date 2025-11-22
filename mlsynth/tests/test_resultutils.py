@@ -308,3 +308,177 @@ def test_SDID_plot_malformed_ci():
     data_ci_wrong_len = {"pooled_estimates": {"-1": {"tau": 0.1, "ci": [0.1]}}}
     with pytest.raises(MlsynthDataError, match="Confidence interval 'ci' for event time '-1' must be a list or tuple of two numbers."):
         SDID_plot(sdid_results_dict=data_ci_wrong_len)
+
+
+import pydantic
+from types import SimpleNamespace
+
+# real classes / exceptions from your package (per your import list)
+from mlsynth.estimators.shc import SHC
+from mlsynth.config_models import (
+    BaseEstimatorResults,
+    EffectsResults,
+    FitDiagnosticsResults,
+    TimeSeriesResults,
+    MethodDetailsResults,
+)
+from mlsynth.utils.exputils import InferenceResults
+from mlsynth.exceptions import MlsynthEstimationError
+from mlsynth.utils.resultutils import _create_SHC_results
+
+
+
+@pytest.fixture
+def shc_obj():
+    """Return a fresh SHC instance (real class)."""
+    return SHC()
+
+
+# ----------------------------
+# 1) Happy path (all pieces present)
+# ----------------------------
+def test_create_shc_results_happy_path(shc_obj):
+    combined = {
+        "Effects": {"ATT": 2.5, "Percent ATT": 12.0},
+        "Fit": {"T0 RMSE": 0.1, "T1 RMSE": 0.2, "R-Squared": 0.95},
+        "Vectors": {
+            "Observed Unit": [10, 11, 12],
+            "Gap": [0.0, -0.5, -1.0],
+        },
+        "Counterfactual": [10.0, 11.5, 13.0],
+        "Weights": {"D1": 0.6, "D2": 0.4},
+    }
+
+    panel = {
+        "y": np.array([10, 11, 12]),
+        "time_labels": [2000, 2001, 2002],
+        "donor_names": ["D1", "D2"],
+    }
+
+    res = shc_obj._create_SHC_results(combined, panel, inference_kwargs={})
+
+    assert isinstance(res, BaseEstimatorResults)
+    # time series checks
+    assert isinstance(res.time_series, TimeSeriesResults)
+    assert np.allclose(res.time_series.observed_outcome, np.array([10, 11, 12]))
+    assert np.allclose(res.time_series.counterfactual_outcome, np.array([10.0, 11.5, 13.0]))
+    assert np.allclose(res.time_series.gap, np.array([0.0, -0.5, -1.0]))
+    assert np.all(res.time_series.time_periods == np.array([2000, 2001, 2002]))
+    # fit / effects exist
+    assert isinstance(res.effects, EffectsResults)
+    assert isinstance(res.fit_diagnostics, FitDiagnosticsResults)
+    assert isinstance(res.inference, InferenceResults)
+    assert isinstance(res.method_details, MethodDetailsResults)
+    # raw_results preserved
+    assert res.raw_results is combined
+
+
+# ----------------------------
+# 2) Observed missing in Vectors → fallback to panel["y"]
+# ----------------------------
+def test_observed_fallback_to_panel_y(shc_obj):
+    combined = {
+        "Effects": {},
+        "Fit": {},
+        "Vectors": {},  # no "Observed Unit"
+        "Counterfactual": [1, 2, 3],
+    }
+    panel = {"y": pd.Series([4, 5, 6]), "time_labels": [1, 2, 3]}
+    res = shc_obj._create_SHC_results(combined, panel, inference_kwargs={})
+    assert np.all(res.time_series.observed_outcome == np.array([4, 5, 6]))
+
+
+# ----------------------------
+# 3) Counterfactual missing but Gap provided in Vectors → gap fallback
+# ----------------------------
+def test_gap_fallback_when_subtraction_impossible(shc_obj):
+    combined = {
+        "Vectors": {"Gap": [7.0, 8.0, 9.0]},
+        # Counterfactual missing
+    }
+    panel = {"y": np.array([7, 8, 9]), "time_labels": [1, 2, 3]}
+    res = shc_obj._create_SHC_results(combined, panel, inference_kwargs={})
+    assert np.all(res.time_series.gap == np.array([7.0, 8.0, 9.0]))
+
+
+# ----------------------------
+# 4) Observed and counterfactual present but lengths mismatch -> fallback to Gap
+# ----------------------------
+def test_mismatched_lengths_use_vectors_gap(shc_obj):
+    combined = {
+        "Vectors": {"Gap": [1.1, 1.2, 1.3]},
+        "Counterfactual": [10, 11],  # shorter - causes shape mismatch
+    }
+    panel = {"y": np.array([10, 11, 12]), "time_labels": [1, 2, 3]}
+    res = shc_obj._create_SHC_results(combined, panel, inference_kwargs={})
+    assert np.all(res.time_series.gap == np.array([1.1, 1.2, 1.3]))
+
+
+# ----------------------------
+# 5) Missing time_labels -> time_periods is None
+# ----------------------------
+def test_missing_time_labels_leads_to_none_time_periods(shc_obj):
+    combined = {"Vectors": {}, "Counterfactual": None}
+    panel = {"y": np.array([1, 2, 3])}
+    res = shc_obj._create_SHC_results(combined, panel, inference_kwargs={})
+    assert res.time_series.time_periods is None
+
+
+# ----------------------------
+# 6) Empty donor weights does not break
+# ----------------------------
+def test_empty_weights_do_not_break(shc_obj):
+    combined = {"Vectors": {}, "Counterfactual": None, "Weights": {}}
+    panel = {"y": np.array([1, 2, 3]), "time_labels": [1, 2, 3]}
+    res = shc_obj._create_SHC_results(combined, panel, inference_kwargs={})
+    assert isinstance(res, BaseEstimatorResults)
+
+
+# ----------------------------
+# 7) Inference kwargs forwarded into InferenceResults
+# ----------------------------
+def test_inference_kwargs_forwarded(shc_obj):
+    combined = {"Vectors": {}, "Counterfactual": None}
+    panel = {"y": np.array([1, 2, 3]), "time_labels": [1, 2, 3]}
+    kwargs = {"p_value": 0.123, "ci_lower": -1.0, "ci_upper": 1.0}
+    res = shc_obj._create_SHC_results(combined, panel, inference_kwargs=kwargs)
+    # isinstance check + field presence (field names depend on your InferenceResults model)
+    assert isinstance(res.inference, InferenceResults)
+    # check one forwarded field if available
+    # Some InferenceResults models may not have direct attribute names; guard with getattr
+    assert getattr(res.inference, "p_value", None) == 0.123
+
+
+# ----------------------------
+# 8) Pydantic ValidationError is wrapped into MlsynthEstimationError
+# ----------------------------
+def test_pydantic_validation_error_wrapped(monkeypatch, shc_obj):
+    combined = {"Vectors": {}, "Counterfactual": None}
+    panel = {"y": np.array([1, 2, 3]), "time_labels": [1, 2, 3]}
+
+    # Make BaseEstimatorResults constructor raise a pydantic.ValidationError
+    # pydantic.ValidationError signature: ValidationError(errors, model)
+    valerr = pydantic.ValidationError([], BaseEstimatorResults)
+    def fake_ctor(*args, **kwargs):
+        raise valerr
+
+    monkeypatch.setattr("mlsynth.config_models.BaseEstimatorResults", fake_ctor)
+    with pytest.raises(MlsynthEstimationError, match="Error creating Pydantic results model"):
+        shc_obj._create_SHC_results(combined, panel, inference_kwargs={})
+
+
+# ----------------------------
+# 9) Unexpected Exception is wrapped into MlsynthEstimationError
+# ----------------------------
+def test_unexpected_exception_wrapped(monkeypatch, shc_obj):
+    combined = {"Vectors": {}, "Counterfactual": None}
+    panel = {"y": np.array([1, 2, 3]), "time_labels": [1, 2, 3]}
+
+    # Make EffectsResults raise (any exception)
+    def fake_effects(*args, **kwargs):
+        raise RuntimeError("boom")
+    monkeypatch.setattr("mlsynth.estimators.shc.EffectsResults", fake_effects)
+
+    with pytest.raises(MlsynthEstimationError, match="Unexpected error"):
+        shc_obj._create_SHC_results(combined, panel, inference_kwargs={})
+
