@@ -288,11 +288,13 @@ def test_datetime_time_consecutive():
     config = MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
 def test_datetime_time_non_consecutive():
+    # Non-consecutive datetimes for time column
     df = pd.DataFrame({
         "unit": [1, 1, 2, 2],
-        "time": pd.to_datetime(["2025-01-01", "2025-01-03", "2025-01-01", "2025-01-03"]),  # gap
+        "time": pd.to_datetime(["2025-01-01", "2025-01-03", "2025-01-01", "2025-01-03"]),
         "y": [0, 1, 2, 3]
     })
+
     with pytest.raises(MlsynthDataError, match="Datetime time periods in 'time' are not consecutive"):
         MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
