@@ -41,6 +41,24 @@ def test_miqp_solver_available():
 # ----------------------------------------------------
 
 
+
+
+
+def test_validate_time_unsupported_dtype():
+    df = pd.DataFrame({
+        "unit": [1, 1, 1],
+        "time": [1.1, 2.2, 3.3],   # float dtype → unsupported
+        "y": [1, 2, 3],
+    })
+
+    config = BaseMAREXConfig(time_col="time", unit_col="unit", outcome_col="y")
+
+    with pytest.raises(MlsynthDataError, match="Unsupported dtype"):
+        config._validate_time(df)
+
+
+
+
 def test_missing_values_in_required_columns():
     df = pd.DataFrame({
         "town": [1, 2, 3],
@@ -58,6 +76,43 @@ def test_missing_values_in_required_columns():
     with pytest.raises(MlsynthDataError, match="Missing values detected"):
         MAREXConfig(**config)
 
+
+def test_validate_clusters_all_missing():
+    df = pd.DataFrame({
+        "unit": [1, 2, 3],
+        "cluster": [np.nan, np.nan, np.nan],
+        "time": [1, 1, 1],
+        "y": [10, 20, 30],
+    })
+
+    config = BaseMAREXConfig(
+        unit_col="unit",
+        time_col="time",
+        outcome_col="y",
+        cluster_col="cluster",
+    )
+
+    with pytest.raises(MlsynthDataError, match="contains only missing"):
+        config._validate_clusters(df)
+
+
+def test_validate_clusters_multiple_assignments():
+    df = pd.DataFrame({
+        "unit": [1, 1, 2],
+        "cluster": ["A", "B", "A"],
+        "time": [1, 2, 1],
+        "y": [10, 20, 30],
+    })
+
+    config = BaseMAREXConfig(
+        unit_col="unit",
+        time_col="time",
+        outcome_col="y",
+        cluster_col="cluster",
+    )
+
+    with pytest.raises(MlsynthDataError, match="multiple cluster assignments"):
+        config._validate_clusters(df)
 
 
 
