@@ -287,16 +287,29 @@ def test_datetime_time_consecutive():
     # Should not raise
     config = MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
+
 def test_datetime_time_non_consecutive():
-    # Non-consecutive datetimes for time column
+    import pandas as pd
+    import pytest
+    from datetime import datetime, timedelta
+    from mlsynth.config_models import MAREXConfig
+    from mlsynth.exceptions import MlsynthDataError
+
     df = pd.DataFrame({
-        "unit": [1, 1, 2, 2],
-        "time": pd.to_datetime(["2025-01-01", "2025-01-03", "2025-01-01", "2025-01-03"]),
-        "y": [0, 1, 2, 3]
+        "unit": [1, 1, 1],
+        "time": [datetime(2020, 1, 1),
+                 datetime(2020, 1, 3),  # Gap here
+                 datetime(2020, 1, 4)],
+        "y": [1, 2, 3]
     })
 
     with pytest.raises(MlsynthDataError, match="Datetime time periods in 'time' are not consecutive"):
         MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
+
+
+
+
+
 
 # ---------------------------
 # Unsupported dtype
