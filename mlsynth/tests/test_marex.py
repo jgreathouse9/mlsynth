@@ -826,31 +826,10 @@ def test_scmexp_blank_periods(simple_data):
 
 
 
-def test_inference_T_post_too_large():
-    df = pd.DataFrame({
-        "unit": [1, 2, 3],
-        "time": [1, 2, 3, 4],
-        "y": [10, 20, 30, 40]
-    })
-
-    with pytest.raises(MlsynthDataError, match="T_post must be between 1 and"):
-        MAREXConfig(
-            df=df,
-            outcome="y",
-            unitid="unit",
-            time="time",
-            inference=True,
-            T0=2,
-            T_post=5  # triggers "too large" branch
-        )
-
-
-
-
 def test_inference_T_post_too_small():
     df = pd.DataFrame({
-        "unit": [1, 2, 3],
-        "time": [1, 2, 3, 4],
+        "unit": [1, 1, 2, 2],
+        "time": [1, 2, 1, 2],
         "y": [10, 20, 30, 40]
     })
 
@@ -862,8 +841,28 @@ def test_inference_T_post_too_small():
             time="time",
             inference=True,
             T0=2,
-            T_post=0  # triggers "too small" branch
+            T_post=0
         )
+
+
+def test_inference_T_post_too_large():
+    df = pd.DataFrame({
+        "unit": [1, 1, 2, 2],
+        "time": [1, 2, 1, 2],
+        "y": [10, 20, 30, 40]
+    })
+
+    with pytest.raises(MlsynthDataError, match="T_post must be between 1 and"):
+        MAREXConfig(
+            df=df,
+            outcome="y",
+            unitid="unit",
+            time="time",
+            inference=True,
+            T0=2,
+            T_post=5
+        )
+
 
 # ---------------------------
 # RMSE sanity
