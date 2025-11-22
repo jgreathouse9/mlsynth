@@ -749,6 +749,68 @@ def test_scmexp_with_cost_budget(simple_data):
         assert total_cost <= budget[lab] + 1e-6
 
 
+def test_budget_scalar_nonpositive():
+    df = pd.DataFrame({
+        "unit": [1, 2],
+        "time": [1, 2],
+        "y": [10, 20],
+        "cluster": [0, 1],
+    })
+
+    with pytest.raises(MlsynthDataError, match="Scalar 'budget' must be strictly positive"):
+        MAREXConfig(
+            df=df,
+            outcome="y",
+            unitid="unit",
+            time="time",
+            cluster="cluster",
+            budget=0   # triggers error
+        )
+
+
+def test_budget_dict_missing_clusters():
+    df = pd.DataFrame({
+        "unit": [1, 2, 3],
+        "time": [1, 2, 3],
+        "y": [10, 20, 30],
+        "cluster": [0, 1, 2],
+    })
+
+    budget_dict = {0: 5, 1: 10}  # missing cluster 2
+
+    with pytest.raises(MlsynthDataError, match="missing entries for cluster"):
+        MAREXConfig(
+            df=df,
+            outcome="y",
+            unitid="unit",
+            time="time",
+            cluster="cluster",
+            budget=budget_dict
+        )
+
+
+
+def test_budget_dict_nonpositive_value():
+    df = pd.DataFrame({
+        "unit": [1, 2, 3],
+        "time": [1, 2, 3],
+        "y": [10, 20, 30],
+        "cluster": [0, 1, 2],
+    })
+
+    budget_dict = {0: 5, 1: 0, 2: 3}  # one cluster has 0 → invalid
+
+    with pytest.raises(MlsynthDataError, match="must be strictly positive"):
+        MAREXConfig(
+            df=df,
+            outcome="y",
+            unitid="unit",
+            time="time",
+            cluster="cluster",
+            budget=budget_dict
+        )
+
+
 
 # ---------------------------
 # Blank periods
@@ -760,6 +822,48 @@ def test_scmexp_blank_periods(simple_data):
     assert res["T_fit"] == 2
     if res["Y_blank"] is not None:
         assert res["Y_blank"].shape[1] == 1
+
+
+
+
+def test_inference_T_post_too_large():
+    df = pd.DataFrame({
+        "unit": [1, 2, 3],
+        "time": [1, 2, 3, 4],
+        "y": [10, 20, 30, 40]
+    })
+
+    with pytest.raises(MlsynthDataError, match="T_post must be between 1 and"):
+        MAREXConfig(
+            df=df,
+            outcome="y",
+            unitid="unit",
+            time="time",
+            inference=True,
+            T0=2,
+            T_post=5  # triggers "too large" branch
+        )
+
+
+
+
+def test_inference_T_post_too_small():
+    df = pd.DataFrame({
+        "unit": [1, 2, 3],
+        "time": [1, 2, 3, 4],
+        "y": [10, 20, 30, 40]
+    })
+
+    with pytest.raises(MlsynthDataError, match="T_post must be between 1 and"):
+        MAREXConfig(
+            df=df,
+            outcome="y",
+            unitid="unit",
+            time="time",
+            inference=True,
+            T0=2,
+            T_post=0  # triggers "too small" branch
+        )
 
 # ---------------------------
 # RMSE sanity
