@@ -40,6 +40,28 @@ def test_miqp_solver_available():
 # Initialization Tests
 # ----------------------------------------------------
 
+
+def test_missing_values_in_required_columns():
+    df = pd.DataFrame({
+        "town": [1, 2, 3],
+        "time": [1, 2, 3],
+        "Y_obs": [10.0, None, 30.0],   # <- missing value
+    })
+
+    config = {
+        "df": df,
+        "outcome": "Y_obs",
+        "unitid": "town",
+        "time": "time",
+    }
+
+    with pytest.raises(MlsynthDataError, match="Missing values detected"):
+        MAREXConfig(**config)
+
+
+
+
+
 def test_initialization_valid_config(curacao_sim_data):
     config_data = {
         "df": curacao_sim_data["df"],
