@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import cvxpy as cp
 from mlsynth import MAREX
-from mlsynth.config_models import MAREXConfig, BaseMAREXConfig
+from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
 from mlsynth.utils.exputils import (
@@ -41,20 +41,23 @@ def test_miqp_solver_available():
 # ----------------------------------------------------
 
 
-
-
-
-def test_validate_time_unsupported_dtype():
+def test_time_column_unsupported_dtype():
     df = pd.DataFrame({
         "unit": [1, 1, 1],
-        "time": [1.1, 2.2, 3.3],   # float dtype → unsupported
+        "time": [1.1, 2.2, 3.3],  # float dtype → unsupported
         "y": [1, 2, 3],
     })
 
-    config = BaseMAREXConfig(time_col="time", unit_col="unit", outcome_col="y")
+    config_data = {
+        "df": df,
+        "unitid": "unit",
+        "time": "time",
+        "outcome": "y",
+    }
 
-    with pytest.raises(MlsynthDataError, match="Unsupported dtype"):
-        config._validate_time(df)
+    with pytest.raises(MlsynthDataError, match="Unsupported dtype for time column"):
+        marex = MAREXConfig(**config_data)
+
 
 
 
@@ -77,7 +80,8 @@ def test_missing_values_in_required_columns():
         MAREXConfig(**config)
 
 
-def test_validate_clusters_all_missing():
+
+def test_cluster_column_all_missing():
     df = pd.DataFrame({
         "unit": [1, 2, 3],
         "cluster": [np.nan, np.nan, np.nan],
@@ -85,19 +89,19 @@ def test_validate_clusters_all_missing():
         "y": [10, 20, 30],
     })
 
-    config = BaseMAREXConfig(
-        df=df,
-        unitid="unit",
-        time="time",
-        outcome="y",
-        cluster="cluster",
-    )
+    config_data = {
+        "df": df,
+        "unitid": "unit",
+        "time": "time",
+        "outcome": "y",
+        "cluster": "cluster",
+    }
 
-    with pytest.raises(MlsynthDataError, match="contains only missing"):
-        config._validate_clusters(df)
+    with pytest.raises(MlsynthDataError, match="contains only missing values"):
+        marex = MAREXConfig(**config_data)
 
 
-def test_validate_clusters_multiple_assignments():
+def test_cluster_column_multiple_assignments():
     df = pd.DataFrame({
         "unit": [1, 1, 2],
         "cluster": ["A", "B", "A"],
@@ -105,16 +109,17 @@ def test_validate_clusters_multiple_assignments():
         "y": [10, 20, 30],
     })
 
-    config = BaseMAREXConfig(
-        df=df,
-        unitid="unit",
-        time="time",
-        outcome="y",
-        cluster="cluster",
-    )
+    config_data = {
+        "df": df,
+        "unitid": "unit",
+        "time": "time",
+        "outcome": "y",
+        "cluster": "cluster",
+    }
 
     with pytest.raises(MlsynthDataError, match="multiple cluster assignments"):
-        config._validate_clusters(df)
+        marex = MAREXConfig(**config_data)
+
 
 
 
