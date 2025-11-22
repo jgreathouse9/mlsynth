@@ -553,7 +553,7 @@ def test_proximity_mask_invalid_alpha_value_high(proximity_mask_sample_data):
 def test_proximity_mask_empty_array_1d_triggers_size_check():
     Y0_empty = np.array([])  # 1D empty array
     T0 = 1
-    with pytest.raises(MlsynthDataError, match="Input `Y0` cannot be empty"):
+    with pytest.raises(MlsynthDataError, match="Input `Y0` must be a 2D array."):
         proximity_mask(Y0_empty, T0)
 
 
