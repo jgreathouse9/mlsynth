@@ -254,23 +254,56 @@ def test_sdid_config_valid(base_config_data: Dict[str, Any]):
         SDIDConfig(**base_config_data, B=-1)
 
 
-
-def test_time_column_unsupported_dtype():
+# ---------------------------
+# Numeric time column
+# ---------------------------
+def test_numeric_time_consecutive():
     df = pd.DataFrame({
-        "unit": [1, 1, 1],
-        "time": [1.1, 2.2, 3.3],   # float dtype → will fail consecutive check
-        "y": [1, 2, 3],
+        "unit": [1, 1, 2, 2],
+        "time": [1, 2, 1, 2],
+        "y": [0, 1, 2, 3]
     })
+    # Should not raise
+    config = MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
-    config_data = {
-        "df": df,
-        "unitid": "unit",
-        "time": "time",
-        "outcome": "y",
-    }
+def test_numeric_time_non_consecutive():
+    df = pd.DataFrame({
+        "unit": [1, 1, 2, 2],
+        "time": [1, 3, 1, 3],  # non-consecutive
+        "y": [0, 1, 2, 3]
+    })
+    with pytest.raises(MlsynthDataError, match="Time periods in 'time' are not consecutive"):
+        MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
-    # Expect MlsynthDataError due to non-consecutive times
-    with pytest.raises(MlsynthDataError, match=r"Time periods in 'time' are not consecutive"):
-        MAREXConfig(**config_data)
+# ---------------------------
+# Datetime time column
+# ---------------------------
+def test_datetime_time_consecutive():
+    df = pd.DataFrame({
+        "unit": [1, 1, 2, 2],
+        "time": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-01", "2025-01-02"]),
+        "y": [0, 1, 2, 3]
+    })
+    # Should not raise
+    config = MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
+def test_datetime_time_non_consecutive():
+    df = pd.DataFrame({
+        "unit": [1, 1, 2, 2],
+        "time": pd.to_datetime(["2025-01-01", "2025-01-03", "2025-01-01", "2025-01-03"]),  # gap
+        "y": [0, 1, 2, 3]
+    })
+    with pytest.raises(MlsynthDataError, match="Datetime time periods in 'time' are not consecutive"):
+        MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
 
+# ---------------------------
+# Unsupported dtype
+# ---------------------------
+def test_time_unsupported_dtype():
+    df = pd.DataFrame({
+        "unit": [1, 1, 2, 2],
+        "time": ["a", "b", "a", "b"],  # string dtype
+        "y": [0, 1, 2, 3]
+    })
+    with pytest.raises(MlsynthDataError, match="Unsupported dtype for time column"):
+        MAREXConfig(df=df, outcome="y", unitid="unit", time="time")
