@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import cvxpy as cp
 from mlsynth import MAREX
-from mlsynth.config_models import MAREXConfig
+from mlsynth.config_models import MAREXConfig, BaseMAREXConfig
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 from pydantic import ValidationError
 from mlsynth.utils.exputils import (
