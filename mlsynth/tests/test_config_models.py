@@ -20,7 +20,8 @@ from mlsynth.config_models import (
     SIConfig,
     StableSCConfig,
     NSCConfig,
-    SDIDConfig
+    SDIDConfig,
+    MAREXConfig
 )
 
 # Sample valid DataFrame for testing
@@ -251,3 +252,25 @@ def test_sdid_config_valid(base_config_data: Dict[str, Any]):
     assert config.B == 100
     with pytest.raises(ValidationError): # B must be >= 0
         SDIDConfig(**base_config_data, B=-1)
+
+
+
+def test_time_column_unsupported_dtype():
+    df = pd.DataFrame({
+        "unit": [1, 1, 1],
+        "time": [1.1, 2.2, 3.3],   # float dtype → will fail consecutive check
+        "y": [1, 2, 3],
+    })
+
+    config_data = {
+        "df": df,
+        "unitid": "unit",
+        "time": "time",
+        "outcome": "y",
+    }
+
+    # Expect MlsynthDataError due to non-consecutive times
+    with pytest.raises(MlsynthDataError, match=r"Time periods in 'time' are not consecutive"):
+        MAREXConfig(**config_data)
+
+
