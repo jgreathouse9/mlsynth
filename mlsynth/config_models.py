@@ -69,8 +69,6 @@ class BaseMAREXConfig(BaseModel):
 
 
 
-
-
 class MAREXConfig(BaseMAREXConfig):
     """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
 
@@ -102,7 +100,6 @@ class MAREXConfig(BaseMAREXConfig):
     # --- NEW inference options ---
     inference: bool = Field(default=False, description="Whether to run post-fit inference (placebo CI/p-values).")
     T_post: Optional[int] = Field(default=None, description="Number of post-intervention periods for inference.")
-
 
     @model_validator(mode="after")
     def validate_design_params(cls, values: Any) -> Any:
@@ -143,15 +140,21 @@ class MAREXConfig(BaseMAREXConfig):
                 raise MlsynthDataError(f"Cluster column '{cluster_col}' not found in df.")
 
             col = df[cluster_col]
-            if not pd.api.types.is_integer_dtype(col):
-                warnings.warn(f"Cluster column '{cluster_col}' contains non-integers; converting to codes.", UserWarning)
-                df[cluster_col] = pd.Categorical(col).codes
-                col = df[cluster_col]
 
+            # Check for all missing
             if col.isna().all():
                 raise MlsynthDataError(f"Cluster column '{cluster_col}' contains only missing values.")
 
-            # --- unit-invariant cluster check ---
+            # Convert to integer codes if non-integer
+            if not pd.api.types.is_integer_dtype(col):
+                warnings.warn(
+                    f"Cluster column '{cluster_col}' contains non-integers; converting to codes.",
+                    UserWarning
+                )
+                df[cluster_col] = pd.Categorical(col).codes
+                col = df[cluster_col]
+
+            # Ensure each unit is in only one cluster
             unit_to_clusters = df.groupby(values.unitid)[cluster_col].apply(lambda x: set(x.dropna()))
             non_invariant = unit_to_clusters[unit_to_clusters.apply(len) != 1]
             if not non_invariant.empty:
@@ -159,7 +162,6 @@ class MAREXConfig(BaseMAREXConfig):
 
             # --- m_eq / m_min / m_max validation ---
             cluster_sizes = df.groupby(cluster_col).size()
-
             if values.m_eq is not None and values.m_eq > cluster_sizes.max():
                 raise MlsynthDataError(
                     f"m_eq ({values.m_eq}) cannot be greater than max cluster size ({cluster_sizes.max()})"
@@ -176,9 +178,8 @@ class MAREXConfig(BaseMAREXConfig):
                 )
 
         # --- costs validation ---
-        if values.costs is not None:
-            if not all(c > 0 for c in values.costs):
-                raise MlsynthDataError("All values in 'costs' must be strictly positive.")
+        if values.costs is not None and not all(c > 0 for c in values.costs):
+            raise MlsynthDataError("All values in 'costs' must be strictly positive.")
 
         # --- budget validation ---
         if values.budget is not None:
@@ -208,6 +209,7 @@ class MAREXConfig(BaseMAREXConfig):
                 raise MlsynthDataError(f"T_post must be between 1 and {max_post} (T0={T0}, total periods={n_periods})")
 
         return values
+
 
 
 
@@ -738,6 +740,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
