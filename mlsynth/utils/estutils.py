@@ -1951,10 +1951,6 @@ class Opt:
             # L1 / Lasso: use CVXOPT with strict tolerances
             problem_ols.solve(
                 solver=cp.CVXOPT,
-                show_progress=False,
-                abstol=1e-9,
-                reltol=1e-8,
-                feastol=1e-8, max_iter=8000,
             )
         else:
             # fallback
@@ -2029,7 +2025,7 @@ class Opt:
         problem = cp.Problem(objective, constraints)
 
         # Solve
-        problem.solve(solver=cp.OSQP, eps_abs=1e-9, eps_rel=1e-8, max_iter=10000, verbose=False)
+        problem.solve(solver=cp.OSQP)
 
         return problem
 
@@ -4735,4 +4731,5 @@ def fast_DID_selector(
         fdid_result["intermediary"] = intermediary_results
 
     return {"DID": did_all, "FDID": fdid_result}
+
 
