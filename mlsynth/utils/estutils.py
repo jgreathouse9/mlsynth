@@ -48,6 +48,7 @@ _SCM_MODEL_MSCB = "MSCb"
 _SCM_MODEL_MSCC = "MSCc"
 _SCM_MODEL_OLS = "OLS"
 _SCM_MODEL_MA = "MA" # Model Averaging
+_SCM_MODEL_INF = "INF"
 
 _PDA_METHOD_FS = "fs" # Forward Selection
 _PDA_METHOD_LASSO = "LASSO"
@@ -1898,49 +1899,143 @@ class Opt:
             lambda_penalty: Optional[float] = None,
             p: Optional[float] = None,
             q: Optional[float] = None,
+            fit_intercept: bool = False,
     ) -> cp.Problem:
         """
-        Solve the OLS SCM optimization problem with optional (p, q) regularization.
+        Solve OLS SCM with optional (p, q) regularization and optional free intercept.
 
-        Objective:
-            minimize ||y - Xw||_2^2 + λ * ||w||_p^q
+        If fit_intercept is True, solves
+            minimize || y - b0 - X w ||_2^2 + lambda * ||w||_p^q
+        where b0 is an unconstrained scalar (not regularized) and w is a vector of length num_donors_ols.
+
+        If fit_intercept is False (legacy behavior), solves
+            minimize || y - X w ||_2^2 + lambda * ||w||_p^q
+        where w is length num_donors_ols.
+
+        Returns solved cvxpy Problem. Extract variables from problem.solution.primal_vars.
+        """
+        lambda_penalty = Opt.DEFAULT_LAMBDA_PENALTY if lambda_penalty is None else float(lambda_penalty)
+        p = Opt.DEFAULT_P_NORM if p is None else p
+        q = Opt.DEFAULT_Q_EXPONENT if q is None else q
+
+        # Build variables
+        if fit_intercept:
+            b0 = cp.Variable()  # scalar intercept (unregularized)
+            w = cp.Variable(num_donors_ols)  # donor weights
+            residual = target_outcomes_pre_treatment_ols - (b0 + donor_outcomes_pre_treatment_ols @ w)
+        else:
+            b0 = None
+            w = cp.Variable(num_donors_ols)
+            residual = target_outcomes_pre_treatment_ols - donor_outcomes_pre_treatment_ols @ w
+
+        # Regularization penalty (on w only)
+        penalty_term = lambda_penalty * cp.power(cp.norm(w, p), q) if lambda_penalty > 0 else 0.0
+
+        # Objective
+        objective_function_ols = cp.Minimize(cp.sum_squares(residual) + penalty_term)
+        constraints = []
+
+        # Build problem
+        problem_ols = cp.Problem(objective_function_ols, constraints)
+
+        # Solve with solver depending on norm
+        if p == 2:
+            # L2 / Ridge: use Clarabel
+            problem_ols.solve(
+                solver=cp.CLARABEL,
+                eps=1e-9,
+                max_iter=1000,
+                verbose=False
+            )
+        elif p == 1:
+            # L1 / Lasso: use CVXOPT with strict tolerances
+            problem_ols.solve(
+                solver=cp.CVXOPT,
+                show_progress=False,
+                abstol=1e-9,
+                reltol=1e-8,
+                feastol=1e-8, max_iter=8000,
+            )
+        else:
+            # fallback
+            problem_ols.solve(solver=cp.CLARABEL)
+
+        return problem_ols
+
+    @staticmethod
+    def _solve_inf_model(
+            target_outcomes_pre_treatment_ols: np.ndarray,
+            donor_outcomes_pre_treatment_ols: np.ndarray,
+            num_donors_ols: int,
+            lambda_penalty: Optional[float] = None,
+            alpha_penalty: Optional[float] = 0.0,
+            fit_intercept: bool = False,
+            affine: bool = False,
+    ) -> cp.Problem:
+        """
+        Solve the SCM problem with hybrid L1-L∞ regularization using cp.norm.
 
         Parameters
         ----------
         target_outcomes_pre_treatment_ols : np.ndarray
-            Target vector for the pre-treatment periods, shape (T0,).
+            Outcome vector of treated unit, shape (T, ).
         donor_outcomes_pre_treatment_ols : np.ndarray
-            Donor matrix for pre-treatment periods, shape (T0, N0).
+            Donor matrix, shape (T, J).
         num_donors_ols : int
-            Number of control units (N0).
+            Number of donor units (columns of donor matrix).
         lambda_penalty : float, optional
-            Regularization strength λ. Default is 0 (pure OLS).
-        p : float, optional
-            Norm type for penalty (e.g., 1 for LASSO, 2 for Ridge). Default is 2.
-        q : float, optional
-            Exponent applied to the p-norm. Usually q = p, but can differ. Default is 2.
+            Regularization weight (lambda).
+        alpha_penalty : float, optional
+            Weighting between L1 and L∞ penalty: 0 = pure INF, 1 = pure L1.
+        fit_intercept : bool, default False
+            Whether to include an unregularized scalar intercept.
+        affine : bool, default False
+            If True, forces donor weights to sum to 1 (excluding intercept).
 
         Returns
         -------
-        cp.Problem
-            The solved CVXPY problem object. The solution (weights) can be
-            accessed via `problem.solution.primal_vars` or `problem.variables()`.
+        cvxpy.Problem
+            The solved CVXPY problem.
         """
 
-        lambda_penalty = (
-            Opt.DEFAULT_LAMBDA_PENALTY if lambda_penalty is None else lambda_penalty
-        )
-        p = Opt.DEFAULT_P_NORM if p is None else p
-        q = Opt.DEFAULT_Q_EXPONENT if q is None else q
+        lam = 0.0 if lambda_penalty is None else float(lambda_penalty)
+        alpha = 0.0 if alpha_penalty is None else float(alpha_penalty)
 
-        # Define CVXPY variable for donor weights
-        coefficients_cvxpy_ols = cp.Variable(num_donors_ols)
-        residual = target_outcomes_pre_treatment_ols - donor_outcomes_pre_treatment_ols @ coefficients_cvxpy_ols
-        penalty_term = lambda_penalty * cp.power(cp.norm(coefficients_cvxpy_ols, p), q)
-        objective_function_ols = cp.Minimize(cp.sum_squares(residual) + penalty_term)
-        problem_ols = cp.Problem(objective_function_ols, [])
-        problem_ols.solve(solver=_SOLVER_CLARABEL_STR)
-        return problem_ols
+        T = target_outcomes_pre_treatment_ols.shape[0]
+        J = num_donors_ols
+
+        # Variables
+        if fit_intercept:
+            b0 = cp.Variable(name="intercept")  # scalar intercept
+            w = cp.Variable(J, name="donor_weights")
+            residual = target_outcomes_pre_treatment_ols - (b0 + donor_outcomes_pre_treatment_ols @ w)
+        else:
+            w = cp.Variable(J, name="donor_weights")
+            residual = target_outcomes_pre_treatment_ols - donor_outcomes_pre_treatment_ols @ w
+
+        # Objective: squared L2 loss + lambda*(alpha*||w||_1 + (1-alpha)*||w||_inf)
+        objective = cp.Minimize(
+            (1 / T) * cp.sum_squares(residual)
+            + lam * (alpha * cp.norm(w, 1) + (1 - alpha) * cp.norm(w, "inf"))
+        )
+
+        # Constraints
+        constraints = []
+
+        if affine:
+            constraints.append(cp.sum(w) == 1)  # exclude intercept automatically
+
+        # Build CVXPY problem
+        problem = cp.Problem(objective, constraints)
+
+        # Solve
+        problem.solve(solver=cp.OSQP, eps_abs=1e-9, eps_rel=1e-8, max_iter=10000, verbose=False)
+
+        return problem
+
+
+
+
 
 
     @staticmethod
@@ -1954,9 +2049,12 @@ class Opt:
         donor_names: Optional[List[str]] = None,
         # --- New regularization args ---
         lambda_penalty: Optional[float] = None,
+        alpha_penalty: Optional[float] = None,
         p: Optional[float] = None,
         q: Optional[float] = None,
-        w_convex = None
+        w_convex = None,
+        fit_intercept: bool = False,
+        affine: bool = False,
     ) -> Union[cp.Problem, Dict[str, Any]]:
         """Perform optimization for various Synthetic Control Method (SCM) variants.
 
@@ -2123,7 +2221,9 @@ class Opt:
                 donor_outcomes_pre_treatment_subset, # Original X
                 num_control_units, # Original num_control_units
             )
+
         elif scm_model_type == _SCM_MODEL_OLS:
+
             return Opt._solve_ols_model(
                 target_outcomes_pre_treatment_subset,
                 processed_donor_outcomes_pre_treatment_subset,  # Original X
@@ -2131,13 +2231,28 @@ class Opt:
                 lambda_penalty=lambda_penalty,  # new regularization strength
                 p=p,  # norm for weight penalty
                 q=q,  # norm for residuals
+                fit_intercept=fit_intercept  # pass flag here
             )
+
+
+
+        elif scm_model_type == _SCM_MODEL_INF:
+
+            return Opt._solve_inf_model(
+                target_outcomes_pre_treatment_ols=target_outcomes_pre_treatment_subset,
+                donor_outcomes_pre_treatment_ols=processed_donor_outcomes_pre_treatment_subset,
+                num_donors_ols=current_num_control_units,
+                lambda_penalty=lambda_penalty,
+                alpha_penalty=None,
+                fit_intercept=fit_intercept,
+                affine=affine)
         else:
             raise MlsynthConfigError(
                 f"Unsupported SCM model type: {scm_model_type}. Supported types are: "
                 f"{_SCM_MODEL_SIMPLEX}, {_SCM_MODEL_MSCA}, {_SCM_MODEL_MSCB}, "
-                f"{_SCM_MODEL_MSCC}, {_SCM_MODEL_OLS}, {_SCM_MODEL_MA}."
+                f"{_SCM_MODEL_MSCC}, {_SCM_MODEL_OLS}, {_SCM_MODEL_MA}, {_SCM_MODEL_INF}."
             )
+
 
 
 def pda(
@@ -4620,3 +4735,4 @@ def fast_DID_selector(
         fdid_result["intermediary"] = intermediary_results
 
     return {"DID": did_all, "FDID": fdid_result}
+
