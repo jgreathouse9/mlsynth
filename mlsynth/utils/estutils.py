@@ -1942,10 +1942,7 @@ class Opt:
         if p == 2:
             # L2 / Ridge: use Clarabel
             problem_ols.solve(
-                solver=cp.CLARABEL,
-                eps=1e-9,
-                max_iter=1000,
-                verbose=False
+                solver=cp.CLARABEL
             )
         elif p == 1:
             # L1 / Lasso: use CVXOPT with strict tolerances
@@ -4731,5 +4728,6 @@ def fast_DID_selector(
         fdid_result["intermediary"] = intermediary_results
 
     return {"DID": did_all, "FDID": fdid_result}
+
 
 
