@@ -27,7 +27,10 @@ from mlsynth.utils.selector_helpers import (
 )
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score # Not used in this file
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, TimeSeriesSplit
+from sklearn.utils.validation import check_X_y, check_array
+from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.preprocessing import StandardScaler
 from functools import partial # Not used in this file
 from statsmodels.tsa.stattools import acf
 from scipy.stats import norm # zconfint was not explicitly imported and not used
@@ -4254,131 +4257,142 @@ def tune_lambda_ashc(L, ell_eval, w_shc, lambda_grid=None, split_ratio=0.5):
 ## Relaxed Balanced SC
 
 
-def standardize_data(y_pre, X_pre, y_post, X_post):
-    """Standardize each unit (treated and donors) using pre-treatment stats."""
-    # Means and stds for pre-treatment
-    mu_treated, sigma_treated = np.mean(y_pre), np.std(y_pre, ddof=1)
-    mu_controls = np.mean(X_pre, axis=0)
-    sigma_controls = np.std(X_pre, axis=0, ddof=1)
+class L2RelaxationCV(BaseEstimator, RegressorMixin):
+    """L2 Relaxation with time-series aware cross-validation for synthetic control using Clarabel."""
 
-    # Avoid division by zero
-    sigma_controls[sigma_controls == 0] = 1.0
-    if sigma_treated == 0:
-        sigma_treated = 1.0
+    def __init__(self, *, taus=None, n_taus=1000, n_splits=10, nonneg=True):
+        self.taus = taus
+        self.n_taus = len(taus) if taus is not None else n_taus
+        self.n_splits = n_splits
+        self.nonneg = nonneg
 
-    # Standardize
-    y_pre_std = (y_pre - mu_treated) / sigma_treated
-    X_pre_std = (X_pre - mu_controls) / sigma_controls
-    y_post_std = (y_post - mu_treated) / sigma_treated
-    X_post_std = (X_post - mu_controls) / sigma_controls
+    @staticmethod
+    def _relaxation_min_obj(w):
+        return cp.sum_squares(w)
 
-    stats = {
-        "mu_treated": mu_treated,
-        "sigma_treated": sigma_treated,
-        "mu_controls": mu_controls,
-        "sigma_controls": sigma_controls,
+    def _solve_l2_problem(self, X, y, tau=None):
+        """Solve the L2 relaxation problem for given X, y, and tau."""
+        T, J = X.shape
+        w = cp.Variable(J, nonneg=True)
+        gam = cp.Variable()
+        tau_val = self.tau_ if tau is None else tau
+
+        objective = cp.Minimize(cp.sum_squares(w))
+        constraints = [
+            cp.sum(w) == 1,
+            cp.pnorm(X.T @ (X @ w - y) / T + gam * np.ones(J), p='inf') <= tau_val
+        ]
+
+        problem = cp.Problem(objective, constraints)
+        problem.solve(solver=cp.CLARABEL, verbose=False)
+
+        return w.value
+
+    def _get_tau_lower_limit(self, X, y):
+        T, J = X.shape
+        w = cp.Variable(J, nonneg=True)
+        gam = cp.Variable()
+        constraints = [cp.sum(w) == 1]
+        objective = cp.Minimize(cp.pnorm(X.T @ (X @ w - y) / T + gam * np.ones(J), p='inf'))
+        problem = cp.Problem(objective, constraints)
+        problem.solve(solver=cp.CLARABEL, verbose=False)
+        return problem.value * 1.01
+
+    def _get_tau_upper_limit(self, X, y):
+        T, J = X.shape
+        w = np.ones(J) / J
+        gam = cp.Variable()
+        objective = cp.Minimize(cp.pnorm(X.T @ (X @ w - y) / T + gam * np.ones(J), p='inf'))
+        problem = cp.Problem(objective)
+        problem.solve(solver=cp.CLARABEL, verbose=False)
+        return problem.value * 1.01
+
+    def _generate_taus(self, X, y):
+        lower_limit = self._get_tau_lower_limit(X, y)
+        upper_limit = self._get_tau_upper_limit(X, y)
+        self.taus_ = np.geomspace(upper_limit, lower_limit, self.n_taus)
+
+    def _process_tau_grid(self, X, y):
+        if self.taus is None:
+            self._generate_taus(X, y)
+        else:
+            lower_limit = self._get_tau_lower_limit(X, y)
+            self.taus_ = np.sort(self.taus[self.taus_ >= lower_limit])[::-1]
+
+    def _cross_validate(self, X, y):
+        tscv = TimeSeriesSplit(n_splits=self.n_splits)
+        fold_splits = list(tscv.split(X))
+
+        cv_errors = []
+        for train_idx, test_idx in fold_splits:
+            fold_errors = self._fit_fold(X, y, train_idx, test_idx)
+            if fold_errors is not None:
+                cv_errors.append(fold_errors)
+
+        if len(cv_errors) == 0:
+            raise ValueError("No feasible taus for any fold. Check your data and taus.")
+
+        min_length = np.min([len(errors) for errors in cv_errors])
+        cv_errors = np.array([errors[:min_length] for errors in cv_errors])
+        self.taus_ = self.taus_[:min_length]
+
+        self.cv_mean_mse_ = np.mean(cv_errors, axis=0)
+        self.tau_ = self.taus_[np.argmin(self.cv_mean_mse_)]
+
+    def _fit_fold(self, X, y, train_idx, test_idx):
+        X_train, y_train = X[train_idx], y[train_idx]
+        X_test, y_test = X[test_idx], y[test_idx]
+
+        lower_limit = self._get_tau_lower_limit(X_train, y_train)
+        taus_for_fold = self.taus_[self.taus_ >= lower_limit]
+        if len(taus_for_fold) == 0:
+            return None
+
+        w_estimates = np.column_stack([self._solve_l2_problem(X_train, y_train, tau=val)
+                                       for val in taus_for_fold])
+        y_pred = X_test @ w_estimates
+        return np.mean((y_test[:, None] - y_pred) ** 2, axis=0)
+
+    def _fit_full_data(self, X, y):
+        self.coef_ = self._solve_l2_problem(X, y)
+
+    def fit(self, X, y):
+        X, y = check_X_y(X, y)
+        self._process_tau_grid(X, y)
+        self._cross_validate(X, y)
+        self._fit_full_data(X, y)
+        return self
+
+    def predict(self, X):
+        X = check_array(X)
+        return X @ self.coef_
+
+
+def fit_l2_scm(X_pre, y_pre, X_post, n_splits=10, n_taus=1000):
+    """Fit L2 relaxation synthetic control with standardized inputs and back-transformed weights."""
+    scaler_X = StandardScaler().fit(X_pre)
+    X_pre_scaled = scaler_X.transform(X_pre)
+    X_post_scaled = scaler_X.transform(X_post)
+
+    y_mean, y_std = y_pre.mean(), y_pre.std()
+    y_pre_scaled = (y_pre - y_mean) / y_std
+
+    model = L2RelaxationCV(n_splits=n_splits, n_taus=n_taus, nonneg=True)
+    model.fit(X_pre_scaled, y_pre_scaled)
+
+    y_pre_pred = model.predict(X_pre_scaled) * y_std + y_mean
+    y_post_pred = model.predict(X_post_scaled) * y_std + y_mean
+
+    weights_scaled = model.coef_
+    weights_orig = weights_scaled / scaler_X.scale_
+    weights_orig = weights_orig / np.sum(weights_orig)
+
+    return {
+        'weights': weights_orig,
+        'predictions': np.concatenate([y_pre_pred, y_post_pred])
     }
 
-    return y_pre_std, X_pre_std, y_post_std, X_post_std, stats
 
-
-def back_transform_predictions(weights_std, X_post, stats):
-    """Map standardized predictions back to original scale."""
-    mu_t, sigma_t = stats["mu_treated"], stats["sigma_treated"]
-    mu_c, sigma_c = stats["mu_controls"], stats["sigma_controls"]
-
-    # Effective weights after rescaling
-    w_back = (sigma_t / sigma_c) * weights_std
-
-    preds_post = (X_post - mu_c) @ (w_back) + mu_t
-    return preds_post
-
-
-def generate_taus(X_pre, y_pre, n_taus=50):
-    """Generate tau grid between feasible lower and upper bounds."""
-    T, J = X_pre.shape
-    w = cp.Variable(J)
-    gam = cp.Variable()
-
-    constraints = [cp.sum(w) == 1, w >= 0]
-    obj = cp.Minimize(cp.pnorm(X_pre.T @ (X_pre @ w - y_pre) / T + gam*np.ones(J), p='inf'))
-    prob = cp.Problem(obj, constraints)
-    prob.solve(solver=cp.CLARABEL, verbose=False)
-    tau_min = prob.value
-
-    w_eq = np.ones(J) / J
-    gam = cp.Variable()
-    obj = cp.Minimize(cp.pnorm(X_pre.T @ (X_pre @ w_eq - y_pre) / T + gam*np.ones(J), p='inf'))
-    prob = cp.Problem(obj)
-    prob.solve(solver=cp.CLARABEL, verbose=False)
-    tau_max = prob.value
-
-    tau_min *=1.02
-    tau_max *= 2
-    return np.geomspace(tau_max, tau_min, n_taus)
-
-
-def rescmcross_validate_tau(X_pre, y_pre, n_splits=10, n_taus=200):
-    """Cross-validate to pick tau."""
-    taus = generate_taus(X_pre, y_pre, n_taus)
-    kf = KFold(n_splits=n_splits, shuffle=False)
-
-    cv_errors, taus_per_fold = [], []
-    for train_idx, test_idx in kf.split(X_pre):
-        X_train, y_train = X_pre[train_idx], y_pre[train_idx]
-        X_test, y_test = X_pre[test_idx], y_pre[test_idx]
-
-        fold_errors, taus_this_fold = [], []
-        for tau in taus:
-            J = X_train.shape[1]
-            w = cp.Variable(J)
-            gam = cp.Variable()
-            obj = cp.Minimize(cp.sum_squares(w))
-            constraints = [
-                cp.sum(w) == 1,
-                w >= 0,
-                cp.pnorm(X_train.T @ (X_train @ w - y_train) / X_train.shape[0] + gam*np.ones(J), p='inf') <= tau,
-            ]
-            prob = cp.Problem(obj, constraints)
-            try:
-                prob.solve(solver=cp.CLARABEL, verbose=False)
-            except:
-                continue
-
-            if w.value is not None:
-                y_pred = X_test @ w.value
-                mse = np.mean((y_test - y_pred) ** 2)
-                fold_errors.append(mse)
-                taus_this_fold.append(tau)
-
-        if fold_errors:
-            cv_errors.append(fold_errors)
-            taus_per_fold.append(taus_this_fold)
-
-    min_len = min(len(f) for f in cv_errors)
-    cv_errors = np.array([f[:min_len] for f in cv_errors])
-    taus_common = taus_per_fold[0][:min_len]
-
-    mean_errors = np.mean(cv_errors, axis=0)
-    best_idx = np.argmin(mean_errors)
-    return taus_common[best_idx], taus_common, mean_errors
-
-
-def fit_l2_relaxation(X_pre, y_pre, tau):
-    """Fit SCM relaxation with chosen tau."""
-    T, J = X_pre.shape
-    w = cp.Variable(J)
-    gam = cp.Variable()
-    obj = cp.Minimize(0.5 * cp.norm(w, 2) ** 2)
-    constraints = [
-        cp.sum(w) == 1,
-        w >= 0,
-        cp.pnorm(X_pre.T @ (X_pre @ w - y_pre) / T + gam*np.ones(J), p='inf') <= tau,
-    ]
-    prob = cp.Problem(obj, constraints)
-    prob.solve(solver=cp.CLARABEL, verbose=False)
-
-    return w.value
 
 def tune_affine_lambda(
         y: np.ndarray,
@@ -4728,6 +4742,7 @@ def fast_DID_selector(
         fdid_result["intermediary"] = intermediary_results
 
     return {"DID": did_all, "FDID": fdid_result}
+
 
 
 
