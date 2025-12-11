@@ -7,7 +7,7 @@ from mlsynth.utils.inferutils import ag_conformal
 from ..utils.datautils import dataprep
 from ..exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError, MlsynthPlottingError
 from ..utils.resultutils import effects, plot_estimates
-from ..utils.estutils import standardize_data, back_transform_predictions, fit_l2_relaxation, generate_taus, rescmcross_validate_tau
+from ..utils.estutils import fit_l2_scm
 from ..config_models import ( # Import Pydantic models
     RESCMConfig,
     BaseEstimatorResults,
@@ -319,12 +319,12 @@ class RESCM:
             # Extract the number of pre-treatment and post-treatment periods.
             # These are crucial for the SRCest algorithm and subsequent effect calculations.
 
-            prepared_panel_data: Dict[str, Any] = dataprep(
+            prepped: Dict[str, Any] = dataprep(
                 self.df, self.unitid, self.time, self.outcome, self.treat
             )
             
-            T0 = num_pre_periods = prepared_panel_data.get("pre_periods")
-            num_post_periods = prepared_panel_data.get("post_periods")
+            T0 = num_pre_periods = prepped.get("pre_periods")
+            num_post_periods = prepped.get("post_periods")
 
             # Validate that period information is available from dataprep.
             if num_pre_periods is None:
@@ -339,27 +339,26 @@ class RESCM:
                 )
                 
             # Extract the outcome vector for the treated unit and the outcome matrix for donor units.
-            y: np.ndarray = prepared_panel_data["y"]
+            y: np.ndarray = prepped["y"]
 
-            Y0 = prepared_panel_data["donor_matrix"]
+            Y0 = prepped["donor_matrix"]
 
-            y_pre_std, X_pre_std, y_post_std, X_post_std, stats = standardize_data(y[:T0], Y0[:T0], y[T0:], Y0[T0:])
-            best_tau, taus, cv_errors = rescmcross_validate_tau(X_pre_std, y_pre_std, n_splits=5, n_taus=50)
-            weights_std = fit_l2_relaxation(X_pre_std, y_pre_std, best_tau)
-            donor_weights = {
-                donor: round(float(w), 3)
-                for donor, w in zip(prepared_panel_data['donor_names'], weights_std)
-            }
+            donor_names = prepped["donor_names"]
 
-            # Back-transform predictions
-            y_RESCM = back_transform_predictions(weights_std, Y0, stats)
+            results = fit_l2_scm(prepped["donor_matrix"][:prepped["pre_periods"]].astype(np.float64),
+                                 prepped["y"][:prepped["pre_periods"]].astype(np.float64).flatten(),
+                                 prepped["donor_matrix"][prepped["pre_periods"]:].astype(np.float64),
+                                 n_splits=10, n_taus=100)
 
 
             # Now calculate ATT and fit diagnostics using only these aligned windows
             attdict, fitdict, Vectors = effects.calculate(
-                y, y_RESCM,
+                y, results['predictions'],
                 T0, num_post_periods
             )
+
+            donor_weights = {state: (0 if w < 0.001 else round(w, 3)) for state, w in
+                             zip(donor_names, results['weights'])}
 
             # Combine all raw results into a single dictionary for storage and potential inspection.
             combined_raw_estimation_output = {
@@ -374,7 +373,7 @@ class RESCM:
             # This helper function handles the mapping and can raise MlsynthEstimationError.
             pydantic_results = self._create_estimator_results(
                 combined_raw_estimation_output=combined_raw_estimation_output,
-                prepared_panel_data=prepared_panel_data
+                prepared_panel_data=prepped
             )
 
         except (MlsynthDataError, MlsynthConfigError, MlsynthEstimationError) as e:
@@ -394,26 +393,26 @@ class RESCM:
                 # Attempt to get the counterfactual outcome series from the Pydantic results object.
                 cf_to_plot = pydantic_results.time_series.counterfactual_outcome if pydantic_results.time_series else None
                 if cf_to_plot is None: # Fallback to the raw estimated counterfactual if not found in Pydantic results.
-                    cf_to_plot = y_RESCM
+                    cf_to_plot = results['predictions']
 
                 # Validate that necessary data for plotting is available.
                 if cf_to_plot is None or not isinstance(cf_to_plot, np.ndarray):
                      warnings.warn("Cannot plot RESCM results: counterfactual outcome is not available or not an array.", UserWarning)
-                elif prepared_panel_data.get("y") is None: # Check for observed outcome.
+                elif prepped.get("y") is None: # Check for observed outcome.
                      warnings.warn("Cannot plot RESCM results: observed outcome 'y' is not available in prepared_panel_data.", UserWarning)
-                elif prepared_panel_data.get("treated_unit_name") is None: # Check for treated unit name.
+                elif prepped.get("treated_unit_name") is None: # Check for treated unit name.
                      warnings.warn("Cannot plot RESCM results: 'treated_unit_name' is not available in prepared_panel_data.", UserWarning)
                 else:
                     # Call the generic plotting utility.
                     plot_estimates(
-                        processed_data_dict=prepared_panel_data,
+                        processed_data_dict=prepped,
                         time_axis_label=self.time,
                         unit_identifier_column_name=self.unitid,
                         outcome_variable_label=self.outcome,
                         treatment_name_label=self.treat,
-                        treated_unit_name=prepared_panel_data["treated_unit_name"],
+                        treated_unit_name=prepped["treated_unit_name"],
                         observed_outcome_series=y,  # Observed outcome vector.
-                        counterfactual_series_list=[y_RESCM],
+                        counterfactual_series_list=[results['predictions']],
                         # List of counterfactual vectors.
                         estimation_method_name="RESCM",
                         counterfactual_names=["Relaxed SCM"],  # Names for legend.
