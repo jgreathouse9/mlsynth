@@ -7,7 +7,7 @@ from mlsynth.utils.inferutils import ag_conformal
 from ..utils.datautils import dataprep
 from ..exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError, MlsynthPlottingError
 from ..utils.resultutils import effects, plot_estimates
-from ..utils.estutils import fit_l2_scm
+from ..utils.estutils import fit_l1inf_scm, fit_l2_scm
 from ..config_models import ( # Import Pydantic models
     RESCMConfig,
     BaseEstimatorResults,
@@ -18,6 +18,13 @@ from ..config_models import ( # Import Pydantic models
     InferenceResults,
     MethodDetailsResults,
 )
+from dataclasses import dataclass
+
+@dataclass
+class EstimatorResults:
+    """Dataclass to store SCM estimation results for both L1-INF and L2 relaxation."""
+    l1inf: Any   # Can be the type returned by _create_estimator_results (Pydantic model)
+    l2: Any      # Same as above
 
 
 class RESCM:
@@ -166,8 +173,8 @@ class RESCM:
             att_dict_raw = combined_raw_estimation_output.get("Effects", {})
             fit_dict_raw = combined_raw_estimation_output.get("Fit", {})
             vectors_dict_raw = combined_raw_estimation_output.get("Vectors", {})
-            counterfactual_y_arr = combined_raw_estimation_output.get("Counterfactual")
-            donor_weights_dict_raw = combined_raw_estimation_output.get("Weights", {})
+            counterfactual_y_arr = vectors_dict_raw['Counterfactual']
+            donor_weights_dict_raw = combined_raw_estimation_output['Weights']
 
             effects = EffectsResults(
                 att=att_dict_raw.get("ATT"),
@@ -216,17 +223,9 @@ class RESCM:
                 gap=gap_arr,
                 time_periods=time_periods_arr, # Use the ndarray
             )
-            
-            donor_names_list = list(donor_weights_dict_raw.keys())
-            donor_weights_values_list = list(donor_weights_dict_raw.values()) # Not used
-
-            #weights = WeightsResults(
-              #  donor_weights=donor_weights_dict_raw if donor_weights_dict_raw else None,
-                #donor_names=donor_names_list if donor_names_list else None,
-            #)
 
             method_details = MethodDetailsResults(
-                method_name="SHC" # Name of the estimation method.
+                method_name="LINF" # Name of the estimation method.
                 # theta_hat represents the estimated regression coefficients from the SHC model.
                 # It includes coefficients for donor outcomes and potentially an intercept.
             )
@@ -236,7 +235,7 @@ class RESCM:
                 fit_diagnostics=fit_diagnostics,
                 time_series=time_series, #weights=weights,
                 method_details=method_details,
-                raw_results=combined_raw_estimation_output,
+                weights=donor_weights_dict_raw,
             )
         except pydantic.ValidationError as e:
             raise MlsynthEstimationError(f"Error creating Pydantic results model for RESCM: {e}") from e
@@ -322,57 +321,56 @@ class RESCM:
             prepped: Dict[str, Any] = dataprep(
                 self.df, self.unitid, self.time, self.outcome, self.treat
             )
-            
-            T0 = num_pre_periods = prepped.get("pre_periods")
-            num_post_periods = prepped.get("post_periods")
 
             # Validate that period information is available from dataprep.
-            if num_pre_periods is None:
+            if prepped.get("pre_periods") is None:
                 raise MlsynthDataError(
                     "Critical: 'pre_periods' key missing from dataprep output. "
                     "Ensure dataprep correctly identifies treated unit and pre-treatment periods."
                 )
-            if num_post_periods is None:
+            if prepped.get("post_periods") is None:
                 raise MlsynthDataError(
                     "Critical: 'post_periods' key missing from dataprep output. "
                     "Ensure dataprep correctly identifies treated unit and post-treatment periods."
                 )
-                
-            # Extract the outcome vector for the treated unit and the outcome matrix for donor units.
-            y: np.ndarray = prepped["y"]
 
-            Y0 = prepped["donor_matrix"]
-
-            donor_names = prepped["donor_names"]
-
-            results = fit_l2_scm(prepped["donor_matrix"][:prepped["pre_periods"]].astype(np.float64),
+            l2results = fit_l2_scm(prepped["donor_matrix"][:prepped["pre_periods"]].astype(np.float64),
                                  prepped["y"][:prepped["pre_periods"]].astype(np.float64).flatten(),
                                  prepped["donor_matrix"][prepped["pre_periods"]:].astype(np.float64),
-                                 n_splits=10, n_taus=100)
+                                 n_splits=4, n_taus=100, y=prepped["y"], donor_names=prepped["donor_names"])
 
+            fit_intercept = True
+            print("Beginning Cross Validation...")
 
-            # Now calculate ATT and fit diagnostics using only these aligned windows
-            attdict, fitdict, Vectors = effects.calculate(
-                y, results['predictions'],
-                T0, num_post_periods
+            # 3. Fit the INF SCM using the new wrapper
+            l1infres = fit_l1inf_scm(
+                X_pre=prepped["donor_matrix"][:prepped["pre_periods"]].astype(np.float64),
+                y_pre=prepped["y"][:prepped["pre_periods"]].astype(np.float64).flatten(),
+                X_post=prepped["donor_matrix"][prepped["pre_periods"]:].astype(np.float64),
+                alpha_grid=np.linspace(0.0, 1.0, num=20),
+                intercept=fit_intercept,
+                n_splits=4,
+                n_repeats=1,
+                max_workers=4, y=prepped["y"], donor_names=prepped["donor_names"]
             )
 
-            donor_weights = {state: (0 if w < 0.001 else round(w, 3)) for state, w in
-                             zip(donor_names, results['weights'])}
-
-            # Combine all raw results into a single dictionary for storage and potential inspection.
-            combined_raw_estimation_output = {
-                "Effects": attdict, # Dictionary of ATT and related effect measures.
-                "Fit": fitdict, # Dictionary of fit statistics (RMSE, R-squared).
-                "Vectors": Vectors, # Dictionary of observed, counterfactual, and gap series.
-                "Weights": donor_weights
-            }
+            # ------------------ Helper to extract Results dictionary ------------------
+            def extract_results(res, weight_key="Weights"):
+                return {
+                    "Effects": res['Results']['Effects'],
+                    "Fit": res['Results']['Fit'],
+                    "Vectors": res['Results']['Counterfactuals'],
+                    weight_key: res.get('donor_dict', res.get('weights'))
+                }
 
 
-            # Convert the combined raw results into the standardized Pydantic BaseEstimatorResults model.
-            # This helper function handles the mapping and can raise MlsynthEstimationError.
-            pydantic_results = self._create_estimator_results(
-                combined_raw_estimation_output=combined_raw_estimation_output,
+            # ------------------ Convert to standardized model ------------------
+            l1res = self._create_estimator_results(
+                combined_raw_estimation_output=extract_results(l1infres, weight_key="Weights"),
+                prepared_panel_data=prepped
+            )
+            l2res = self._create_estimator_results(
+                combined_raw_estimation_output=extract_results(l2results, weight_key="Weights"),
                 prepared_panel_data=prepped
             )
 
@@ -388,40 +386,29 @@ class RESCM:
             raise MlsynthEstimationError(f"An unexpected critical error occurred during RESCM fit: {type(e).__name__}: {e}") from e
 
         # --- Plotting Phase ---
-        if self.display_graphs: # If plotting is enabled in the configuration.
+        if self.display_graphs:
             try:
-                # Attempt to get the counterfactual outcome series from the Pydantic results object.
-                cf_to_plot = pydantic_results.time_series.counterfactual_outcome if pydantic_results.time_series else None
-                if cf_to_plot is None: # Fallback to the raw estimated counterfactual if not found in Pydantic results.
-                    cf_to_plot = results['predictions']
-
-                # Validate that necessary data for plotting is available.
-                if cf_to_plot is None or not isinstance(cf_to_plot, np.ndarray):
-                     warnings.warn("Cannot plot RESCM results: counterfactual outcome is not available or not an array.", UserWarning)
-                elif prepped.get("y") is None: # Check for observed outcome.
-                     warnings.warn("Cannot plot RESCM results: observed outcome 'y' is not available in prepared_panel_data.", UserWarning)
-                elif prepped.get("treated_unit_name") is None: # Check for treated unit name.
-                     warnings.warn("Cannot plot RESCM results: 'treated_unit_name' is not available in prepared_panel_data.", UserWarning)
-                else:
-                    # Call the generic plotting utility.
-                    plot_estimates(
-                        processed_data_dict=prepped,
-                        time_axis_label=self.time,
-                        unit_identifier_column_name=self.unitid,
-                        outcome_variable_label=self.outcome,
-                        treatment_name_label=self.treat,
-                        treated_unit_name=prepped["treated_unit_name"],
-                        observed_outcome_series=y,  # Observed outcome vector.
-                        counterfactual_series_list=[results['predictions']],
-                        # List of counterfactual vectors.
-                        estimation_method_name="RESCM",
-                        counterfactual_names=["Relaxed SCM"],  # Names for legend.
-                        treated_series_color=self.treated_color,
-                        counterfactual_series_colors=self.counterfactual_color,
-                        save_plot_config=self.save)
+                # Call the generic plotting utility.
+                plot_estimates(
+                    processed_data_dict=prepped,
+                    time_axis_label=self.time,
+                    unit_identifier_column_name=self.unitid,
+                    outcome_variable_label=self.outcome,
+                    treatment_name_label=self.treat,
+                    treated_unit_name=prepped["treated_unit_name"],
+                    observed_outcome_series=prepped["y"],  # Observed outcome vector.
+                    counterfactual_series_list=[l2res.time_series.counterfactual_outcome, l1res.time_series.counterfactual_outcome],
+                    # List of counterfactual vectors.
+                    estimation_method_name="RESCM",
+                    counterfactual_names=["Relaxed SCM", "L1INF SCM"],  # Names for legend.
+                    treated_series_color=self.treated_color,
+                    counterfactual_series_colors=self.counterfactual_color,
+                    save_plot_config=self.save)
             except (MlsynthPlottingError, MlsynthDataError) as e: # Catch known plotting or data errors.
                 warnings.warn(f"Plotting failed for RESCM due to data or plotting issue: {e}", UserWarning)
             except Exception as e: # Catch any other unexpected errors during plotting.
                 warnings.warn(f"An unexpected error occurred during RESCM plotting: {type(e).__name__}: {e}", UserWarning)
 
-        return pydantic_results
+        class_results = EstimatorResults(l1inf=l1res, l2=l2res)
+
+        return class_results
