@@ -4257,6 +4257,200 @@ def tune_lambda_ashc(L, ell_eval, w_shc, lambda_grid=None, split_ratio=0.5):
 ## Relaxed Balanced SC
 
 
+
+class L1INFRelaxationCV(BaseEstimator, RegressorMixin):
+    """INF SCM with time-series aware cross-validation for alpha/lambda tuning."""
+
+    def __init__(self, alpha_grid, intercept=False, n_splits=5, n_repeats=1, max_workers=None):
+        self.alpha_grid = alpha_grid
+        self.intercept = intercept
+        self.n_splits = n_splits
+        self.n_repeats = n_repeats
+        self.max_workers = max_workers
+
+    def _solve_inf_scm(self, X, y, alpha, lam):
+        """Solve INF SCM problem for given alpha/lambda using Opt.SCopt."""
+        prob = Opt.SCopt(
+            num_control_units=X.shape[1],
+            target_outcomes_pre_treatment=y,
+            num_pre_treatment_periods=len(y),
+            donor_outcomes_pre_treatment=X,
+            scm_model_type="INF",
+            lambda_penalty=lam,
+            alpha_penalty=alpha,
+            fit_intercept=self.intercept,
+            affine=False
+        )
+        vars_list = list(prob.solution.primal_vars.values())
+        if self.intercept:
+            w = np.concatenate([np.asarray(vars_list[0]).ravel(),
+                                np.asarray(vars_list[1]).ravel()])
+        else:
+            w = np.asarray(vars_list[0]).ravel()
+        return w
+
+    def _cross_validate(self, X, y):
+        """Perform cross-validation to select alpha and lambda."""
+        cv_errors = {}
+        best_error = np.inf
+        best_params = None
+
+        # Prepare alpha/lambda combos
+        param_list = []
+        for alpha in self.alpha_grid:
+            lam_grid = generate_lambda_seq2(y, X, alpha,num=20)
+            param_list.extend([(alpha, lam) for lam in lam_grid])
+
+        def evaluate_combo(alpha_lam):
+            alpha, lam = alpha_lam
+            total_sspe = 0.0
+            for r in range(self.n_repeats):
+                tscv = TimeSeriesSplit(n_splits=self.n_splits)
+                Tau = np.zeros_like(y)
+                for train_idx, test_idx in tscv.split(X):
+                    X_train, y_train = X[train_idx], y[train_idx]
+                    X_test, y_test = X[test_idx], y[test_idx]
+                    w = self._solve_inf_scm(X_train, y_train, alpha, lam)
+
+                    if self.intercept:
+                        X_test_plus = np.hstack([np.ones((len(X_test), 1)), X_test])
+                        Tau[test_idx] = y_test - X_test_plus @ w
+                    else:
+                        Tau[test_idx] = y_test - X_test @ w
+
+                total_sspe += np.sum(Tau ** 2)
+            return (alpha, lam, total_sspe)
+
+        # Parallel evaluation
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = [executor.submit(evaluate_combo, a_l) for a_l in param_list]
+            for future in as_completed(futures):
+                alpha, lam, total_sspe = future.result()
+                cv_errors[(alpha, lam)] = total_sspe
+                if total_sspe < best_error:
+                    best_error = total_sspe
+                    best_params = (alpha, lam)
+
+        self.best_alpha_, self.best_lambda_ = best_params
+        self.cv_errors_ = cv_errors
+
+    def _fit_full_data(self, X, y):
+        self.coef_ = self._solve_inf_scm(X, y, self.best_alpha_, self.best_lambda_)
+
+    def fit(self, X, y):
+        X, y = check_X_y(X, y)
+        self._cross_validate(X, y)
+        self._fit_full_data(X, y)
+        return self
+
+    def predict(self, X):
+        X = check_array(X)
+        if self.intercept:
+            X_plus = np.hstack([np.ones((X.shape[0], 1)), X])
+            return X_plus @ self.coef_
+        else:
+            return X @ self.coef_
+
+
+def fit_l1inf_scm(
+    X_pre,
+    y_pre,
+    X_post,
+    alpha_grid,
+    intercept=False,
+    n_splits=5,
+    n_repeats=1,
+    max_workers=None,
+    y=None, donor_names=None
+):
+    """
+    Fit INF SCM with time-series CV.
+    """
+
+    # ------------------ Scale donors ------------------
+    scaler_X = StandardScaler().fit(X_pre)
+    X_pre_scaled = scaler_X.transform(X_pre)
+    X_post_scaled = scaler_X.transform(X_post)
+
+    # ------------------ Scale outcome -----------------
+    y_mean, y_std = y_pre.mean(), y_pre.std()
+    y_pre_scaled = (y_pre - y_mean) / y_std
+
+    # ------------------ Fit model ---------------------
+    model = L1INFRelaxationCV(
+        alpha_grid=alpha_grid,
+        intercept=intercept,
+        n_splits=n_splits,
+        n_repeats=n_repeats,
+        max_workers=max_workers
+    )
+
+    model.fit(X_pre_scaled, y_pre_scaled)
+
+    # ------------------ Predictions -------------------
+    y_pre_pred = model.predict(X_pre_scaled) * y_std + y_mean
+    y_post_pred = model.predict(X_post_scaled) * y_std + y_mean
+
+    # ------------------ Extract weights ----------------
+    coef = model.coef_
+
+    if intercept:
+        intercept_weight = coef[0]
+        donor_weights_scaled = coef[1:]
+    else:
+        intercept_weight = 0.0
+        donor_weights_scaled = coef
+
+    # Back-transform donor weights only
+    donor_weights = donor_weights_scaled / scaler_X.scale_
+
+    # Normalize donor weights to sum to 1
+    #donor_weights = donor_weights / np.sum(donor_weights)
+
+
+    # ------------------ Calculate ATT and fit diagnostics ----------------
+    attdict, fitdict, Vectors = effects.calculate(
+        y,
+        np.concatenate([y_pre_pred, y_post_pred]),
+        X_pre.shape[0],
+        X_post_scaled.shape[0]
+    )
+
+    # ------------------ Format donor weights ----------------
+    donor_weightsl1inf = {
+        state: (0 if w < 0.001 else round(w, 3))
+        for state, w in zip(donor_names, donor_weights)
+    }
+
+    # ------------------ Return nested dictionary ----------------
+    return {
+        "weights": donor_weights,
+        "intercept": intercept_weight,
+        "predictions": np.concatenate([y_pre_pred, y_post_pred]),
+        "best_alpha": model.best_alpha_,
+        "best_lambda": model.best_lambda_,
+        "cv_errors": model.cv_errors_,
+        "donor_dict": donor_weightsl1inf,
+        "Results": {
+            "Effects": attdict,
+            "Fit": fitdict,
+            "Counterfactuals": Vectors
+        }
+    }
+
+
+def generate_lambda_seq2(Y1, Y0, alpha, epsilon=1e-4, num=30):
+    # Standardize predictors
+    sY0 = (Y0 - np.mean(Y0, axis=0)) / np.std(Y0, axis=0, ddof=0)
+    alpha = max(alpha, 0.01)  # avoid div by zero
+    # Lambda max based on L1 contribution
+    lam_max = np.max(np.abs(sY0.T @ Y1)) / (Y0.shape[0] * alpha)
+    lam_min = lam_max * epsilon
+    lam_max = min(lam_max, 20)
+    lam_min = min(lam_min, 1e-4)
+    lam_seq = np.exp(np.linspace(np.log(lam_max), np.log(lam_min), num))
+    return lam_seq
+
 class L2RelaxationCV(BaseEstimator, RegressorMixin):
     """L2 Relaxation with time-series aware cross-validation for synthetic control using Clarabel."""
 
@@ -4368,7 +4562,7 @@ class L2RelaxationCV(BaseEstimator, RegressorMixin):
         return X @ self.coef_
 
 
-def fit_l2_scm(X_pre, y_pre, X_post, n_splits=10, n_taus=1000):
+def fit_l2_scm(X_pre, y_pre, X_post, n_splits=5, n_taus=1000, donor_names=None, y=None):
     """Fit L2 relaxation synthetic control with standardized inputs and back-transformed weights."""
     scaler_X = StandardScaler().fit(X_pre)
     X_pre_scaled = scaler_X.transform(X_pre)
@@ -4385,12 +4579,27 @@ def fit_l2_scm(X_pre, y_pre, X_post, n_splits=10, n_taus=1000):
 
     weights_scaled = model.coef_
     weights_orig = weights_scaled / scaler_X.scale_
-    weights_orig = weights_orig / np.sum(weights_orig)
+
+    donor_weights = {state: (0 if w < 0.001 else round(w, 3)) for state, w in
+                     zip(donor_names, weights_orig)}
+
+    # Now calculate ATT and fit diagnostics using only these aligned windows
+    attdict, fitdict, Vectors = effects.calculate(
+        y, np.concatenate([y_pre_pred, y_post_pred]),
+        X_pre.shape[0], X_post_scaled.shape[0]
+    )
 
     return {
-        'weights': weights_orig,
-        'predictions': np.concatenate([y_pre_pred, y_post_pred])
+        "weights": donor_weights,
+        "predictions": np.concatenate([y_pre_pred, y_post_pred]),
+        "Results": {
+            "Effects": attdict,
+            "Fit": fitdict,
+            "Counterfactuals": Vectors
+        }
     }
+
+
 
 
 
@@ -4742,6 +4951,7 @@ def fast_DID_selector(
         fdid_result["intermediary"] = intermediary_results
 
     return {"DID": did_all, "FDID": fdid_result}
+
 
 
 
