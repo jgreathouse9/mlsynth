@@ -25,13 +25,16 @@ from mlsynth.utils.selector_helpers import (
     _select_best_donor,
     _update_synthetic_control,
 )
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score # Not used in this file
-from sklearn.model_selection import KFold, TimeSeriesSplit
+from sklearn.metrics import silhouette_score
+from sklearn.model_selection import KFold
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.utils.validation import check_X_y, check_array
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.preprocessing import StandardScaler
-from functools import partial # Not used in this file
+from functools import partial
 from statsmodels.tsa.stattools import acf
 from scipy.stats import norm # zconfint was not explicitly imported and not used
 from sklearn.linear_model import LassoCV
@@ -50,8 +53,9 @@ _SCM_MODEL_MSCA = "MSCa"
 _SCM_MODEL_MSCB = "MSCb"
 _SCM_MODEL_MSCC = "MSCc"
 _SCM_MODEL_OLS = "OLS"
-_SCM_MODEL_MA = "MA" # Model Averaging
+_SCM_MODEL_MA = "MA"
 _SCM_MODEL_INF = "INF"
+_SCM_MODEL_RL2 = "RL2"
 
 _PDA_METHOD_FS = "fs" # Forward Selection
 _PDA_METHOD_LASSO = "LASSO"
@@ -1945,12 +1949,19 @@ class Opt:
         if p == 2:
             # L2 / Ridge: use Clarabel
             problem_ols.solve(
-                solver=cp.CLARABEL
+                solver=cp.CLARABEL,
+                eps=1e-9,
+                max_iter=1000,
+                verbose=False
             )
         elif p == 1:
             # L1 / Lasso: use CVXOPT with strict tolerances
             problem_ols.solve(
                 solver=cp.CVXOPT,
+                show_progress=False,
+                abstol=1e-9,
+                reltol=1e-8,
+                feastol=1e-8, max_iter=8000,
             )
         else:
             # fallback
@@ -1994,8 +2005,8 @@ class Opt:
             The solved CVXPY problem.
         """
 
-        lam = 0.0 if lambda_penalty is None else float(lambda_penalty)
-        alpha = 0.0 if alpha_penalty is None else float(alpha_penalty)
+        lam = lambda_penalty
+        alpha = alpha_penalty
 
         T = target_outcomes_pre_treatment_ols.shape[0]
         J = num_donors_ols
@@ -2025,15 +2036,54 @@ class Opt:
         problem = cp.Problem(objective, constraints)
 
         # Solve
-        problem.solve(solver=cp.OSQP)
+        problem.solve(solver=cp.OSQP, eps_abs=1e-9, eps_rel=1e-8, max_iter=10000, verbose=False)
 
         return problem
 
+    @staticmethod
+    def _solve_relax_l2_tau(
+            target_outcomes_pre_treatment_ols: np.ndarray,
+            donor_outcomes_pre_treatment_ols: np.ndarray,
+            num_donors_ols: int,
+            tau: float,
+    ) -> cp.Problem:
+        """
+        Solve the τ-constrained relaxed balanced SCM problem:
 
+            minimize ||w||_2^2
+            subject to  || X^T (X w - y) / T + gamma * 1 ||_inf ≤ τ
 
+        Always uses:
+            - nonnegative weights
+            - sum(w) = 1
+            - no intercept
+        """
 
+        X = donor_outcomes_pre_treatment_ols
+        y = target_outcomes_pre_treatment_ols
+        T, J = X.shape
 
+        # Variables: simplex weights + scalar gamma
+        w = cp.Variable(J, nonneg=True, name="donor_weights")
+        gamma = cp.Variable(name="gamma")
 
+        residual = X @ w - y
+        imbalance = X.T @ residual / T + gamma * cp.ones(J)
+
+        # Objective: minimize squared L2 norm of weights
+        objective = cp.Minimize(cp.sum_squares(w))
+
+        # Constraints: simplex + τ bound
+        constraints = [
+            cp.sum(w) == 1,
+            cp.norm(imbalance, "inf") <= tau,
+        ]
+
+        problem = cp.Problem(objective, constraints)
+
+        problem.solve(solver=cp.CLARABEL,verbose=False)
+
+        return problem
     @staticmethod
     def SCopt(
         num_control_units: int,
@@ -2234,21 +2284,23 @@ class Opt:
 
         elif scm_model_type == _SCM_MODEL_INF:
 
+
             return Opt._solve_inf_model(
                 target_outcomes_pre_treatment_ols=target_outcomes_pre_treatment_subset,
                 donor_outcomes_pre_treatment_ols=processed_donor_outcomes_pre_treatment_subset,
                 num_donors_ols=current_num_control_units,
                 lambda_penalty=lambda_penalty,
-                alpha_penalty=None,
+                alpha_penalty=alpha_penalty,
                 fit_intercept=fit_intercept,
                 affine=affine)
+
         else:
             raise MlsynthConfigError(
                 f"Unsupported SCM model type: {scm_model_type}. Supported types are: "
                 f"{_SCM_MODEL_SIMPLEX}, {_SCM_MODEL_MSCA}, {_SCM_MODEL_MSCB}, "
-                f"{_SCM_MODEL_MSCC}, {_SCM_MODEL_OLS}, {_SCM_MODEL_MA}, {_SCM_MODEL_INF}."
+                f"{_SCM_MODEL_MSCC}, {_SCM_MODEL_OLS}, {_SCM_MODEL_MA}, {_SCM_MODEL_INF},"
+                f"{_SCM_MODEL_RL2}."
             )
-
 
 
 def pda(
@@ -3221,99 +3273,67 @@ def get_sigmasq(treated_outcome_pre_treatment: np.ndarray, donor_outcomes_pre_tr
 
 
 def __SRC_opt(
-    treated_outcome_pre_treatment: np.ndarray, donor_outcomes_pre_treatment: np.ndarray, 
+    treated_outcome_pre_treatment: np.ndarray,
+    donor_outcomes_pre_treatment: np.ndarray,
     donor_outcomes_post_treatment: np.ndarray,
-    aligned_donor_outcomes_pre_treatment: np.ndarray, alignment_coefficients: np.ndarray, 
+    aligned_donor_outcomes_pre_treatment: np.ndarray,
+    alignment_coefficients: np.ndarray,
     noise_variance_estimate: float
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Perform Synthetic Regressing Control (SRC) weight optimization and prediction.
 
-    This is a helper function for `SRCest`. It solves the SRC optimization
-    problem to find donor weights `optimal_donor_weights` and then constructs
-    pre-treatment predictions and post-treatment counterfactuals.
-
-    The optimization problem is:
-
-    ``min ||treated_outcome_pre_treatment - aligned_donor_outcomes_pre_treatment @ donor_weights||_2**2 +
-    2 * noise_variance_estimate * sum(donor_weights)``
-
-    subject to ``donor_weights >= 0`` and ``sum(donor_weights) == 1``.
-
-    Parameters
-    ----------
-    treated_outcome_pre_treatment : np.ndarray
-        Pre-treatment outcomes for the treated unit, shape (num_pre_treatment_periods,).
-    donor_outcomes_pre_treatment : np.ndarray
-        Pre-treatment outcomes for donor units, shape (num_pre_treatment_periods, num_donors).
-    donor_outcomes_post_treatment : np.ndarray
-        Post-treatment outcomes for donor units, shape (num_post_treatment_periods, num_donors).
-    aligned_donor_outcomes_pre_treatment : np.ndarray
-        Pre-treatment donor outcomes aligned by `alignment_coefficients`,
-        shape (num_pre_treatment_periods, num_donors).
-    alignment_coefficients : np.ndarray
-        Estimated alignment coefficients, shape (num_donors,).
-    noise_variance_estimate : float
-        Estimated noise variance from `get_sigmasq`.
-
-    Returns
-    -------
-    Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
-        - predicted_treated_outcome_pre_treatment : np.ndarray
-            In-sample predicted treated unit outcomes for the pre-treatment
-            period, shape (num_pre_treatment_periods,).
-        - predicted_counterfactual_post_treatment : np.ndarray
-            Predicted counterfactual outcomes for the treated unit in the
-            post-treatment period, shape (num_post_treatment_periods,).
-        - optimal_donor_weights : np.ndarray
-            Optimal donor weights, shape (num_donors,).
-        - alignment_coefficients : np.ndarray
-            The input alignment coefficients, passed through, shape (num_donors,).
-
-    Notes
-    -----
-    Uses OSQP solver for the quadratic program.
+    This implements Algorithm 1 in the SRC paper.
     """
-    num_donors: int = donor_outcomes_pre_treatment.shape[1]
-    # Define the CVXPY variable for donor weights. Weights are constrained to be non-negative.
-    donor_weights_cvxpy = cp.Variable(num_donors, nonneg=True)
 
-    # L2 loss term: minimize the squared difference between the actual pre-treatment outcome
-    # and the synthetic control constructed from aligned donor outcomes.
-    l2_loss_term = cp.sum_squares(treated_outcome_pre_treatment - aligned_donor_outcomes_pre_treatment @ donor_weights_cvxpy)
-    # Penalty term: 2 * sigma^2 * sum(weights). This penalizes larger weights,
-    # with the penalty scaled by the estimated noise variance.
-    penalty_term = 2 * noise_variance_estimate * cp.sum(donor_weights_cvxpy)
-    
-    # Objective function: Minimize the sum of the L2 loss and the penalty term.
-    optimization_objective = cp.Minimize(l2_loss_term + penalty_term)
-    # Constraint: Donor weights must sum to 1, ensuring a convex combination.
-    optimization_constraints = [cp.sum(donor_weights_cvxpy) == 1]
-    
-    # Create and solve the optimization problem using the OSQP solver, suitable for quadratic programs.
-    optimization_problem = cp.Problem(optimization_objective, optimization_constraints)
-    optimization_problem.solve(solver=_SOLVER_OSQP_STR) 
+    num_donors = donor_outcomes_pre_treatment.shape[1]
 
-    # Extract the optimal donor weights from the solution.
-    optimal_donor_weights: np.ndarray = donor_weights_cvxpy.value
+    # ---- Optimization ----
+    donor_weights = cp.Variable(num_donors)
 
-    # Calculate means for pre-treatment outcomes (treated and donors) for constructing post-treatment counterfactual.
-    mean_treated_outcome_pre_treatment: float = np.mean(treated_outcome_pre_treatment)
-    mean_donor_outcomes_pre_treatment: np.ndarray = np.mean(donor_outcomes_pre_treatment, axis=0)
-    
-    # In-sample prediction for the pre-treatment period.
-    # This uses the original (non-aligned) donor outcomes, scaled by the product of optimal weights and alignment coefficients.
-    # This reconstructs the treated unit's pre-treatment outcome using the SRC model.
-    predicted_treated_outcome_pre_treatment: np.ndarray = donor_outcomes_pre_treatment @ (optimal_donor_weights * alignment_coefficients)
-    
-    # Post-treatment counterfactual prediction.
-    # This is constructed by taking the mean of the treated unit's pre-treatment outcome,
-    # and adding the weighted and aligned deviations of post-treatment donor outcomes from their pre-treatment means.
-    # Formula: Y_mean_pre_treated + (Y_donors_post - Y_mean_donors_pre) @ (weights * theta)
-    predicted_counterfactual_post_treatment: np.ndarray = mean_treated_outcome_pre_treatment +\
-        (donor_outcomes_post_treatment - mean_donor_outcomes_pre_treatment) @ (optimal_donor_weights * alignment_coefficients)
+    loss = cp.sum_squares(
+        treated_outcome_pre_treatment
+        - aligned_donor_outcomes_pre_treatment @ donor_weights
+    )
 
-    return predicted_treated_outcome_pre_treatment, predicted_counterfactual_post_treatment, optimal_donor_weights, alignment_coefficients
+    penalty = 2 * noise_variance_estimate * cp.sum(donor_weights)
+
+    objective = cp.Minimize(loss + penalty)
+
+    constraints = [
+        donor_weights >= 0,
+        donor_weights <= 1  # optional but paper-consistent
+    ]
+
+    problem = cp.Problem(objective, constraints)
+    problem.solve(solver=_SOLVER_OSQP_STR)
+
+    optimal_donor_weights = donor_weights.value
+
+    # ---- Prediction (Eq. 26) ----
+    mean_y1_pre = treated_outcome_pre_treatment.mean()
+    mean_Y0_pre = donor_outcomes_pre_treatment.mean(axis=0)
+
+    # Pre-treatment fitted values
+    predicted_treated_outcome_pre_treatment = (
+        mean_y1_pre
+        + (donor_outcomes_pre_treatment - mean_Y0_pre)
+        @ (optimal_donor_weights * alignment_coefficients)
+    )
+
+    # Post-treatment counterfactual
+    predicted_counterfactual_post_treatment = (
+        mean_y1_pre
+        + (donor_outcomes_post_treatment - mean_Y0_pre)
+        @ (optimal_donor_weights * alignment_coefficients)
+    )
+
+    return (
+        predicted_treated_outcome_pre_treatment,
+        predicted_counterfactual_post_treatment,
+        optimal_donor_weights,
+        alignment_coefficients
+    )
 
 
 def SRCest(
@@ -4257,7 +4277,6 @@ def tune_lambda_ashc(L, ell_eval, w_shc, lambda_grid=None, split_ratio=0.5):
 ## Relaxed Balanced SC
 
 
-
 class L1INFRelaxationCV(BaseEstimator, RegressorMixin):
     """INF SCM with time-series aware cross-validation for alpha/lambda tuning."""
 
@@ -4363,7 +4382,9 @@ def fit_l1inf_scm(
     max_workers=None,
     y=None, donor_names=None
 ):
-    """Fit INF SCM with time-series CV."""
+    """
+    Fit INF SCM with time-series CV.
+    """
 
     # ------------------ Scale donors ------------------
     scaler_X = StandardScaler().fit(X_pre)
@@ -4433,7 +4454,8 @@ def fit_l1inf_scm(
             "Effects": attdict,
             "Fit": fitdict,
             "Counterfactuals": Vectors
-        }
+        },
+        "Model": "Elastic-Net"
     }
 
 
@@ -4452,11 +4474,26 @@ def generate_lambda_seq2(Y1, Y0, alpha, epsilon=1e-4, num=30):
 class L2RelaxationCV(BaseEstimator, RegressorMixin):
     """L2 Relaxation with time-series aware cross-validation for synthetic control using Clarabel."""
 
-    def __init__(self, *, taus=None, n_taus=1000, n_splits=10, nonneg=True):
-        self.taus = taus
-        self.n_taus = len(taus) if taus is not None else n_taus
+    def __init__(self, *, tau=None, n_taus=1000, n_splits=10, nonneg=True):
+        """
+        Parameters
+        ----------
+        tau : float or array-like, optional
+            If scalar, use this tau directly (skip CV).
+            If array-like, use these taus for cross-validation.
+            If None, generate grid automatically.
+        n_taus : int
+            Number of taus to generate if tau is None.
+        n_splits : int
+            Number of time-series CV splits.
+        nonneg : bool
+            Whether weights are constrained to be non-negative.
+        """
+        self.tau = tau
+        self.n_taus = n_taus if tau is None else (len(tau) if hasattr(tau, "__len__") else 1)
         self.n_splits = n_splits
         self.nonneg = nonneg
+
 
     @staticmethod
     def _relaxation_min_obj(w):
@@ -4465,7 +4502,7 @@ class L2RelaxationCV(BaseEstimator, RegressorMixin):
     def _solve_l2_problem(self, X, y, tau=None):
         """Solve the L2 relaxation problem for given X, y, and tau."""
         T, J = X.shape
-        w = cp.Variable(J, nonneg=True)
+        w = cp.Variable(J, nonneg=self.nonneg)
         gam = cp.Variable()
         tau_val = self.tau_ if tau is None else tau
 
@@ -4505,11 +4542,21 @@ class L2RelaxationCV(BaseEstimator, RegressorMixin):
         self.taus_ = np.geomspace(upper_limit, lower_limit, self.n_taus)
 
     def _process_tau_grid(self, X, y):
-        if self.taus is None:
-            self._generate_taus(X, y)
-        else:
+        if np.isscalar(self.tau):
+            # Single tau: skip cross-validation
+            self.taus_ = np.array([self.tau])
+            self.tau_ = self.tau
+            self.skip_cv_ = True
+        elif self.tau is not None:
+            # Array-like taus for cross-validation
             lower_limit = self._get_tau_lower_limit(X, y)
-            self.taus_ = np.sort(self.taus[self.taus_ >= lower_limit])[::-1]
+            self.taus_ = np.sort(np.array(self.tau))[::-1]
+            self.taus_ = self.taus_[self.taus_ >= lower_limit]
+            self.skip_cv_ = False
+        else:
+            # Generate taus automatically
+            self._generate_taus(X, y)
+            self.skip_cv_ = False
 
     def _cross_validate(self, X, y):
         tscv = TimeSeriesSplit(n_splits=self.n_splits)
@@ -4551,7 +4598,10 @@ class L2RelaxationCV(BaseEstimator, RegressorMixin):
     def fit(self, X, y):
         X, y = check_X_y(X, y)
         self._process_tau_grid(X, y)
-        self._cross_validate(X, y)
+
+        if not getattr(self, "skip_cv_", False):
+            self._cross_validate(X, y)
+
         self._fit_full_data(X, y)
         return self
 
@@ -4560,28 +4610,68 @@ class L2RelaxationCV(BaseEstimator, RegressorMixin):
         return X @ self.coef_
 
 
-def fit_l2_scm(X_pre, y_pre, X_post, n_splits=5, n_taus=1000, donor_names=None, y=None):
-    """Fit L2 relaxation synthetic control with standardized inputs and back-transformed weights."""
+
+def fit_l2_scm(X_pre, y_pre, X_post, donor_names=None, y=None, tau=None,
+               n_splits=5, n_taus=1000):
+    """
+    Fit L2 relaxation synthetic control with standardized inputs and back-transformed weights.
+
+    Parameters
+    ----------
+    X_pre : np.ndarray
+        Donor matrix for pre-treatment periods.
+    y_pre : np.ndarray
+        Treated unit outcomes for pre-treatment periods.
+    X_post : np.ndarray
+        Donor matrix for post-treatment periods.
+    donor_names : list[str], optional
+        Names of donor units.
+    y : np.ndarray, optional
+        Full treated outcome vector (pre + post), used for ATT calculation.
+    tau : float or array-like, optional
+        User-specified tau for the relaxed SCM.
+        If scalar, CV is skipped. If array, CV uses this grid.
+    n_splits : int
+        Number of CV splits if cross-validation is performed.
+    n_taus : int
+        Number of taus to generate if tau is None.
+
+    Returns
+    -------
+    dict
+        Contains 'weights', 'predictions', 'cv_performed', 'n_splits', 'tau_used',
+        and 'Results' dict (Effects, Fit, Counterfactuals).
+    """
+
+    # Standardize X
     scaler_X = StandardScaler().fit(X_pre)
     X_pre_scaled = scaler_X.transform(X_pre)
     X_post_scaled = scaler_X.transform(X_post)
 
+    # Standardize y
     y_mean, y_std = y_pre.mean(), y_pre.std()
     y_pre_scaled = (y_pre - y_mean) / y_std
 
-    model = L2RelaxationCV(n_splits=n_splits, n_taus=n_taus, nonneg=True)
+    # Initialize model with user-specified tau
+    model = L2RelaxationCV(tau=tau, n_taus=n_taus, n_splits=n_splits, nonneg=True)
     model.fit(X_pre_scaled, y_pre_scaled)
 
+    # Determine if cross-validation was performed
+    cv_performed = not isinstance(tau, (int, float))  # scalar tau skips CV
+    tau_used = model.tau_ if cv_performed else tau
+
+    # Predictions
     y_pre_pred = model.predict(X_pre_scaled) * y_std + y_mean
     y_post_pred = model.predict(X_post_scaled) * y_std + y_mean
 
+    # Transform weights back to original scale
     weights_scaled = model.coef_
     weights_orig = weights_scaled / scaler_X.scale_
 
-    donor_weights = {state: (0 if w < 0.001 else round(w, 3)) for state, w in
-                     zip(donor_names, weights_orig)}
+    donor_weights = {state: (0 if w < 0.001 else round(w, 3))
+                     for state, w in zip(donor_names, weights_orig)}
 
-    # Now calculate ATT and fit diagnostics using only these aligned windows
+    # ATT and fit diagnostics
     attdict, fitdict, Vectors = effects.calculate(
         y, np.concatenate([y_pre_pred, y_post_pred]),
         X_pre.shape[0], X_post_scaled.shape[0]
@@ -4590,12 +4680,19 @@ def fit_l2_scm(X_pre, y_pre, X_post, n_splits=5, n_taus=1000, donor_names=None, 
     return {
         "weights": donor_weights,
         "predictions": np.concatenate([y_pre_pred, y_post_pred]),
+        "cv_performed": cv_performed,
+        "n_splits": n_splits if cv_performed else None,
+        "tau_used": tau_used,
         "Results": {
             "Effects": attdict,
             "Fit": fitdict,
             "Counterfactuals": Vectors
-        }
+        },
+        "Model": "Relaxed Balanced"
     }
+
+
+
 
 
 
@@ -4949,8 +5046,3 @@ def fast_DID_selector(
         fdid_result["intermediary"] = intermediary_results
 
     return {"DID": did_all, "FDID": fdid_result}
-
-
-
-
-
