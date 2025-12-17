@@ -1,4 +1,4 @@
-from typing import List, Optional, Any, Dict, Union
+from typing import List, Optional, Any, Dict, Union, Literal
 import pandas as pd
 import numpy as np
 from pydantic import BaseModel, Field, model_validator
@@ -553,8 +553,6 @@ class SHCConfig(BaseEstimatorConfig):
 
 
 
-
-
 class RESCMConfig(BaseEstimatorConfig):
     """
     Configuration for the Relaxed Balanced SCM (RESCM) estimator.
@@ -566,18 +564,35 @@ class RESCMConfig(BaseEstimatorConfig):
     Example:
         models_to_run = {
             "RELAXED": {"run": True, "tau": 0.00257, "n_splits": 5, "n_taus": 100},
-            "ELASTIC": {"run": False}
+            "ELASTIC": {
+                "run": True,
+                "affine": False,
+                "simplex": True,
+                "intercept": False,
+                "enet_type": "L1_INF",
+                "alpha": 1.0,
+                "lambda": 0.01
+            }
         }
     """
-    models_to_run: Dict[Literal["RELAXED", "ELASTIC"], Dict[str, Union[bool, float, int]]] = Field(
+    models_to_run: Dict[Literal["RELAXED", "ELASTIC"], Dict[str, Any]] = Field(
         default_factory=lambda: {
             "RELAXED": {"run": True},
-            "ELASTIC": {"run": True}
+            "ELASTIC": {
+                "run": True,
+                "affine": False,
+                "simplex": True,
+                "intercept": False,
+                "enet_type": "L1_INF",  # Default to L1 + L∞
+                "alpha": None,           # Optional: user-specified alpha
+                "lambda": None           # Optional: user-specified lambda
+            }
         },
         description=(
             "Nested dictionary specifying which models to run and optional parameters per model. "
             "For example: {'RELAXED': {'run': True, 'tau': 0.00257, 'n_splits': 5, 'n_taus': 100}, "
-            "'ELASTIC': {'run': True}}"
+            "'ELASTIC': {'run': True, 'affine': False, 'simplex': True, 'intercept': False, "
+            "'enet_type': 'L1_INF', 'alpha': 1.0, 'lambda': 0.01}}"
         )
     )
 
@@ -585,40 +600,46 @@ class RESCMConfig(BaseEstimatorConfig):
     def validate_models(cls, values):
         models = values.models_to_run
         if not isinstance(models, dict):
-            raise MlsynthConfigError(
-                "'models_to_run' must be a dictionary, e.g., "
-                "{'RELAXED': {'run': True, 'tau': 0.00257}, 'ELASTIC': {'run': False}}"
-            )
+            raise MlsynthConfigError("'models_to_run' must be a dictionary.")
+
         allowed_keys = {"RELAXED", "ELASTIC"}
+        allowed_enet_types = {"L1_INF", "L1_L2"}
+
         for key, val in models.items():
             if key not in allowed_keys:
-                raise MlsynthConfigError(
-                    f"Invalid key in 'models_to_run': {key}. Allowed keys: {allowed_keys}"
-                )
+                raise MlsynthConfigError(f"Invalid key in 'models_to_run': {key}. Allowed: {allowed_keys}")
             if not isinstance(val, dict):
-                raise MlsynthConfigError(
-                    f"Value for '{key}' in 'models_to_run' must be a dictionary."
-                )
+                raise MlsynthConfigError(f"Value for '{key}' must be a dictionary.")
             if "run" not in val or not isinstance(val["run"], bool):
-                raise MlsynthConfigError(
-                    f"Each model dict must contain 'run': bool for '{key}'."
-                )
-            # Validate tau if present
-            if "tau" in val and not isinstance(val["tau"], (int, float)):
-                raise MlsynthConfigError(
-                    f"If provided, 'tau' for '{key}' must be a scalar float. Got: {type(val['tau']).__name__}"
-                )
-            # Validate n_splits if present
-            if "n_splits" in val and not isinstance(val["n_splits"], int):
-                raise MlsynthConfigError(
-                    f"If provided, 'n_splits' for '{key}' must be an int. Got: {type(val['n_splits']).__name__}"
-                )
-            # Validate n_taus if present
-            if "n_taus" in val and not isinstance(val["n_taus"], int):
-                raise MlsynthConfigError(
-                    f"If provided, 'n_taus' for '{key}' must be an int. Got: {type(val['n_taus']).__name__}"
-                )
+                raise MlsynthConfigError(f"Each model dict must contain 'run': bool for '{key}'.")
+
+            # RELAXED-specific validation
+            if key == "RELAXED":
+                if "tau" in val and not isinstance(val["tau"], (int, float)):
+                    raise MlsynthConfigError(f"'tau' for '{key}' must be a float.")
+                if "n_splits" in val and not isinstance(val["n_splits"], int):
+                    raise MlsynthConfigError(f"'n_splits' for '{key}' must be an int.")
+                if "n_taus" in val and not isinstance(val["n_taus"], int):
+                    raise MlsynthConfigError(f"'n_taus' for '{key}' must be an int.")
+
+            # ELASTIC-specific validation
+            if key == "ELASTIC":
+                if "affine" in val and not isinstance(val["affine"], bool):
+                    raise MlsynthConfigError(f"'affine' for '{key}' must be a bool.")
+                if "simplex" in val and not isinstance(val["simplex"], bool):
+                    raise MlsynthConfigError(f"'simplex' for '{key}' must be a bool.")
+                if "intercept" in val and not isinstance(val["intercept"], bool):
+                    raise MlsynthConfigError(f"'intercept' for '{key}' must be a bool.")
+                if "enet_type" in val and val["enet_type"] not in allowed_enet_types:
+                    raise MlsynthConfigError(f"'enet_type' for '{key}' must be one of {allowed_enet_types}.")
+                if "alpha" in val and val["alpha"] is not None and not isinstance(val["alpha"], (int, float, list, np.ndarray)):
+                    raise MlsynthConfigError(f"'alpha' for '{key}' must be a scalar or list/array if provided.")
+                if "lambda" in val and val["lambda"] is not None and not isinstance(val["lambda"], (int, float, list, np.ndarray)):
+                    raise MlsynthConfigError(f"'lambda' for '{key}' must be a scalar or list/array if provided.")
+
         return values
+
+
 
 
 
@@ -807,7 +828,6 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
-
 
 
 
