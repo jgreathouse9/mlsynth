@@ -4382,9 +4382,7 @@ def fit_l1inf_scm(
     max_workers=None,
     y=None, donor_names=None
 ):
-    """
-    Fit INF SCM with time-series CV.
-    """
+    """Fit INF SCM with time-series CV."""
 
     # ------------------ Scale donors ------------------
     scaler_X = StandardScaler().fit(X_pre)
