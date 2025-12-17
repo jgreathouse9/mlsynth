@@ -43,7 +43,7 @@ from mlsynth.utils.bayesutils import BayesSCM
 from mlsynth.utils.selector_helpers import fpca
 import warnings # For RPCASYNTH warning
 import pandas as pd
-from typing import Any, Tuple, List, Optional, Dict, Union, Callable
+from typing import Any, Tuple, List, Optional, Dict, Union, Callable, Literal
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEstimationError
 
 # --- Constants for SCM and PDA Method Names ---
@@ -1978,65 +1978,78 @@ class Opt:
             alpha_penalty: Optional[float] = 0.0,
             fit_intercept: bool = False,
             affine: bool = False,
+            simplex: bool = True,
+            EN: Literal["L1_INF", "L1_L2"] = "L1_INF"
     ) -> cp.Problem:
         """
-        Solve the SCM problem with hybrid L1-L∞ regularization using cp.norm.
+        Solve the SCM problem with either L1–L∞ or L1–L2 regularization.
 
         Parameters
         ----------
         target_outcomes_pre_treatment_ols : np.ndarray
-            Outcome vector of treated unit, shape (T, ).
+            Outcome vector for the treated unit (pre-treatment).
         donor_outcomes_pre_treatment_ols : np.ndarray
-            Donor matrix, shape (T, J).
+            Matrix of donor outcomes (pre-treatment).
         num_donors_ols : int
-            Number of donor units (columns of donor matrix).
+            Number of donor units.
         lambda_penalty : float, optional
-            Regularization weight (lambda).
+            Regularization strength.
         alpha_penalty : float, optional
-            Weighting between L1 and L∞ penalty: 0 = pure INF, 1 = pure L1.
-        fit_intercept : bool, default False
-            Whether to include an unregularized scalar intercept.
-        affine : bool, default False
-            If True, forces donor weights to sum to 1 (excluding intercept).
+            Trade-off between L1 and second norm (L∞ or L2).
+        fit_intercept : bool
+            Whether to include an intercept.
+        affine : bool
+            Whether weights should sum to 1 (affine constraint).
+        simplex : bool
+            Whether weights should be nonnegative and sum to 1 (simplex constraint).
+        EN : {"L1_INF", "L1_L2"}
+            Which hybrid penalty to use.
 
         Returns
         -------
-        cvxpy.Problem
-            The solved CVXPY problem.
+        cp.Problem
+            CVXPY problem solved.
         """
 
         lam = lambda_penalty
         alpha = alpha_penalty
-
         T = target_outcomes_pre_treatment_ols.shape[0]
         J = num_donors_ols
 
-        # Variables
+        # ------------------ Variables ------------------
         if fit_intercept:
-            b0 = cp.Variable(name="intercept")  # scalar intercept
+            b0 = cp.Variable(name="intercept")
             w = cp.Variable(J, name="donor_weights")
             residual = target_outcomes_pre_treatment_ols - (b0 + donor_outcomes_pre_treatment_ols @ w)
         else:
             w = cp.Variable(J, name="donor_weights")
             residual = target_outcomes_pre_treatment_ols - donor_outcomes_pre_treatment_ols @ w
 
-        # Objective: squared L2 loss + lambda*(alpha*||w||_1 + (1-alpha)*||w||_inf)
-        objective = cp.Minimize(
-            (1 / T) * cp.sum_squares(residual)
-            + lam * (alpha * cp.norm(w, 1) + (1 - alpha) * cp.norm(w, "inf"))
-        )
+        # ------------------ Regularization ------------------
+        if EN == "L1_INF":
+            reg_term = lam * (alpha * cp.norm(w, 1) + (1 - alpha) * cp.norm(w, "inf"))
+        elif EN == "L1_L2":
+            reg_term = lam * (alpha * cp.norm(w, 1) + (1 - alpha) * cp.norm(w, 2))
+        else:
+            raise ValueError(f"Unknown penalty_type: {EN}")
 
-        # Constraints
+        # ------------------ Objective ------------------
+        objective = cp.Minimize((1 / T) * cp.sum_squares(residual) + reg_term)
+
+        # ------------------ Constraints ------------------
         constraints = []
+        if simplex:
+            constraints.append(cp.sum(w) == 1)
+            constraints.append(w >= 0)
+        elif affine:
+            constraints.append(cp.sum(w) == 1)
 
-        if affine:
-            constraints.append(cp.sum(w) == 1)  # exclude intercept automatically
-
-        # Build CVXPY problem
+        # ------------------ Solve ------------------
         problem = cp.Problem(objective, constraints)
-
-        # Solve
-        problem.solve(solver=cp.OSQP, eps_abs=1e-9, eps_rel=1e-8, max_iter=10000, verbose=False)
+        problem.solve(
+            solver=cp.OSQP,
+            verbose=False,
+        )
 
         return problem
 
@@ -2084,6 +2097,8 @@ class Opt:
         problem.solve(solver=cp.CLARABEL,verbose=False)
 
         return problem
+
+
     @staticmethod
     def SCopt(
         num_control_units: int,
@@ -2094,6 +2109,7 @@ class Opt:
         base_model_results_for_averaging: Optional[Dict[str, Dict[str, Any]]] = None,
         donor_names: Optional[List[str]] = None,
         # --- New regularization args ---
+        EN: Literal["L1_INF", "L1_L2"] = "L1_INF",
         lambda_penalty: Optional[float] = None,
         alpha_penalty: Optional[float] = None,
         p: Optional[float] = None,
@@ -2101,6 +2117,7 @@ class Opt:
         w_convex = None,
         fit_intercept: bool = False,
         affine: bool = False,
+        simplex: bool = True,
     ) -> Union[cp.Problem, Dict[str, Any]]:
         """Perform optimization for various Synthetic Control Method (SCM) variants.
 
@@ -2292,7 +2309,8 @@ class Opt:
                 lambda_penalty=lambda_penalty,
                 alpha_penalty=alpha_penalty,
                 fit_intercept=fit_intercept,
-                affine=affine)
+                affine=affine, simplex=simplex,
+                EN=EN)
 
         else:
             raise MlsynthConfigError(
@@ -4276,19 +4294,55 @@ def tune_lambda_ashc(L, ell_eval, w_shc, lambda_grid=None, split_ratio=0.5):
 
 ## Relaxed Balanced SC
 
-
 class L1INFRelaxationCV(BaseEstimator, RegressorMixin):
-    """INF SCM with time-series aware cross-validation for alpha/lambda tuning."""
+    """INF SCM with optional cross-validation for alpha/lambda tuning."""
 
-    def __init__(self, alpha_grid, intercept=False, n_splits=5, n_repeats=1, max_workers=None):
-        self.alpha_grid = alpha_grid
+    def __init__(self, alpha=None, lam=None, intercept=False, n_splits=5, n_repeats=1,
+                 max_workers=None, affine=False, simplex=True, EN="L1_INF"):
+        self.alpha = alpha
+        self.lam = lam
         self.intercept = intercept
         self.n_splits = n_splits
         self.n_repeats = n_repeats
         self.max_workers = max_workers
+        self.affine = affine
+        self.simplex = simplex
+        self.EN = EN
+
+    def _model_name(self, lam, alpha):
+        """
+        Generate model name string based on lambda, alpha,
+        penalty geometry, and intercept specification.
+        """
+        eps = 1e-8  # numerical tolerance
+
+        # Base model (no regularization)
+        if lam <= eps:
+            name = r"Simplex SCM" if self.simplex else r"Unregularized SCM"
+        else:
+            if self.EN == "L1_INF":
+                if alpha == 1:
+                    name = r"$L_1$ SCM (LASSO)"
+                elif alpha == 0:
+                    name = r"$L_\infty$ SCM (max-norm)"
+                else:
+                    name = r"$L_1 + L_\infty$ Elastic Net SCM"
+            elif self.EN == "L1_L2":
+                if alpha == 1:
+                    name = r"$L_1$ SCM (LASSO)"
+                elif alpha == 0:
+                    name = r"$L_2$ SCM (Ridge)"
+                else:
+                    name = r"Elastic Net SCM ($L_1 + L_2$)"
+            else:
+                name = "SCM"
+
+        if self.intercept:
+            name += r" + Intercept"
+
+        return name
 
     def _solve_inf_scm(self, X, y, alpha, lam):
-        """Solve INF SCM problem for given alpha/lambda using Opt.SCopt."""
         prob = Opt.SCopt(
             num_control_units=X.shape[1],
             target_outcomes_pre_treatment=y,
@@ -4298,68 +4352,69 @@ class L1INFRelaxationCV(BaseEstimator, RegressorMixin):
             lambda_penalty=lam,
             alpha_penalty=alpha,
             fit_intercept=self.intercept,
-            affine=False
+            affine=self.affine,
+            simplex=self.simplex,
+            EN=self.EN
         )
         vars_list = list(prob.solution.primal_vars.values())
         if self.intercept:
-            w = np.concatenate([np.asarray(vars_list[0]).ravel(),
-                                np.asarray(vars_list[1]).ravel()])
+            return np.concatenate([np.asarray(vars_list[0]).ravel(), np.asarray(vars_list[1]).ravel()])
         else:
-            w = np.asarray(vars_list[0]).ravel()
-        return w
+            return np.asarray(vars_list[0]).ravel()
 
     def _cross_validate(self, X, y):
-        """Perform cross-validation to select alpha and lambda."""
+        """Perform CV only if at least one of alpha or lambda is a grid."""
+        alpha_vals = np.atleast_1d(self.alpha)
+        lam_vals = np.atleast_1d(self.lam)
+
+        # If both are scalars, skip CV
+        if len(alpha_vals) == 1 and len(lam_vals) == 1:
+            self.best_alpha_ = alpha_vals[0]
+            self.best_lambda_ = lam_vals[0]
+            self.cv_errors_ = None
+            return
+
+        # Build grid
+        param_list = [(a, l) for a in alpha_vals for l in lam_vals]
+
         cv_errors = {}
         best_error = np.inf
         best_params = None
 
-        # Prepare alpha/lambda combos
-        param_list = []
-        for alpha in self.alpha_grid:
-            lam_grid = generate_lambda_seq2(y, X, alpha,num=20)
-            param_list.extend([(alpha, lam) for lam in lam_grid])
-
         def evaluate_combo(alpha_lam):
-            alpha, lam = alpha_lam
+            a, l = alpha_lam
             total_sspe = 0.0
-            for r in range(self.n_repeats):
+            for _ in range(self.n_repeats):
                 tscv = TimeSeriesSplit(n_splits=self.n_splits)
                 Tau = np.zeros_like(y)
                 for train_idx, test_idx in tscv.split(X):
                     X_train, y_train = X[train_idx], y[train_idx]
                     X_test, y_test = X[test_idx], y[test_idx]
-                    w = self._solve_inf_scm(X_train, y_train, alpha, lam)
-
+                    w = self._solve_inf_scm(X_train, y_train, a, l)
                     if self.intercept:
                         X_test_plus = np.hstack([np.ones((len(X_test), 1)), X_test])
                         Tau[test_idx] = y_test - X_test_plus @ w
                     else:
                         Tau[test_idx] = y_test - X_test @ w
-
                 total_sspe += np.sum(Tau ** 2)
-            return (alpha, lam, total_sspe)
+            return (a, l, total_sspe)
 
-        # Parallel evaluation
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = [executor.submit(evaluate_combo, a_l) for a_l in param_list]
+            futures = [executor.submit(evaluate_combo, p) for p in param_list]
             for future in as_completed(futures):
-                alpha, lam, total_sspe = future.result()
-                cv_errors[(alpha, lam)] = total_sspe
-                if total_sspe < best_error:
-                    best_error = total_sspe
-                    best_params = (alpha, lam)
+                a, l, err = future.result()
+                cv_errors[(a, l)] = err
+                if err < best_error:
+                    best_error = err
+                    best_params = (a, l)
 
         self.best_alpha_, self.best_lambda_ = best_params
         self.cv_errors_ = cv_errors
 
-    def _fit_full_data(self, X, y):
-        self.coef_ = self._solve_inf_scm(X, y, self.best_alpha_, self.best_lambda_)
-
     def fit(self, X, y):
         X, y = check_X_y(X, y)
         self._cross_validate(X, y)
-        self._fit_full_data(X, y)
+        self.coef_ = self._solve_inf_scm(X, y, self.best_alpha_, self.best_lambda_)
         return self
 
     def predict(self, X):
@@ -4367,22 +4422,32 @@ class L1INFRelaxationCV(BaseEstimator, RegressorMixin):
         if self.intercept:
             X_plus = np.hstack([np.ones((X.shape[0], 1)), X])
             return X_plus @ self.coef_
-        else:
-            return X @ self.coef_
+        return X @ self.coef_
 
 
 def fit_l1inf_scm(
-    X_pre,
-    y_pre,
-    X_post,
-    alpha_grid,
-    intercept=False,
-    n_splits=5,
-    n_repeats=1,
-    max_workers=None,
-    y=None, donor_names=None
+        X_pre,
+        y_pre,
+        X_post,
+        alpha=None,  # scalar or list/grid
+        lam=None,    # scalar or list/grid
+        intercept=False,
+        affine=False,
+        simplex=True,
+        n_splits=5,
+        n_repeats=1,
+        max_workers=None,
+        y=None,
+        donor_names=None,
+        EN="L1_INF"
 ):
-    """Fit INF SCM with time-series CV."""
+    """
+    Fit INF SCM with optional time-series cross-validation over alpha and lambda.
+
+    If either alpha or lam is a list/grid (or None), cross-validation is performed.
+    If both are scalars, the model is fit directly without CV.
+    """
+    from sklearn.preprocessing import StandardScaler
 
     # ------------------ Scale donors ------------------
     scaler_X = StandardScaler().fit(X_pre)
@@ -4393,15 +4458,33 @@ def fit_l1inf_scm(
     y_mean, y_std = y_pre.mean(), y_pre.std()
     y_pre_scaled = (y_pre - y_mean) / y_std
 
+    # ------------------ Default alpha/lambda -----------------
+    if alpha is None:
+        alpha = np.linspace(0.0, 1.0, 20)
+
+    if lam is None:
+        # Generate a single lambda grid based on a representative alpha (mean of alpha grid)
+        representative_alpha = np.mean(np.atleast_1d(alpha))
+        lam = generate_lambda_seq2(y_pre_scaled, X_pre_scaled, representative_alpha, num=20)
+
+    # Ensure both are array-like for CV
+    alpha_vals = np.atleast_1d(alpha)
+    lam_vals = np.atleast_1d(lam)
+
     # ------------------ Fit model ---------------------
     model = L1INFRelaxationCV(
-        alpha_grid=alpha_grid,
+        alpha=alpha_vals,
+        lam=lam_vals,
         intercept=intercept,
         n_splits=n_splits,
         n_repeats=n_repeats,
-        max_workers=max_workers
+        max_workers=max_workers,
+        affine=affine,
+        simplex=simplex,
+        EN=EN
     )
 
+    # Cross-validation happens inside the class if either alpha or lambda has multiple values
     model.fit(X_pre_scaled, y_pre_scaled)
 
     # ------------------ Predictions -------------------
@@ -4410,51 +4493,43 @@ def fit_l1inf_scm(
 
     # ------------------ Extract weights ----------------
     coef = model.coef_
+    intercept_weight = coef[0] if intercept else 0.0
+    donor_weights_scaled = coef[1:] if intercept else coef
+    donor_weights = (donor_weights_scaled / scaler_X.scale_) / np.sum(donor_weights_scaled / scaler_X.scale_)
 
-    if intercept:
-        intercept_weight = coef[0]
-        donor_weights_scaled = coef[1:]
-    else:
-        intercept_weight = 0.0
-        donor_weights_scaled = coef
-
-    # Back-transform donor weights only
-    donor_weights = donor_weights_scaled / scaler_X.scale_
-
-    # Normalize donor weights to sum to 1
-    #donor_weights = donor_weights / np.sum(donor_weights)
-
-
-    # ------------------ Calculate ATT and fit diagnostics ----------------
+    # ------------------ Compute effects ----------------
     attdict, fitdict, Vectors = effects.calculate(
-        y,
-        np.concatenate([y_pre_pred, y_post_pred]),
-        X_pre.shape[0],
-        X_post_scaled.shape[0]
+        y, np.concatenate([y_pre_pred, y_post_pred]),
+        X_pre.shape[0], X_post_scaled.shape[0]
     )
 
-    # ------------------ Format donor weights ----------------
-    donor_weightsl1inf = {
-        state: (0 if w < 0.001 else round(w, 3))
-        for state, w in zip(donor_names, donor_weights)
-    }
+    donor_weightsl1inf = {state: (0 if w < 0.001 else round(w, 3))
+                          for state, w in zip(donor_names, donor_weights)}
+
+    model_name = getattr(model, "_model_name", lambda lam, alpha: "L1INF SCM")(lam=model.best_lambda_, alpha=model.best_alpha_)
 
     # ------------------ Return nested dictionary ----------------
     return {
-        "weights": donor_weights,
+        "donor_weights": donor_weightsl1inf,
         "intercept": intercept_weight,
         "predictions": np.concatenate([y_pre_pred, y_post_pred]),
-        "best_alpha": model.best_alpha_,
-        "best_lambda": model.best_lambda_,
-        "cv_errors": model.cv_errors_,
-        "donor_dict": donor_weightsl1inf,
-        "Results": {
-            "Effects": attdict,
-            "Fit": fitdict,
-            "Counterfactuals": Vectors
-        },
-        "Model": "Elastic-Net"
+        "Results": {"Effects": attdict, "Fit": fitdict, "Vectors": Vectors},
+        "Model": model_name,
+        "hyperparameters": {
+            "best_alpha": model.best_alpha_,
+            "best_lambda": model.best_lambda_,
+            "cv_errors": getattr(model, "cv_errors_", None)
+        }
     }
+
+
+
+
+
+
+
+
+
 
 
 def generate_lambda_seq2(Y1, Y0, alpha, epsilon=1e-4, num=30):
@@ -4468,6 +4543,9 @@ def generate_lambda_seq2(Y1, Y0, alpha, epsilon=1e-4, num=30):
     lam_min = min(lam_min, 1e-4)
     lam_seq = np.exp(np.linspace(np.log(lam_max), np.log(lam_min), num))
     return lam_seq
+
+
+
 
 class L2RelaxationCV(BaseEstimator, RegressorMixin):
     """L2 Relaxation with time-series aware cross-validation for synthetic control using Clarabel."""
@@ -4664,7 +4742,7 @@ def fit_l2_scm(X_pre, y_pre, X_post, donor_names=None, y=None, tau=None,
 
     # Transform weights back to original scale
     weights_scaled = model.coef_
-    weights_orig = weights_scaled / scaler_X.scale_
+    weights_orig = (weights_scaled / scaler_X.scale_) / (weights_scaled / scaler_X.scale_).sum()
 
     donor_weights = {state: (0 if w < 0.001 else round(w, 3))
                      for state, w in zip(donor_names, weights_orig)}
@@ -4676,17 +4754,19 @@ def fit_l2_scm(X_pre, y_pre, X_post, donor_names=None, y=None, tau=None,
     )
 
     return {
-        "weights": donor_weights,
+        "donor_weights": donor_weights,
         "predictions": np.concatenate([y_pre_pred, y_post_pred]),
-        "cv_performed": cv_performed,
-        "n_splits": n_splits if cv_performed else None,
-        "tau_used": tau_used,
         "Results": {
             "Effects": attdict,
             "Fit": fitdict,
-            "Counterfactuals": Vectors
+            "Vectors": Vectors
         },
-        "Model": "Relaxed Balanced"
+        "Model": "Relaxed Balanced",
+        "hyperparameters": {
+            "tau_used": tau_used,
+            "cv_performed": cv_performed,
+            "n_splits": n_splits if cv_performed else None
+        }
     }
 
 
