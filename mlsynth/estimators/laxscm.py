@@ -7,7 +7,7 @@ from mlsynth.utils.inferutils import ag_conformal
 from ..utils.datautils import dataprep
 from ..exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError, MlsynthPlottingError
 from ..utils.resultutils import effects, plot_estimates, _create_RESCM_results
-from ..utils.estutils import fit_l1inf_scm, fit_l2_scm
+from ..utils.estutils import fit_l1inf_scm, fit_l2_scm, generate_lambda_seq2
 from ..config_models import ( # Import Pydantic models
     RESCMConfig,
     BaseEstimatorResults,
@@ -119,8 +119,6 @@ class RESCM:
 
         self.models_to_run: Dict[str, Dict[str, Union[bool, float]]] = config.models_to_run
 
-
-
     def fit(self) -> EstimatorResults:
         """Fits the RESCM model with optional L2 Relaxed SCM and/or L1-INF SCM."""
         try:
@@ -133,19 +131,10 @@ class RESCM:
             if prepped.get("pre_periods") is None or prepped.get("post_periods") is None:
                 raise MlsynthDataError("Pre/post periods missing from dataprep output.")
 
-            def extract_results(res, weight_key="Weights"):
-                return {
-                    "Effects": res['Results']['Effects'],
-                    "Fit": res['Results']['Fit'],
-                    "Vectors": res['Results']['Counterfactuals'],
-                    weight_key: res.get('donor_dict', res.get('weights')),
-                    "Model": res['Model']
-                }
-
             l1res = None
             l2res = None
 
-            # ---------------- Relaxed SCM (L2) ----------------
+            # ---------------- RELAXED SCM (L2) ----------------
             relaxed_cfg = self.models_to_run.get("RELAXED", {"run": False})
             if relaxed_cfg.get("run", False):
                 tau_val = relaxed_cfg.get("tau", None)
@@ -166,27 +155,38 @@ class RESCM:
                     donor_names=prepped["donor_names"]
                 )
 
-
                 l2res = _create_RESCM_results(
-                    combined_raw_estimation_output=extract_results(l2results, weight_key="Weights"),
+                    combined_raw_estimation_output=l2results,
                     prepared_panel_data=prepped
                 )
 
-            # ---------------- ELASTIC SCM (L1-INF) ----------------
+            # ---------------- ELASTIC SCM (L1-INF / Elastic Net) ----------------
             elastic_cfg = self.models_to_run.get("ELASTIC", {"run": False})
             if elastic_cfg.get("run", False):
                 n_splits_val = elastic_cfg.get(
                     "n_splits",
-                    max(1, int(np.floor(2 * (prepped["pre_periods"] ** 0.5))))
+                    max(1, int(np.floor(prepped["pre_periods"] ** 0.5)))
                 )
-                print("Beginning Cross Validation for ELASTIC model...")
+
+                intercept_val = elastic_cfg.get("intercept", False)
+                affine_val = elastic_cfg.get("affine", False)
+                simplex_val = elastic_cfg.get("simplex", True)
+                enet_type_val = elastic_cfg.get("EN", "L1_INF")
+
+                alpha_val = elastic_cfg.get("alpha", None)
+                lam_val = elastic_cfg.get("lambda", None)
+
                 l1infres = fit_l1inf_scm(
-                    X_pre=prepped["donor_matrix"][:prepped["pre_periods"]].astype(np.float64),
-                    y_pre=prepped["y"][:prepped["pre_periods"]].astype(np.float64).flatten(),
-                    X_post=prepped["donor_matrix"][prepped["pre_periods"]:].astype(np.float64),
-                    alpha_grid=np.linspace(0.0, 1.0, num=20),
-                    intercept=True,
-                    n_splits=n_splits_val,
+                    X_pre=prepped["donor_matrix"][:prepped["pre_periods"]],
+                    y_pre=prepped["y"][:prepped["pre_periods"]].flatten(),
+                    X_post=prepped["donor_matrix"][prepped["pre_periods"]:],
+                    alpha=alpha_val,
+                    lam=lam_val,
+                    intercept=intercept_val,
+                    affine=affine_val,
+                    simplex=simplex_val,
+                    EN=enet_type_val,
+                    n_splits=5,
                     n_repeats=1,
                     max_workers=4,
                     y=prepped["y"],
@@ -194,9 +194,13 @@ class RESCM:
                 )
 
                 l1res = _create_RESCM_results(
-                    combined_raw_estimation_output=extract_results(l1infres, weight_key="Weights"),
+                    combined_raw_estimation_output=l1infres,
                     prepared_panel_data=prepped
                 )
+
+            # ---------------- Check if at least one model ran ----------------
+            if l1res is None and l2res is None:
+                raise MlsynthConfigError("No models were selected to run. Set RELAXED or ELASTIC to run=True.")
 
         except (MlsynthDataError, MlsynthConfigError, MlsynthEstimationError):
             raise
@@ -207,12 +211,15 @@ class RESCM:
         if self.display_graphs:
             counterfactuals_to_plot = []
             cf_names = []
+
             if l2res is not None:
                 counterfactuals_to_plot.append(l2res.time_series.counterfactual_outcome)
                 cf_names.append("Relaxed SCM")
+
             if l1res is not None:
                 counterfactuals_to_plot.append(l1res.time_series.counterfactual_outcome)
                 cf_names.append("L1INF SCM")
+
             try:
                 plot_estimates(
                     processed_data_dict=prepped,
@@ -233,3 +240,4 @@ class RESCM:
                 warnings.warn(f"Plotting failed: {type(e).__name__}: {e}", UserWarning)
 
         return EstimatorResults(l1inf=l1res, l2=l2res)
+
