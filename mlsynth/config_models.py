@@ -554,8 +554,73 @@ class SHCConfig(BaseEstimatorConfig):
 
 
 
+
 class RESCMConfig(BaseEstimatorConfig):
-    pass
+    """
+    Configuration for the Relaxed Balanced SCM (RESCM) estimator.
+
+    Users can select which models to run via a nested dictionary:
+    - "RELAXED" → L2 Relaxed SCM
+    - "ELASTIC" → L1-INF / Elastic Net-ish SCM
+    Each value is a dict: {"run": bool, ...additional params per model}
+    Example:
+        models_to_run = {
+            "RELAXED": {"run": True, "tau": 0.00257, "n_splits": 5, "n_taus": 100},
+            "ELASTIC": {"run": False}
+        }
+    """
+    models_to_run: Dict[Literal["RELAXED", "ELASTIC"], Dict[str, Union[bool, float, int]]] = Field(
+        default_factory=lambda: {
+            "RELAXED": {"run": True},
+            "ELASTIC": {"run": True}
+        },
+        description=(
+            "Nested dictionary specifying which models to run and optional parameters per model. "
+            "For example: {'RELAXED': {'run': True, 'tau': 0.00257, 'n_splits': 5, 'n_taus': 100}, "
+            "'ELASTIC': {'run': True}}"
+        )
+    )
+
+    @model_validator(mode="after")
+    def validate_models(cls, values):
+        models = values.models_to_run
+        if not isinstance(models, dict):
+            raise MlsynthConfigError(
+                "'models_to_run' must be a dictionary, e.g., "
+                "{'RELAXED': {'run': True, 'tau': 0.00257}, 'ELASTIC': {'run': False}}"
+            )
+        allowed_keys = {"RELAXED", "ELASTIC"}
+        for key, val in models.items():
+            if key not in allowed_keys:
+                raise MlsynthConfigError(
+                    f"Invalid key in 'models_to_run': {key}. Allowed keys: {allowed_keys}"
+                )
+            if not isinstance(val, dict):
+                raise MlsynthConfigError(
+                    f"Value for '{key}' in 'models_to_run' must be a dictionary."
+                )
+            if "run" not in val or not isinstance(val["run"], bool):
+                raise MlsynthConfigError(
+                    f"Each model dict must contain 'run': bool for '{key}'."
+                )
+            # Validate tau if present
+            if "tau" in val and not isinstance(val["tau"], (int, float)):
+                raise MlsynthConfigError(
+                    f"If provided, 'tau' for '{key}' must be a scalar float. Got: {type(val['tau']).__name__}"
+                )
+            # Validate n_splits if present
+            if "n_splits" in val and not isinstance(val["n_splits"], int):
+                raise MlsynthConfigError(
+                    f"If provided, 'n_splits' for '{key}' must be an int. Got: {type(val['n_splits']).__name__}"
+                )
+            # Validate n_taus if present
+            if "n_taus" in val and not isinstance(val["n_taus"], int):
+                raise MlsynthConfigError(
+                    f"If provided, 'n_taus' for '{key}' must be an int. Got: {type(val['n_taus']).__name__}"
+                )
+        return values
+
+
 
 
 # --- Pydantic Models for Standardized Estimator Results ---
@@ -742,6 +807,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
