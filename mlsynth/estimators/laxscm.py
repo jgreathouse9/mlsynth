@@ -6,7 +6,7 @@ import pydantic
 from mlsynth.utils.inferutils import ag_conformal
 from ..utils.datautils import dataprep
 from ..exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError, MlsynthPlottingError
-from ..utils.resultutils import effects, plot_estimates
+from ..utils.resultutils import effects, plot_estimates, _create_RESCM_results
 from ..utils.estutils import fit_l1inf_scm, fit_l2_scm
 from ..config_models import ( # Import Pydantic models
     RESCMConfig,
@@ -117,278 +117,103 @@ class RESCM:
         self.display_graphs: bool = config.display_graphs
         self.save: Union[bool, str] = config.save # Align with BaseEstimatorConfig
 
-    def _create_estimator_results(
-        self,
-        combined_raw_estimation_output: Dict[str, Any],
-        prepared_panel_data: Dict[str, Any],
-        inference_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> BaseEstimatorResults:
-        """
-        Constructs a BaseEstimatorResults object from raw SHC outputs.
+        self.models_to_run: Dict[str, Dict[str, Union[bool, float]]] = config.models_to_run
 
-        This helper function takes the raw outputs from the SHC estimation process
-        (which includes results from `SRCest` and `effects.calculate`) and maps
-        them to the standardized `BaseEstimatorResults` Pydantic model structure.
 
-        Parameters
-        ----------
 
-        combined_raw_estimation_output : Dict[str, Any]
-            A dictionary containing the combined raw results. This should include
-            keys like 'Counterfactual', 'Weights' (from `SRCest`), and 'ATT',
-            'Fit', 'Vectors' (from `effects.calculate`).
-        prepared_panel_data : Dict[str, Any]
-            The dictionary of preprocessed data from `dataprep`, containing elements
-            like 'y' (treated unit outcomes), 'time_labels', and 'donor_names'.
-        theta_hat_val : np.ndarray
-            The estimated theta_hat parameters from the `SRCest` function.
-            Shape: (number_of_donors + 1,).
-
-        Returns
-        -------
-
-        BaseEstimatorResults
-            A Pydantic model instance containing the standardized estimation results
-            for the SHC method. Key fields include:
-            - effects (EffectsResults): Contains treatment effect estimates like ATT
-              and percentage ATT.
-            - fit_diagnostics (FitDiagnosticsResults): Includes goodness-of-fit metrics
-              such as pre-treatment RMSE, post-treatment RMSE, and pre-treatment R-squared.
-            - time_series (TimeSeriesResults): Provides time-series data including the
-              observed outcome for the treated unit, its estimated counterfactual outcome,
-              the estimated treatment effect (gap) over time, and the corresponding
-              time periods.
-            - weights (WeightsResults): Contains an array of donor weights and a list of
-              corresponding donor names.
-            - inference (InferenceResults): Typically not populated by SRC's core logic,
-              as it primarily provides point estimates.
-            - method_details (MethodDetailsResults): Details about the estimation method,
-              including its name ("SRC") and the estimated `theta_hat` parameters in
-              `custom_params`.
-            - raw_results (Optional[Dict[str, Any]]): The raw dictionary output from
-              the estimation process, combining results from `SRCest` and
-              `effects.calculate`.
-        """
+    def fit(self) -> EstimatorResults:
+        """Fits the RESCM model with optional L2 Relaxed SCM and/or L1-INF SCM."""
         try:
-            att_dict_raw = combined_raw_estimation_output.get("Effects", {})
-            fit_dict_raw = combined_raw_estimation_output.get("Fit", {})
-            vectors_dict_raw = combined_raw_estimation_output.get("Vectors", {})
-            counterfactual_y_arr = vectors_dict_raw['Counterfactual']
-            donor_weights_dict_raw = combined_raw_estimation_output['Weights']
-
-            effects = EffectsResults(
-                att=att_dict_raw.get("ATT"),
-                att_percent=att_dict_raw.get("Percent ATT"),
-            )
-
-            fit_diagnostics = FitDiagnosticsResults(
-                rmse_pre=fit_dict_raw.get("T0 RMSE"),
-                rmse_post=fit_dict_raw.get("T1 RMSE"),
-                r_squared_pre=fit_dict_raw.get("R-Squared"),
-            )
-
-            observed_outcome_arr: Optional[np.ndarray] = None
-            # Attempt to get the observed outcome series.
-            # Primary source is 'Vectors' from effects.calculate, fallback to 'y' from dataprep.
-            if vectors_dict_raw.get("Observed Unit") is not None:
-                 observed_outcome_arr = np.array(vectors_dict_raw["Observed Unit"]).flatten()
-            elif prepared_panel_data.get("y") is not None: # Fallback if not in 'Vectors'.
-                y_series = prepared_panel_data.get("y")
-                # Ensure 'y' (which might be a pd.Series or np.ndarray from dataprep) is a flat NumPy array.
-                observed_outcome_arr = y_series.to_numpy().flatten() if isinstance(y_series, pd.Series) else np.array(y_series).flatten()
-
-            # Ensure the counterfactual outcome series is a flat NumPy array.
-            cf_outcome_arr_flat: Optional[np.ndarray] = None
-            if counterfactual_y_arr is not None:
-                cf_outcome_arr_flat = np.array(counterfactual_y_arr).flatten()
-
-            # Calculate the gap (treatment effect) series.
-            # Primary calculation is observed - counterfactual. Fallback to 'Gap' from 'Vectors'.
-            gap_arr: Optional[np.ndarray] = None
-            if observed_outcome_arr is not None and cf_outcome_arr_flat is not None and \
-               len(observed_outcome_arr) == len(cf_outcome_arr_flat): # Ensure compatible shapes for subtraction.
-                gap_arr = observed_outcome_arr - cf_outcome_arr_flat
-            elif vectors_dict_raw.get("Gap") is not None: # Fallback if direct calculation is not possible.
-                gap_arr = np.array(vectors_dict_raw["Gap"]).flatten()
-                
-            # Get time periods from dataprep output.
-            time_periods_arr: Optional[np.ndarray] = None
-            time_labels = prepared_panel_data.get("time_labels") # These are the actual time values (e.g., years).
-            if time_labels is not None:
-                time_periods_arr = np.array(time_labels)
-
-            time_series = TimeSeriesResults(
-                observed_outcome=observed_outcome_arr, # The observed outcome of the treated unit.
-                counterfactual_outcome=cf_outcome_arr_flat,
-                gap=gap_arr,
-                time_periods=time_periods_arr, # Use the ndarray
-            )
-
-            method_details = MethodDetailsResults(
-                method_name="LINF" # Name of the estimation method.
-                # theta_hat represents the estimated regression coefficients from the SHC model.
-                # It includes coefficients for donor outcomes and potentially an intercept.
-            )
-
-            return BaseEstimatorResults(
-                effects=effects,
-                fit_diagnostics=fit_diagnostics,
-                time_series=time_series, #weights=weights,
-                method_details=method_details,
-                weights=donor_weights_dict_raw,
-            )
-        except pydantic.ValidationError as e:
-            raise MlsynthEstimationError(f"Error creating Pydantic results model for RESCM: {e}") from e
-        except Exception as e:
-            raise MlsynthEstimationError(f"Unexpected error in _create_estimator_results for RESCM: {type(e).__name__}: {e}") from e
-
-    def fit(self) -> BaseEstimatorResults:
-        """
-        Fits the Relaxed Balanced SCM (RESCM) model to the provided data.
-
-        This method performs the following steps:
-        1. Prepares the data using `dataprep` to structure outcomes for the
-           treated unit (`y1`)
-        2. Calls the `_SHC_est` utility function, which implements the core SHC
-           algorithm to estimate the counterfactual outcome (`y_RESCM`), donor
-           weights (`w_hat`), and regression coefficients (`theta_hat`).
-        3. Calculates treatment effects (ATT) and goodness-of-fit statistics
-           using the observed and counterfactual outcomes.
-        4. Optionally plots the observed and counterfactual outcomes.
-        5. Returns a `BaseEstimatorResults` object containing all relevant outputs.
-
-        Returns
-        -------
-
-        BaseEstimatorResults
-            An object containing the standardized estimation results. Key fields include:
-            - effects (EffectsResults): Contains treatment effect estimates such as
-              Average Treatment Effect on the Treated (ATT) and percentage ATT.
-            - fit_diagnostics (FitDiagnosticsResults): Includes goodness-of-fit metrics
-              like pre-treatment RMSE, post-treatment RMSE, and pre-treatment R-squared.
-            - time_series (TimeSeriesResults): Provides time-series data including the
-              observed outcome for the treated unit, its estimated counterfactual outcome,
-              the estimated treatment effect (gap) over time, and the corresponding
-              time periods.
-            - weights (WeightsResults): Contains an array of weights assigned to donor
-              units and a list of the corresponding donor names.
-            - inference (InferenceResults): Typically not populated with detailed statistical
-              inference (like p-values or CIs) by the core `SRCest` logic, as it
-              focuses on point estimation.
-            - method_details (MethodDetailsResults): Details about the estimation method,
-              including its name ("SRC") and the estimated `theta_hat` regression
-              coefficients stored in `custom_params`.
-            - raw_results (Optional[Dict[str, Any]]): The raw dictionary output from
-              the estimation process, which combines results from `SRCest` (like
-              'Counterfactual' and 'Weights') and `effects.calculate` (like 'ATT',
-              'Fit', 'Vectors').
-
-        Examples
-        --------
-
-        # doctest: +SKIP
-        >>> import pandas as pd
-        >>> from mlsynth.estimators.src import SRC
-        >>> from mlsynth.config_models import RESCM
-        >>> # Load or create panel data
-        >>> data = pd.DataFrame({
-        ...     'unit': [1,1,1,1, 2,2,2,2, 3,3,3,3],
-        ...     'time_val': [2010,2011,2012,2013, 2010,2011,2012,2013, 2010,2011,2012,2013],
-        ...     'value': [10,11,9,8, 20,22,21,23, 15,16,17,14],
-        ...     'is_treated_unit': [0,0,1,1, 0,0,0,0, 0,0,0,0] # Unit 1 treated from 2012
-        ... })
-        >>> src_config = RESCM(
-        ...     df=data, outcome="value", treat="is_treated_unit",
-        ...     unitid="unit", time="time_val", display_graphs=False
-        ... )
-        >>> src_estimator = SRC(config=src_config)
-        >>> results = src_estimator.fit()
-        >>> print(f"Estimated ATT: {results.effects.att}")
-        >>> if results.weights and results.weights.donor_names:
-        ...     print(f"Donor weights for {results.weights.donor_names}: {results.weights.donor_weights}")
-        >>> if results.method_details and results.method_details.custom_params:
-        ...     print(f"Theta_hat: {results.method_details.custom_params.get('theta_hat')}")
-        """
-
-        try:
-            # Prepare the data using the standard dataprep utility.
-            # This structures the data into treated unit outcomes, donor outcomes, period info, etc.
-
-
-            # Extract the number of pre-treatment and post-treatment periods.
-            # These are crucial for the SRCest algorithm and subsequent effect calculations.
-
+            # Prepare panel data
             prepped: Dict[str, Any] = dataprep(
                 self.df, self.unitid, self.time, self.outcome, self.treat
             )
 
-            # Validate that period information is available from dataprep.
-            if prepped.get("pre_periods") is None:
-                raise MlsynthDataError(
-                    "Critical: 'pre_periods' key missing from dataprep output. "
-                    "Ensure dataprep correctly identifies treated unit and pre-treatment periods."
-                )
-            if prepped.get("post_periods") is None:
-                raise MlsynthDataError(
-                    "Critical: 'post_periods' key missing from dataprep output. "
-                    "Ensure dataprep correctly identifies treated unit and post-treatment periods."
-                )
+            # Validate periods
+            if prepped.get("pre_periods") is None or prepped.get("post_periods") is None:
+                raise MlsynthDataError("Pre/post periods missing from dataprep output.")
 
-            l2results = fit_l2_scm(prepped["donor_matrix"][:prepped["pre_periods"]].astype(np.float64),
-                                 prepped["y"][:prepped["pre_periods"]].astype(np.float64).flatten(),
-                                 prepped["donor_matrix"][prepped["pre_periods"]:].astype(np.float64),
-                                 n_splits=4, n_taus=100, y=prepped["y"], donor_names=prepped["donor_names"])
-
-            fit_intercept = True
-            print("Beginning Cross Validation...")
-
-            # 3. Fit the INF SCM using the new wrapper
-            l1infres = fit_l1inf_scm(
-                X_pre=prepped["donor_matrix"][:prepped["pre_periods"]].astype(np.float64),
-                y_pre=prepped["y"][:prepped["pre_periods"]].astype(np.float64).flatten(),
-                X_post=prepped["donor_matrix"][prepped["pre_periods"]:].astype(np.float64),
-                alpha_grid=np.linspace(0.0, 1.0, num=20),
-                intercept=fit_intercept,
-                n_splits=4,
-                n_repeats=1,
-                max_workers=4, y=prepped["y"], donor_names=prepped["donor_names"]
-            )
-
-            # ------------------ Helper to extract Results dictionary ------------------
             def extract_results(res, weight_key="Weights"):
                 return {
                     "Effects": res['Results']['Effects'],
                     "Fit": res['Results']['Fit'],
                     "Vectors": res['Results']['Counterfactuals'],
-                    weight_key: res.get('donor_dict', res.get('weights'))
+                    weight_key: res.get('donor_dict', res.get('weights')),
+                    "Model": res['Model']
                 }
 
+            l1res = None
+            l2res = None
 
-            # ------------------ Convert to standardized model ------------------
-            l1res = self._create_estimator_results(
-                combined_raw_estimation_output=extract_results(l1infres, weight_key="Weights"),
-                prepared_panel_data=prepped
-            )
-            l2res = self._create_estimator_results(
-                combined_raw_estimation_output=extract_results(l2results, weight_key="Weights"),
-                prepared_panel_data=prepped
-            )
+            # ---------------- Relaxed SCM (L2) ----------------
+            relaxed_cfg = self.models_to_run.get("RELAXED", {"run": False})
+            if relaxed_cfg.get("run", False):
+                tau_val = relaxed_cfg.get("tau", None)
+                n_splits_val = relaxed_cfg.get(
+                    "n_splits",
+                    max(1, int(np.floor(prepped["pre_periods"] ** 0.5)))
+                )
+                n_taus_val = relaxed_cfg.get("n_taus", 100)
 
-        except (MlsynthDataError, MlsynthConfigError, MlsynthEstimationError) as e:
-            # Re-raise known specific errors from utilities or earlier checks.
+                l2results = fit_l2_scm(
+                    X_pre=prepped["donor_matrix"][:prepped["pre_periods"]].astype(np.float64),
+                    y_pre=prepped["y"][:prepped["pre_periods"]].astype(np.float64).flatten(),
+                    X_post=prepped["donor_matrix"][prepped["pre_periods"]:].astype(np.float64),
+                    tau=tau_val,
+                    n_splits=n_splits_val,
+                    n_taus=n_taus_val,
+                    y=prepped["y"],
+                    donor_names=prepped["donor_names"]
+                )
+
+
+                l2res = _create_RESCM_results(
+                    combined_raw_estimation_output=extract_results(l2results, weight_key="Weights"),
+                    prepared_panel_data=prepped
+                )
+
+            # ---------------- ELASTIC SCM (L1-INF) ----------------
+            elastic_cfg = self.models_to_run.get("ELASTIC", {"run": False})
+            if elastic_cfg.get("run", False):
+                n_splits_val = elastic_cfg.get(
+                    "n_splits",
+                    max(1, int(np.floor(2 * (prepped["pre_periods"] ** 0.5))))
+                )
+                print("Beginning Cross Validation for ELASTIC model...")
+                l1infres = fit_l1inf_scm(
+                    X_pre=prepped["donor_matrix"][:prepped["pre_periods"]].astype(np.float64),
+                    y_pre=prepped["y"][:prepped["pre_periods"]].astype(np.float64).flatten(),
+                    X_post=prepped["donor_matrix"][prepped["pre_periods"]:].astype(np.float64),
+                    alpha_grid=np.linspace(0.0, 1.0, num=20),
+                    intercept=True,
+                    n_splits=n_splits_val,
+                    n_repeats=1,
+                    max_workers=4,
+                    y=prepped["y"],
+                    donor_names=prepped["donor_names"]
+                )
+
+                l1res = _create_RESCM_results(
+                    combined_raw_estimation_output=extract_results(l1infres, weight_key="Weights"),
+                    prepared_panel_data=prepped
+                )
+
+        except (MlsynthDataError, MlsynthConfigError, MlsynthEstimationError):
             raise
-        except (KeyError, ValueError, TypeError, AttributeError, np.linalg.LinAlgError) as e:
-            # Wrap common Python errors that might occur during the estimation process
-            # into a MlsynthEstimationError for consistent error reporting.
-            raise MlsynthEstimationError(f"RESCM estimation failed due to an unexpected error: {type(e).__name__}: {e}") from e
         except Exception as e:
-            # Catch any other truly unexpected errors and wrap them.
-            raise MlsynthEstimationError(f"An unexpected critical error occurred during RESCM fit: {type(e).__name__}: {e}") from e
+            raise MlsynthEstimationError(f"Unexpected error during RESCM fit: {type(e).__name__}: {e}") from e
 
-        # --- Plotting Phase ---
+        # ---------------- Optional plotting ----------------
         if self.display_graphs:
+            counterfactuals_to_plot = []
+            cf_names = []
+            if l2res is not None:
+                counterfactuals_to_plot.append(l2res.time_series.counterfactual_outcome)
+                cf_names.append("Relaxed SCM")
+            if l1res is not None:
+                counterfactuals_to_plot.append(l1res.time_series.counterfactual_outcome)
+                cf_names.append("L1INF SCM")
             try:
-                # Call the generic plotting utility.
                 plot_estimates(
                     processed_data_dict=prepped,
                     time_axis_label=self.time,
@@ -396,19 +221,15 @@ class RESCM:
                     outcome_variable_label=self.outcome,
                     treatment_name_label=self.treat,
                     treated_unit_name=prepped["treated_unit_name"],
-                    observed_outcome_series=prepped["y"],  # Observed outcome vector.
-                    counterfactual_series_list=[l2res.time_series.counterfactual_outcome, l1res.time_series.counterfactual_outcome],
-                    # List of counterfactual vectors.
+                    observed_outcome_series=prepped["y"],
+                    counterfactual_series_list=counterfactuals_to_plot,
                     estimation_method_name="RESCM",
-                    counterfactual_names=["Relaxed SCM", "L1INF SCM"],  # Names for legend.
+                    counterfactual_names=cf_names,
                     treated_series_color=self.treated_color,
                     counterfactual_series_colors=self.counterfactual_color,
-                    save_plot_config=self.save)
-            except (MlsynthPlottingError, MlsynthDataError) as e: # Catch known plotting or data errors.
-                warnings.warn(f"Plotting failed for RESCM due to data or plotting issue: {e}", UserWarning)
-            except Exception as e: # Catch any other unexpected errors during plotting.
-                warnings.warn(f"An unexpected error occurred during RESCM plotting: {type(e).__name__}: {e}", UserWarning)
+                    save_plot_config=self.save
+                )
+            except Exception as e:
+                warnings.warn(f"Plotting failed: {type(e).__name__}: {e}", UserWarning)
 
-        class_results = EstimatorResults(l1inf=l1res, l2=l2res)
-
-        return class_results
+        return EstimatorResults(l1inf=l1res, l2=l2res)
