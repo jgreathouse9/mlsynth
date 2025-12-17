@@ -6,8 +6,8 @@ from matplotlib import rc_context
 import matplotlib.colors as mcolors
 import random
 from typing import Optional, Dict, List, Tuple, Any, Union
-from mlsynth.exceptions import MlsynthDataError, MlsynthPlottingError # MlsynthConfigError, MlsynthEstimationError might be needed later
-
+from mlsynth.exceptions import MlsynthDataError, MlsynthPlottingError, MlsynthEstimationError #might be needed later
+import pydantic
 from ..config_models import ( # Import the Pydantic models
     BaseEstimatorResults,
     EffectsResults,
@@ -1062,11 +1062,11 @@ def _create_RESCM_results(
           `effects.calculate`.
     """
     try:
-        att_dict_raw = combined_raw_estimation_output.get("Effects", {})
-        fit_dict_raw = combined_raw_estimation_output.get("Fit", {})
+        att_dict_raw = combined_raw_estimation_output['Results']['Effects']
+        fit_dict_raw = combined_raw_estimation_output['Results']['Fit']
         vectors_dict_raw = combined_raw_estimation_output.get("Vectors", {})
-        counterfactual_y_arr = vectors_dict_raw['Counterfactual']
-        donor_weights_dict_raw = combined_raw_estimation_output['Weights']
+        counterfactual_y_arr = combined_raw_estimation_output['Results']['Vectors']['Counterfactual']
+        donor_weights_dict_raw = combined_raw_estimation_output['donor_weights']
 
         effects = EffectsResults(
             att=att_dict_raw.get("ATT"),
@@ -1097,12 +1097,8 @@ def _create_RESCM_results(
 
         # Calculate the gap (treatment effect) series.
         # Primary calculation is observed - counterfactual. Fallback to 'Gap' from 'Vectors'.
-        gap_arr: Optional[np.ndarray] = None
-        if observed_outcome_arr is not None and cf_outcome_arr_flat is not None and \
-                len(observed_outcome_arr) == len(cf_outcome_arr_flat):  # Ensure compatible shapes for subtraction.
-            gap_arr = observed_outcome_arr - cf_outcome_arr_flat
-        elif vectors_dict_raw.get("Gap") is not None:  # Fallback if direct calculation is not possible.
-            gap_arr = np.array(vectors_dict_raw["Gap"]).flatten()
+        gap_arr: Optional[np.ndarray] = combined_raw_estimation_output['Results']['Vectors']['Gap']
+
 
         # Get time periods from dataprep output.
         time_periods_arr: Optional[np.ndarray] = None
@@ -1118,18 +1114,31 @@ def _create_RESCM_results(
         )
 
         method_details = MethodDetailsResults(
-            method_name="LINF"  # Name of the estimation method.
-            # theta_hat represents the estimated regression coefficients from the SHC model.
-            # It includes coefficients for donor outcomes and potentially an intercept.
+            method_name=combined_raw_estimation_output['Model'],
+            parameters_used=combined_raw_estimation_output['hyperparameters']
         )
+
+        weight = combined_raw_estimation_output['donor_weights']
+
+        # Filter non-zero weights
+        nonzero_weights = {k: v for k, v in weight.items() if v != 0}
+
+        weights_model = WeightsResults(
+            donor_weights=weight,
+            summary_stats={
+                "num_selected": len(nonzero_weights),
+                "total_weight": sum(weight.values()) if weight else None
+            } if weight else None
+        )
+
 
 
         return BaseEstimatorResults(
             effects=effects,
             fit_diagnostics=fit_diagnostics,
-            time_series=time_series,  # weights=weights,
+            time_series=time_series,
             method_details=method_details,
-            weights=donor_weights_dict_raw,
+            weights=weights_model,
         )
     except pydantic.ValidationError as e:
         raise MlsynthEstimationError(f"Error creating Pydantic results model for RESCM: {e}") from e
