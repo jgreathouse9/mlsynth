@@ -1010,3 +1010,130 @@ def _create_SHC_results(
             raise MlsynthEstimationError(f"Unexpected error in _create_estimator_results for SRC: {type(e).__name__}: {e}") from e
 
 
+def _create_RESCM_results(
+        combined_raw_estimation_output: Dict[str, Any],
+        prepared_panel_data: Dict[str, Any],
+        inference_kwargs: Optional[Dict[str, Any]] = None,
+) -> BaseEstimatorResults:
+    """
+    Constructs a BaseEstimatorResults object from raw RESCM outputs.
+
+    This helper function takes the raw outputs from the SHC estimation process
+    (which includes results from `SRCest` and `effects.calculate`) and maps
+    them to the standardized `BaseEstimatorResults` Pydantic model structure.
+
+    Parameters
+    ----------
+
+    combined_raw_estimation_output : Dict[str, Any]
+        A dictionary containing the combined raw results. This should include
+        keys like 'Counterfactual', 'Weights' (from `SRCest`), and 'ATT',
+        'Fit', 'Vectors' (from `effects.calculate`).
+    prepared_panel_data : Dict[str, Any]
+        The dictionary of preprocessed data from `dataprep`, containing elements
+        like 'y' (treated unit outcomes), 'time_labels', and 'donor_names'.
+    theta_hat_val : np.ndarray
+        The estimated theta_hat parameters from the `SRCest` function.
+        Shape: (number_of_donors + 1,).
+
+    Returns
+    -------
+
+    BaseEstimatorResults
+        A Pydantic model instance containing the standardized estimation results
+        for the SHC method. Key fields include:
+        - effects (EffectsResults): Contains treatment effect estimates like ATT
+          and percentage ATT.
+        - fit_diagnostics (FitDiagnosticsResults): Includes goodness-of-fit metrics
+          such as pre-treatment RMSE, post-treatment RMSE, and pre-treatment R-squared.
+        - time_series (TimeSeriesResults): Provides time-series data including the
+          observed outcome for the treated unit, its estimated counterfactual outcome,
+          the estimated treatment effect (gap) over time, and the corresponding
+          time periods.
+        - weights (WeightsResults): Contains an array of donor weights and a list of
+          corresponding donor names.
+        - inference (InferenceResults): Typically not populated by SRC's core logic,
+          as it primarily provides point estimates.
+        - method_details (MethodDetailsResults): Details about the estimation method,
+          including its name ("SRC") and the estimated `theta_hat` parameters in
+          `custom_params`.
+        - raw_results (Optional[Dict[str, Any]]): The raw dictionary output from
+          the estimation process, combining results from `SRCest` and
+          `effects.calculate`.
+    """
+    try:
+        att_dict_raw = combined_raw_estimation_output.get("Effects", {})
+        fit_dict_raw = combined_raw_estimation_output.get("Fit", {})
+        vectors_dict_raw = combined_raw_estimation_output.get("Vectors", {})
+        counterfactual_y_arr = vectors_dict_raw['Counterfactual']
+        donor_weights_dict_raw = combined_raw_estimation_output['Weights']
+
+        effects = EffectsResults(
+            att=att_dict_raw.get("ATT"),
+            att_percent=att_dict_raw.get("Percent ATT"),
+        )
+
+        fit_diagnostics = FitDiagnosticsResults(
+            rmse_pre=fit_dict_raw.get("T0 RMSE"),
+            rmse_post=fit_dict_raw.get("T1 RMSE"),
+            r_squared_pre=fit_dict_raw.get("R-Squared"),
+        )
+
+        observed_outcome_arr: Optional[np.ndarray] = None
+        # Attempt to get the observed outcome series.
+        # Primary source is 'Vectors' from effects.calculate, fallback to 'y' from dataprep.
+        if vectors_dict_raw.get("Observed Unit") is not None:
+            observed_outcome_arr = np.array(vectors_dict_raw["Observed Unit"]).flatten()
+        elif prepared_panel_data.get("y") is not None:  # Fallback if not in 'Vectors'.
+            y_series = prepared_panel_data.get("y")
+            # Ensure 'y' (which might be a pd.Series or np.ndarray from dataprep) is a flat NumPy array.
+            observed_outcome_arr = y_series.to_numpy().flatten() if isinstance(y_series, pd.Series) else np.array(
+                y_series).flatten()
+
+        # Ensure the counterfactual outcome series is a flat NumPy array.
+        cf_outcome_arr_flat: Optional[np.ndarray] = None
+        if counterfactual_y_arr is not None:
+            cf_outcome_arr_flat = np.array(counterfactual_y_arr).flatten()
+
+        # Calculate the gap (treatment effect) series.
+        # Primary calculation is observed - counterfactual. Fallback to 'Gap' from 'Vectors'.
+        gap_arr: Optional[np.ndarray] = None
+        if observed_outcome_arr is not None and cf_outcome_arr_flat is not None and \
+                len(observed_outcome_arr) == len(cf_outcome_arr_flat):  # Ensure compatible shapes for subtraction.
+            gap_arr = observed_outcome_arr - cf_outcome_arr_flat
+        elif vectors_dict_raw.get("Gap") is not None:  # Fallback if direct calculation is not possible.
+            gap_arr = np.array(vectors_dict_raw["Gap"]).flatten()
+
+        # Get time periods from dataprep output.
+        time_periods_arr: Optional[np.ndarray] = None
+        time_labels = prepared_panel_data.get("time_labels")  # These are the actual time values (e.g., years).
+        if time_labels is not None:
+            time_periods_arr = np.array(time_labels)
+
+        time_series = TimeSeriesResults(
+            observed_outcome=observed_outcome_arr,  # The observed outcome of the treated unit.
+            counterfactual_outcome=cf_outcome_arr_flat,
+            gap=gap_arr,
+            time_periods=time_periods_arr,  # Use the ndarray
+        )
+
+        method_details = MethodDetailsResults(
+            method_name="LINF"  # Name of the estimation method.
+            # theta_hat represents the estimated regression coefficients from the SHC model.
+            # It includes coefficients for donor outcomes and potentially an intercept.
+        )
+
+
+        return BaseEstimatorResults(
+            effects=effects,
+            fit_diagnostics=fit_diagnostics,
+            time_series=time_series,  # weights=weights,
+            method_details=method_details,
+            weights=donor_weights_dict_raw,
+        )
+    except pydantic.ValidationError as e:
+        raise MlsynthEstimationError(f"Error creating Pydantic results model for RESCM: {e}") from e
+    except Exception as e:
+        raise MlsynthEstimationError(
+            f"Unexpected error in _create_estimator_results for RESCM: {type(e).__name__}: {e}") from e
+
