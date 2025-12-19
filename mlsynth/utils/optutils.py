@@ -30,9 +30,7 @@ class Opt2:
         tol_rel: float = 1e-6,
         solve: bool = True,
     ) -> Dict[str, Any]:
-        """
-        Synthetic Control Optimization (SCopt).
-        """
+        """Synthetic Control Optimization (SCopt)."""
 
         # ---------- Slice pre-treatment ----------
         if T0 is not None:
