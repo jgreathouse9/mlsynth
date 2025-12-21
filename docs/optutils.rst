@@ -1,7 +1,7 @@
 Optimization Utilities
 ==============
 
-.. automodule:: mlsynth.utils.optils
+.. automodule:: mlsynth.utils.optutils
    :members:
    :undoc-members:
    :private-members:
