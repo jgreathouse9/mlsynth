@@ -281,7 +281,9 @@ def test_ridge_equivalence_with_intercept(seed):
 
 @pytest.mark.parametrize("seed", [3, 7, 42])
 def test_lasso_equivalence_old_vs_new(seed):
-    """Compare LASSO weights and predictions from new Opt2.SCopt vs old Opt.SCopt."""
+    """
+    Compare LASSO weights and predictions from new Opt2.SCopt vs old Opt.SCopt.
+    """
     # ---------- Setup ----------
     data = make_scm_synth(T=40, T0=25, J=6, seed=seed)
     y = data["y"]
@@ -338,7 +340,9 @@ def test_lasso_equivalence_old_vs_new(seed):
 
 @pytest.mark.parametrize("seed", [3, 7, 42])
 def test_lasso_equivalence_with_intercept(seed):
-    """Compare LASSO weights and predictions with intercept from new Opt2.SCopt vs old Opt.SCopt."""
+    """
+    Compare LASSO weights and predictions with intercept from new Opt2.SCopt vs old Opt.SCopt.
+    """
     # ---------- Setup ----------
     data = make_scm_synth(T=40, T0=25, J=6, seed=seed)
     y = data["y"]
