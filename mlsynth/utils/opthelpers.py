@@ -217,6 +217,23 @@ class OptHelpers:
         """
         return [w >= 0]
 
+    @staticmethod
+    def unit_constraints(w: cp.Variable) -> List:
+        """
+        Construct unit constraints.
+
+        Parameters
+        ----------
+        w : cp.Variable
+            Weight vector of shape (J,).
+
+        Returns
+        -------
+        list
+            Constraints enforcing 0 <= w_i <= 1 for all i.
+        """
+        return [w >= 0, w <= 1]
+
 
 
     @staticmethod
@@ -255,18 +272,14 @@ class OptHelpers:
 
     @staticmethod
     def build_constraints(
-        w: cp.Variable,
-        constraint_type: Literal["unconstrained", "simplex", "affine", "nonneg"] = "nonneg",
-        X: Optional[np.ndarray] = None,
-        y: Optional[np.ndarray] = None,
-        b0: Optional[cp.Variable] = None,
-        tau: Optional[float] = None,
-        objective_type: Literal["l2", "entropy", "EL"] = "l2"
+            w: cp.Variable,
+            constraint_type: Literal["unconstrained", "simplex", "affine", "nonneg", "unit"] = "nonneg",
+            X: Optional[np.ndarray] = None,
+            y: Optional[np.ndarray] = None,
+            b0: Optional[cp.Variable] = None,
+            tau: Optional[float] = None,
+            objective_type: Literal["l2", "entropy", "el"] = "l2"
     ) -> List:
-        """
-        Assemble the full constraint list for an optimization problem,
-        including structural and relaxed-balance constraints.
-        """
         constraints = []
 
         # Structural constraints
@@ -276,6 +289,8 @@ class OptHelpers:
             constraints += OptHelpers.affine_constraints(w)
         elif constraint_type == "nonneg":
             constraints += OptHelpers.nonneg_constraints(w)
+        elif constraint_type == "unit":
+            constraints += OptHelpers.unit_constraints(w)
         elif constraint_type == "unconstrained":
             pass
         else:
