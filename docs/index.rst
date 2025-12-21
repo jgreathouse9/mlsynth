@@ -23,6 +23,8 @@ MLSYNTH
    :caption: Estimators
    :titlesonly:
 
+   optutils
+   opthelpers
    fdid
    clustersc
    gsc
