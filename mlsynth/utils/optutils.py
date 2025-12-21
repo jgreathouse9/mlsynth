@@ -16,7 +16,7 @@ class Opt2:
         fit_intercept: bool = False,
         constraint_type: Literal["unconstrained", "simplex", "affine", "nonneg"] = "nonneg",
         objective_type: Literal["penalized", "relaxed"] = "penalized",
-        relaxation_type: Literal["l2", "entropy", "EL"] = "l2",
+        relaxation_type: Literal["l2", "entropy", "el"] = "l2",
         lam: float = 0.0,
         alpha: float = 0.5,
         second_norm: Literal["l2", "linf"] = "l2",
@@ -30,7 +30,9 @@ class Opt2:
         tol_rel: float = 1e-6,
         solve: bool = True,
     ) -> Dict[str, Any]:
-        """Synthetic Control Optimization (SCopt)."""
+        """
+        Synthetic Control Optimization (SCopt).
+        """
 
         # ---------- Slice pre-treatment ----------
         if T0 is not None:
@@ -76,10 +78,10 @@ class Opt2:
                         )
                     base_obj = OptHelpers.entropy_penalty(w)
 
-                elif relaxation_type == "EL":
+                elif relaxation_type == "el":
                     if constraint_type not in ["simplex", "affine"]:
                         raise ValueError(
-                            "EL relaxation requires sum-to-one constraints "
+                            "el relaxation requires sum-to-one constraints "
                             "(simplex or affine constraint_type)."
                         )
                     base_obj = OptHelpers.el_penalty(w)
