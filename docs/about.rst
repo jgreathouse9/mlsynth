@@ -32,69 +32,101 @@ The dependencies for mlsynth are::
 Methods
 -------
 
+
 At present, ``mlsynth`` supports:
 
-.. list-table:: Estimators in `mlsynth`
-   :widths: 30 50 20
+.. list-table:: Estimators in ``mlsynth``
+   :widths: 30 55 15
    :header-rows: 1
 
    * - Estimator
      - Reference
-     - Class in mlsynth
+     - Class in ``mlsynth``
+
    * - `Augmented Difference-in-Differences <https://doi.org/10.1287/mksc.2022.1406>`_
-     - Kathleen T. Li and Christophe Van den Bulte. "Augmented Difference-in-Differences." *Marketing Science* 2023 42:4, 746-767.
+     - Kathleen T. Li and Christophe Van den Bulte. "Augmented Difference-in-Differences." *Marketing Science* 42(4):746–767, 2023.
      - FDID
-   * - `CLUSTERSC <#>`_
-     - Saeyoung Rho, Andrew Tang, Noah Bergam, Rachel Cummings, Vishal Misra. "CLUSTERSC: Advancing Synthetic Control with Donor Clustering for Disaggregate-Level Data." (2024).
+
+   * - `CLUSTERSC <https://doi.org/10.48550/arXiv.2503.21629>`_
+     - Saeyoung Rho, Andrew Tang, Noah Bergam, Rachel Cummings, Vishal Misra. "CLUSTERSC: Advancing Synthetic Control with Donor Clustering for Disaggregate-Level Data." 2024.
      - CLUSTERSC
+
    * - `Debiased Convex Regression <https://doi.org/10.1287/inte.2023.0028>`_
-     - Luis Costa, Vivek F. Farias, Patricio Foncea, Jingyuan (Donna) Gan, Ayush Garg, Ivo Rosa Montenegro, Kumarjit Pathak, Tianyi Peng, Dusan Popovic. "Generalized Synthetic Control for TestOps at ABI: Models, Algorithms, and Infrastructure." *INFORMS Journal on Applied Analytics* 53(5):336-349, 2023.
+     - Luis Costa et al. "Generalized Synthetic Control for TestOps at ABI: Models, Algorithms, and Infrastructure." *INFORMS Journal on Applied Analytics* 53(5):336–349, 2023.
      - GSC
+
    * - `Factor Model Approach <https://doi.org/10.1177/00222437221137533>`_
-     - Kathleen T. Li, Garrett P. Sonnier. "Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings." *Journal of Marketing Research*, Volume 60, Issue 3.
+     - Kathleen T. Li and Garrett P. Sonnier. "Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings." *Journal of Marketing Research* 60(3), 2023.
      - FMA
-   * - `Forward Difference-in-Differences <https://doi.org/10.1287/mksc.2022.1406>`_
-     - Kathleen T. Li. "Frontiers: A Simple Forward Difference-in-Differences Method." *Marketing Science* 43(2):267-279, 2023.
+
+   * - `Forward Difference-in-Differences <https://doi.org/10.1287/mksc.2022.0212>`_
+     - Kathleen T. Li. "Frontiers: A Simple Forward Difference-in-Differences Method." *Marketing Science* 43(2):267–279, 2023.
      - FDID
+
    * - `Forward Selected Panel Data Approach <https://doi.org/10.1016/j.jeconom.2021.04.009>`_
-     - Zhentao Shi, Jingyi Huang. "Forward-selected panel data approach for program evaluation." *Journal of Econometrics*, Volume 234, Issue 2, 2023, Pages 512-535.
+     - Zhentao Shi and Jingyi Huang. "Forward-selected panel data approach for program evaluation." *Journal of Econometrics* 234(2):512–535, 2023.
      - PDA
+
    * - `L1PDA <https://doi.org/10.1002/jae.1230>`_
-     - Kathleen T. Li, David R. Bell. "Estimation of average treatment effects with panel data: Asymptotic theory and implementation." *Journal of Econometrics*, Volume 197, Issue 1, March 2017, Pages 65-75.
+     - Kathleen T. Li and David R. Bell. "Estimation of Average Treatment Effects with Panel Data." *Journal of Econometrics* 197(1):65–75, 2017.
      - PDA
+
    * - `L2-relaxation for Economic Prediction <https://doi.org/10.13140/RG.2.2.11670.97609>`_
-     - Zhentao Shi, Yishu Wang. "L2-relaxation for Economic Prediction." November 2024. DOI: `10.13140/RG.2.2.11670.97609 <https://doi.org/10.13140/RG.2.2.11670.97609>`_.
+     - Zhentao Shi and Yishu Wang. "L2-relaxation for Economic Prediction." November 2024.
      - PDA
+
    * - `Principal Component Regression <https://doi.org/10.1080/01621459.2021.1928513>`_
-     - Agarwal, Anish, Devavrat Shah, Dennis Shen, and Dogyoon Song. "On Robustness of Principal Component Regression." *Journal of the American Statistical Association* 116 (536): 1731–45, 2021.
+     - Anish Agarwal et al. "On Robustness of Principal Component Regression." *Journal of the American Statistical Association* 116(536):1731–1745, 2021.
      - CLUSTERSC
+
    * - `Robust PCA Synthetic Control <https://academicworks.cuny.edu/gc_etds/4984>`_
      - Mani Bayani. "Essays on Machine Learning Methods in Economics." CUNY Academic Works, 2022.
      - CLUSTERSC
+
    * - `Synthetic Control Method (Vanilla SCM) <https://doi.org/10.1198/jasa.2009.ap08746>`_
-     - Abadie, Alberto; Diamond, Alexis; Hainmueller, Jens. "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California's Tobacco Control Program." *Journal of the American Statistical Association* 105 (490): 493–505, 2010.
+     - Alberto Abadie, Alexis Diamond, and Jens Hainmueller. "Synthetic Control Methods for Comparative Case Studies." *JASA* 105(490):493–505, 2010.
      - TSSC
+
    * - `Two Step Synthetic Control <https://doi.org/10.1287/mnsc.2023.4878>`_
-     - Kathleen T. Li, Venkatesh Shankar. "A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events." *Management Science* 70(6):3734-3747, 2023.
+     - Kathleen T. Li and Venkatesh Shankar. "A Two-Step Synthetic Control Approach." *Management Science* 70(6):3734–3747, 2023.
      - TSSC
+
+   * - `Synthetic Controls for Experimental Design <https://arxiv.org/abs/2108.02196>`_
+     - Alberto Abadie and Jinglong Zhao. "Synthetic Controls for Experimental Design." arXiv:2108.02196, 2025.
+     - MAREX
+
    * - `Synthetic Control with Multiple Outcomes <https://arxiv.org/abs/2304.02272>`_
-     - Wei Tian, Seojeong Lee, and Valentyn Panchenko. "Synthetic Controls with Multiple Outcomes." arXiv 2304.02272.
+     - Wei Tian, Seojeong Lee, and Valentyn Panchenko. "Synthetic Controls with Multiple Outcomes." arXiv:2304.02272.
      - SCMO
+
    * - `Synthetic Interventions <https://arxiv.org/abs/2006.07691>`_
-     - Anish Agarwal, Devavrat Shah, and Dennis Shen. "Synthetic Interventions." arXiv 2006.07691.
+     - Anish Agarwal, Devavrat Shah, and Dennis Shen. "Synthetic Interventions." arXiv:2006.07691.
      - SI
+
    * - `Forward Selected Synthetic Control Method <https://doi.org/10.1016/j.econlet.2024.111976>`_
-     - Giovanni Cerulli. "Optimal initial donor selection for the synthetic control method." *Economics Letters*, 2024.
+     - Giovanni Cerulli. "Optimal Initial Donor Selection for the Synthetic Control Method." *Economics Letters*, 2024.
      - FSCM
+
    * - `Synthetic Regressing Control Method <https://arxiv.org/abs/2306.02584>`_
-     - Rong J. B. Zhu. "Synthetic Regressing Control Method." arXiv 2306.02584.
+     - Rong J. B. Zhu. "Synthetic Regressing Control Method." arXiv:2306.02584.
      - SRC
+
    * - `PI-SCM <https://arxiv.org/abs/2108.13935>`_
-     - Xu Shi, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen. "Theory for identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework." arXiv:2108.13935, 2023.
+     - Xu Shi et al. "Theory for Identification and Inference with Synthetic Controls." arXiv:2108.13935, 2023.
      - PROXIMAL
+
    * - `PIS-SCM <https://arxiv.org/abs/2308.09527>`_
-     - Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão. "Proximal Causal Inference for Synthetic Control with Surrogates." arXiv:2308.09527, 2023.
+     - Jizhou Liu et al. "Proximal Causal Inference for Synthetic Control with Surrogates." arXiv:2308.09527, 2023.
      - PROXIMAL
+
+   * - `Relaxation Approach to Synthetic Control <https://arxiv.org/abs/2508.01793>`_
+     - Chengwang Liao, Zhentao Shi, and Yapeng Zheng. "A Relaxation Approach to Synthetic Control." arXiv:2508.01793, 2025.
+     - RESCM
+
+   * - `L1-INF Synthetic Control <https://arxiv.org/abs/2510.26053>`_
+     - Le Wang, Xin Xing, and Youhui Ye. "A L-infinity Norm Synthetic Control Approach." arXiv:2510.26053, 2025.
+     - RESCM
+
 
 
 
