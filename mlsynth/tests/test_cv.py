@@ -256,7 +256,7 @@ def test_process_tau_grid_small_signal_raises():
 
 
 def test_process_tau_grid_array_with_duplicates():
-    """tau array with duplicates should sort descending without issue"""
+    """Tau array with duplicates should sort descending without issue"""
     X = np.random.randn(6, 2)
     y = np.random.randn(6)
     tau_array = [0.1, 0.05, 0.1]
