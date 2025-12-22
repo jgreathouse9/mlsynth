@@ -5,7 +5,7 @@ from sklearn.preprocessing import StandardScaler
 from mlsynth.utils.optutils import Opt2
 from mlsynth.utils.resultutils import effects
 from typing import Any, Tuple, List, Optional, Dict, Union, Callable, Literal
-
+from mlsynth.exceptions import MlsynthEstimationError
 
 class RelaxationCV(BaseEstimator, RegressorMixin):
     """
@@ -45,23 +45,61 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
         self.relaxation_type = relaxation_type
 
     def _generate_tau_grid(self, X: np.ndarray, y: np.ndarray):
-        """
-        Generate a geometric grid of tau values for cross-validation.
+        lower_limit = 1e-5
 
-        Parameters
-        ----------
-        X : np.ndarray
-            Donor matrix (T x J).
-        y : np.ndarray
-            Treated unit outcome vector (length T).
+        # -------------------------
+        # Parameter validation
+        # -------------------------
+        if not isinstance(self.n_taus, int) or self.n_taus < 2:
+            raise MlsynthEstimationError(
+                f"n_taus must be an integer >= 2; got {self.n_taus}"
+            )
 
-        Notes
-        -----
-        The grid is descending, from max L-infinity norm of X.T @ y down to 1e-4.
-        """
-        lower_limit = 1e-4
-        upper_limit = np.linalg.norm(X.T @ y, np.inf)
+        # -------------------------
+        # Shape validation
+        # -------------------------
+        if X.ndim != 2 or y.ndim != 1:
+            raise MlsynthEstimationError(
+                "X must be 2D and y must be 1D."
+            )
+
+        if X.shape[0] != y.shape[0]:
+            raise MlsynthEstimationError(
+                f"Shape mismatch: X has {X.shape[0]} rows but y has length {y.shape[0]}."
+            )
+
+        # -------------------------
+        # Compute upper bound safely
+        # -------------------------
+        try:
+            upper_limit = np.linalg.norm(X.T @ y, np.inf)
+        except Exception as e:
+            raise MlsynthEstimationError(
+                "Failed to compute ||X.T @ y||_inf due to invalid inputs."
+            ) from e
+
+        # -------------------------
+        # Numerical validity
+        # -------------------------
+        if not np.isfinite(upper_limit):
+            raise MlsynthEstimationError(
+                "Upper bound ||X.T @ y||_inf is not finite."
+            )
+
+        if upper_limit <= lower_limit:
+            raise MlsynthEstimationError(
+                "No identifying signal: ||X.T @ y||_inf is too small to construct a tau grid."
+            )
+
+        # -------------------------
+        # Construct grid
+        # -------------------------
         self.taus_ = np.geomspace(upper_limit, lower_limit, self.n_taus)
+
+
+
+
+
 
     def _process_tau_grid(self, X: np.ndarray, y: np.ndarray):
         """
@@ -94,28 +132,7 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
             self._generate_tau_grid(X, y)
             self.skip_cv_ = False
 
-    def _solve_relax_problem(self, X: np.ndarray, y: np.ndarray, tau: float = None) -> np.ndarray:
-        """
-        Solve a relaxed SCM optimization problem for a given tau.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Donor matrix (T x J).
-        y : np.ndarray
-            Treated unit outcome vector (length T).
-        tau : float, optional
-            Relaxation tolerance. If None, uses self.tau_.
-
-        Returns
-        -------
-        np.ndarray
-            Optimized weight vector (length J).
-
-        Notes
-        -----
-        If the solver fails, returns a zero vector of length J.
-        """
+    def _solve_relax_problem(self, X: np.ndarray, y: np.ndarray, tau: float = None) -> np.ndarray | None:
         tau_val = self.tau_ if tau is None else tau
         try:
             sc_res = Opt2.SCopt(
@@ -128,9 +145,7 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
                 relaxation_type=self.relaxation_type,
                 lam=0.0,
                 tau=tau_val,
-                solver=self.solver,
-                tol_abs=1e-8,
-                tol_rel=1e-8
+                solver=self.solver
             )
 
             w = sc_res["weights"]["w"]
@@ -140,43 +155,38 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
             elif isinstance(w, np.ndarray):
                 w = w.flatten()
             else:
-                w = np.zeros(X.shape[1], dtype=np.float64)
+                w = None
+
+            # Treat all-zero vectors as invalid
+            if w is not None and np.allclose(w, 0):
+                w = None
 
         except Exception as e:
             print(f"Solver failed for tau={tau_val}: {e}")
-            w = np.zeros(X.shape[1], dtype=np.float64)
+            w = None
 
         return w
 
     def _fit_fold(self, X: np.ndarray, y: np.ndarray, train_idx: np.ndarray, test_idx: np.ndarray) -> np.ndarray:
-        """
-        Fit the relaxed SCM for a single fold of time-series CV.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Donor matrix (T x J).
-        y : np.ndarray
-            Treated unit outcome vector (length T).
-        train_idx : np.ndarray
-            Indices of training samples.
-        test_idx : np.ndarray
-            Indices of test samples.
-
-        Returns
-        -------
-        np.ndarray
-            Fold mean squared error for each tau.
-        """
         X_train, y_train = X[train_idx], y[train_idx]
         X_test, y_test = X[test_idx], y[test_idx]
 
-        w_estimates = np.column_stack([
-            np.atleast_1d(self._solve_relax_problem(X_train, y_train, tau=val))
-            for val in self.taus_
-        ])
-        y_pred = X_test @ w_estimates
-        return np.mean((y_test[:, None] - y_pred) ** 2, axis=0)
+        mse_list = []
+
+        for val in self.taus_:
+            w = self._solve_relax_problem(X_train, y_train, tau=val)
+            if w is None:  # skip this tau
+                continue
+            y_pred = X_test @ w
+            mse_list.append(np.mean((y_test - y_pred) ** 2))
+
+        if len(mse_list) == 0:
+            # no valid taus for this fold
+            return None
+
+        return np.array(mse_list)
+
+
 
     def _cross_validate(self, X: np.ndarray, y: np.ndarray):
         """
@@ -200,10 +210,9 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
         """
         tscv = TimeSeriesSplit(n_splits=self.n_splits)
         cv_errors = []
-
         for train_idx, test_idx in tscv.split(X):
             fold_errors = self._fit_fold(X, y, train_idx, test_idx)
-            if fold_errors is not None:
+            if fold_errors is not None and len(fold_errors) > 0:
                 cv_errors.append(fold_errors)
 
         if len(cv_errors) == 0:
@@ -216,10 +225,15 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
         self.cv_mean_mse_ = np.mean(cv_errors, axis=0)
         self.tau_ = self.taus_[np.argmin(self.cv_mean_mse_)]
         self.cv_performed_ = True
+        self.cv_mse_path_ = {
+            float(tau): float(mse)
+            for tau, mse in zip(self.taus_, self.cv_mean_mse_)
+        }
 
     def fit(self, X: np.ndarray, y: np.ndarray):
         """
-        Fit the RelaxationCV model.
+        Fit the RelaxationCV model, trying multiple taus until a feasible solution is found.
+        Counts skipped tau candidates.
 
         Parameters
         ----------
@@ -238,11 +252,31 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
 
         if not getattr(self, "skip_cv_", False):
             self._cross_validate(X, y)
+            # Sort taus by increasing CV MSE
+            taus_to_try = self.taus_[np.argsort(self.cv_mean_mse_)]
         else:
             self.cv_performed_ = False
-            self.tau_ = self.taus_[0]
+            taus_to_try = [self.taus_[0]]
 
-        self.coef_ = self._solve_relax_problem(X, y, tau=self.tau_)
+        self.coef_ = None
+        self.skipped_tau_count_ = 0  # initialize attribute
+
+        for tau_candidate in taus_to_try:
+            coef_candidate = self._solve_relax_problem(X, y, tau=tau_candidate)
+            if coef_candidate is not None and np.any(coef_candidate != 0):
+                self.tau_ = tau_candidate
+                self.coef_ = coef_candidate
+                break
+            else:
+                self.skipped_tau_count_ += 1
+                print(f"Skipped tau={tau_candidate} due to infeasible solution.")
+
+        if self.coef_ is None:
+            raise MlsynthEstimationError(
+                f"No feasible tau found: all {len(taus_to_try)} tau candidates produced invalid coefficients."
+            )
+
+        print(f"Number of tau candidates skipped before finding a feasible solution: {self.skipped_tau_count_}")
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -261,11 +295,6 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
         """
         X = X.astype(np.float64)
         return X @ self.coef_
-
-
-
-
-
 
 def fit_relaxed_scm(
     X_pre: np.ndarray,
@@ -353,10 +382,13 @@ def fit_relaxed_scm(
         tau=tau,
         n_taus=n_taus,
         n_splits=n_splits,
-        nonneg=True,
         solver=solver,
         relaxation_type=relaxation_type
     )
+
+
+
+
     model.fit(X_pre_scaled, y_pre_scaled)
 
     # Predictions
@@ -367,14 +399,38 @@ def fit_relaxed_scm(
     weights_scaled = model.coef_
     weights_orig = (weights_scaled / scaler_X.scale_) / np.sum(weights_scaled / scaler_X.scale_)
 
-    donor_weights = {state: (0 if w < 0.001 else round(w, 3))
-                     for state, w in zip(donor_names, weights_orig)}
+    def round_sig(x, sig=3):
+        return float(f"{x:.{sig}g}")
+
+    donor_weights = {
+        state: (0 if abs(w) < 1e-3 else round_sig(w, 3))
+        for state, w in zip(donor_names, weights_orig)
+    }
 
     # ATT / Fit diagnostics
     attdict, fitdict, Vectors = effects.calculate(
         y, np.concatenate([y_pre_pred, y_post_pred]),
         X_pre.shape[0], X_post.shape[0]
     )
+
+    def _relaxed_model_name(relaxation_type: str) -> str:
+        """
+        Return a LaTeX-style description of the Relaxed SCM model
+        combining ℓ_infinity norm with the relaxation type as a superscript.
+        """
+        base_norm = "\\ell_\\infty"
+
+        relaxation_map = {
+            "l2": "Ridge",
+            "entropy": "Entropy",
+            "el": "EL",
+            "empirical_likelihood": "EL"
+        }
+
+        superscript = relaxation_map.get(relaxation_type.lower(), relaxation_type)
+        return f"${base_norm}^{{{superscript}}}$"
+
+    name = _relaxed_model_name(relaxation_type)
 
     return {
         "donor_weights": donor_weights,
@@ -384,12 +440,12 @@ def fit_relaxed_scm(
             "Fit": fitdict,
             "Vectors": Vectors
         },
-        "Model": f"Relaxed SCM ({relaxation_type})",
+        "Model": name,
         "hyperparameters": {
             "tau_used": model.tau_,
             "cv_performed": getattr(model, "cv_performed_", False),
             "n_splits": n_splits if getattr(model, "cv_performed_", False) else None,
-            "relaxation_type": relaxation_type
+            "relaxation_type": relaxation_type, "Skipped Tau Count": model.skipped_tau_count_
         }
     }
 
@@ -418,7 +474,7 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
         Mixing parameter(s) between L1 and second norm.
     lam : float or array-like, optional
         Regularization strength(s). If None, lambda sequence is generated automatically.
-    second_norm : {"l2", "linf"}, default "l2"
+    second_norm : {"l2", "L1_INF"}, default "l2"
         Second norm used in Elastic Net.
     n_splits : int, default=5
         Number of folds for time-series CV.
@@ -429,12 +485,18 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
     def __init__(self, *,
                  alpha: Optional[float | list[float]] = 0.5,
                  lam: Optional[float | list[float]] = None,
-                 second_norm: Literal["l2", "linf"] = "l2",
+                 second_norm: Literal["l2", "L1_INF"] = "l2",
+                 constraint_type: Literal[
+                     "unconstrained", "simplex", "affine", "nonneg", "unit"
+                 ] = "affine",
+                 fit_intercept: bool = True,
                  n_splits: int = 5,
                  solver: str = "CLARABEL"):
         self.alpha = alpha
         self.lam = lam
+        self.constraint_type = constraint_type
         self.second_norm = second_norm
+        self.fit_intercept = fit_intercept
         self.n_splits = n_splits
         self.solver = solver
 
@@ -454,8 +516,8 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
                 y=y,
                 X=X,
                 T0=X.shape[0],
-                fit_intercept=True,
-                constraint_type="simplex",
+                fit_intercept=self.fit_intercept,
+                constraint_type=self.constraint_type,
                 objective_type="penalized",
                 lam=lam,
                 alpha=alpha,
@@ -516,68 +578,52 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
 
 
 
-
 def fit_en_scm(
     X_pre: np.ndarray,
     y_pre: np.ndarray,
     X_post: np.ndarray,
     donor_names: list = None,
+    fit_intercept: bool = False,
     y: np.ndarray = None,
     alpha: float | list[float] | None = 0.5,
     lam: float | list[float] | None = None,
     n_splits: int = 5,
     second_norm: str = "l2",
+    constraint_type: str = "simplex",
     solver: str = "CLARABEL",
+    standardize: bool = True
 ) -> dict:
     """
     Fit an Elastic Net Synthetic Control Method (SCM) with optional
     cross-validation over lambda and alpha, returning donor weights,
     predictions, and ATT results.
 
-    Parameters
-    ----------
-    X_pre : np.ndarray, shape (T0, J)
-        Pre-treatment donor matrix.
-    y_pre : np.ndarray, shape (T0,)
-        Pre-treatment outcome vector for treated unit.
-    X_post : np.ndarray, shape (T1, J)
-        Post-treatment donor matrix.
-    donor_names : list of str, optional
-        Names of donor units corresponding to columns of X_pre/X_post.
-    y : np.ndarray, shape (T0+T1,), optional
-        Full outcome vector of treated unit. Used for ATT computation.
-    alpha : float or list of floats, optional
-        Mixing parameter(s) for L1/L2/Linf.
-    lam : float or list of floats, optional
-        Regularization strength(s) for Elastic Net.
-    n_splits : int, default=5
-        Number of folds for time-series cross-validation.
-    second_norm : {"l2", "linf"}, default "l2"
-        Second norm used in Elastic Net.
-    solver : str, default "CLARABEL"
-        CVXPY solver.
-
-    Returns
-    -------
-    result : dict
-        Dictionary containing donor weights, predictions, ATT/fit results, model info, and CV hyperparameters.
+    standardize : bool, default=True
+        If True, standardize donor and outcome matrices based on pre-treatment period.
     """
-    # Standardize donors
-    scaler_X = StandardScaler().fit(X_pre)
-    X_pre_scaled = scaler_X.transform(X_pre)
-    X_post_scaled = scaler_X.transform(X_post)
+    if standardize:
+        # Standardize donors
+        scaler_X = StandardScaler().fit(X_pre)
+        X_pre_scaled = scaler_X.transform(X_pre)
+        X_post_scaled = scaler_X.transform(X_post)
 
-    # Standardize outcomes
-    y_mean, y_std = y_pre.mean(), y_pre.std()
-    y_pre_scaled = (y_pre - y_mean) / y_std
+        # Standardize outcomes
+        y_mean, y_std = y_pre.mean(), y_pre.std()
+        y_pre_scaled = (y_pre - y_mean) / y_std
+    else:
+        X_pre_scaled, X_post_scaled = X_pre, X_post
+        y_mean, y_std = 0, 1
+        y_pre_scaled = y_pre
 
     # Fit Elastic Net SCM with CV
     model = ElasticNetCV(
         alpha=alpha,
         lam=lam,
+        fit_intercept=fit_intercept,
         second_norm=second_norm,
         n_splits=n_splits,
-        solver=solver
+        solver=solver,
+        constraint_type=constraint_type,
     )
     model.fit(X_pre_scaled, y_pre_scaled)
 
@@ -585,18 +631,71 @@ def fit_en_scm(
     y_pre_pred = model.predict(X_pre_scaled) * y_std + y_mean
     y_post_pred = model.predict(X_post_scaled) * y_std + y_mean
 
-    # Transform weights back to original scale
+    # Transform weights back to original scale if standardized
     weights_scaled = model.coef_
-    weights_orig = (weights_scaled / scaler_X.scale_) / np.sum(weights_scaled / scaler_X.scale_)
+    if standardize:
+        weights_orig = (weights_scaled / scaler_X.scale_) / np.sum(weights_scaled / scaler_X.scale_)
+    else:
+        weights_orig = weights_scaled / np.sum(weights_scaled)
 
-    donor_weights = {state: (0 if w < 0.001 else round(w, 3))
-                     for state, w in zip(donor_names, weights_orig)}
+    def round_sig(x, sig=3):
+        return float(f"{x:.{sig}g}")
+
+    donor_weights = {
+        state: (0 if abs(w) < 1e-3 else round_sig(w, 3))
+        for state, w in zip(donor_names, weights_orig)
+    }
 
     # ATT / Fit diagnostics
     attdict, fitdict, Vectors = effects.calculate(
         y, np.concatenate([y_pre_pred, y_post_pred]),
         X_pre.shape[0], X_post.shape[0]
     )
+
+    def _name_elastic_net_model(alpha: float, second_norm: str, tol: float = 0.06) -> str:
+        """
+        Return a descriptive model name based on alpha and second norm using LaTeX-style notation
+        suitable for Python outputs, rounding extreme alpha values near 0 or 1.
+
+        Parameters
+        ----------
+        alpha : float
+            Mixing parameter between L1 and second norm.
+        second_norm : str
+            Second norm when alpha < 1; either "l2" or "linf".
+        tol : float
+            Tolerance for rounding alpha to 0 or 1.
+
+        Returns
+        -------
+        str
+            Model name, e.g., "Lasso SCM ($\\ell_1$)", "Ridge SCM ($\\ell_2$)",
+            "Elastic Net SCM ($\\alpha \\ell_1 + (1-\\alpha) \\ell_2$)".
+        """
+        if alpha <= tol:
+            alpha = 0.0
+        elif alpha >= 1 - tol:
+            alpha = 1.0
+
+        if alpha == 1.0:
+            return "$\\ell_1$"
+        elif alpha == 0.0:
+            if second_norm == "l2":
+                return "$\\ell_2$"
+            elif second_norm == "L1_INF":
+                return "$\\ell_\\infty$"
+            else:
+                raise ValueError(f"Unknown second_norm: {second_norm}")
+        else:
+            if second_norm == "l2":
+                return "$\\alpha \\ell_1 + (1-\\alpha) \\ell_2$"
+            elif second_norm == "L1_INF":
+                return "$\\alpha \\ell_1 + (1-\\alpha) \\ell_\\infty$"
+            else:
+                raise ValueError(f"Unknown second_norm: {second_norm}")
+
+    model_name = _name_elastic_net_model(model.alpha_, model.second_norm)
+
 
     return {
         "donor_weights": donor_weights,
@@ -606,11 +705,12 @@ def fit_en_scm(
             "Fit": fitdict,
             "Vectors": Vectors
         },
-        "Model": f"Elastic Net SCM ({second_norm})",
+        "Model": model_name,
         "hyperparameters": {
             "alpha_used": model.alpha_,
             "lam_used": model.lam_,
             "cv_performed": getattr(model, "cv_performed_", False),
-            "n_splits": n_splits if getattr(model, "cv_performed_", False) else None
+            "n_splits": n_splits if getattr(model, "cv_performed_", False) else None,
+            "standardized": standardize
         }
     }
