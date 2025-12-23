@@ -101,9 +101,7 @@ def test_scopt_solve_flag(incrementality_synth_panel, solve):
 @pytest.mark.parametrize("lam", [0.1, 0.5])
 @pytest.mark.parametrize("second_norm", ["l2", "inf"])
 def test_l1linf_elastic_net_with_linf_zero_equals_lasso(incrementality_synth_panel, lam, second_norm):
-    """
-    L1-Linf elastic net with alpha=1 should produce same solution as LASSO SCopt.
-    """
+    """L1-Linf elastic net with alpha=1 should produce same solution as LASSO SCopt."""
     y, X, T0 = incrementality_synth_panel
     alpha = 1.0  # full L1, no Linf contribution
 
@@ -258,9 +256,7 @@ def test_penalized_sc_weight_invariants(incrementality_synth_panel, constraint_t
 # =========================
 
 def atom_names(expr):
-    """
-    Robustly extract atom names from a CVXPY expression.
-    """
+    """Robustly extract atom names from a CVXPY expression."""
     names = set()
     for atom in expr.atoms():
         if hasattr(atom, "name") and callable(getattr(atom, "name", None)):
