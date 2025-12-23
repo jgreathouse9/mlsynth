@@ -19,7 +19,7 @@ class Opt2:
         relaxation_type: Literal["l2", "entropy", "el"] = "l2",
         lam: float = 0.0,
         alpha: float = 0.5,
-        second_norm: Literal["l2", "L1_INF"] = "l2",
+        second_norm: Literal["l2", "inf"] = "l2",
         tau: Optional[float] = None,
         custom_penalty_callable: Optional[Callable[[cp.Variable], cp.Expression]] = None,
         custom_objective_callable: Optional[
@@ -30,7 +30,9 @@ class Opt2:
         tol_rel: float = 1e-6,
         solve: bool = True,
     ) -> Dict[str, Any]:
-        """Synthetic Control Optimization (SCopt)."""
+        """
+        Synthetic Control Optimization (SCopt).
+        """
 
         # ---------- Slice pre-treatment ----------
         if T0 is not None:
@@ -47,59 +49,28 @@ class Opt2:
         # ---------- Objective ----------
         if custom_objective_callable is not None:
             objective = custom_objective_callable(y_opt, X_opt, w, b0)
-
         else:
-            if objective_type == "penalized":
-                loss = OptHelpers.squared_loss(y_opt, X_opt, w, b0, scale=False)
-
-                if alpha == 0.0:
-                    penalty = lam * OptHelpers.l2_only_penalty(w)
-                else:
-                    penalty = OptHelpers.elastic_net_penalty(
-                        w, lam, alpha, second_norm
-                    )
-
-                extra_penalty = (
-                    custom_penalty_callable(w) if custom_penalty_callable else 0.0
-                )
-                objective = cp.Minimize(loss + penalty + extra_penalty)
-
-            elif objective_type == "relaxed":
-                if relaxation_type == "l2":
-                    base_obj = OptHelpers.l2_only_penalty(w)
-
-                elif relaxation_type == "entropy":
-                    if constraint_type not in ["simplex", "affine"]:
-                        raise ValueError(
-                            "Entropy relaxation requires sum-to-one constraints "
-                            "(simplex or affine constraint_type)."
-                        )
-                    base_obj = OptHelpers.entropy_penalty(w)
-
-                elif relaxation_type == "el":
-                    if constraint_type not in ["simplex", "affine"]:
-                        raise ValueError(
-                            "el relaxation requires sum-to-one constraints "
-                            "(simplex or affine constraint_type)."
-                        )
-                    base_obj = OptHelpers.el_penalty(w)
-
-                else:
-                    raise ValueError(
-                        f"Unknown relaxation_type: {relaxation_type}"
-                    )
-
-                extra_penalty = (
-                    custom_penalty_callable(w) if custom_penalty_callable else 0.0
-                )
-                objective = cp.Minimize(base_obj + extra_penalty)
-
-            else:
-                raise ValueError(
-                    f"Unknown objective_type: {objective_type}"
-                )
+            objective = OptHelpers.build_objective(
+                y_opt,
+                X_opt,
+                w,
+                b0,
+                objective_type=objective_type,
+                relaxation_type=relaxation_type,
+                lam=lam,
+                alpha=alpha,
+                second_norm=second_norm,
+                custom_penalty_callable=custom_penalty_callable,
+            )
 
         # ---------- Constraints ----------
+        if objective_type == "relaxed" and relaxation_type in ["entropy", "el"]:
+            if constraint_type not in ["simplex", "affine"]:
+                raise ValueError(
+                    f"{relaxation_type} relaxation requires sum-to-one constraints "
+                    "(simplex or affine constraint_type)."
+                )
+
         balance_tau = tau if objective_type == "relaxed" else None
 
         constraints = OptHelpers.build_constraints(
@@ -113,16 +84,11 @@ class Opt2:
         )
 
         # ---------- Solver options ----------
-        solver_opts: Dict[str, Any] = {}
-        solver_upper = solver.upper()
-
-        if solver_upper in ["OSQP", "ECOS", "SCS"]:
-            if solver_upper == "OSQP":
-                solver_opts["eps_abs"] = tol_abs
-                solver_opts["eps_rel"] = tol_rel
-            else:
-                solver_opts["abstol"] = tol_abs
-                solver_opts["reltol"] = tol_rel
+        solver_opts = OptHelpers.get_solver_opts(
+            solver=solver,
+            tol_abs=tol_abs,
+            tol_rel=tol_rel,
+        )
 
         # ---------- Solve ----------
         problem = cp.Problem(objective, constraints)
@@ -148,4 +114,3 @@ class Opt2:
             "weights": weights,
             "predictions": y_synth_full,
         }
-
