@@ -1,8 +1,8 @@
-## 12/18/2025
+## 12/22/2025
 
 import cvxpy as cp
 import numpy as np
-from typing import Optional, Literal, List
+from typing import Optional, Literal, List, Callable, Dict, Any
 
 
 class OptHelpers:
@@ -62,7 +62,7 @@ class OptHelpers:
         w: cp.Variable,
         lam: float = 0.0,
         alpha: float = 0.5,
-        second_norm: Literal["l2", "L1_INF"] = "l2",
+        second_norm: Literal["l2", "inf"] = "l2",
     ) -> cp.Expression:
         """
         Construct an elastic-net-style penalty.
@@ -77,7 +77,7 @@ class OptHelpers:
             Mixing parameter between L1 and second norm.
             alpha = 1   -> pure L1
             alpha = 0   -> pure second norm
-        second_norm : {"l2", "linf"}, default "l2"
+        second_norm : {"l2", "inf"}, default "l2"
             Choice of second norm when alpha < 1.
 
         Returns
@@ -96,7 +96,7 @@ class OptHelpers:
         if alpha < 1:
             if second_norm == "l2":
                 penalty += (1 - alpha) * cp.norm(w, 2)
-            elif second_norm == "L1_INF":
+            elif second_norm == "inf":
                 penalty += (1 - alpha) * cp.norm(w, "inf")
             else:
                 raise ValueError(f"Unknown second_norm: {second_norm}")
@@ -241,7 +241,7 @@ class OptHelpers:
             X: np.ndarray,
             residual: cp.Expression,
             tau: float,
-            objective_type: Literal["l2", "entropy", "EL"] = "l2"
+            objective_type: Literal["l2", "entropy", "el"] = "l2"
     ) -> tuple[list, cp.Variable]:
         """
         Relaxed balance constraints with gamma slack variable,
@@ -255,7 +255,7 @@ class OptHelpers:
             Residual vector y - Xw (or y - Xw - b0)
         tau : float
             Balance relaxation tolerance
-        objective_type : {"l2", "entropy", "EL"}
+        objective_type : {"l2", "entropy", "el"}
             Form of relaxed balance
 
         Returns
@@ -265,6 +265,8 @@ class OptHelpers:
         gam : cp.Variable
             Scalar slack variable
         """
+        if objective_type not in ["l2", "entropy", "el"]:
+            raise ValueError(f"Unknown objective_type: {objective_type}")
 
         gam = cp.Variable()  # scalar slack
         constraints = [cp.norm(X.T @ residual / X.shape[0] + gam * np.ones(X.shape[1]), "inf") <= tau]
@@ -305,3 +307,107 @@ class OptHelpers:
             constraints += relax_constraints
 
         return constraints
+
+    @staticmethod
+    def build_objective(
+        y: np.ndarray,
+        X: np.ndarray,
+        w: cp.Variable,
+        b0: Optional[cp.Variable],
+        objective_type: Literal["penalized", "relaxed"] = "penalized",
+        relaxation_type: Literal["l2", "entropy", "el"] = "l2",
+        lam: float = 0.0,
+        alpha: float = 0.5,
+        second_norm: Literal["l2", "inf"] = "l2",
+        custom_penalty_callable: Optional[Callable[[cp.Variable], cp.Expression]] = None,
+    ) -> cp.Objective:
+        """
+        Construct the CVXPY objective for penalized or relaxed optimization.
+
+        Parameters
+        ----------
+        y : np.ndarray
+            Target outcome vector.
+        X : np.ndarray
+            Donor outcome matrix.
+        w : cp.Variable
+            Weight vector.
+        b0 : cp.Variable, optional
+            Intercept term.
+        objective_type : {"penalized", "relaxed"}, default "penalized"
+            Type of objective (loss + penalty or penalty-only with relaxed constraints).
+        relaxation_type : {"l2", "entropy", "el"}, default "l2"
+            Type of relaxation for "relaxed" objective.
+        lam : float, default 0.0
+            Penalty strength for "penalized".
+        alpha : float, default 0.5
+            L1 mixing parameter for elastic net in "penalized".
+        second_norm : {"l2", "inf"}, default "l2"
+            Second norm for elastic net in "penalized".
+        custom_penalty_callable : callable, optional
+            Additional custom penalty term.
+
+        Returns
+        -------
+        cp.Objective
+            The minimization objective.
+        """
+        if objective_type == "penalized":
+            loss = OptHelpers.squared_loss(y, X, w, b0, scale=False)
+            if alpha == 0.0:
+                penalty = lam * OptHelpers.l2_only_penalty(w)
+            else:
+                penalty = OptHelpers.elastic_net_penalty(w, lam, alpha, second_norm)
+            extra_penalty = custom_penalty_callable(w) if custom_penalty_callable else 0.0
+            return cp.Minimize(loss + penalty + extra_penalty)
+
+        elif objective_type == "relaxed":
+            if relaxation_type == "l2":
+                base_obj = OptHelpers.l2_only_penalty(w)
+            elif relaxation_type == "entropy":
+                base_obj = OptHelpers.entropy_penalty(w)
+            elif relaxation_type == "el":
+                base_obj = OptHelpers.el_penalty(w)
+            else:
+                raise ValueError(f"Unknown relaxation_type: {relaxation_type}")
+            extra_penalty = custom_penalty_callable(w) if custom_penalty_callable else 0.0
+            return cp.Minimize(base_obj + extra_penalty)
+
+        else:
+            raise ValueError(f"Unknown objective_type: {objective_type}")
+
+    @staticmethod
+    def get_solver_opts(
+        solver: str = "CLARABEL",
+        tol_abs: float = 1e-6,
+        tol_rel: float = 1e-6,
+    ) -> Dict[str, Any]:
+        """
+        Get solver-specific options.
+
+        Parameters
+        ----------
+        solver : str, default "CLARABEL"
+            CVXPY solver name.
+        tol_abs : float, default 1e-6
+            Absolute tolerance.
+        tol_rel : float, default 1e-6
+            Relative tolerance.
+
+        Returns
+        -------
+        dict
+            Solver options dictionary.
+        """
+        solver_opts: Dict[str, Any] = {}
+        solver_upper = solver.upper()
+
+        if solver_upper in ["OSQP", "ECOS", "SCS"]:
+            if solver_upper == "OSQP":
+                solver_opts["eps_abs"] = tol_abs
+                solver_opts["eps_rel"] = tol_rel
+            else:
+                solver_opts["abstol"] = tol_abs
+                solver_opts["reltol"] = tol_rel
+
+        return solver_opts
