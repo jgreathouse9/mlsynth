@@ -276,7 +276,7 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
                 f"No feasible tau found: all {len(taus_to_try)} tau candidates produced invalid coefficients."
             )
 
-        print(f"Number of tau candidates skipped before finding a feasible solution: {self.skipped_tau_count_}")
+        #print(f"Number of tau candidates skipped before finding a feasible solution: {self.skipped_tau_count_}")
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
