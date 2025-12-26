@@ -269,7 +269,7 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
                 break
             else:
                 self.skipped_tau_count_ += 1
-                print(f"Skipped tau={tau_candidate} due to infeasible solution.")
+                #print(f"Skipped tau={tau_candidate} due to infeasible solution.")
 
         if self.coef_ is None:
             raise MlsynthEstimationError(
