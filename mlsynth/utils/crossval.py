@@ -162,7 +162,7 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
                 w = None
 
         except Exception as e:
-            print(f"Solver failed for tau={tau_val}: {e}")
+            #print(f"Solver failed for tau={tau_val}: {e}")
             w = None
 
         return w
@@ -533,7 +533,7 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
                 w = np.zeros(X.shape[1], dtype=np.float64)
             return w
         except Exception as e:
-            print(f"SCopt failed for lam={lam}, alpha={alpha}: {e}")
+            #print(f"SCopt failed for lam={lam}, alpha={alpha}: {e}")
             return np.zeros(X.shape[1], dtype=np.float64)
 
     def _fit_fold(self, X, y, train_idx, test_idx, lam, alpha):
