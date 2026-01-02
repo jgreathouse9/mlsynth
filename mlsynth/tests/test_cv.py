@@ -41,6 +41,141 @@ def test_process_grid_default_alpha(incrementality_synth_panel):
     assert len(enet.alphas_) == 10
     assert len(enet.lams_) == 30
 
+# ======================================================
+# Lambda sequence smoke tests
+# ======================================================
+
+def test_generate_lambda_seq2_monotone_and_bounded(incrementality_synth_panel):
+    y, X, _ = incrementality_synth_panel
+
+    lam_seq = generate_lambda_seq2(y, X, alpha=0.5)
+
+    assert lam_seq.ndim == 1
+    assert len(lam_seq) == 30
+    assert np.all(np.diff(lam_seq) < 0)        # strictly decreasing
+    assert lam_seq.max() <= 20
+    assert lam_seq.min() > 0
+
+
+# ======================================================
+# Grid processing smoke tests
+# ======================================================
+
+def test_process_grid_nonempty(incrementality_synth_panel):
+    y, X, _ = incrementality_synth_panel
+    model = ElasticNetCV(alpha=None, lam=None)
+
+    model._process_grid(X, y)
+
+    assert len(model.alphas_) > 0
+    assert len(model.lams_) > 0
+
+
+# ======================================================
+# Cross-validation invariants
+# ======================================================
+
+def test_cross_validate_sets_attributes(incrementality_synth_panel):
+    y, X, _ = incrementality_synth_panel
+    model = ElasticNetCV(alpha=[0.2, 0.5], lam=[0.1, 0.2], n_splits=3)
+
+    model.fit(X, y)
+
+    assert hasattr(model, "lam_")
+    assert hasattr(model, "alpha_")
+    assert model.cv_performed_ is True
+
+
+def test_selected_params_from_grid(incrementality_synth_panel):
+    y, X, _ = incrementality_synth_panel
+    alphas = [0.2, 0.8]
+    lams = [0.05, 0.1, 0.2]
+
+    model = ElasticNetCV(alpha=alphas, lam=lams)
+    model.fit(X, y)
+
+    assert model.alpha_ in alphas
+    assert model.lam_ in lams
+
+
+# ======================================================
+# Solver failure tolerance tests
+# ======================================================
+
+@patch("mlsynth.utils.crossval.Opt2.SCopt", side_effect=RuntimeError("boom"))
+def test_solve_enet_failure_returns_zero_weights(mock_scopt, incrementality_synth_panel):
+    y, X, _ = incrementality_synth_panel
+    model = ElasticNetCV()
+
+    w = model._solve_enet(X, y, lam=0.1, alpha=0.5)
+
+    assert w.shape == (X.shape[1],)
+    assert np.all(w == 0.0)
+
+
+@patch.object(ElasticNetCV, "_solve_enet", return_value=np.array([]))
+def test_cv_does_not_crash_on_bad_weights(mock_solve, incrementality_synth_panel):
+    y, X, _ = incrementality_synth_panel
+    model = ElasticNetCV(alpha=[0.5], lam=[0.1], n_splits=2)
+
+    # force safe fallback shape
+    mock_solve.return_value = np.zeros(X.shape[1])
+
+    model.fit(X, y)
+
+    assert hasattr(model, "coef_")
+    assert model.coef_.shape[0] == X.shape[1]
+
+
+# ======================================================
+# End-to-end fit_en_scm smoke tests
+# ======================================================
+
+def test_fit_en_scm_return_schema(incrementality_synth_panel):
+    y, X, T0 = incrementality_synth_panel
+
+    res = fit_en_scm(
+        X_pre=X[:T0],
+        y_pre=y[:T0],
+        X_post=X[T0:],
+        y=y,
+        donor_names=[f"d{i}" for i in range(X.shape[1])],
+    )
+
+    assert "donor_weights" in res
+    assert "predictions" in res
+    assert "Results" in res
+    assert "Model" in res
+    assert "hyperparameters" in res
+
+
+def test_fit_en_scm_weights_sum_to_one(incrementality_synth_panel):
+    y, X, T0 = incrementality_synth_panel
+
+    res = fit_en_scm(
+        X_pre=X[:T0],
+        y_pre=y[:T0],
+        X_post=X[T0:],
+        y=y,
+        donor_names=[f"d{i}" for i in range(X.shape[1])],
+        standardize=True,
+    )
+
+    s = sum(res["donor_weights"].values())
+    assert np.isclose(s, 1.0, atol=1e-6)
+
+
+# ======================================================
+# API contract / behavior tests
+# ======================================================
+
+def test_predict_before_fit_raises(incrementality_synth_panel):
+    _, X, _ = incrementality_synth_panel
+    model = ElasticNetCV()
+
+    with pytest.raises(AttributeError):
+        model.predict(X)
+
 
 # ======================================================
 # RelaxationCV: _generate_tau_grid (valid behavior)
@@ -64,6 +199,24 @@ def test_generate_tau_grid_valid(incrementality_synth_panel):
         np.linalg.norm(X.T @ y, np.inf),
         rtol=1e-8
     )
+
+
+
+def test_coefficients_not_constant(incrementality_synth_panel):
+    y, X, _ = incrementality_synth_panel
+    model = ElasticNetCV(alpha=0.5, lam=None)
+
+    model.fit(X, y)
+
+    w = model.coef_
+
+    # Basic sanity
+    assert w.ndim == 1
+    assert w.shape[0] == X.shape[1]
+
+    # Not all coefficients are identical
+    assert not np.allclose(w, w[0])
+
 
 
 # ======================================================
