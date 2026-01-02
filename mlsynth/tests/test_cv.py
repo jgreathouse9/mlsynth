@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 from unittest.mock import patch
 
-from mlsynth.utils.crossval import ElasticNetCV, RelaxationCV, fit_en_scm
+from mlsynth.utils.crossval import ElasticNetCV, RelaxationCV, fit_en_scm, generate_lambda_seq2
+
+
 from mlsynth.utils.optutils import Opt2
 from mlsynth.tests.helper_tests import incrementality_synth_panel
 from mlsynth.exceptions import MlsynthEstimationError
