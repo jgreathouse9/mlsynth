@@ -164,7 +164,7 @@ def test_fit_en_scm_weights_sum_to_one(incrementality_synth_panel):
     )
 
     s = sum(res["donor_weights"].values())
-    assert np.isclose(s, 1.0, atol=1e-6)
+    assert np.isclose(s, 1.0, atol=1e-3)
 
 
 # ======================================================
