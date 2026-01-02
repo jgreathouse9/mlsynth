@@ -40,7 +40,7 @@ jobs:
 
     - name: Run unit tests with coverage
       run: |
-        pytest --cov=mlsynth --cov-report=xml --maxfail=20 --disable-warnings --tb=short
+        pytest --cov=mlsynth --cov-report=xml --disable-warnings --tb=short
 
     - name: Show missed coverage lines
       run: |
