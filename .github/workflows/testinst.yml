@@ -19,7 +19,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'  # Use the desired Python version
+        python-version: '3.10'  # Use the desired Python version
 
     - name: Install mlsynth from GitHub
       run: |
