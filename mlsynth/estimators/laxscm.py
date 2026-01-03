@@ -37,30 +37,6 @@ class RESCM:
     The estimator selected depends on the configuration specified in
     `self.models_to_run`:
 
-    Relaxed SCM Estimators (via Opt2.SCopt with `objective_type="relaxed"`):
-    ----------------------------------------------------------------------
-    - "l2": Standard Euclidean relaxation. Uses `l2_only_penalty` on the weights.
-      No specific constraint type is required.
-
-    - "entropy": Entropy-based relaxation. Encourages a high-entropy weight
-      distribution. Requires sum-to-one constraints (`constraint_type` either
-      "simplex" or "affine").
-
-    - "el": Empirical likelihood.
-      Also requires sum-to-one constraints ("simplex" or "affine").
-
-    Elastic-Net SCM Estimators (via Opt2.SCopt with `objective_type="penalized"`):
-    -------------------------------------------------------------------------------
-    - L1-L2 Elastic Net: Combines L1 and L2 penalties on the donor weights.
-      Inspired by Doudchenko & Imbens (2017). The mixing parameter `alpha`
-      controls the L1/L2 balance, `lambda` controls overall penalty strength.
-      Optional intercept can be added via `fit_intercept=True`.
-
-    - L1-L∞ Elastic Net: Combines L1 and L∞ penalties. Inspired by Wang et al. (2025).
-      The `second_norm="linf"` parameter enables max-norm regularization
-      alongside L1, with `alpha` controlling the L1/∞ mixture and `lambda`
-      controlling overall shrinkage.
-
     Parameters
     ----------
     None
@@ -95,6 +71,30 @@ class RESCM:
     Doudchenko, N., & Imbens, G. W. (2017). Balancing, Regression, Difference-In-Differences
         and Synthetic Control Methods: A Synthesis. arXiv preprint arXiv:1610.07748.
         https://arxiv.org/abs/1610.07748
+
+    Relaxed SCM Estimators (via Opt2.SCopt with `objective_type="relaxed"`):
+    ------------------------------------------------------------------------
+    - "l2": Standard Euclidean relaxation. Uses `l2_only_penalty` on the weights.
+      No specific constraint type is required.
+
+    - "entropy": Entropy-based relaxation. Encourages a high-entropy weight
+      distribution. Requires sum-to-one constraints (`constraint_type` either
+      "simplex" or "affine").
+
+    - "el": Empirical likelihood.
+      Also requires sum-to-one constraints ("simplex" or "affine").
+
+    Elastic-Net SCM Estimators (via Opt2.SCopt with `objective_type="penalized"`):
+    ------------------------------------------------------------------------------
+    - L1-L2 Elastic Net: Combines L1 and L2 penalties on the donor weights.
+      Inspired by Doudchenko & Imbens (2017). The mixing parameter `alpha`
+      controls the L1/L2 balance, `lambda` controls overall penalty strength.
+      Optional intercept can be added via `fit_intercept=True`.
+
+    - L1-L∞ Elastic Net: Combines L1 and L∞ penalties. Inspired by Wang et al. (2025).
+      The `second_norm="linf"` parameter enables max-norm regularization
+      alongside L1, with `alpha` controlling the L1/∞ mixture and `lambda`
+      controlling overall shrinkage.
     """
 
     def __init__(self, config: RESCMConfig) -> None: # Changed to RESCM
