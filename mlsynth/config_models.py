@@ -558,12 +558,12 @@ class RESCMConfig(BaseEstimatorConfig):
     Configuration for the Relaxed Balanced SCM (RESCM) estimator.
 
     Users can select which models to run via a nested dictionary:
-    - "RELAXED" → L2 Relaxed SCM
+    - "RELAXED" → Relaxed SCM with selectable relaxation method: "l2", "entropy", or "el"
     - "ELASTIC" → L1-INF / Elastic Net-ish SCM
     Each value is a dict: {"run": bool, ...additional params per model}
     Example:
         models_to_run = {
-            "RELAXED": {"run": True, "tau": 0.00257, "n_splits": 5, "n_taus": 100},
+            "RELAXED": {"run": True, "tau": 0.00257, "n_splits": 5, "n_taus": 100, "relaxation": "l2"},
             "ELASTIC": {
                 "run": True,
                 "affine": False,
@@ -577,22 +577,26 @@ class RESCMConfig(BaseEstimatorConfig):
     """
     models_to_run: Dict[Literal["RELAXED", "ELASTIC"], Dict[str, Any]] = Field(
         default_factory=lambda: {
-            "RELAXED": {"run": True},
+            "RELAXED": {
+                "run": True,
+                "tau": None,
+                "n_splits": None,
+                "n_taus": None,
+                "relaxation": "l2"  # default option
+            },
             "ELASTIC": {
                 "run": True,
                 "affine": False,
                 "simplex": True,
                 "intercept": False,
-                "enet_type": "L1_INF",  # Default to L1 + L∞
-                "alpha": None,           # Optional: user-specified alpha
-                "lambda": None           # Optional: user-specified lambda
+                "enet_type": "L1_INF",
+                "alpha": None,
+                "lambda": None
             }
         },
         description=(
             "Nested dictionary specifying which models to run and optional parameters per model. "
-            "For example: {'RELAXED': {'run': True, 'tau': 0.00257, 'n_splits': 5, 'n_taus': 100}, "
-            "'ELASTIC': {'run': True, 'affine': False, 'simplex': True, 'intercept': False, "
-            "'enet_type': 'L1_INF', 'alpha': 1.0, 'lambda': 0.01}}"
+            "RELAXED supports 'relaxation': 'l2', 'entropy', or 'el'."
         )
     )
 
@@ -604,6 +608,7 @@ class RESCMConfig(BaseEstimatorConfig):
 
         allowed_keys = {"RELAXED", "ELASTIC"}
         allowed_enet_types = {"L1_INF", "L1_L2"}
+        allowed_relaxations = {"l2", "entropy", "el"}
 
         for key, val in models.items():
             if key not in allowed_keys:
@@ -615,12 +620,14 @@ class RESCMConfig(BaseEstimatorConfig):
 
             # RELAXED-specific validation
             if key == "RELAXED":
-                if "tau" in val and not isinstance(val["tau"], (int, float)):
-                    raise MlsynthConfigError(f"'tau' for '{key}' must be a float.")
-                if "n_splits" in val and not isinstance(val["n_splits"], int):
-                    raise MlsynthConfigError(f"'n_splits' for '{key}' must be an int.")
-                if "n_taus" in val and not isinstance(val["n_taus"], int):
-                    raise MlsynthConfigError(f"'n_taus' for '{key}' must be an int.")
+                if "tau" in val and val["tau"] is not None and not isinstance(val["tau"], (int, float)):
+                    raise MlsynthConfigError(f"'tau' for '{key}' must be a float or None.")
+                if "n_splits" in val and val["n_splits"] is not None and not isinstance(val["n_splits"], int):
+                    raise MlsynthConfigError(f"'n_splits' for '{key}' must be an int or None.")
+                if "n_taus" in val and val["n_taus"] is not None and not isinstance(val["n_taus"], int):
+                    raise MlsynthConfigError(f"'n_taus' for '{key}' must be an int or None.")
+                if "relaxation" in val and val["relaxation"] not in allowed_relaxations:
+                    raise MlsynthConfigError(f"'relaxation' for '{key}' must be one of {allowed_relaxations}.")
 
             # ELASTIC-specific validation
             if key == "ELASTIC":
@@ -638,6 +645,9 @@ class RESCMConfig(BaseEstimatorConfig):
                     raise MlsynthConfigError(f"'lambda' for '{key}' must be a scalar or list/array if provided.")
 
         return values
+
+
+
 
 
 
@@ -828,6 +838,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
