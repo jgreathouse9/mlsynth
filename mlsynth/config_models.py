@@ -575,6 +575,7 @@ class RESCMConfig(BaseEstimatorConfig):
             }
         }
     """
+
     models_to_run: Dict[Literal["RELAXED", "ELASTIC"], Dict[str, Any]] = Field(
         default_factory=lambda: {
             "RELAXED": {
@@ -582,7 +583,7 @@ class RESCMConfig(BaseEstimatorConfig):
                 "tau": None,
                 "n_splits": None,
                 "n_taus": None,
-                "relaxation": "l2"  # default option
+                "relaxation": "l2"
             },
             "ELASTIC": {
                 "run": True,
@@ -610,13 +611,31 @@ class RESCMConfig(BaseEstimatorConfig):
         allowed_enet_types = {"L1_INF", "L1_L2"}
         allowed_relaxations = {"l2", "entropy", "el"}
 
+        # Allowed keys per model
+        allowed_model_keys = {
+            "RELAXED": {"run", "tau", "n_splits", "n_taus", "relaxation"},
+            "ELASTIC": {"run", "affine", "simplex", "intercept", "enet_type", "alpha", "lambda"}
+        }
+
         for key, val in models.items():
             if key not in allowed_keys:
-                raise MlsynthConfigError(f"Invalid key in 'models_to_run': {key}. Allowed: {allowed_keys}")
+                raise MlsynthConfigError(
+                    f"Invalid key in 'models_to_run': {key}. Allowed keys: {allowed_keys}"
+                )
+
             if not isinstance(val, dict):
                 raise MlsynthConfigError(f"Value for '{key}' must be a dictionary.")
+
             if "run" not in val or not isinstance(val["run"], bool):
                 raise MlsynthConfigError(f"Each model dict must contain 'run': bool for '{key}'.")
+
+            # Check for unknown keys
+            extra_keys = set(val.keys()) - allowed_model_keys[key]
+            if extra_keys:
+                raise MlsynthConfigError(
+                    f"Unknown keys for '{key}' in 'models_to_run': {extra_keys}. "
+                    f"Allowed keys are {allowed_model_keys[key]}"
+                )
 
             # RELAXED-specific validation
             if key == "RELAXED":
@@ -645,6 +664,9 @@ class RESCMConfig(BaseEstimatorConfig):
                     raise MlsynthConfigError(f"'lambda' for '{key}' must be a scalar or list/array if provided.")
 
         return values
+
+    class Config:
+        extra = "forbid"  # This will ensure unknown fields raise a validation error
 
 
 
@@ -838,6 +860,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
