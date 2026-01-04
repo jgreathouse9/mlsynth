@@ -206,54 +206,64 @@ def test_build_constraints_invalid_type(small_vars):
 # Constraint evaluation helpers
 # =========================
 
-def check_constraints(cons, atol=1e-8):
-    for c in cons:
-        if c.value is not None:
-            v = c.violation()
-            if isinstance(v, np.ndarray):
-                assert np.all(v <= atol)
-            else:
-                assert v <= atol
-
-def test_simplex_constraints_numeric(small_problem):
-    w, _, _, _ = small_problem
-    cons = OptHelpers.simplex_constraints(w)
-    w.value = np.ones(w.shape[0]) / w.shape[0]
-    check_constraints(cons)
-
-def test_affine_constraints_numeric(small_problem):
-    w, _, _, _ = small_problem
-    cons = OptHelpers.affine_constraints(w)
-    w.value = np.ones(w.shape[0]) / w.shape[0]
-    check_constraints(cons)
-
-def test_nonneg_constraints_numeric(small_problem):
-    w, _, _, _ = small_problem
-    cons = OptHelpers.nonneg_constraints(w)
-    w.value = np.ones(w.shape[0])
-    check_constraints(cons)
-
-def test_unit_constraints_numeric(small_problem):
-    w, _, _, _ = small_problem
-    cons = OptHelpers.unit_constraints(w)
-    w.value = np.linspace(0, 1, w.shape[0])
-    check_constraints(cons)
-
-def test_unit_constraints_violation(small_problem):
-    w, _, _, _ = small_problem
-    cons = OptHelpers.unit_constraints(w)
-    w.value = np.array([0.5, 1.5, -0.1, 0.8])  # Invalid values
-    with pytest.raises(AssertionError):
-        check_constraints(cons, atol=0.0)  # Expect failure, but we catch in test
-
-def test_relaxed_balance_constraints_numeric(small_problem):
+@pytest.mark.parametrize(
+    "constraint_func, weight_generator, expect_violation, tau",
+    [
+        # Simplex: valid weights
+        (OptHelpers.simplex_constraints, lambda n: np.ones(n)/n, False, None),
+        # Affine: valid weights
+        (OptHelpers.affine_constraints, lambda n: np.ones(n)/n, False, None),
+        # Nonneg: valid weights
+        (OptHelpers.nonneg_constraints, lambda n: np.ones(n), False, None),
+        # Unit: valid weights
+        (OptHelpers.unit_constraints, lambda n: np.linspace(0, 1, n), False, None),
+        # Unit: invalid weights
+        (OptHelpers.unit_constraints, lambda n: np.array([0.5, 1.5, -0.1, 0.8]), True, None),
+        # Relaxed balance: valid weights, large tau
+        (OptHelpers.relaxed_balance_constraints, lambda n: np.ones(n)/n, False, 10.0),
+        # Relaxed balance: valid weights, small tau
+        (OptHelpers.relaxed_balance_constraints, lambda n: np.ones(n)/n, False, 0.1),
+    ]
+)
+def test_constraints_numeric_full(small_problem, constraint_func, weight_generator, expect_violation, tau):
+    """
+    Unified test for all numeric constraint types.
+    Handles:
+        - simplex, affine, nonneg, unit constraints
+        - relaxed_balance_constraints (with residual + tau)
+        - valid and intentionally invalid weights
+    """
     w, b0, X, y = small_problem
-    w.value = np.ones(X.shape[1]) / X.shape[1]
-    b0.value = 0
-    residual = y - X @ w.value - b0.value
-    cons, gam = OptHelpers.relaxed_balance_constraints(X, residual, tau=10.0)  # Large tau
-    gam.value = 0.0
-    check_constraints(cons)
+    n = w.shape[0]
+    w.value = weight_generator(n)
+    
+    # Special handling for relaxed_balance_constraints
+    if constraint_func == OptHelpers.relaxed_balance_constraints:
+        b0.value = 0
+        residual = y - X @ w.value - b0.value
+        cons, gam = constraint_func(X, residual, tau=tau)
+        gam.value = 0.0
+    else:
+        cons = constraint_func(w)
+
+    # Evaluate constraints
+    for c in cons:
+        if c.value is None:
+            continue
+        v = c.violation()
+        if isinstance(v, np.ndarray):
+            if expect_violation:
+                with pytest.raises(AssertionError):
+                    assert np.all(v <= 0)
+            else:
+                assert np.all(v <= 1e-8)
+        else:
+            if expect_violation:
+                with pytest.raises(AssertionError):
+                    assert v <= 0
+            else:
+                assert v <= 1e-8
+
 
 # =========================
 # Integration: Full optimization tests
