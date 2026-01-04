@@ -19,7 +19,7 @@ class Opt2:
         relaxation_type: Literal["l2", "entropy", "el"] = "l2",
         lam: float = 0.0,
         alpha: float = 0.5,
-        second_norm: Literal["l2", "inf"] = "l2",
+        second_norm: Literal["L1_L2", "L1_INF"] = "L1_L2",
         tau: Optional[float] = None,
         custom_penalty_callable: Optional[Callable[[cp.Variable], cp.Expression]] = None,
         custom_objective_callable: Optional[
@@ -109,7 +109,7 @@ class Opt2:
                 >>> result = Opt2.SCopt(y, X, T0=5, objective_type="penalized", lam=0.1)
                 >>> weights = result["weights"]
                 >>> predictions = result["predictions"]
-        """
+                """
 
         # ---------- Slice pre-treatment ----------
         if T0 is not None:
@@ -172,6 +172,7 @@ class Opt2:
 
         if solve:
             problem.solve(solver=solver, verbose=False, **solver_opts)
+
 
             if w.value is None:
                 pass
