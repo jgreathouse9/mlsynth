@@ -109,7 +109,7 @@ class Opt2:
                 >>> result = Opt2.SCopt(y, X, T0=5, objective_type="penalized", lam=0.1)
                 >>> weights = result["weights"]
                 >>> predictions = result["predictions"]
-        """
+                """
 
         # ---------- Slice pre-treatment ----------
         if T0 is not None:
