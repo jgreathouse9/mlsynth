@@ -62,7 +62,7 @@ class OptHelpers:
         w: cp.Variable,
         lam: float = 0.0,
         alpha: float = 0.5,
-        second_norm: Literal["l2", "inf"] = "l2",
+        second_norm: Literal["L1_L2", "L1_INF"] = "L1_L2",
     ) -> cp.Expression:
         """
         Construct an elastic-net-style penalty.
@@ -94,9 +94,9 @@ class OptHelpers:
             penalty += alpha * cp.norm(w, 1)
 
         if alpha < 1:
-            if second_norm == "l2":
+            if second_norm == "L1_L2":
                 penalty += (1 - alpha) * cp.norm(w, 2)
-            elif second_norm == "inf":
+            elif second_norm == "L1_INF":
                 penalty += (1 - alpha) * cp.norm(w, "inf")
             else:
                 raise ValueError(f"Unknown second_norm: {second_norm}")
@@ -318,7 +318,7 @@ class OptHelpers:
         relaxation_type: Literal["l2", "entropy", "el"] = "l2",
         lam: float = 0.0,
         alpha: float = 0.5,
-        second_norm: Literal["l2", "inf"] = "l2",
+        second_norm: Literal["L1_L2", "L1_INF"] = "L1_L2",
         custom_penalty_callable: Optional[Callable[[cp.Variable], cp.Expression]] = None,
     ) -> cp.Objective:
         """
