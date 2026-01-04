@@ -294,7 +294,7 @@ class FDIDConfig(BaseEstimatorConfig):
     """
     verbose: bool = Field(default=True, description="Whether to save intermediary Forward Selection Results.")
 
-    
+
 
 class GSCConfig(BaseEstimatorConfig):
     """Configuration for the Generalized Synthetic Control (GSC) estimator."""
@@ -392,7 +392,7 @@ class PROXIMALConfig(BaseEstimatorConfig):
         # However, to be safe and more aligned with examples, using 'values' as a dict if direct attribute access isn't needed.
         # If direct attribute access like `self.vars` is preferred, the first arg should be `self`.
         # Let's assume `values` is the model instance here for direct attribute access.
-        
+
         # Re-accessing from the model instance 'values' (which is 'self' effectively)
         vars_dict = values.vars
         surrogates_list = values.surrogates
@@ -551,8 +551,6 @@ class SHCConfig(BaseEstimatorConfig):
         return self
 
 
-
-
 class RESCMConfig(BaseEstimatorConfig):
     """
     Configuration for the Relaxed Balanced SCM (RESCM) estimator.
@@ -610,7 +608,7 @@ class RESCMConfig(BaseEstimatorConfig):
         allowed_keys = {"RELAXED", "ELASTIC"}
         allowed_enet_types = {"L1_INF", "L1_L2"}
         allowed_relaxations = {"l2", "entropy", "el"}
-        allowed_constraints = {"simplex", "affine"}
+        allowed_constraints = {"simplex", "affine", "unit"}
 
         # Allowed keys per model
         allowed_model_keys = {
@@ -666,13 +664,6 @@ class RESCMConfig(BaseEstimatorConfig):
 
     class Config:
         extra = "forbid"  # Unknown fields will raise a validation error
-
-
-
-
-
-
-
 
 # --- Pydantic Models for Standardized Estimator Results ---
 
@@ -763,7 +754,7 @@ class BaseEstimatorResults(BaseModel):
 
     # For outputs that don't fit neatly into the standardized fields.
     additional_outputs: Optional[Dict[str, Any]] = Field(default=None, description="Dictionary for any other outputs specific to the estimator not covered by standard fields.")
-    
+
     # To store the original, unprocessed results dictionary from the estimator.
     raw_results: Optional[Dict[str, Any]] = Field(default=None, exclude=True, description="Original raw results dictionary from the estimator's core logic.")
 
@@ -858,9 +849,6 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
-
-
-
 
 
 
