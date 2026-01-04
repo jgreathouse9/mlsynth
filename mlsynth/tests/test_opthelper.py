@@ -33,31 +33,48 @@ def small_problem():
 # Loss helper tests
 # ======================
 
-def test_squared_loss_basic(small_vars):
-    w, b0, X, y = small_vars
-    loss = OptHelpers.squared_loss(y, X, w)
-    assert isinstance(loss, cp.Expression)
-    # Scaled vs unscaled
-    loss_unscaled = OptHelpers.squared_loss(y, X, w, scale=False)
-    assert isinstance(loss_unscaled, cp.Expression)
+@pytest.mark.parametrize(
+    "use_intercept, scale",
+    [
+        (False, True),
+        (False, False),
+        (True, True),
+        (True, False)
+    ]
+)
+def test_squared_loss_variants(small_vars, small_problem, use_intercept, scale):
+    """
+    Unified test for OptHelpers.squared_loss
+    - checks expression type
+    - checks numeric evaluation for pre-filled weights
+    - tests both with/without intercept and scaled/unscaled
+    """
+    # Pick either small_vars (CVXPY variables) or small_problem (numeric evaluation)
+    w, b0, X, y = small_vars if not use_intercept else small_problem
+    if use_intercept:
+        w.value = np.zeros(X.shape[1])
+        b0.value = 0.0
 
-def test_squared_loss_with_intercept(small_vars):
-    w, b0, X, y = small_vars
-    loss = OptHelpers.squared_loss(y, X, w, b0=b0)
-    assert isinstance(loss, cp.Expression)
+    # Pass intercept only if requested
+    b0_arg = b0 if use_intercept else None
 
-def test_squared_loss_numeric(small_problem):
-    w, b0, X, y = small_problem
-    w.value = np.zeros(X.shape[1])
-    b0.value = 0.0
-    loss_expr = OptHelpers.squared_loss(y, X, w, b0=b0)
-    val = loss_expr.value
-    assert np.isfinite(val)
-    # Check scaled vs unscaled relation
-    T = y.shape[0]
-    scaled = OptHelpers.squared_loss(y, X, w, b0=b0, scale=True).value
-    unscaled = OptHelpers.squared_loss(y, X, w, b0=b0, scale=False).value
-    assert np.isclose(unscaled, T * scaled)
+    loss_expr = OptHelpers.squared_loss(y, X, w, b0=b0_arg, scale=scale)
+    
+    # Check type
+    assert isinstance(loss_expr, cp.Expression)
+
+    # If numeric values assigned, check finiteness
+    if hasattr(w, "value") and w.value is not None:
+        val = loss_expr.value
+        assert np.isfinite(val)
+    
+    # Optional: check scaled vs unscaled relation (if both evaluated)
+    if use_intercept and scale is False:
+        T = y.shape[0]
+        scaled_val = OptHelpers.squared_loss(y, X, w, b0=b0_arg, scale=True).value
+        unscaled_val = loss_expr.value
+        assert np.isclose(unscaled_val, T * scaled_val)
+
 
 # ======================
 # Penalty helpers
