@@ -269,7 +269,7 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
                 break
             else:
                 self.skipped_tau_count_ += 1
-                #print(f"Skipped tau={tau_candidate} due to infeasible solution.")
+                print(f"Skipped tau={tau_candidate} due to infeasible solution.")
 
         if self.coef_ is None:
             raise MlsynthEstimationError(
@@ -511,6 +511,7 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
 
     def _solve_enet(self, X, y, lam, alpha) -> np.ndarray:
         """Fit Elastic Net using SCopt for given lam and alpha."""
+
         try:
             res = Opt2.SCopt(
                 y=y,
@@ -533,7 +534,7 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
                 w = np.zeros(X.shape[1], dtype=np.float64)
             return w
         except Exception as e:
-            #print(f"SCopt failed for lam={lam}, alpha={alpha}: {e}")
+            print(f"SCopt failed for lam={lam}, alpha={alpha}: {e}")
             return np.zeros(X.shape[1], dtype=np.float64)
 
     def _fit_fold(self, X, y, train_idx, test_idx, lam, alpha):
@@ -549,6 +550,7 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
         tscv = TimeSeriesSplit(n_splits=self.n_splits)
         best_mse = np.inf
         best_params = {}
+        self.cv_path_ = []  # reset cv path
         for alpha in self.alphas_:
             for lam in self.lams_:
                 fold_mses = []
@@ -556,6 +558,7 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
                     mse = self._fit_fold(X, y, train_idx, test_idx, lam, alpha)
                     fold_mses.append(mse)
                 mean_mse = np.mean(fold_mses)
+                self.cv_path_.append({"alpha": alpha, "lambda": lam, "mse": mean_mse})
                 if mean_mse < best_mse:
                     best_mse = mean_mse
                     best_params = {"lam": lam, "alpha": alpha}
@@ -588,7 +591,7 @@ def fit_en_scm(
     alpha: float | list[float] | None = 0.5,
     lam: float | list[float] | None = None,
     n_splits: int = 5,
-    second_norm: str = "l2",
+    second_norm: str = "L1_L2",
     constraint_type: str = "simplex",
     solver: str = "CLARABEL",
     standardize: bool = True
@@ -680,14 +683,15 @@ def fit_en_scm(
         if alpha == 1.0:
             return "$\\ell_1$"
         elif alpha == 0.0:
-            if second_norm == "l2":
+            if second_norm == "L1_L2":
                 return "$\\ell_2$"
             elif second_norm == "L1_INF":
                 return "$\\ell_\\infty$"
             else:
+
                 raise ValueError(f"Unknown second_norm: {second_norm}")
         else:
-            if second_norm == "l2":
+            if second_norm == "L1_L2":
                 return "$\\alpha \\ell_1 + (1-\\alpha) \\ell_2$"
             elif second_norm == "L1_INF":
                 return "$\\alpha \\ell_1 + (1-\\alpha) \\ell_\\infty$"
