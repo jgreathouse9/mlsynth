@@ -559,16 +559,16 @@ class RESCMConfig(BaseEstimatorConfig):
 
     Users can select which models to run via a nested dictionary:
     - "RELAXED" → Relaxed SCM with selectable relaxation method: "l2", "entropy", or "el"
-    - "ELASTIC" → L1-INF / Elastic Net-ish SCM
+    - "ELASTIC" → L1-INF / Elastic Net-ish SCM with selectable constraint type
     Each value is a dict: {"run": bool, ...additional params per model}
+
     Example:
         models_to_run = {
             "RELAXED": {"run": True, "tau": 0.00257, "n_splits": 5, "n_taus": 100, "relaxation": "l2"},
             "ELASTIC": {
                 "run": True,
-                "affine": False,
-                "simplex": True,
                 "intercept": False,
+                "constraint_type": "simplex",
                 "enet_type": "L1_INF",
                 "alpha": 1.0,
                 "lambda": 0.01
@@ -587,17 +587,17 @@ class RESCMConfig(BaseEstimatorConfig):
             },
             "ELASTIC": {
                 "run": True,
-                "affine": False,
-                "simplex": True,
                 "intercept": False,
                 "enet_type": "L1_INF",
                 "alpha": None,
-                "lambda": None
+                "lambda": None,
+                "constraint_type": "simplex"
             }
         },
         description=(
             "Nested dictionary specifying which models to run and optional parameters per model. "
-            "RELAXED supports 'relaxation': 'l2', 'entropy', or 'el'."
+            "RELAXED supports 'relaxation': 'l2', 'entropy', or 'el'. "
+            "ELASTIC supports 'enet_type', 'alpha', 'lambda', and 'constraint_type'."
         )
     )
 
@@ -610,11 +610,12 @@ class RESCMConfig(BaseEstimatorConfig):
         allowed_keys = {"RELAXED", "ELASTIC"}
         allowed_enet_types = {"L1_INF", "L1_L2"}
         allowed_relaxations = {"l2", "entropy", "el"}
+        allowed_constraints = {"simplex", "affine"}
 
         # Allowed keys per model
         allowed_model_keys = {
             "RELAXED": {"run", "tau", "n_splits", "n_taus", "relaxation"},
-            "ELASTIC": {"run", "affine", "simplex", "intercept", "enet_type", "alpha", "lambda"}
+            "ELASTIC": {"run", "intercept", "enet_type", "alpha", "lambda", "constraint_type"}
         }
 
         for key, val in models.items():
@@ -650,10 +651,6 @@ class RESCMConfig(BaseEstimatorConfig):
 
             # ELASTIC-specific validation
             if key == "ELASTIC":
-                if "affine" in val and not isinstance(val["affine"], bool):
-                    raise MlsynthConfigError(f"'affine' for '{key}' must be a bool.")
-                if "simplex" in val and not isinstance(val["simplex"], bool):
-                    raise MlsynthConfigError(f"'simplex' for '{key}' must be a bool.")
                 if "intercept" in val and not isinstance(val["intercept"], bool):
                     raise MlsynthConfigError(f"'intercept' for '{key}' must be a bool.")
                 if "enet_type" in val and val["enet_type"] not in allowed_enet_types:
@@ -662,12 +659,13 @@ class RESCMConfig(BaseEstimatorConfig):
                     raise MlsynthConfigError(f"'alpha' for '{key}' must be a scalar or list/array if provided.")
                 if "lambda" in val and val["lambda"] is not None and not isinstance(val["lambda"], (int, float, list, np.ndarray)):
                     raise MlsynthConfigError(f"'lambda' for '{key}' must be a scalar or list/array if provided.")
+                if "constraint_type" in val and val["constraint_type"] not in allowed_constraints:
+                    raise MlsynthConfigError(f"'constraint_type' for '{key}' must be one of {allowed_constraints}.")
 
         return values
 
     class Config:
-        extra = "forbid"  # This will ensure unknown fields raise a validation error
-
+        extra = "forbid"  # Unknown fields will raise a validation error
 
 
 
@@ -860,6 +858,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
