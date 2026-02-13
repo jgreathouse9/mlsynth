@@ -16,8 +16,9 @@
 ## Installing  ``mlsynth``
  ``mlsynth`` is compatible with Python 3.8 or later. To install it, please do
 
-    $ pip install -U git+https://github.com/jgreathouse9/mlsynth.git
-
+```{shell}
+pip install -U git+https://github.com/jgreathouse9/mlsynth.git
+```
 
 Note that  ``mlsynth`` is an active project. New estimators, such as [this one](https://doi.org/10.48550/arXiv.2006.07691), will soon join the toolkit.
 
