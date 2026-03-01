@@ -296,7 +296,7 @@ def SCMEXP(
     lambda2_unit=0.0,
     costs=None,
     budget=None,
-    solver=cp.ECOS_BB,
+    solver=cp.SCIP,
     verbose=False
 ):
     """
@@ -410,7 +410,7 @@ def SCMEXP(
 
     # --- solve problem ---
     prob = cp.Problem(objective, constraints)
-    prob.solve(solver=cp.SCIP, verbose=verbose)
+    prob.solve(solver=solver, verbose=verbose)
 
     # --- extract ---
     w_opt = w.value
