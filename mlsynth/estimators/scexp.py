@@ -220,7 +220,7 @@ class MAREX:
             xi=self.xi,
             lambda1_unit=self.lambda1_unit,
             lambda2_unit=self.lambda2_unit,
-            solver=self.solver or cp.ECOS_BB,
+            solver=self.solver or cp.SCIP,
             verbose=self.verbose,
             exclusive=self.exclusive,
         )
@@ -290,6 +290,7 @@ class MAREX:
             plot_marex_results(marex_results, plot_type="treatment")
 
         return marex_results
+
 
 
 
