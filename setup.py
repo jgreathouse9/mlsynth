@@ -15,15 +15,18 @@ setup(
     url="https://github.com/jgreathouse9/mlsynth",
     packages=find_packages(include=["mlsynth", "mlsynth.*"]),
     include_package_data=True,
-    install_requires=[  # Dependencies from requirements.txt
-        "pandas",
-        "numpy",
-        "matplotlib",
-        "scipy",
-        "scikit-learn",
-        "statsmodels",
-        "cvxpy",
-        "pydantic"
+    install_requires=[
+        "pandas>=2.0.0",
+        "numpy>=1.24.0",
+        "matplotlib>=3.7.0",
+        "scipy>=1.10.0",
+        "scikit-learn>=1.3.0",
+        "scikit-optimize>=0.9.0",
+        "statsmodels>=0.14.0",
+        "cvxpy>=1.4.0",   # ECOS + ECOS_BB included
+        "ecos",
+        "pydantic>=2.0.0",
+        "screenot",
     ],
     classifiers=[  # Metadata about the package
         "Programming Language :: Python :: 3",
