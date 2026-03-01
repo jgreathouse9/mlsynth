@@ -24,18 +24,10 @@ setup(
         "scikit-learn>=1.3.0",
         "scikit-optimize>=0.9.0",
         "statsmodels>=0.14.0",
-        "cvxpy>=1.4.0",   # ECOS + ECOS_BB included
-        "ecos",
+        "cvxpy>=1.4.0",
+        "pyscipopt>=4.4.0",
         "pydantic>=2.0.0",
-        "screenot",
     ],
-
-    extras_require={
-        # Optional solver support
-        "scip": [
-            "pyscipopt>=4.4.0"
-        ]
-    },
 
     classifiers=[
         "Programming Language :: Python :: 3",
