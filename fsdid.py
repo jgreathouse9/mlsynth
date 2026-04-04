@@ -114,7 +114,9 @@ def split_periods(T0: int, T: int, frac_E: float = 0.7) -> Tuple[np.ndarray, np.
 
 # -------------------- STANDARDIZATION --------------------
 def build_X_tilde(X: np.ndarray, f: np.ndarray, idx: np.ndarray, J: int) -> np.ndarray:
-    """Standardize X using weighted mean (f) and std dev, only over the first J columns (outcomes Y)"""
+    """
+    Standardize X using weighted mean (f) and std dev, only over the first J columns (outcomes Y)
+    """
     X_sub = X[idx, :]
     mu = X_sub[:, :J] @ f.reshape(-1, 1)  # weighted mean over Y units only
     sigma = np.std(X_sub, axis=1, keepdims=True)
@@ -315,7 +317,9 @@ def simulate_synthetic_experiment_data(
     sigma: float = 1.0,
     seed: int = 42
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict]:
-    """Correct simulation: Y (T, J), Z (T, R)"""
+    """
+    Correct simulation: Y (T, J), Z (T, R)
+    """
     np.random.seed(seed)
 
     f = np.ones(J) / J  # unit weights
@@ -446,7 +450,7 @@ def monte_carlo_sweep_parallel(
         F=5,
         sigma=1.0,
         lambda_list=[0.01, 0.1, 0.5],
-        m_list=[2, 4, 15],
+        m_list=[2, 4, 10],
         top_K=15,
         n_permutations=1000,
         n_jobs=-1,
@@ -496,14 +500,14 @@ def monte_carlo_sweep_parallel(
 
 
 # -------------------- EXAMPLE RUN --------------------
-if __name__ == "__main__":
-    lambda_list = [0.01, 0.1, 0.5]
-    m_list = [2, 4, 15]
 
-    df_mc_sweep = monte_carlo_sweep_parallel(
-        n_sim=3,
-        lambda_list=lambda_list,
-        m_list=m_list,
-        verbose=True,
-        output_file="mc_sweep_results.csv"
-    )
+lambda_list = [0.01, 0.1, 0.5]
+m_list = [2, 4, 9]
+
+df_mc_sweep = monte_carlo_sweep_parallel(
+    n_sim=10,
+    lambda_list=lambda_list,
+    m_list=m_list,
+    verbose=True,
+    output_file="mc_sweep_results.csv"
+)
