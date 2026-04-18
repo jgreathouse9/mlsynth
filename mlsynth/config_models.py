@@ -475,6 +475,219 @@ class FSCMConfig(BaseEstimatorConfig):
     )
 
 
+
+
+
+
+
+class LEXSCMConfig(BaseMAREXConfig):
+    """Configuration for LEXSCM - Fast Synthetic Experiment Design pipeline."""
+
+    T0: Optional[int] = Field(
+        default=None,
+        description="Number of pre-treatment periods. If None, inferred as 80% of total periods."
+    )
+
+    # --- Hard requirements ---
+    candidate_col: str = Field(
+        ...,
+        description="REQUIRED: Column name indicating which units are eligible "
+                    "for treatment selection (must be boolean or 0/1, constant within unit)."
+    )
+
+    m: int = Field(
+        ...,
+        description="REQUIRED: Number of units to select per treated tuple (m). "
+                    "Must be a positive integer and ≤ number of candidate units.",
+        gt=0
+    )
+
+    # --- Optional weighting column ---
+    weight_col: Optional[str] = Field(
+        default=None,
+        description="Optional column name containing unit-level weights (e.g., population, revenue). "
+                    "If None, uniform weights (1/J) will be used."
+    )
+
+    # --- New: Optional covariates ---
+    covariates: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of column names to use as covariates in the synthetic control. "
+                    "All columns must exist in the DataFrame and be numeric."
+    )
+
+    # --- Fast method specific ---
+    lambda_penalty: float = Field(default=0.1, description="Penalty weight for control mismatch in QP.")
+    top_K: int = Field(default=20, description="Number of top candidate tuples after branch-and-bound.")
+    top_P: int = Field(default=10, description="Number of seed units for BnB initialization.")
+    frac_E: float = Field(
+        default=0.7,
+        description="Fraction of pre-treatment period used for estimation window E."
+    )
+    n_permutations: int = Field(default=500, description="Number of permutations for p-values and MDE.")
+
+    # --- Post-period handling ---
+    post_col: Optional[str] = Field(
+        default=None,
+        description="Optional column name (0=pre, 1=post). If None, entire dataset is pre-treatment."
+    )
+
+    verbose: bool = Field(default=True, description="Print progress and summary messages.")
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "forbid"
+
+    @model_validator(mode="after")
+    def validate_lexscm_params(cls, values: Any) -> Any:
+        """Basic validations for T0 and m."""
+        df = values.df
+        time = values.time
+        m = values.m
+
+        n_periods = df[time].nunique()
+
+        if values.T0 is None:
+            values.T0 = int(0.8 * n_periods)
+        elif not (1 <= values.T0 < n_periods):
+            raise MlsynthDataError(f"T0 must be between 1 and {n_periods-1}, got {values.T0}")
+
+        if m <= 0:
+            raise MlsynthDataError("m must be a positive integer.")
+
+        return values
+
+    @model_validator(mode="after")
+    def validate_candidate_col(cls, values: Any) -> Any:
+        """Strong validation for candidate_col."""
+        df = values.df
+        unitid = values.unitid
+        candidate_col = values.candidate_col
+        m = values.m
+
+        if candidate_col not in df.columns:
+            raise MlsynthDataError(
+                f"candidate_col='{candidate_col}' not found in DataFrame. "
+                f"Available columns: {list(df.columns)}"
+            )
+
+        unique_vals = df[candidate_col].dropna().unique()
+        if not all(v in (0, 1, True, False) for v in unique_vals):
+            raise MlsynthDataError(
+                f"candidate_col='{candidate_col}' must contain only 0/1, True/False values."
+            )
+
+        unit_variation = df.groupby(unitid)[candidate_col].nunique()
+        if (unit_variation > 1).any():
+            bad_units = unit_variation[unit_variation > 1].index.tolist()
+            raise MlsynthDataError(
+                f"candidate_col='{candidate_col}' is not constant within unit. "
+                f"Units with variation: {bad_units[:5]}"
+            )
+
+        n_candidates = df.groupby(unitid)[candidate_col].first().astype(bool).sum()
+        if n_candidates == 0:
+            raise MlsynthDataError("No candidate units found.")
+        if n_candidates < m:
+            raise MlsynthDataError(
+                f"Only {n_candidates} candidate units available, but m={m} requested."
+            )
+
+        return values
+
+    @model_validator(mode="after")
+    def validate_weight_col(cls, values: Any) -> Any:
+        """Validation for optional weight_col."""
+        df = values.df
+        weight_col = values.weight_col
+
+        if weight_col is not None:
+            if weight_col not in df.columns:
+                raise MlsynthDataError(f"weight_col='{weight_col}' not found in DataFrame.")
+
+            if not pd.api.types.is_numeric_dtype(df[weight_col]):
+                raise MlsynthDataError(f"weight_col='{weight_col}' must be numeric.")
+
+            unit_variation = df.groupby(values.unitid)[weight_col].nunique()
+            if (unit_variation > 1).any():
+                bad_units = unit_variation[unit_variation > 1].index.tolist()
+                raise MlsynthDataError(
+                    f"weight_col='{weight_col}' is not constant within unit. "
+                    f"Units with variation: {bad_units[:5]}"
+                )
+
+            weights = df.groupby(values.unitid)[weight_col].first()
+            if (weights <= 0).any():
+                warnings.warn("Some unit weights are zero or negative.", UserWarning)
+
+        return values
+
+    @model_validator(mode="after")
+    def validate_covariates(cls, values: Any) -> Any:
+        """Validation for optional covariates list."""
+        df = values.df
+        covariates = values.covariates
+
+        if covariates is not None:
+            if not isinstance(covariates, list):
+                raise MlsynthDataError("covariates must be a list of column names.")
+
+            if len(covariates) == 0:
+                raise MlsynthDataError("covariates list cannot be empty if provided.")
+
+            missing_cols = [col for col in covariates if col not in df.columns]
+            if missing_cols:
+                raise MlsynthDataError(
+                    f"covariates columns not found in DataFrame: {missing_cols}"
+                )
+
+            # All covariates must be numeric
+            for col in covariates:
+                if not pd.api.types.is_numeric_dtype(df[col]):
+                    raise MlsynthDataError(f"Covariate column '{col}' must be numeric.")
+
+            # Should be constant within unit (recommended for time-invariant covariates)
+            unitid = values.unitid
+            for col in covariates:
+                unit_variation = df.groupby(unitid)[col].nunique()
+                if (unit_variation > 1).any():
+                    warnings.warn(
+                        f"Covariate '{col}' varies within some units. "
+                        "This is allowed but may not be ideal for synthetic control.",
+                        UserWarning
+                    )
+
+        return values
+
+    @model_validator(mode="after")
+    def validate_post_col(cls, values: Any) -> Any:
+        """Validation for optional post_col."""
+        df = values.df
+        post_col = values.post_col
+
+        if post_col is not None:
+            if post_col not in df.columns:
+                raise MlsynthDataError(f"post_col='{post_col}' not found in DataFrame.")
+
+            unique_vals = df[post_col].dropna().unique()
+            if not all(v in (0, 1, True, False) for v in unique_vals):
+                raise MlsynthDataError(
+                    f"post_col='{post_col}' must contain only 0/1 or True/False values."
+                )
+
+            pre_count = (df[post_col] == 0).sum()
+            if pre_count < 20:
+                warnings.warn(f"Very few pre-period observations ({pre_count}).", UserWarning)
+
+        return values
+
+
+
+
+
+
+
+
 class SRCConfig(BaseEstimatorConfig):
     """
     Configuration for the Synthetic Regressing Control (SRC) estimator.
