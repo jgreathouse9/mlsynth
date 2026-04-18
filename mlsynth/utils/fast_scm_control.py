@@ -17,9 +17,7 @@ def compute_mde_and_pvalue(
     target_power: float = 0.80,
     statistic: str = "mean"
 ) -> Dict:
-    """
-    Two-sided permutation test + MDE for one treated tuple (null simulation safe).
-    """
+    """Two-sided permutation test + MDE for one treated tuple (null simulation safe)."""
     post_effects = effects[post_idx]
     
     if statistic == "mean":
