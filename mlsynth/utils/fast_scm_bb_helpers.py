@@ -121,6 +121,20 @@ def solve_qp_simplex(Q: np.ndarray, max_iter: int = 200, lr: float = 0.01) -> np
 # Lower Bound (with shortcuts)
 # ----------------------------
 
+def pairwise_lower_bound(Q):
+    k = Q.shape[0]
+    best = np.inf
+
+    for i in range(k):
+        for j in range(i + 1, k):
+            a, b = Q[i, i], Q[j, j]
+            c = Q[i, j]
+            denom = a + b - 2 * c
+            w = 0.5 if denom <= 1e-10 else np.clip((b - c) / denom, 0.0, 1.0)
+            val = w*w*a + (1-w)*(1-w)*b + 2*w*(1-w)*c
+            best = min(best, val)
+
+    return best
 
 def compute_lower_bound(Q: np.ndarray) -> float:
     k = Q.shape[0]
@@ -129,29 +143,24 @@ def compute_lower_bound(Q: np.ndarray) -> float:
         return float(Q[0, 0])
 
     if k == 2:
-        # your existing closed form
         a, b = Q[0, 0], Q[1, 1]
         c = Q[0, 1]
         denom = a + b - 2 * c
         w = 0.5 if denom <= 1e-10 else np.clip((b - c) / denom, 0.0, 1.0)
-        return float(w * w * a + (1 - w) * (1 - w) * b + 2 * w * (1 - w) * c)
+        return float(w*w*a + (1-w)*(1-w)*b + 2*w*(1-w)*c)
 
-    # Strong cheap bound for k >= 3
-    diag = np.diag(Q)
-    sorted_diag = np.sort(diag)
+    # --- strong components ---
+    diag_lb = float(np.min(np.diag(Q)))
+    pair_lb = pairwise_lower_bound(Q)
 
-    # Base bound: sum of k smallest diagonals
-    lb = float(np.sum(sorted_diag[:k]))
+    try:
+        eig_lb_val = np.linalg.eigvalsh(Q)[0] / k
+    except:
+        eig_lb_val = -np.inf
 
-    # Bonus: add the smallest possible interaction terms
-    if k >= 3:
-        smallest_idx = np.argsort(diag)[:k]
-        subQ = Q[np.ix_(smallest_idx, smallest_idx)]
-        off_diag_min = np.min(subQ - np.diag(np.diag(subQ)))
-        if off_diag_min < 0:
-            lb += off_diag_min * (k * (k - 1) / 2) * 0.3  # conservative coefficient
+    return max(diag_lb, pair_lb, eig_lb_val)
 
-    return lb
+
 
 
 
@@ -165,7 +174,6 @@ def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
 
 
 
-
 def expand_tuple(
     G: np.ndarray,
     candidate_idx: np.ndarray,
@@ -173,10 +181,12 @@ def expand_tuple(
     top_K: int,
     top_tuples: List,
     indices: List[int],
-    stats: Dict
+    stats: Dict,
+    start_pos: int = 0
 ):
     stats["nodes_visited"] += 1
 
+    # ---- full tuple ----
     if len(indices) == m:
         stats["subsets_evaluated"] += 1
         Q = G[np.ix_(indices, indices)]
@@ -189,24 +199,28 @@ def expand_tuple(
             top_tuples.pop()
         return
 
-    start = indices[-1] + 1 if indices else candidate_idx[0]
-    start_pos = np.searchsorted(candidate_idx, start)
-
+    # ---- branching ----
     for j_idx in range(start_pos, len(candidate_idx)):
         j = candidate_idx[j_idx]
-        if j in indices:
-            continue
 
         stats["branches_considered"] += 1
-        new_indices = indices + [j]
-        Q_partial = G[np.ix_(new_indices, new_indices)]
 
+        new_indices = indices + [j]
+
+        Q_partial = G[np.ix_(new_indices, new_indices)]
         lb = compute_lower_bound(Q_partial)
 
-        if len(top_tuples) >= top_K and lb >= top_tuples[-1][0] * 0.999:  # small tolerance
+        if len(top_tuples) >= top_K and lb >= top_tuples[-1][0] * 0.999:
             stats["branches_pruned"] += 1
             continue
 
         expand_tuple(
-            G, candidate_idx, m, top_K, top_tuples, new_indices, stats
+            G,
+            candidate_idx,
+            m,
+            top_K,
+            top_tuples,
+            new_indices,
+            stats,
+            start_pos=j_idx + 1   # ✅ THIS is now the only ordering mechanism
         )
