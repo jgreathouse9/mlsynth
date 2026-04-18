@@ -136,6 +136,9 @@ def pairwise_lower_bound(Q):
 
     return best
 
+
+
+
 def compute_lower_bound(Q: np.ndarray) -> float:
     k = Q.shape[0]
 
@@ -149,19 +152,21 @@ def compute_lower_bound(Q: np.ndarray) -> float:
         w = 0.5 if denom <= 1e-10 else np.clip((b - c) / denom, 0.0, 1.0)
         return float(w*w*a + (1-w)*(1-w)*b + 2*w*(1-w)*c)
 
-    # --- strong components ---
-    diag_lb = float(np.min(np.diag(Q)))
-    pair_lb = pairwise_lower_bound(Q)
+    # Strong, fast bound for k >= 3
+    diag = np.diag(Q)
+    sorted_diag = np.sort(diag)
+    lb = float(np.sum(sorted_diag[:k]))
 
-    try:
-        eig_lb_val = np.linalg.eigvalsh(Q)[0] / k
-    except:
-        eig_lb_val = -np.inf
+    # Add a controlled interaction term
+    if k >= 3:
+        smallest_idx = np.argsort(diag)[:k]
+        subQ = Q[np.ix_(smallest_idx, smallest_idx)]
+        off_diag = subQ - np.diag(np.diag(subQ))
+        min_off_diag = float(np.min(off_diag))
+        if min_off_diag < -1e-8:
+            lb += min_off_diag * (k * (k-1) / 2) * 0.55   # tuned coefficient
 
-    return max(diag_lb, pair_lb, eig_lb_val)
-
-
-
+    return lb
 
 
 
@@ -174,6 +179,7 @@ def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
 
 
 
+
 def expand_tuple(
     G: np.ndarray,
     candidate_idx: np.ndarray,
@@ -182,14 +188,16 @@ def expand_tuple(
     top_tuples: List,
     indices: List[int],
     stats: Dict,
-    start_pos: int = 0
+    start_pos: int,
+    Q_partial: np.ndarray
 ):
     stats["nodes_visited"] += 1
 
-    # ---- full tuple ----
+    # ---- leaf ----
     if len(indices) == m:
         stats["subsets_evaluated"] += 1
-        Q = G[np.ix_(indices, indices)]
+
+        Q = Q_partial
         w = solve_qp_simplex(Q)
         total_loss = float(w @ Q @ w)
 
@@ -199,28 +207,41 @@ def expand_tuple(
             top_tuples.pop()
         return
 
-    # ---- branching ----
+    # ---- branch ----
     for j_idx in range(start_pos, len(candidate_idx)):
         j = candidate_idx[j_idx]
 
         stats["branches_considered"] += 1
 
-        new_indices = indices + [j]
+        # ---- incremental Q ----
+        k = Q_partial.shape[0]
 
-        Q_partial = G[np.ix_(new_indices, new_indices)]
-        lb = compute_lower_bound(Q_partial)
+        Q_new = np.empty((k + 1, k + 1))
+        Q_new[:k, :k] = Q_partial
+
+        g = G[j, indices]  # vectorized
+
+        Q_new[k, :k] = g
+        Q_new[:k, k] = g
+        Q_new[k, k] = G[j, j]
+
+        # ---- bound ----
+        w = solve_qp_simplex(Q_new, max_iter=500)  # fewer iters
+        lb = float(w @ Q_new @ w)
 
         if len(top_tuples) >= top_K and lb >= top_tuples[-1][0] * 0.999:
             stats["branches_pruned"] += 1
             continue
 
+        # ---- recurse (CORRECT — no reset!) ----
         expand_tuple(
             G,
             candidate_idx,
             m,
             top_K,
             top_tuples,
-            new_indices,
+            indices + [j],
             stats,
-            start_pos=j_idx + 1   # ✅ THIS is now the only ordering mechanism
+            start_pos=j_idx + 1,
+            Q_partial=Q_new
         )
