@@ -2,6 +2,9 @@ import numpy as np
 from typing import List, Tuple
 from .fast_scm_bb_helpers import compute_search_space_size, expand_tuple, greedy_initial_solution
 
+import heapq
+from typing import List, Tuple
+
 def branch_and_bound_topK(
     G: np.ndarray,
     candidate_idx: np.ndarray,
@@ -77,8 +80,10 @@ def branch_and_bound_topK(
     init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
     top_tuples.append((init_loss, init_idx, init_w))
 
+    num_seeds = min(60, max(20, 4 * m))
+
     # ✅ 3. Expand from top seeds (can use more than 1 if desired)
-    for i in range(min(len(candidate_idx), m * 2)):
+    for i in range(num_seeds):
         expand_tuple(
             G,
             candidate_idx,
