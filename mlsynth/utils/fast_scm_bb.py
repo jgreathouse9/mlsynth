@@ -80,7 +80,7 @@ def branch_and_bound_topK(
     init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
     top_tuples.append((init_loss, init_idx, init_w))
 
-    num_seeds = min(60, max(20, 4 * m))
+    num_seeds = min(90, max(20, 4 * m))
 
     # ✅ 3. Expand from top seeds (can use more than 1 if desired)
     for i in range(num_seeds):
