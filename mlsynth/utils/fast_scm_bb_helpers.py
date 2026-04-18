@@ -122,38 +122,36 @@ def solve_qp_simplex(Q: np.ndarray, max_iter: int = 200, lr: float = 0.01) -> np
 # ----------------------------
 
 
-
-
 def compute_lower_bound(Q: np.ndarray) -> float:
     k = Q.shape[0]
 
-    # k = 1 → exact
     if k == 1:
         return float(Q[0, 0])
 
-    # k = 2 → closed form on simplex
     if k == 2:
+        # your existing closed form
         a, b = Q[0, 0], Q[1, 1]
         c = Q[0, 1]
-
-        # minimize w^2 a + (1-w)^2 b + 2w(1-w)c
         denom = a + b - 2 * c
-        if denom <= 1e-12:
-            w = 0.5
-        else:
-            w = np.clip((b - c) / denom, 0.0, 1.0)
+        w = 0.5 if denom <= 1e-10 else np.clip((b - c) / denom, 0.0, 1.0)
+        return float(w * w * a + (1 - w) * (1 - w) * b + 2 * w * (1 - w) * c)
 
-        val = (
-            w * w * a +
-            (1 - w) * (1 - w) * b +
-            2 * w * (1 - w) * c
-        )
-        return float(val)
+    # Strong cheap bound for k >= 3
+    diag = np.diag(Q)
+    sorted_diag = np.sort(diag)
 
-    # general case → QP
-    w = solve_qp_simplex(Q)
-    return float(w @ Q @ w)
+    # Base bound: sum of k smallest diagonals
+    lb = float(np.sum(sorted_diag[:k]))
 
+    # Bonus: add the smallest possible interaction terms
+    if k >= 3:
+        smallest_idx = np.argsort(diag)[:k]
+        subQ = Q[np.ix_(smallest_idx, smallest_idx)]
+        off_diag_min = np.min(subQ - np.diag(np.diag(subQ)))
+        if off_diag_min < 0:
+            lb += off_diag_min * (k * (k - 1) / 2) * 0.3  # conservative coefficient
+
+    return lb
 
 
 
@@ -166,51 +164,19 @@ def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
     return loss, selected, w
 
 
+
+
 def expand_tuple(
     G: np.ndarray,
     candidate_idx: np.ndarray,
     m: int,
     top_K: int,
-    top_tuples: List[Tuple[float, List[int], np.ndarray]],
+    top_tuples: List,
     indices: List[int],
     stats: Dict
 ):
-    """
-    Recursively expand candidate tuples to generate top-K m-unit combinations using branch-and-bound.
-
-    Parameters
-    ----------
-    G : np.ndarray, shape (N, N)
-        Symmetric loss (Gram) matrix.
-    candidate_idx : np.ndarray, shape (M,)
-        Sorted candidate indices to consider.
-    m : int
-        Target tuple length (number of units per combination).
-    top_K : int
-        Maximum number of top tuples to retain.
-    top_tuples : list of tuples
-        Accumulator for top tuples. Each tuple contains (total_loss, indices, weights).
-    loss_so_far : float
-        Accumulated lower-bound loss along the current branch.
-    indices : list of int
-        Current indices selected in this branch.
-
-    Returns
-    -------
-    None
-        Updates `top_tuples` in-place.
-
-    Notes
-    -----
-    - Recursively builds all possible m-unit tuples from candidate_idx.
-    - Computes total quadratic loss for each tuple using `solve_qp_simplex`.
-    - Uses branch-and-bound pruning:
-      - Lower bound = sum of diagonals of partial_Q
-      - If lower bound >= worst loss in top_K, branch is skipped.
-    - After adding a tuple, `top_tuples` is sorted and truncated to top_K.
-    - Indices in each tuple are returned in ascending order.
-    """
     stats["nodes_visited"] += 1
+
     if len(indices) == m:
         stats["subsets_evaluated"] += 1
         Q = G[np.ix_(indices, indices)]
@@ -219,37 +185,28 @@ def expand_tuple(
 
         top_tuples.append((total_loss, indices[:], w))
         top_tuples.sort(key=lambda x: x[0])
-
         if len(top_tuples) > top_K:
-            top_tuples.pop(-1)
+            top_tuples.pop()
         return
 
     start = indices[-1] + 1 if indices else candidate_idx[0]
     start_pos = np.searchsorted(candidate_idx, start)
 
     for j_idx in range(start_pos, len(candidate_idx)):
-        stats["branches_considered"] += 1
         j = candidate_idx[j_idx]
         if j in indices:
             continue
 
+        stats["branches_considered"] += 1
         new_indices = indices + [j]
         Q_partial = G[np.ix_(new_indices, new_indices)]
 
-        # 🔥 tight lower bound
         lb = compute_lower_bound(Q_partial)
 
-        # pruning
-        if len(top_tuples) >= top_K and lb >= top_tuples[-1][0]:
+        if len(top_tuples) >= top_K and lb >= top_tuples[-1][0] * 0.999:  # small tolerance
             stats["branches_pruned"] += 1
             continue
 
         expand_tuple(
-            G,
-            candidate_idx,
-            m,
-            top_K,
-            top_tuples,
-            new_indices,
-            stats=stats
+            G, candidate_idx, m, top_K, top_tuples, new_indices, stats
         )
