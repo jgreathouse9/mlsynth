@@ -41,7 +41,6 @@ def evaluate_candidates(
     f: np.ndarray,
     E_idx: np.ndarray,
     B_idx: np.ndarray,
-    post_idx: np.ndarray,
     lambda_penalty: float
 ) -> List[SEDCandidate]:
 
@@ -65,8 +64,6 @@ def evaluate_candidates(
         Indices for estimation period.
     B_idx : np.ndarray
         Indices for validation/backcast period.
-    post_idx : np.ndarray
-        Indices for post-treatment period (currently unused here).
     lambda_penalty : float
         Regularization strength for control QP.
 
