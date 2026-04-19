@@ -1,3 +1,6 @@
+Lexicographic SCM
+=====================
+
 .. autoclass:: mlsynth.LEXSCM
    :show-inheritance:
    :members:
