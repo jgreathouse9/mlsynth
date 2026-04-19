@@ -84,6 +84,7 @@ class LEXSCMResults:
     all_candidates: List[SEDCandidate]# Full list of evaluated tuples
     bnb_metadata: Dict[str, Any]      # Search stats (nodes visited, etc.)
     config: Any                       # Store the config used for the run
+    y_mean: float = field(default=np.nan)
 
 class LEXSCM:
     """
@@ -354,13 +355,16 @@ class LEXSCM:
         best_candidate = next(c for c in candidate_results
                               if c.identification.tuple_id == best_tuple_id)
 
+        y_mean = float(np.mean(self.Y))
+
         # ------------------- Package Results -------------------
         results = LEXSCMResults(
             summary=ranked_df,
             best_candidate=best_candidate,
             all_candidates=candidate_results,
             bnb_metadata=bbresults,
-            config=self.config
+            config=self.config,
+            y_mean=y_mean
         )
 
         return results
