@@ -1,14 +1,3 @@
-"""
-Fast_scm_power_helpers.py
-
-Minimum Detectable Effect (MDE) analysis for Synthetic Experimental Design,
-following the permutation inference procedure of Abadie and Zhao (2021) as
-implemented in Vives-i-Bastida (2022).
-
-This version uses Monte Carlo sampling for the null distribution and includes
-a Pareto-ranking heuristic to prioritize historical fit and early-period power.
-"""
-
 from __future__ import annotations
 
 import numpy as np
@@ -22,7 +11,34 @@ from .structure import SEDCandidate
 # =========================================================
 
 def test_statistic(e: np.ndarray, method: str = "mean_abs") -> float:
-    """Aggregate residual vector into a scalar test statistic."""
+    """
+    Aggregate a residual vector into a scalar test statistic.
+
+    Parameters
+    ----------
+    e : np.ndarray, shape (T,)
+        Residual vector (e.g., treatment effects or placebo residuals).
+    method : {"mean_abs", "mean", "rms"}, default="mean_abs"
+        Aggregation method:
+        - "mean_abs": mean absolute deviation
+        - "mean": signed mean
+        - "rms": root mean square
+
+    Returns
+    -------
+    stat : float
+        Scalar test statistic.
+
+    Raises
+    ------
+    ValueError
+        If an unknown method is provided.
+
+    Notes
+    -----
+    - This statistic defines the rejection region for permutation inference.
+    - "mean_abs" is robust to sign and commonly used in SCM placebo tests.
+    """
     if method == "mean_abs":
         return float(np.mean(np.abs(e)))
     elif method == "mean":
@@ -39,10 +55,34 @@ def test_statistic(e: np.ndarray, method: str = "mean_abs") -> float:
 def compute_null_distribution(
     full_series: np.ndarray,
     n_post: int,
-    n_sims: int = 100000,
+    n_sims: int = 1000,
     seed: Optional[int] = None
 ) -> np.ndarray:
-    """Monte Carlo permutation null distribution of S(e)."""
+    """
+    Estimate the permutation null distribution of the test statistic via Monte Carlo.
+
+    Parameters
+    ----------
+    full_series : np.ndarray, shape (T_total,)
+        Combined series of residuals under the null (pre + imputed post).
+    n_post : int
+        Number of time points assigned to the pseudo post-treatment period.
+    n_sims : int, default=1000
+        Number of Monte Carlo permutations.
+    seed : int, optional
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    null_stats : np.ndarray, shape (n_sims,)
+        Sorted array of simulated test statistics.
+
+    Notes
+    -----
+    - Each simulation randomly selects `n_post` indices without replacement.
+    - This approximates the permutation distribution used in SCM inference.
+    - Sorting enables efficient quantile lookup for critical values.
+    """
     rng = np.random.default_rng(seed)
     n_total = len(full_series)
     null_stats = np.zeros(n_sims)
@@ -55,7 +95,25 @@ def compute_null_distribution(
     return null_stats
 
 def critical_value_from_null(null_stats: np.ndarray, alpha: float) -> float:
-    """One-sided upper critical value c*."""
+    """
+    Compute the upper critical value from a null distribution.
+
+    Parameters
+    ----------
+    null_stats : np.ndarray
+        Sorted null distribution of the test statistic.
+    alpha : float
+        Significance level.
+
+    Returns
+    -------
+    c_star : float
+        (1 - alpha) quantile of the null distribution.
+
+    Notes
+    -----
+    - Defines the rejection threshold for a one-sided test.
+    """
     return float(np.quantile(null_stats, 1 - alpha))
 
 # =========================================================
@@ -65,7 +123,28 @@ def critical_value_from_null(null_stats: np.ndarray, alpha: float) -> float:
 PostImputation = Literal["mean", "max", "double_max"]
 
 def impute_noise_level(residuals_B: np.ndarray, method: PostImputation) -> float:
-    """Impute post-period noise scalar from blank residuals."""
+    """
+    Estimate post-treatment noise level from pre-treatment residuals.
+
+    Parameters
+    ----------
+    residuals_B : np.ndarray
+        Residuals from the baseline (pre-treatment validation) period.
+    method : {"mean", "max", "double_max"}
+        Method for estimating noise magnitude.
+
+    Returns
+    -------
+    noise_level : float
+        Scalar noise estimate used to construct null post-period values.
+
+    Notes
+    -----
+    - "mean": average absolute residual (typical noise level)
+    - "max": worst-case residual
+    - "double_max": conservative upper bound
+    - This value is used to simulate post-treatment noise under the null.
+    """
     abs_resid = np.abs(residuals_B)
     if method == "mean":
         return float(np.mean(abs_resid))
@@ -90,7 +169,55 @@ def _analytical_mde(
     n_sims: int = 100000,
     seed: Optional[int] = None
 ) -> Dict:
-    """Computes MDE analytically using the inverse of the test statistic."""
+    """
+    Compute the minimum detectable effect (MDE) via inversion of a permutation test.
+
+    Parameters
+    ----------
+    residuals_B : np.ndarray, shape (T_B,)
+        Residuals from the baseline (pre-treatment) period.
+    synth_treated : np.ndarray, shape (T,)
+        Synthetic treated time series.
+    n_post : int
+        Length of the post-treatment period.
+    alpha : float
+        Significance level for the test.
+    noise_level : float
+        Imputed noise level for post-treatment residuals under the null.
+    statistic : str
+        Test statistic method (passed to `test_statistic`).
+    n_sims : int, default=100000
+        Number of Monte Carlo samples for null distribution.
+    seed : int, optional
+        Random seed.
+
+    Returns
+    -------
+    result : dict
+        Dictionary containing:
+        - mde_tau : float
+            Minimum detectable effect (fraction of baseline).
+        - mde_pct : float
+            MDE as percentage.
+        - baseline : float
+            Mean treated level over post period.
+        - critical_stat : float
+            Critical value c* from null distribution.
+        - n_perms_exact : int
+            Total number of exact permutations.
+        - n_sims : int
+            Number of Monte Carlo draws used.
+        - p_value_lb : float
+            Minimum attainable p-value.
+
+    Notes
+    -----
+    - Implements analytical inversion:
+        tau* = (c* - noise_level) / baseline
+    - Assumes additive constant treatment effect.
+    - Uses Monte Carlo approximation to permutation distribution.
+    - Baseline is stabilized to avoid division by zero.
+    """
     n_B = len(residuals_B)
     baseline = float(np.mean(synth_treated[-n_post:]))
     if abs(baseline) < 1e-8:
@@ -131,7 +258,41 @@ def compute_detectability_curve(
     statistic: str = "mean_abs",
     seed: Optional[int] = None
 ) -> Dict:
-    """Computes MDE for a range of post-period lengths."""
+    """
+    Compute MDE as a function of post-treatment duration.
+
+    Parameters
+    ----------
+    candidate : SEDCandidate
+        Evaluated candidate with residuals and predictions.
+    n_post_grid : list of int
+        Grid of post-period lengths to evaluate.
+    alpha : float, default=0.05
+        Significance level.
+    n_sims : int, default=100000
+        Number of Monte Carlo samples.
+    post_imputation : {"mean", "max", "double_max"}, default="mean"
+        Method for imputing post-period noise.
+    statistic : str, default="mean_abs"
+        Test statistic method.
+    seed : int, optional
+        Random seed.
+
+    Returns
+    -------
+    results : dict
+        Contains:
+        - "curve": dict mapping n_post → MDE (tau)
+        - "details": dict of full MDE outputs per n_post
+        - "n_post_10pct": smallest n_post achieving MDE ≤ 10%
+        - "n_post_5pct": smallest n_post achieving MDE ≤ 5%
+        - "noise_level": imputed noise level
+
+    Notes
+    -----
+    - Skips infeasible configurations (insufficient permutation resolution).
+    - Provides a “power curve” over experiment duration.
+    """
     residuals_B = np.asarray(candidate.predictions.residuals_B)
     synth_treated = np.asarray(candidate.predictions.synthetic_treated)
     n_B = len(residuals_B)
@@ -166,6 +327,38 @@ def run_mde_analysis(
     statistic: str = "mean_abs",
     seed: Optional[int] = None
 ) -> List[SEDCandidate]:
+
+    """
+    Compute detectability curves for a list of candidates.
+
+    Parameters
+    ----------
+    candidates : list of SEDCandidate
+        Candidates to evaluate.
+    n_post_grid : list of int, optional
+        Grid of post-period lengths. Defaults to range(2, 9).
+    alpha : float, default=0.05
+        Significance level.
+    n_sims : int, default=100000
+        Number of Monte Carlo simulations.
+    post_imputation : str
+        Noise imputation method.
+    statistic : str
+        Test statistic method.
+    seed : int, optional
+        Random seed.
+
+    Returns
+    -------
+    candidates : list of SEDCandidate
+        Same objects with `mde_results` populated.
+
+    Notes
+    -----
+    - Mutates candidate objects in place.
+    """
+
+    
     if n_post_grid is None:
         n_post_grid = list(range(2, 9))
     for cand in candidates:
@@ -175,6 +368,33 @@ def run_mde_analysis(
     return candidates
 
 def check_inference_feasibility(n_B: int, n_post: int, alpha: float = 0.05) -> Dict:
+    """
+    Check whether permutation inference is feasible at a given alpha level.
+
+    Parameters
+    ----------
+    n_B : int
+        Number of baseline (pre-treatment) observations.
+    n_post : int
+        Length of post-treatment period.
+    alpha : float, default=0.05
+        Significance level.
+
+    Returns
+    -------
+    result : dict
+        Contains:
+        - n_perms : int
+            Number of possible permutations.
+        - p_value_lb : float
+            Minimum achievable p-value.
+        - feasible : bool
+            Whether p_value_lb < alpha.
+
+    Notes
+    -----
+    - If infeasible, no valid hypothesis test can be conducted at level alpha.
+    """
     n_perms = comb(n_B + n_post, n_post)
     p_lb = 1.0 / n_perms
     return {"n_perms": n_perms, "p_value_lb": p_lb, "feasible": p_lb < alpha}
@@ -184,7 +404,26 @@ def check_inference_feasibility(n_B: int, n_post: int, alpha: float = 0.05) -> D
 # =========================================================
 
 def mde_summary_table(candidates: List[SEDCandidate]) -> pd.DataFrame:
-    """Summary of MDE percentages for weeks 2-8."""
+    """
+    Create a summary table of MDE values across candidates.
+
+    Parameters
+    ----------
+    candidates : list of SEDCandidate
+
+    Returns
+    -------
+    df : pd.DataFrame
+        Table containing:
+        - tuple_id
+        - nmse_B (fit quality)
+        - noise_level
+        - mde_{k}w for k = 2,...,8
+
+    Notes
+    -----
+    - Sorted by nmse_B (best historical fit first).
+    - Mis
     rows = []
     for cand in candidates:
         r = cand.mde_results or {}
@@ -203,8 +442,28 @@ def mde_summary_table(candidates: List[SEDCandidate]) -> pd.DataFrame:
 
 def rank_candidates(candidates: List[SEDCandidate], w_bias: float = 0.5) -> pd.DataFrame:
     """
-    Ranks candidates by balancing historical fit and early detectability (wks 2-4).
-    Uses Min-Max normalization to identify the Pareto-optimal recommendations.
+    Rank candidates by balancing historical fit and early-period detectability.
+
+    Parameters
+    ----------
+    candidates : list of SEDCandidate
+    w_bias : float, default=0.5
+        Weight assigned to historical fit (NMSE). Remaining weight is assigned to power.
+
+    Returns
+    -------
+    df : pd.DataFrame
+        Ranked table with:
+        - normalized fit (nmse_B)
+        - normalized early MDE (weeks 2–4)
+        - combined SED score
+
+    Notes
+    -----
+    - Lower scores are better.
+    - Uses Min-Max normalization within the candidate pool.
+    - Early detectability is defined as average MDE over weeks 2–4.
+    - Intended as a heuristic Pareto ranking, not a formal optimality guarantee.
     """
     df = mde_summary_table(candidates)
     if df.empty: return df
