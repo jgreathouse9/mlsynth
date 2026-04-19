@@ -1,4 +1,4 @@
-.. autoclass:: mlsynth.LEZSCM
+.. autoclass:: mlsynth.LEXSCM
    :show-inheritance:
    :members:
    :undoc-members:
