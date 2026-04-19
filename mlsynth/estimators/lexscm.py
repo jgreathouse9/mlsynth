@@ -89,7 +89,7 @@ class LEXSCMResults:
     n_units: int
     n_periods: int
     n_pre_periods: int
-    n_post_periods: int
+    n_blank_periods: int
 
     # optional diagnostics
     y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
