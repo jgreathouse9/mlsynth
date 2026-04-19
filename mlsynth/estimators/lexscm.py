@@ -378,8 +378,8 @@ class LEXSCM:
             y_pop_mean_t=y_pop_mean_t,
             n_units=J,
             n_periods=T,
-            n_pre_periods=len(B_idx),
-            n_post_periods=len(post_idx),
+            n_pre_periods=T-len(B_idx),
+            n_blank_periods=len(B_idx),
         )
 
         return results
