@@ -33,9 +33,17 @@ from ..utils.fast_scm_helpers.power_helpers import (
     run_mde_analysis,
 )
 
+from dataclasses import dataclass, field
 
 
-
+@dataclass
+class LEXSCMResults:
+    """The final return object containing all stages of the pipeline."""
+    summary: pd.DataFrame             # The ranked Pareto/MDE table
+    best_candidate: SEDCandidate      # The #1 ranked candidate object
+    all_candidates: List[SEDCandidate]# Full list of evaluated tuples
+    bnb_metadata: Dict[str, Any]      # Search stats (nodes visited, etc.)
+    config: Any                       # Store the config used for the run
 
 class LEXSCM:
     """
@@ -183,7 +191,22 @@ class LEXSCM:
 
         # 2. Rank them using the Pareto heuristic (default is 50/50 weight)
         ranked_df = rank_candidates(candidate_mdes, w_bias=0.5)
+        
+        # Identify the absolute best candidate based on the SED Score
+        
+        best_tuple_id = ranked_df.iloc[0]['tuple_id']
+        best_candidate = next(c for c in candidate_results
+                              if c.identification.tuple_id == best_tuple_id)
 
-        # 3. Print the top 5 recommended experiment designs
-        print("Top Recommended Experiment Designs:")
-        print(ranked_df.head(5)[['tuple_id', 'nmse_B', 'early_mde_avg', 'sed_score']])
+        # ------------------- Package Results -------------------
+        results = LEXSCMResults(
+            summary=ranked_df,
+            best_candidate=best_candidate,
+            all_candidates=candidate_results,
+            bnb_metadata=bbresults,
+            config=self.config
+        )
+
+        return results
+
+
