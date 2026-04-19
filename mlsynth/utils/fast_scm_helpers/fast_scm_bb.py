@@ -19,62 +19,6 @@ def branch_and_bound_topK(
     top_P: int = 10,
     total_units: int = None
 ):
-
-
-    """
-    Perform branch-and-bound search to identify the top-K subsets minimizing w^T Q w.
-
-    Parameters
-    ----------
-    G : np.ndarray, shape (N, N)
-        Global quadratic (Gram) matrix.
-    candidate_idx : np.ndarray, shape (M,)
-        Indices of candidate units.
-    m : int, default=5
-        Subset size.
-    top_K : int, default=20
-        Number of best subsets to return.
-    top_P : int, default=10
-        (Currently unused) Intended number of seed tuples.
-    total_units : int, optional
-        If provided, expand solution weights to full-length vectors.
-
-    Returns
-    -------
-    result : dict
-        Dictionary with:
-        - "top_tuples": list of Solution
-            Top-K solutions sorted by loss.
-        - "stats": dict
-            Detailed diagnostics of the search process.
-
-    Notes
-    -----
-    Algorithm outline:
-    1. Sort candidates by diagonal of G (heuristic ordering).
-    2. Initialize with a greedy solution for pruning baseline.
-    3. Seed search with multiple 1-element subsets.
-    4. Recursively expand subsets via `expand_tuple`.
-    5. Maintain top-K solutions throughout.
-
-    Pruning:
-    - Branches are pruned when their lower bound exceeds the current
-      worst top-K solution (within tolerance).
-
-    Statistics reported include:
-    - Search space size and fraction explored
-    - Pruning rate and branching behavior
-    - Runtime and speedup vs brute force
-    - Improvement over initial solution
-    - Bound quality diagnostics
-
-    Performance
-    -----------
-    - Worst-case complexity is combinatorial (C(M, m)).
-    - Practical performance depends heavily on pruning effectiveness.
-    """
-
-
     start_time = time.time()
 
     if len(candidate_idx) < m:
@@ -100,11 +44,13 @@ def branch_and_bound_topK(
     init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
     top_tuples.append(Solution(init_loss, init_idx, init_w))
 
-    num_seeds = min(50, max(20, 4 * m))
+    M = len(candidate_idx)
 
-    # --- branch-and-bound ---
-    for i in range(num_seeds):
-        j = candidate_idx[i]
+    num_seeds = min(M, max(1, 4 * m))
+
+    seed_set = candidate_idx[:num_seeds]  # safe slice, invariant to M
+
+    for j in seed_set:
         Q0 = np.array([[G[j, j]]])
 
         expand_tuple(
@@ -115,7 +61,7 @@ def branch_and_bound_topK(
             top_tuples,
             indices=[j],
             stats=raw_stats,
-            start_pos=i + 1,
+            start_pos=0,
             Q_partial=Q0
         )
 
