@@ -32,3 +32,23 @@ Core Helpers
 .. automodule:: mlsynth.utils.fast_scm_helpers.fast_scm_setup
    :members: prepare_experiment_inputs, split_periods, build_X_tilde
    :undoc-members:
+
+Search & Evaluation Engine
+--------------------------
+
+.. automodule:: mlsynth.utils.fast_scm_helpers.fast_scm_bb
+   :members: branch_and_bound_topK
+   :undoc-members:
+   :noindex:
+
+.. automodule:: mlsynth.utils.fast_scm_helpers.fast_scm_control
+   :members: evaluate_candidates
+   :undoc-members:
+   :noindex:
+
+Internal Scopes & Math
+----------------------
+
+.. automodule:: mlsynth.utils.fast_scm_helpers.fast_scm_setup
+   :members: _prepare_working_df, build_candidate_mask, build_f_vector, build_X_tilde, build_Y_matrix, build_Z_matrix
+   :undoc-members:
