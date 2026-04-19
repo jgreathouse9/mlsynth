@@ -6,6 +6,25 @@ from math import comb
 
 @dataclass(order=True)
 class Solution:
+    """
+    Container for a candidate solution in the branch-and-bound search.
+
+    Attributes
+    ----------
+    loss : float
+        Objective value (w^T Q w) for the selected subset.
+    indices : list of int
+        Indices of selected units (subset of candidate_idx).
+    weights : np.ndarray, shape (m,)
+        Optimal simplex weights corresponding to `indices`.
+    label : str, optional
+        Optional human-readable label (assigned post hoc).
+    
+    Notes
+    -----
+    - Ordering is based on `loss` only, enabling sorting of solutions.
+    - Lower loss indicates a better solution.
+    """
     loss: float
     indices: List[int] = field(compare=False)
     weights: np.ndarray = field(compare=False)
@@ -13,6 +32,28 @@ class Solution:
 
 
 def expand_weights_to_full(indices, weights, total_units):
+    """
+    Expand a subset weight vector into a full-length vector.
+
+    Parameters
+    ----------
+    indices : list of int
+        Indices of selected units.
+    weights : np.ndarray, shape (k,)
+        Weights corresponding to `indices`.
+    total_units : int
+        Total number of units in the full problem.
+
+    Returns
+    -------
+    w_full : np.ndarray, shape (total_units,)
+        Weight vector with zeros for non-selected units and
+        `weights` placed at `indices`.
+
+    Notes
+    -----
+    - Useful for mapping subset solutions back to the full unit space.
+    """
     w_full = np.zeros(total_units)
     w_full[indices] = weights
     return w_full
@@ -21,6 +62,28 @@ def expand_weights_to_full(indices, weights, total_units):
 
 
 def compute_search_space_size(M: int, m: int):
+    """
+    Compute the size of the combinatorial search space.
+
+    Parameters
+    ----------
+    M : int
+        Total number of candidate units.
+    m : int
+        Subset size (number of units to select).
+
+    Returns
+    -------
+    total_subsets : int
+        Number of size-m subsets (C(M, m)).
+    total_nodes : int
+        Total number of nodes in the search tree (sum_{k=1}^m C(M, k)).
+
+    Notes
+    -----
+    - `total_nodes` corresponds to the full branch-and-bound tree size
+      without pruning.
+    """
     total_subsets = comb(M, m)
     total_nodes = sum(comb(M, k) for k in range(1, m + 1))
     return total_subsets, total_nodes
@@ -70,27 +133,25 @@ def compute_seed_tuples(
 
 def project_to_simplex(v: np.ndarray, eps: float = 1e-10) -> np.ndarray:
     """
-    Project a vector onto the probability simplex (non-negative, sum=1).
+    Project a vector onto the probability simplex.
 
     Parameters
     ----------
     v : np.ndarray, shape (n,)
-        Input vector to be projected.
+        Input vector.
     eps : float, optional
-        Small tolerance to avoid numerical issues (default 1e-10).
+        Numerical tolerance (unused but retained for API stability).
 
     Returns
     -------
     w : np.ndarray, shape (n,)
-        Projected vector satisfying:
-        - w_i >= 0 for all i
-        - sum(w) = 1
+        Projection of `v` onto the simplex:
+        w_i >= 0 and sum(w) = 1.
 
     Notes
     -----
-    - Implements the algorithm from:
-      Duchi et al., "Efficient Projections onto the L1-Ball for Learning in High Dimensions", https://doi.org/10.1145/1390156.139019
-    - Sorting and cumulative sum are used to compute the threshold.
+    - Implements the method of Duchi et al. (2008).
+    - Runs in O(n log n) due to sorting.
     """
     u = np.sort(v)[::-1]
     cssv = np.cumsum(u)
@@ -101,28 +162,32 @@ def project_to_simplex(v: np.ndarray, eps: float = 1e-10) -> np.ndarray:
 
 def solve_qp_simplex(Q: np.ndarray, max_iter: int = 200, lr: float = 0.01) -> np.ndarray:
     """
-    Solve a quadratic program over the simplex using projected gradient descent.
+    Approximately solve a quadratic program over the simplex.
+
+    Minimizes:
+        w^T Q w
+    subject to:
+        w >= 0, sum(w) = 1
 
     Parameters
     ----------
-    Q : np.ndarray, shape (m, m)
-        Quadratic matrix in the objective: minimize w^T Q w.
-    max_iter : int, optional
-        Maximum number of gradient descent iterations (default 200).
-    lr : float, optional
-        Learning rate for gradient descent (default 0.01).
+    Q : np.ndarray, shape (k, k)
+        Symmetric positive semi-definite matrix.
+    max_iter : int, default=200
+        Number of projected gradient steps.
+    lr : float, default=0.01
+        Learning rate.
 
     Returns
     -------
-    w : np.ndarray, shape (m,)
-        Optimal weight vector on the simplex (sum(w)=1, w_i >= 0).
+    w : np.ndarray, shape (k,)
+        Approximate minimizer on the simplex.
 
     Notes
     -----
-    - Objective: minimize w^T Q w subject to w on the simplex.
-    - Gradient: grad = 2 Q w
-    - Uses `project_to_simplex` at each step to enforce constraints.
-    - Suitable for small- to medium-sized Q (hundreds of units).
+    - Uses projected gradient descent with simplex projection.
+    - Convergence is heuristic; not guaranteed to reach the global optimum.
+    - Suitable for small k (subset sizes).
     """
     m = Q.shape[0]
     w = np.ones(m) / m
@@ -138,6 +203,25 @@ def solve_qp_simplex(Q: np.ndarray, max_iter: int = 200, lr: float = 0.01) -> np
 # ----------------------------
 
 def pairwise_lower_bound(Q):
+    """
+    Compute a lower bound using all pairwise 2-element subsets.
+
+    Parameters
+    ----------
+    Q : np.ndarray, shape (k, k)
+        Quadratic matrix.
+
+    Returns
+    -------
+    best : float
+        Minimum achievable objective over all pairs.
+
+    Notes
+    -----
+    - Evaluates the exact 2-element solution for each pair.
+    - Useful as a tighter bound than diagonal-only approximations.
+    - O(k^2) complexity.
+    """
     k = Q.shape[0]
     best = np.inf
 
@@ -156,6 +240,27 @@ def pairwise_lower_bound(Q):
 
 
 def compute_lower_bound(Q: np.ndarray) -> float:
+    """
+    Compute a fast lower bound on the quadratic objective over the simplex.
+
+    Parameters
+    ----------
+    Q : np.ndarray, shape (k, k)
+        Quadratic matrix.
+
+    Returns
+    -------
+    lb : float
+        Lower bound on min_w w^T Q w.
+
+    Notes
+    -----
+    - Exact for k = 1 and k = 2.
+    - For k >= 3:
+        * Uses smallest diagonal entries as a baseline.
+        * Adds a heuristic correction based on negative interactions.
+    - Designed for speed rather than tightness.
+    """
     k = Q.shape[0]
 
     if k == 1:
@@ -187,6 +292,32 @@ def compute_lower_bound(Q: np.ndarray) -> float:
 
 
 def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
+    """
+    Construct an initial feasible solution using the first m candidates.
+
+    Parameters
+    ----------
+    G : np.ndarray, shape (N, N)
+        Global quadratic (Gram) matrix.
+    candidate_idx : np.ndarray
+        Candidate unit indices (assumed pre-ordered).
+    m : int
+        Subset size.
+
+    Returns
+    -------
+    loss : float
+        Objective value of the solution.
+    selected : list of int
+        Selected indices.
+    w : np.ndarray, shape (m,)
+        Optimal weights for the selected subset.
+
+    Notes
+    -----
+    - Assumes `candidate_idx` is sorted (e.g., by diagonal values).
+    - Provides a baseline solution for pruning.
+    """
     selected = list(candidate_idx[:m])
     Q = G[np.ix_(selected, selected)]
     w = solve_qp_simplex(Q)
@@ -207,6 +338,48 @@ def expand_tuple(
     start_pos: int,
     Q_partial: np.ndarray
 ):
+
+    """
+    Recursively expand a partial subset within a branch-and-bound search.
+
+    Parameters
+    ----------
+    G : np.ndarray, shape (N, N)
+        Global quadratic matrix.
+    candidate_idx : np.ndarray
+        Ordered candidate indices.
+    m : int
+        Target subset size.
+    top_K : int
+        Number of best solutions to retain.
+    top_tuples : list of Solution
+        Current list of best solutions (sorted by loss).
+    indices : list of int
+        Current partial subset.
+    stats : dict
+        Mutable dictionary tracking search statistics.
+    start_pos : int
+        Position in `candidate_idx` from which to continue expansion.
+    Q_partial : np.ndarray, shape (k, k)
+        Quadratic matrix restricted to `indices`.
+
+    Notes
+    -----
+    - Performs depth-first search with pruning.
+    - At each step:
+        1. Expands subset by adding one candidate.
+        2. Updates Q incrementally (no recomputation).
+        3. Computes a lower bound via approximate QP solve.
+        4. Prunes if bound is worse than current top-K worst solution.
+    - Leaf nodes (|indices| == m) are evaluated exactly.
+    - `start_pos` ensures combinations (not permutations).
+    - Stats tracked:
+        * nodes_visited
+        * subsets_evaluated
+        * branches_considered
+        * branches_pruned
+    """
+    
     stats["nodes_visited"] += 1
 
     # ---- leaf ----
