@@ -9,29 +9,32 @@ def _build_objective(
     lambda_penalty: float
 ):
     """
-    Construct the quadratic objective for synthetic control weights.
+    Construct the synthetic control quadratic objective.
 
     Parameters
     ----------
-    X_E : np.ndarray, shape (T_est, N)
-        Standardized feature matrix for estimation period.
+    X_E : np.ndarray, shape (T_E, N)
+        Standardized feature matrix over the estimation period.
     v : cp.Variable, shape (N,)
-        CVXPY variable representing control weights to optimize.
-    treated_vec : np.ndarray, shape (T_est,)
-        Treated unit time series over estimation period.
+        Optimization variable representing control weights.
+    treated_vec : np.ndarray, shape (T_E,)
+        Synthetic treated series over the estimation period.
     lambda_penalty : float
-        Weight for regularization term penalizing control units that poorly match treated series.
+        Regularization strength for unit-specific mismatch penalties.
 
     Returns
     -------
     objective : cp.Expression
-        CVXPY expression representing the objective function:
-        ||X_E @ v - treated_vec||^2 + lambda_penalty * sum_j v_j ||X_E[:, j] - treated_vec||^2
+        CVXPY expression representing:
+            ||X_E v - treated_vec||^2
+            + lambda_penalty * sum_j v_j ||X_E[:, j] - treated_vec||^2
 
     Notes
     -----
-    - `match_term` encourages the synthetic control to track the treated series.
-    - `penalty_term` discourages high weights on poorly matching control units.
+    - First term enforces global fit to the treated series.
+    - Second term penalizes assigning weight to units that individually
+      deviate from the treated trajectory.
+    - The penalty is linear in `v`, preserving convexity.
     """
     match_term = cp.sum_squares(X_E @ v - treated_vec)
 
@@ -48,21 +51,27 @@ def _build_constraints(
     treated_idx: List[int]
 ):
     """
-    Construct constraints for synthetic control QP.
+    Construct feasibility constraints for synthetic control weights.
 
     Parameters
     ----------
     v : cp.Variable, shape (N,)
-        CVXPY variable representing control weights.
+        Control weight vector.
     treated_idx : list of int
-        Indices of treated units that should have zero weight in control.
+        Indices of treated units to exclude from the donor pool.
 
     Returns
     -------
     constraints : list of cp.Constraint
+        Constraints enforcing:
         - Nonnegativity: v >= 0
-        - Sum-to-one: sum(v) == 1
-        - Exclusion: v[treated_idx] == 0
+        - Convex combination: sum(v) == 1
+        - Exclusion: v[j] = 0 for j in treated_idx
+
+    Notes
+    -----
+    - Ensures the synthetic control is a convex combination of donor units.
+    - Explicit exclusion prevents contamination from treated units.
     """
     constraints = [
         v >= 0,
@@ -77,24 +86,25 @@ def _build_constraints(
 
 def _solve_qp_problem(objective, constraints) -> Optional[np.ndarray]:
     """
-    Solve a CVXPY quadratic program and return optimal control weights.
+    Solve a convex quadratic program using CVXPY.
 
     Parameters
     ----------
     objective : cp.Expression
-        Quadratic objective function for synthetic control.
+        Objective function to minimize.
     constraints : list of cp.Constraint
-        List of CVXPY constraints (nonnegativity, sum-to-one, exclusion of treated units).
+        Feasibility constraints.
 
     Returns
     -------
     solution : np.ndarray, shape (N,) or None
-        Optimal weights vector for control units. Returns None if solver fails.
+        Optimal variable values, or None if the solver fails.
 
     Notes
     -----
-    - Uses OSQP solver with tight absolute and relative tolerances (eps_abs=eps_rel=1e-6).
-    - The returned vector corresponds to the variable `v` in the original problem.
+    - Uses the OSQP solver with tight tolerances.
+    - Returns None if no solution is found (caller must handle).
+    - Assumes the problem is convex and well-posed.
     """
     prob = cp.Problem(cp.Minimize(objective), constraints)
     prob.solve(solver=cp.OSQP, verbose=False, eps_abs=1e-6, eps_rel=1e-6)
@@ -111,32 +121,30 @@ def solve_control_qp(
     lambda_penalty: float = 0.1
 ) -> Optional[np.ndarray]:
     """
-    Solve quadratic program to compute synthetic control weights for non-treated units.
+    Solve for synthetic control weights given a treated trajectory.
 
     Parameters
     ----------
-    X_E : np.ndarray, shape (T_est, N)
+    X_E : np.ndarray, shape (T_E, N)
         Standardized feature matrix over the estimation period.
-    treated_vec : np.ndarray, shape (T_est,)
-        Vector of treated unit values over estimation period.
+    treated_vec : np.ndarray, shape (T_E,)
+        Synthetic treated series constructed from selected units.
     treated_idx : list of int
-        Indices of treated units to exclude from control.
-    lambda_penalty : float, optional
-        Regularization weight penalizing control units that poorly match treated series (default 0.1).
+        Indices of treated units to exclude from the control.
+    lambda_penalty : float, default=0.1
+        Regularization strength for mismatch penalties.
 
     Returns
     -------
-    v : np.ndarray, shape (N,)
-        Optimal synthetic control weights for all units. Zeros at treated indices.
-        Returns None if solver fails.
+    v : np.ndarray, shape (N,) or None
+        Synthetic control weights over all units. Entries at treated
+        indices are zero. Returns None if optimization fails.
 
     Notes
     -----
-    - The optimization solves:
-        min_v ||X_E @ v - treated_vec||^2 + lambda_penalty * sum_j v_j ||X_E[:, j] - treated_vec||^2
-      subject to:
-        v >= 0, sum(v) = 1, v[treated_idx] = 0
-    - Uses OSQP solver via CVXPY.
+    - Solves a convex QP via CVXPY.
+    - The solution represents a convex combination of donor units.
+    - Used downstream to construct synthetic control trajectories.
     """
     _, N = X_E.shape
     v = cp.Variable(N)
@@ -152,30 +160,32 @@ def solve_control_qp(
 
 def compute_nmse(X: np.ndarray, w: np.ndarray, target: np.ndarray, idx: np.ndarray, treated_idx: list) -> float:
     """
-    Compute normalized mean squared error (NMSE) between synthetic treated series and target series.
+    Compute normalized mean squared error (NMSE) over a time subset.
 
     Parameters
     ----------
     X : np.ndarray, shape (T, N)
-        Full feature matrix over all time periods.
-    w : np.ndarray, shape (len(treated_idx),)
+        Full feature matrix.
+    w : np.ndarray, shape (k,)
         Weights for treated units.
     target : np.ndarray, shape (T,)
-        Observed target series (treated unit mean or outcome).
+        Target series (e.g., weighted average of outcome units).
     idx : np.ndarray
-        Time indices to compute NMSE over (e.g., backcast/validation period).
+        Time indices over which to evaluate the error.
     treated_idx : list of int
-        Indices of treated units corresponding to weights w.
+        Indices of treated units corresponding to `w`.
 
     Returns
     -------
     nmse : float
-        Normalized mean squared error: mean((synthetic - target)^2 / var(target)).
+        Mean squared error normalized by per-time cross-sectional variance.
 
     Notes
     -----
-    - Normalization is done using per-time variance across all outcome columns.
-    - Used for evaluating synthetic control fit over baseline (pre-treatment) periods.
+    - Synthetic series: X[:, treated_idx] @ w
+    - Normalization uses variance across outcome columns at each time step.
+    - A small constant is added to avoid division by zero.
+    - This normalization emphasizes relative fit rather than scale.
     """
     synth = X[idx][:, treated_idx] @ w
     tgt = target[idx]
@@ -185,28 +195,29 @@ def compute_nmse(X: np.ndarray, w: np.ndarray, target: np.ndarray, idx: np.ndarr
 
 def compute_effect_series(X: np.ndarray, treated_idx: list, w: np.ndarray, v: np.ndarray) -> np.ndarray:
     """
-    Compute synthetic treatment effect time series.
+    Compute the estimated treatment effect time series.
 
     Parameters
     ----------
     X : np.ndarray, shape (T, N)
-        Full feature matrix over all time periods.
+        Full feature matrix.
     treated_idx : list of int
         Indices of treated units.
-    w : np.ndarray, shape (len(treated_idx),)
-        Weights for treated units.
+    w : np.ndarray, shape (k,)
+        Weights defining the synthetic treated unit.
     v : np.ndarray, shape (N,)
-        Synthetic control weights for all units.
+        Synthetic control weights.
 
     Returns
     -------
     effects : np.ndarray, shape (T,)
-        Time series of estimated treatment effects:
-        synthetic treated series minus synthetic control series.
+        Estimated treatment effect at each time:
+            (synthetic treated) - (synthetic control)
 
     Notes
     -----
-    - Synthetic treated series: X[:, treated_idx] @ w
-    - Synthetic control series: X @ v
+    - Synthetic treated: X[:, treated_idx] @ w
+    - Synthetic control: X @ v
+    - Positive values indicate treated > control.
     """
     return X[:, treated_idx] @ w - X @ v
