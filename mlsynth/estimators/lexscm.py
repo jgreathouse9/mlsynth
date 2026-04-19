@@ -85,6 +85,10 @@ class LEXSCMResults:
     bnb_metadata: Dict[str, Any]      # Search stats (nodes visited, etc.)
     config: Any                       # Store the config used for the run
     y_mean: float = field(default=np.nan)
+    n_units: int
+    n_periods: int
+    n_pre_periods: int
+    n_post_periods: int
 
 class LEXSCM:
     """
@@ -356,16 +360,22 @@ class LEXSCM:
         best_candidate = next(c for c in candidate_results
                               if c.identification.tuple_id == best_tuple_id)
 
-        y_mean = np.mean(self.Y, axis=1)
-
-        # ------------------- Package Results -------------------
+        T = self.Y.shape[0]
+        J = self.Y.shape[1]
+        
+        y_pop_mean_t = self.Y.mean(axis=1)
+        
         results = LEXSCMResults(
             summary=ranked_df,
             best_candidate=best_candidate,
             all_candidates=candidate_results,
             bnb_metadata=bbresults,
             config=self.config,
-            y_mean=y_mean
+            y_pop_mean_t=y_pop_mean_t,
+            n_units=J,
+            n_periods=T,
+            n_pre_periods=len(B_idx),
+            n_post_periods=len(post_idx),
         )
 
         return results
