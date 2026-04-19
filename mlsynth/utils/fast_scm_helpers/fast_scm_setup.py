@@ -161,7 +161,7 @@ def split_periods(T0: int, T: int, frac_E: float = 0.7) -> Tuple[np.ndarray, np.
     T : int
         Total number of time points in the series.
     frac_E : float, default=0.7
-        Fraction of pre-treatment period to allocate for estimation (E). The remainder is used for 
+        Fraction of pre-treatment period to allocate for estimation (E). The remainder is used for
         baseline/backcast (B).
 
     Returns
@@ -172,7 +172,7 @@ def split_periods(T0: int, T: int, frac_E: float = 0.7) -> Tuple[np.ndarray, np.
         Indices of the backcast/baseline period used for evaluation.
     post_idx : np.ndarray, shape (T - T0,)
         Indices of the post-treatment period.
-    
+
     Notes
     -----
     - E_idx and B_idx together span the pre-treatment period [0, T0).
@@ -204,7 +204,7 @@ def build_X_tilde(X: np.ndarray, f: np.ndarray, idx: np.ndarray, J: int):
     Returns
     -------
     X_E : np.ndarray, shape (T_E, N)
-        Standardized X over the estimation period. Each row is centered by the weighted mean 
+        Standardized X over the estimation period. Each row is centered by the weighted mean
         mu = X[:, :J] @ f[:J] and scaled by per-time standard deviation across all columns.
     G : np.ndarray, shape (N, N)
         Gram matrix of the standardized X: G = X_E.T @ X_E.

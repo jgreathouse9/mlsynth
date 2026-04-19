@@ -1,5 +1,5 @@
 """
-fast_scm_power_helpers.py
+Fast_scm_power_helpers.py
 
 Minimum Detectable Effect (MDE) analysis for Synthetic Experimental Design,
 following the permutation inference procedure of Abadie and Zhao (2021) as
