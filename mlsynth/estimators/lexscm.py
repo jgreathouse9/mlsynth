@@ -356,7 +356,7 @@ class LEXSCM:
         best_candidate = next(c for c in candidate_results
                               if c.identification.tuple_id == best_tuple_id)
 
-        y_mean = np.mean(self.Y, axis=0)
+        y_mean = np.mean(self.Y, axis=1)
 
         # ------------------- Package Results -------------------
         results = LEXSCMResults(
