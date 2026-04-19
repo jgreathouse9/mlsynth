@@ -34,7 +34,7 @@ from ..utils.fast_scm_helpers.power_helpers import (
 
 from dataclasses import dataclass, field
 
-from ..utils.fastscm_helpers.structure import SEDCandidate
+from ..utils.fast_scm_helpers.structure import SEDCandidate
 
 @dataclass
 class LEXSCMResults:
