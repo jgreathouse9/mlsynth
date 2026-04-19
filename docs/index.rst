@@ -31,6 +31,7 @@ MLSYNTH
    fma
    pda
    tssc
+   lexscm
    proximal
    fscm
    src
