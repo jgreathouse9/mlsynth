@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import Optional, Dict, Any
 
-from ..utils.fast_scm_setup import (
+from ..utils.fastscm_helpers.fast_scm_setup import (
     prepare_experiment_inputs, split_periods, build_X_tilde, package_scm_results,
     _prepare_working_df, build_f_vector, build_Y_matrix, build_Z_matrix, build_candidate_mask)
 from ..utils.datautils import balance, dataprep
@@ -11,10 +11,12 @@ from ..exceptions import MlsynthDataError, MlsynthEstimationError
 
 
 
-from ..utils.fast_scm_bb import branch_and_bound_topK
+from ..utils.fastscm_helpers.fast_scm_bb import branch_and_bound_topK
 
 
-from ..utils.fast_scm_control import evaluate_candidates
+from ..utils.fastscm_helpers.fast_scm_control import evaluate_candidates
+
+from ..utils.fastscm_helpers.power_helpers import run_mde_analysis, mde_summary_table, rank_candidates
 
 
 
@@ -141,18 +143,32 @@ class LEXSCM:
 
         # ------------------- Stage 1: BnB -------------------
         bbresults = branch_and_bound_topK(
-            G, candidate_idx, m=self.m, top_K=self.top_K, top_P=self.top_P
+            G, candidate_idx, m=self.m, top_K=self.top_K, top_P=self.top_P,total_units=N
         )
 
-        results = evaluate_candidates(
-            bbresults['top_tuples'],
-            X,
-            X_E,
-            self.Y,
-            self.f,
-            B_idx,
-            post_idx,
-            self.lambda_penalty
+        # ------------------- Stage 2: Evaluate candidates -------------------
+        candidate_results = evaluate_candidates(
+            candidates=bbresults['top_tuples'],  # now list of Solution objects
+            X=X,
+            X_E=X_E,
+            Y=self.Y,
+            f=self.f,
+            E_idx=E_idx,  # ← you must pass this now
+            B_idx=B_idx,
+            post_idx=post_idx,
+            lambda_penalty=self.lambda_penalty
         )
-        
-        vbvb
+
+        # 1. Run the power analysis (Stage 3)
+        candidate_mdes = run_mde_analysis(
+            candidates=candidate_results,
+            n_post_grid=range(2, 13),
+            n_sims=100
+        )
+
+        # 2. Rank them using the Pareto heuristic (default is 50/50 weight)
+        ranked_df = rank_candidates(candidate_mdes, w_bias=0.5)
+
+        # 3. Print the top 5 recommended experiment designs
+        print("Top Recommended Experiment Designs:")
+        print(ranked_df.head(5)[['tuple_id', 'nmse_B', 'early_mde_avg', 'sed_score']])
