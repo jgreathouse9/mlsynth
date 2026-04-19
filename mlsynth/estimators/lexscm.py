@@ -339,15 +339,16 @@ class LEXSCM:
             lambda_penalty=self.lambda_penalty
         )
 
-        # 1. Run the power analysis (Stage 3)
         candidate_mdes = run_mde_analysis(
             candidates=candidate_results,
-            n_post_grid=range(2, 13),
-            n_sims=100
+            n_post_grid=self.config.n_post_grid,
+            n_sims=self.config.n_sims
         )
-
-        # 2. Rank them using the Pareto heuristic (default is 50/50 weight)
-        ranked_df = rank_candidates(candidate_mdes, w_bias=0.5)
+        
+        ranked_df = rank_candidates(
+            candidate_mdes,
+            w_bias=self.config.ranking_w_bias
+        )
         
         # Identify the absolute best candidate based on the SED Score
         
@@ -355,7 +356,7 @@ class LEXSCM:
         best_candidate = next(c for c in candidate_results
                               if c.identification.tuple_id == best_tuple_id)
 
-        y_mean = float(np.mean(self.Y))
+        y_mean = np.mean(self.Y, axis=0)
 
         # ------------------- Package Results -------------------
         results = LEXSCMResults(
