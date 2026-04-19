@@ -367,9 +367,16 @@ def run_mde_analysis(
         )
     return candidates
 
+
+
+
 def check_inference_feasibility(n_B: int, n_post: int, alpha: float = 0.05) -> Dict:
     """
-    Check whether permutation inference is feasible at a given alpha level.
+    Check whether permutation inference is feasible at a given significance level.
+
+    This function evaluates whether the number of possible permutations in the
+    observed pre/post structure is large enough to support hypothesis testing
+    at level alpha.
 
     Parameters
     ----------
@@ -378,52 +385,61 @@ def check_inference_feasibility(n_B: int, n_post: int, alpha: float = 0.05) -> D
     n_post : int
         Length of post-treatment period.
     alpha : float, default=0.05
-        Significance level.
+        Significance level for inference feasibility.
 
     Returns
     -------
     result : dict
-        Contains:
+        Dictionary containing:
         - n_perms : int
-            Number of possible permutations.
+            Total number of valid permutations of (n_B + n_post choose n_post).
         - p_value_lb : float
-            Minimum achievable p-value.
+            Minimum achievable p-value under exact permutation enumeration.
         - feasible : bool
-            Whether p_value_lb < alpha.
+            Whether inference is feasible at level alpha.
 
     Notes
     -----
-    - If infeasible, no valid hypothesis test can be conducted at level alpha.
+    - If p_value_lb >= alpha, no statistically valid rejection region exists
+      at the specified significance level.
     """
     n_perms = comb(n_B + n_post, n_post)
     p_lb = 1.0 / n_perms
     return {"n_perms": n_perms, "p_value_lb": p_lb, "feasible": p_lb < alpha}
 
+
+
 # =========================================================
 # RECOMMENDATION & TABLES
 # =========================================================
 
+
+
 def mde_summary_table(candidates: List[SEDCandidate]) -> pd.DataFrame:
     """
-    Create a summary table of MDE values across candidates.
+    Construct a summary table of Minimum Detectable Effect (MDE) results
+    across all evaluated synthetic experiment designs.
 
     Parameters
     ----------
     candidates : list of SEDCandidate
+        List of evaluated candidate designs containing MDE results.
 
     Returns
     -------
     df : pd.DataFrame
-        Table containing:
-        - tuple_id
-        - nmse_B (fit quality)
-        - noise_level
-        - mde_{k}w for k = 2,...,8
+        Summary table with columns:
+        - tuple_id : identifier for the treated unit configuration
+        - nmse_B : baseline fit quality (lower is better)
+        - noise_level : estimated noise scale from residuals
+        - mde_{k}w : MDE percentage for post-period horizon k (k = 2,...,8)
 
     Notes
     -----
-    - Sorted by nmse_B (best historical fit first).
-    - Mis
+    - Candidates are sorted by nmse_B (best pre-treatment fit first).
+    - Missing MDE values are filled with NaN.
+    - This table is used as the input for Pareto ranking and SED scoring.
+    """
     rows = []
     for cand in candidates:
         r = cand.mde_results or {}
@@ -440,46 +456,76 @@ def mde_summary_table(candidates: List[SEDCandidate]) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     return df.sort_values("nmse_B").reset_index(drop=True) if not df.empty else df
 
+
 def rank_candidates(candidates: List[SEDCandidate], w_bias: float = 0.5) -> pd.DataFrame:
     """
-    Rank candidates by balancing historical fit and early-period detectability.
+    Rank candidate experimental designs by balancing pre-treatment fit
+    and early-period statistical power.
+
+    This function implements a heuristic Pareto-style ranking over evaluated
+    Synthetic Experimental Design (SED) candidates by combining:
+
+        (i)  Historical fit quality (NMSE_B)
+        (ii) Early-period detectability (MDE over weeks 2–4)
+
+    The goal is to identify designs that achieve a favorable tradeoff between
+    low pre-treatment bias and high statistical power.
 
     Parameters
     ----------
     candidates : list of SEDCandidate
+        Evaluated experimental designs produced by the full LEXSCM pipeline.
+        Each candidate must contain:
+            - losses.nmse_B
+            - mde_results (from power analysis stage)
+
     w_bias : float, default=0.5
-        Weight assigned to historical fit (NMSE). Remaining weight is assigned to power.
+        Weight assigned to historical fit (NMSE_B).
+        The remaining weight (1 - w_bias) is assigned to power (MDE).
 
     Returns
     -------
     df : pd.DataFrame
-        Ranked table with:
-        - normalized fit (nmse_B)
-        - normalized early MDE (weeks 2–4)
-        - combined SED score
+        Ranked table containing:
+
+        - nmse_B
+            Pre-treatment fit quality (lower is better)
+        - early_mde_avg
+            Average MDE over weeks 2–4 (lower implies higher power)
+        - norm_bias
+            Min-max normalized NMSE_B
+        - norm_power
+            Min-max normalized early MDE
+        - sed_score
+            Combined ranking score (lower is better)
 
     Notes
     -----
-    - Lower scores are better.
-    - Uses Min-Max normalization within the candidate pool.
-    - Early detectability is defined as average MDE over weeks 2–4.
-    - Intended as a heuristic Pareto ranking, not a formal optimality guarantee.
+    - Uses min-max normalization within the candidate pool.
+    - Early-period power is defined as mean MDE over weeks 2, 3, and 4.
+    - The SED score is a convex combination:
+
+            sed_score = w_bias * norm_bias + (1 - w_bias) * norm_power
+
+    - This ranking is heuristic and does not guarantee Pareto optimality,
+      but performs well empirically for experimental design selection.
     """
     df = mde_summary_table(candidates)
-    if df.empty: return df
+    if df.empty:
+        return df
 
-    # Heuristic: Average MDE in the early window (weeks 2, 3, 4)
+    # Heuristic: average MDE in early post-treatment window (weeks 2–4)
     early_cols = [c for c in ['mde_2w', 'mde_3w', 'mde_4w'] if c in df.columns]
     df['early_mde_avg'] = df[early_cols].mean(axis=1)
 
-    # Min-Max Normalization (0 = best in pool, 1 = worst in pool)
+    # Min-max normalization helper
     def normalize(series):
         return (series - series.min()) / (series.max() - series.min() + 1e-9)
 
     df['norm_bias'] = normalize(df['nmse_B'])
     df['norm_power'] = normalize(df['early_mde_avg'])
 
-    # Weighted Score (Lower is better)
+    # Combined SED score (lower is better)
     w_power = 1.0 - w_bias
     df['sed_score'] = (w_bias * df['norm_bias']) + (w_power * df['norm_power'])
 
