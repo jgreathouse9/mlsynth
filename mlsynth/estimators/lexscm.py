@@ -1,22 +1,37 @@
-import pandas as pd
 import numpy as np
-from typing import Optional, Dict, Any
+import pandas as pd
+from typing import Any, Dict, Optional
 
-from ..utils.fastscm_helpers.fast_scm_setup import (
-    prepare_experiment_inputs, split_periods, build_X_tilde, package_scm_results,
-    _prepare_working_df, build_f_vector, build_Y_matrix, build_Z_matrix, build_candidate_mask)
-from ..utils.datautils import balance, dataprep
-from ..config_models import LEXSCMConfig, BaseMAREXConfig
+# Configuration and Exceptions
+from ..config_models import BaseMAREXConfig, LEXSCMConfig
 from ..exceptions import MlsynthDataError, MlsynthEstimationError
 
+# Utilities - Data Handling
+from ..utils.datautils import balance, dataprep
 
+# Utilities - Fast SCM Core Setup
+from ..utils.fast_scm_helpers.fast_scm_setup import (
+    _prepare_working_df,
+    build_candidate_mask,
+    build_f_vector,
+    build_X_tilde,
+    build_Y_matrix,
+    build_Z_matrix,
+    package_scm_results,
+    prepare_experiment_inputs,
+    split_periods,
+)
 
-from ..utils.fastscm_helpers.fast_scm_bb import branch_and_bound_topK
+# Utilities - Search and Evaluation
+from ..utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
+from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
 
-
-from ..utils.fastscm_helpers.fast_scm_control import evaluate_candidates
-
-from ..utils.fastscm_helpers.power_helpers import run_mde_analysis, mde_summary_table, rank_candidates
+# Utilities - Power and Ranking
+from ..utils.fast_scm_helpers.power_helpers import (
+    mde_summary_table,
+    rank_candidates,
+    run_mde_analysis,
+)
 
 
 
