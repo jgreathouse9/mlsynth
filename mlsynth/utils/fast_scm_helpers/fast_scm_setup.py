@@ -8,7 +8,36 @@ def _prepare_working_df(
     df: pd.DataFrame, 
     post_col: Optional[str]
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Simple version - assumes validation already happened."""
+    """
+    Split the input DataFrame into pre- and post-treatment subsets.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataset. Assumed to be pre-validated.
+    post_col : str or None
+        Column indicating post-treatment status (0 = pre, nonzero = post).
+        If None, the entire dataset is treated as pre-treatment.
+
+    Returns
+    -------
+    pre_df : pd.DataFrame
+        Subset of rows corresponding to the pre-treatment period.
+    post_df : pd.DataFrame
+        Subset of rows corresponding to the post-treatment period.
+        Empty if `post_col` is None.
+
+    Raises
+    ------
+    MlsynthDataError
+        If `post_col` is provided but no pre-treatment rows are found.
+
+    Notes
+    -----
+    - This function assumes prior validation (column existence, types, etc.).
+    - Copies are returned to avoid mutating the original DataFrame.
+    - Prints a summary of the split for transparency/debugging.
+    """
     if post_col is not None:
         pre_mask = df[post_col] == 0
         pre_df = df[pre_mask].copy()
@@ -35,7 +64,32 @@ def build_candidate_mask(
     candidate_col: str,
     unitid: str
 ) -> tuple[np.ndarray, set]:
-    """Build aligned candidate mask and unit set."""
+    """
+    Construct a boolean candidate mask aligned with sorted unit labels.
+
+    Parameters
+    ----------
+    working_df : pd.DataFrame
+        Pre-treatment (or working) dataset.
+    candidate_col : str
+        Column indicating whether a unit is a candidate (truthy = candidate).
+    unitid : str
+        Column identifying units.
+
+    Returns
+    -------
+    candidate_mask : np.ndarray of bool, shape (J,)
+        Boolean mask aligned with `unit_labels`, where True indicates a candidate unit.
+    candidate_unit_set : set
+        Set of unit identifiers corresponding to candidate units.
+    unit_labels : np.ndarray, shape (J,)
+        Sorted unique unit identifiers defining column order.
+
+    Notes
+    -----
+    - Candidate status is determined at the unit level using the first observed value.
+    - Alignment between mask and matrices (e.g., Y) is guaranteed via `unit_labels`.
+    """
     candidate_per_unit = working_df.groupby(unitid)[candidate_col].first().astype(bool)
     unit_labels = np.sort(working_df[unitid].unique())
 
@@ -52,7 +106,32 @@ def build_Y_matrix(
     unitid: str,
     unit_labels: np.ndarray
 ) -> np.ndarray:
-    """Build outcome matrix Y with guaranteed column alignment."""
+    """
+    Construct the outcome matrix Y with consistent unit column ordering.
+
+    Parameters
+    ----------
+    working_df : pd.DataFrame
+        Input dataset (typically pre-treatment).
+    outcome : str
+        Column name for the outcome variable.
+    time : str
+        Column name for the time index.
+    unitid : str
+        Column name identifying units.
+    unit_labels : np.ndarray
+        Ordered unit identifiers defining column alignment.
+
+    Returns
+    -------
+    Y : np.ndarray, shape (T, J)
+        Outcome matrix with rows as time and columns as units.
+
+    Notes
+    -----
+    - Missing unit-time combinations will result in NaNs.
+    - Column order strictly follows `unit_labels` to ensure alignment with other matrices.
+    """
     Y_wide = working_df.pivot(
         index=time,
         columns=unitid,
@@ -69,7 +148,34 @@ def build_Z_matrix(
     unitid: str,
     unit_labels: np.ndarray
 ) -> Optional[np.ndarray]:
-    """Build Z matrix by stacking covariates vertically below Y. Returns None if no covariates."""
+    """
+    Construct the covariate matrix Z by stacking covariates vertically.
+
+    Parameters
+    ----------
+    working_df : pd.DataFrame
+        Input dataset.
+    covariates : list of str or None
+        List of covariate column names. If None or empty, no matrix is built.
+    time : str
+        Column name for the time index.
+    unitid : str
+        Column name identifying units.
+    unit_labels : np.ndarray
+        Ordered unit identifiers defining column alignment.
+
+    Returns
+    -------
+    Z : np.ndarray, shape (T * K, J), or None
+        Stacked covariate matrix, where K is the number of covariates.
+        Returns None if no covariates are provided.
+
+    Notes
+    -----
+    - Each covariate is pivoted into (T, J) and stacked vertically.
+    - Column alignment matches Y via `unit_labels`.
+    - Prints a summary of the resulting shape.
+    """
     if not covariates:
         return None
 
@@ -93,7 +199,31 @@ def build_f_vector(
     unitid: str,
     unit_labels: np.ndarray
 ) -> np.ndarray:
-    """Build weighting vector f. Uses weight_col if provided, otherwise uniform weights."""
+    """
+    Construct a normalized unit weight vector.
+
+    Parameters
+    ----------
+    working_df : pd.DataFrame
+        Input dataset.
+    weight_col : str or None
+        Column providing per-unit weights. If None, uniform weights are used.
+    unitid : str
+        Column identifying units.
+    unit_labels : np.ndarray
+        Ordered unit identifiers defining alignment.
+
+    Returns
+    -------
+    f : np.ndarray, shape (J,)
+        Normalized weight vector over units (sums to 1).
+
+    Notes
+    -----
+    - If `weight_col` is provided, the first value per unit is used.
+    - Weights are normalized to sum to 1.
+    - Defaults to uniform weights if no column is provided.
+    """
     J = len(unit_labels)
 
     if weight_col is not None:
@@ -115,8 +245,44 @@ def prepare_experiment_inputs(
     m: int = 5
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
     """
-    Prepare X, f, and candidate indices. User-provided candidate_mask is extended
-    to match N = Y + Z automatically.
+    Combine inputs into a unified feature matrix and aligned selection structures.
+
+    Parameters
+    ----------
+    Y : np.ndarray, shape (T, J)
+        Outcome matrix.
+    Z : np.ndarray, optional
+        Covariate matrix. If provided, concatenated with Y along columns.
+    f : np.ndarray, optional
+        Weight vector of length N. Defaults to uniform weights if None.
+    candidate_mask : np.ndarray of bool, optional
+        Boolean mask indicating candidate columns. If shorter than N, it will
+        be extended with False values. If None, defaults to selecting only Y columns.
+    m : int, default=5
+        Minimum required number of candidate units.
+
+    Returns
+    -------
+    X : np.ndarray, shape (T, N)
+        Combined feature matrix (Y and optionally Z).
+    f : np.ndarray, shape (N,)
+        Weight vector aligned with X.
+    candidate_idx : np.ndarray
+        Indices of candidate columns in X.
+    T : int
+        Number of time periods.
+    N : int
+        Total number of columns in X.
+
+    Raises
+    ------
+    ValueError
+        If candidate_mask is longer than N or if fewer than `m` candidates are available.
+
+    Notes
+    -----
+    - Candidate mask is automatically extended to match the full feature dimension.
+    - By default, only outcome columns (Y) are considered candidates.
     """
     X = np.concatenate([Y, Z], axis=1) if Z is not None else Y.copy()
     T, N = X.shape
@@ -229,121 +395,3 @@ def build_X_tilde(X: np.ndarray, f: np.ndarray, idx: np.ndarray, J: int):
     G = XE.T @ XE
     
     return XE, G
-
-# -----------------------------
-# Permutation test helpers (reuse your functions)
-# -----------------------------
-
-def _compute_statistic(effects: np.ndarray, idx: np.ndarray) -> float:
-    return float(np.mean(np.abs(effects[idx])))
-
-def _permute_and_extract(combined: np.ndarray, T_b: int, rng: np.random.Generator) -> np.ndarray:
-    permuted = rng.permutation(combined)
-    return permuted[T_b:]
-
-def _count_exceedances(combined: np.ndarray, T_b: int, stat_post: float, n_perm: int, rng: np.random.Generator) -> int:
-    count = 0
-    for _ in range(n_perm):
-        fake_post = _permute_and_extract(combined, T_b, rng)
-        if np.mean(np.abs(fake_post)) >= stat_post:
-            count += 1
-    return count
-
-def permutation_test(effects: np.ndarray, B_idx: np.ndarray, post_idx: np.ndarray, n_perm: int = 500) -> Dict[str, float]:
-    rng = np.random.default_rng()
-    stat_post = _compute_statistic(effects, post_idx)
-    combined = np.concatenate([effects[B_idx], effects[post_idx]])
-    T_b = len(B_idx)
-    count = _count_exceedances(combined, T_b, stat_post, n_perm, rng)
-    return {"stat_post": stat_post, "p_value": count / n_perm}
-
-
-
-def package_scm_results(
-    candidates: list,
-    results: list,
-    pareto: list,
-    best_res: dict,
-    X: np.ndarray,
-    f: np.ndarray,
-    candidate_idx: np.ndarray,
-    T: int,
-    T0: int,
-    E_idx: np.ndarray,
-    B_idx: np.ndarray,
-    post_idx: np.ndarray,
-    group_mean: np.ndarray = None,
-    bbstats: Dict = None
-) -> dict:
-    """
-    Organize and package all SCM experiment results and metadata into a tidy dictionary.
-    This groups results by algorithm stage and includes study characteristics for easy access.
-    """
-    # Study characteristics
-    study_info = {
-        "T": T,
-        "T0": T0,
-        "n_pre": T0,
-        "n_blank": len(B_idx),
-        "n_post": len(post_idx),
-        "n_candidates": len(candidates),
-        "n_results": len(results),
-        "candidate_idx": candidate_idx,
-        "E_idx": E_idx,
-        "B_idx": B_idx,
-        "post_idx": post_idx,
-        "group_mean": group_mean if group_mean is not None else X @ f,
-        "X": X,
-        "f": f
-    }
-
-    # Main results
-    packaged = {
-        "branch_and_bound": {
-            "candidates": candidates,
-            "candidate_idx": candidate_idx,
-            "bbstats": bbstats
-        },
-        "evaluations": {
-            "results": results,
-            "pareto_front": pareto,
-            "best": best_res,
-        },
-        "study_info": study_info
-    }
-    return packaged
-
-import pandas as pd
-
-def reshape_to_wide(df_long: pd.DataFrame):
-    """
-    Returns:
-        Y_wide: (T, J)
-        candidate_mask: (J,)
-        unit_index: list of DMAs matching column order
-    """
-
-    # Pivot (KEEP as DataFrame, do NOT drop to numpy yet)
-    Y_df = df_long.pivot(
-        index="Start Date",
-        columns="DMA",
-        values="Sales"
-    ).sort_index()
-
-    # ensure column order is stable
-    Y_df = Y_df.sort_index(axis=1)
-
-    unit_index = Y_df.columns.to_numpy()
-
-    Y_wide = Y_df.to_numpy()
-
-    # build candidate vector aligned to columns
-    df_units = (
-        df_long.drop_duplicates("DMA")
-        .set_index("DMA")
-        .reindex(unit_index)
-    )
-
-    candidate_mask = df_units["candidate"].to_numpy(dtype=bool)
-
-    return Y_wide, candidate_mask, unit_index
