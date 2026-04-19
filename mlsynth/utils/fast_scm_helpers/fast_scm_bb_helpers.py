@@ -19,7 +19,7 @@ class Solution:
         Optimal simplex weights corresponding to `indices`.
     label : str, optional
         Optional human-readable label (assigned post hoc).
-    
+
     Notes
     -----
     - Ordering is based on `loss` only, enabling sorting of solutions.
