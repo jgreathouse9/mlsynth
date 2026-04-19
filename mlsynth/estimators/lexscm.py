@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 # Configuration and Exceptions
 from ..config_models import BaseMAREXConfig, LEXSCMConfig
@@ -17,7 +17,6 @@ from ..utils.fast_scm_helpers.fast_scm_setup import (
     build_X_tilde,
     build_Y_matrix,
     build_Z_matrix,
-    package_scm_results,
     prepare_experiment_inputs,
     split_periods,
 )
@@ -35,6 +34,7 @@ from ..utils.fast_scm_helpers.power_helpers import (
 
 from dataclasses import dataclass, field
 
+from ..utils.fastscm_helpers.structure import SEDCandidate
 
 @dataclass
 class LEXSCMResults:
@@ -86,87 +86,87 @@ class LEXSCMResults:
     config: Any                       # Store the config used for the run
 
 class LEXSCM:
-"""
-LEXSCM: Synthetic Experimental Design estimator.
-
-This estimator implements a full Synthetic Experimental Design (SED) pipeline
-that jointly discovers experimental units, constructs counterfactual outcomes,
-and evaluates statistical power in observational panel data settings.
-
-The framework is grounded in:
-
-    - Abadie & Zhao (2021, v5)
-      Synthetic Controls for Experimental Design
-      https://doi.org/10.48550/arXiv.2108.02196
-
-    - Vives-i-Bastida (2022)
-      Synthetic Experimental Design for a UBI Pilot Study
-      https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf
-
-These works establish synthetic control methods as tools for experimental
-design rather than purely post-treatment estimation, and motivate the use of
-permutation-based inference and power-aware design selection.
-
-----------------------------------------------------------------------
-PIPELINE OVERVIEW
-----------------------------------------------------------------------
-
-The estimator operates in three tightly coupled stages:
-
-Stage 1: Combinatorial Search (Branch-and-Bound)
-    - Searches subsets of size m from a candidate pool of units
-    - Uses quadratic relaxations of the loss surface for pruning
-    - Efficiently explores a combinatorial design space of size C(M, m)
-    - Returns a ranked set of top-K candidate experimental designs
-
-Stage 2: Synthetic Control Construction & Evaluation
-    - Solves convex quadratic programs to compute synthetic control weights
-    - Constructs synthetic treated and synthetic control time series
-    - Computes treatment effects as differences between counterfactual paths
-    - Evaluates in-sample and baseline fit using NMSE diagnostics
-
-Stage 3: Power Analysis (MDE)
-    - Estimates Minimum Detectable Effect (MDE) using permutation inference
-    - Approximates null distributions via Monte Carlo simulation
-    - Computes detectability curves over varying post-treatment horizons
-    - Quantifies statistical power as a function of experimental design
-
-----------------------------------------------------------------------
-OUTPUT STRUCTURE
-----------------------------------------------------------------------
-
-The final output is a Pareto-ranked set of experimental designs that trade off:
-
-    - Pre-treatment fit quality (NMSE_B)
-    - Statistical power (MDE curves)
-    - Robustness across validation periods
-
-This enables selection of experimentally optimal unit configurations
-under constraints of limited treated units and observational data.
-
-----------------------------------------------------------------------
-DESIGN INTUITION
-----------------------------------------------------------------------
-
-The estimator is intended for settings where:
-
-    - Treatment assignment is not predefined
-    - Experimental units are large aggregate entities (e.g., regions, markets)
-    - Only a small number of units can be assigned treatment
-    - Randomization may induce baseline imbalance
-    - Power considerations must be integrated into design selection
-
-----------------------------------------------------------------------
-NOTES
-----------------------------------------------------------------------
-
-- Deterministic given fixed random seed in MDE simulation
-- Computational cost is dominated by:
-    (i) branch-and-bound combinatorial search
-    (ii) repeated quadratic program solves
-    (iii) Monte Carlo permutation inference
-- Designed for offline experimental design rather than real-time inference
-"""
+    """
+    LEXSCM: Synthetic Experimental Design estimator.
+    
+    This estimator implements a full Synthetic Experimental Design (SED) pipeline
+    that jointly discovers experimental units, constructs counterfactual outcomes,
+    and evaluates statistical power in observational panel data settings.
+    
+    The framework is grounded in:
+    
+        - Abadie & Zhao (2021, v5)
+          Synthetic Controls for Experimental Design
+          https://doi.org/10.48550/arXiv.2108.02196
+    
+        - Vives-i-Bastida (2022)
+          Synthetic Experimental Design for a UBI Pilot Study
+          https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf
+    
+    These works establish synthetic control methods as tools for experimental
+    design rather than purely post-treatment estimation, and motivate the use of
+    permutation-based inference and power-aware design selection.
+    
+    ----------------------------------------------------------------------
+    PIPELINE OVERVIEW
+    ----------------------------------------------------------------------
+    
+    The estimator operates in three tightly coupled stages:
+    
+    Stage 1: Combinatorial Search (Branch-and-Bound)
+        - Searches subsets of size m from a candidate pool of units
+        - Uses quadratic relaxations of the loss surface for pruning
+        - Efficiently explores a combinatorial design space of size C(M, m)
+        - Returns a ranked set of top-K candidate experimental designs
+    
+    Stage 2: Synthetic Control Construction & Evaluation
+        - Solves convex quadratic programs to compute synthetic control weights
+        - Constructs synthetic treated and synthetic control time series
+        - Computes treatment effects as differences between counterfactual paths
+        - Evaluates in-sample and baseline fit using NMSE diagnostics
+    
+    Stage 3: Power Analysis (MDE)
+        - Estimates Minimum Detectable Effect (MDE) using permutation inference
+        - Approximates null distributions via Monte Carlo simulation
+        - Computes detectability curves over varying post-treatment horizons
+        - Quantifies statistical power as a function of experimental design
+    
+    ----------------------------------------------------------------------
+    OUTPUT STRUCTURE
+    ----------------------------------------------------------------------
+    
+    The final output is a Pareto-ranked set of experimental designs that trade off:
+    
+        - Pre-treatment fit quality (NMSE_B)
+        - Statistical power (MDE curves)
+        - Robustness across validation periods
+    
+    This enables selection of experimentally optimal unit configurations
+    under constraints of limited treated units and observational data.
+    
+    ----------------------------------------------------------------------
+    DESIGN INTUITION
+    ----------------------------------------------------------------------
+    
+    The estimator is intended for settings where:
+    
+        - Treatment assignment is not predefined
+        - Experimental units are large aggregate entities (e.g., regions, markets)
+        - Only a small number of units can be assigned treatment
+        - Randomization may induce baseline imbalance
+        - Power considerations must be integrated into design selection
+    
+    ----------------------------------------------------------------------
+    NOTES
+    ----------------------------------------------------------------------
+    
+    - Deterministic given fixed random seed in MDE simulation
+    - Computational cost is dominated by:
+        (i) branch-and-bound combinatorial search
+        (ii) repeated quadratic program solves
+        (iii) Monte Carlo permutation inference
+    - Designed for offline experimental design rather than real-time inference
+    """
 
     # ===================================================================
     #                          Estimator Logic
@@ -195,91 +195,91 @@ NOTES
         
 
     def fit(self, **kwargs) -> "LEXSCM":
-    """
-    Run the full Synthetic Experiment Design pipeline.
-
-    This method executes the complete estimation workflow:
-
-        1. Data preparation and alignment
-        2. Construction of outcome and covariate matrices
-        3. Feature standardization
-        4. Combinatorial search over candidate treated sets (BnB)
-        5. Synthetic control optimization for each candidate
-        6. Pre/post fit evaluation (NMSE diagnostics)
-        7. Power analysis via MDE simulation
-        8. Pareto ranking of experimental designs
-
-    Parameters
-    ----------
-    kwargs : dict
-        Optional overrides for runtime behavior.
-        (Currently unused but reserved for future extensions such as:
-         - alternative solvers
-         - custom ranking weights
-         - alternative power models)
-
-    Returns
-    -------
-    results : LEXSCMResults
-        Fully materialized result object containing:
-            - ranked candidate table
-            - best experimental design
-            - full candidate set
-            - search diagnostics
-            - original configuration
-
-    Pipeline Details
-    ----------------
-    Step 1: Data preparation
-        - Balances panel structure
-        - Splits pre/post treatment periods
-        - Builds candidate eligibility mask
-
-    Step 2: Matrix construction
-        - Y: outcome matrix (unit × time)
-        - Z: optional covariates stacked beneath Y
-        - f: unit weighting vector
-
-    Step 3: Feature engineering
-        - Concatenates Y and Z into X
-        - Standardizes over estimation window (X_E)
-        - Computes Gram matrix G for BnB
-
-    Step 4: Branch-and-Bound search
-        - Enumerates candidate treated tuples of size m
-        - Uses convex relaxation for pruning
-        - Returns top-K solutions
-
-    Step 5: Evaluation
-        - Solves synthetic control QP per candidate
-        - Computes synthetic treated/control series
-        - Measures in-sample and baseline fit (NMSE)
-
-    Step 6: Power analysis
-        - Runs permutation-based MDE estimation
-        - Simulates null distributions via Monte Carlo
-        - Computes detectability curves across post horizons
-
-    Step 7: Ranking
-        - Combines NMSE_B and early MDE
-        - Produces Pareto-style SED score
-        - Selects optimal experimental design
-
-    Notes
-    -----
-    - This method is computationally intensive due to:
-        * combinatorial search complexity
-        * repeated QP solves
-        * Monte Carlo null simulations
-
-    - The pipeline is deterministic except for:
-        * Monte Carlo sampling in MDE estimation
-
-    - Designed for research-grade reproducibility and
-      experimental design selection, not real-time inference.
-    """
+        """
+        Run the full Synthetic Experiment Design pipeline.
+    
+        This method executes the complete estimation workflow:
+    
+            1. Data preparation and alignment
+            2. Construction of outcome and covariate matrices
+            3. Feature standardization
+            4. Combinatorial search over candidate treated sets (BnB)
+            5. Synthetic control optimization for each candidate
+            6. Pre/post fit evaluation (NMSE diagnostics)
+            7. Power analysis via MDE simulation
+            8. Pareto ranking of experimental designs
+    
+        Parameters
+        ----------
+        kwargs : dict
+            Optional overrides for runtime behavior.
+            (Currently unused but reserved for future extensions such as:
+             - alternative solvers
+             - custom ranking weights
+             - alternative power models)
+    
+        Returns
+        -------
+        results : LEXSCMResults
+            Fully materialized result object containing:
+                - ranked candidate table
+                - best experimental design
+                - full candidate set
+                - search diagnostics
+                - original configuration
+    
+        Pipeline Details
+        ----------------
+        Step 1: Data preparation
+            - Balances panel structure
+            - Splits pre/post treatment periods
+            - Builds candidate eligibility mask
+    
+        Step 2: Matrix construction
+            - Y: outcome matrix (unit × time)
+            - Z: optional covariates stacked beneath Y
+            - f: unit weighting vector
+    
+        Step 3: Feature engineering
+            - Concatenates Y and Z into X
+            - Standardizes over estimation window (X_E)
+            - Computes Gram matrix G for BnB
+    
+        Step 4: Branch-and-Bound search
+            - Enumerates candidate treated tuples of size m
+            - Uses convex relaxation for pruning
+            - Returns top-K solutions
+    
+        Step 5: Evaluation
+            - Solves synthetic control QP per candidate
+            - Computes synthetic treated/control series
+            - Measures in-sample and baseline fit (NMSE)
+    
+        Step 6: Power analysis
+            - Runs permutation-based MDE estimation
+            - Simulates null distributions via Monte Carlo
+            - Computes detectability curves across post horizons
+    
+        Step 7: Ranking
+            - Combines NMSE_B and early MDE
+            - Produces Pareto-style SED score
+            - Selects optimal experimental design
+    
+        Notes
+        -----
+        - This method is computationally intensive due to:
+            * combinatorial search complexity
+            * repeated QP solves
+            * Monte Carlo null simulations
+    
+        - The pipeline is deterministic except for:
+            * Monte Carlo sampling in MDE estimation
+    
+        - Designed for research-grade reproducibility and
+          experimental design selection, not real-time inference.
+        """
         # ------------------- Prepare candidate mask -------------------
-
+    
         balance(self.df, self.unitid, self.time)
 
         # Step 1: Prepare working DataFrame using the helper
