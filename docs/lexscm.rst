@@ -2,6 +2,8 @@ Lexicographic SCM
 =====================
 
 .. autoclass:: mlsynth.estimators.lexscm.LEXSCM
-   :members:
    :show-inheritance:
+   :members:
+   :undoc-members:
+   :private-members:
    :special-members: __init__
