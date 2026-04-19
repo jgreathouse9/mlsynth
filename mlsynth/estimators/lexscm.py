@@ -79,16 +79,20 @@ class LEXSCMResults:
     This object is intentionally immutable in design (conceptually),
     representing the terminal state of the estimation pipeline.
     """
-    summary: pd.DataFrame             # The ranked Pareto/MDE table
-    best_candidate: SEDCandidate      # The #1 ranked candidate object
-    all_candidates: List[SEDCandidate]# Full list of evaluated tuples
-    bnb_metadata: Dict[str, Any]      # Search stats (nodes visited, etc.)
-    config: Any                       # Store the config used for the run
-    y_mean: float = field(default=np.nan)
+    summary: pd.DataFrame
+    best_candidate: SEDCandidate
+    all_candidates: List[SEDCandidate]
+    bnb_metadata: Dict[str, Any]
+    config: Any
+
+    # required diagnostics (no defaults)
     n_units: int
     n_periods: int
     n_pre_periods: int
     n_post_periods: int
+
+    # optional diagnostics
+    y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
 
 class LEXSCM:
     """
