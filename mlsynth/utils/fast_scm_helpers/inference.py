@@ -6,7 +6,7 @@ def compute_post_inference(candidate, post_idx, alpha: float = 0.05, n_perms: in
     Compute permutation-based p-values for post-intervention treatment effects.
 
     This function implements the inferential framework described in Vives-i-Bastida (2022),
-    where the null hypothesis (no treatment effect) is tested by comparing observed 
+    where the null hypothesis (no treatment effect) is tested by comparing observed
     post-treatment gaps to the distribution of gaps during the 'Blank' (backcast) period.
 
     Parameters
@@ -30,9 +30,9 @@ def compute_post_inference(candidate, post_idx, alpha: float = 0.05, n_perms: in
     Notes
     -----
     - The test statistic is the average absolute value of the residuals.
-    - Residuals from the Blank period (B) and the Post-treatment period are pooled 
+    - Residuals from the Blank period (B) and the Post-treatment period are pooled
       under the assumption of exchangeability under the null.
-    - A local RNG is used to ensure that parallel execution or multiple calls 
+    - A local RNG is used to ensure that parallel execution or multiple calls
       produce deterministic results.
     """
     # Use a local RNG for thread-safety and reproducibility
@@ -65,9 +65,9 @@ def compute_conformal_ci(candidate, post_idx, alpha: float = 0.05, n_perms: int 
     """
     Compute Block Conformal Confidence Intervals for the Average Treatment Effect (ATE).
 
-    This function inverts the permutation test to find the set of ATE values (thetas) 
-    that are statistically consistent with the observed data. This provides a 
-    non-parametric confidence interval that does not rely on asymptotic normality 
+    This function inverts the permutation test to find the set of ATE values (thetas)
+    that are statistically consistent with the observed data. This provides a
+    non-parametric confidence interval that does not rely on asymptotic normality
     assumptions.
 
     Parameters
@@ -90,10 +90,10 @@ def compute_conformal_ci(candidate, post_idx, alpha: float = 0.05, n_perms: int 
 
     Notes
     -----
-    - The method performs a grid search over potential ATE values. 
-    - For each theta, it 'de-treats' the post-period residuals (e_post - theta) and 
+    - The method performs a grid search over potential ATE values.
+    - For each theta, it 'de-treats' the post-period residuals (e_post - theta) and
       checks if the resulting series is indistinguishable from the Blank period noise.
-    - The grid is centered on the observed ATE and extends 4 standard errors in 
+    - The grid is centered on the observed ATE and extends 4 standard errors in
       both directions based on Blank period variance.
     """
     rng = np.random.default_rng(seed)
