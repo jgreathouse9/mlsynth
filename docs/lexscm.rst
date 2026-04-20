@@ -1,36 +1,46 @@
 Lexicographic SCM
-=====================
+=================
 
-Estimator
----------
+.. contents:: Table of Contents
+   :depth: 3
+   :local:
 
-.. autoclass:: mlsynth.estimators.lexscm.LEXSCM
-   :show-inheritance:
+.. currentmodule:: mlsynth
+
+All Classes and Data Structures
+-------------------------------
+
+.. automodule:: mlsynth.estimators.lexscm
    :members:
    :undoc-members:
+   :show-inheritance:
    :private-members:
    :special-members: __init__
 
-Results & Containers
---------------------
-
-.. autoclass:: mlsynth.estimators.lexscm.LEXSCMResults
-   :members:
-   :undoc-members:
-
-.. autoclass:: mlsynth.utils.fast_scm_helpers.power_helpers.PowerAnalysisResults
-   :members:
-   :undoc-members:
-
-Core Helpers
-------------
-
 .. automodule:: mlsynth.utils.fast_scm_helpers.power_helpers
-   :members: run_mde_analysis, rank_candidates, mde_summary_table
+   :members:
    :undoc-members:
+
+Search & Evaluation Engine (Recursive)
+--------------------------------------
+
+.. automodule:: mlsynth.utils.fast_scm_helpers.fast_scm_bb
+   :members:
+   :undoc-members:
+   :private-members:
+
+.. automodule:: mlsynth.utils.fast_scm_helpers.fast_scm_control
+   :members:
+   :undoc-members:
+   :private-members:
+
+Matrix & Setup Utilities
+------------------------
 
 .. automodule:: mlsynth.utils.fast_scm_helpers.fast_scm_setup
-   :members: prepare_experiment_inputs, split_periods, build_X_tilde
+   :members:
+   :undoc-members:
+   :private-members:   :members: prepare_experiment_inputs, split_periods, build_X_tilde
    :undoc-members:
 
 Search & Evaluation Engine
