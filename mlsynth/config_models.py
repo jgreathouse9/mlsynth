@@ -501,6 +501,8 @@ class LEXSCMConfig(BaseMAREXConfig):
         description="Optional 0/1 indicator for post-treatment period."
     )
 
+    seed: int = 42
+
     frac_E: float = Field(
         default=0.7,
         description="Fraction of pre-treatment period used for estimation window E."
