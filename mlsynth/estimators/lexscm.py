@@ -24,13 +24,14 @@ from ..utils.fast_scm_helpers.fast_scm_setup import (
 # Utilities - Search and Evaluation
 from ..utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
 from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
-
 # Utilities - Power and Ranking
 from ..utils.fast_scm_helpers.power_helpers import (
     mde_summary_table,
     rank_candidates,
     run_mde_analysis,
 )
+
+from ..utils.fast_scm_helpers.inference import compute_post_inference, compute_conformal_ci
 
 from dataclasses import dataclass, field
 
@@ -102,8 +103,6 @@ class LEXSCM:
 
     PIPELINE OVERVIEW
     -----------------
-
-    `Implements the lexicographic experimental SCM <https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf>`_
 
     The estimator operates in three tightly coupled stages:
 
@@ -379,49 +378,76 @@ class LEXSCM:
 
         y_pop_mean_t = self.Y.mean(axis=1)
 
+        # ------------------- Stage 3: Inference (Post-Intervention) -------------------
+        # We take the full Y matrix (Pre + Post)
+        y_pop_mean_t = self.Y.mean(axis=1)
+
         if len(post_idx) > 0:
             Y_post = build_Y_matrix(
                 working_df=self.post_df,
                 outcome=self.outcome,
                 time=self.time,
                 unitid=self.unitid,
-                unit_labels=unit_labels  # CRITICAL: Keep alignment consistent
+                unit_labels=unit_labels
             )
-    
-            # 2. Combine with the Pre-period Y to get the Full Y (Total Timeline)
+
+            # Combine with the Pre-period Y to get the Full Y (Total Timeline)
             Y_full = np.vstack([self.Y, Y_post])
-    
-            v_weights = best_candidate.identification.solution.weights
-            w_weights = best_candidate.weights.control_sparse
-    
-            # 3. Now apply the learned weights to the full timeline
-            # result is (T_pre + T_post,)
-            best_candidate.predictions.synthetic_treated = Y_full @ v_weights
-            best_candidate.predictions.synthetic_control = Y_full @ w_weights
-    
-            # 4. Calculate the Treatment Effect (Gap)
-            best_candidate.predictions.gap = (
-                    best_candidate.predictions.synthetic_treated -
-                    best_candidate.predictions.synthetic_control
-            )
-    
-    
-            post_gap = best_candidate.predictions.gap[post_idx]
-            best_candidate.inference.ate = np.mean(post_gap)
-        
-        T = int(len(B_idx)+len(E_idx)+len(post_idx))
-            
+            y_pop_mean_t = Y_full.mean(axis=1)  # Update population mean for full timeline
+
+            for cand in candidate_results:
+                # 1. Extract weights (v for treated tuple, w for synthetic control)
+                v_weights = cand.identification.solution.weights
+                w_weights = cand.weights.control  # Ensure this is the full N-length vector
+
+                # 2. Apply learned weights to the full timeline
+                cand.predictions.synthetic_treated = Y_full @ v_weights
+                cand.predictions.synthetic_control = Y_full @ w_weights
+
+                # 3. Calculate the Treatment Effect (Gap)
+                cand.predictions.effects = (
+                        cand.predictions.synthetic_treated -
+                        cand.predictions.synthetic_control
+                )
+
+                # 4. Point Estimate
+                post_gap = cand.predictions.effects[post_idx]
+                cand.inference.ate = np.mean(post_gap)
+
+                # 5. Permutation P-Value
+                cand.inference.p_value = compute_post_inference(
+                    candidate=cand,
+                    post_idx=post_idx,
+                    n_perms=self.config.n_sims,
+                    seed=getattr(self.config, 'seed', 42)
+                ).inference.p_value
+
+                # 6. Block Conformal Confidence Intervals
+                cand = compute_conformal_ci(
+                    candidate=cand,
+                    post_idx=post_idx,
+                    alpha=0.05,
+                    n_perms=self.config.n_sims,
+                    seed=getattr(self.config, 'seed', 42)
+                )
+
+        # Re-identify the best_candidate to ensure it has the updated inference data
+        best_candidate = next(c for c in candidate_results
+                              if c.identification.tuple_id == best_tuple_id)
+
+        T = int(len(B_idx) + len(E_idx) + len(post_idx))
+
         results = LEXSCMResults(
             summary=ranked_df,
             best_candidate=best_candidate,
             all_candidates=candidate_results,
             bnb_metadata=bbresults,
             config=self.config,
-            y_pop_mean_t=self.Y.mean(axis=1),
+            y_pop_mean_t=y_pop_mean_t,
             n_units=self.Y.shape[1],
             n_periods=T,
-            n_pre_periods=int(len(E_idx)+len(B_idx)),
-            n_fit_periods=T-len(B_idx),
+            n_pre_periods=int(len(E_idx) + len(B_idx)),
+            n_fit_periods=T - len(B_idx),
             n_blank_periods=len(B_idx),
             n_post_periods=len(post_idx)
         )
