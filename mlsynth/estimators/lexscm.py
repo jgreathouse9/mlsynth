@@ -104,7 +104,7 @@ class LEXSCM:
     -----------------
 
     `Implements the lexicographic experimental SCM <https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf>`_
-    
+
     The estimator operates in three tightly coupled stages:
 
     Stage 1: Combinatorial Search (Branch-and-Bound)
