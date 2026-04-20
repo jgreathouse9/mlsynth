@@ -316,7 +316,13 @@ def prepare_experiment_inputs(
 
 
 
-def split_periods(T0: int, T: int, frac_E: float = 0.7) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+def split_periods(
+    T0: int, 
+    frac_E: float = 0.7, 
+    post_df: Optional[pd.DataFrame] = None,
+    time_col: str = "time"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Split the time series into estimation, backcast (baseline), and post-treatment periods.
 
@@ -344,10 +350,22 @@ def split_periods(T0: int, T: int, frac_E: float = 0.7) -> Tuple[np.ndarray, np.
     - E_idx and B_idx together span the pre-treatment period [0, T0).
     - post_idx spans the post-treatment period [T0, T).
     """
-    TE = int(T0 * frac_E)                    # Estimation period length
+    # 1. Calculate Pre-period splits
+    TE = int(T0 * frac_E)
     E_idx = np.arange(TE)
-    B_idx = np.arange(TE, T0)                # Backcast / validation period
-    post_idx = np.arange(T0, T)              # Post-treatment period
+    B_idx = np.arange(TE, T0)
+
+    # 2. Determine Post-period length
+    # If post_df is provided, we count unique time periods in it.
+    # Otherwise, we assume a Design-only mode with 0 post-periods.
+    if post_df is not None and not post_df.empty:
+        n_post = post_df[time_col].nunique()
+    else:
+        n_post = 0
+
+    # 3. Create indices relative to the full Y matrix (size T0 + n_post)
+    post_idx = np.arange(T0, T0 + n_post)
+
     return E_idx, B_idx, post_idx
 
 
