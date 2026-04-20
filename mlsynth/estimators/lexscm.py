@@ -88,8 +88,10 @@ class LEXSCMResults:
     # required diagnostics (no defaults)
     n_units: int
     n_periods: int
+    n_fit_periods: int
     n_pre_periods: int
     n_blank_periods: int
+    n_post_periods: int
 
     # optional diagnostics
     y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
@@ -319,12 +321,17 @@ class LEXSCM:
         assert self.Y.shape[1] == len(self.candidate_mask),\
             "Y and candidate_mask dimension mismatch!"
 
-        X, f, candidate_idx, T, N = prepare_experiment_inputs(
+        X, f, candidate_idx, T0_pre, N = prepare_experiment_inputs(
             self.Y, self.Z, self.f, self.candidate_mask, self.m
         )
 
-        T0 = int(self.frac_E * T)
-        E_idx, B_idx, post_idx = split_periods(T0, T, self.frac_E)
+        # Get logical indices
+        E_idx, B_idx, post_idx = split_periods(
+            T0=self.pre_df[self.time].nunique(),
+            frac_E=self.frac_E,
+            post_df=self.post_df,
+            time_col=self.time
+        )
 
         # Standardize over estimation period
         X_E, G = build_X_tilde(X, f, E_idx, J=self.Y.shape[1])
@@ -343,7 +350,6 @@ class LEXSCM:
             f=self.f,
             E_idx=E_idx,  # ← you must pass this now
             B_idx=B_idx,
-            post_idx=post_idx,
             lambda_penalty=self.lambda_penalty
         )
 
@@ -363,23 +369,59 @@ class LEXSCM:
         best_tuple_id = ranked_df.iloc[0]['tuple_id']
         best_candidate = next(c for c in candidate_results
                               if c.identification.tuple_id == best_tuple_id)
+ 
 
-        T = self.Y.shape[0]
-        J = self.Y.shape[1]
-        
+        # ------------------- Stage 3: Inference (Post-Intervention) -------------------
+        # We take the full Y matrix (Pre + Post)
+        # Note: If post_df was provided, Y already contains those rows
+
         y_pop_mean_t = self.Y.mean(axis=1)
+
+        if len(post_idx) > 0:
+            Y_post = build_Y_matrix(
+                working_df=self.post_df,
+                outcome=self.outcome,
+                time=self.time,
+                unitid=self.unitid,
+                unit_labels=unit_labels  # CRITICAL: Keep alignment consistent
+            )
+    
+            # 2. Combine with the Pre-period Y to get the Full Y (Total Timeline)
+            Y_full = np.vstack([self.Y, Y_post])
+    
+            v_weights = best_candidate.identification.solution.weights
+            w_weights = best_candidate.weights.control_sparse
+    
+            # 3. Now apply the learned weights to the full timeline
+            # result is (T_pre + T_post,)
+            best_candidate.predictions.synthetic_treated = Y_full @ v_weights
+            best_candidate.predictions.synthetic_control = Y_full @ w_weights
+    
+            # 4. Calculate the Treatment Effect (Gap)
+            best_candidate.predictions.gap = (
+                    best_candidate.predictions.synthetic_treated -
+                    best_candidate.predictions.synthetic_control
+            )
+    
+    
+            post_gap = best_candidate.predictions.gap[post_idx]
+            best_candidate.inference.ate = np.mean(post_gap)
         
+        T = int(len(B_idx)+len(E_idx)+len(post_idx))
+            
         results = LEXSCMResults(
             summary=ranked_df,
             best_candidate=best_candidate,
             all_candidates=candidate_results,
             bnb_metadata=bbresults,
             config=self.config,
-            y_pop_mean_t=y_pop_mean_t,
-            n_units=J,
+            y_pop_mean_t=self.Y.mean(axis=1),
+            n_units=self.Y.shape[1],
             n_periods=T,
-            n_pre_periods=T-len(B_idx),
+            n_pre_periods=int(len(E_idx)+len(B_idx)),
+            n_fit_periods=T-len(B_idx),
             n_blank_periods=len(B_idx),
+            n_post_periods=len(post_idx)
         )
 
         return results
