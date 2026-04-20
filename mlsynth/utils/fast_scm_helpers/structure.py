@@ -38,6 +38,42 @@ class WeightVectors:
         self.control_sparse = np.where(np.abs(self.control) < 1e-8, 0.0, self.control)
 
 
+
+
+
+@dataclass
+class Inference:
+    """
+    Statistical results from the post-intervention analysis.
+
+    Attributes
+    ----------
+    ate : Optional[float]
+        Average Treatment Effect (mean of the gap during the post-period).
+    ci_lower : Optional[float]
+        Lower bound of the (1 - alpha) confidence interval.
+    ci_upper : Optional[float]
+        Upper bound of the (1 - alpha) confidence interval.
+    p_value : Optional[float]
+        Probability of observing an effect of magnitude `ate` or greater
+        under the null hypothesis (permutation-based).
+    alpha : float
+        Significance level used for the interval (default 0.05).
+
+    Notes
+    -----
+    - In the SED framework, CIs are constructed by inverting the
+      permutation test results.
+    - If the campaign hasn't started yet (Design Mode), these will be None.
+    """
+    ate: Optional[float] = None
+    ci_lower: Optional[float] = None
+    ci_upper: Optional[float] = None
+    p_value: Optional[float] = None
+    alpha: float = 0.05
+
+
+
 @dataclass
 class PredictionVectors:
     """
@@ -175,7 +211,9 @@ class SEDCandidate:
     predictions: PredictionVectors
     losses: Losses
     mde_results: Optional[dict] = None
+    inference: Inference = field(default_factory=Inference)  # <--- Added Section
 
     def __post_init__(self):
-        if self.mde_results is None:
-            self.mde_results = {}
+        # Ensure we always have an inference container even if empty
+        if self.inference is None:
+            self.inference = Inference()
