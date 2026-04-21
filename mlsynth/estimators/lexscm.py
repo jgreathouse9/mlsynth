@@ -27,12 +27,10 @@ from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
 # Utilities - Power and Ranking
 from ..utils.fast_scm_helpers.power_helpers import (
     mde_summary_table,
-    rank_candidates,
-    run_mde_analysis,
+    run_mde_analysis, select_best_tuple
 )
 
-from ..utils.fast_scm_helpers.inference import compute_post_inference, compute_conformal_ci
-
+from ..utils.fast_scm_helpers.post_inference import update_post_inference
 from dataclasses import dataclass, field
 
 from ..utils.fast_scm_helpers.structure import SEDCandidate
@@ -181,6 +179,21 @@ class LEXSCM:
         self.top_K: Optional[int] = config.top_K
         self.top_P: Optional[int] = config.top_P
         self.lambda_penalty = config.lambda_penalty
+        self.covariates: Optional[List[str]] = config.covariates
+
+        # MDE computation parameters
+        self.n_post_grid: List[int] = config.n_post_grid
+        self.n_sims: int = config.n_sims
+        self.alpha: float = config.alpha
+        self.post_imputation: Literal["mean", "max", "double_max"] = config.post_imputation
+        self.test_statistic: Literal["mean_abs", "mean", "rms"] = config.test_statistic
+
+        # Lexicographic selection parameters (fit-first, then power)
+        self.delta: float = config.delta
+        self.relative_delta: Optional[float] = config.relative_delta
+        self.target_mde_horizon: str = config.target_mde_horizon
+        self.max_shortlist: int = config.max_shortlist
+
 
         
 
@@ -359,30 +372,25 @@ class LEXSCM:
             n_post_grid=self.config.n_post_grid,
             n_sims=self.config.n_sims
         )
-        
-        ranked_df = rank_candidates(
-            candidate_mdes,
-            w_bias=self.config.ranking_w_bias
+
+        # --- Select best design: Threshold on fit → Optimize power ---
+        winner, shortlist = select_best_tuple(
+            candidates=candidate_results,
+            delta=self.config.delta,
+            relative_delta=self.config.relative_delta,
+            target_mde_horizon=self.config.target_mde_horizon,
+            return_shortlist=True,
+            max_shortlist=self.config.max_shortlist
         )
-        
-        # Identify the absolute best candidate based on the SED Score
-        
-        best_tuple_id = ranked_df.iloc[0]['tuple_id']
-        best_candidate = next(c for c in candidate_results
-                              if c.identification.tuple_id == best_tuple_id)
- 
 
         # ------------------- Stage 3: Inference (Post-Intervention) -------------------
         # We take the full Y matrix (Pre + Post)
         # Note: If post_df was provided, Y already contains those rows
-
-        y_pop_mean_t = self.Y.mean(axis=1)
-
         # ------------------- Stage 3: Inference (Post-Intervention) -------------------
-        # We take the full Y matrix (Pre + Post)
         y_pop_mean_t = self.Y.mean(axis=1)
 
-        if len(post_idx) > 0:
+        if len(post_idx) > 0 and not self.post_df.empty:
+            # Build full timeline matrix (pre + post)
             Y_post = build_Y_matrix(
                 working_df=self.post_df,
                 outcome=self.outcome,
@@ -390,68 +398,60 @@ class LEXSCM:
                 unitid=self.unitid,
                 unit_labels=unit_labels
             )
-
-            # Combine with the Pre-period Y to get the Full Y (Total Timeline)
             Y_full = np.vstack([self.Y, Y_post])
-            y_pop_mean_t = Y_full.mean(axis=1)  # Update population mean for full timeline
 
-            for cand in candidate_results:
-                # 1. Extract weights (v for treated tuple, w for synthetic control)
-                v_weights = cand.identification.solution.weights
-                w_weights = cand.weights.control  # Ensure this is the full N-length vector
+            # Update population mean over the full timeline
+            y_pop_mean_t = Y_full.mean(axis=1)
 
-                # 2. Apply learned weights to the full timeline
-                cand.predictions.synthetic_treated = Y_full @ v_weights
-                cand.predictions.synthetic_control = Y_full @ w_weights
-
-                # 3. Calculate the Treatment Effect (Gap)
-                cand.predictions.effects = (
-                        cand.predictions.synthetic_treated -
-                        cand.predictions.synthetic_control
+            if len(post_idx) > 0 and not self.post_df.empty:
+                # Build full timeline matrix (pre + post)
+                Y_post = build_Y_matrix(
+                    working_df=self.post_df,
+                    outcome=self.outcome,
+                    time=self.time,
+                    unitid=self.unitid,
+                    unit_labels=unit_labels
                 )
+                Y_full = np.vstack([self.Y, Y_post])
 
-                # 4. Point Estimate
-                post_gap = cand.predictions.effects[post_idx]
-                cand.inference.ate = np.mean(post_gap)
+                # Update population mean over the full timeline
+                y_pop_mean_t = Y_full.mean(axis=1)
 
-                # 5. Permutation P-Value
-                cand.inference.p_value = compute_post_inference(
-                    candidate=cand,
+                # Update all candidates with post-intervention results
+                candidate_results = update_post_inference(
+                    candidate_results=candidate_results,
+                    Y_full=Y_full,
                     post_idx=post_idx,
-                    n_perms=self.config.n_sims,
-                    seed=getattr(self.config, 'seed', 42)
-                ).inference.p_value
-
-                # 6. Block Conformal Confidence Intervals
-                cand = compute_conformal_ci(
-                    candidate=cand,
-                    post_idx=post_idx,
+                    n_sims=self.config.n_sims,
                     alpha=0.05,
-                    n_perms=self.config.n_sims,
                     seed=getattr(self.config, 'seed', 42)
                 )
 
-        # Re-identify the best_candidate to ensure it has the updated inference data
-        best_candidate = next(c for c in candidate_results
-                              if c.identification.tuple_id == best_tuple_id)
+        # ==============================================================
+        # 6. Final Assembly
+        # ==============================================================
+        # Re-fetch the winner (now with updated post-intervention results)
+        best_candidate = next(
+            (c for c in candidate_results
+             if c.identification.tuple_id == winner.identification.tuple_id),
+            candidate_results[0]  # fallback
+        )
 
-        T = int(len(B_idx) + len(E_idx) + len(post_idx))
 
         results = LEXSCMResults(
-            summary=ranked_df,
+            summary=shortlist,
             best_candidate=best_candidate,
             all_candidates=candidate_results,
             bnb_metadata=bbresults,
             config=self.config,
             y_pop_mean_t=y_pop_mean_t,
             n_units=self.Y.shape[1],
-            n_periods=T,
-            n_pre_periods=int(len(E_idx) + len(B_idx)),
-            n_fit_periods=T - len(B_idx),
+            n_periods=len(E_idx) + len(B_idx) + len(post_idx),
+            n_pre_periods=len(E_idx) + len(B_idx),
+            n_fit_periods=len(E_idx),
             n_blank_periods=len(B_idx),
             n_post_periods=len(post_idx)
         )
 
         return results
-
 
