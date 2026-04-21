@@ -77,8 +77,14 @@ def branch_and_bound_topK(
     # =========================
     solutions = sorted(top_tuples)
 
+    # Inside branch_and_bound_topK, near the end:
     for i, sol in enumerate(solutions, start=1):
         sol.label = f"Tuple {i}"
+
+        # Calculate total cost for the tuple if unit_costs are provided
+        if unit_costs is not None:
+            # We sum the costs of the units in this specific tuple
+            sol.cost = float(np.sum(unit_costs[sol.indices]))
 
         if total_units is not None:
             sol.weights = expand_weights_to_full(
@@ -185,6 +191,7 @@ def branch_and_bound_topK(
             )
         }
     }
+
 
     return {
         "top_tuples": solutions,
