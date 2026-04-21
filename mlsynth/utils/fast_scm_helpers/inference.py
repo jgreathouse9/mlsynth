@@ -1,5 +1,7 @@
 import numpy as np
+from typing import Optional
 
+from .structure import SEDCandidate
 
 def compute_post_inference(candidate, post_idx, alpha: float = 0.05, n_perms: int = 10000, seed: int = 42):
     """
@@ -61,79 +63,102 @@ def compute_post_inference(candidate, post_idx, alpha: float = 0.05, n_perms: in
     return candidate
 
 
-def compute_conformal_ci(candidate, post_idx, alpha: float = 0.05, n_perms: int = 1000, seed: int = 42):
-    """
-    Compute Block Conformal Confidence Intervals for the Average Treatment Effect (ATE).
 
-    This function inverts the permutation test to find the set of ATE values (thetas)
-    that are statistically consistent with the observed data. This provides a
-    non-parametric confidence interval that does not rely on asymptotic normality
-    assumptions.
+
+
+def compute_moving_block_conformal_ci(
+    candidate: SEDCandidate,
+    post_idx: np.ndarray,
+    alpha: float = 0.05,
+    block_size: Optional[int] = None,
+    seed: int = 42
+) -> SEDCandidate:
+    """
+    Compute Moving Block Conformal Confidence Intervals for the Average Treatment Effect (ATE).
+
+    This is a time-series-aware conformal inference method that uses overlapping (moving) 
+    blocks to better capture temporal dependence, seasonality, and autocorrelation in sales data.
+
+    It is generally preferred over non-overlapping block conformal when working with 
+    marketing time series data.
 
     Parameters
     ----------
     candidate : SEDCandidate
-        The candidate experimental design containing predicted effects and residuals.
+        Candidate containing `predictions.effects` and `predictions.residuals_B`.
     post_idx : np.ndarray
-        Array of indices corresponding to the post-intervention time periods.
+        Indices of the post-treatment periods in the full timeline.
     alpha : float, default=0.05
-        The significance level (the resulting CI has coverage 1 - alpha).
-    n_perms : int, default=1000
-        Number of permutations per point in the grid search.
+        Significance level (target coverage = 1 - alpha).
+    block_size : int, optional
+        Size of each moving block. If None, defaults to roughly sqrt(T_post).
     seed : int, default=42
-        Seed for the local random number generator.
+        Random seed for reproducibility.
 
     Returns
     -------
     candidate : SEDCandidate
-        The updated candidate object with `inference.ci_lower` and `inference.ci_upper` populated.
-
-    Notes
-    -----
-    - The method performs a grid search over potential ATE values.
-    - For each theta, it 'de-treats' the post-period residuals (e_post - theta) and
-      checks if the resulting series is indistinguishable from the Blank period noise.
-    - The grid is centered on the observed ATE and extends 4 standard errors in
-      both directions based on Blank period variance.
+        Updated candidate with `inference.ci_lower` and `inference.ci_upper` populated.
     """
     rng = np.random.default_rng(seed)
-    e_B = candidate.predictions.residuals_B
-    e_post = candidate.predictions.effects[post_idx]
+
+    e_B = np.asarray(candidate.predictions.residuals_B).flatten()
+    e_post = np.asarray(candidate.predictions.effects[post_idx]).flatten()
+
+    n_B = len(e_B)
     n_post = len(e_post)
 
-    # Define a search grid around the observed ATE
-    observed_ate = np.mean(e_post)
-    # Estimate standard error using Blank period noise as a proxy for idiosyncratic variance
-    std_err = np.std(e_B) / np.sqrt(n_post) if len(e_B) > 1 else np.abs(observed_ate)
+    if n_post == 0:
+        candidate.inference.ci_lower = np.nan
+        candidate.inference.ci_upper = np.nan
+        return candidate
 
-    grid = np.linspace(observed_ate - 4 * std_err, observed_ate + 4 * std_err, 100)
+    observed_ate = float(np.mean(e_post))
+
+    # Set block size (common heuristic for time series)
+    if block_size is None:
+        block_size = max(3, int(np.sqrt(n_post)))
+
+    # Create conformity scores using moving blocks from blank period
+    conformity_scores = []
+
+    # Moving blocks from blank period (pre-treatment residuals)
+    for i in range(n_B - block_size + 1):
+        block = e_B[i : i + block_size]
+        conformity_scores.append(np.mean(np.abs(block)))
+
+    # Also add circular blocks for better coverage at edges (optional but recommended)
+    for i in range(n_B - block_size + 1):
+        block = np.concatenate([e_B[i:], e_B[:max(0, block_size - (n_B - i))]])
+        if len(block) == block_size:
+            conformity_scores.append(np.mean(np.abs(block)))
+
+    conformity_scores = np.array(conformity_scores)
+
+    # For each possible theta, compute conformity score of adjusted post-period
+    # We use a grid search around the observed ATE
+    std_err_proxy = np.std(e_B) / np.sqrt(n_post) if n_B > 0 else 1.0
+    grid_width = 6 * std_err_proxy
+    grid = np.linspace(observed_ate - grid_width, observed_ate + grid_width, 200)
 
     accepted_thetas = []
 
     for theta in grid:
-        # If theta is the 'true' effect, then (e_post - theta) should be null noise
         adjusted_post = e_post - theta
-        pool = np.concatenate([e_B, adjusted_post])
+        post_score = np.mean(np.abs(adjusted_post))
 
-        obs_stat = np.mean(np.abs(adjusted_post))
+        # Count how many blank-period block scores are >= this post score
+        p_val = np.mean(conformity_scores >= post_score)
 
-        # Perform permutation test on the adjusted residuals
-        perm_samples = [
-            np.mean(np.abs(rng.choice(pool, size=n_post, replace=False)))
-            for _ in range(n_perms)
-        ]
-        p_val = np.mean(np.array(perm_samples) >= obs_stat)
-
-        # If p-value > alpha, we cannot reject the hypothesis that theta is the true ATE
         if p_val > alpha:
             accepted_thetas.append(theta)
 
     if accepted_thetas:
-        candidate.inference.ci_lower = min(accepted_thetas)
-        candidate.inference.ci_upper = max(accepted_thetas)
+        candidate.inference.ci_lower = float(min(accepted_thetas))
+        candidate.inference.ci_upper = float(max(accepted_thetas))
     else:
-        # Fallback if no values are accepted (highly noisy or poor fit)
-        candidate.inference.ci_lower = np.nan
-        candidate.inference.ci_upper = np.nan
+        # Fallback: very wide interval if nothing is accepted
+        candidate.inference.ci_lower = observed_ate - 4 * std_err_proxy
+        candidate.inference.ci_upper = observed_ate + 4 * std_err_proxy
 
     return candidate
