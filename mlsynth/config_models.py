@@ -505,6 +505,19 @@ class LEXSCMConfig(BaseMAREXConfig):
         description="Weight column."
     )
 
+    unit_cost_col: Optional[str] = Field(
+        default=None,
+        description="Column name containing the per-unit treatment cost. "
+                    "Value must be constant within each unit."
+    )
+
+    budget: Optional[float] = Field(
+        default=None,
+        gt=0,
+        description="Hard total budget for the sum of treatment costs of the "
+                    "selected treated units."
+    )
+
     seed: int = 42
 
     frac_E: float = Field(
@@ -581,6 +594,7 @@ class LEXSCMConfig(BaseMAREXConfig):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
