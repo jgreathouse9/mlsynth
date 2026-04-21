@@ -476,9 +476,6 @@ class FSCMConfig(BaseEstimatorConfig):
 
 
 
-
-
-
 class LEXSCMConfig(BaseMAREXConfig):
     """Configuration for LEXSCM - Fast Synthetic Experiment Design pipeline."""
 
@@ -501,6 +498,11 @@ class LEXSCMConfig(BaseMAREXConfig):
     post_col: Optional[str] = Field(
         default=None,
         description="Optional 0/1 indicator for post-treatment period."
+    )
+    
+    weight_col: Optional[str] = Field(
+        default=None,
+        description="Weight column."
     )
 
     seed: int = 42
