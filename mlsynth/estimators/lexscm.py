@@ -306,6 +306,16 @@ class LEXSCM:
                 f"but m={self.config.m} requested."
             )
 
+        self.unit_costs = None
+        if self.config.budget is not None and self.config.unit_cost_col is not None:
+            cost_df = working_df[[self.unitid, self.config.unit_cost_col]].drop_duplicates(subset=[self.unitid])
+            cost_map = dict(zip(cost_df[self.unitid], cost_df[self.config.unit_cost_col]))
+
+            self.unit_costs = np.array([cost_map.get(uid, 0.0) for uid in unit_labels])
+
+            print(f"INFO: Budget constraint active (${self.config.budget:,.2f}). "
+                  f"Using costs from column '{self.config.unit_cost_col}'.")
+
         # Step 3: Build Y matrix
         self.Y = build_Y_matrix(
             working_df=working_df,
@@ -353,7 +363,15 @@ class LEXSCM:
 
         # ------------------- Stage 1: BnB -------------------
         bbresults = branch_and_bound_topK(
-            G, candidate_idx, m=self.m, top_K=self.top_K, top_P=self.top_P,total_units=N
+            G,
+            candidate_idx,
+            m=self.m,
+            top_K=self.top_K,
+            top_P=self.top_P,
+            total_units=N,
+            # NEW PARAMETERS
+            unit_costs=self.unit_costs,
+            budget=self.config.budget
         )
 
         # ------------------- Stage 2: Evaluate candidates -------------------
@@ -404,29 +422,15 @@ class LEXSCM:
             # Update population mean over the full timeline
             y_pop_mean_t = Y_full.mean(axis=1)
 
-            if len(post_idx) > 0 and not self.post_df.empty:
-                # Build full timeline matrix (pre + post)
-                Y_post = build_Y_matrix(
-                    working_df=self.post_df,
-                    outcome=self.outcome,
-                    time=self.time,
-                    unitid=self.unitid,
-                    unit_labels=unit_labels
-                )
-                Y_full = np.vstack([self.Y, Y_post])
-
-                # Update population mean over the full timeline
-                y_pop_mean_t = Y_full.mean(axis=1)
-
-                # Update all candidates with post-intervention results
-                candidate_results = update_post_inference(
-                    candidate_results=candidate_results,
-                    Y_full=Y_full,
-                    post_idx=post_idx,
-                    n_sims=self.config.n_sims,
-                    alpha=0.05,
-                    seed=getattr(self.config, 'seed', 42)
-                )
+            # Update all candidates with post-intervention results
+            candidate_results = update_post_inference(
+                candidate_results=candidate_results,
+                Y_full=Y_full,
+                post_idx=post_idx,
+                n_sims=self.config.n_sims,
+                alpha=0.05,
+                seed=getattr(self.config, 'seed', 42)
+            )
 
         # ==============================================================
         # 6. Final Assembly
@@ -437,6 +441,41 @@ class LEXSCM:
              if c.identification.tuple_id == winner.identification.tuple_id),
             candidate_results[0]  # fallback
         )
+
+        unit_name_map = (
+            self.df[[self.unitid]]
+            .drop_duplicates()
+            .set_index(np.arange(self.Y.shape[1]))  # index matches Y columns
+            .squeeze()
+            .to_dict()
+        )
+
+        # Attach weight dictionaries to every candidate
+        for cand in candidate_results:
+            # --- Treated weights (only the m selected units) ---
+            treated_idx = np.asarray(cand.identification.treated_idx, dtype=int)
+            treated_weights = cand.weights.treated  # length m
+
+            cand.treated_weights_dict = {
+                unit_name_map[i]: float(w)
+                for i, w in zip(treated_idx, treated_weights)
+            }
+
+            # --- Control weights (all units, but only non-zero for clarity) ---
+            control_weights = cand.weights.control  # length N
+            cand.control_weights_dict = {
+                unit_name_map[i]: float(w)
+                for i, w in enumerate(control_weights)
+                if abs(w) > 1e-8  # filter out numerical noise
+            }
+
+        # Optional: Also attach to winner and shortlist for quick access
+        if hasattr(winner, 'identification'):
+            winner.treated_weights_dict = winner.treated_weights_dict if hasattr(winner, 'treated_weights_dict') else {}
+            winner.control_weights_dict = winner.control_weights_dict if hasattr(winner, 'control_weights_dict') else {}
+        
+        
+        
 
 
         results = LEXSCMResults(
