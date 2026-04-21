@@ -96,64 +96,73 @@ class LEXSCMResults:
     y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
 
 class LEXSCM:
-    """
-    ---
+"""
+    Lexicographic Synthetic Control Method (LEXSCM) for Experimental Design.
 
-    PIPELINE OVERVIEW
-    -----------------
+    This estimator implements a constrained combinatorial search to identify optimal 
+    experimental units, synthesizing methodologies from Vives-i-Bastida (2022) 
+    regarding external validity and Abadie & Zhou (2026) regarding optimal design.
 
-    The estimator operates in three tightly coupled stages:
+    REFERENCES
+    ----------
+    Vives: https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf
+    Abadie and Zhou: https://economics.mit.edu/sites/default/files/2026-02/Synthetic%20Controls%20for%20Experimental%20Design%20Feb%202026.pdf
 
-    Stage 1: Combinatorial Search (Branch-and-Bound)
-        - Searches subsets of size m from a candidate pool of units
-        - Uses quadratic relaxations of the loss surface for pruning
-        - Efficiently explores a combinatorial design space of size C(M, m)
-        - Returns a ranked set of top-K candidate experimental designs
+    MATHEMATICAL FOUNDATIONS
+    -----------------------
+    1. External Validity (v-weights): Following Vives-i-Bastida (2022), we solve 
+       a lexicographic optimization where the first priority is matching the 
+       treated tuple to the 'National Mean' or target population.
+    2. Optimal Design: Following Abadie & Zhou (2026), we use a Branch-and-Bound 
+       framework to minimize the expected mean squared error of the synthetic 
+       control estimator by selecting the 'easiest to model' treated units.
 
-    Stage 2: Synthetic Control Construction & Evaluation
-        - Solves convex quadratic programs to compute synthetic control weights
-        - Constructs synthetic treated and synthetic control time series
-        - Computes treatment effects as differences between counterfactual paths
-        - Evaluates in-sample and baseline fit using NMSE diagnostics
+    INPUT PARAMETERS (via LEXSCMConfig)
+    ----------------------------------
+    IDENTIFICATION DESIGN:
+        - candidate_col (str): Column indicating units eligible for treatment selection.
+        - m (int): Number of units selected for the treated group.
+        - post_col (str, optional): Manual indicator for post-treatment period.
+        - unit_cost_col (str, optional): Column containing per-unit activation costs.
+        - budget (float, optional): Hard total budget cap for the treated group.
+        - seed (int): Random seed for MDE Monte Carlo simulations (default: 42).
+        - frac_E (float): Fraction of pre-period used for estimation window (default: 0.7).
 
-    Stage 3: Power Analysis (MDE)
-        - Estimates Minimum Detectable Effect (MDE) using permutation inference
-        - Approximates null distributions via Monte Carlo simulation
-        - Computes detectability curves over varying post-treatment horizons
-        - Quantifies statistical power as a function of experimental design
+    SCM SPECIFICATION:
+        - weight_col (str, optional): Unit-level importance weights (e.g., population) 
+            used to calculate the target population mean for v-weight matching.
+        - covariates (List[str], optional): Features to include in the synthetic control.
+        - lambda_penalty (float): Regularization for synthetic control weights (default: 0.1).
 
-    OUTPUT STRUCTURE
-    ----------------
+    SEARCH / COMPUTATIONAL BUDGET:
+        - top_K (int): Number of top candidate tuples to evaluate in Stage 2.
+        - top_P (int): Number of seed units used to initialize the BnB search.
 
-    The final output is a Pareto-ranked set of experimental designs that trade off:
+    POWER / INFERENCE (MDE):
+        - alpha (float): Significance level (default: 0.05).
+        - n_post_grid (List[int]): Horizons for detectability curve calculation.
+        - n_sims (int): Number of Monte Carlo simulations for null distributions.
+        - post_imputation (str): Method for MDE signal injection ('mean', 'max', etc.).
+        - test_statistic (str): Statistic used for inference ('mean_abs', 'mean', 'rms').
 
-        - Pre-treatment fit quality (NMSE_B)
-        - Statistical power (MDE curves)
-        - Robustness across validation periods
+    LEXICOGRAPHIC SELECTION:
+        - delta (float): Absolute NMSE tolerance for 'Fit-First' selection.
+        - relative_delta (float): Relative NMSE tolerance based on the best-found fit.
+        - target_mde_horizon (str): Specific MDE metric used to rank the final shortlist.
+        - max_shortlist (int): Maximum number of candidates returned in the summary.
 
-    This enables selection of experimentally optimal unit configurations
-    under constraints of limited treated units and observational data.
+    PIPELINE STAGES
+    ---------------
+    Stage 1: Combinatorial Search (BnB)
+        Efficiently prunes the C(N, m) space using the budget constraint and a 
+        convex relaxation of the loss surface.
+    
+    Stage 2: Synthetic Control Construction
+        Solves the Synthetic Control Quadratic Program (QP) for each surviving candidate.
 
-    DESIGN INTUITION
-    ----------------
-
-    The estimator is intended for settings where:
-
-        - Treatment assignment is not predefined
-        - Experimental units are large aggregate entities (e.g., regions, markets)
-        - Only a small number of units can be assigned treatment
-        - Randomization may induce baseline imbalance
-        - Power considerations must be integrated into design selection
-
-    NOTES
-    -----
-
-    - Deterministic given fixed random seed in MDE simulation
-    - Computational cost is dominated by:
-        (i) branch-and-bound combinatorial search
-        (ii) repeated quadratic program solves
-        (iii) Monte Carlo permutation inference
-    - Designed for offline experimental design rather than real-time inference
+    Stage 3: Power Analysis & Inference
+        Estimates Minimum Detectable Effects via permutation tests and calculates 
+        Conformal Confidence Intervals for the Treatment Effect.
     """
 
     # ===================================================================
