@@ -4,6 +4,7 @@ from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass, field
 from math import comb
 
+
 @dataclass(order=True)
 class Solution:
     """
@@ -28,6 +29,7 @@ class Solution:
     loss: float
     indices: List[int] = field(compare=False)
     weights: np.ndarray = field(compare=False)
+    cost: float = 0.0  # Add this field
     label: Optional[str] = field(default=None, compare=False)
 
 
