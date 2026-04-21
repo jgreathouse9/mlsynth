@@ -477,6 +477,8 @@ class FSCMConfig(BaseEstimatorConfig):
 
 
 
+
+
 class LEXSCMConfig(BaseMAREXConfig):
     """Configuration for LEXSCM - Fast Synthetic Experiment Design pipeline."""
 
@@ -545,6 +547,8 @@ class LEXSCMConfig(BaseMAREXConfig):
     # POWER / INFERENCE (MDE)
     # =========================================================
 
+    alpha: float = Field(default=0.05, gt=0.0, lt=1.0)
+
     n_post_grid: List[int] = Field(
         default_factory=lambda: list(range(2, 9)),
         description="Post-treatment horizons used for MDE detectability curves."
@@ -555,12 +559,13 @@ class LEXSCMConfig(BaseMAREXConfig):
         description="Monte Carlo simulations for null distribution in MDE."
     )
 
-    ranking_w_bias: float = Field(
-        default=0.5,
-        ge=0.0,
-        le=1.0,
-        description="Tradeoff between historical fit (NMSE_B) and power (MDE)."
-    )
+    post_imputation: Literal["mean", "max", "double_max"] = Field(default="mean")
+    test_statistic: Literal["mean_abs", "mean", "rms"] = Field(default="mean_abs")
+
+    delta: float = Field(default=0.015, ge=0.0)
+    relative_delta: Optional[float] = Field(default=1.5, gt=1.0)
+    target_mde_horizon: str = Field(default="early_mde_avg")
+    max_shortlist: int = Field(default=5, gt=0)
 
     # =========================================================
     # INTERNAL / SYSTEM
@@ -574,7 +579,6 @@ class LEXSCMConfig(BaseMAREXConfig):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
-
 
 
 
