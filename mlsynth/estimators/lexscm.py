@@ -174,6 +174,7 @@ class LEXSCM:
         self.time: str = config.time
         self.candidate_col: str = config.candidate_col
         self.post_col: Optional[str] = config.post_col
+        self.weight_col: Optional[str] = config.weight_col
         self.m: Optional[str] = config.m
         self.frac_E: Optional[str] = config.frac_E
         self.top_K: Optional[int] = config.top_K
