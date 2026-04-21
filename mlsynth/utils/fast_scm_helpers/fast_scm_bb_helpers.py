@@ -336,7 +336,10 @@ def expand_tuple(
     indices: List[int],
     stats: Dict,
     start_pos: int,
-    Q_partial: np.ndarray
+    Q_partial: np.ndarray,
+    unit_costs: Optional[np.ndarray] = None,
+    budget: Optional[float] = None,
+    current_cost: float = 0.0
 ):
 
     """
@@ -379,10 +382,26 @@ def expand_tuple(
         * branches_considered
         * branches_pruned
     """
-    
+
     stats["nodes_visited"] += 1
 
-    # ---- leaf ----
+    # ====================== EARLY BUDGET PRUNING ======================
+    if budget is not None and unit_costs is not None:
+        if current_cost > budget + 1e-6:
+            stats["branches_pruned"] += 1
+            return
+
+        remaining_slots = m - len(indices)
+        if remaining_slots > 0:
+            remaining_costs = unit_costs[candidate_idx[start_pos:]]
+            if len(remaining_costs) >= remaining_slots:
+                cheapest_remaining = np.sort(remaining_costs)[:remaining_slots].sum()
+                if current_cost + cheapest_remaining > budget + 1e-6:
+                    stats["branches_pruned"] += 1
+                    return
+    # =================================================================
+
+    # Leaf node
     if len(indices) == m:
         stats["subsets_evaluated"] += 1
 
@@ -390,15 +409,22 @@ def expand_tuple(
         w = solve_qp_simplex(Q)
         total_loss = float(w @ Q @ w)
 
+        # Final safety check
+        if budget is not None and unit_costs is not None:
+            subset_cost = np.dot(unit_costs[indices], w)
+            if subset_cost > budget + 1e-6:
+                return  # discard over-budget solution
+
         top_tuples.append(Solution(total_loss, indices[:], w))
-        top_tuples.sort()
+        top_tuples.sort(key=lambda s: s.loss)
         if len(top_tuples) > top_K:
             top_tuples.pop()
         return
 
-    # ---- branch ----
+    # Branching
     for j_idx in range(start_pos, len(candidate_idx)):
         j = candidate_idx[j_idx]
+        j_cost = float(unit_costs[j]) if unit_costs is not None else 0.0
 
         stats["branches_considered"] += 1
 
@@ -432,5 +458,9 @@ def expand_tuple(
             indices + [j],
             stats,
             start_pos=j_idx + 1,
-            Q_partial=Q_new
+            Q_partial=Q_new,
+            # NEW
+            unit_costs=unit_costs,
+            budget=budget,
+            current_cost=current_cost + j_cost
         )
