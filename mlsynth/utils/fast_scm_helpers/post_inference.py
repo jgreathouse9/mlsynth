@@ -1,6 +1,4 @@
-"""
-Post-inference update module for synthetic experimental design.
-"""
+"""Post-inference update module for synthetic experimental design."""
 
 import numpy as np
 from typing import List, Optional
