@@ -53,6 +53,8 @@ def branch_and_bound_topK(
     for j in seed_set:
         Q0 = np.array([[G[j, j]]])
 
+        j_pos = np.where(candidate_idx == j)[0][0]
+
         expand_tuple(
             G,
             candidate_idx,
@@ -61,7 +63,7 @@ def branch_and_bound_topK(
             top_tuples,
             indices=[j],
             stats=raw_stats,
-            start_pos=0,
+            start_pos=j_pos + 1,
             Q_partial=Q0
         )
 
