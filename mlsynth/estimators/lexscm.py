@@ -96,7 +96,7 @@ class LEXSCMResults:
     y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
 
 class LEXSCM:
-"""
+    """
     Lexicographic Synthetic Control Method (LEXSCM) for Experimental Design.
 
     This estimator implements a constrained combinatorial search to identify optimal 
