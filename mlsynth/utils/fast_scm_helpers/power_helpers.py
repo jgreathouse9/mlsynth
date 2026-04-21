@@ -35,7 +35,7 @@ def test_statistic(e: np.ndarray, method: str = "mean_abs") -> float:
         -----
         "mean_abs" is the recommended default as it aligns with common practice in
         synthetic control placebo tests and is invariant to the sign of the effect.
-        """
+    """
     if method == "mean_abs":
         return float(np.mean(np.abs(e)))
     elif method == "mean":
@@ -76,7 +76,7 @@ def compute_null_distribution(
         -------
         np.ndarray
             Sorted array of simulated test statistics under the null.
-        """
+    """
     rng = np.random.default_rng(seed)
     n_total = len(full_series)
     null_stats = np.zeros(n_sims)
@@ -104,7 +104,7 @@ def critical_value_from_null(null_stats: np.ndarray, alpha: float) -> float:
         -------
         float
             The (1 - alpha) quantile of the null distribution.
-        """
+    """
     return float(np.quantile(null_stats, 1 - alpha))
 
 
@@ -135,7 +135,7 @@ def impute_noise_level(residuals_B: np.ndarray, method: PostImputation = "mean")
         -------
         float
             Estimated noise level to be used for post-treatment periods under the null.
-        """
+    """
     abs_resid = np.abs(residuals_B)
     if method == "mean":
         return float(np.mean(abs_resid))
@@ -195,7 +195,7 @@ def _analytical_mde(
             - critical_stat : Critical value from null distribution
             - feasible : Whether inference is possible at given alpha
             - p_value_lb : Theoretical lower bound on p-value
-        """
+    """
     if noise_level is None:
         noise_level = impute_noise_level(residuals_B, "mean")
 
@@ -286,7 +286,7 @@ def compute_detectability_curve(
             - "n_post_10pct": smallest n_post with MDE ≤ 10%
             - "n_post_5pct": smallest n_post with MDE ≤ 5%
             - "noise_level": imputed noise level used
-        """
+    """
     residuals_B = np.asarray(candidate.predictions.residuals_B)
     synth_treated = np.asarray(candidate.predictions.synthetic_treated)
 
@@ -353,7 +353,7 @@ def run_mde_analysis(
         -------
         list of SEDCandidate
             The same list with `.mde_results` populated on each candidate.
-        """
+    """
     if n_post_grid is None:
         n_post_grid = list(range(2, 9))  # 2 to 8 post periods
 
@@ -401,7 +401,7 @@ def mde_summary_table(candidates: List[SEDCandidate]) -> pd.DataFrame:
         -----
         This table is primarily used as input to `select_best_tuple()`.
         Lower `nmse_B` indicates better pre-treatment validity (less risk of overfitting).
-        """
+    """
     rows = []
     for cand in candidates:
         r = cand.mde_results or {}
@@ -431,11 +431,11 @@ def select_best_tuple(
     """
         Select the best synthetic experimental design using a lexicographic (hierarchical) rule.
 
-        This implements a "validity-first, then power" philosophy that is highly recommended 
+        This implements a "validity-first, then power" philosophy that is highly recommended
         for marketing science and policy experiments:
 
         1. Filter candidates to those with sufficiently good blank-period fit (nmse_B).
-        2. Among the qualifying candidates, select the one with the best statistical power 
+        2. Among the qualifying candidates, select the one with the best statistical power
            (lowest Minimum Detectable Effect).
 
         Parameters
@@ -445,8 +445,8 @@ def select_best_tuple(
         delta : float, default=0.015
             Absolute tolerance on nmse_B (used only if `relative_delta` is None).
         relative_delta : float, default=1.5
-            Relative tolerance multiplier. Allows candidates whose nmse_B is up to 
-            `relative_delta` times the best observed nmse_B. 
+            Relative tolerance multiplier. Allows candidates whose nmse_B is up to
+            `relative_delta` times the best observed nmse_B.
             Recommended default (1.5) means "up to 50% worse fit than the best".
         target_mde_horizon : str, default="early_mde_avg"
             Which MDE column to optimize for. Common choices:
@@ -467,13 +467,13 @@ def select_best_tuple(
 
         Notes
         -----
-        This selection rule prioritizes **statistical validity** (good pre-treatment fit 
-        in the blank period) before optimizing for **statistical power**. 
+        This selection rule prioritizes **statistical validity** (good pre-treatment fit
+        in the blank period) before optimizing for **statistical power**.
 
-        Using `relative_delta=1.5` is a practical and defensible default in marketing 
-        lift testing: it keeps only designs that are reasonably well-matched while still 
+        Using `relative_delta=1.5` is a practical and defensible default in marketing
+        lift testing: it keeps only designs that are reasonably well-matched while still
         allowing some flexibility to choose the most powerful option.
-        """
+    """
     df = mde_summary_table(candidates).copy()
 
     if df.empty:
