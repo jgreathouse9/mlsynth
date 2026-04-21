@@ -99,8 +99,8 @@ class LEXSCM:
     """
     Lexicographic Synthetic Control Method (LEXSCM) for Experimental Design.
 
-    This estimator implements a constrained combinatorial search to identify optimal 
-    experimental units, synthesizing methodologies from Vives-i-Bastida (2022) 
+    This estimator implements a constrained combinatorial search to identify optimal
+    experimental units, synthesizing methodologies from Vives-i-Bastida (2022)
     regarding external validity and Abadie & Zhou (2026) regarding optimal design.
 
     REFERENCES
@@ -109,16 +109,16 @@ class LEXSCM:
     Abadie and Zhou: https://economics.mit.edu/sites/default/files/2026-02/Synthetic%20Controls%20for%20Experimental%20Design%20Feb%202026.pdf
 
     MATHEMATICAL FOUNDATIONS
-    -----------------------
-    1. External Validity (v-weights): Following Vives-i-Bastida (2022), we solve 
-       a lexicographic optimization where the first priority is matching the 
+    ------------------------
+    1. External Validity (v-weights): Following Vives-i-Bastida (2022), we solve
+       a lexicographic optimization where the first priority is matching the
        treated tuple to the 'National Mean' or target population.
-    2. Optimal Design: Following Abadie & Zhou (2026), we use a Branch-and-Bound 
-       framework to minimize the expected mean squared error of the synthetic 
+    2. Optimal Design: Following Abadie & Zhou (2026), we use a Branch-and-Bound
+       framework to minimize the expected mean squared error of the synthetic
        control estimator by selecting the 'easiest to model' treated units.
 
     INPUT PARAMETERS (via LEXSCMConfig)
-    ----------------------------------
+    -----------------------------------
     IDENTIFICATION DESIGN:
         - candidate_col (str): Column indicating units eligible for treatment selection.
         - m (int): Number of units selected for the treated group.
@@ -129,7 +129,7 @@ class LEXSCM:
         - frac_E (float): Fraction of pre-period used for estimation window (default: 0.7).
 
     SCM SPECIFICATION:
-        - weight_col (str, optional): Unit-level importance weights (e.g., population) 
+        - weight_col (str, optional): Unit-level importance weights (e.g., population)
             used to calculate the target population mean for v-weight matching.
         - covariates (List[str], optional): Features to include in the synthetic control.
         - lambda_penalty (float): Regularization for synthetic control weights (default: 0.1).
@@ -154,14 +154,14 @@ class LEXSCM:
     PIPELINE STAGES
     ---------------
     Stage 1: Combinatorial Search (BnB)
-        Efficiently prunes the C(N, m) space using the budget constraint and a 
+        Efficiently prunes the C(N, m) space using the budget constraint and a
         convex relaxation of the loss surface.
-    
+
     Stage 2: Synthetic Control Construction
         Solves the Synthetic Control Quadratic Program (QP) for each surviving candidate.
 
     Stage 3: Power Analysis & Inference
-        Estimates Minimum Detectable Effects via permutation tests and calculates 
+        Estimates Minimum Detectable Effects via permutation tests and calculates
         Conformal Confidence Intervals for the Treatment Effect.
     """
 
