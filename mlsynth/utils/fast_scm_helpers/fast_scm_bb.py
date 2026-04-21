@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List
+from typing import List, Optional
 from .fast_scm_bb_helpers import (
     compute_search_space_size,
     expand_tuple,
@@ -17,7 +17,9 @@ def branch_and_bound_topK(
     m: int = 5,
     top_K: int = 20,
     top_P: int = 10,
-    total_units: int = None
+    total_units: int = None,
+    unit_costs: Optional[np.ndarray] = None,
+    budget: Optional[float] = None
 ):
     start_time = time.time()
 
@@ -64,7 +66,10 @@ def branch_and_bound_topK(
             indices=[j],
             stats=raw_stats,
             start_pos=j_pos + 1,
-            Q_partial=Q0
+            Q_partial=Q0,
+            unit_costs=unit_costs,
+            budget=budget,
+            current_cost=(unit_costs[j] if unit_costs is not None else 0.0)
         )
 
     # =========================
