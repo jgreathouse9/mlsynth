@@ -76,10 +76,10 @@ def compute_moving_block_conformal_ci(
     """
     Compute Moving Block Conformal Confidence Intervals for the Average Treatment Effect (ATE).
 
-    This is a time-series-aware conformal inference method that uses overlapping (moving) 
+    This is a time-series-aware conformal inference method that uses overlapping (moving)
     blocks to better capture temporal dependence, seasonality, and autocorrelation in sales data.
 
-    It is generally preferred over non-overlapping block conformal when working with 
+    It is generally preferred over non-overlapping block conformal when working with
     marketing time series data.
 
     Parameters
