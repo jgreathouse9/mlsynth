@@ -16,6 +16,54 @@ from typing import Optional, List, Tuple, Dict, Any
 import cvxpy as cp
 import numpy as np
 import pandas as pd
+from numba import njit
+
+
+
+@njit
+def _aa_chunk_kernel(diffs: np.ndarray, n_sims: int, seed: int) -> np.ndarray:
+    """
+    Low-level JIT kernel for AA simulations.
+
+    This function generates ±1 random assignment vectors and computes
+    placebo treatment effects via dot products in a memory-efficient loop.
+
+    Parameters
+    ----------
+    diffs : np.ndarray
+        Pairwise differences Z_plus - Z_minus (shape: K,).
+    n_sims : int
+        Number of AA simulations to run.
+    seed : int
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    np.ndarray
+        Array of placebo test statistics (shape: n_sims,).
+    """
+
+    K = diffs.shape[0]
+    out = np.empty(n_sims, dtype=np.float64)
+
+    # simple LCG RNG (Numba-friendly; avoids Python RNG overhead)
+    state = seed if seed != 0 else 1
+
+    for s in range(n_sims):
+        total = 0.0
+
+        for k in range(K):
+            # Linear congruential generator
+            state = (1103515245 * state + 12345) & 0x7fffffff
+
+            # Map to ±1
+            sign = 1.0 if (state & 1) == 0 else -1.0
+
+            total += sign * diffs[k]
+
+        out[s] = total
+
+    return out
 
 
 def _aggregate(Z: np.ndarray, indices: Tuple[int, ...]) -> float:
@@ -448,24 +496,55 @@ def estimate_power(
             "Degrees_of_Freedom": df
         }
 
-    def run_aa_simulations(self, n_sims: int = 500) -> pd.DataFrame:
-        """
-        Appendix C.1: Placebo (AA) tests. 
-        Randomly reshuffles the Treatment/Control labels within each 
-        supergeo pair to see the distribution of 'Placebo Lift'.
-        """
-        if not hasattr(self, 'design_'):
-            raise ValueError("Run solve() first to generate a design.")
-            
-        results = []
-        for _ in range(n_sims):
-            placebo_diffs = []
-            for _, row in self.design_.iterrows():
-                # Randomly flip the sign of the difference (Placebo assignment)
-                flip = 1 if np.random.rand() > 0.5 else -1
-                placebo_diffs.append(flip * (row['Z_plus'] - row['Z_minus']))
-            
-            total_diff = sum(placebo_diffs)
-            results.append(total_diff / self.design_['Z_plus'].sum())
-            
-        return pd.Series(results)
+
+
+
+def run_aa_simulations(
+    self,
+    n_sims: int = 500,
+    seed: int = 0
+) -> pd.Series:
+    """
+    Efficient AA placebo simulations using a JIT-compiled streaming kernel.
+
+    This implementation avoids constructing the full (n_sims × K) sign matrix
+    and instead generates random ±1 assignments on-the-fly inside a compiled
+    loop (Numba JIT). This yields:
+
+    - O(K) memory usage
+    - near C-level performance for large n_sims
+    - no Python loop overhead in the inner simulation loop
+
+    Parameters
+    ----------
+    n_sims : int, optional
+        Number of placebo simulations to run, by default 500.
+    seed : int, optional
+        Random seed for reproducibility, by default 0.
+
+    Returns
+    -------
+    pd.Series
+        Simulated distribution of normalized placebo treatment effects.
+
+    Raises
+    ------
+    ValueError
+        If `solve()` has not been run and `design_` is missing.
+
+    Notes
+    -----
+    This implementation uses a deterministic linear congruential generator
+    inside Numba to avoid Python RNG overhead. While fast and reproducible,
+    it is not cryptographically secure (not needed for Monte Carlo inference).
+    """
+
+    if not hasattr(self, 'design_'):
+        raise ValueError("Run solve() first to generate a design.")
+
+    diffs = (self.design_["Z_plus"] - self.design_["Z_minus"]).to_numpy(dtype=np.float64)
+    denom = float(self.design_["Z_plus"].sum())
+
+    raw = _aa_chunk_kernel(diffs, n_sims, seed)
+
+    return pd.Series(raw / denom)
