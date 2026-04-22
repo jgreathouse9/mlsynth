@@ -373,3 +373,99 @@ class SupergeoSolver:
             loss += (z_plus - z_minus) ** 2
 
         return loss
+
+
+
+def estimate_power(
+        self, 
+        design: pd.DataFrame, 
+        expected_lift: float = 0.05, 
+        alpha: float = 0.05
+    ) -> dict:
+        """
+        Performs a Power Analysis on the generated design.
+        
+        This assumes a T-test framework for Matched Pairs as described 
+        in the paper's section on inference.
+
+        Parameters
+        ----------
+        design : pd.DataFrame
+            The design returned by solve().
+        expected_lift : float
+            The percentage lift you want to be able to detect (e.g., 0.05 for 5%).
+        alpha : float
+            Significance level, by default 0.05.
+
+        Returns
+        -------
+        dict
+            Dictionary containing Power, MDE, and Standard Error.
+        """
+        # 1. Calculate the standard error of the lift
+        # In Supergeo, the variance of the estimator is proportional 
+        # to the sum of the squared differences (Scores)
+        total_z_treat = design['Z_plus'].sum()
+        total_z_control = design['Z_minus'].sum()
+        
+        # The paper notes that Var(Tau) is estimated using the pairwise differences
+        # Diff_k = (Z_k_plus - Z_k_minus)
+        diffs = design['Z_plus'] - design['Z_minus']
+        n_pairs = len(design)
+        
+        if n_pairs < 2:
+            return {"error": "Power analysis requires at least K=2 pairs for variance estimation."}
+
+        # Calculate standard error of the mean difference
+        # This is the "Placebo" standard error (Pre-test noise)
+        se_mean = np.std(diffs, ddof=1) / np.sqrt(n_pairs)
+        
+        # 2. Calculate the Absolute Effect Size
+        # We assume the lift applies to the total treatment volume
+        delta = expected_lift * total_z_treat
+        
+        # 3. Power Calculation using T-distribution (n_pairs - 1 degrees of freedom)
+        df = n_pairs - 1
+        t_alpha = stats.t.ppf(1 - alpha/2, df)
+        
+        # Non-centrality parameter
+        ncp = delta / se_mean
+        
+        # Power = P(T > t_alpha | alternative is true)
+        power = 1 - stats.t.cdf(t_alpha, df, loc=ncp)
+        
+        # 4. Calculate MDE (Minimum Detectable Effect) at 80% Power
+        t_beta = stats.t.ppf(0.80, df)
+        mde_abs = (t_alpha + t_beta) * se_mean
+        mde_pct = mde_abs / total_z_treat
+
+        return {
+            "Total_Treatment_Volume": total_z_treat,
+            "Expected_Lift_Tested": expected_lift,
+            "Standard_Error": se_mean,
+            "Statistical_Power": power,
+            "MDE_at_80_percent": mde_pct,
+            "Degrees_of_Freedom": df
+        }
+
+    def run_aa_simulations(self, n_sims: int = 500) -> pd.DataFrame:
+        """
+        Appendix C.1: Placebo (AA) tests. 
+        Randomly reshuffles the Treatment/Control labels within each 
+        supergeo pair to see the distribution of 'Placebo Lift'.
+        """
+        if not hasattr(self, 'design_'):
+            raise ValueError("Run solve() first to generate a design.")
+            
+        results = []
+        for _ in range(n_sims):
+            placebo_diffs = []
+            for _, row in self.design_.iterrows():
+                # Randomly flip the sign of the difference (Placebo assignment)
+                flip = 1 if np.random.rand() > 0.5 else -1
+                placebo_diffs.append(flip * (row['Z_plus'] - row['Z_minus']))
+            
+            total_diff = sum(placebo_diffs)
+            results.append(total_diff / self.design_['Z_plus'].sum())
+            
+        return pd.Series(results)
