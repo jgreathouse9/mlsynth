@@ -1,5 +1,5 @@
 """
-supergeo_solver.py
+Supergeo_solver.py
 ==================
 Implements the Supergeo Design from:
     Chen, Doudchenko, Jiang, Stein, Ying (2023).
@@ -108,7 +108,7 @@ def _candidates_from_index_pool(
     Returns
     -------
     list of dict
-        A list of candidate dictionaries containing 'indices', 'g_plus', 
+        A list of candidate dictionaries containing 'indices', 'g_plus',
         'g_minus', and 'score'.
     """
     candidates: List[Dict[str, Any]] = []
@@ -137,7 +137,7 @@ class SupergeoSolver:
     unit_names : list of str
         Names/Labels for the N experimental units.
     Y0 : np.ndarray
-        Pre-period outcome matrix of shape (T, N), where T is time points 
+        Pre-period outcome matrix of shape (T, N), where T is time points
         and N is units.
     min_size : int, optional
         Minimum size (l) of a supergeo pair, by default 2.
@@ -182,7 +182,7 @@ class SupergeoSolver:
 
         Warning
         -------
-        This method is exponential in complexity. It is recommended only 
+        This method is exponential in complexity. It is recommended only
         for small unit counts (N < 50).
         """
         self._candidates = _candidates_from_index_pool(
@@ -196,7 +196,7 @@ class SupergeoSolver:
         """
         Partition units randomly into buckets to generate candidates.
 
-        This heuristic reduces the number of MIP variables by only matching 
+        This heuristic reduces the number of MIP variables by only matching
         units within the same random partition.
 
         Parameters
@@ -222,7 +222,7 @@ class SupergeoSolver:
         """
         Generate candidates using the per-geo pruning heuristic.
 
-        Identifies the largest units and keeps only the best-scoring 
+        Identifies the largest units and keeps only the best-scoring
         candidate subsets containing them.
 
         Parameters
@@ -267,13 +267,13 @@ class SupergeoSolver:
         Returns
         -------
         pd.DataFrame
-            A DataFrame containing the Pair_ID, Treatment units, Control units, 
+            A DataFrame containing the Pair_ID, Treatment units, Control units,
             aggregated Z values, and individual pair scores.
 
         Raises
         ------
         RuntimeError
-            If a unit is not covered by any candidate or the solver fails 
+            If a unit is not covered by any candidate or the solver fails
              to find a feasible solution.
         """
         if not self._candidates:
