@@ -432,8 +432,8 @@ def estimate_power(
     ) -> dict:
         """
         Performs a Power Analysis on the generated design.
-        
-        This assumes a T-test framework for Matched Pairs as described 
+
+        This assumes a T-test framework for Matched Pairs as described
         in the paper's section on inference.
 
         Parameters
