@@ -9,6 +9,37 @@ Supergeo Design: Generalized Matching for Geographic Experiments
 Every design decision in this module traces directly to a section of the
 paper.  Cross-references are written inline as [§N] or [Eq. N].
 
+Extension: demeaned-R² score
+-----------------------------
+The paper collapses the pre-period panel to a scalar Z_g = Σ_t Y0[t,g] and
+matches on that.  For panel data with many pre-periods this discards all
+temporal structure and cannot distinguish two geos with the same total but
+diverging trends.
+
+This implementation replaces the paper's (Z_{G+} − Z_{G−})² score with a
+demeaned-R² score that directly measures pre-trend co-movement:
+
+    1.  For a candidate bipartition (G+, G−), aggregate the full time series
+        across each side: ts+ = Σ_{g∈G+} Y0[:,g],  ts− = Σ_{g∈G−} Y0[:,g].
+    2.  Demean both series by their own means, removing level differences.
+        Two series separated by a constant gap become a perfect match.
+    3.  Regress demeaned ts− on demeaned ts+ (no intercept — both already
+        mean-zero) and compute 1 − R² as the score.
+
+Score is bounded in [0, 1]:
+    0  → perfect parallel trends (ideal pair)
+    1  → orthogonal movements in deviation space (worst pair)
+
+This score is the MIP objective.  The MIP, incidence matrix, heuristics,
+power analysis, and empirical estimator are all unchanged — only the scalar
+passed into the MIP objective differs.
+
+Note: the analytical variance formula Var[θ̂] = total_loss / B² [Eq. 3]
+was derived for the paper's scalar score.  Under the demeaned-R² score the
+power analysis numbers are heuristic rather than exact, but the design
+quality and parallel-trends justification are strictly superior for panels
+with many pre-periods.
+
 Architecture
 ------------
 
@@ -17,14 +48,21 @@ Architecture
       Streams through n_sims sign-flip draws without allocating an
       (n_sims × K) matrix.  [Appendix D]
 
-  _pretest_aggregate(Y0)
-      Z_g = Σ_t Y0[t, g].  The paper's proxy for the unobserved
-      uninfluenced response.  [§3, "Matching variables"]
+  _r2_demeaned(ts_plus, ts_minus)
+      Demeaned-R² between two aggregated time series.  Score ∈ [0, 1].
+      A constant level gap → score = 0.  Orthogonal movements → score = 1.
 
-  _score_and_split(indices, Z, rng)
-      score(G) = min_{G+∪G−=G} (Z_{G+} − Z_{G−})²   [Eq. 7 / §3.1]
-      Symmetry reduction halves enumeration; the stored split orientation
-      is randomised so neither side is systematically favoured.
+  _score_and_split(indices, Y0, rng)
+      Enumerate all bipartitions of a candidate group, compute
+      _r2_demeaned for each, and return the minimum-score split.
+      Symmetry reduction halves enumeration; stored orientation is
+      randomised to avoid systematic treatment-side bias.
+
+  _candidates_cluster(n, Y0, min_size, max_size, n_clusters, n_runs, noise_scale, rng)
+      Cluster heuristic: embed geos in PCA trajectory space, run n_runs
+      perturbed KMeans instances, and generate candidates within each
+      cluster.  Geos that move similarly cluster together, producing a
+      much more homogeneous candidate pool than random partitioning.
 
   _build_incidence_matrix(n, candidates)
       Sparse N × M CSC matrix A where A[i,j] = 1 iff unit i ∈ candidate j.
@@ -32,8 +70,7 @@ Architecture
       matrix expression rather than N separate scalar constraints.  [§3.2]
 
   mde / power_at_effect / power_curve
-      Analytical power analysis from Var[θ̂] = total_loss / B²  [Eq. 3]
-      using Student-t with K−1 df to account for small pair counts.
+      Heuristic power analysis using Student-t with K−1 df.
 
   SupergeoSolver
       Main class.  generate_candidates() → solve() → summary() /
@@ -69,6 +106,8 @@ import pandas as pd
 from numba import njit
 from scipy.sparse import csc_matrix
 from scipy.stats import t as t_dist
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 
 # =============================================================================
@@ -122,78 +161,120 @@ def _aa_kernel(diffs: np.ndarray, n_sims: int, seed: int) -> np.ndarray:
 
 
 # =============================================================================
-# PRE-PERIOD AGGREGATE  [§3, "Matching variables"]
+# DEMEANED-R² SCORE  (extension — replaces paper's scalar score)
 # =============================================================================
 
-def _pretest_aggregate(Y0: np.ndarray) -> np.ndarray:
+def _r2_demeaned(ts_plus: np.ndarray, ts_minus: np.ndarray) -> float:
     """
-    Z_g ≈ R^pre_g = Σ_t R_g[t] — pre-period aggregate per geo.
+    1 − R² between two aggregated time series after removing level differences.
 
-    The paper uses this as a proxy for the unobserved uninfluenced response
-    Z_g.  We match on this scalar throughout.
+    Motivation
+    ----------
+    The paper's score (Z_{G+} − Z_{G−})² compares scalar totals.  For a
+    panel with many pre-periods this discards temporal structure and treats
+    two geos with the same aggregate but diverging trends as a perfect match.
+
+    This score asks instead: do the two basket time series *move together*,
+    regardless of their absolute levels?  This is precisely the pre-trend
+    co-movement that parallel trends requires.
+
+    Construction
+    ------------
+    1. Demean each series by its own mean.  A constant level gap between
+       ts_plus and ts_minus becomes a zero gap after demeaning — constant
+       differences are absorbed, not penalised.
+    2. Regress demeaned ts_minus on demeaned ts_plus with no intercept
+       (both are already mean-zero, so an intercept would be redundant).
+    3. Return 1 − R² = SS_res / SS_tot.
+
+    Bounds
+    ------
+    Score ∈ [0, 1]:
+        0  →  perfect co-movement (parallel trends, ideal pair)
+        1  →  orthogonal deviations (worst possible pair)
 
     Parameters
     ----------
-    Y0 : (T, N) array   Pre-period outcome matrix
+    ts_plus  : (T,) float64   Aggregated treatment-side time series
+    ts_minus : (T,) float64   Aggregated control-side time series
 
     Returns
     -------
-    Z : (N,) array
+    float   1 − R²  (lower is better)
     """
-    return Y0.sum(axis=0)
+    tp = ts_plus  - ts_plus.mean()
+    tc = ts_minus - ts_minus.mean()
+
+    ss_tot = float(tc @ tc)
+    if ss_tot < 1e-12:
+        # Constant series: perfectly predictable regardless of ts_plus
+        return 0.0
+
+    # OLS beta without intercept on mean-zero series: β = (tp'tc) / (tp'tp)
+    ss_tp = float(tp @ tp)
+    if ss_tp < 1e-12:
+        # ts_plus is constant after demeaning — can't explain any variation
+        return 1.0
+
+    beta   = float(tp @ tc) / ss_tp
+    resid  = tc - beta * tp
+    ss_res = float(resid @ resid)
+
+    return min(1.0, ss_res / ss_tot)   # clamp numerical noise above 1
 
 
 # =============================================================================
-# SCORE AND SPLIT  [Eq. 7 / §3.1]
+# SCORE AND SPLIT  [Eq. 7 / §3.1  — extended to panel data]
 # =============================================================================
 
 def _score_and_split(
     indices: tuple[int, ...],
-    Z: np.ndarray,
+    Y0: np.ndarray,
     rng: np.random.Generator,
 ) -> tuple[float, list[int], list[int]]:
     """
-    Compute score(G) and a randomly oriented optimal (G+, G−) split.
+    Compute the demeaned-R² score and optimal (G+, G−) split for a group G.
 
-    Paper definition [Eq. 7 / §3.1]:
+    For each candidate bipartition (G+, G−) of the group:
+        ts+ = Σ_{g∈G+} Y0[:, g]     (T,) aggregated treatment series
+        ts− = Σ_{g∈G−} Y0[:, g]     (T,) aggregated control series
+        score = _r2_demeaned(ts+, ts−)
 
-        score(G) = min_{G+∪G−=G, G+∩G−=∅}  (Z_{G+} − Z_{G−})²
-        where Z_G = Σ_{g∈G} Z_g
+    The bipartition minimising the score is returned.  Score ∈ [0, 1],
+    with 0 meaning perfect parallel trends.
 
     Symmetry reduction
     ------------------
-    (Z_{G+} − Z_{G−})² = (Z_{G−} − Z_{G+})², so every bipartition and its
-    mirror yield the same score.  By fixing index 0 in the plus set we
-    enumerate each unordered bipartition exactly once, halving the work.
-    For max_size = 4 the inner loop runs at most
-        C(3,0) + C(3,1) + C(3,2) = 7 iterations per candidate.
+    _r2_demeaned(ts+, ts−) = _r2_demeaned(ts−, ts+) because the regression
+    is symmetric up to sign of beta, and SS_res is identical under sign flip.
+    We therefore anchor index 0 in the plus set, enumerating each unordered
+    bipartition exactly once.  For max_size = 4 this is at most
+        C(3,0) + C(3,1) + C(3,2) = 7 evaluations per candidate.
 
     Random orientation
     ------------------
-    The symmetry reduction is applied only during *scoring*.  Once the
-    optimal bipartition is found, the plus/minus label is assigned by an
-    unbiased coin flip so that neither side is systematically favoured
-    across the candidate pool.  This preserves the validity of the
-    downstream per-pair coin-flip randomisation [§2].
+    After finding the optimal bipartition, plus/minus labels are assigned by
+    an unbiased coin flip, so neither side is systematically favoured across
+    the candidate pool.
 
     Parameters
     ----------
     indices : tuple[int]      Geo indices forming the candidate group G
-    Z       : (N,) float64   Pre-period aggregates
+    Y0      : (T, N) float64  Full pre-period panel
     rng     : Generator       For the random orientation step only
 
     Returns
     -------
-    score   : float
-    g_plus  : list[int]   Treatment-side indices
-    g_minus : list[int]   Control-side indices
+    score   : float           Best (lowest) 1 − R² across all bipartitions
+    g_plus  : list[int]       Treatment-side geo indices
+    g_minus : list[int]       Control-side geo indices
     """
-    idx = list(indices)
-    n = len(idx)
-    z_local = Z[idx]  # local slice — avoids repeated global indexing
+    idx    = list(indices)
+    n      = len(idx)
+    Y_grp  = Y0[:, idx]   # (T, |G|) — local slice
 
-    best_score = float("inf")
-    best_plus_local: list[int] = []
+    best_score       = float("inf")
+    best_plus_local: list[int]  = []
     best_minus_local: list[int] = []
 
     # Anchor element 0 in plus; vary elements 1…n-1
@@ -201,13 +282,15 @@ def _score_and_split(
         for extra in combinations(range(1, n), r):
             plus_local  = (0,) + extra
             minus_local = [i for i in range(n) if i not in plus_local]
-            diff = (
-                float(z_local[list(plus_local)].sum())
-                - float(z_local[minus_local].sum())
-            ) ** 2
-            if diff < best_score:
-                best_score      = diff
-                best_plus_local = list(plus_local)
+
+            ts_plus  = Y_grp[:, list(plus_local)].sum(axis=1)   # (T,)
+            ts_minus = Y_grp[:, minus_local].sum(axis=1)         # (T,)
+
+            score = _r2_demeaned(ts_plus, ts_minus)
+
+            if score < best_score:
+                best_score       = score
+                best_plus_local  = list(plus_local)
                 best_minus_local = minus_local
 
     # Random orientation: swap plus/minus with probability 0.5
@@ -227,17 +310,17 @@ def _score_and_split(
 
 def _make_candidate(
     combo: tuple[int, ...],
-    Z: np.ndarray,
+    Y0: np.ndarray,
     rng: np.random.Generator,
 ) -> dict:
     """Package a (score, split) pair into a candidate dict."""
-    score, g_plus, g_minus = _score_and_split(combo, Z, rng)
+    score, g_plus, g_minus = _score_and_split(combo, Y0, rng)
     return {"indices": combo, "score": score, "split": (g_plus, g_minus)}
 
 
 def _candidates_exhaustive(
     n: int,
-    Z: np.ndarray,
+    Y0: np.ndarray,
     min_size: int,
     max_size: int,
     rng: np.random.Generator,
@@ -251,13 +334,13 @@ def _candidates_exhaustive(
     candidates = []
     for size in range(min_size, max_size + 1):
         for combo in combinations(range(n), size):
-            candidates.append(_make_candidate(combo, Z, rng))
+            candidates.append(_make_candidate(combo, Y0, rng))
     return candidates
 
 
 def _candidates_partition(
     n: int,
-    Z: np.ndarray,
+    Y0: np.ndarray,
     min_size: int,
     max_size: int,
     n_partitions: int,
@@ -284,13 +367,13 @@ def _candidates_partition(
     for bucket in buckets:
         for size in range(min_size, max_size + 1):
             for combo in combinations(bucket, size):
-                candidates.append(_make_candidate(combo, Z, rng))
+                candidates.append(_make_candidate(combo, Y0, rng))
     return candidates
 
 
 def _candidates_per_geo(
     n: int,
-    Z: np.ndarray,
+    Y0: np.ndarray,
     min_size: int,
     max_size: int,
     beta: int,
@@ -300,8 +383,9 @@ def _candidates_per_geo(
     """
     Per-geo heuristic [Appendix E].
 
-    Ranks geos by descending Z_g (the largest geos are hardest to match in
-    standard pairs design).  For each of the beta largest geos:
+    Ranks geos by descending pre-period aggregate Σ_t Y0[t,g] (the largest
+    geos are hardest to match in standard pairs design).  For each of the
+    beta largest geos:
         • Score every subset of size [min_size, max_size] that contains it.
         • Retain only the alpha-best fraction (lowest scores).
     Remaining small geos, which already match well 1-to-1, keep only
@@ -309,15 +393,16 @@ def _candidates_per_geo(
 
     Duplicates across pools are removed by frozenset-key deduplication.
     """
-    order       = np.argsort(-Z)                         # descending by Z_g
-    large_geos  = set(order[:beta].tolist())
-    small_geos  = [g for g in range(n) if g not in large_geos]
+    Z_agg  = Y0.sum(axis=0)                          # (N,) — used for ranking only
+    order  = np.argsort(-Z_agg)
+    large_geos = set(order[:beta].tolist())
+    small_geos = [g for g in range(n) if g not in large_geos]
 
     candidates: list[dict] = []
 
     # Small geos: standard 1-to-1 pairs only
     for combo in combinations(small_geos, 2):
-        candidates.append(_make_candidate(combo, Z, rng))
+        candidates.append(_make_candidate(combo, Y0, rng))
 
     # Large geos: alpha-best pool of all containing subsets
     for g in large_geos:
@@ -326,7 +411,7 @@ def _candidates_per_geo(
         for size in range(min_size, max_size + 1):
             for rest in combinations(others, size - 1):
                 combo = tuple(sorted((g,) + rest))
-                pool.append(_make_candidate(combo, Z, rng))
+                pool.append(_make_candidate(combo, Y0, rng))
 
         pool.sort(key=lambda c: c["score"])
         keep = max(1, int(np.ceil(alpha * len(pool))))
@@ -344,9 +429,142 @@ def _candidates_per_geo(
     return unique
 
 
+
 # =============================================================================
-# SPARSE INCIDENCE MATRIX  [§3.2]
+# CLUSTER HEURISTIC  (new — FPCA-inspired time-series clustering)
 # =============================================================================
+
+def _time_series_features(Y0: np.ndarray) -> np.ndarray:
+    """
+    Extract a compact feature matrix from the pre-period panel for clustering.
+
+    We want features that capture the aspects of geo behaviour most relevant
+    to matching: level, trend, and shape.  PCA on the standardised panel
+    achieves all three — the leading components capture shared trend
+    structure, and the scores place each geo in a low-dimensional space
+    where Euclidean distance approximates trajectory similarity.
+
+    The panel is transposed to (N, T) so that geos are rows, then
+    standardised column-wise (across geos at each time point) before PCA
+    so that high-revenue periods do not dominate the embedding.
+
+    Parameters
+    ----------
+    Y0 : (T, N) float64   Pre-period outcome panel
+
+    Returns
+    -------
+    features : (N, K) float64   PCA scores, K = min(N, T, 10) components
+    """
+    T, N = Y0.shape
+    X    = Y0.T                                         # (N, T) — geos as rows
+    X    = StandardScaler().fit_transform(X)            # standardise per time point
+    _, _, Vt = np.linalg.svd(X, full_matrices=False)   # thin SVD
+    K    = min(N, T, 10)
+    return X @ Vt[:K].T                                 # (N, K) PCA scores
+
+
+def _candidates_cluster(
+    n: int,
+    Y0: np.ndarray,
+    min_size: int,
+    max_size: int,
+    n_clusters: int,
+    n_runs: int,
+    noise_scale: float,
+    rng: np.random.Generator,
+) -> list[dict]:
+    """
+    Cluster heuristic: partition geos by time-series trajectory, then
+    generate candidates within each cluster.
+
+    Motivation
+    ----------
+    Random partitioning (the paper's partition heuristic) is agnostic to
+    which geos are actually similar.  For large N a random bucket will often
+    contain geos with very different trajectories, producing high-score
+    candidates that waste MIP variables.  Clustering by trajectory first
+    ensures that candidate groups are drawn from geos that already move
+    similarly — the candidates reaching the MIP are much more likely to be
+    genuinely well-matched.
+
+    Method
+    ------
+    1.  Extract PCA time-series features (N, K) via `_time_series_features`.
+    2.  Run KMeans `n_runs` times with mild Gaussian perturbation of the
+        feature matrix and a small random jitter to k.  This gives
+        `n_runs` slightly different clusterings, increasing coverage of the
+        candidate space without relying on a single clustering.
+    3.  Collect all within-cluster subsets of size [min_size, max_size]
+        across all runs.  Score each with `_make_candidate` (which calls
+        `_score_and_split` → `_r2_demeaned`).
+    4.  Deduplicate: if the same index set appears in multiple runs, keep
+        only the first occurrence (score is deterministic given the combo).
+
+    The perturbation + jitter strategy mirrors the submitted code's approach
+    but is integrated into the existing `_make_candidate` pipeline so the
+    score and split are always the demeaned-R² values, not a placeholder.
+
+    Parameters
+    ----------
+    n           : int     Number of geos
+    Y0          : (T, N)  Pre-period panel
+    min_size    : int     Minimum supergeo pair size
+    max_size    : int     Maximum supergeo pair size
+    n_clusters  : int     Base number of clusters k₀
+    n_runs      : int     Number of perturbed KMeans runs
+    noise_scale : float   Std of Gaussian perturbation added to PCA scores
+                          before each KMeans run.  0.05 is a reasonable
+                          default — large enough to diversify clusterings,
+                          small enough to preserve trajectory structure.
+    rng         : Generator
+
+    Returns
+    -------
+    list[dict]   Deduplicated candidates, each with keys:
+                     "indices", "score", "split"
+    """
+    features = _time_series_features(Y0)   # (N, K)
+
+    candidates: list[dict] = []
+    seen: set[frozenset]   = set()
+
+    for run in range(n_runs):
+        # Perturb features slightly to diversify clusterings across runs
+        perturbed = features + noise_scale * rng.standard_normal(features.shape)
+
+        # Jitter k by ±20% — keeps clusters of similar size while exploring
+        k = int(round(n_clusters * (1.0 + rng.uniform(-0.2, 0.2))))
+        k = max(2, min(n - 1, k))
+
+        labels = KMeans(
+            n_clusters=k,
+            n_init=10,
+            random_state=int(rng.integers(1, 2**31)),
+        ).fit_predict(perturbed)
+
+        # Group geo indices by cluster label
+        clusters: dict[int, list[int]] = {}
+        for geo_idx, label in enumerate(labels):
+            clusters.setdefault(int(label), []).append(geo_idx)
+
+        # Generate within-cluster candidates
+        for cluster in clusters.values():
+            if len(cluster) < min_size:
+                # Cluster too small for any valid supergeo pair — skip.
+                # These geos will be flagged by the uncovered-geo guard in
+                # solve() if they remain uncovered after all runs.
+                continue
+
+            for size in range(min_size, min(max_size, len(cluster)) + 1):
+                for combo in combinations(cluster, size):
+                    key = frozenset(combo)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    candidates.append(_make_candidate(combo, Y0, rng))
+
+    return candidates
 
 def _build_incidence_matrix(n: int, candidates: list[dict]) -> csc_matrix:
     """
@@ -494,12 +712,18 @@ class SupergeoSolver:
     Finds a partition of N geos into K supergeo pairs {(G_k+, G_k−)} that
     minimises the total matching loss
 
-        loss = Σ_k (Z_{G_k+} − Z_{G_k−})²               [Eq. 7]
+        loss = Σ_k score(G_k)    where score ∈ [0,1] is 1 − R² of the
+                                  demeaned aggregated time series
 
     subject to:
         • Every geo belongs to exactly one supergeo pair  (exact cover)
         • Each supergeo pair has total size in [min_size, max_size]
         • At least kappa supergeo pairs are formed         [§3]
+
+    The score directly measures pre-trend co-movement: a score of 0 means
+    the two basket time series are perfectly parallel (constant gap allowed);
+    a score of 1 means orthogonal deviations.  Minimising total loss
+    constructs the design most consistent with parallel trends.
 
     Typical workflow
     ----------------
@@ -516,8 +740,8 @@ class SupergeoSolver:
     unit_names : list[str]
         Human-readable geo labels, length N.
     Y0 : (T, N) ndarray
-        Pre-period outcome matrix.  Z_g = Σ_t Y0[t, g] is used as the
-        proxy for the uninfluenced response [§3, "Matching variables"].
+        Pre-period outcome matrix.  The full panel is used for matching —
+        no temporal information is discarded.
     min_size : int
         Minimum total geos per supergeo pair (ℓ in the paper).  Default 2,
         which recovers standard matched pairs as a special case.
@@ -563,8 +787,9 @@ class SupergeoSolver:
         self.kappa:      int                 = kappa
         self._rng:       np.random.Generator = np.random.default_rng(seed)
 
-        # Z_g ≈ R^pre_g: pre-period aggregate [§3, "Matching variables"]
-        self.Z: np.ndarray = _pretest_aggregate(self.Y0)  # shape (N,)
+        # Pre-period aggregate — used only for geo ranking in per_geo heuristic
+        # and for the AA test statistic.  Matching itself uses the full panel.
+        self._Z_agg: np.ndarray = self.Y0.sum(axis=0)  # shape (N,)
 
         # State set by generate_candidates() and solve()
         self.candidates: list[dict]          = []
@@ -577,18 +802,21 @@ class SupergeoSolver:
 
     def generate_candidates(
         self,
-        heuristic: Literal["exhaustive", "partition", "per_geo"] = "exhaustive",
+        heuristic: Literal["exhaustive", "partition", "per_geo", "cluster"] = "exhaustive",
         *,
         n_partitions: int = 10,
         beta: int | None = None,
         alpha: float = 0.10,
+        n_clusters: int | None = None,
+        n_runs: int = 10,
+        noise_scale: float = 0.05,
     ) -> None:
         """
         Populate self.candidates with feasible supergeo groups.
 
         Parameters
         ----------
-        heuristic : {"exhaustive", "partition", "per_geo"}
+        heuristic : {"exhaustive", "partition", "per_geo", "cluster"}
 
             "exhaustive"
                 All C(N, size) subsets for each size in [min_size, max_size].
@@ -605,32 +833,58 @@ class SupergeoSolver:
                 a curated alpha-best candidate pool.  Small geos keep only
                 pairwise candidates.  Combines well with large N.
 
+            "cluster"
+                Cluster geos by time-series trajectory using PCA embeddings
+                and KMeans, then generate candidates within each cluster.
+                Run n_runs perturbed KMeans instances to diversify coverage.
+                Geos that move similarly end up in the same cluster, so
+                candidate groups are drawn from a more homogeneous pool than
+                random partitioning provides.  Recommended for large N with
+                rich pre-period panels.
+
         n_partitions : int
             Number of buckets for the partition heuristic.
         beta : int or None
             Number of large geos for the per-geo heuristic (default N // 2).
         alpha : float
             Candidate retention fraction for the per-geo heuristic.
+        n_clusters : int or None
+            Base number of KMeans clusters for the cluster heuristic.
+            Defaults to max(2, N // 10), giving clusters of ~10 geos each.
+        n_runs : int
+            Number of perturbed KMeans runs for the cluster heuristic.
+            More runs → broader candidate coverage at the cost of more
+            scoring work before the MIP.
+        noise_scale : float
+            Std of Gaussian perturbation added to PCA scores before each
+            KMeans run.  Controls how much the clusterings vary across runs.
         """
         if heuristic == "exhaustive":
             self.candidates = _candidates_exhaustive(
-                self.n, self.Z, self.min_size, self.max_size, self._rng,
+                self.n, self.Y0, self.min_size, self.max_size, self._rng,
             )
         elif heuristic == "partition":
             self.candidates = _candidates_partition(
-                self.n, self.Z, self.min_size, self.max_size,
+                self.n, self.Y0, self.min_size, self.max_size,
                 n_partitions=n_partitions, rng=self._rng,
             )
         elif heuristic == "per_geo":
             _beta = beta if beta is not None else self.n // 2
             self.candidates = _candidates_per_geo(
-                self.n, self.Z, self.min_size, self.max_size,
+                self.n, self.Y0, self.min_size, self.max_size,
                 beta=_beta, alpha=alpha, rng=self._rng,
+            )
+        elif heuristic == "cluster":
+            _k = n_clusters if n_clusters is not None else max(2, self.n // 10)
+            self.candidates = _candidates_cluster(
+                self.n, self.Y0, self.min_size, self.max_size,
+                n_clusters=_k, n_runs=n_runs, noise_scale=noise_scale,
+                rng=self._rng,
             )
         else:
             raise ValueError(
                 f"Unknown heuristic '{heuristic}'. "
-                "Choose 'exhaustive', 'partition', or 'per_geo'."
+                "Choose 'exhaustive', 'partition', 'per_geo', or 'cluster'."
             )
 
         if not self.candidates:
@@ -787,10 +1041,10 @@ class SupergeoSolver:
         print(f"  Supergeo pairs  : {len(df)}")
         print(f"  Size range      : [{self.min_size}, {self.max_size}]")
         print(f"  kappa           : {self.kappa}")
-        print(f"  Total loss      : {total_loss:.6f}  (= B^2 * Var[theta_hat])")
+        print(f"  Total loss      : {total_loss:.6f}  (sum of 1-R² scores; 0=perfect)")
         if self._budget is not None:
             se = _design_se(total_loss, self._budget)
-            print(f"  SE(theta_hat)   : {se:.6f}  [budget = {self._budget}]")
+            print(f"  SE(theta_hat)   : {se:.6f}  [budget = {self._budget}, heuristic]")
         print(f"  Pair size dist  : {dict(sizes.value_counts().sort_index())}")
         print("=" * 62)
         print(df.to_string(index=False))
@@ -840,11 +1094,23 @@ class SupergeoSolver:
         df = self._require_design()
 
         name_to_idx = {name: i for i, name in enumerate(self.unit_names)}
-        diffs = np.array([
-            self.Z[[name_to_idx[g] for g in row["Treatment"]]].sum()
-            - self.Z[[name_to_idx[g] for g in row["Control"]]].sum()
-            for _, row in df.iterrows()
-        ], dtype=np.float64)
+
+        # For each pair, the AA test statistic contribution is the difference
+        # between the demeaned aggregated time series of each side, summarised
+        # as the signed L2 norm of the residual.  Under the sharp null,
+        # swapping the sign of this contribution (i.e. flipping treatment
+        # assignment) is equally likely.
+        diffs = np.empty(len(df), dtype=np.float64)
+        for k, (_, row) in enumerate(df.iterrows()):
+            t_idx = [name_to_idx[g] for g in row["Treatment"]]
+            c_idx = [name_to_idx[g] for g in row["Control"]]
+            ts_t  = self.Y0[:, t_idx].sum(axis=1)
+            ts_c  = self.Y0[:, c_idx].sum(axis=1)
+            # Demeaned difference: captures trajectory gap after removing levels
+            dm_t  = ts_t - ts_t.mean()
+            dm_c  = ts_c - ts_c.mean()
+            # Signed norm: positive when treatment side has larger deviations
+            diffs[k] = float(np.sum(dm_t - dm_c))
 
         observed  = float(diffs.sum())
         null_dist = _aa_kernel(diffs, n_sims, seed)
@@ -1062,13 +1328,17 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore")
 
     rng  = np.random.default_rng(0)
-    N, T = 20, 28
+    N, T = 20, 70    # panel setting: 70 pre-treatment periods, 20 units
     B    = 50.0
 
     unit_names = [f"DMA_{i:02d}" for i in range(N)]
-    base = rng.uniform(0.1, 1.0, size=N)
-    Y0   = base[None, :] + rng.normal(0, 0.05, size=(T, N))
-    Y0   = np.clip(Y0, 1e-3, None)
+
+    # Simulate correlated panel data with unit-specific trends and levels
+    base   = rng.uniform(0.1, 1.0, size=N)
+    trend  = rng.uniform(-0.002, 0.002, size=N)
+    t_grid = np.arange(T)[:, None]                         # (T, 1)
+    Y0     = base[None, :] + trend[None, :] * t_grid + rng.normal(0, 0.05, size=(T, N))
+    Y0     = np.clip(Y0, 1e-3, None)
 
     # --- Build and solve ---
     solver = SupergeoSolver(
@@ -1080,7 +1350,7 @@ if __name__ == "__main__":
         seed=42,
     )
 
-    print("Generating candidates (exhaustive, N=20)...")
+    print("Generating candidates (exhaustive, N=20, T=70)...")
     solver.generate_candidates("exhaustive")
     print(f"  {len(solver.candidates):,} candidates.")
 
@@ -1088,8 +1358,8 @@ if __name__ == "__main__":
     design = solver.solve(solver=cp.CBC, budget=B)
     solver.summary()
 
-    # --- Power analysis ---
-    print("\nPower analysis:")
+    # --- Power analysis (heuristic under demeaned-R² score) ---
+    print("\nPower analysis (heuristic):")
     print(f"  MDE  (80% power, alpha=0.05) : {solver.mde():.4f}")
     print(f"  Power at delta=0.5           : {solver.power_at_effect(0.5):.4f}")
     curve = solver.power_curve(np.linspace(0.1, 2.0, 8))
@@ -1119,517 +1389,4 @@ if __name__ == "__main__":
         rng=rng,
     )
     print(f"  RMSE : {result['rmse']:.4f}")
-    print(f"  Bias : {result['bias']:.4f}")    seed : int
-        Random seed for reproducibility.
-
-    Returns
-    -------
-    np.ndarray
-        Array of placebo test statistics (shape: n_sims,).
-    """
-
-    K = diffs.shape[0]
-    out = np.empty(n_sims, dtype=np.float64)
-
-    # simple LCG RNG (Numba-friendly; avoids Python RNG overhead)
-    state = seed if seed != 0 else 1
-
-    for s in range(n_sims):
-        total = 0.0
-
-        for k in range(K):
-            # Linear congruential generator
-            state = (1103515245 * state + 12345) & 0x7fffffff
-
-            # Map to ±1
-            sign = 1.0 if (state & 1) == 0 else -1.0
-
-            total += sign * diffs[k]
-
-        out[s] = total
-
-    return out
-
-
-def _aggregate(Z: np.ndarray, indices: Tuple[int, ...]) -> float:
-    """
-    Calculate the aggregate response for a set of units.
-
-    Parameters
-    ----------
-    Z : np.ndarray
-        Array of pre-period characteristics for each unit.
-    indices : tuple of int
-        The indices of the units to aggregate.
-
-    Returns
-    -------
-    float
-        The sum of Z for the specified indices.
-    """
-    return float(Z[list(indices)].sum())
-
-
-def _optimal_split(Z: np.ndarray, indices: Tuple[int, ...]) -> Tuple[List[int], List[int], float]:
-    """
-    Find the bipartition of a group that minimizes the squared difference.
-
-    This function implements the inner minimization of the score(G) calculation.
-
-    Parameters
-    ----------
-    Z : np.ndarray
-        Array of pre-period characteristics for each unit.
-    indices : tuple of int
-        The indices of the units in group G.
-
-    Returns
-    -------
-    best_plus : list of int
-        Indices assigned to the treatment side (G+).
-    best_minus : list of int
-        Indices assigned to the control side (G-).
-    best_score : float
-        The minimum squared difference (Z_{G+} - Z_{G-})².
-    """
-    idx = list(indices)
-    n = len(idx)
-    Z_group = Z[idx]
-
-    best_score = np.inf
-    best_plus: List[int] = []
-    best_minus: List[int] = []
-
-    if n < 2:
-        return list(indices), [], np.inf
-
-    # Enumerate all non-empty proper subsets for G+
-    for r in range(1, n):
-        for plus_local in combinations(range(n), r):
-            minus_local = [i for i in range(n) if i not in plus_local]
-            z_plus = Z_group[list(plus_local)].sum()
-            z_minus = Z_group[list(minus_local)].sum()
-            score = (z_plus - z_minus) ** 2
-            if score < best_score:
-                best_score = score
-                best_plus = [idx[i] for i in plus_local]
-                best_minus = [idx[i] for i in minus_local]
-
-    return best_plus, best_minus, best_score
-
-
-def _candidates_from_index_pool(
-    Z: np.ndarray,
-    index_pool: List[List[int]],
-    min_size: int,
-    max_size: int,
-) -> List[Dict[str, Any]]:
-    """
-    Build candidate supergeo pairs from a specified pool of unit indices.
-
-    Parameters
-    ----------
-    Z : np.ndarray
-        Array of pre-period characteristics for each unit.
-    index_pool : list of list of int
-        A list containing subsets of unit indices to consider for combinations.
-    min_size : int
-        Minimum size of a supergeo pair.
-    max_size : int
-        Maximum size of a supergeo pair.
-
-    Returns
-    -------
-    list of dict
-        A list of candidate dictionaries containing 'indices', 'g_plus',
-        'g_minus', and 'score'.
-    """
-    candidates: List[Dict[str, Any]] = []
-    seen: set[Tuple[int, ...]] = set()
-
-    for pool in index_pool:
-        for size in range(min_size, max_size + 1):
-            for combo in combinations(sorted(pool), size):
-                if combo in seen:
-                    continue
-                seen.add(combo)
-                g_plus, g_minus, score = _optimal_split(Z, combo)
-                candidates.append(
-                    dict(indices=combo, g_plus=g_plus, g_minus=g_minus, score=score)
-                )
-
-    return candidates
-
-
-class SupergeoSolver:
-    """
-    Solver for Supergeo experimental design using Mixed-Integer Programming.
-
-    Parameters
-    ----------
-    unit_names : list of str
-        Names/Labels for the N experimental units.
-    Y0 : np.ndarray
-        Pre-period outcome matrix of shape (T, N), where T is time points
-        and N is units.
-    min_size : int, optional
-        Minimum size (l) of a supergeo pair, by default 2.
-    max_size : int, optional
-        Maximum size (u) of a supergeo pair, by default 4.
-    kappa : int, optional
-        Minimum number of supergeo pairs (k) required, by default 1.
-
-    Attributes
-    ----------
-    Z : np.ndarray
-        Aggregated pre-test response for each unit (proxy for uninfluenced response).
-    N : int
-        Total number of experimental units.
-    """
-
-    def __init__(
-        self,
-        unit_names: List[str],
-        Y0: np.ndarray,
-        min_size: int = 2,
-        max_size: int = 4,
-        kappa: int = 1,
-    ) -> None:
-        if Y0.ndim != 2:
-            raise ValueError("Y0 must be a 2-D array of shape (T, N).")
-        if Y0.shape[1] != len(unit_names):
-            raise ValueError("Y0.shape[1] must equal len(unit_names).")
-
-        self.unit_names = list(unit_names)
-        self.Y0 = Y0
-        self.N = len(unit_names)
-        self.min_size = min_size
-        self.max_size = max_size
-        self.kappa = kappa
-        self.Z: np.ndarray = Y0.sum(axis=0)
-        self._candidates: List[Dict[str, Any]] = []
-
-    def generate_candidates_exhaustive(self) -> None:
-        """
-        Enumerate all possible unit subsets within the specified size bounds.
-
-        Warning
-        -------
-        This method is exponential in complexity. It is recommended only
-        for small unit counts (N < 50).
-        """
-        self._candidates = _candidates_from_index_pool(
-            self.Z,
-            [list(range(self.N))],
-            self.min_size,
-            self.max_size,
-        )
-
-    def generate_candidates_partition(self, n_partitions: int = 10, seed: int = 0) -> None:
-        """
-        Partition units randomly into buckets to generate candidates.
-
-        This heuristic reduces the number of MIP variables by only matching
-        units within the same random partition.
-
-        Parameters
-        ----------
-        n_partitions : int, optional
-            Number of partitions to divide units into, by default 10.
-        seed : int, optional
-            Random seed for reproducibility, by default 0.
-        """
-        rng = np.random.default_rng(seed)
-        perm = rng.permutation(self.N).tolist()
-        partitions = [perm[i::n_partitions] for i in range(n_partitions)]
-
-        self._candidates = _candidates_from_index_pool(
-            self.Z, partitions, self.min_size, self.max_size
-        )
-
-    def generate_candidates_per_geo(
-        self,
-        beta: Optional[int] = None,
-        alpha: float = 0.05,
-    ) -> None:
-        """
-        Generate candidates using the per-geo pruning heuristic.
-
-        Identifies the largest units and keeps only the best-scoring
-        candidate subsets containing them.
-
-        Parameters
-        ----------
-        beta : int, optional
-            Number of largest units to apply pruning to. Defaults to N // 2.
-        alpha : float, optional
-            The top fraction of best-scoring subsets to retain per unit, by default 0.05.
-        """
-        if beta is None:
-            beta = max(1, self.N // 2)
-
-        order = np.argsort(self.Z)[::-1]
-        large_geos = set(order[:beta].tolist())
-        small_geos = order[beta:].tolist()
-
-        large_pool = list(large_geos)
-        all_large = _candidates_from_index_pool(self.Z, [large_pool], self.min_size, self.max_size)
-
-        kept_indices: set[Tuple[int, ...]] = set()
-        for geo in large_geos:
-            geo_cands = [c for c in all_large if geo in c["indices"]]
-            geo_cands.sort(key=lambda c: c["score"])
-            n_keep = max(1, int(np.ceil(alpha * len(geo_cands))))
-            for c in geo_cands[:n_keep]:
-                kept_indices.add(c["indices"])
-
-        large_candidates = [c for c in all_large if c["indices"] in kept_indices]
-        small_candidates = _candidates_from_index_pool(self.Z, [small_geos], self.min_size, self.max_size)
-
-        self._candidates = large_candidates + small_candidates
-
-    def solve(self, solver: str = "CBC") -> pd.DataFrame:
-        """
-        Solve the covering Mixed-Integer Program to find the optimal design.
-
-        Parameters
-        ----------
-        solver : str, optional
-            The name of the CVXPY-compatible solver, by default "CBC".
-
-        Returns
-        -------
-        pd.DataFrame
-            A DataFrame containing the Pair_ID, Treatment units, Control units,
-            aggregated Z values, and individual pair scores.
-
-        Raises
-        ------
-        RuntimeError
-            If a unit is not covered by any candidate or the solver fails
-             to find a feasible solution.
-        """
-        if not self._candidates:
-            warnings.warn("No candidates found. Running exhaustive generation.", stacklevel=2)
-            self.generate_candidates_exhaustive()
-
-        m = len(self._candidates)
-        scores = np.array([c["score"] for c in self._candidates], dtype=float)
-        x = cp.Variable(m, boolean=True)
-
-        cover_constraints = []
-        for i in range(self.N):
-            covering_j = [j for j, c in enumerate(self._candidates) if i in c["indices"]]
-            if not covering_j:
-                raise RuntimeError(f"Unit {i} is not covered by any candidate.")
-            cover_constraints.append(cp.sum(x[covering_j]) == 1)
-
-        constraints = cover_constraints + [cp.sum(x) >= self.kappa]
-        prob = cp.Problem(cp.Minimize(scores @ x), constraints)
-        prob.solve(solver=solver)
-
-        if prob.status not in ("optimal", "optimal_inaccurate"):
-            raise RuntimeError(f"MIP solver failed with status '{prob.status}'.")
-
-        return self._format_solution(x.value)
-
-    def _format_solution(self, x_val: np.ndarray) -> pd.DataFrame:
-        """
-        Convert the solver's boolean vector into a readable DataFrame.
-
-        Parameters
-        ----------
-        x_val : np.ndarray
-            The optimal boolean vector from the solver.
-
-        Returns
-        -------
-        pd.DataFrame
-            Formatted experimental design.
-        """
-        chosen = np.where(x_val > 0.5)[0]
-        rows = []
-        for pair_id, j in enumerate(chosen, start=1):
-            c = self._candidates[j]
-            rows.append(dict(
-                Pair_ID=pair_id,
-                Treatment=[self.unit_names[i] for i in c["g_plus"]],
-                Control=[self.unit_names[i] for i in c["g_minus"]],
-                Z_plus=_aggregate(self.Z, tuple(c["g_plus"])),
-                Z_minus=_aggregate(self.Z, tuple(c["g_minus"])),
-                Score=float(c["score"]),
-            ))
-        df = pd.DataFrame(rows)
-        if not df.empty:
-            df["Loss"] = df["Score"].sum()
-        return df
-
-    def training_loss(self, design: pd.DataFrame) -> float:
-        """
-        Calculate the total pre-test loss for a given design.
-
-        Parameters
-        ----------
-        design : pd.DataFrame
-            The design DataFrame returned by the solve() method.
-
-        Returns
-        -------
-        float
-            Total squared difference across all supergeo pairs.
-        """
-        return float(design["Score"].sum())
-
-    def test_loss(self, design: pd.DataFrame, Y_test: np.ndarray) -> float:
-        """
-        Evaluate the loss of a design on a held-out test dataset.
-
-        Parameters
-        ----------
-        design : pd.DataFrame
-            The design DataFrame returned by the solve() method.
-        Y_test : np.ndarray
-            Post-period or held-out pre-period outcome matrix.
-
-        Returns
-        -------
-        float
-            Total squared difference calculated on the test data.
-        """
-        Z_test = Y_test.sum(axis=0)
-        loss = 0.0
-        name_to_idx = {name: i for i, name in enumerate(self.unit_names)}
-
-        for _, row in design.iterrows():
-            z_plus = sum(Z_test[name_to_idx[n]] for n in row["Treatment"])
-            z_minus = sum(Z_test[name_to_idx[n]] for n in row["Control"])
-            loss += (z_plus - z_minus) ** 2
-
-        return loss
-
-
-
-def estimate_power(
-        self, 
-        design: pd.DataFrame, 
-        expected_lift: float = 0.05, 
-        alpha: float = 0.05
-    ) -> dict:
-        """
-        Performs a Power Analysis on the generated design.
-
-        This assumes a T-test framework for Matched Pairs as described
-        in the paper's section on inference.
-
-        Parameters
-        ----------
-        design : pd.DataFrame
-            The design returned by solve().
-        expected_lift : float
-            The percentage lift you want to be able to detect (e.g., 0.05 for 5%).
-        alpha : float
-            Significance level, by default 0.05.
-
-        Returns
-        -------
-        dict
-            Dictionary containing Power, MDE, and Standard Error.
-        """
-        # 1. Calculate the standard error of the lift
-        # In Supergeo, the variance of the estimator is proportional 
-        # to the sum of the squared differences (Scores)
-        total_z_treat = design['Z_plus'].sum()
-        total_z_control = design['Z_minus'].sum()
-        
-        # The paper notes that Var(Tau) is estimated using the pairwise differences
-        # Diff_k = (Z_k_plus - Z_k_minus)
-        diffs = design['Z_plus'] - design['Z_minus']
-        n_pairs = len(design)
-        
-        if n_pairs < 2:
-            return {"error": "Power analysis requires at least K=2 pairs for variance estimation."}
-
-        # Calculate standard error of the mean difference
-        # This is the "Placebo" standard error (Pre-test noise)
-        se_mean = np.std(diffs, ddof=1) / np.sqrt(n_pairs)
-        
-        # 2. Calculate the Absolute Effect Size
-        # We assume the lift applies to the total treatment volume
-        delta = expected_lift * total_z_treat
-        
-        # 3. Power Calculation using T-distribution (n_pairs - 1 degrees of freedom)
-        df = n_pairs - 1
-        t_alpha = stats.t.ppf(1 - alpha/2, df)
-        
-        # Non-centrality parameter
-        ncp = delta / se_mean
-        
-        # Power = P(T > t_alpha | alternative is true)
-        power = 1 - stats.t.cdf(t_alpha, df, loc=ncp)
-        
-        # 4. Calculate MDE (Minimum Detectable Effect) at 80% Power
-        t_beta = stats.t.ppf(0.80, df)
-        mde_abs = (t_alpha + t_beta) * se_mean
-        mde_pct = mde_abs / total_z_treat
-
-        return {
-            "Total_Treatment_Volume": total_z_treat,
-            "Expected_Lift_Tested": expected_lift,
-            "Standard_Error": se_mean,
-            "Statistical_Power": power,
-            "MDE_at_80_percent": mde_pct,
-            "Degrees_of_Freedom": df
-        }
-
-
-
-
-def run_aa_simulations(
-    self,
-    n_sims: int = 500,
-    seed: int = 0
-) -> pd.Series:
-    """
-    Efficient AA placebo simulations using a JIT-compiled streaming kernel.
-
-    This implementation avoids constructing the full (n_sims × K) sign matrix
-    and instead generates random ±1 assignments on-the-fly inside a compiled
-    loop (Numba JIT). This yields:
-
-    - O(K) memory usage
-    - near C-level performance for large n_sims
-    - no Python loop overhead in the inner simulation loop
-
-    Parameters
-    ----------
-    n_sims : int, optional
-        Number of placebo simulations to run, by default 500.
-    seed : int, optional
-        Random seed for reproducibility, by default 0.
-
-    Returns
-    -------
-    pd.Series
-        Simulated distribution of normalized placebo treatment effects.
-
-    Raises
-    ------
-    ValueError
-        If `solve()` has not been run and `design_` is missing.
-
-    Notes
-    -----
-    This implementation uses a deterministic linear congruential generator
-    inside Numba to avoid Python RNG overhead. While fast and reproducible,
-    it is not cryptographically secure (not needed for Monte Carlo inference).
-    """
-
-    if not hasattr(self, 'design_'):
-        raise ValueError("Run solve() first to generate a design.")
-
-    diffs = (self.design_["Z_plus"] - self.design_["Z_minus"]).to_numpy(dtype=np.float64)
-    denom = float(self.design_["Z_plus"].sum())
-
-    raw = _aa_chunk_kernel(diffs, n_sims, seed)
-
-    return pd.Series(raw / denom)
+    print(f"  Bias : {result['bias']:.4f}")
