@@ -1,5 +1,5 @@
 """
-supergeo_solver.py
+Supergeo_solver.py
 ==================
 Supergeo Design: Generalized Matching for Geographic Experiments
 
@@ -10,7 +10,7 @@ Every design decision in this module traces directly to a section of the
 paper.  Cross-references are written inline as [§N] or [Eq. N].
 
 Extension: demeaned-R² score
------------------------------
+----------------------------
 The paper collapses the pre-period panel to a scalar Z_g = Σ_t Y0[t,g] and
 matches on that.  For panel data with many pre-periods this discards all
 temporal structure and cannot distinguish two geos with the same total but
@@ -133,9 +133,9 @@ def _aa_kernel(diffs: np.ndarray, n_sims: int, seed: int) -> np.ndarray:
 
     Parameters
     ----------
-    diffs  : (K,) float64   Z_{G_k+} − Z_{G_k−} for each pair k
+    diffs : (K,) float64   Z_{G_k+} − Z_{G_k−} for each pair k
     n_sims : int            Number of Monte Carlo draws
-    seed   : int            Non-zero seed for the xorshift64 state
+    seed : int            Non-zero seed for the xorshift64 state
 
     Returns
     -------
@@ -168,6 +168,15 @@ def _r2_demeaned(ts_plus: np.ndarray, ts_minus: np.ndarray) -> float:
     """
     1 − R² between two aggregated time series after removing level differences.
 
+    Parameters
+    ----------
+    ts_plus : (T,) float64   Aggregated treatment-side time series
+    ts_minus : (T,) float64   Aggregated control-side time series
+
+    Returns
+    -------
+    float   1 − R²  (lower is better)
+
     Motivation
     ----------
     The paper's score (Z_{G+} − Z_{G−})² compares scalar totals.  For a
@@ -192,15 +201,6 @@ def _r2_demeaned(ts_plus: np.ndarray, ts_minus: np.ndarray) -> float:
     Score ∈ [0, 1]:
         0  →  perfect co-movement (parallel trends, ideal pair)
         1  →  orthogonal deviations (worst possible pair)
-
-    Parameters
-    ----------
-    ts_plus  : (T,) float64   Aggregated treatment-side time series
-    ts_minus : (T,) float64   Aggregated control-side time series
-
-    Returns
-    -------
-    float   1 − R²  (lower is better)
     """
     tp = ts_plus  - ts_plus.mean()
     tc = ts_minus - ts_minus.mean()
@@ -243,6 +243,18 @@ def _score_and_split(
     The bipartition minimising the score is returned.  Score ∈ [0, 1],
     with 0 meaning perfect parallel trends.
 
+    Parameters
+    ----------
+    indices : tuple[int]      Geo indices forming the candidate group G
+    Y0 : (T, N) float64  Full pre-period panel
+    rng : Generator       For the random orientation step only
+
+    Returns
+    -------
+    score : float           Best (lowest) 1 − R² across all bipartitions
+    g_plus : list[int]       Treatment-side geo indices
+    g_minus : list[int]       Control-side geo indices
+
     Symmetry reduction
     ------------------
     _r2_demeaned(ts+, ts−) = _r2_demeaned(ts−, ts+) because the regression
@@ -256,18 +268,6 @@ def _score_and_split(
     After finding the optimal bipartition, plus/minus labels are assigned by
     an unbiased coin flip, so neither side is systematically favoured across
     the candidate pool.
-
-    Parameters
-    ----------
-    indices : tuple[int]      Geo indices forming the candidate group G
-    Y0      : (T, N) float64  Full pre-period panel
-    rng     : Generator       For the random orientation step only
-
-    Returns
-    -------
-    score   : float           Best (lowest) 1 − R² across all bipartitions
-    g_plus  : list[int]       Treatment-side geo indices
-    g_minus : list[int]       Control-side geo indices
     """
     idx    = list(indices)
     n      = len(idx)
@@ -478,6 +478,25 @@ def _candidates_cluster(
     Cluster heuristic: partition geos by time-series trajectory, then
     generate candidates within each cluster.
 
+    Parameters
+    ----------
+    n : int     Number of geos
+    Y0 : (T, N)  Pre-period panel
+    min_size : int     Minimum supergeo pair size
+    max_size : int     Maximum supergeo pair size
+    n_clusters : int     Base number of clusters k₀
+    n_runs : int     Number of perturbed KMeans runs
+    noise_scale : float   Std of Gaussian perturbation added to PCA scores
+                          before each KMeans run.  0.05 is a reasonable
+                          default — large enough to diversify clusterings,
+                          small enough to preserve trajectory structure.
+    rng : Generator
+
+    Returns
+    -------
+    list[dict]   Deduplicated candidates, each with keys:
+                     "indices", "score", "split"
+
     Motivation
     ----------
     Random partitioning (the paper's partition heuristic) is agnostic to
@@ -504,25 +523,6 @@ def _candidates_cluster(
     The perturbation + jitter strategy mirrors the submitted code's approach
     but is integrated into the existing `_make_candidate` pipeline so the
     score and split are always the demeaned-R² values, not a placeholder.
-
-    Parameters
-    ----------
-    n           : int     Number of geos
-    Y0          : (T, N)  Pre-period panel
-    min_size    : int     Minimum supergeo pair size
-    max_size    : int     Maximum supergeo pair size
-    n_clusters  : int     Base number of clusters k₀
-    n_runs      : int     Number of perturbed KMeans runs
-    noise_scale : float   Std of Gaussian perturbation added to PCA scores
-                          before each KMeans run.  0.05 is a reasonable
-                          default — large enough to diversify clusterings,
-                          small enough to preserve trajectory structure.
-    rng         : Generator
-
-    Returns
-    -------
-    list[dict]   Deduplicated candidates, each with keys:
-                     "indices", "score", "split"
     """
     features = _time_series_features(Y0)   # (N, K)
 
@@ -623,10 +623,10 @@ def mde(
     Parameters
     ----------
     total_loss : float   design["Score"].sum()
-    budget     : float   Total incremental spend B [Assumption 2]
-    n_pairs    : int     Number of supergeo pairs K
-    alpha      : float   Two-sided significance level
-    power      : float   Target power 1 − β
+    budget : float   Total incremental spend B [Assumption 2]
+    n_pairs : int     Number of supergeo pairs K
+    alpha : float   Two-sided significance level
+    power : float   Target power 1 − β
 
     Returns
     -------
@@ -651,11 +651,11 @@ def power_at_effect(
 
     Parameters
     ----------
-    delta      : float   True iROAS deviation from null
+    delta : float   True iROAS deviation from null
     total_loss : float
-    budget     : float
-    n_pairs    : int
-    alpha      : float   Two-sided significance level
+    budget : float
+    n_pairs : int
+    alpha : float   Two-sided significance level
 
     Returns
     -------
@@ -683,11 +683,11 @@ def power_curve(
 
     Parameters
     ----------
-    deltas     : (D,) array-like   Effect sizes to evaluate
+    deltas : (D,) array-like   Effect sizes to evaluate
     total_loss : float
-    budget     : float
-    n_pairs    : int
-    alpha      : float
+    budget : float
+    n_pairs : int
+    alpha : float
 
     Returns
     -------
@@ -725,16 +725,6 @@ class SupergeoSolver:
     a score of 1 means orthogonal deviations.  Minimising total loss
     constructs the design most consistent with parallel trends.
 
-    Typical workflow
-    ----------------
-    >>> solver = SupergeoSolver(unit_names, Y0, min_size=2, max_size=4,
-    ...                         kappa=5, seed=42)
-    >>> solver.generate_candidates("per_geo", beta=30, alpha=0.10)
-    >>> design = solver.solve(budget=1e6)
-    >>> solver.summary()
-    >>> print(solver.mde())
-    >>> aa = solver.run_aa_test(n_sims=10_000)
-
     Parameters
     ----------
     unit_names : list[str]
@@ -754,6 +744,16 @@ class SupergeoSolver:
     seed : int
         Master RNG seed.  Controls split orientation randomisation and all
         heuristic randomness.  Fix for reproducibility.
+
+    Typical workflow
+    ----------------
+    >>> solver = SupergeoSolver(unit_names, Y0, min_size=2, max_size=4,
+    ...                         kappa=5, seed=42)
+    >>> solver.generate_candidates("per_geo", beta=30, alpha=0.10)
+    >>> design = solver.solve(budget=1e6)
+    >>> solver.summary()
+    >>> print(solver.mde())
+    >>> aa = solver.run_aa_test(n_sims=10_000)
     """
 
     def __init__(
@@ -905,6 +905,23 @@ class SupergeoSolver:
         """
         Solve the covering MIP and store/return the supergeo design.
 
+        Parameters
+        ----------
+        solver : str
+            CVXPY solver constant supporting MIP.  Default cp.CBC (always
+            available).  Use cp.SCIP for better performance if installed.
+        budget : float or None
+            Total incremental spend B [Assumption 2].  Required for power
+            analysis; may also be supplied later via self._budget.
+
+        Returns
+        -------
+        pd.DataFrame (also stored as self.design_) with columns:
+            Pair_ID    int
+            Treatment  list[str]   geo names on the treatment side
+            Control    list[str]   geo names on the control side
+            Score      float       (Z_{G+} − Z_{G−})² for this pair
+
         MIP formulation [§3.2]
         ----------------------
         Variables : x ∈ {0,1}^M        (M = number of candidates)
@@ -927,23 +944,6 @@ class SupergeoSolver:
                                 warrants investigation before committing the
                                 design to a live experiment.
         Anything else         — raises RuntimeError.
-
-        Parameters
-        ----------
-        solver : str
-            CVXPY solver constant supporting MIP.  Default cp.CBC (always
-            available).  Use cp.SCIP for better performance if installed.
-        budget : float or None
-            Total incremental spend B [Assumption 2].  Required for power
-            analysis; may also be supplied later via self._budget.
-
-        Returns
-        -------
-        pd.DataFrame (also stored as self.design_) with columns:
-            Pair_ID    int
-            Treatment  list[str]   geo names on the treatment side
-            Control    list[str]   geo names on the control side
-            Score      float       (Z_{G+} − Z_{G−})² for this pair
         """
         if not self.candidates:
             raise RuntimeError("Call generate_candidates() before solve().")
@@ -1078,8 +1078,8 @@ class SupergeoSolver:
         Parameters
         ----------
         n_sims : int    Monte Carlo draws
-        alpha  : float  Two-sided significance level
-        seed   : int    Kernel RNG seed (independent of the solver RNG)
+        alpha : float  Two-sided significance level
+        seed : int    Kernel RNG seed (independent of the solver RNG)
 
         Returns
         -------
@@ -1148,8 +1148,8 @@ class SupergeoSolver:
         Parameters
         ----------
         budget : float or None   B (can also be supplied to solve())
-        alpha  : float           Two-sided significance level
-        power  : float           Target power 1 − β
+        alpha : float           Two-sided significance level
+        power : float           Target power 1 − β
 
         Returns
         -------
@@ -1176,9 +1176,9 @@ class SupergeoSolver:
 
         Parameters
         ----------
-        delta  : float   True iROAS deviation from null
+        delta : float   True iROAS deviation from null
         budget : float   B
-        alpha  : float   Two-sided significance level
+        alpha : float   Two-sided significance level
 
         Returns
         -------
@@ -1210,7 +1210,7 @@ class SupergeoSolver:
         ----------
         deltas : array-like   Effect sizes to evaluate
         budget : float        B
-        alpha  : float        Two-sided significance level
+        alpha : float        Two-sided significance level
 
         Returns
         -------
@@ -1259,14 +1259,14 @@ def empirical_estimator(
 
     Parameters
     ----------
-    design     : pd.DataFrame   Output of SupergeoSolver.solve()
+    design : pd.DataFrame   Output of SupergeoSolver.solve()
     unit_names : list[str]      Geo labels in the same order as Y0 columns
-    R_test     : (N,) array     Test-phase response per geo (no treatment)
-    S_test     : (N,) array     Test-phase spend per geo
+    R_test : (N,) array     Test-phase response per geo (no treatment)
+    S_test : (N,) array     Test-phase spend per geo
     theta_true : float          Injected iROAS (ground truth)
-    r_spend    : float          Heavy-up fraction r [Assumption 4]
-    n_iter     : int            Monte Carlo iterations
-    rng        : Generator      Defaults to seed 0
+    r_spend : float          Heavy-up fraction r [Assumption 4]
+    n_iter : int            Monte Carlo iterations
+    rng : Generator      Defaults to seed 0
 
     Returns
     -------
