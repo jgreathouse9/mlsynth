@@ -395,7 +395,7 @@ def _candidates_per_geo(
 
     Duplicates across pools are removed by frozenset-key deduplication.
     """
-    Z_agg  = Y0.sum(axis=0)                          # (N,) — used for ranking only
+    Z_agg  = Y0.mean(axis=0)                          # (N,) — used for ranking only
     order  = np.argsort(-Z_agg)
     large_geos = set(order[:beta].tolist())
     small_geos = [g for g in range(n) if g not in large_geos]
