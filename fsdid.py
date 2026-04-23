@@ -1476,7 +1476,7 @@ if __name__ == "__main__":
 
     # --- Half-synthetic evaluation ---
     print("\nHalf-synthetic evaluation (5 000 iterations)...")
-    R_test = Y0.sum(axis=0)
+    R_test = Y0.mean(axis=0)
     S_test = rng.uniform(0.1, 1.0, size=N)
     result = empirical_estimator(
         design=design,
