@@ -59,7 +59,7 @@ def solve_qp_simplex(Q: np.ndarray, max_iter: int = 200, lr: float = 0.01) -> np
 
 def get_gershgorin_bound(Q: np.ndarray) -> float:
     """
-    Computes a guaranteed lower bound on the smallest eigenvalue 
+    Computes a guaranteed lower bound on the smallest eigenvalue
     multiplied by ||w||^2 min (1/k) to bound the quadratic form.
     """
     k = Q.shape[0]
@@ -113,7 +113,7 @@ def expand_tuple(
     current_cost: float = 0.0
 ):
     """
-    Admissible Branch and Bound using Lagrangian relaxation and 
+    Admissible Branch and Bound using Lagrangian relaxation and
     Gershgorin eigenvalue bounds.
     """
     stats["nodes_visited"] += 1
