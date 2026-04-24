@@ -12,15 +12,7 @@ trajectory-homogeneous groups.
 
 References
 ----------
-Ieva, F., Paganoni, A. M., Pigoli, D., & Vitelli, V. (2013).
-    Multivariate functional clustering for the morphological analysis of
-    electrocardiograph curves.  Journal of the Royal Statistical Society:
-    Series C, 62(3), 401–418.
-
-Chiou, J.-M., & Li, P.-L. (2007).
-    Functional clustering and identifying substructures of longitudinal
-    data.  Journal of the Royal Statistical Society: Series B, 69(4),
-    679–699.
+https://arxiv.org/abs/1311.0463
 
 Primary public interface
 ------------------------
