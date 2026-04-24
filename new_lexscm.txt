@@ -1,0 +1,1510 @@
+## bb helpers
+
+
+
+import cvxpy as cp
+import numpy as np
+from typing import List, Tuple, Dict, Optional, Any
+from dataclasses import dataclass, field
+from math import comb
+
+
+@dataclass(order=True)
+class Solution:
+    """
+    Container for a candidate solution in the branch-and-bound search.
+    """
+
+    # --- required core fields ---
+    loss: float
+
+    indices: List[int] = field(compare=False)
+    weights: np.ndarray = field(compare=False)
+
+    # --- optional derived identity ---
+    labels: Optional[List[Any]] = field(default=None, compare=False)
+
+    # --- optional expanded representations ---
+    full_weights: Optional[np.ndarray] = field(default=None, compare=False)
+    weight_dict: Optional[Dict[Any, float]] = field(default=None, compare=False)
+
+    # --- metadata ---
+    cost: float = 0.0
+    label: Optional[str] = field(default=None, compare=False)
+
+
+
+
+def expand_weights_to_full(indices, weights, total_units):
+    """
+    Expand a subset weight vector into a full-length vector.
+
+    Parameters
+    ----------
+    indices : list of int
+        Indices of selected units.
+    weights : np.ndarray, shape (k,)
+        Weights corresponding to `indices`.
+    total_units : int
+        Total number of units in the full problem.
+
+    Returns
+    -------
+    w_full : np.ndarray, shape (total_units,)
+        Weight vector with zeros for non-selected units and
+        `weights` placed at `indices`.
+
+    Notes
+    -----
+    - Useful for mapping subset solutions back to the full unit space.
+    """
+    w_full = np.zeros(total_units)
+    w_full[indices] = weights
+    return w_full
+
+
+
+
+def compute_search_space_size(M: int, m: int):
+    """
+    Compute the size of the combinatorial search space.
+
+    Parameters
+    ----------
+    M : int
+        Total number of candidate units.
+    m : int
+        Subset size (number of units to select).
+
+    Returns
+    -------
+    total_subsets : int
+        Number of size-m subsets (C(M, m)).
+    total_nodes : int
+        Total number of nodes in the search tree (sum_{k=1}^m C(M, k)).
+
+    Notes
+    -----
+    - `total_nodes` corresponds to the full branch-and-bound tree size
+      without pruning.
+    """
+    total_subsets = comb(M, m)
+    total_nodes = sum(comb(M, k) for k in range(1, m + 1))
+    return total_subsets, total_nodes
+
+def compute_seed_tuples(
+    G: np.ndarray,
+    candidate_idx: np.ndarray,
+    top_P: int
+) -> List[Tuple[float, List[int], np.ndarray]]:
+    """
+    Generate initial 1-unit seed tuples for branch-and-bound optimization.
+
+    Parameters
+    ----------
+    G : np.ndarray, shape (N, N)
+        Symmetric loss matrix (e.g., covariance or Gram matrix) used for computing diagonal losses.
+    candidate_idx : np.ndarray, shape (M,)
+        Indices of candidate units to consider.
+    top_P : int
+        Number of top 1-unit seeds to retain.
+
+    Returns
+    -------
+    seeds : list of tuples
+        List of length <= top_P, each tuple contains:
+        - total_loss : float
+            Diagonal loss of the single unit (G[i, i]).
+        - indices : list of int
+            List containing the single unit index.
+        - weights : np.ndarray, shape (1,)
+            Weight vector (always [1.0] for 1-unit seeds).
+
+    Notes
+    -----
+    - Seeds are sorted by increasing diagonal loss.
+    - Used as the initial candidates for branch-and-bound expansion.
+    """
+    unit_losses = []
+
+    for i in candidate_idx:
+        w = np.array([1.0])
+        loss = float(G[i, i])
+        unit_losses.append((loss, [i], w))
+
+    unit_losses.sort(key=lambda x: x[0])
+    return unit_losses[:top_P]
+
+def project_to_simplex(v: np.ndarray, eps: float = 1e-10) -> np.ndarray:
+    """
+    Project a vector onto the probability simplex.
+
+    Parameters
+    ----------
+    v : np.ndarray, shape (n,)
+        Input vector.
+    eps : float, optional
+        Numerical tolerance (unused but retained for API stability).
+
+    Returns
+    -------
+    w : np.ndarray, shape (n,)
+        Projection of `v` onto the simplex:
+        w_i >= 0 and sum(w) = 1.
+
+    Notes
+    -----
+    - Implements the method of Duchi et al. (2008).
+    - Runs in O(n log n) due to sorting.
+    """
+    u = np.sort(v)[::-1]
+    cssv = np.cumsum(u)
+    rho = np.nonzero(u * np.arange(1, len(v) + 1) > (cssv - 1))[0][-1]
+    theta = (cssv[rho] - 1) / (rho + 1)
+    return np.maximum(v - theta, 0)
+
+
+def solve_qp_simplex(Q: np.ndarray, max_iter: int = 200, lr: float = 0.01) -> np.ndarray:
+    """
+    Approximately solve a quadratic program over the simplex.
+
+    Minimizes:
+        w^T Q w
+    subject to:
+        w >= 0, sum(w) = 1
+
+    Parameters
+    ----------
+    Q : np.ndarray, shape (k, k)
+        Symmetric positive semi-definite matrix.
+    max_iter : int, default=200
+        Number of projected gradient steps.
+    lr : float, default=0.01
+        Learning rate.
+
+    Returns
+    -------
+    w : np.ndarray, shape (k,)
+        Approximate minimizer on the simplex.
+
+    Notes
+    -----
+    - Uses projected gradient descent with simplex projection.
+    - Convergence is heuristic; not guaranteed to reach the global optimum.
+    - Suitable for small k (subset sizes).
+    """
+    m = Q.shape[0]
+    w = np.ones(m) / m
+    for _ in range(max_iter):
+        grad = 2 * Q @ w
+        w -= lr * grad
+        w = project_to_simplex(w)
+    return w
+
+
+# ----------------------------
+# Lower Bound (with shortcuts)
+# ----------------------------
+
+def pairwise_lower_bound(Q):
+    """
+    Compute a lower bound using all pairwise 2-element subsets.
+
+    Parameters
+    ----------
+    Q : np.ndarray, shape (k, k)
+        Quadratic matrix.
+
+    Returns
+    -------
+    best : float
+        Minimum achievable objective over all pairs.
+
+    Notes
+    -----
+    - Evaluates the exact 2-element solution for each pair.
+    - Useful as a tighter bound than diagonal-only approximations.
+    - O(k^2) complexity.
+    """
+    k = Q.shape[0]
+    best = np.inf
+
+    for i in range(k):
+        for j in range(i + 1, k):
+            a, b = Q[i, i], Q[j, j]
+            c = Q[i, j]
+            denom = a + b - 2 * c
+            w = 0.5 if denom <= 1e-10 else np.clip((b - c) / denom, 0.0, 1.0)
+            val = w*w*a + (1-w)*(1-w)*b + 2*w*(1-w)*c
+            best = min(best, val)
+
+    return best
+
+
+
+
+def compute_lower_bound(Q: np.ndarray) -> float:
+    """
+    Compute a fast lower bound on the quadratic objective over the simplex.
+
+    Parameters
+    ----------
+    Q : np.ndarray, shape (k, k)
+        Quadratic matrix.
+
+    Returns
+    -------
+    lb : float
+        Lower bound on min_w w^T Q w.
+
+    Notes
+    -----
+    - Exact for k = 1 and k = 2.
+    - For k >= 3:
+        * Uses smallest diagonal entries as a baseline.
+        * Adds a heuristic correction based on negative interactions.
+    - Designed for speed rather than tightness.
+    """
+    k = Q.shape[0]
+
+    if k == 1:
+        return float(Q[0, 0])
+
+    if k == 2:
+        a, b = Q[0, 0], Q[1, 1]
+        c = Q[0, 1]
+        denom = a + b - 2 * c
+        w = 0.5 if denom <= 1e-10 else np.clip((b - c) / denom, 0.0, 1.0)
+        return float(w*w*a + (1-w)*(1-w)*b + 2*w*(1-w)*c)
+
+    # Strong, fast bound for k >= 3
+    diag = np.diag(Q)
+    sorted_diag = np.sort(diag)
+    lb = float(np.sum(sorted_diag[:k]))
+
+    # Add a controlled interaction term
+    if k >= 3:
+        smallest_idx = np.argsort(diag)[:k]
+        subQ = Q[np.ix_(smallest_idx, smallest_idx)]
+        off_diag = subQ - np.diag(np.diag(subQ))
+        min_off_diag = float(np.min(off_diag))
+        if min_off_diag < -1e-8:
+            lb += min_off_diag * (k * (k-1) / 2) * 0.55   # tuned coefficient
+
+    return lb
+
+
+
+def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
+    """
+    Construct an initial feasible solution using the first m candidates.
+
+    Parameters
+    ----------
+    G : np.ndarray, shape (N, N)
+        Global quadratic (Gram) matrix.
+    candidate_idx : np.ndarray
+        Candidate unit indices (assumed pre-ordered).
+    m : int
+        Subset size.
+
+    Returns
+    -------
+    loss : float
+        Objective value of the solution.
+    selected : list of int
+        Selected indices.
+    w : np.ndarray, shape (m,)
+        Optimal weights for the selected subset.
+
+    Notes
+    -----
+    - Assumes `candidate_idx` is sorted (e.g., by diagonal values).
+    - Provides a baseline solution for pruning.
+    """
+    selected = list(candidate_idx[:m])
+    Q = G[np.ix_(selected, selected)]
+    w = solve_qp_simplex(Q)
+    loss = float(w @ Q @ w)
+    return loss, selected, w
+
+
+
+
+def expand_tuple(
+    G: np.ndarray,
+    candidate_idx: np.ndarray,
+    m: int,
+    top_K: int,
+    top_tuples: List,
+    indices: List[int],
+    stats: Dict,
+    start_pos: int,
+    Q_partial: np.ndarray,
+    unit_costs: Optional[np.ndarray] = None,
+    budget: Optional[float] = None,
+    current_cost: float = 0.0
+):
+
+    """
+    Recursively expand a partial subset within a branch-and-bound search.
+
+    Parameters
+    ----------
+    G : np.ndarray, shape (N, N)
+        Global quadratic matrix.
+    candidate_idx : np.ndarray
+        Ordered candidate indices.
+    m : int
+        Target subset size.
+    top_K : int
+        Number of best solutions to retain.
+    top_tuples : list of Solution
+        Current list of best solutions (sorted by loss).
+    indices : list of int
+        Current partial subset.
+    stats : dict
+        Mutable dictionary tracking search statistics.
+    start_pos : int
+        Position in `candidate_idx` from which to continue expansion.
+    Q_partial : np.ndarray, shape (k, k)
+        Quadratic matrix restricted to `indices`.
+
+    Notes
+    -----
+    - Performs depth-first search with pruning.
+    - At each step:
+        1. Expands subset by adding one candidate.
+        2. Updates Q incrementally (no recomputation).
+        3. Computes a lower bound via approximate QP solve.
+        4. Prunes if bound is worse than current top-K worst solution.
+    - Leaf nodes (|indices| == m) are evaluated exactly.
+    - `start_pos` ensures combinations (not permutations).
+    - Stats tracked:
+        * nodes_visited
+        * subsets_evaluated
+        * branches_considered
+        * branches_pruned
+    """
+
+    stats["nodes_visited"] += 1
+
+    # ====================== EARLY BUDGET PRUNING ======================
+    if budget is not None and unit_costs is not None:
+        if current_cost > budget + 1e-6:
+            stats["branches_pruned"] += 1
+            return
+
+        remaining_slots = m - len(indices)
+        if remaining_slots > 0:
+            remaining_costs = unit_costs[candidate_idx[start_pos:]]
+            if len(remaining_costs) >= remaining_slots:
+                cheapest_remaining = np.sort(remaining_costs)[:remaining_slots].sum()
+                if current_cost + cheapest_remaining > budget + 1e-6:
+                    stats["branches_pruned"] += 1
+                    return
+    # =================================================================
+
+    # Leaf node
+    if len(indices) == m:
+        stats["subsets_evaluated"] += 1
+
+        Q = Q_partial
+        w = solve_qp_simplex(Q)
+        total_loss = float(w @ Q @ w)
+
+        # Final safety check
+        if budget is not None and unit_costs is not None:
+            subset_cost = np.dot(unit_costs[indices], w)
+            if subset_cost > budget + 1e-6:
+                return  # discard over-budget solution
+
+        top_tuples.append(Solution(total_loss, indices[:], w))
+        top_tuples.sort(key=lambda s: s.loss)
+        if len(top_tuples) > top_K:
+            top_tuples.pop()
+        return
+
+    # Branching
+    for j_idx in range(start_pos, len(candidate_idx)):
+        j = candidate_idx[j_idx]
+        j_cost = float(unit_costs[j]) if unit_costs is not None else 0.0
+
+        stats["branches_considered"] += 1
+
+        # ---- incremental Q ----
+        k = Q_partial.shape[0]
+
+        Q_new = np.empty((k + 1, k + 1))
+        Q_new[:k, :k] = Q_partial
+
+        g = G[j, indices]  # vectorized
+
+        Q_new[k, :k] = g
+        Q_new[:k, k] = g
+        Q_new[k, k] = G[j, j]
+
+        # ---- bound ----
+        w = solve_qp_simplex(Q_new, max_iter=500)  # fewer iters
+        lb = float(w @ Q_new @ w)
+
+        if len(top_tuples) >= top_K and lb >= top_tuples[-1].loss * 0.999:
+            stats["branches_pruned"] += 1
+            continue
+
+        # ---- recurse (CORRECT — no reset!) ----
+        expand_tuple(
+            G,
+            candidate_idx,
+            m,
+            top_K,
+            top_tuples,
+            indices + [j],
+            stats,
+            start_pos=j_idx + 1,
+            Q_partial=Q_new,
+            # NEW
+            unit_costs=unit_costs,
+            budget=budget,
+            current_cost=current_cost + j_cost
+        )
+
+
+
+
+
+## bb
+
+
+import numpy as np
+from typing import List, Optional
+from .fast_scm_setup import IndexSet
+from .fast_scm_bb_helpers import (
+    compute_search_space_size,
+    expand_tuple,
+    greedy_initial_solution,
+    expand_weights_to_full,
+    Solution
+)
+
+import time
+
+
+def branch_and_bound_topK(
+    G: np.ndarray,
+    candidate_idx: np.ndarray,
+    m: int = 5,
+    top_K: int = 20,
+    top_P: int = 10,
+    total_units: int = None,
+    unit_index: Optional[IndexSet] = None,   # 👈 ADD THIS
+    unit_costs: Optional[np.ndarray] = None,
+    budget: Optional[float] = None
+):
+    start_time = time.time()
+
+    if len(candidate_idx) < m:
+        raise ValueError(f"Not enough candidate units: {len(candidate_idx)} < m={m}")
+
+    # --- heuristic ordering ---
+    diag_vals = np.diag(G)
+    candidate_idx = candidate_idx[np.argsort(diag_vals[candidate_idx])]
+
+    top_tuples = []
+
+    M = len(candidate_idx)
+    total_subsets, total_nodes = compute_search_space_size(M, m)
+
+    raw_stats = {
+        "nodes_visited": 0,
+        "subsets_evaluated": 0,
+        "branches_pruned": 0,
+        "branches_considered": 0,
+    }
+
+    # --- greedy baseline ---
+    init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
+    top_tuples.append(Solution(init_loss, init_idx, init_w))
+
+    M = len(candidate_idx)
+
+    num_seeds = min(M, max(1, 4 * m))
+
+    seed_set = candidate_idx[:num_seeds]  # safe slice, invariant to M
+
+    for j in seed_set:
+        Q0 = np.array([[G[j, j]]])
+
+        j_pos = np.where(candidate_idx == j)[0][0]
+
+        expand_tuple(
+            G,
+            candidate_idx,
+            m,
+            top_K,
+            top_tuples,
+            indices=[j],
+            stats=raw_stats,
+            start_pos=j_pos + 1,
+            Q_partial=Q0,
+            unit_costs=unit_costs,
+            budget=budget,
+            current_cost=(unit_costs[j] if unit_costs is not None else 0.0)
+        )
+
+    # =========================
+    # FINAL SOLUTIONS
+    # =========================
+    total_units = len(unit_index)
+
+    solutions = sorted(top_tuples)
+
+
+    if total_units is not None and unit_index is not None:
+        for sol in solutions:
+            # full vector (index-aligned)
+            sol.full_weights = expand_weights_to_full(
+                sol.indices,
+                sol.weights,
+                total_units
+            )
+
+            # label list
+            sol.labels = unit_index.get_labels(sol.indices).tolist()
+
+            # 🔥 NEW: dictionary form (THIS is what you want downstream)
+            sol.weight_dict = {
+                unit_index.labels[i]: float(w)
+                for i, w in zip(sol.indices, sol.weights)
+            }
+
+    # Inside branch_and_bound_topK, near the end:
+    for i, sol in enumerate(solutions, start=1):
+        sol.label = f"Tuple {i}"
+
+    # =========================
+    # DERIVED VALUES
+    # =========================
+    best_loss = solutions[0].loss
+    worst_loss = solutions[-1].loss
+    elapsed = time.time() - start_time
+
+    node_fraction = raw_stats["nodes_visited"] / total_nodes if total_nodes else 0
+    subset_fraction = raw_stats["subsets_evaluated"] / total_subsets if total_subsets else 0
+
+    prune_rate = (
+        raw_stats["branches_pruned"] / raw_stats["branches_considered"]
+        if raw_stats["branches_considered"] else 0
+    )
+
+    speedup = (
+        total_subsets / raw_stats["subsets_evaluated"]
+        if raw_stats["subsets_evaluated"] else np.inf
+    )
+
+    improvement = init_loss - best_loss
+
+    ranking_spread = worst_loss - best_loss
+
+    improvement_per_sec = improvement / elapsed if elapsed else 0
+    improvement_per_node = improvement / raw_stats["nodes_visited"] if raw_stats["nodes_visited"] else 0
+
+    bound_relative_gap = ranking_spread / best_loss if best_loss else 0
+
+    # =========================
+    # STRUCTURED STATS
+    # =========================
+    stats = {
+        "search_space": {
+            "total_subsets": total_subsets,
+            "total_nodes": total_nodes,
+        },
+
+        "exploration": {
+            "nodes_visited": raw_stats["nodes_visited"],
+            "subsets_evaluated": raw_stats["subsets_evaluated"],
+            "node_fraction_explored": node_fraction,
+            "subset_fraction_explored": subset_fraction,
+        },
+
+        "pruning": {
+            "branches_considered": raw_stats["branches_considered"],
+            "branches_pruned": raw_stats["branches_pruned"],
+            "prune_rate": prune_rate,
+            "pruned_per_node": (
+                raw_stats["branches_pruned"] / raw_stats["nodes_visited"]
+                if raw_stats["nodes_visited"] else 0
+            ),
+        },
+
+        "performance": {
+            "runtime_sec": elapsed,
+            "nodes_per_sec": (
+                raw_stats["nodes_visited"] / elapsed if elapsed else 0
+            ),
+            "speedup_factor": speedup,
+        },
+
+        "results": {
+            "best_loss": best_loss,
+            "worst_loss": worst_loss,
+            "ranking_spread": ranking_spread,
+        },
+
+        "optimality": {
+            "initial_loss": init_loss,
+            "best_loss": best_loss,
+            "improvement": improvement,
+            "improvement_pct": (
+                improvement / init_loss if init_loss else 0
+            ),
+        },
+
+        "efficiency": {
+            "loss_reduction_per_eval": (
+                improvement / raw_stats["subsets_evaluated"]
+                if raw_stats["subsets_evaluated"] else 0
+            ),
+            "improvement_per_sec": improvement_per_sec,
+            "improvement_per_node": improvement_per_node,
+        },
+
+        "bound_quality": {
+            "relative_gap": bound_relative_gap
+        },
+
+        "branching": {
+            "avg_branching_factor": (
+                raw_stats["branches_considered"] / raw_stats["nodes_visited"]
+                if raw_stats["nodes_visited"] else 0
+            )
+        }
+    }
+
+
+    return {
+        "top_tuples": solutions,
+        "stats": stats
+    }
+
+
+
+## setup
+
+
+
+from dataclasses import dataclass, asdict
+from typing import Any
+import numpy as np
+from typing import Optional, Tuple, Dict, List
+import pandas as pd
+from typing import Any, Dict, Iterable
+
+
+@dataclass(frozen=True)
+class IndexSet:
+    labels: np.ndarray
+    label_to_idx: Dict[Any, int]
+
+    @classmethod
+    def from_labels(cls, labels: Iterable[Any]) -> "IndexSet":
+        labels = np.asarray(list(labels))
+        return cls(
+            labels=labels,
+            label_to_idx={label: i for i, label in enumerate(labels)}
+        )
+
+    # -----------------------------
+    # Core mapping utilities
+    # -----------------------------
+    def get_labels(self, indices):
+        return self.labels[np.asarray(indices)]
+
+    def get_index(self, labels):
+        return np.array([self.label_to_idx[l] for l in labels])
+
+    # -----------------------------
+    # Python / NumPy interoperability
+    # -----------------------------
+    def __len__(self):
+        return len(self.labels)
+
+    def __iter__(self):
+        return iter(self.labels)
+
+    def __array__(self):
+        return self.labels
+
+    def __repr__(self):
+        return f"IndexSet(n={len(self.labels)})"
+
+def _prepare_working_df(
+    df: pd.DataFrame, 
+    post_col: Optional[str]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Split the input DataFrame into pre- and post-treatment subsets.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataset. Assumed to be pre-validated.
+    post_col : str or None
+        Column indicating post-treatment status (0 = pre, nonzero = post).
+        If None, the entire dataset is treated as pre-treatment.
+
+    Returns
+    -------
+    pre_df : pd.DataFrame
+        Subset of rows corresponding to the pre-treatment period.
+    post_df : pd.DataFrame
+        Subset of rows corresponding to the post-treatment period.
+        Empty if `post_col` is None.
+
+    Raises
+    ------
+    MlsynthDataError
+        If `post_col` is provided but no pre-treatment rows are found.
+
+    Notes
+    -----
+    - This function assumes prior validation (column existence, types, etc.).
+    - Copies are returned to avoid mutating the original DataFrame.
+    - Prints a summary of the split for transparency/debugging.
+    """
+    if post_col is not None:
+        pre_mask = df[post_col] == 0
+        pre_df = df[pre_mask].copy()
+        post_df = df[~pre_mask].copy()
+
+        if len(pre_df) == 0:
+            raise MlsynthDataError("No pre-period data found using post_col.")
+
+        print(f"Using post_col='{post_col}': "
+              f"{len(pre_df):,} pre rows | {len(post_df):,} post rows")
+    else:
+        pre_df = df.copy()
+        post_df = pd.DataFrame()
+        print("No post_col provided → treating entire dataset as pre-treatment (design mode).")
+
+    return pre_df, post_df
+
+
+
+# In mlsynth/utils/fast_scm_setup.py  (or wherever your helpers live)
+def build_candidate_mask(working_df, candidate_col, unit_index, unitid):
+    return (
+        working_df.groupby(unitid)[candidate_col]
+        .first()
+        .reindex(unit_index)
+        .fillna(False)
+        .astype(bool)
+        .values
+    )
+
+
+
+def build_Y_matrix(working_df, outcome, time, unitid, unit_index):
+    Y_wide = (
+        working_df.pivot(index=time, columns=unitid, values=outcome)
+        .reindex(columns=unit_index)
+    )
+    return Y_wide.to_numpy(dtype=float)
+
+
+
+def build_Z_matrix(working_df, covariates, time, unitid, unit_index):
+    if not covariates:
+        return None
+
+    covariate_list = []
+    for col in covariates:
+        cov_wide = (
+            working_df.pivot(index=time, columns=unitid, values=col)
+            .reindex(columns=unit_index)
+        )
+        covariate_list.append(cov_wide.to_numpy(dtype=float))
+
+    return np.vstack(covariate_list)
+
+
+def build_f_vector(working_df, weight_col, unitid, unit_index):
+    J = len(unit_index)
+
+    if weight_col is not None:
+        weights = (
+            working_df.groupby(unitid)[weight_col]
+            .first()
+            .reindex(unit_index)
+            .to_numpy(dtype=float)
+        )
+        return weights / weights.sum()
+    else:
+        return np.full(J, 1.0 / J)
+
+
+
+
+
+def prepare_experiment_inputs(
+    Y: np.ndarray,
+    Z: Optional[np.ndarray] = None,
+    f: Optional[np.ndarray] = None,
+    candidate_mask: Optional[np.ndarray] = None,
+    m: int = 5
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
+    """
+    Combine inputs into a unified feature matrix and aligned selection structures.
+
+    Parameters
+    ----------
+    Y : np.ndarray, shape (T, J)
+        Outcome matrix.
+    Z : np.ndarray, optional
+        Covariate matrix. If provided, concatenated with Y along columns.
+    f : np.ndarray, optional
+        Weight vector of length N. Defaults to uniform weights if None.
+    candidate_mask : np.ndarray of bool, optional
+        Boolean mask indicating candidate columns. If shorter than N, it will
+        be extended with False values. If None, defaults to selecting only Y columns.
+    m : int, default=5
+        Minimum required number of candidate units.
+
+    Returns
+    -------
+    X : np.ndarray, shape (T, N)
+        Combined feature matrix (Y and optionally Z).
+    f : np.ndarray, shape (N,)
+        Weight vector aligned with X.
+    candidate_idx : np.ndarray
+        Indices of candidate columns in X.
+    T : int
+        Number of time periods.
+    N : int
+        Total number of columns in X.
+
+    Raises
+    ------
+    ValueError
+        If candidate_mask is longer than N or if fewer than `m` candidates are available.
+
+    Notes
+    -----
+    - Candidate mask is automatically extended to match the full feature dimension.
+    - By default, only outcome columns (Y) are considered candidates.
+    """
+    X = np.concatenate([Y, Z], axis=1) if Z is not None else Y.copy()
+    T, N = X.shape
+    J = Y.shape[1]
+
+    # Default weights
+    if f is None:
+        f = np.ones(N) / N
+
+    # Handle candidate_mask
+    if candidate_mask is None:
+        candidate_mask = np.zeros(N, dtype=bool)
+        candidate_mask[:J] = True  # only outcome units
+    else:
+        # Extend user-provided mask to match N
+        if len(candidate_mask) < N:
+            candidate_mask = np.concatenate([
+                candidate_mask,
+                np.zeros(N - len(candidate_mask), dtype=bool)
+            ])
+        elif len(candidate_mask) > N:
+            raise ValueError(f"user-provided candidate_mask length ({len(candidate_mask)}) > N ({N})")
+
+    candidate_idx = np.where(candidate_mask)[0]
+
+    if len(candidate_idx) < m:
+        raise ValueError(f"Not enough candidate units: {len(candidate_idx)} < m={m}")
+
+    return X, f, candidate_idx, T, N
+
+
+
+
+
+def split_periods(
+    T0: int, 
+    frac_E: float = 0.7, 
+    post_df: Optional[pd.DataFrame] = None,
+    time_col: str = "time"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Split the time series into estimation, backcast (baseline), and post-treatment periods.
+
+    Parameters
+    ----------
+    T0 : int
+        Number of pre-treatment time points.
+    T : int
+        Total number of time points in the series.
+    frac_E : float, default=0.7
+        Fraction of pre-treatment period to allocate for estimation (E). The remainder is used for
+        baseline/backcast (B).
+
+    Returns
+    -------
+    E_idx : np.ndarray, shape (int( T0*frac_E ),)
+        Indices of the estimation period (pre-treatment).
+    B_idx : np.ndarray, shape (T0 - int(T0*frac_E),)
+        Indices of the backcast/baseline period used for evaluation.
+    post_idx : np.ndarray, shape (T - T0,)
+        Indices of the post-treatment period.
+
+    Notes
+    -----
+    - E_idx and B_idx together span the pre-treatment period [0, T0).
+    - post_idx spans the post-treatment period [T0, T).
+    """
+    # 1. Calculate Pre-period splits
+    TE = int(T0 * frac_E)
+    E_idx = np.arange(TE)
+    B_idx = np.arange(TE, T0)
+
+    # 2. Determine Post-period length
+    # If post_df is provided, we count unique time periods in it.
+    # Otherwise, we assume a Design-only mode with 0 post-periods.
+    if post_df is not None and not post_df.empty:
+        n_post = post_df[time_col].nunique()
+    else:
+        n_post = 0
+
+    # 3. Create indices relative to the full Y matrix (size T0 + n_post)
+    post_idx = np.arange(T0, T0 + n_post)
+
+    return E_idx, B_idx, post_idx
+
+
+def build_X_tilde(X: np.ndarray, f: np.ndarray, idx: np.ndarray, J: int):
+    """
+    Standardize the feature matrix X over the estimation period, returning a normalized matrix
+    and its Gram matrix.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (T, N)
+        Full feature matrix including outcomes and covariates.
+    f : np.ndarray, shape (N,)
+        Weight vector (typically group means) used for centering.
+    idx : np.ndarray, shape (T_E,)
+        Indices corresponding to the estimation period.
+    J : int
+        Number of outcome columns in X (the first J columns).
+
+    Returns
+    -------
+    X_E : np.ndarray, shape (T_E, N)
+        Standardized X over the estimation period. Each row is centered by the weighted mean
+        mu = X[:, :J] @ f[:J] and scaled by per-time standard deviation across all columns.
+    G : np.ndarray, shape (N, N)
+        Gram matrix of the standardized X: G = X_E.T @ X_E.
+
+    Notes
+    -----
+    - Standardization is performed only over the estimation period rows (idx).
+    - Weighted mean is applied to the first J columns (outcome variables) only.
+    - Rows with near-zero standard deviation are scaled with sigma=1.0 to avoid division by zero.
+    - This function is fully vectorized using NumPy for efficiency.
+    """
+    X_sub = X[idx, :]
+    
+    # Weighted mean over the first J columns only (outcomes)
+    mu = X_sub[:, :J] @ f[:J].reshape(-1, 1)      # FIXED: use f[:J]
+    
+    # Per-time standard deviation (across all units)
+    sigma = np.std(X_sub, axis=1, keepdims=True)
+    sigma[sigma < 1e-8] = 1.0
+    
+    XE = (X_sub - mu) / sigma
+    G = XE.T @ XE
+    
+    return XE, G
+
+
+
+
+## main
+
+import numpy as np
+import pandas as pd
+from typing import Any, Dict, Optional, List
+
+# Configuration and Exceptions
+from ..config_models import BaseMAREXConfig, LEXSCMConfig
+from ..exceptions import MlsynthDataError, MlsynthEstimationError
+
+# Utilities - Data Handling
+from ..utils.datautils import balance, dataprep
+
+# Utilities - Fast SCM Core Setup
+from ..utils.fast_scm_helpers.fast_scm_setup import (
+    _prepare_working_df,
+    build_candidate_mask,
+    build_f_vector,
+    build_X_tilde,
+    build_Y_matrix,
+    build_Z_matrix,
+    prepare_experiment_inputs,
+    split_periods, IndexSet
+)
+
+# Utilities - Search and Evaluation
+from ..utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
+from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
+# Utilities - Power and Ranking
+from ..utils.fast_scm_helpers.power_helpers import (select_best_tuple,
+    run_mde_analysis,
+)
+
+from ..utils.fast_scm_helpers.inference import compute_post_inference, compute_conformal_ci
+
+from dataclasses import dataclass, field
+
+from ..utils.fast_scm_helpers.structure import SEDCandidate
+
+@dataclass
+class LEXSCMResults:
+    """
+    Final output container for the LEXSCM pipeline.
+
+    This object aggregates all artifacts produced across the full
+    Synthetic Experiment Design pipeline:
+
+    1. Combinatorial search (Branch-and-Bound)
+    2. Control optimization (QP synthetic control fit)
+    3. Evaluation (NMSE + residual diagnostics)
+    4. Power analysis (MDE / detectability curves)
+    5. Pareto ranking (bias–variance tradeoff)
+
+    Attributes
+    ----------
+    summary : pd.DataFrame
+        Ranked table of all evaluated candidates.
+        Includes NMSE, MDE summaries, and composite SED score.
+        Used to identify Pareto-optimal designs.
+
+    best_candidate : SEDCandidate
+        The single highest-ranked candidate according to the
+        SED scoring function (bias–power tradeoff).
+
+    all_candidates : List[SEDCandidate]
+        Full list of evaluated candidates produced by:
+            branch-and-bound → control QP → evaluation → MDE analysis.
+
+    bnb_metadata : Dict[str, Any]
+        Diagnostic statistics from the search procedure:
+        number of nodes visited, pruning rate, subset coverage,
+        and search efficiency metrics.
+
+    config : Any
+        Original configuration object used to run the estimator.
+        Stored for reproducibility and auditability.
+
+    Notes
+    -----
+    This object is intentionally immutable in design (conceptually),
+    representing the terminal state of the estimation pipeline.
+    """
+    summary: pd.DataFrame
+    best_candidate: SEDCandidate
+    all_candidates: List[SEDCandidate]
+    bnb_metadata: Dict[str, Any]
+    config: Any
+
+    # required diagnostics (no defaults)
+    n_units: int
+    n_periods: int
+    n_fit_periods: int
+    n_pre_periods: int
+    n_blank_periods: int
+    n_post_periods: int
+
+    # optional diagnostics
+    y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
+
+class LEXSCM:
+    """
+    ---
+
+    PIPELINE OVERVIEW
+    -----------------
+
+    The estimator operates in three tightly coupled stages:
+
+    Stage 1: Combinatorial Search (Branch-and-Bound)
+        - Searches subsets of size m from a candidate pool of units
+        - Uses quadratic relaxations of the loss surface for pruning
+        - Efficiently explores a combinatorial design space of size C(M, m)
+        - Returns a ranked set of top-K candidate experimental designs
+
+    Stage 2: Synthetic Control Construction & Evaluation
+        - Solves convex quadratic programs to compute synthetic control weights
+        - Constructs synthetic treated and synthetic control time series
+        - Computes treatment effects as differences between counterfactual paths
+        - Evaluates in-sample and baseline fit using NMSE diagnostics
+
+    Stage 3: Power Analysis (MDE)
+        - Estimates Minimum Detectable Effect (MDE) using permutation inference
+        - Approximates null distributions via Monte Carlo simulation
+        - Computes detectability curves over varying post-treatment horizons
+        - Quantifies statistical power as a function of experimental design
+
+    OUTPUT STRUCTURE
+    ----------------
+
+    The final output is a Pareto-ranked set of experimental designs that trade off:
+
+        - Pre-treatment fit quality (NMSE_B)
+        - Statistical power (MDE curves)
+        - Robustness across validation periods
+
+    This enables selection of experimentally optimal unit configurations
+    under constraints of limited treated units and observational data.
+
+    DESIGN INTUITION
+    ----------------
+
+    The estimator is intended for settings where:
+
+        - Treatment assignment is not predefined
+        - Experimental units are large aggregate entities (e.g., regions, markets)
+        - Only a small number of units can be assigned treatment
+        - Randomization may induce baseline imbalance
+        - Power considerations must be integrated into design selection
+
+    NOTES
+    -----
+
+    - Deterministic given fixed random seed in MDE simulation
+    - Computational cost is dominated by:
+        (i) branch-and-bound combinatorial search
+        (ii) repeated quadratic program solves
+        (iii) Monte Carlo permutation inference
+    - Designed for offline experimental design rather than real-time inference
+    """
+
+    # ===================================================================
+    #                          Estimator Logic
+    # ===================================================================
+
+    def __init__(self, config):
+        if isinstance(config, dict):
+            try:
+                config = LEXSCMConfig(**config)
+            except Exception as e:  # pydantic ValidationError
+                raise MlsynthDataError(f"Invalid LEXSCM configuration: {e}") from e
+
+        self.config = config # Store the config object
+        self.df: pd.DataFrame = config.df
+        self.outcome: str = config.outcome
+        self.unitid: str = config.unitid
+        self.time: str = config.time
+        self.candidate_col: str = config.candidate_col
+        self.post_col: Optional[str] = config.post_col
+        self.m: Optional[str] = config.m
+        self.frac_E: Optional[str] = config.frac_E
+        self.top_K: Optional[int] = config.top_K
+        self.top_P: Optional[int] = config.top_P
+        self.lambda_penalty = config.lambda_penalty
+
+        
+
+    def fit(self, **kwargs) -> "LEXSCM":
+        """
+        Run the full Synthetic Experiment Design pipeline.
+
+        This method executes the complete estimation workflow:
+
+            1. Data preparation and alignment
+            2. Construction of outcome and covariate matrices
+            3. Feature standardization
+            4. Combinatorial search over candidate treated sets (BnB)
+            5. Synthetic control optimization for each candidate
+            6. Pre/post fit evaluation (NMSE diagnostics)
+            7. Power analysis via MDE simulation
+            8. Pareto ranking of experimental designs
+
+        Parameters
+        ----------
+        kwargs : dict
+            Optional overrides for runtime behavior.
+            (Currently unused but reserved for future extensions such as:
+             - alternative solvers
+             - custom ranking weights
+             - alternative power models)
+
+        Returns
+        -------
+        results : LEXSCMResults
+            Fully materialized result object containing:
+                - ranked candidate table
+                - best experimental design
+                - full candidate set
+                - search diagnostics
+                - original configuration
+
+        Notes
+        -----
+        - This method is computationally intensive due to:
+            * combinatorial search complexity
+            * repeated QP solves
+            * Monte Carlo null simulations
+
+        - The pipeline is deterministic except for:
+            * Monte Carlo sampling in MDE estimation
+
+        - Designed for research-grade reproducibility and
+          experimental design selection, not real-time inference.
+
+        Pipeline Details
+        ----------------
+        Step 1: Data preparation
+            - Balances panel structure
+            - Splits pre/post treatment periods
+            - Builds candidate eligibility mask
+
+        Step 2: Matrix construction
+            - Y: outcome matrix (unit × time)
+            - Z: optional covariates stacked beneath Y
+            - f: unit weighting vector
+
+        Step 3: Feature engineering
+            - Concatenates Y and Z into X
+            - Standardizes over estimation window (X_E)
+            - Computes Gram matrix G for BnB
+
+        Step 4: Branch-and-Bound search
+            - Enumerates candidate treated tuples of size m
+            - Uses convex relaxation for pruning
+            - Returns top-K solutions
+
+        Step 5: Evaluation
+            - Solves synthetic control QP per candidate
+            - Computes synthetic treated/control series
+            - Measures in-sample and baseline fit (NMSE)
+
+        Step 6: Power analysis
+            - Runs permutation-based MDE estimation
+            - Simulates null distributions via Monte Carlo
+            - Computes detectability curves across post horizons
+
+        Step 7: Ranking
+            - Combines NMSE_B and early MDE
+            - Produces Pareto-style SED score
+            - Selects optimal experimental design
+        """
+        # ------------------- Prepare candidate mask -------------------
+    
+        balance(self.df, self.unitid, self.time)
+
+        # Step 1: Prepare working DataFrame using the helper
+        working_df, self.post_df = _prepare_working_df(
+            self.df,
+            self.post_col
+        )
+        self.pre_df = working_df   # store for convenience if desired
+
+        unit_index = IndexSet.from_labels(
+            sorted(working_df[self.unitid].unique())
+        )
+
+
+        time_index = IndexSet.from_labels(sorted(working_df[self.time].unique()))
+
+        # Step 2: Build candidate mask (aligned with future Y columns)
+        candidate_mask = build_candidate_mask(
+            working_df=working_df,
+            candidate_col=self.candidate_col,
+            unit_index=unit_index,
+            unitid=self.unitid
+        )
+
+        # Step 3: Build Y matrix
+        self.Y = build_Y_matrix(
+            working_df=working_df,
+            outcome=self.outcome,
+            time=self.time,
+            unitid=self.unitid, unit_index=unit_index
+        )
+
+        # Step 4: Build Z matrix (covariates)
+        self.Z = build_Z_matrix(
+            working_df=working_df,
+            covariates=self.config.covariates,
+            time=self.time,
+            unitid=self.unitid, unit_index=unit_index
+        )
+
+        # Step 5: Build f weighting vector
+        self.f = build_f_vector(
+            working_df=working_df,
+            weight_col=self.config.weight_col,
+            unitid=self.unitid, unit_index=unit_index
+        )
+
+        X, f, candidate_idx, T0_pre, N = prepare_experiment_inputs(
+            self.Y, self.Z, self.f, candidate_mask, self.m
+        )
+
+        # Get logical indices
+        E_idx, B_idx, post_idx = split_periods(
+            T0=self.pre_df[self.time].nunique(),
+            frac_E=self.frac_E,
+            post_df=self.post_df,
+            time_col=self.time
+        )
+
+        # Standardize over estimation period
+        X_E, G = build_X_tilde(X, f, E_idx, J=self.Y.shape[1])
+
+        bbresults = branch_and_bound_topK(
+            G=G,
+            candidate_idx=candidate_idx,
+            m=self.m,
+            top_K=self.top_K,
+            unit_index=unit_index
+        )
+
+
+        # ------------------- Stage 2: Evaluate candidates -------------------
+        candidate_results = evaluate_candidates(
+            candidates=bbresults['top_tuples'],  # now list of Solution objects
+            X=X,
+            X_E=X_E,
+            Y=self.Y,
+            f=self.f,
+            E_idx=E_idx,  # ← you must pass this now
+            B_idx=B_idx,
+            lambda_penalty=self.lambda_penalty
+        )
+
+
+        for cand in candidate_results:
+            treated_idx = np.asarray(cand.identification.treated_idx, dtype=int)
+
+            cand.treated_units = unit_index.get_labels(treated_idx).tolist()
+
+            cand.treated_unit_weights = dict(zip(
+                unit_index.get_labels(treated_idx),
+                cand.weights.treated
+            ))
+
+            cand.control_unit_weights = dict(zip(
+                unit_index.labels,
+                cand.weights.control
+            ))
+
+        candidate_mdes = run_mde_analysis(
+            candidates=candidate_results,
+            n_post_grid=self.config.n_post_grid,
+            n_sims=self.config.n_sims
+        )
+
+        
+        winner, shortlist = select_best_tuple(
+            candidate_mdes,
+            delta=0.015,           # or try 0.01 / 0.02
+            relative_delta=1.5,    # I recommend starting with this for marketing
+            target_mde_horizon="early_mde_avg",   # or "mde_6w" if you have a fixed test length
+            return_shortlist=True
+        )
+
+
+        # ------------------- Stage 3: Inference (Post-Intervention) -------------------
+        # ==============================================================
+        # 5. Post-Intervention Inference 
+        # ==============================================================
+        # We only compute effects using the selected treated units 
+        # (their column indices are stored in .identification.treated_idx)
+
+        # Default: use full pre-period population mean
+        y_pop_mean_t = self.Y.mean(axis=1)
+
+        if len(post_idx) > 0 and not self.post_df.empty:
+            # Build full timeline matrix (pre + post)
+            Y_post = build_Y_matrix(
+                working_df=self.post_df,
+                outcome=self.outcome,
+                time=self.time,
+                unitid=self.unitid,
+                unit_index=unit_index
+            )
+            Y_full = np.vstack([self.Y, Y_post])
+
+            # Update population mean over the full timeline
+            y_pop_mean_t = Y_full.mean(axis=1)
+
+            # Update predictions and effects for each candidate
+            for cand in candidate_results:
+                # Get the column indices of the selected treated units for this candidate
+                treated_col_idx = np.asarray(cand.identification.treated_idx, dtype=int)
+
+                # Extract weights
+                treated_weights = cand.weights.treated      # weights for the m treated units
+                control_weights = cand.weights.control      # full control weights (length N)
+
+                # Compute synthetic treated using ONLY the selected treated columns
+                synth_treated_full = Y_full[:, treated_col_idx] @ treated_weights
+
+                # Compute synthetic control using all units
+                synth_control_full = Y_full @ control_weights
+
+                # Store results
+                cand.predictions.synthetic_treated = synth_treated_full
+                cand.predictions.synthetic_control = synth_control_full
+                cand.predictions.effects = synth_treated_full - synth_control_full
+
+                # Point estimate (Average Treatment Effect) over post periods
+                post_gap = cand.predictions.effects[post_idx]
+                cand.inference.ate = float(np.mean(post_gap))
+
+                # Optional: store the treated column indices used
+                cand.inference.treated_col_idx = treated_col_idx.tolist()
+
+                # Run inference (permutation test + conformal CI)
+                cand.inference.p_value = compute_post_inference(
+                    candidate=cand,
+                    post_idx=post_idx,
+                    n_perms=self.config.n_sims,
+                    seed=getattr(self.config, 'seed', 42)
+                ).inference.p_value
+
+                cand = compute_conformal_ci(
+                    candidate=cand,
+                    post_idx=post_idx,
+                    alpha=0.05,
+                    n_perms=self.config.n_sims,
+                    seed=getattr(self.config, 'seed', 42)
+                )
+
+        # ==============================================================
+        # 6. Final Assembly
+        # ==============================================================
+        # Re-fetch the winner (now with updated post-intervention results)
+        best_candidate = next(
+            (c for c in candidate_results 
+             if c.identification.tuple_id == winner.identification.tuple_id),
+            candidate_results[0]   # fallback
+        )
+
+        T = len(time_index)
+
+        results = LEXSCMResults(
+            summary=shortlist,
+            best_candidate=best_candidate,
+            all_candidates=candidate_results,
+            bnb_metadata=bbresults,
+            config=self.config,
+            y_pop_mean_t=y_pop_mean_t,
+            n_units=self.Y.shape[1],
+            n_periods=T,
+            n_pre_periods=len(E_idx) + len(B_idx),
+            n_fit_periods=len(E_idx),
+            n_blank_periods=len(B_idx),
+            n_post_periods=len(post_idx)
+        )
+
+        return results
