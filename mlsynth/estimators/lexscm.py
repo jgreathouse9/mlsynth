@@ -29,7 +29,7 @@ from ..utils.fast_scm_helpers.power_helpers import (select_best_tuple,
     run_mde_analysis,
 )
 
-from ..utils.fast_scm_helpers.inference import compute_post_inference, compute_conformal_ci
+from ..utils.fast_scm_helpers.inference import compute_post_inference, compute_moving_block_conformal_ci
 
 from dataclasses import dataclass, field
 
