@@ -19,9 +19,7 @@ def branch_and_bound_topK(
     unit_index: Optional[IndexSet] = None,
     unit_costs: Optional[np.ndarray] = None,
 ):
-    """
-    Top-K Branch and Bound using Lagrangian relaxation and Gershgorin bounds.
-    """
+    """Top-K Branch and Bound using Lagrangian relaxation and Gershgorin bounds."""
     start_time = time.time()
 
     if len(candidate_idx) < m:
