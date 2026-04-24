@@ -1,5 +1,5 @@
 """
-Supergeo_solver.py
+supergeo_solver.py
 ==================
 Supergeo Design: Generalized Matching for Geographic Experiments
 
@@ -10,7 +10,7 @@ Every design decision in this module traces directly to a section of the
 paper.  Cross-references are written inline as [§N] or [Eq. N].
 
 Extension: demeaned-R² score
-----------------------------
+-----------------------------
 The paper collapses the pre-period panel to a scalar Z_g = Σ_t Y0[t,g] and
 matches on that.  For panel data with many pre-periods this discards all
 temporal structure and cannot distinguish two geos with the same total but
@@ -58,11 +58,12 @@ Architecture
       Symmetry reduction halves enumeration; stored orientation is
       randomised to avoid systematic treatment-side bias.
 
-  _candidates_cluster(n, Y0, min_size, max_size, n_clusters, n_runs, noise_scale, rng)
-      Cluster heuristic: embed geos in PCA trajectory space, run n_runs
-      perturbed KMeans instances, and generate candidates within each
-      cluster.  Geos that move similarly cluster together, producing a
-      much more homogeneous candidate pool than random partitioning.
+  ffkm_features(Y0, ...)   [ffkm.py]
+      Functional Factorial K-Means embedding.  Jointly optimises a
+      discriminant subspace and cluster assignments over B-spline
+      representations of each geo's time series.  Silhouette-optimal
+      K and spectral-rank-optimal L are selected automatically.
+      Drop-in replacement for the previous _fpca_features.
 
   _build_incidence_matrix(n, candidates)
       Sparse N × M CSC matrix A where A[i,j] = 1 iff unit i ∈ candidate j.
@@ -104,12 +105,11 @@ import cvxpy as cp
 import numpy as np
 import pandas as pd
 from numba import njit
-from scipy.interpolate import make_interp_spline
 from scipy.sparse import csc_matrix
 from scipy.stats import t as t_dist
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-from sklearn.preprocessing import StandardScaler
+
+from ffkm import ffkm_features
 
 
 # =============================================================================
@@ -135,9 +135,9 @@ def _aa_kernel(diffs: np.ndarray, n_sims: int, seed: int) -> np.ndarray:
 
     Parameters
     ----------
-    diffs : (K,) float64   Z_{G_k+} − Z_{G_k−} for each pair k
+    diffs  : (K,) float64   Z_{G_k+} − Z_{G_k−} for each pair k
     n_sims : int            Number of Monte Carlo draws
-    seed : int            Non-zero seed for the xorshift64 state
+    seed   : int            Non-zero seed for the xorshift64 state
 
     Returns
     -------
@@ -170,15 +170,6 @@ def _r2_demeaned(ts_plus: np.ndarray, ts_minus: np.ndarray) -> float:
     """
     1 − R² between two aggregated time series after removing level differences.
 
-    Parameters
-    ----------
-    ts_plus : (T,) float64   Aggregated treatment-side time series
-    ts_minus : (T,) float64   Aggregated control-side time series
-
-    Returns
-    -------
-    float   1 − R²  (lower is better)
-
     Motivation
     ----------
     The paper's score (Z_{G+} − Z_{G−})² compares scalar totals.  For a
@@ -203,6 +194,15 @@ def _r2_demeaned(ts_plus: np.ndarray, ts_minus: np.ndarray) -> float:
     Score ∈ [0, 1]:
         0  →  perfect co-movement (parallel trends, ideal pair)
         1  →  orthogonal deviations (worst possible pair)
+
+    Parameters
+    ----------
+    ts_plus  : (T,) float64   Aggregated treatment-side time series
+    ts_minus : (T,) float64   Aggregated control-side time series
+
+    Returns
+    -------
+    float   1 − R²  (lower is better)
     """
     tp = ts_plus  - ts_plus.mean()
     tc = ts_minus - ts_minus.mean()
@@ -245,18 +245,6 @@ def _score_and_split(
     The bipartition minimising the score is returned.  Score ∈ [0, 1],
     with 0 meaning perfect parallel trends.
 
-    Parameters
-    ----------
-    indices : tuple[int]      Geo indices forming the candidate group G
-    Y0 : (T, N) float64  Full pre-period panel
-    rng : Generator       For the random orientation step only
-
-    Returns
-    -------
-    score : float           Best (lowest) 1 − R² across all bipartitions
-    g_plus : list[int]       Treatment-side geo indices
-    g_minus : list[int]       Control-side geo indices
-
     Symmetry reduction
     ------------------
     _r2_demeaned(ts+, ts−) = _r2_demeaned(ts−, ts+) because the regression
@@ -270,6 +258,18 @@ def _score_and_split(
     After finding the optimal bipartition, plus/minus labels are assigned by
     an unbiased coin flip, so neither side is systematically favoured across
     the candidate pool.
+
+    Parameters
+    ----------
+    indices : tuple[int]      Geo indices forming the candidate group G
+    Y0      : (T, N) float64  Full pre-period panel
+    rng     : Generator       For the random orientation step only
+
+    Returns
+    -------
+    score   : float           Best (lowest) 1 − R² across all bipartitions
+    g_plus  : list[int]       Treatment-side geo indices
+    g_minus : list[int]       Control-side geo indices
     """
     idx    = list(indices)
     n      = len(idx)
@@ -395,7 +395,7 @@ def _candidates_per_geo(
 
     Duplicates across pools are removed by frozenset-key deduplication.
     """
-    Z_agg  = Y0.mean(axis=0)                          # (N,) — used for ranking only
+    Z_agg  = Y0.sum(axis=0)                          # (N,) — used for ranking only
     order  = np.argsort(-Z_agg)
     large_geos = set(order[:beta].tolist())
     small_geos = [g for g in range(n) if g not in large_geos]
@@ -433,140 +433,14 @@ def _candidates_per_geo(
 
 
 # =============================================================================
-# CLUSTER HEURISTIC  — FPCA embedding + silhouette-optimal KMeans
 # =============================================================================
-
-def _spectral_rank(singular_values: np.ndarray, energy_threshold: float = 0.95) -> int:
-    """
-    Number of singular values whose squared sum meets `energy_threshold` of
-    total spectral energy.
-
-    Parameters
-    ----------
-    singular_values : (K,) float64   Singular values in descending order.
-    energy_threshold : float           Fraction of energy to retain, ∈ [0, 1].
-
-    Returns
-    -------
-    int   Smallest rank r such that Σ_{i<r} σ_i² / Σ_i σ_i² ≥ threshold.
-    """
-    if energy_threshold == 1.0:
-        return len(singular_values)
-
-    sq  = singular_values ** 2
-    tot = sq.sum()
-    if tot == 0.0:
-        return 0
-
-    cumulative = sq.cumsum() / tot
-    hits = np.where(cumulative >= energy_threshold)[0]
-    if hits.size == 0:
-        return len(singular_values)   # numerical edge case
-    return int(hits[0]) + 1
-
-
-def _determine_optimal_clusters(X: np.ndarray) -> int:
-    """
-    Silhouette-based optimal cluster count for an (N, F) feature matrix.
-
-    Evaluates KMeans for k ∈ [2, min(10, N−1)] and returns the k with the
-    highest average silhouette score.  Returns 1 when N < 2 or the range
-    is empty.
-
-    Parameters
-    ----------
-    X : (N, F) float64   Feature matrix, one row per geo.
-
-    Returns
-    -------
-    int   Optimal number of clusters.
-    """
-    n = X.shape[0]
-    if n < 2:
-        return 1
-
-    max_k = min(10, n - 1)
-    if max_k < 2:
-        return 1
-
-    best_score = -np.inf
-    best_k     = 2
-
-    for k in range(2, max_k + 1):
-        labels = KMeans(
-            n_clusters=k, init="k-means++", n_init="auto", random_state=0
-        ).fit_predict(X)
-
-        if len(np.unique(labels)) < 2:
-            continue   # degenerate clustering — skip
-
-        score = silhouette_score(X, labels)
-        if score > best_score:
-            best_score = score
-            best_k     = k
-
-    return best_k
-
-
-def _fpca_features(Y0: np.ndarray) -> tuple[np.ndarray, int]:
-    """
-    Functional PCA embedding of geos for trajectory-aware clustering.
-
-    Implements the pipeline from the submitted fpca() function:
-
-    1.  B-spline smoothing of each geo's time series.
-        Uses degree-3 splines evaluated at equally-spaced normalised time
-        points.  Falls back to direct PCA if T ≤ 3 (too few points for a
-        cubic spline).
-    2.  PCA on the smoothed (N, T) matrix.
-    3.  Spectral rank truncation at 95% energy, giving K components.
-    4.  Standardisation of the K-dimensional scores (zero mean, unit std).
-    5.  Silhouette-optimal cluster count from the standardised scores.
-
-    The standardised scores are the embedding passed to KMeans in
-    `_candidates_cluster`; the cluster count is the data-driven default k₀.
-
-    Parameters
-    ----------
-    Y0 : (T, N) float64   Pre-period outcome panel (time × geos).
-
-    Returns
-    -------
-    features : (N, K) float64   Standardised FPC scores.
-    k_opt : int               Silhouette-optimal cluster count.
-    """
-    T, N = Y0.shape
-    X    = Y0.T                            # (N, T) — geos as rows, as fpca() expects
-
-    spline_degree = 3
-    t_norm = np.linspace(0, 1, T)
-
-    if T <= spline_degree:
-        # Fallback: direct PCA when too few time points for a cubic spline
-        _, S, Vt = np.linalg.svd(X, full_matrices=False)
-        K        = _spectral_rank(S)
-        scores   = X @ Vt[:K].T           # (N, K)
-    else:
-        # B-spline smooth each geo's series then PCA on smoothed matrix
-        spl     = make_interp_spline(t_norm, X.T, k=spline_degree)  # fits X.T: (T, N)
-        X_smooth = spl(t_norm).T           # evaluate → (T, N), transpose → (N, T)
-
-        _, S, Vt = np.linalg.svd(X_smooth, full_matrices=False)
-        K        = _spectral_rank(S)
-        scores   = X_smooth @ Vt[:K].T    # (N, K) FPC scores
-
-    if K == 0 or scores.shape[1] == 0:
-        # Degenerate case: return raw aggregate as single feature
-        scores = X.sum(axis=1, keepdims=True).astype(float)
-
-    # Standardise: zero mean, unit std per component (avoids div-by-zero)
-    mu  = scores.mean(axis=0)
-    std = scores.std(axis=0)
-    std = np.where(std == 0.0, 1.0, std)
-    features = (scores - mu) / std        # (N, K)
-
-    k_opt = _determine_optimal_clusters(features)
-    return features, k_opt
+# CLUSTER HEURISTIC  — FFKM embedding + silhouette-optimal KMeans
+# =============================================================================
+# Embedding logic (_spectral_rank, _determine_optimal_clusters, and the
+# full FPCA/FFKM pipeline) now lives in ffkm.py.  ffkm_features(Y0) is
+# the drop-in replacement: same (features, k_opt) return signature,
+# strictly better clustering because the discriminant subspace is jointly
+# optimised with the cluster assignments rather than computed independently.
 
 
 def _candidates_cluster(
@@ -580,52 +454,56 @@ def _candidates_cluster(
     rng: np.random.Generator,
 ) -> list[dict]:
     """
-    Cluster heuristic: embed geos via FPCA, partition by trajectory, then
+    Cluster heuristic: embed geos via FFKM, partition by trajectory, then
     generate candidates within each cluster.
+
+    Motivation
+    ----------
+    Random partitioning is agnostic to which geos are actually similar.
+    FFKM clustering groups geos whose *functional* trajectories co-move
+    in the B-spline inner-product geometry, producing a much more
+    homogeneous candidate pool than random buckets would.
+
+    The key upgrade over the previous FPCA+k-means approach is that FFKM
+    co-optimises the discriminant subspace and the cluster assignments.
+    The subspace found is not the direction of maximum variance — it is
+    the direction that maximally separates clusters under the L² functional
+    metric.  Candidates within these tighter clusters will have lower
+    demeaned-R² scores before the MIP even runs.
+
+    Method
+    ------
+    1.  Call ffkm_features(Y0) → (features, k_opt).
+        Internally this runs: B-spline fit → ALS subspace/cluster
+        co-optimisation → spectral rank selection → standardisation →
+        silhouette-optimal K selection.
+    2.  Use k_opt as the base cluster count (or n_clusters if supplied).
+    3.  Run n_runs perturbed KMeans instances on the FFKM discriminant
+        scores, each with mild Gaussian noise and ±20% k jitter, to
+        diversify cluster membership across runs.
+    4.  Collect all within-cluster subsets of size [min_size, max_size].
+        Score each via _make_candidate → _score_and_split → _r2_demeaned.
+    5.  Deduplicate by frozenset of indices.
 
     Parameters
     ----------
-    n : int            Number of geos
-    Y0 : (T, N)         Pre-period panel
-    min_size : int            Minimum supergeo pair size
-    max_size : int            Maximum supergeo pair size
-    n_clusters : int or None    Base cluster count k₀.  When None, the
-                                 silhouette-optimal k from FPCA is used.
-    n_runs : int            Number of perturbed KMeans runs
-    noise_scale : float          Std of Gaussian noise added to FPCA scores
+    n           : int            Number of geos
+    Y0          : (T, N)         Pre-period panel
+    min_size    : int            Minimum supergeo pair size
+    max_size    : int            Maximum supergeo pair size
+    n_clusters  : int or None    Base cluster count.  When None, the
+                                 silhouette-optimal k from FFKM is used.
+    n_runs      : int            Number of perturbed KMeans runs
+    noise_scale : float          Std of Gaussian noise added to FFKM scores
                                  before each KMeans run
-    rng : Generator
+    rng         : Generator
 
     Returns
     -------
     list[dict]   Deduplicated candidates, each with keys:
                      "indices", "score", "split"
-
-    Motivation
-    ----------
-    Random partitioning (the paper's partition heuristic) is agnostic to
-    which geos are actually similar.  Clustering on B-spline-smoothed FPC
-    scores means geos that genuinely co-move are grouped together before any
-    subsets are enumerated, so the candidates reaching the MIP are drawn from
-    a much more homogeneous pool.
-
-    Method
-    ------
-    1.  Embed geos as standardised FPC scores via `_fpca_features`.
-        This runs B-spline smoothing → PCA → spectral-rank truncation →
-        standardisation, and returns the silhouette-optimal k₀.
-    2.  Use k₀ as the base cluster count (or `n_clusters` if supplied).
-    3.  Run `n_runs` perturbed KMeans instances.  Each run adds mild
-        Gaussian noise to the features and jitters k by ±20%, diversifying
-        cluster membership across runs without abandoning trajectory
-        structure.
-    4.  Collect all within-cluster subsets of size [min_size, max_size].
-        Score each via `_make_candidate` → `_score_and_split` →
-        `_r2_demeaned`.
-    5.  Deduplicate by frozenset of indices; keep first occurrence (score
-        is deterministic given the combo and the RNG state at call time).
     """
-    features, k_opt = _fpca_features(Y0)                 # (N, K), int
+    features, k_opt = ffkm_features(Y0)                  # (N, L), int
     k_base = n_clusters if n_clusters is not None else k_opt
 
     candidates: list[dict] = []
@@ -725,10 +603,10 @@ def mde(
     Parameters
     ----------
     total_loss : float   design["Score"].sum()
-    budget : float   Total incremental spend B [Assumption 2]
-    n_pairs : int     Number of supergeo pairs K
-    alpha : float   Two-sided significance level
-    power : float   Target power 1 − β
+    budget     : float   Total incremental spend B [Assumption 2]
+    n_pairs    : int     Number of supergeo pairs K
+    alpha      : float   Two-sided significance level
+    power      : float   Target power 1 − β
 
     Returns
     -------
@@ -753,11 +631,11 @@ def power_at_effect(
 
     Parameters
     ----------
-    delta : float   True iROAS deviation from null
+    delta      : float   True iROAS deviation from null
     total_loss : float
-    budget : float
-    n_pairs : int
-    alpha : float   Two-sided significance level
+    budget     : float
+    n_pairs    : int
+    alpha      : float   Two-sided significance level
 
     Returns
     -------
@@ -785,11 +663,11 @@ def power_curve(
 
     Parameters
     ----------
-    deltas : (D,) array-like   Effect sizes to evaluate
+    deltas     : (D,) array-like   Effect sizes to evaluate
     total_loss : float
-    budget : float
-    n_pairs : int
-    alpha : float
+    budget     : float
+    n_pairs    : int
+    alpha      : float
 
     Returns
     -------
@@ -827,6 +705,16 @@ class SupergeoSolver:
     a score of 1 means orthogonal deviations.  Minimising total loss
     constructs the design most consistent with parallel trends.
 
+    Typical workflow
+    ----------------
+    >>> solver = SupergeoSolver(unit_names, Y0, min_size=2, max_size=4,
+    ...                         kappa=5, seed=42)
+    >>> solver.generate_candidates("per_geo", beta=30, alpha=0.10)
+    >>> design = solver.solve(budget=1e6)
+    >>> solver.summary()
+    >>> print(solver.mde())
+    >>> aa = solver.run_aa_test(n_sims=10_000)
+
     Parameters
     ----------
     unit_names : list[str]
@@ -846,16 +734,6 @@ class SupergeoSolver:
     seed : int
         Master RNG seed.  Controls split orientation randomisation and all
         heuristic randomness.  Fix for reproducibility.
-
-    Typical workflow
-    ----------------
-    >>> solver = SupergeoSolver(unit_names, Y0, min_size=2, max_size=4,
-    ...                         kappa=5, seed=42)
-    >>> solver.generate_candidates("per_geo", beta=30, alpha=0.10)
-    >>> design = solver.solve(budget=1e6)
-    >>> solver.summary()
-    >>> print(solver.mde())
-    >>> aa = solver.run_aa_test(n_sims=10_000)
     """
 
     def __init__(
@@ -891,7 +769,7 @@ class SupergeoSolver:
 
         # Pre-period aggregate — used only for geo ranking in per_geo heuristic
         # and for the AA test statistic.  Matching itself uses the full panel.
-        self._Z_agg: np.ndarray = self.Y0.mean(axis=0)  # shape (N,)
+        self._Z_agg: np.ndarray = self.Y0.sum(axis=0)  # shape (N,)
 
         # State set by generate_candidates() and solve()
         self.candidates: list[dict]          = []
@@ -935,14 +813,16 @@ class SupergeoSolver:
                 pairwise candidates.  Combines well with large N.
 
             "cluster"
-                Embed geos via Functional PCA (B-spline smoothing → PCA →
-                spectral-rank truncation → standardisation) then cluster in
-                that embedding space.  The silhouette method selects k
-                automatically from the FPCA scores; n_clusters overrides
-                this if supplied.  Run n_runs perturbed KMeans instances to
-                diversify coverage.  Recommended for large N with rich
-                pre-period panels — trajectory structure is preserved more
-                faithfully than random partitioning.
+                Embed geos via Functional Factorial K-Means (ffkm.py).
+                FFKM jointly optimises a discriminant subspace and cluster
+                assignments in the B-spline inner-product geometry.  The
+                subspace maximally separates clusters rather than maximising
+                variance, so geos within a cluster are more trajectory-
+                homogeneous than FPCA+k-means would produce.  Spectral rank
+                L and cluster count K are both selected automatically (SVD
+                energy threshold + silhouette sweep).  n_clusters overrides
+                the automatic K if supplied.  n_runs perturbed KMeans runs
+                diversify coverage across the discriminant scores.
 
         n_partitions : int
             Number of buckets for the partition heuristic.
@@ -1005,23 +885,6 @@ class SupergeoSolver:
         """
         Solve the covering MIP and store/return the supergeo design.
 
-        Parameters
-        ----------
-        solver : str
-            CVXPY solver constant supporting MIP.  Default cp.CBC (always
-            available).  Use cp.SCIP for better performance if installed.
-        budget : float or None
-            Total incremental spend B [Assumption 2].  Required for power
-            analysis; may also be supplied later via self._budget.
-
-        Returns
-        -------
-        pd.DataFrame (also stored as self.design_) with columns:
-            Pair_ID    int
-            Treatment  list[str]   geo names on the treatment side
-            Control    list[str]   geo names on the control side
-            Score      float       (Z_{G+} − Z_{G−})² for this pair
-
         MIP formulation [§3.2]
         ----------------------
         Variables : x ∈ {0,1}^M        (M = number of candidates)
@@ -1044,6 +907,23 @@ class SupergeoSolver:
                                 warrants investigation before committing the
                                 design to a live experiment.
         Anything else         — raises RuntimeError.
+
+        Parameters
+        ----------
+        solver : str
+            CVXPY solver constant supporting MIP.  Default cp.CBC (always
+            available).  Use cp.SCIP for better performance if installed.
+        budget : float or None
+            Total incremental spend B [Assumption 2].  Required for power
+            analysis; may also be supplied later via self._budget.
+
+        Returns
+        -------
+        pd.DataFrame (also stored as self.design_) with columns:
+            Pair_ID    int
+            Treatment  list[str]   geo names on the treatment side
+            Control    list[str]   geo names on the control side
+            Score      float       (Z_{G+} − Z_{G−})² for this pair
         """
         if not self.candidates:
             raise RuntimeError("Call generate_candidates() before solve().")
@@ -1178,8 +1058,8 @@ class SupergeoSolver:
         Parameters
         ----------
         n_sims : int    Monte Carlo draws
-        alpha : float  Two-sided significance level
-        seed : int    Kernel RNG seed (independent of the solver RNG)
+        alpha  : float  Two-sided significance level
+        seed   : int    Kernel RNG seed (independent of the solver RNG)
 
         Returns
         -------
@@ -1248,8 +1128,8 @@ class SupergeoSolver:
         Parameters
         ----------
         budget : float or None   B (can also be supplied to solve())
-        alpha : float           Two-sided significance level
-        power : float           Target power 1 − β
+        alpha  : float           Two-sided significance level
+        power  : float           Target power 1 − β
 
         Returns
         -------
@@ -1276,9 +1156,9 @@ class SupergeoSolver:
 
         Parameters
         ----------
-        delta : float   True iROAS deviation from null
+        delta  : float   True iROAS deviation from null
         budget : float   B
-        alpha : float   Two-sided significance level
+        alpha  : float   Two-sided significance level
 
         Returns
         -------
@@ -1310,7 +1190,7 @@ class SupergeoSolver:
         ----------
         deltas : array-like   Effect sizes to evaluate
         budget : float        B
-        alpha : float        Two-sided significance level
+        alpha  : float        Two-sided significance level
 
         Returns
         -------
@@ -1359,14 +1239,14 @@ def empirical_estimator(
 
     Parameters
     ----------
-    design : pd.DataFrame   Output of SupergeoSolver.solve()
+    design     : pd.DataFrame   Output of SupergeoSolver.solve()
     unit_names : list[str]      Geo labels in the same order as Y0 columns
-    R_test : (N,) array     Test-phase response per geo (no treatment)
-    S_test : (N,) array     Test-phase spend per geo
+    R_test     : (N,) array     Test-phase response per geo (no treatment)
+    S_test     : (N,) array     Test-phase spend per geo
     theta_true : float          Injected iROAS (ground truth)
-    r_spend : float          Heavy-up fraction r [Assumption 4]
-    n_iter : int            Monte Carlo iterations
-    rng : Generator      Defaults to seed 0
+    r_spend    : float          Heavy-up fraction r [Assumption 4]
+    n_iter     : int            Monte Carlo iterations
+    rng        : Generator      Defaults to seed 0
 
     Returns
     -------
@@ -1476,7 +1356,7 @@ if __name__ == "__main__":
 
     # --- Half-synthetic evaluation ---
     print("\nHalf-synthetic evaluation (5 000 iterations)...")
-    R_test = Y0.mean(axis=0)
+    R_test = Y0.sum(axis=0)
     S_test = rng.uniform(0.1, 1.0, size=N)
     result = empirical_estimator(
         design=design,
