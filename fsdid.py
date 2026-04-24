@@ -891,7 +891,7 @@ class SupergeoSolver:
 
         # Pre-period aggregate — used only for geo ranking in per_geo heuristic
         # and for the AA test statistic.  Matching itself uses the full panel.
-        self._Z_agg: np.ndarray = self.Y0.sum(axis=0)  # shape (N,)
+        self._Z_agg: np.ndarray = self.Y0.mean(axis=0)  # shape (N,)
 
         # State set by generate_candidates() and solve()
         self.candidates: list[dict]          = []
