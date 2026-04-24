@@ -181,4 +181,3 @@ def branch_and_bound_topK(
         "top_tuples": solutions,
         "stats": stats
     }
-```
