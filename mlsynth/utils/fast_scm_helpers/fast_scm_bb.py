@@ -1,8 +1,5 @@
-
-## bb
-
-
 import numpy as np
+import time
 from typing import List, Optional
 from .fast_scm_setup import IndexSet
 from .fast_scm_bb_helpers import (
@@ -13,30 +10,32 @@ from .fast_scm_bb_helpers import (
     Solution
 )
 
-import time
-
-
 def branch_and_bound_topK(
     G: np.ndarray,
     candidate_idx: np.ndarray,
     m: int = 5,
+    lam: float = 0.0,
     top_K: int = 20,
-    top_P: int = 10,
-    total_units: int = None,
-    unit_index: Optional[IndexSet] = None,   # 👈 ADD THIS
+    unit_index: Optional[IndexSet] = None,
     unit_costs: Optional[np.ndarray] = None,
-    budget: Optional[float] = None
 ):
+    """
+    Top-K Branch and Bound using Lagrangian relaxation and Gershgorin bounds.
+    """
     start_time = time.time()
 
     if len(candidate_idx) < m:
         raise ValueError(f"Not enough candidate units: {len(candidate_idx)} < m={m}")
 
-    # --- heuristic ordering ---
+    # Ensure unit_costs is available (default to zeros if not provided)
+    if unit_costs is None:
+        unit_costs = np.zeros(G.shape[0])
+
+    # --- Heuristic Ordering ---
+    # Sorting by diagonal (variance) helps find better solutions earlier, 
+    # which leads to more aggressive pruning.
     diag_vals = np.diag(G)
     candidate_idx = candidate_idx[np.argsort(diag_vals[candidate_idx])]
-
-    top_tuples = []
 
     M = len(candidate_idx)
     total_subsets, total_nodes = compute_search_space_size(M, m)
@@ -48,68 +47,64 @@ def branch_and_bound_topK(
         "branches_considered": 0,
     }
 
-    # --- greedy baseline ---
-    init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
-    top_tuples.append(Solution(init_loss, init_idx, init_w))
+    # --- Greedy Baseline (Initialization) ---
+    # This provides a 'score to beat' right at the start.
+    init_sol = greedy_initial_solution(G, unit_costs, candidate_idx, m, lam)
+    init_loss = init_sol.loss
+    top_tuples = [init_sol]
 
-    M = len(candidate_idx)
-
+    # --- Search Loop (Seed-based entry) ---
+    # We enter the recursion with each possible starting unit.
     num_seeds = min(M, max(1, 4 * m))
-
-    seed_set = candidate_idx[:num_seeds]  # safe slice, invariant to M
+    seed_set = candidate_idx[:num_seeds]
 
     for j in seed_set:
         Q0 = np.array([[G[j, j]]])
-
         j_pos = np.where(candidate_idx == j)[0][0]
 
         expand_tuple(
-            G,
-            candidate_idx,
-            m,
-            top_K,
-            top_tuples,
+            G=G,
+            candidate_idx=candidate_idx,
+            unit_costs=unit_costs,
+            m=m,
+            lam=lam,
+            top_K=top_K,
+            top_tuples=top_tuples,
             indices=[j],
             stats=raw_stats,
             start_pos=j_pos + 1,
             Q_partial=Q0,
-            unit_costs=unit_costs,
-            budget=budget,
-            current_cost=(unit_costs[j] if unit_costs is not None else 0.0)
+            current_cost=float(unit_costs[j])
         )
 
     # =========================
-    # FINAL SOLUTIONS
+    # FINAL SOLUTIONS PROCESSING
     # =========================
-    total_units = len(unit_index)
-
     solutions = sorted(top_tuples)
+    total_units = len(unit_index) if unit_index is not None else G.shape[0]
 
-
-    if total_units is not None and unit_index is not None:
-        for sol in solutions:
-            # full vector (index-aligned)
+    for i, sol in enumerate(solutions, start=1):
+        sol.label = f"Tuple {i}"
+        
+        if unit_index is not None:
+            # Map weights back to the full unit dimension
             sol.full_weights = expand_weights_to_full(
                 sol.indices,
                 sol.weights,
                 total_units
             )
 
-            # label list
+            # Assign human-readable labels
             sol.labels = unit_index.get_labels(sol.indices).tolist()
 
-            # 🔥 NEW: dictionary form (THIS is what you want downstream)
+            # Dictionary form for downstream consumption
             sol.weight_dict = {
-                unit_index.labels[i]: float(w)
-                for i, w in zip(sol.indices, sol.weights)
+                unit_index.labels[idx]: float(w)
+                for idx, w in zip(sol.indices, sol.weights)
             }
 
-    # Inside branch_and_bound_topK, near the end:
-    for i, sol in enumerate(solutions, start=1):
-        sol.label = f"Tuple {i}"
-
     # =========================
-    # DERIVED VALUES
+    # STATS & DERIVED VALUES
     # =========================
     best_loss = solutions[0].loss
     worst_loss = solutions[-1].loss
@@ -129,30 +124,19 @@ def branch_and_bound_topK(
     )
 
     improvement = init_loss - best_loss
-
     ranking_spread = worst_loss - best_loss
 
-    improvement_per_sec = improvement / elapsed if elapsed else 0
-    improvement_per_node = improvement / raw_stats["nodes_visited"] if raw_stats["nodes_visited"] else 0
-
-    bound_relative_gap = ranking_spread / best_loss if best_loss else 0
-
-    # =========================
-    # STRUCTURED STATS
-    # =========================
     stats = {
         "search_space": {
             "total_subsets": total_subsets,
             "total_nodes": total_nodes,
         },
-
         "exploration": {
             "nodes_visited": raw_stats["nodes_visited"],
             "subsets_evaluated": raw_stats["subsets_evaluated"],
             "node_fraction_explored": node_fraction,
             "subset_fraction_explored": subset_fraction,
         },
-
         "pruning": {
             "branches_considered": raw_stats["branches_considered"],
             "branches_pruned": raw_stats["branches_pruned"],
@@ -162,7 +146,6 @@ def branch_and_bound_topK(
                 if raw_stats["nodes_visited"] else 0
             ),
         },
-
         "performance": {
             "runtime_sec": elapsed,
             "nodes_per_sec": (
@@ -170,35 +153,22 @@ def branch_and_bound_topK(
             ),
             "speedup_factor": speedup,
         },
-
-        "results": {
-            "best_loss": best_loss,
-            "worst_loss": worst_loss,
-            "ranking_spread": ranking_spread,
-        },
-
         "optimality": {
             "initial_loss": init_loss,
             "best_loss": best_loss,
             "improvement": improvement,
-            "improvement_pct": (
-                improvement / init_loss if init_loss else 0
-            ),
+            "improvement_pct": (improvement / init_loss if init_loss else 0),
         },
-
         "efficiency": {
             "loss_reduction_per_eval": (
                 improvement / raw_stats["subsets_evaluated"]
                 if raw_stats["subsets_evaluated"] else 0
             ),
-            "improvement_per_sec": improvement_per_sec,
-            "improvement_per_node": improvement_per_node,
+            "improvement_per_sec": improvement / elapsed if elapsed else 0,
         },
-
         "bound_quality": {
-            "relative_gap": bound_relative_gap
+            "relative_gap": ranking_spread / best_loss if best_loss else 0
         },
-
         "branching": {
             "avg_branching_factor": (
                 raw_stats["branches_considered"] / raw_stats["nodes_visited"]
@@ -207,8 +177,8 @@ def branch_and_bound_topK(
         }
     }
 
-
     return {
         "top_tuples": solutions,
         "stats": stats
     }
+```
