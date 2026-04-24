@@ -3,6 +3,45 @@ from typing import Any
 import numpy as np
 from typing import Optional, Tuple, Dict, List
 import pandas as pd
+from typing import Any, Dict, Iterable
+
+
+@dataclass(frozen=True)
+class IndexSet:
+    labels: np.ndarray
+    label_to_idx: Dict[Any, int]
+
+    @classmethod
+    def from_labels(cls, labels: Iterable[Any]) -> "IndexSet":
+        labels = np.asarray(list(labels))
+        return cls(
+            labels=labels,
+            label_to_idx={label: i for i, label in enumerate(labels)}
+        )
+
+    # -----------------------------
+    # Core mapping utilities
+    # -----------------------------
+    def get_labels(self, indices):
+        return self.labels[np.asarray(indices)]
+
+    def get_index(self, labels):
+        return np.array([self.label_to_idx[l] for l in labels])
+
+    # -----------------------------
+    # Python / NumPy interoperability
+    # -----------------------------
+    def __len__(self):
+        return len(self.labels)
+
+    def __iter__(self):
+        return iter(self.labels)
+
+    def __array__(self):
+        return self.labels
+
+    def __repr__(self):
+        return f"IndexSet(n={len(self.labels)})"
 
 def _prepare_working_df(
     df: pd.DataFrame, 
@@ -58,184 +97,59 @@ def _prepare_working_df(
 
 
 # In mlsynth/utils/fast_scm_setup.py  (or wherever your helpers live)
-
-def build_candidate_mask(
-    working_df: pd.DataFrame,
-    candidate_col: str,
-    unitid: str
-) -> tuple[np.ndarray, set]:
-    """
-    Construct a boolean candidate mask aligned with sorted unit labels.
-
-    Parameters
-    ----------
-    working_df : pd.DataFrame
-        Pre-treatment (or working) dataset.
-    candidate_col : str
-        Column indicating whether a unit is a candidate (truthy = candidate).
-    unitid : str
-        Column identifying units.
-
-    Returns
-    -------
-    candidate_mask : np.ndarray of bool, shape (J,)
-        Boolean mask aligned with `unit_labels`, where True indicates a candidate unit.
-    candidate_unit_set : set
-        Set of unit identifiers corresponding to candidate units.
-    unit_labels : np.ndarray, shape (J,)
-        Sorted unique unit identifiers defining column order.
-
-    Notes
-    -----
-    - Candidate status is determined at the unit level using the first observed value.
-    - Alignment between mask and matrices (e.g., Y) is guaranteed via `unit_labels`.
-    """
-    candidate_per_unit = working_df.groupby(unitid)[candidate_col].first().astype(bool)
-    unit_labels = np.sort(working_df[unitid].unique())
-
-    candidate_mask = np.isin(unit_labels, candidate_per_unit[candidate_per_unit].index)
-    candidate_unit_set = set(unit_labels[candidate_mask])
-
-    return candidate_mask, candidate_unit_set, unit_labels
+def build_candidate_mask(working_df, candidate_col, unit_index, unitid):
+    return (
+        working_df.groupby(unitid)[candidate_col]
+        .first()
+        .reindex(unit_index)
+        .fillna(False)
+        .astype(bool)
+        .values
+    )
 
 
-def build_Y_matrix(
-    working_df: pd.DataFrame,
-    outcome: str,
-    time: str,
-    unitid: str,
-    unit_labels: np.ndarray
-) -> np.ndarray:
-    """
-    Construct the outcome matrix Y with consistent unit column ordering.
 
-    Parameters
-    ----------
-    working_df : pd.DataFrame
-        Input dataset (typically pre-treatment).
-    outcome : str
-        Column name for the outcome variable.
-    time : str
-        Column name for the time index.
-    unitid : str
-        Column name identifying units.
-    unit_labels : np.ndarray
-        Ordered unit identifiers defining column alignment.
-
-    Returns
-    -------
-    Y : np.ndarray, shape (T, J)
-        Outcome matrix with rows as time and columns as units.
-
-    Notes
-    -----
-    - Missing unit-time combinations will result in NaNs.
-    - Column order strictly follows `unit_labels` to ensure alignment with other matrices.
-    """
-    Y_wide = working_df.pivot(
-        index=time,
-        columns=unitid,
-        values=outcome
-    ).reindex(columns=unit_labels)
-
-    return Y_wide.to_numpy().astype(float)
+def build_Y_matrix(working_df, outcome, time, unitid, unit_index):
+    Y_wide = (
+        working_df.pivot(index=time, columns=unitid, values=outcome)
+        .reindex(columns=unit_index)
+    )
+    return Y_wide.to_numpy(dtype=float)
 
 
-def build_Z_matrix(
-    working_df: pd.DataFrame,
-    covariates: Optional[List[str]],
-    time: str,
-    unitid: str,
-    unit_labels: np.ndarray
-) -> Optional[np.ndarray]:
-    """
-    Construct the covariate matrix Z by stacking covariates vertically.
 
-    Parameters
-    ----------
-    working_df : pd.DataFrame
-        Input dataset.
-    covariates : list of str or None
-        List of covariate column names. If None or empty, no matrix is built.
-    time : str
-        Column name for the time index.
-    unitid : str
-        Column name identifying units.
-    unit_labels : np.ndarray
-        Ordered unit identifiers defining column alignment.
-
-    Returns
-    -------
-    Z : np.ndarray, shape (T * K, J), or None
-        Stacked covariate matrix, where K is the number of covariates.
-        Returns None if no covariates are provided.
-
-    Notes
-    -----
-    - Each covariate is pivoted into (T, J) and stacked vertically.
-    - Column alignment matches Y via `unit_labels`.
-    - Prints a summary of the resulting shape.
-    """
+def build_Z_matrix(working_df, covariates, time, unitid, unit_index):
     if not covariates:
         return None
 
     covariate_list = []
     for col in covariates:
-        cov_wide = working_df.pivot(
-            index=time,
-            columns=unitid,
-            values=col
-        ).reindex(columns=unit_labels)
-        covariate_list.append(cov_wide.to_numpy().astype(float))
+        cov_wide = (
+            working_df.pivot(index=time, columns=unitid, values=col)
+            .reindex(columns=unit_index)
+        )
+        covariate_list.append(cov_wide.to_numpy(dtype=float))
 
-    Z = np.vstack(covariate_list)
-    print(f"Built Z matrix with {len(covariates)} covariates (stacked below Y, shape: {Z.shape})")
-    return Z
+    return np.vstack(covariate_list)
 
 
-def build_f_vector(
-    working_df: pd.DataFrame,
-    weight_col: Optional[str],
-    unitid: str,
-    unit_labels: np.ndarray
-) -> np.ndarray:
-    """
-    Construct a normalized unit weight vector.
-
-    Parameters
-    ----------
-    working_df : pd.DataFrame
-        Input dataset.
-    weight_col : str or None
-        Column providing per-unit weights. If None, uniform weights are used.
-    unitid : str
-        Column identifying units.
-    unit_labels : np.ndarray
-        Ordered unit identifiers defining alignment.
-
-    Returns
-    -------
-    f : np.ndarray, shape (J,)
-        Normalized weight vector over units (sums to 1).
-
-    Notes
-    -----
-    - If `weight_col` is provided, the first value per unit is used.
-    - Weights are normalized to sum to 1.
-    - Defaults to uniform weights if no column is provided.
-    """
-    J = len(unit_labels)
+def build_f_vector(working_df, weight_col, unitid, unit_index):
+    J = len(unit_index)
 
     if weight_col is not None:
-        weights_per_unit = working_df.groupby(unitid)[weight_col].first().reindex(unit_labels)
-        f = weights_per_unit.to_numpy().astype(float)
-        f = f / f.sum()  # normalize
-        print(f"Using weights from column '{weight_col}' (normalized).")
+        weights = (
+            working_df.groupby(unitid)[weight_col]
+            .first()
+            .reindex(unit_index)
+            .to_numpy(dtype=float)
+        )
+        return weights / weights.sum()
     else:
-        f = np.full(J, 1.0 / J, dtype=float)
-        print(f"Using uniform weights f = 1/{J} for all units.")
+        return np.full(J, 1.0 / J)
 
-    return f
+
+
+
 
 def prepare_experiment_inputs(
     Y: np.ndarray,
