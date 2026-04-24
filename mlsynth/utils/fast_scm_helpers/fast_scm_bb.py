@@ -1,5 +1,10 @@
+
+## bb
+
+
 import numpy as np
 from typing import List, Optional
+from .fast_scm_setup import IndexSet
 from .fast_scm_bb_helpers import (
     compute_search_space_size,
     expand_tuple,
@@ -18,6 +23,7 @@ def branch_and_bound_topK(
     top_K: int = 20,
     top_P: int = 10,
     total_units: int = None,
+    unit_index: Optional[IndexSet] = None,   # 👈 ADD THIS
     unit_costs: Optional[np.ndarray] = None,
     budget: Optional[float] = None
 ):
@@ -75,23 +81,32 @@ def branch_and_bound_topK(
     # =========================
     # FINAL SOLUTIONS
     # =========================
+    total_units = len(unit_index)
+
     solutions = sorted(top_tuples)
 
-    # Inside branch_and_bound_topK, near the end:
-    for i, sol in enumerate(solutions, start=1):
-        sol.label = f"Tuple {i}"
 
-        # Calculate total cost for the tuple if unit_costs are provided
-        if unit_costs is not None:
-            # We sum the costs of the units in this specific tuple
-            sol.cost = float(np.sum(unit_costs[sol.indices]))
-
-        if total_units is not None:
-            sol.weights = expand_weights_to_full(
+    if total_units is not None and unit_index is not None:
+        for sol in solutions:
+            # full vector (index-aligned)
+            sol.full_weights = expand_weights_to_full(
                 sol.indices,
                 sol.weights,
                 total_units
             )
+
+            # label list
+            sol.labels = unit_index.get_labels(sol.indices).tolist()
+
+            # 🔥 NEW: dictionary form (THIS is what you want downstream)
+            sol.weight_dict = {
+                unit_index.labels[i]: float(w)
+                for i, w in zip(sol.indices, sol.weights)
+            }
+
+    # Inside branch_and_bound_topK, near the end:
+    for i, sol in enumerate(solutions, start=1):
+        sol.label = f"Tuple {i}"
 
     # =========================
     # DERIVED VALUES
