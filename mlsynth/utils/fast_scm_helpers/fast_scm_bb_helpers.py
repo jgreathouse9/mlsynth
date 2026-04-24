@@ -1,6 +1,10 @@
+## bb helpers
+
+
+
 import cvxpy as cp
 import numpy as np
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Any
 from dataclasses import dataclass, field
 from math import comb
 
@@ -9,28 +13,26 @@ from math import comb
 class Solution:
     """
     Container for a candidate solution in the branch-and-bound search.
-
-    Attributes
-    ----------
-    loss : float
-        Objective value (w^T Q w) for the selected subset.
-    indices : list of int
-        Indices of selected units (subset of candidate_idx).
-    weights : np.ndarray, shape (m,)
-        Optimal simplex weights corresponding to `indices`.
-    label : str, optional
-        Optional human-readable label (assigned post hoc).
-
-    Notes
-    -----
-    - Ordering is based on `loss` only, enabling sorting of solutions.
-    - Lower loss indicates a better solution.
     """
+
+    # --- required core fields ---
     loss: float
+
     indices: List[int] = field(compare=False)
     weights: np.ndarray = field(compare=False)
-    cost: float = 0.0  # Add this field
+
+    # --- optional derived identity ---
+    labels: Optional[List[Any]] = field(default=None, compare=False)
+
+    # --- optional expanded representations ---
+    full_weights: Optional[np.ndarray] = field(default=None, compare=False)
+    weight_dict: Optional[Dict[Any, float]] = field(default=None, compare=False)
+
+    # --- metadata ---
+    cost: float = 0.0
     label: Optional[str] = field(default=None, compare=False)
+
+
 
 
 def expand_weights_to_full(indices, weights, total_units):
