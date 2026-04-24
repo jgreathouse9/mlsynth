@@ -18,19 +18,19 @@ from ..utils.fast_scm_helpers.fast_scm_setup import (
     build_Y_matrix,
     build_Z_matrix,
     prepare_experiment_inputs,
-    split_periods,
+    split_periods, IndexSet
 )
 
 # Utilities - Search and Evaluation
 from ..utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
 from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
 # Utilities - Power and Ranking
-from ..utils.fast_scm_helpers.power_helpers import (
-    mde_summary_table,
-    run_mde_analysis, select_best_tuple
+from ..utils.fast_scm_helpers.power_helpers import (select_best_tuple,
+    run_mde_analysis,
 )
 
-from ..utils.fast_scm_helpers.post_inference import update_post_inference
+from ..utils.fast_scm_helpers.inference import compute_post_inference, compute_conformal_ci
+
 from dataclasses import dataclass, field
 
 from ..utils.fast_scm_helpers.structure import SEDCandidate
@@ -97,72 +97,63 @@ class LEXSCMResults:
 
 class LEXSCM:
     """
-    Lexicographic Synthetic Control Method (LEXSCM) for Experimental Design.
+    ---
 
-    This estimator implements a constrained combinatorial search to identify optimal
-    experimental units, synthesizing methodologies from Vives-i-Bastida (2022)
-    regarding external validity and Abadie & Zhou (2026) regarding optimal design.
+    PIPELINE OVERVIEW
+    -----------------
 
-    REFERENCES
-    ----------
-    Vives: https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf
-    Abadie and Zhou: https://economics.mit.edu/sites/default/files/2026-02/Synthetic%20Controls%20for%20Experimental%20Design%20Feb%202026.pdf
+    The estimator operates in three tightly coupled stages:
 
-    MATHEMATICAL FOUNDATIONS
-    ------------------------
-    1. External Validity (v-weights): Following Vives-i-Bastida (2022), we solve
-       a lexicographic optimization where the first priority is matching the
-       treated tuple to the 'National Mean' or target population.
-    2. Optimal Design: Following Abadie & Zhou (2026), we use a Branch-and-Bound
-       framework to minimize the expected mean squared error of the synthetic
-       control estimator by selecting the 'easiest to model' treated units.
+    Stage 1: Combinatorial Search (Branch-and-Bound)
+        - Searches subsets of size m from a candidate pool of units
+        - Uses quadratic relaxations of the loss surface for pruning
+        - Efficiently explores a combinatorial design space of size C(M, m)
+        - Returns a ranked set of top-K candidate experimental designs
 
-    INPUT PARAMETERS (via LEXSCMConfig)
-    -----------------------------------
-    IDENTIFICATION DESIGN:
-        - candidate_col (str): Column indicating units eligible for treatment selection.
-        - m (int): Number of units selected for the treated group.
-        - post_col (str, optional): Manual indicator for post-treatment period.
-        - unit_cost_col (str, optional): Column containing per-unit activation costs.
-        - budget (float, optional): Hard total budget cap for the treated group.
-        - seed (int): Random seed for MDE Monte Carlo simulations (default: 42).
-        - frac_E (float): Fraction of pre-period used for estimation window (default: 0.7).
+    Stage 2: Synthetic Control Construction & Evaluation
+        - Solves convex quadratic programs to compute synthetic control weights
+        - Constructs synthetic treated and synthetic control time series
+        - Computes treatment effects as differences between counterfactual paths
+        - Evaluates in-sample and baseline fit using NMSE diagnostics
 
-    SCM SPECIFICATION:
-        - weight_col (str, optional): Unit-level importance weights (e.g., population)
-            used to calculate the target population mean for v-weight matching.
-        - covariates (List[str], optional): Features to include in the synthetic control.
-        - lambda_penalty (float): Regularization for synthetic control weights (default: 0.1).
+    Stage 3: Power Analysis (MDE)
+        - Estimates Minimum Detectable Effect (MDE) using permutation inference
+        - Approximates null distributions via Monte Carlo simulation
+        - Computes detectability curves over varying post-treatment horizons
+        - Quantifies statistical power as a function of experimental design
 
-    SEARCH / COMPUTATIONAL BUDGET:
-        - top_K (int): Number of top candidate tuples to evaluate in Stage 2.
-        - top_P (int): Number of seed units used to initialize the BnB search.
+    OUTPUT STRUCTURE
+    ----------------
 
-    POWER / INFERENCE (MDE):
-        - alpha (float): Significance level (default: 0.05).
-        - n_post_grid (List[int]): Horizons for detectability curve calculation.
-        - n_sims (int): Number of Monte Carlo simulations for null distributions.
-        - post_imputation (str): Method for MDE signal injection ('mean', 'max', etc.).
-        - test_statistic (str): Statistic used for inference ('mean_abs', 'mean', 'rms').
+    The final output is a Pareto-ranked set of experimental designs that trade off:
 
-    LEXICOGRAPHIC SELECTION:
-        - delta (float): Absolute NMSE tolerance for 'Fit-First' selection.
-        - relative_delta (float): Relative NMSE tolerance based on the best-found fit.
-        - target_mde_horizon (str): Specific MDE metric used to rank the final shortlist.
-        - max_shortlist (int): Maximum number of candidates returned in the summary.
+        - Pre-treatment fit quality (NMSE_B)
+        - Statistical power (MDE curves)
+        - Robustness across validation periods
 
-    PIPELINE STAGES
-    ---------------
-    Stage 1: Combinatorial Search (BnB)
-        Efficiently prunes the C(N, m) space using the budget constraint and a
-        convex relaxation of the loss surface.
+    This enables selection of experimentally optimal unit configurations
+    under constraints of limited treated units and observational data.
 
-    Stage 2: Synthetic Control Construction
-        Solves the Synthetic Control Quadratic Program (QP) for each surviving candidate.
+    DESIGN INTUITION
+    ----------------
 
-    Stage 3: Power Analysis & Inference
-        Estimates Minimum Detectable Effects via permutation tests and calculates
-        Conformal Confidence Intervals for the Treatment Effect.
+    The estimator is intended for settings where:
+
+        - Treatment assignment is not predefined
+        - Experimental units are large aggregate entities (e.g., regions, markets)
+        - Only a small number of units can be assigned treatment
+        - Randomization may induce baseline imbalance
+        - Power considerations must be integrated into design selection
+
+    NOTES
+    -----
+
+    - Deterministic given fixed random seed in MDE simulation
+    - Computational cost is dominated by:
+        (i) branch-and-bound combinatorial search
+        (ii) repeated quadratic program solves
+        (iii) Monte Carlo permutation inference
+    - Designed for offline experimental design rather than real-time inference
     """
 
     # ===================================================================
@@ -183,27 +174,11 @@ class LEXSCM:
         self.time: str = config.time
         self.candidate_col: str = config.candidate_col
         self.post_col: Optional[str] = config.post_col
-        self.weight_col: Optional[str] = config.weight_col
         self.m: Optional[str] = config.m
         self.frac_E: Optional[str] = config.frac_E
         self.top_K: Optional[int] = config.top_K
         self.top_P: Optional[int] = config.top_P
         self.lambda_penalty = config.lambda_penalty
-        self.covariates: Optional[List[str]] = config.covariates
-
-        # MDE computation parameters
-        self.n_post_grid: List[int] = config.n_post_grid
-        self.n_sims: int = config.n_sims
-        self.alpha: float = config.alpha
-        self.post_imputation: Literal["mean", "max", "double_max"] = config.post_imputation
-        self.test_statistic: Literal["mean_abs", "mean", "rms"] = config.test_statistic
-
-        # Lexicographic selection parameters (fit-first, then power)
-        self.delta: float = config.delta
-        self.relative_delta: Optional[float] = config.relative_delta
-        self.target_mde_horizon: str = config.target_mde_horizon
-        self.max_shortlist: int = config.max_shortlist
-
 
         
 
@@ -302,36 +277,27 @@ class LEXSCM:
         )
         self.pre_df = working_df   # store for convenience if desired
 
-        # Step 2: Build candidate mask (aligned with future Y columns)
-        self.candidate_mask, self.candidate_unit_set, unit_labels = build_candidate_mask(
-            working_df=working_df,
-            candidate_col=self.candidate_col,
-            unitid=self.unitid
+        unit_index = IndexSet.from_labels(
+            sorted(working_df[self.unitid].unique())
         )
 
-        if len(self.candidate_unit_set) < self.config.m:
-            raise MlsynthDataError(
-                f"Only {len(self.candidate_unit_set)} candidate units in pre-period, "
-                f"but m={self.config.m} requested."
-            )
 
-        self.unit_costs = None
-        if self.config.budget is not None and self.config.unit_cost_col is not None:
-            cost_df = working_df[[self.unitid, self.config.unit_cost_col]].drop_duplicates(subset=[self.unitid])
-            cost_map = dict(zip(cost_df[self.unitid], cost_df[self.config.unit_cost_col]))
+        time_index = IndexSet.from_labels(sorted(working_df[self.time].unique()))
 
-            self.unit_costs = np.array([cost_map.get(uid, 0.0) for uid in unit_labels])
-
-            print(f"INFO: Budget constraint active (${self.config.budget:,.2f}). "
-                  f"Using costs from column '{self.config.unit_cost_col}'.")
+        # Step 2: Build candidate mask (aligned with future Y columns)
+        candidate_mask = build_candidate_mask(
+            working_df=working_df,
+            candidate_col=self.candidate_col,
+            unit_index=unit_index,
+            unitid=self.unitid
+        )
 
         # Step 3: Build Y matrix
         self.Y = build_Y_matrix(
             working_df=working_df,
             outcome=self.outcome,
             time=self.time,
-            unitid=self.unitid,
-            unit_labels=unit_labels
+            unitid=self.unitid, unit_index=unit_index
         )
 
         # Step 4: Build Z matrix (covariates)
@@ -339,24 +305,18 @@ class LEXSCM:
             working_df=working_df,
             covariates=self.config.covariates,
             time=self.time,
-            unitid=self.unitid,
-            unit_labels=unit_labels
+            unitid=self.unitid, unit_index=unit_index
         )
 
         # Step 5: Build f weighting vector
         self.f = build_f_vector(
             working_df=working_df,
             weight_col=self.config.weight_col,
-            unitid=self.unitid,
-            unit_labels=unit_labels
+            unitid=self.unitid, unit_index=unit_index
         )
 
-        # Final sanity check
-        assert self.Y.shape[1] == len(self.candidate_mask),\
-            "Y and candidate_mask dimension mismatch!"
-
         X, f, candidate_idx, T0_pre, N = prepare_experiment_inputs(
-            self.Y, self.Z, self.f, self.candidate_mask, self.m
+            self.Y, self.Z, self.f, candidate_mask, self.m
         )
 
         # Get logical indices
@@ -370,18 +330,14 @@ class LEXSCM:
         # Standardize over estimation period
         X_E, G = build_X_tilde(X, f, E_idx, J=self.Y.shape[1])
 
-        # ------------------- Stage 1: BnB -------------------
         bbresults = branch_and_bound_topK(
-            G,
-            candidate_idx,
+            G=G,
+            candidate_idx=candidate_idx,
             m=self.m,
             top_K=self.top_K,
-            top_P=self.top_P,
-            total_units=N,
-            # NEW PARAMETERS
-            unit_costs=self.unit_costs,
-            budget=self.config.budget
+            unit_index=unit_index
         )
+
 
         # ------------------- Stage 2: Evaluate candidates -------------------
         candidate_results = evaluate_candidates(
@@ -395,26 +351,46 @@ class LEXSCM:
             lambda_penalty=self.lambda_penalty
         )
 
+
+        for cand in candidate_results:
+            treated_idx = np.asarray(cand.identification.treated_idx, dtype=int)
+
+            cand.treated_units = unit_index.get_labels(treated_idx).tolist()
+
+            cand.treated_unit_weights = dict(zip(
+                unit_index.get_labels(treated_idx),
+                cand.weights.treated
+            ))
+
+            cand.control_unit_weights = dict(zip(
+                unit_index.labels,
+                cand.weights.control
+            ))
+
         candidate_mdes = run_mde_analysis(
             candidates=candidate_results,
             n_post_grid=self.config.n_post_grid,
             n_sims=self.config.n_sims
         )
 
-        # --- Select best design: Threshold on fit → Optimize power ---
+        
         winner, shortlist = select_best_tuple(
-            candidates=candidate_results,
-            delta=self.config.delta,
-            relative_delta=self.config.relative_delta,
-            target_mde_horizon=self.config.target_mde_horizon,
-            return_shortlist=True,
-            max_shortlist=self.config.max_shortlist
+            candidate_mdes,
+            delta=0.015,           # or try 0.01 / 0.02
+            relative_delta=1.5,    # I recommend starting with this for marketing
+            target_mde_horizon="early_mde_avg",   # or "mde_6w" if you have a fixed test length
+            return_shortlist=True
         )
 
+
         # ------------------- Stage 3: Inference (Post-Intervention) -------------------
-        # We take the full Y matrix (Pre + Post)
-        # Note: If post_df was provided, Y already contains those rows
-        # ------------------- Stage 3: Inference (Post-Intervention) -------------------
+        # ==============================================================
+        # 5. Post-Intervention Inference 
+        # ==============================================================
+        # We only compute effects using the selected treated units 
+        # (their column indices are stored in .identification.treated_idx)
+
+        # Default: use full pre-period population mean
         y_pop_mean_t = self.Y.mean(axis=1)
 
         if len(post_idx) > 0 and not self.post_df.empty:
@@ -424,68 +400,67 @@ class LEXSCM:
                 outcome=self.outcome,
                 time=self.time,
                 unitid=self.unitid,
-                unit_labels=unit_labels
+                unit_index=unit_index
             )
             Y_full = np.vstack([self.Y, Y_post])
 
             # Update population mean over the full timeline
             y_pop_mean_t = Y_full.mean(axis=1)
 
-            # Update all candidates with post-intervention results
-            candidate_results = update_post_inference(
-                candidate_results=candidate_results,
-                Y_full=Y_full,
-                post_idx=post_idx,
-                n_sims=self.config.n_sims,
-                alpha=0.05,
-                seed=getattr(self.config, 'seed', 42)
-            )
+            # Update predictions and effects for each candidate
+            for cand in candidate_results:
+                # Get the column indices of the selected treated units for this candidate
+                treated_col_idx = np.asarray(cand.identification.treated_idx, dtype=int)
+
+                # Extract weights
+                treated_weights = cand.weights.treated      # weights for the m treated units
+                control_weights = cand.weights.control      # full control weights (length N)
+
+                # Compute synthetic treated using ONLY the selected treated columns
+                synth_treated_full = Y_full[:, treated_col_idx] @ treated_weights
+
+                # Compute synthetic control using all units
+                synth_control_full = Y_full @ control_weights
+
+                # Store results
+                cand.predictions.synthetic_treated = synth_treated_full
+                cand.predictions.synthetic_control = synth_control_full
+                cand.predictions.effects = synth_treated_full - synth_control_full
+
+                # Point estimate (Average Treatment Effect) over post periods
+                post_gap = cand.predictions.effects[post_idx]
+                cand.inference.ate = float(np.mean(post_gap))
+
+                # Optional: store the treated column indices used
+                cand.inference.treated_col_idx = treated_col_idx.tolist()
+
+                # Run inference (permutation test + conformal CI)
+                cand.inference.p_value = compute_post_inference(
+                    candidate=cand,
+                    post_idx=post_idx,
+                    n_perms=self.config.n_sims,
+                    seed=getattr(self.config, 'seed', 42)
+                ).inference.p_value
+
+                cand = compute_conformal_ci(
+                    candidate=cand,
+                    post_idx=post_idx,
+                    alpha=0.05,
+                    n_perms=self.config.n_sims,
+                    seed=getattr(self.config, 'seed', 42)
+                )
 
         # ==============================================================
         # 6. Final Assembly
         # ==============================================================
         # Re-fetch the winner (now with updated post-intervention results)
         best_candidate = next(
-            (c for c in candidate_results
+            (c for c in candidate_results 
              if c.identification.tuple_id == winner.identification.tuple_id),
-            candidate_results[0]  # fallback
+            candidate_results[0]   # fallback
         )
 
-        unit_name_map = (
-            self.df[[self.unitid]]
-            .drop_duplicates()
-            .set_index(np.arange(self.Y.shape[1]))  # index matches Y columns
-            .squeeze()
-            .to_dict()
-        )
-
-        # Attach weight dictionaries to every candidate
-        for cand in candidate_results:
-            # --- Treated weights (only the m selected units) ---
-            treated_idx = np.asarray(cand.identification.treated_idx, dtype=int)
-            treated_weights = cand.weights.treated  # length m
-
-            cand.treated_weights_dict = {
-                unit_name_map[i]: float(w)
-                for i, w in zip(treated_idx, treated_weights)
-            }
-
-            # --- Control weights (all units, but only non-zero for clarity) ---
-            control_weights = cand.weights.control  # length N
-            cand.control_weights_dict = {
-                unit_name_map[i]: float(w)
-                for i, w in enumerate(control_weights)
-                if abs(w) > 1e-8  # filter out numerical noise
-            }
-
-        # Optional: Also attach to winner and shortlist for quick access
-        if hasattr(winner, 'identification'):
-            winner.treated_weights_dict = winner.treated_weights_dict if hasattr(winner, 'treated_weights_dict') else {}
-            winner.control_weights_dict = winner.control_weights_dict if hasattr(winner, 'control_weights_dict') else {}
-        
-        
-        
-
+        T = len(time_index)
 
         results = LEXSCMResults(
             summary=shortlist,
@@ -495,7 +470,7 @@ class LEXSCM:
             config=self.config,
             y_pop_mean_t=y_pop_mean_t,
             n_units=self.Y.shape[1],
-            n_periods=len(E_idx) + len(B_idx) + len(post_idx),
+            n_periods=T,
             n_pre_periods=len(E_idx) + len(B_idx),
             n_fit_periods=len(E_idx),
             n_blank_periods=len(B_idx),
@@ -503,4 +478,3 @@ class LEXSCM:
         )
 
         return results
-
