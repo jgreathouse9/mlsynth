@@ -11,9 +11,7 @@ from math import comb
 
 @dataclass(order=True)
 class Solution:
-    """
-    Container for a candidate solution in the branch-and-bound search.
-    """
+    """Container for a candidate solution in the branch-and-bound search."""
 
     # --- required core fields ---
     loss: float
