@@ -1,5 +1,5 @@
 """
-ffkm.py
+Ffkm.py
 =======
 Functional Factorial K-Means (FFKM)
 
@@ -9,6 +9,18 @@ time series.  Unlike PCA-then-k-means, the subspace here is chosen to
 maximally separate clusters in the functional inner-product geometry —
 making it strictly better for clustering purposes when the goal is
 trajectory-homogeneous groups.
+
+References
+----------
+Ieva, F., Paganoni, A. M., Pigoli, D., & Vitelli, V. (2013).
+    Multivariate functional clustering for the morphological analysis of
+    electrocardiograph curves.  Journal of the Royal Statistical Society:
+    Series C, 62(3), 401–418.
+
+Chiou, J.-M., & Li, P.-L. (2007).
+    Functional clustering and identifying substructures of longitudinal
+    data.  Journal of the Royal Statistical Society: Series B, 69(4),
+    679–699.
 
 Primary public interface
 ------------------------
@@ -41,18 +53,6 @@ This is minimised by alternating:
 
 Convergence is guaranteed because each step is non-increasing; multiple
 random restarts guard against poor local optima.
-
-References
-----------
-Ieva, F., Paganoni, A. M., Pigoli, D., & Vitelli, V. (2013).
-    Multivariate functional clustering for the morphological analysis of
-    electrocardiograph curves.  Journal of the Royal Statistical Society:
-    Series C, 62(3), 401–418.
-
-Chiou, J.-M., & Li, P.-L. (2007).
-    Functional clustering and identifying substructures of longitudinal
-    data.  Journal of the Royal Statistical Society: Series B, 69(4),
-    679–699.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def _spectral_rank(singular_values: np.ndarray, energy_threshold: float = 0.95) 
 
     Parameters
     ----------
-    singular_values  : (K,) float64   In descending order.
+    singular_values : (K,) float64   In descending order.
     energy_threshold : float           ∈ [0, 1].
 
     Returns
@@ -105,7 +105,7 @@ def _silhouette_optimal_k(X: np.ndarray, k_max: int = 10) -> int:
 
     Parameters
     ----------
-    X     : (N, F) float64
+    X : (N, F) float64
     k_max : int             Upper bound on k to evaluate.
 
     Returns
@@ -151,14 +151,14 @@ class FFKM:
 
     Parameters
     ----------
-    n_clusters   : int     K — number of clusters.
+    n_clusters : int     K — number of clusters.
     n_components : int     L — discriminant subspace dimension.
-    n_basis      : int     M — number of B-spline basis functions.
+    n_basis : int     M — number of B-spline basis functions.
     spline_order : int     Degree of B-spline (3 = cubic).
-    reg_lambda   : float   Roughness penalty weight (0 = no penalty).
-    n_init       : int     Number of random ALS restarts.
-    max_iter     : int     Maximum ALS iterations per restart.
-    tol          : float   Convergence tolerance on loss change.
+    reg_lambda : float   Roughness penalty weight (0 = no penalty).
+    n_init : int     Number of random ALS restarts.
+    max_iter : int     Maximum ALS iterations per restart.
+    tol : float   Convergence tolerance on loss change.
     random_state : int     Seed for reproducibility.
 
     Attributes (set after fit)
@@ -265,6 +265,21 @@ class FFKM:
         """
         Joint selection of L (rank) and K (clusters) via SVD + silhouette.
 
+        Parameters
+        ----------
+        X : (N, T)
+        t : (T,)  optional time grid
+        K_range : range  cluster counts to evaluate
+        var_threshold : float  energy fraction for rank selection
+        n_runs : int    restarts per K
+        verbose : bool
+
+        Returns
+        -------
+        best_K : int
+        best_L : int
+        results : dict   K → (mean_silhouette, std_silhouette)
+
         Algorithm
         ---------
         1.  Select L: find the spectral rank of X that retains
@@ -273,21 +288,6 @@ class FFKM:
             record the mean silhouette score of the projected scores.
             Choose K with the highest mean silhouette.
         3.  Refit the final model with (best_K, best_L).
-
-        Parameters
-        ----------
-        X             : (N, T)
-        t             : (T,)  optional time grid
-        K_range       : range  cluster counts to evaluate
-        var_threshold : float  energy fraction for rank selection
-        n_runs        : int    restarts per K
-        verbose       : bool
-
-        Returns
-        -------
-        best_K   : int
-        best_L   : int
-        results  : dict   K → (mean_silhouette, std_silhouette)
         """
         N, T = X.shape
         if t is None:
@@ -321,7 +321,7 @@ class FFKM:
                 except Exception:
                     continue
 
-            results[K] = (float(np.mean(sils)), float(np.std(sils))) if sils \
+            results[K] = (float(np.mean(sils)), float(np.std(sils))) if sils\
                          else (-np.inf, np.inf)
 
         best_K = max(results, key=lambda k: results[k][0])
@@ -479,7 +479,7 @@ class FFKM:
         Returns
         -------
         A_H_new : (M, L)   Updated H-orthonormal basis.
-        loss    : float     Within-cluster variance in projected space.
+        loss : float     Within-cluster variance in projected space.
 
         Raises
         ------
@@ -527,9 +527,9 @@ class FFKM:
 
         Returns
         -------
-        best_U   : (N, K)
+        best_U : (N, K)
         best_A_H : (M, L)
-        best_loss: float
+        best_loss : float
         """
         chol_H    = cholesky(H, lower=True)
         best_loss = np.inf
@@ -596,6 +596,26 @@ def ffkm_features(
     Returns standardised discriminant scores and the silhouette-optimal
     cluster count.
 
+    Parameters
+    ----------
+    Y0 : (T, N) float64   Pre-period panel (time × geos).
+    n_basis : int    M — B-spline basis size.
+    spline_order : int    Spline degree (3 = cubic).
+    reg_lambda : float  Roughness penalty weight.
+    var_threshold : float  Energy fraction for rank selection.
+    k_range : range  Cluster counts evaluated in silhouette sweep.
+    n_runs : int    FFKM restarts per K in the silhouette sweep.
+    n_init : int    ALS restarts inside each FFKM fit.
+    max_iter : int    Maximum ALS iterations per restart.
+    tol : float  ALS convergence tolerance.
+    random_state : int    Master seed.
+    k_max_sil : int    Upper bound on k in the silhouette sweep.
+
+    Returns
+    -------
+    features : (N, L) float64   Standardised FFKM discriminant scores.
+    k_opt : int               Silhouette-optimal cluster count.
+
     Algorithm
     ---------
     1.  Transpose Y0 from (T, N) to (N, T) so each geo is a row.
@@ -609,26 +629,6 @@ def ffkm_features(
     If T ≤ spline_order the B-spline fit is infeasible.  In that case
     we fall back to direct SVD + spectral rank + silhouette k-means,
     which is the behaviour of the previous _fpca_features.
-
-    Parameters
-    ----------
-    Y0            : (T, N) float64   Pre-period panel (time × geos).
-    n_basis       : int    M — B-spline basis size.
-    spline_order  : int    Spline degree (3 = cubic).
-    reg_lambda    : float  Roughness penalty weight.
-    var_threshold : float  Energy fraction for rank selection.
-    k_range       : range  Cluster counts evaluated in silhouette sweep.
-    n_runs        : int    FFKM restarts per K in the silhouette sweep.
-    n_init        : int    ALS restarts inside each FFKM fit.
-    max_iter      : int    Maximum ALS iterations per restart.
-    tol           : float  ALS convergence tolerance.
-    random_state  : int    Master seed.
-    k_max_sil     : int    Upper bound on k in the silhouette sweep.
-
-    Returns
-    -------
-    features : (N, L) float64   Standardised FFKM discriminant scores.
-    k_opt    : int               Silhouette-optimal cluster count.
     """
     T, N = Y0.shape
     X    = Y0.T.copy()               # (N, T) — geos as rows
