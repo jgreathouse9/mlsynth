@@ -13,7 +13,7 @@ class Solution:
     Container for a candidate solution in the branch-and-bound search.
 
     This dataclass stores the optimization results for a specific donor subset,
-    including the loss, weights, and metadata. It supports native sorting 
+    including the loss, weights, and metadata. It supports native sorting
     based on the loss attribute to maintain a top-K ranking.
 
     Attributes
