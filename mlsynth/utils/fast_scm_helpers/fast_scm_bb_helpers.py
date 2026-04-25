@@ -155,7 +155,7 @@ def get_tighter_bound(Q: np.ndarray, full_G_diag: np.ndarray, available_indices:
                       remaining_needed: int) -> float:
     """
     Mathematically rigorous Harmonic Bound.
-    The minimum variance of a simplex-constrained portfolio is bounded below 
+    The minimum variance of a simplex-constrained portfolio is bounded below
     by the reciprocal of the sum of the reciprocals of the variances.
     """
     k = Q.shape[0]
