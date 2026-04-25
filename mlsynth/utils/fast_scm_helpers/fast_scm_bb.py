@@ -24,30 +24,30 @@ def branch_and_bound_topK(
     Perform a Top-K Branch and Bound search to find optimal donor subsets.
 
     This function identifies the best 'm' donors from a candidate pool to minimize
-    the quadratic loss (w'Qw) plus a linear cost penalty (lambda * cost). It
-    utilizes a Lagrangian-aware heuristic for tree ordering and aggressive
-    simplex-constrained pruning to bypass large sections of the combinatorial
+    the quadratic loss (w'Qw) plus a linear cost penalty (lambda * cost). It 
+    utilizes a Lagrangian-aware heuristic for tree ordering and aggressive 
+    simplex-constrained pruning to bypass large sections of the combinatorial 
     search space.
 
     Parameters
     ----------
     G : np.ndarray
-        The full Gram matrix (MxM) representing the variances and covariances
+        The full Gram matrix (MxM) representing the variances and covariances 
         of all potential donor units.
     candidate_idx : np.ndarray
         Array of indices representing the pool of donors available for selection.
     m : int, default=5
         The exact number of donors to be included in each subset (tuple size).
     lam : float, default=0.0
-        The penalty parameter (lambda) for the linear cost associated with
+        The penalty parameter (lambda) for the linear cost associated with 
         selecting specific units.
     top_K : int, default=20
         The number of top-ranking unique solutions to return.
     unit_index : IndexSet, optional
-        An object containing mapping information (labels) for the units. If
+        An object containing mapping information (labels) for the units. If 
         provided, the returned solutions will include human-readable labels.
     unit_costs : np.ndarray, optional
-        A vector of length M containing the cost associated with each unit.
+        A vector of length M containing the cost associated with each unit. 
         Defaults to zeros if not provided.
 
     Returns
@@ -55,7 +55,7 @@ def branch_and_bound_topK(
     Dict[str, Any]
         A dictionary containing two primary keys:
         - 'top_tuples': A sorted list of the best `Solution` objects found.
-        - 'stats': A nested dictionary of performance and search metrics,
+        - 'stats': A nested dictionary of performance and search metrics, 
           including:
             * search_space: Total subsets and nodes in the theoretical tree.
             * exploration: Actual nodes visited and subsets fully evaluated.
@@ -66,8 +66,8 @@ def branch_and_bound_topK(
 
     Notes
     -----
-    The search uses a 'Seed-based entry' to ensure that the branching begins
-    with the most promising individual units, maximizing the early discovery of
+    The search uses a 'Seed-based entry' to ensure that the branching begins 
+    with the most promising individual units, maximizing the early discovery of 
     strong upper bounds.
     """
     start_time = time.time()
@@ -93,9 +93,9 @@ def branch_and_bound_topK(
     }
 
     # --- Greedy Baseline (Initialization via SFS) ---
-    init_sol = greedy_initial_solution(G, unit_costs, candidate_idx, m, lam)
-    init_loss = init_sol.loss
-    top_tuples = [init_sol]
+    init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
+    top_tuples = []
+    top_tuples.append(Solution(init_loss, init_idx, init_w))
 
     # --- Search Loop (Seed-based entry) ---
     # We seed the search with the top-performing individual units to establish 
@@ -112,7 +112,6 @@ def branch_and_bound_topK(
             candidate_idx=candidate_idx,
             unit_costs=unit_costs,
             m=m,
-            lam=lam,
             top_K=top_K,
             top_tuples=top_tuples,
             indices=[j],
