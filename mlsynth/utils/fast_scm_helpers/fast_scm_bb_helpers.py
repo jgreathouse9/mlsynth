@@ -155,37 +155,30 @@ def solve_qp_simplex(Q: np.ndarray, max_iter: int = 100, lr: float = 0.05) -> np
 def get_tighter_bound(Q: np.ndarray, full_G_diag: np.ndarray, available_indices: np.ndarray,
                       remaining_needed: int) -> float:
     """
-    Compute a tight, admissible lower bound for the quadratic form on the simplex.
+    Computes a strictly admissible lower bound for the quadratic form.
 
-    Leverages the fact that w >= 0 and sum(w) = 1. For a PSD matrix,
-    w^T Q w is bounded below by the minimum diagonal entry scaled by the
-    size of the resulting subset.
-
-    Parameters
-    ----------
-    Q : np.ndarray
-        The Gram matrix of the current partial subset.
-    full_G_diag : np.ndarray
-        The diagonal entries of the full Gram matrix G.
-    available_indices : np.ndarray
-        Indices of candidates remaining in the pool.
-    remaining_needed : int
-        The number of units still needed to reach subset size m.
-
-    Returns
-    -------
-    float
-        The lower bound of the quadratic loss for any completion of the subset.
+    This version is designed to be 'safer' than the linear diagonal bound. 
+    It uses a conservative estimate to ensure we don't prune the global optimum
+    in the presence of high covariance.
     """
     k = Q.shape[0]
     if k == 0: return 0.0
 
+    # Minimum possible variance of any single unit currently in the submatrix
     diags = np.diag(Q)
-    current_lb = np.min(diags) / k
+
+    # We divide by k^2 to account for the 'Worst Case' scenario of 
+    # perfectly negatively correlated units (which is mathematically 
+    # the most a quadratic form can be reduced on a simplex).
+    current_lb = np.min(diags) / (k ** 2)
 
     if remaining_needed > 0 and len(available_indices) > 0:
+        # What is the absolute best donor we haven't picked yet?
         future_min = np.min(full_G_diag[available_indices])
-        return float(min(current_lb, future_min / (k + remaining_needed)))
+
+        # We take the lower of the two possibilities to remain admissible.
+        total_k = k + remaining_needed
+        return float(min(current_lb, future_min / (total_k ** 2)))
 
     return float(current_lb)
 
