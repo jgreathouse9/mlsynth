@@ -157,7 +157,7 @@ def get_tighter_bound(Q: np.ndarray, full_G_diag: np.ndarray, available_indices:
     """
     Computes a strictly admissible lower bound for the quadratic form.
 
-    This version is designed to be 'safer' than the linear diagonal bound. 
+    This version is designed to be 'safer' than the linear diagonal bound.
     It uses a conservative estimate to ensure we don't prune the global optimum
     in the presence of high covariance.
     """
