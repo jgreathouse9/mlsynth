@@ -13,7 +13,7 @@ class Solution:
     Container for a candidate solution in the branch-and-bound search.
 
     This dataclass stores the optimization results for a specific donor subset,
-    including the loss, weights, and metadata. It supports native sorting 
+    including the loss, weights, and metadata. It supports native sorting
     based on the loss attribute to maintain a top-K ranking.
 
     Attributes
@@ -65,7 +65,7 @@ def expand_weights_to_full(indices: List[int], weights: np.ndarray, total_units:
     Returns
     -------
     np.ndarray
-        A vector of length `total_units` with subset weights at the specified 
+        A vector of length `total_units` with subset weights at the specified
         indices and zeros elsewhere.
     """
     w_full = np.zeros(total_units)
@@ -157,8 +157,8 @@ def get_tighter_bound(Q: np.ndarray, full_G_diag: np.ndarray, available_indices:
     """
     Compute a tight, admissible lower bound for the quadratic form on the simplex.
 
-    Leverages the fact that w >= 0 and sum(w) = 1. For a PSD matrix, 
-    w^T Q w is bounded below by the minimum diagonal entry scaled by the 
+    Leverages the fact that w >= 0 and sum(w) = 1. For a PSD matrix,
+    w^T Q w is bounded below by the minimum diagonal entry scaled by the
     size of the resulting subset.
 
     Parameters
@@ -198,7 +198,7 @@ def greedy_initial_solution(G: np.ndarray, unit_costs: np.ndarray, candidate_idx
     """
     Find a high-quality initial solution using Sequential Forward Selection (SFS).
 
-    This greedy approach iteratively adds the unit that results in the 
+    This greedy approach iteratively adds the unit that results in the
     minimum objective value (Loss + lambda * Cost) until m units are selected.
 
     Parameters
@@ -261,7 +261,7 @@ def expand_tuple(
     """
     Recursive core of the Branch and Bound algorithm for subset selection.
 
-    Explores the search tree using depth-first search. Prunes branches 
+    Explores the search tree using depth-first search. Prunes branches
     using lower bounds on both the quadratic loss and linear costs.
 
     Parameters
