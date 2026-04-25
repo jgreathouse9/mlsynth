@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from .fast_scm_setup import IndexSet
 from .fast_scm_bb_helpers import (
     compute_search_space_size,
@@ -10,30 +10,77 @@ from .fast_scm_bb_helpers import (
     Solution
 )
 
-def branch_and_bound_topK(
-    G: np.ndarray,
-    candidate_idx: np.ndarray,
-    m: int = 5,
-    lam: float = 0.0,
-    top_K: int = 20,
-    unit_index: Optional[IndexSet] = None,
-    unit_costs: Optional[np.ndarray] = None,
-):
-    """Top-K Branch and Bound using Lagrangian relaxation and Gershgorin bounds."""
-    start_time = time.time()
 
-    if len(candidate_idx) < m:
-        raise ValueError(f"Not enough candidate units: {len(candidate_idx)} < m={m}")
+def branch_and_bound_topK(
+        G: np.ndarray,
+        candidate_idx: np.ndarray,
+        m: int = 5,
+        lam: float = 0.0,
+        top_K: int = 20,
+        unit_index: Optional[IndexSet] = None,
+        unit_costs: Optional[np.ndarray] = None,
+) -> Dict[str, Any]:
+    """
+    Perform a Top-K Branch and Bound search to find optimal donor subsets.
+
+    This function identifies the best 'm' donors from a candidate pool to minimize
+    the quadratic loss (w'Qw) plus a linear cost penalty (lambda * cost). It 
+    utilizes a Lagrangian-aware heuristic for tree ordering and aggressive 
+    simplex-constrained pruning to bypass large sections of the combinatorial 
+    search space.
+
+    Parameters
+    ----------
+    G : np.ndarray
+        The full Gram matrix (MxM) representing the variances and covariances 
+        of all potential donor units.
+    candidate_idx : np.ndarray
+        Array of indices representing the pool of donors available for selection.
+    m : int, default=5
+        The exact number of donors to be included in each subset (tuple size).
+    lam : float, default=0.0
+        The penalty parameter (lambda) for the linear cost associated with 
+        selecting specific units.
+    top_K : int, default=20
+        The number of top-ranking unique solutions to return.
+    unit_index : IndexSet, optional
+        An object containing mapping information (labels) for the units. If 
+        provided, the returned solutions will include human-readable labels.
+    unit_costs : np.ndarray, optional
+        A vector of length M containing the cost associated with each unit. 
+        Defaults to zeros if not provided.
+
+    Returns
+    -------
+    Dict[str, Any]
+        A dictionary containing two primary keys:
+        - 'top_tuples': A sorted list of the best `Solution` objects found.
+        - 'stats': A nested dictionary of performance and search metrics, 
+          including:
+            * search_space: Total subsets and nodes in the theoretical tree.
+            * exploration: Actual nodes visited and subsets fully evaluated.
+            * pruning: Total branches bypassed and the calculated prune rate.
+            * performance: Runtime, throughput (nodes/sec), and speedup factor.
+            * optimality: Comparison between initial greedy and final best loss.
+            * bound_quality: The relative gap between top and bottom of the K results.
+
+    Notes
+    -----
+    The search uses a 'Seed-based entry' to ensure that the branching begins 
+    with the most promising individual units, maximizing the early discovery of 
+    strong upper bounds.
+    """
+    start_time = time.time()
 
     # Ensure unit_costs is available (default to zeros if not provided)
     if unit_costs is None:
         unit_costs = np.zeros(G.shape[0])
 
-    # --- Heuristic Ordering ---
-    # Sorting by diagonal (variance) helps find better solutions earlier, 
-    # which leads to more aggressive pruning.
-    diag_vals = np.diag(G)
-    candidate_idx = candidate_idx[np.argsort(diag_vals[candidate_idx])]
+    # --- Lagrangian-Aware Heuristic Ordering ---
+    # Sorting by marginal score (Variance + Penalty) helps find strong solutions 
+    # early, lowering the 'score to beat' and increasing pruning depth.
+    marginal_scores = np.diag(G) + (lam * unit_costs)
+    candidate_idx = candidate_idx[np.argsort(marginal_scores[candidate_idx])]
 
     M = len(candidate_idx)
     total_subsets, total_nodes = compute_search_space_size(M, m)
@@ -45,14 +92,14 @@ def branch_and_bound_topK(
         "branches_considered": 0,
     }
 
-    # --- Greedy Baseline (Initialization) ---
-    # This provides a 'score to beat' right at the start.
+    # --- Greedy Baseline (Initialization via SFS) ---
     init_sol = greedy_initial_solution(G, unit_costs, candidate_idx, m, lam)
     init_loss = init_sol.loss
     top_tuples = [init_sol]
 
     # --- Search Loop (Seed-based entry) ---
-    # We enter the recursion with each possible starting unit.
+    # We seed the search with the top-performing individual units to establish 
+    # a strong upper bound immediately.
     num_seeds = min(M, max(1, 4 * m))
     seed_set = candidate_idx[:num_seeds]
 
@@ -83,19 +130,19 @@ def branch_and_bound_topK(
 
     for i, sol in enumerate(solutions, start=1):
         sol.label = f"Tuple {i}"
-        
+
         if unit_index is not None:
-            # Map weights back to the full unit dimension
+            # Map weights back to the full unit dimension for visualization
             sol.full_weights = expand_weights_to_full(
                 sol.indices,
                 sol.weights,
                 total_units
             )
 
-            # Assign human-readable labels
+            # Assign human-readable labels from the IndexSet
             sol.labels = unit_index.get_labels(sol.indices).tolist()
 
-            # Dictionary form for downstream consumption
+            # Dictionary form for easy JSON export or downstream analysis
             sol.weight_dict = {
                 unit_index.labels[idx]: float(w)
                 for idx, w in zip(sol.indices, sol.weights)
@@ -116,6 +163,7 @@ def branch_and_bound_topK(
         if raw_stats["branches_considered"] else 0
     )
 
+    # How many times faster was this than evaluating every possible subset?
     speedup = (
         total_subsets / raw_stats["subsets_evaluated"]
         if raw_stats["subsets_evaluated"] else np.inf
