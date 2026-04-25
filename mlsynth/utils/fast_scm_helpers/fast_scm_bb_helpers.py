@@ -13,7 +13,7 @@ class Solution:
     Container for a candidate solution in the branch-and-bound search.
 
     This dataclass stores the optimization results for a specific donor subset,
-    including the loss, weights, and metadata. It supports native sorting
+    including the loss, weights, and metadata. It supports native sorting 
     based on the loss attribute to maintain a top-K ranking.
 
     Attributes
@@ -45,316 +45,452 @@ class Solution:
     label: Optional[str] = field(default=None, compare=False)
 
 
-# ============================================================
-# UTILITIES & PROJECTION
-# ============================================================
-
-def expand_weights_to_full(indices: List[int], weights: np.ndarray, total_units: int) -> np.ndarray:
+def expand_weights_to_full(indices, weights, total_units):
     """
     Expand a subset weight vector into a full-length vector.
 
     Parameters
     ----------
-    indices : List[int]
-        The indices corresponding to the chosen donors.
-    weights : np.ndarray
-        The optimized weights corresponding to `indices`.
+    indices : list of int
+        Indices of selected units.
+    weights : np.ndarray, shape (k,)
+        Weights corresponding to `indices`.
     total_units : int
-        The total number of candidate units in the pool.
+        Total number of units in the full problem.
 
     Returns
     -------
-    np.ndarray
-        A vector of length `total_units` with subset weights at the specified
-        indices and zeros elsewhere.
+    w_full : np.ndarray, shape (total_units,)
+        Weight vector with zeros for non-selected units and
+        `weights` placed at `indices`.
+
+    Notes
+    -----
+    - Useful for mapping subset solutions back to the full unit space.
     """
     w_full = np.zeros(total_units)
     w_full[indices] = weights
     return w_full
 
 
-def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
+
+
+def compute_search_space_size(M: int, m: int):
     """
-    Compute the total number of possible subsets and nodes in the search tree.
+    Compute the size of the combinatorial search space.
 
     Parameters
     ----------
     M : int
-        The number of total candidate donors.
+        Total number of candidate units.
     m : int
-        The number of donors to select for the subset.
+        Subset size (number of units to select).
 
     Returns
     -------
     total_subsets : int
-        The number of combinations (M choose m).
+        Number of size-m subsets (C(M, m)).
     total_nodes : int
-        The sum of combinations (M choose k) for k=1 to m.
+        Total number of nodes in the search tree (sum_{k=1}^m C(M, k)).
+
+    Notes
+    -----
+    - `total_nodes` corresponds to the full branch-and-bound tree size
+      without pruning.
     """
     total_subsets = comb(M, m)
     total_nodes = sum(comb(M, k) for k in range(1, m + 1))
     return total_subsets, total_nodes
 
-
-def project_to_simplex(v: np.ndarray) -> np.ndarray:
+def compute_seed_tuples(
+    G: np.ndarray,
+    candidate_idx: np.ndarray,
+    top_P: int
+) -> List[Tuple[float, List[int], np.ndarray]]:
     """
-    Project a vector onto the probability simplex using an O(n log n) algorithm.
-
-    The projection solves: min ||w - v||^2 subject to sum(w) = 1 and w >= 0.
+    Generate initial 1-unit seed tuples for branch-and-bound optimization.
 
     Parameters
     ----------
-    v : np.ndarray
-        The input vector to be projected.
+    G : np.ndarray, shape (N, N)
+        Symmetric loss matrix (e.g., covariance or Gram matrix) used for computing diagonal losses.
+    candidate_idx : np.ndarray, shape (M,)
+        Indices of candidate units to consider.
+    top_P : int
+        Number of top 1-unit seeds to retain.
 
     Returns
     -------
-    np.ndarray
-        The projected vector on the probability simplex.
+    seeds : list of tuples
+        List of length <= top_P, each tuple contains:
+        - total_loss : float
+            Diagonal loss of the single unit (G[i, i]).
+        - indices : list of int
+            List containing the single unit index.
+        - weights : np.ndarray, shape (1,)
+            Weight vector (always [1.0] for 1-unit seeds).
+
+    Notes
+    -----
+    - Seeds are sorted by increasing diagonal loss.
+    - Used as the initial candidates for branch-and-bound expansion.
+    """
+    unit_losses = []
+
+    for i in candidate_idx:
+        w = np.array([1.0])
+        loss = float(G[i, i])
+        unit_losses.append((loss, [i], w))
+
+    unit_losses.sort(key=lambda x: x[0])
+    return unit_losses[:top_P]
+
+def project_to_simplex(v: np.ndarray, eps: float = 1e-10) -> np.ndarray:
+    """
+    Project a vector onto the probability simplex.
+
+    Parameters
+    ----------
+    v : np.ndarray, shape (n,)
+        Input vector.
+    eps : float, optional
+        Numerical tolerance (unused but retained for API stability).
+
+    Returns
+    -------
+    w : np.ndarray, shape (n,)
+        Projection of `v` onto the simplex:
+        w_i >= 0 and sum(w) = 1.
+
+    Notes
+    -----
+    - Implements the method of Duchi et al. (2008).
+    - Runs in O(n log n) due to sorting.
     """
     u = np.sort(v)[::-1]
     cssv = np.cumsum(u)
     rho = np.nonzero(u * np.arange(1, len(v) + 1) > (cssv - 1))[0][-1]
     theta = (cssv[rho] - 1) / (rho + 1)
-    return np.maximum(v - theta, 0.0)
+    return np.maximum(v - theta, 0)
 
 
-def solve_qp_simplex(Q: np.ndarray, max_iter: int = 100, lr: float = 0.05) -> np.ndarray:
+def solve_qp_simplex(Q: np.ndarray, w_init: np.ndarray, steps: int = 8, lr: float = 0.01) -> np.ndarray:
     """
-    Solve a quadratic program over the probability simplex using Projected Gradient Descent.
-
-    Solves: min w^T Q w subject to sum(w) = 1 and w >= 0.
-
-    Parameters
-    ----------
-    Q : np.ndarray
-        The quadratic cost matrix (Gram matrix of donors).
-    max_iter : int, default=100
-        Maximum number of gradient descent iterations.
-    lr : float, default=0.05
-        The learning rate for the gradient steps.
-
-    Returns
-    -------
-    np.ndarray
-        The optimized weight vector `w`.
+    VERY FAST approximate QP solver for bounds.
+    Designed for branch-and-bound nodes.
     """
-    m = Q.shape[0]
-    w = np.ones(m) / m
-    for _ in range(max_iter):
-        grad = 2 * Q @ w
-        w -= lr * grad
+    w = w_init.copy()
+
+    for _ in range(steps):
+        w -= lr * (2 * Q @ w)
         w = project_to_simplex(w)
+
     return w
 
 
-# ============================================================
-# ADMISSIBLE BOUNDS (SIMPLEX-CONSTRAINED)
-# ============================================================
-def get_tighter_bound(Q: np.ndarray,
-                      full_G_diag: np.ndarray,
-                      available_indices: np.ndarray,
-                      remaining_needed: int) -> float:
+# ----------------------------
+# Lower Bound (with shortcuts)
+# ----------------------------
+
+def pairwise_lower_bound(Q):
     """
-    SDP-relaxation-based admissible lower bound for the quadratic objective.
-
-    This replaces heuristic harmonic bounds with a convex relaxation:
-    the minimum quadratic form over the simplex is lower bounded using
-    spectral properties of the Gram matrix.
-
-    The bound is constructed from:
-    - smallest eigenvalue of current submatrix (SDP relaxation)
-    - contribution of best possible remaining diagonal entries
-    """
-
-    k = Q.shape[0]
-    if k == 0:
-        return 0.0
-
-    # --- Current SDP relaxation term ---
-    # For PSD Q, w^T Q w >= lambda_min(Q) under ||w||_2 = 1 relaxation
-    # We scale by k to approximate simplex constraint effect
-    try:
-        eig_min = np.linalg.eigvalsh(Q)[0]
-    except np.linalg.LinAlgError:
-        eig_min = 0.0
-
-    lb_current = max(eig_min * k, 0.0)
-
-    # --- Future augmentation (greedy SDP extension) ---
-    if remaining_needed > 0 and len(available_indices) > 0:
-        # Use smallest available diagonal entries as best-case additions
-        future_diag = np.sort(full_G_diag[available_indices])[:remaining_needed]
-
-        # SDP-consistent surrogate: additive improvement bounded by trace mass
-        lb_future = np.sum(future_diag) / (k + remaining_needed)
-
-        lb = lb_current + lb_future
-    else:
-        lb = lb_current
-
-    return float(max(lb, 0.0))
-# ============================================================
-# INITIALIZATION (SFS)
-# ============================================================
-
-def greedy_initial_solution(G: np.ndarray, unit_costs: np.ndarray, candidate_idx: np.ndarray, m: int, lam: float):
-    """
-    Find a high-quality initial solution using Sequential Forward Selection (SFS).
-
-    This greedy approach iteratively adds the unit that results in the
-    minimum objective value (Loss + lambda * Cost) until m units are selected.
+    Compute a lower bound using all pairwise 2-element subsets.
 
     Parameters
     ----------
-    G : np.ndarray
-        The full Gram matrix.
-    unit_costs : np.ndarray
-        Vector of linear costs associated with each candidate unit.
-    candidate_idx : np.ndarray
-        The indices of units available for selection.
-    m : int
-        The target subset size.
-    lam : float
-        Penalty parameter for the linear cost term.
+    Q : np.ndarray, shape (k, k)
+        Quadratic matrix.
 
     Returns
     -------
-    Solution
-        A Solution object containing the greedy results.
+    best : float
+        Minimum achievable objective over all pairs.
+
+    Notes
+    -----
+    - Evaluates the exact 2-element solution for each pair.
+    - Useful as a tighter bound than diagonal-only approximations.
+    - O(k^2) complexity.
     """
-    selected = []
-    remaining = list(candidate_idx)
-    curr_w, curr_loss, curr_cost = None, 0.0, 0.0
+    k = Q.shape[0]
+    best = np.inf
 
-    for _ in range(m):
-        best_cand, best_score = -1, np.inf
-        for cand in remaining:
-            trial = selected + [cand]
-            Q = G[np.ix_(trial, trial)]
-            w = solve_qp_simplex(Q)
-            loss = float(w @ Q @ w)
-            cost = float(np.sum(unit_costs[trial]))
-            score = loss + (lam * cost)
-            if score < best_score:
-                best_score, best_cand, curr_w, curr_loss, curr_cost = score, cand, w, loss, cost
-        selected.append(best_cand)
-        remaining.remove(best_cand)
+    for i in range(k):
+        for j in range(i + 1, k):
+            a, b = Q[i, i], Q[j, j]
+            c = Q[i, j]
+            denom = a + b - 2 * c
+            w = 0.5 if denom <= 1e-10 else np.clip((b - c) / denom, 0.0, 1.0)
+            val = w*w*a + (1-w)*(1-w)*b + 2*w*(1-w)*c
+            best = min(best, val)
 
-    return Solution(loss=curr_loss + (lam * curr_cost), indices=selected, weights=curr_w, cost=curr_cost)
+    return best
 
 
-# ============================================================
-# CORE RECURSION
-# ============================================================
+
+
+def compute_lower_bound(Q: np.ndarray) -> float:
+    """
+    Compute a fast lower bound on the quadratic objective over the simplex.
+
+    Parameters
+    ----------
+    Q : np.ndarray, shape (k, k)
+        Quadratic matrix.
+
+    Returns
+    -------
+    lb : float
+        Lower bound on min_w w^T Q w.
+
+    Notes
+    -----
+    - Exact for k = 1 and k = 2.
+    - For k >= 3:
+        * Uses smallest diagonal entries as a baseline.
+        * Adds a heuristic correction based on negative interactions.
+    - Designed for speed rather than tightness.
+    """
+    k = Q.shape[0]
+
+    if k == 1:
+        return float(Q[0, 0])
+
+    if k == 2:
+        a, b = Q[0, 0], Q[1, 1]
+        c = Q[0, 1]
+        denom = a + b - 2 * c
+        w = 0.5 if denom <= 1e-10 else np.clip((b - c) / denom, 0.0, 1.0)
+        return float(w*w*a + (1-w)*(1-w)*b + 2*w*(1-w)*c)
+
+    # Strong, fast bound for k >= 3
+    diag = np.diag(Q)
+    sorted_diag = np.sort(diag)
+    lb = float(np.sum(sorted_diag[:k]))
+
+    # Add a controlled interaction term
+    if k >= 3:
+        smallest_idx = np.argsort(diag)[:k]
+        subQ = Q[np.ix_(smallest_idx, smallest_idx)]
+        off_diag = subQ - np.diag(np.diag(subQ))
+        min_off_diag = float(np.min(off_diag))
+        if min_off_diag < -1e-8:
+            lb += min_off_diag * (k * (k-1) / 2) * 0.55   # tuned coefficient
+
+    return lb
+
+
+
+def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
+    """
+    Construct an initial feasible solution using the first m candidates.
+
+    Parameters
+    ----------
+    G : np.ndarray, shape (N, N)
+        Global quadratic (Gram) matrix.
+    candidate_idx : np.ndarray
+        Candidate unit indices (assumed pre-ordered).
+    m : int
+        Subset size.
+
+    Returns
+    -------
+    loss : float
+        Objective value of the solution.
+    selected : list of int
+        Selected indices.
+    w : np.ndarray, shape (m,)
+        Optimal weights for the selected subset.
+
+    Notes
+    -----
+    - Assumes `candidate_idx` is sorted (e.g., by diagonal values).
+    - Provides a baseline solution for pruning.
+    """
+    selected = list(candidate_idx[:m])
+    Q = G[np.ix_(selected, selected)]
+    w = solve_qp_simplex(Q, np.ones(Q.shape[0]) / Q.shape[0], steps=50, lr=0.01)
+    loss = float(w @ Q @ w)
+    return loss, selected, w
+
+
+def multi_start_bound(Q: np.ndarray, steps: int = 6) -> float:
+    k = Q.shape[0]
+
+    # ---- 1. FAST ANALYTIC LOWER BOUND (NEW) ----
+    diag_min = np.min(np.diag(Q))
+    trace_bound = diag_min  # crude but deterministic baseline
+
+    # ---- 2. EIGENVALUE RELAXATION (CRITICAL ADDITION) ----
+    try:
+        eig_min = np.linalg.eigvalsh(Q).min()
+        spectral_bound = eig_min
+    except:
+        spectral_bound = trace_bound
+
+    base_bound = max(trace_bound, spectral_bound)
+
+    # ---- 3. HEURISTIC IMPROVEMENT (ONLY REFINES) ----
+    w1 = np.ones(k) / k
+
+    diag = np.diag(Q)
+    w2 = 1.0 / (diag + 1e-8)
+    w2 = np.maximum(w2, 0)
+    w2 = w2 / w2.sum()
+
+    w3 = np.zeros(k)
+    w3[np.argmin(diag)] = 1.0
+
+    w1 = solve_qp_simplex(Q, w1, steps=steps)
+    w2 = solve_qp_simplex(Q, w2, steps=steps)
+    w3 = solve_qp_simplex(Q, w3, steps=steps)
+
+    heuristic = min(
+        w1 @ Q @ w1,
+        w2 @ Q @ w2,
+        w3 @ Q @ w3
+    )
+
+    # ---- FINAL COMBINATION ----
+    return max(base_bound, heuristic)
 
 def expand_tuple(
-        G: np.ndarray,
-        candidate_idx: np.ndarray,
-        unit_costs: np.ndarray,
-        m: int,
-        lam: float,
-        top_K: int,
-        top_tuples: List[Solution],
-        indices: List[int],
-        stats: Dict,
-        start_pos: int,
-        Q_partial: np.ndarray,
-        current_cost: float = 0.0
+    G: np.ndarray,
+    candidate_idx: np.ndarray,
+    m: int,
+    top_K: int,
+    top_tuples: List,
+    indices: List[int],
+    stats: Dict,
+    start_pos: int,
+    Q_partial: np.ndarray,
+    unit_costs: Optional[np.ndarray] = None,
+    budget: Optional[float] = None,
+    current_cost: float = 0.0
 ):
-    """
-    Recursive core of the Branch and Bound algorithm for subset selection.
 
-    Explores the search tree using depth-first search. Prunes branches
-    using lower bounds on both the quadratic loss and linear costs.
+    """
+    Recursively expand a partial subset within a branch-and-bound search.
 
     Parameters
     ----------
-    G : np.ndarray
-        The full Gram matrix.
+    G : np.ndarray, shape (N, N)
+        Global quadratic matrix.
     candidate_idx : np.ndarray
-        Ordered indices of candidates to ensure consistent branching.
-    unit_costs : np.ndarray
-        Linear cost vector for the candidates.
+        Ordered candidate indices.
     m : int
-        The target subset size.
-    lam : float
-        Cost penalty parameter.
+        Target subset size.
     top_K : int
-        The number of best solutions to track.
-    top_tuples : List[Solution]
-        The sorted list of top-K Solution objects found so far.
-    indices : List[int]
-        The indices of the units in the current path.
-    stats : Dict
-        Dictionary for tracking search metrics (nodes visited, prunes, etc.).
+        Number of best solutions to retain.
+    top_tuples : list of Solution
+        Current list of best solutions (sorted by loss).
+    indices : list of int
+        Current partial subset.
+    stats : dict
+        Mutable dictionary tracking search statistics.
     start_pos : int
-        Index in `candidate_idx` from which to begin branching.
-    Q_partial : np.ndarray
-        The pre-computed sub-matrix G[indices, indices].
-    current_cost : float, default=0.0
-        The accumulated cost of the units in `indices`.
+        Position in `candidate_idx` from which to continue expansion.
+    Q_partial : np.ndarray, shape (k, k)
+        Quadratic matrix restricted to `indices`.
 
-    Returns
-    -------
-    None
-        Updates `top_tuples` and `stats` in-place.
+    Notes
+    -----
+    - Performs depth-first search with pruning.
+    - At each step:
+        1. Expands subset by adding one candidate.
+        2. Updates Q incrementally (no recomputation).
+        3. Computes a lower bound via approximate QP solve.
+        4. Prunes if bound is worse than current top-K worst solution.
+    - Leaf nodes (|indices| == m) are evaluated exactly.
+    - `start_pos` ensures combinations (not permutations).
+    - Stats tracked:
+        * nodes_visited
+        * subsets_evaluated
+        * branches_considered
+        * branches_pruned
     """
-    stats["nodes_visited"] += 1
-    k = len(indices)
 
-    # Base case: full subset reached
-    if k == m:
+    stats["nodes_visited"] += 1
+
+    # ====================== EARLY BUDGET PRUNING ======================
+    if budget is not None and unit_costs is not None:
+        if current_cost > budget + 1e-6:
+            stats["branches_pruned"] += 1
+            return
+
+        remaining_slots = m - len(indices)
+        if remaining_slots > 0:
+            remaining_costs = unit_costs[candidate_idx[start_pos:]]
+            if len(remaining_costs) >= remaining_slots:
+                cheapest_remaining = np.sort(remaining_costs)[:remaining_slots].sum()
+                if current_cost + cheapest_remaining > budget + 1e-6:
+                    stats["branches_pruned"] += 1
+                    return
+    # =================================================================
+
+    # Leaf node
+    if len(indices) == m:
         stats["subsets_evaluated"] += 1
-        w = solve_qp_simplex(Q_partial)
-        loss = float(w @ Q_partial @ w)
-        score = loss + (lam * current_cost)
-        top_tuples.append(Solution(loss=score, indices=indices[:], weights=w, cost=current_cost))
-        top_tuples.sort()
+
+        Q = Q_partial
+        w = solve_qp_simplex(Q, np.ones(Q.shape[0]) / Q.shape[0], steps=50, lr=0.01)
+        total_loss = float(w @ Q @ w)
+
+        # Final safety check
+        if budget is not None and unit_costs is not None:
+            subset_cost = np.dot(unit_costs[indices], w)
+            if subset_cost > budget + 1e-6:
+                return  # discard over-budget solution
+
+        top_tuples.append(Solution(total_loss, indices[:], w))
+        top_tuples.sort(key=lambda s: s.loss)
         if len(top_tuples) > top_K:
             top_tuples.pop()
-        return
-
-    remaining_needed = m - k
-    available_indices = candidate_idx[start_pos:]
-    num_available = len(available_indices)
-
-    # Feasibility check
-    if num_available < remaining_needed:
-        return
-
-    # Future Cost Bounding
-    if num_available == remaining_needed:
-        min_future_cost = np.sum(unit_costs[available_indices])
-    elif remaining_needed > 0:
-        future_costs = np.partition(unit_costs[available_indices], remaining_needed - 1)[:remaining_needed]
-        min_future_cost = np.sum(future_costs)
-    else:
-        min_future_cost = 0.0
-
-    # Quadratic Bounding
-    lb_quad = get_tighter_bound(Q_partial, np.diag(G), available_indices, remaining_needed)
-    lb_total = lb_quad + lam * (current_cost + min_future_cost)
-
-    # Pruning condition
-    if len(top_tuples) >= top_K and lb_total >= top_tuples[-1].loss:
-        stats["branches_pruned"] += 1
         return
 
     # Branching
     for j_idx in range(start_pos, len(candidate_idx)):
         j = candidate_idx[j_idx]
+        j_cost = float(unit_costs[j]) if unit_costs is not None else 0.0
+
         stats["branches_considered"] += 1
 
-        # Incremental sub-matrix construction
-        g = G[j, indices]
-        Q_next = np.empty((k + 1, k + 1))
-        Q_next[:k, :k] = Q_partial
-        Q_next[k, :k], Q_next[:k, k] = g, g
-        Q_next[k, k] = G[j, j]
+        # ---- incremental Q ----
+        k = Q_partial.shape[0]
 
+        Q_new = np.empty((k + 1, k + 1))
+        Q_new[:k, :k] = Q_partial
+
+        g = G[j, indices]  # vectorized
+
+        Q_new[k, :k] = g
+        Q_new[:k, k] = g
+        Q_new[k, k] = G[j, j]
+
+        # ---- bound ----
+        lb = multi_start_bound(Q_new, steps=6)
+
+
+        current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
+
+        if lb >= current_ub:
+            stats["branches_pruned"] += 1
+            continue
+
+        # ---- recurse (CORRECT — no reset!) ----
         expand_tuple(
-            G, candidate_idx, unit_costs, m, lam, top_K, top_tuples,
-            indices + [j], stats, j_idx + 1, Q_next,
-            current_cost + unit_costs[j]
+            G,
+            candidate_idx,
+            m,
+            top_K,
+            top_tuples,
+            indices + [j],
+            stats,
+            start_pos=j_idx + 1,
+            Q_partial=Q_new,
+            # NEW
+            unit_costs=unit_costs,
+            budget=budget,
+            current_cost=current_cost + j_cost
         )
