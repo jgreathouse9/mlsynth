@@ -14,7 +14,7 @@ def test_statistic(e: np.ndarray, method: str = "mean_abs") -> float:
     """
     Compute a scalar test statistic from a vector of residuals.
 
-    In the SED framework, this represents the 'magnitude of the gap' 
+    In the SED framework, this represents the 'magnitude of the gap'
     between the treated unit and its synthetic counterfactual.
 
     Parameters
@@ -54,8 +54,8 @@ def compute_null_distribution(
     """
     Estimate the distribution of the gap statistic under the 'Sharp Null'.
 
-    The Sharp Null assumes the treatment has zero effect. We simulate this 
-    by randomly 'shuffling' which time periods are considered 'post-treatment' 
+    The Sharp Null assumes the treatment has zero effect. We simulate this
+    by randomly 'shuffling' which time periods are considered 'post-treatment'
     and measuring the resulting gap.
 
     Parameters
@@ -95,14 +95,14 @@ def impute_noise_level(residuals_B: np.ndarray, method: PostImputation = "mean")
     """
     Predict the magnitude of future 'noise' based on validation period errors.
 
-    If your model fits perfectly in the blank period (the 'one-line' fit), 
+    If your model fits perfectly in the blank period (the 'one-line' fit),
     the noise level will be extremely low, leading to highly sensitive MDEs.
 
     Parameters
     ----------
     residuals_B : np.ndarray
         Errors from the Out-of-Sample (OOS) validation period.
-    method : 
+    method :
         - "mean": Expected future noise equals average historical error.
         - "max": Conservative. Future noise equals the single worst historical day.
     """
