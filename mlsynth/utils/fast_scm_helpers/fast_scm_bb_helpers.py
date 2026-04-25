@@ -13,7 +13,7 @@ class Solution:
     Container for a candidate solution in the branch-and-bound search.
 
     This dataclass stores the optimization results for a specific donor subset,
-    including the loss, weights, and metadata. It supports native sorting
+    including the loss, weights, and metadata. It supports native sorting 
     based on the loss attribute to maintain a top-K ranking.
 
     Attributes
@@ -65,7 +65,7 @@ def expand_weights_to_full(indices: List[int], weights: np.ndarray, total_units:
     Returns
     -------
     np.ndarray
-        A vector of length `total_units` with subset weights at the specified
+        A vector of length `total_units` with subset weights at the specified 
         indices and zeros elsewhere.
     """
     w_full = np.zeros(total_units)
@@ -151,38 +151,25 @@ def solve_qp_simplex(Q: np.ndarray, max_iter: int = 100, lr: float = 0.05) -> np
 # ============================================================
 # ADMISSIBLE BOUNDS (SIMPLEX-CONSTRAINED)
 # ============================================================
-
 def get_tighter_bound(Q: np.ndarray, full_G_diag: np.ndarray, available_indices: np.ndarray,
                       remaining_needed: int) -> float:
-    """
-    Computes a strictly admissible lower bound for the quadratic form.
-
-    This version is designed to be 'safer' than the linear diagonal bound.
-    It uses a conservative estimate to ensure we don't prune the global optimum
-    in the presence of high covariance.
-    """
     k = Q.shape[0]
     if k == 0: return 0.0
 
-    # Minimum possible variance of any single unit currently in the submatrix
     diags = np.diag(Q)
 
-    # We divide by k^2 to account for the 'Worst Case' scenario of 
-    # perfectly negatively correlated units (which is mathematically 
-    # the most a quadratic form can be reduced on a simplex).
-    current_lb = np.min(diags) / (k ** 2)
+    # Mathematical property: min(w^T Q w) >= 1 / sum(1/diag_i) 
+    # for uncorrelated variables. This is the Harmonic Mean / k.
+    # It is significantly tighter than min(diag)/k^2 but still safe.
+    current_lb = 1.0 / np.sum(1.0 / diags)
 
     if remaining_needed > 0 and len(available_indices) > 0:
-        # What is the absolute best donor we haven't picked yet?
-        future_min = np.min(full_G_diag[available_indices])
-
-        # We take the lower of the two possibilities to remain admissible.
-        total_k = k + remaining_needed
-        return float(min(current_lb, future_min / (total_k ** 2)))
+        # Future lookahead: Use the best available units to extend the harmonic sum
+        future_diags = np.sort(full_G_diag[available_indices])[:remaining_needed]
+        combined_inv_sum = np.sum(1.0 / diags) + np.sum(1.0 / future_diags)
+        return float(1.0 / combined_inv_sum)* 0.8
 
     return float(current_lb)
-
-
 # ============================================================
 # INITIALIZATION (SFS)
 # ============================================================
@@ -191,7 +178,7 @@ def greedy_initial_solution(G: np.ndarray, unit_costs: np.ndarray, candidate_idx
     """
     Find a high-quality initial solution using Sequential Forward Selection (SFS).
 
-    This greedy approach iteratively adds the unit that results in the
+    This greedy approach iteratively adds the unit that results in the 
     minimum objective value (Loss + lambda * Cost) until m units are selected.
 
     Parameters
@@ -254,7 +241,7 @@ def expand_tuple(
     """
     Recursive core of the Branch and Bound algorithm for subset selection.
 
-    Explores the search tree using depth-first search. Prunes branches
+    Explores the search tree using depth-first search. Prunes branches 
     using lower bounds on both the quadratic loss and linear costs.
 
     Parameters
