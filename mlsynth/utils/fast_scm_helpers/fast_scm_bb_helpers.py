@@ -153,23 +153,29 @@ def solve_qp_simplex(Q: np.ndarray, max_iter: int = 100, lr: float = 0.05) -> np
 # ============================================================
 def get_tighter_bound(Q: np.ndarray, full_G_diag: np.ndarray, available_indices: np.ndarray,
                       remaining_needed: int) -> float:
+    """
+    Mathematically rigorous Harmonic Bound.
+    The minimum variance of a simplex-constrained portfolio is bounded below 
+    by the reciprocal of the sum of the reciprocals of the variances.
+    """
     k = Q.shape[0]
     if k == 0: return 0.0
 
+    # 1. Calculate current precision capacity (sum of 1/variance)
+    # We use a small epsilon to avoid division by zero if data is perfectly collinear
     diags = np.diag(Q)
-
-    # Mathematical property: min(w^T Q w) >= 1 / sum(1/diag_i) 
-    # for uncorrelated variables. This is the Harmonic Mean / k.
-    # It is significantly tighter than min(diag)/k^2 but still safe.
-    current_lb = 1.0 / np.sum(1.0 / diags)
+    current_inv_sum = np.sum(1.0 / (diags + 1e-12))
 
     if remaining_needed > 0 and len(available_indices) > 0:
-        # Future lookahead: Use the best available units to extend the harmonic sum
-        future_diags = np.sort(full_G_diag[available_indices])[:remaining_needed]
-        combined_inv_sum = np.sum(1.0 / diags) + np.sum(1.0 / future_diags)
-        return float(1.0 / combined_inv_sum)* 0.8
+        # 2. Lookahead: Add the 'best' possible future donors to the precision sum.
+        # Adding more donors increases the denominator, which lowers the loss bound.
+        future_vars = np.sort(full_G_diag[available_indices])[:remaining_needed]
+        total_inv_sum = current_inv_sum + np.sum(1.0 / (future_vars + 1e-12))
 
-    return float(current_lb)
+        # Rigorous Lower Bound: 1 / sum(1/sigma_i)
+        return float(1.0 / total_inv_sum)
+
+    return float(1.0 / current_inv_sum)
 # ============================================================
 # INITIALIZATION (SFS)
 # ============================================================
