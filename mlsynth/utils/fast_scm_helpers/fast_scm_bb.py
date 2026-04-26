@@ -9,7 +9,7 @@ from .fast_scm_bb_helpers import (
     expand_weights_to_full,
     Solution,
     get_qp_call_count,
-    reset_qp_call_count,
+    reset_qp_call_count, presolve_candidates
 )
 
 
@@ -21,18 +21,30 @@ def branch_and_bound_topK(
         top_K: int = 20,
         unit_index: Optional[IndexSet] = None,
         unit_costs: Optional[np.ndarray] = None,
+        budget: Optional[float] = None  # Added budget to orchestrator
 ) -> Dict[str, Any]:
-
     start_time = time.time()
+    reset_qp_call_count()
 
     if unit_costs is None:
         unit_costs = np.zeros(G.shape[0])
 
     # ============================================================
-    # ORDERING
+    # 1. PRESOLVE & ORDERING
     # ============================================================
+    # Step A: Initial Sorting based on marginal impact
     marginal_scores = np.diag(G) + lam * unit_costs
     candidate_idx = candidate_idx[np.argsort(marginal_scores[candidate_idx])]
+
+    # Step B: Presolve (Filter out redundant/impossible units)
+    # This reduces M before we calculate search space stats
+    candidate_idx = presolve_candidates(
+        G=G,
+        candidate_idx=candidate_idx,
+        budget=budget,
+        unit_costs=unit_costs,
+        m=m
+    )
 
     M = len(candidate_idx)
     total_subsets, total_nodes = compute_search_space_size(M, m)
@@ -45,7 +57,7 @@ def branch_and_bound_topK(
     }
 
     # ============================================================
-    # INITIAL SOLUTION
+    # 2. INITIAL SOLUTION (On Reduced Set)
     # ============================================================
     init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
 
@@ -54,19 +66,27 @@ def branch_and_bound_topK(
     ]
 
     # ============================================================
-    # SEEDING
+    # 3. SEEDING (Synchronized with Pruning Metrics)
     # ============================================================
-    num_seeds = min(M, max(1, 4 * m))
+    # We only seed from the high-quality candidates
+    num_seeds = min(M, max(1, 2 * m))
     seed_set = candidate_idx[:num_seeds]
 
     for j in seed_set:
+        # Every seed call is technically 'considering' a branch from the root
+        stats["branches_considered"] += 1
+
+        # Quick root-level prune
+        if G[j, j] >= top_tuples[-1].loss and len(top_tuples) == top_K:
+            stats["branches_pruned"] += 1
+            continue
+
         Q0 = np.array([[G[j, j]]])
         j_pos = np.where(candidate_idx == j)[0][0]
 
         expand_tuple(
             G=G,
             candidate_idx=candidate_idx,
-            unit_costs=unit_costs,
             m=m,
             top_K=top_K,
             top_tuples=top_tuples,
@@ -74,6 +94,8 @@ def branch_and_bound_topK(
             stats=stats,
             start_pos=j_pos + 1,
             Q_partial=Q0,
+            unit_costs=unit_costs,
+            budget=budget,
             current_cost=float(unit_costs[j])
         )
 
@@ -159,8 +181,8 @@ def branch_and_bound_topK(
             "best_loss": best_loss,
             "improvement": improvement,
         },
-        "bound_quality": {
-            "relative_gap": (worst_loss - best_loss) / best_loss if best_loss else 0
+        "bestvworst": {
+            "design_stability": (worst_loss - best_loss) / best_loss if best_loss else 0
         }
     }
 
