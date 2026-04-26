@@ -1,5 +1,5 @@
 """
-fast_scm_bb_helpers.py - GUROBI-style QP-reduced BnB helpers
+Fast_scm_bb_helpers.py - GUROBI-style QP-reduced BnB helpers
 Now includes:
 - active-set simplex QP solver
 - incremental warm-start cache
