@@ -53,7 +53,7 @@ def compute_null_distribution(
         full_series: np.ndarray,
         n_post: int,
         n_sims: int = 100000,
-        seed: Optional[int] = None
+        seed: Optional[int] = 1400
 ) -> np.ndarray:
     """
         Estimate the null distribution of the test statistic using Monte Carlo permutations.
@@ -158,7 +158,7 @@ def _analytical_mde(
         noise_level: float = None,
         statistic: str = "mean_abs",
         n_sims: int = 100000,
-        seed: Optional[int] = None
+        seed: Optional[int] = 1400
 ) -> Dict:
     """
         Compute the Minimum Detectable Effect (MDE) for a fixed post-treatment length.
@@ -252,7 +252,7 @@ def compute_detectability_curve(
         n_sims: int = 100000,
         post_imputation: PostImputation = "mean",
         statistic: str = "mean_abs",
-        seed: Optional[int] = None
+        seed: Optional[int] = 1400
 ) -> Dict:
     """
         Compute the detectability curve (MDE as a function of post-treatment duration).
@@ -333,7 +333,7 @@ def run_mde_analysis(
         n_sims: int = 10000,
         post_imputation: PostImputation = "mean",
         statistic: str = "mean_abs",
-        seed: Optional[int] = None
+        seed: Optional[int] = 1400
 ) -> List[SEDCandidate]:
     """
         Run power analysis (MDE computation) on a list of candidate designs.
