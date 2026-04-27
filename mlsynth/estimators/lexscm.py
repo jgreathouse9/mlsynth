@@ -348,24 +348,8 @@ class LEXSCM:
             f=self.f,
             E_idx=E_idx,  # ← you must pass this now
             B_idx=B_idx,
-            lambda_penalty=self.lambda_penalty
+            lambda_penalty=self.lambda_penalty, index_set=unit_index
         )
-
-
-        for cand in candidate_results:
-            treated_idx = np.asarray(cand.identification.treated_idx, dtype=int)
-
-            cand.treated_units = unit_index.get_labels(treated_idx).tolist()
-
-            cand.treated_unit_weights = dict(zip(
-                unit_index.get_labels(treated_idx),
-                cand.weights.treated
-            ))
-
-            cand.control_unit_weights = dict(zip(
-                unit_index.labels,
-                cand.weights.control
-            ))
 
         candidate_mdes = run_mde_analysis(
             candidates=candidate_results,
@@ -478,3 +462,6 @@ class LEXSCM:
         )
 
         return results
+
+
+
