@@ -212,6 +212,8 @@ class SEDCandidate:
     losses: Losses
     mde_results: Optional[dict] = None
     inference: Inference = field(default_factory=Inference)  # <--- Added Section
+    control_weight_dict: Optional[dict] = None
+    treated_weight_dict: Optional[dict] = None
 
     def __post_init__(self):
         # Ensure we always have an inference container even if empty
