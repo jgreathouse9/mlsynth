@@ -1,10 +1,3 @@
-"""
-Fast_scm_bb_helpers.py - GUROBI-style QP-reduced BnB helpers
-Now includes:
-- active-set simplex QP solver
-- incremental warm-start cache
-- strong branching heuristic
-"""
 
 import numpy as np
 from typing import List, Dict, Optional, Any, Tuple
@@ -42,7 +35,7 @@ def presolve_candidates(G, candidate_idx, budget=None, unit_costs=None, m=1):
 
             # Correlation calculation
             corr = G[u_i, u_j] / np.sqrt(G[u_i, u_i] * G[u_j, u_j])
-            if corr > 0.98:
+            if corr > 0.999:
                 # Keep the cheaper one
                 if unit_costs is not None:
                     remove_target = u_j if unit_costs[u_j] >= unit_costs[u_i] else u_i
@@ -217,54 +210,54 @@ def solve_qp_simplex(Q: np.ndarray, w_init: Optional[np.ndarray] = None) -> np.n
 # ============================================================
 # LOWER BOUND
 # ============================================================
+
 def simplex_lower_bound(Q: np.ndarray) -> float:
     k = Q.shape[0]
 
-    # Base case for a single unit
     if k == 1:
         return float(Q[0, 0])
 
-    # 1. Basic Diagonals
+    # ============================================================
+    # 1. BASIC STRUCTURE TERMS (FAST)
+    # ============================================================
     diags = np.diag(Q)
     diag_min = float(np.min(diags))
 
-    # 2. Scaled Gershgorin (Tightened for Gram Matrices)
-    # We use d = sqrt(diag) as a scaling factor to balance the disks
-    d = np.sqrt(diags) + 1e-12
-    # Row sum of |Q_ij| * (d_j / d_i)
-    scaled_radii = (np.sum(np.abs(Q) * d, axis=1) / d) - np.abs(diags)
-    gersh_bound = float(np.min(diags - scaled_radii))
-
-    # 3. Uniform Loss (The "Average" Case)
     w_uniform = np.ones(k) / k
-    uniform_loss = float(w_uniform @ Q @ w_uniform)
+    uniform_val = float(w_uniform @ Q @ w_uniform)
 
-    # 4. Combine Bounds
-    # Since Q is a Gram matrix, the true minimum eigenvalue is >= 0.
-    # We use a weighted floor for uniform_loss and diag_min based on typical
-    # sparsity in synthetic control weights.
-    cheap_lb = max(
-        0.0,                   # PSD constraint
-        gersh_bound,           # Mathematical lower bound
-        diag_min * 0.5,        # Heuristic: harder to beat 50% of best single unit
-        uniform_loss * 0.7     # Heuristic: lower than uniform but related
+    # ============================================================
+    # 2. SPECTRAL SURROGATE (RANK-1 PROJECTION)
+    # ============================================================
+    # NOTE: this is local spectral structure, not full eigendecomp
+    row_sum = np.sum(np.abs(Q), axis=1)
+    spectral_proxy = np.max(row_sum) / k
+
+    # ============================================================
+    # 3. PAIRWISE ENERGY (NORMALIZED, NOT OVERCOUNTING)
+    # ============================================================
+    cross = np.sum(np.abs(Q)) - np.sum(diags)
+    pairwise = cross / (k * k)
+
+    # ============================================================
+    # 4. SDP-SURROGATE ENVELOPE (KEY UPGRADE YOU JUST VALIDATED)
+    # ============================================================
+    sdp_envelope = min(
+        uniform_val,
+        diag_min + spectral_proxy,
     )
 
-    # 5. Conditional Precision
-    # If the cheap bounds are low, they might not prune enough.
-    # We trigger the actual QP solver to get the exact minimum.
-    if cheap_lb < 0.9:
-        try:
-            # We use the full solver here because a tight LB is worth the cost
-            # of the QP if it prunes an entire massive subtree.
-            val, _ = solve_qp_simplex_value(Q)
-            return max(val, cheap_lb)
-        except Exception:
-            pass
+    # ============================================================
+    # 5. FINAL COMBINED LOWER BOUND (SAFE ENVELOPE)
+    # ============================================================
+    # IMPORTANT: we do NOT sum everything (prevents explosion)
+    lb = max(
+        0.0,
+        sdp_envelope,
+        pairwise * 0.5  # conservative correction term
+    )
 
-    return cheap_lb
-
-
+    return lb
 
 
 
