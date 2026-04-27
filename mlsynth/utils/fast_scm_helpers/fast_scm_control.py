@@ -1,3 +1,4 @@
+
 # mlsynth/experimental_design/fast_scm_control.py
 
 from typing import List
@@ -6,6 +7,7 @@ import numpy as np
 from .fast_scm_bb_helpers import Solution
 from .structure import SEDCandidate, WeightVectors, PredictionVectors, Losses, Identification
 from .fast_scm_control_helpers import solve_control_qp
+from .fast_scm_setup import IndexSet
 
 def _zero_small_weights(weights: np.ndarray, threshold: float = 1e-8) -> np.ndarray:
     """
@@ -41,7 +43,8 @@ def evaluate_candidates(
     f: np.ndarray,
     E_idx: np.ndarray,
     B_idx: np.ndarray,
-    lambda_penalty: float
+    lambda_penalty: float,
+    index_set: IndexSet
 ) -> List[SEDCandidate]:
 
 
@@ -109,8 +112,24 @@ def evaluate_candidates(
         treated_vec_E = X_E[:, treated_idx] @ w
         v = solve_control_qp(X_E, treated_vec_E, treated_idx, lambda_penalty)
 
-        if v is None:
-            continue
+        v = _zero_small_weights(v, threshold=1e-8)
+
+        assert np.allclose(v[treated_idx], 0.0, atol=1e-8), \
+            "Control QP violated exclusion constraint: treated units have nonzero weight"
+        
+
+        # label mapping (THIS is the fix)
+        control_weights = {
+            index_set.labels[i]: r
+            for i in range(len(v))
+            if (r := round(float(v[i]), 3)) > 0.001
+        }
+
+        treated_weights = {
+            index_set.labels[treated_idx[i]]: r
+            for i in range(len(treated_idx))
+            if (r := round(float(w[i]), 3)) > 0.001
+        }
 
         synth_treated = X[:, treated_idx] @ w
         synth_control = X @ v
@@ -137,9 +156,13 @@ def evaluate_candidates(
                 loss_E=float(sol.loss),
                 nmse_E=_nmse(E_idx),
                 nmse_B=_nmse(B_idx),
-            )
+            ),
+            control_weight_dict=control_weights,
+            treated_weight_dict=treated_weights
         )
 
         results.append(candidate)
 
     return results
+
+
