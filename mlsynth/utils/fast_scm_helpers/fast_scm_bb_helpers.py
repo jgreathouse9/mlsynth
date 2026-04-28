@@ -212,51 +212,22 @@ def solve_qp_simplex(Q: np.ndarray, w_init: Optional[np.ndarray] = None) -> np.n
 # ============================================================
 
 def simplex_lower_bound(Q: np.ndarray) -> float:
+    """Balanced safe + tighter bound for Gram submatrices (PSD)"""
     k = Q.shape[0]
-
     if k == 1:
         return float(Q[0, 0])
 
-    # ============================================================
-    # 1. BASIC STRUCTURE TERMS (FAST)
-    # ============================================================
     diags = np.diag(Q)
     diag_min = float(np.min(diags))
+    lambda_min = float(np.min(np.linalg.eigvalsh(Q)))
 
-    w_uniform = np.ones(k) / k
-    uniform_val = float(w_uniform @ Q @ w_uniform)
-
-    # ============================================================
-    # 2. SPECTRAL SURROGATE (RANK-1 PROJECTION)
-    # ============================================================
-    # NOTE: this is local spectral structure, not full eigendecomp
-    row_sum = np.sum(np.abs(Q), axis=1)
-    spectral_proxy = np.max(row_sum) / k
-
-    # ============================================================
-    # 3. PAIRWISE ENERGY (NORMALIZED, NOT OVERCOUNTING)
-    # ============================================================
-    cross = np.sum(np.abs(Q)) - np.sum(diags)
-    pairwise = cross / (k * k)
-
-    # ============================================================
-    # 4. SDP-SURROGATE ENVELOPE (KEY UPGRADE YOU JUST VALIDATED)
-    # ============================================================
-    sdp_envelope = min(
-        uniform_val,
-        diag_min + spectral_proxy,
-    )
-
-    # ============================================================
-    # 5. FINAL COMBINED LOWER BOUND (SAFE ENVELOPE)
-    # ============================================================
-    # IMPORTANT: we do NOT sum everything (prevents explosion)
+    # A bit more aggressive but still reasonably safe combination
     lb = max(
         0.0,
-        sdp_envelope,
-        pairwise * 0.5  # conservative correction term
+        lambda_min,                    # strong and safe
+        diag_min * 0.65,               # increased from 0.5
+        (diag_min + lambda_min) * 0.5  # gentle blending
     )
-
     return lb
 
 
