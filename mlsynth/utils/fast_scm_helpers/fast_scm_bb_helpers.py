@@ -120,88 +120,48 @@ def lookahead_lower_bound(G, current_lb, remaining_candidates, slots_left, m):
 # FAST ACTIVE-SET SIMPLEX QP SOLVER (CORE)
 # ============================================================
 
+import cvxpy as cp
+
+# Global cache can still be used if you want, but CVXPY warm-start is limited for small problems
+
 def solve_qp_simplex_value(
     Q: np.ndarray,
     w_init: Optional[np.ndarray] = None,
     indices: Optional[List[int]] = None,
-    max_iter: int = 30,
-    tol: float = 1e-10,
+    **kwargs
 ) -> Tuple[float, np.ndarray]:
 
-    global _qp_call_count, _warm_start_cache
+    global _qp_call_count
     _qp_call_count += 1
 
     k = Q.shape[0]
 
-    # -----------------------------
-    # WARM START INIT
-    # -----------------------------
+    w = cp.Variable(k, nonneg=True)
+    objective = cp.quad_form(w, Q)
+    prob = cp.Problem(cp.Minimize(objective), [cp.sum(w) == 1])
+
+    # Optional: warm start (CVXPY supports it modestly)
     if w_init is not None:
-        w = np.maximum(w_init, 0.0)
+        w.value = np.maximum(w_init, 0.0)
+        w.value /= np.sum(w.value) + 1e-14
+
+    prob.solve(solver=cp.OSQP, verbose=False, eps_abs=1e-10, eps_rel=1e-10)
+
+    if prob.status in ["optimal", "optimal_inaccurate"]:
+        weights = np.maximum(w.value, 0.0)
+        weights /= np.sum(weights) + 1e-14
+        loss = float(prob.value)
     else:
-        w = np.ones(k) / k
+        # Fallback: use diagonal minimum if solver fails
+        weights = np.zeros(k)
+        weights[np.argmin(np.diag(Q))] = 1.0
+        loss = float(Q[np.argmin(np.diag(Q)), np.argmin(np.diag(Q))])
 
-    # reuse parent solution if available
+    # Optional caching
     if indices is not None:
-        key = tuple(indices)
-        if key in _warm_start_cache:
-            prev = _warm_start_cache[key]
-            if len(prev) == k:
-                w = prev.copy()
-            elif len(prev) == k - 1:
-                w = np.append(prev, 0.0)
+        _warm_start_cache[tuple(indices)] = weights.copy()
 
-    w /= (np.sum(w) + 1e-12)
-    active = w > 1e-12
-
-    # -----------------------------
-    # ACTIVE SET ITERATIONS
-    # -----------------------------
-    for _ in range(max_iter):
-
-        if not np.any(active):
-            active = np.ones(k, dtype=bool)
-            w = np.ones(k) / k
-
-        A = np.where(active)[0]
-
-        Q_A = Q[np.ix_(A, A)]
-        ones = np.ones(len(A))
-
-        KKT = np.block([
-            [2 * Q_A, ones[:, None]],
-            [ones[None, :], np.zeros((1, 1))]
-        ])
-
-        rhs = np.zeros(len(A) + 1)
-        rhs[-1] = 1.0
-
-        try:
-            sol = np.linalg.solve(KKT, rhs)
-        except np.linalg.LinAlgError:
-            sol = np.linalg.lstsq(KKT, rhs, rcond=None)[0]
-
-        w_A = sol[:-1]
-
-        w_new = np.zeros(k)
-        w_new[A] = w_A
-
-        w_new = np.maximum(w_new, 0.0)
-        w_new /= (np.sum(w_new) + 1e-12)
-
-        if np.linalg.norm(w - w_new) < tol:
-            w = w_new
-            break
-
-        w = w_new
-        active = w > 1e-12
-
-    if indices is not None:
-        _warm_start_cache[tuple(indices)] = w.copy()
-
-    loss = float(w @ Q @ w)
-    return loss, w
-
+    return loss, weights
 
 
 # ============================================================
