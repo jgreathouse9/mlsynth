@@ -203,9 +203,6 @@ def solve_qp_simplex_value(
     return loss, w
 
 
-def solve_qp_simplex(Q: np.ndarray, w_init: Optional[np.ndarray] = None) -> np.ndarray:
-    return solve_qp_simplex_value(Q, w_init)[1]
-
 
 # ============================================================
 # LOWER BOUND
@@ -230,36 +227,6 @@ def simplex_lower_bound(Q: np.ndarray) -> float:
     )
     return lb
 
-
-
-# ============================================================
-# UPPER BOUND (DETERMINISTIC)
-# ============================================================
-
-def feasible_upper_bound(Q: np.ndarray) -> float:
-
-    k = Q.shape[0]
-
-    if k == 1:
-        return float(Q[0, 0])
-
-    w_uniform = np.ones(k) / k
-
-    idx_min = np.argmin(np.diag(Q))
-    w_diag = np.zeros(k)
-    w_diag[idx_min] = 1.0
-
-    # 2-support heuristic (no randomness)
-    i, j = np.unravel_index(np.argmin(Q), Q.shape)
-    w_pair = np.zeros(k)
-    w_pair[i] = 0.5
-    w_pair[j] = 0.5
-
-    return min([
-        float(w_uniform @ Q @ w_uniform),
-        float(w_diag @ Q @ w_diag),
-        float(w_pair @ Q @ w_pair),
-    ])
 
 
 # ============================================================
