@@ -571,10 +571,21 @@ class LEXSCMConfig(BaseMAREXConfig):
 
     post_imputation: Literal["mean", "max", "double_max"] = Field(default="mean")
     test_statistic: Literal["mean_abs", "mean", "rms"] = Field(default="mean_abs")
-
-    delta: float = Field(default=0.015, ge=0.0)
-    relative_delta: Optional[float] = Field(default=1.5, gt=1.0)
-    target_mde_horizon: str = Field(default="early_mde_avg")
+    mde_horizon: Literal[
+        "early_mean",
+        "early_min",
+        "late"
+    ] = Field(
+        default="late",
+        description=(
+            "Defines how detectability (MDE) is aggregated across post-treatment horizons.\n\n"
+            "- 'early_mean': average MDE across early windows (e.g., 2–4 weeks)\n"
+            "- 'early_min': minimum MDE across early windows (most optimistic detectability)\n"
+            "- 'late': uses longest horizon (e.g., 8-week MDE; recommended default)\n\n"
+            "The 'late' option is recommended for operational experiments because it provides a "
+            "conservative detectability bound under sustained treatment exposure."
+        )
+    )
     max_shortlist: int = Field(default=5, gt=0)
 
     # =========================================================
