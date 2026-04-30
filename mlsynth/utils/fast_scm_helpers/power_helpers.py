@@ -64,7 +64,21 @@ def compute_null_distribution(full_series, n_post, n_sims=5000, seed=1400):
 
 
 def critical_value_from_null(null_stats: np.ndarray, alpha: float) -> float:
-    """(1 - alpha) quantile of null distribution."""
+    """
+    Compute critical value from null distribution.
+
+    Parameters
+    ----------
+    null_stats : np.ndarray
+        Sorted null distribution of test statistics.
+    alpha : float
+        Significance level.
+
+    Returns
+    -------
+    float
+        (1 - alpha) quantile of the null distribution.
+    """
     return float(np.quantile(null_stats, 1 - alpha))
 
 
@@ -80,13 +94,45 @@ def _analytical_mde(
     seed=1400
 ):
     """
-    Compute minimum detectable effect (MDE) in percentage space.
+    Compute minimum detectable effect (MDE) in relative percentage terms.
 
-    MDE is defined as the smallest effect size τ such that:
+    The MDE is defined as the smallest treatment effect tau such that:
 
-        P(T(τ) > c_α) ≥ 0.8
+        P(T(τ) > c_alpha) ≥ 0.8
 
-    where T is the mean absolute effect statistic.
+    where:
+        - T is the test statistic (mean absolute effect)
+        - c_alpha is the (1 - alpha) critical value of the null distribution
+
+    Parameters
+    ----------
+    residuals_B : np.ndarray
+        Pre-treatment residuals (baseline noise structure).
+    synth_treated : np.ndarray
+        Synthetic treated unit series.
+    n_post : int
+        Post-treatment horizon length.
+    alpha : float, default=0.05
+        Significance level.
+    n_sims : int, default=5000
+        Monte Carlo draws for null distribution.
+    seed : int, default=1400
+        Random seed.
+
+    Returns
+    -------
+    dict
+        Dictionary containing:
+        - mde_tau : float
+            Minimum detectable effect (absolute scale)
+        - mde_pct : float
+            Percentage-scale MDE
+        - baseline : float
+            Baseline level of outcome
+        - critical_stat : float
+            Critical value of test statistic
+        - feasible : bool
+            Whether MDE was identified within grid
     """
     rng = np.random.default_rng(seed)
 
@@ -150,21 +196,36 @@ def compute_detectability_curve(
     seed=1400
 ):
     """
-    Maps post-treatment horizon → minimum detectable effect.
+    Compute detectability curve mapping horizon length to MDE.
 
-    This defines the detectability function:
-
-        h ↦ MDE(h)
+    This function evaluates how statistical power evolves with the length
+    of the post-treatment window.
 
     Parameters
     ----------
     candidate : SEDCandidate
-    n_post_grid : list[int]
-        Horizons (weeks, periods, etc.)
+        Candidate experimental design.
+    n_post_grid : list of int
+        Grid of post-treatment horizons.
+    alpha : float, default=0.05
+        Significance level.
+    n_sims : int, default=5000
+        Monte Carlo simulations.
+    seed : int, default=1400
+        Random seed.
 
     Returns
     -------
     dict
+        Dictionary containing:
+        - curve : dict
+            Mapping horizon → MDE (%)
+        - details : dict
+            Full MDE metadata per horizon
+        - n_post_10pct : int or nan
+            First horizon achieving ≤ 10% MDE
+        - n_post_5pct : int or nan
+            First horizon achieving ≤ 5% MDE
     """
     residuals_B = np.asarray(candidate.predictions.residuals_B)
     synth_treated = np.asarray(candidate.predictions.synthetic_treated)
@@ -204,7 +265,29 @@ def run_mde_analysis(
     n_sims=5000,
     seed=1400
 ):
-    """Attach detectability curves to all candidates."""
+    """
+    Compute detectability curves for a set of candidate designs.
+
+    This function mutates each candidate in-place by attaching MDE results.
+
+    Parameters
+    ----------
+    candidates : list of SEDCandidate
+        Candidate designs.
+    n_post_grid : list[int], optional
+        Grid of horizons. If None, defaults to range(2, 9).
+    alpha : float, default=0.05
+        Significance level.
+    n_sims : int, default=5000
+        Monte Carlo simulations.
+    seed : int, default=1400
+        Random seed.
+
+    Returns
+    -------
+    list of SEDCandidate
+        Updated candidates with `.mde_results` populated.
+    """
     if n_post_grid is None:
         n_post_grid = list(range(2, 9))
 
@@ -224,7 +307,22 @@ def run_mde_analysis(
 # SUMMARY TABLE
 # =========================================================
 def mde_summary_table(candidates):
-    """Flatten detectability curves into analysis table."""
+    """
+    Flatten candidate detectability results into a structured DataFrame.
+
+    Parameters
+    ----------
+    candidates : list of SEDCandidate
+        Evaluated candidates with MDE results.
+
+    Returns
+    -------
+    pd.DataFrame
+        Summary table with:
+        - tuple_id
+        - nmse_B
+        - mde_{w}w columns for w in [2,...,8]
+    """
     rows = []
 
     for c in candidates:
@@ -249,6 +347,28 @@ def mde_summary_table(candidates):
 # PARETO DOMINANCE
 # =========================================================
 def _dominates(a_nmse, a_mde, b_nmse, b_mde):
+    """
+    Pareto dominance comparison.
+
+    A dominates B if it is no worse in both objectives and strictly better
+    in at least one.
+
+    Parameters
+    ----------
+    a_nmse : float
+        NMSE of candidate A.
+    a_mde : float
+        MDE of candidate A.
+    b_nmse : float
+        NMSE of candidate B.
+    b_mde : float
+        MDE of candidate B.
+
+    Returns
+    -------
+    bool
+        True if A dominates B.
+    """
     return (
         (a_nmse <= b_nmse and a_mde <= b_mde)
         and (a_nmse < b_nmse or a_mde < b_mde)
@@ -267,22 +387,32 @@ def select_best_tuple(
     max_shortlist=5
 ):
     """
-    Select experimental design via Pareto frontier over:
+    Select optimal experimental design via Pareto frontier.
 
-        (pre-treatment fit, detectability)
+    The selection balances:
+        (1) Pre-treatment fit (NMSE_B)
+        (2) Detectability (MDE)
 
-    where detectability defaults to LATE horizon.
+    The function constructs a Pareto frontier and applies a scalar
+    tie-breaking score.
 
     Parameters
     ----------
-    mde_horizon : str
-        - "early_mean"
-        - "early_min"
-        - "late" (default, recommended)
+    candidates : list of SEDCandidate
+        Candidate designs with MDE results.
+    mde_horizon : {"early_mean", "early_min", "late"}, default="late"
+        Defines how MDE is aggregated across horizons.
+    n_post_aggregation : tuple of int, default=(2,3,4)
+        Horizons used for early aggregation rules.
+    max_shortlist : int, default=5
+        Number of top candidates returned for inspection.
 
     Returns
     -------
-    winner, shortlist
+    winner : SEDCandidate
+        Selected optimal design.
+    shortlist : pd.DataFrame
+        Ranked Pareto subset of candidates.
     """
     df = mde_summary_table(candidates).copy()
 
