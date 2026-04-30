@@ -206,7 +206,7 @@ def _analytical_mde(residuals_B,
 
 
 # =========================================================
-# DETECTABILITY CURVE (FIXED SIGNATURE)
+# DETECTABILITY CURVE
 # =========================================================
 def compute_detectability_curve(candidate,
                                 n_post_grid,
@@ -358,7 +358,7 @@ def select_best_tuple(
         raise ValueError("No candidates")
 
     # -------------------------------------------------
-    # MDE LOSS DEFINITION (LOWER = BETTER)
+    # MDE LOSS DEFINITION
     # -------------------------------------------------
     if mde_mode == "early_mean":
         cols = [f"mde_{w}w" for w in n_post_aggregation]
@@ -378,7 +378,7 @@ def select_best_tuple(
     df = df.dropna(subset=["mde_score", "nmse_B"]).reset_index(drop=True)
 
     # -------------------------------------------------
-    # PARETO FRONTIER (MINIMIZE BOTH OBJECTIVES)
+    # PARETO FRONTIER
     # -------------------------------------------------
     def dominates(a_nmse, a_mde, b_nmse, b_mde):
         return (
@@ -557,7 +557,7 @@ def _analytical_mde(
         Compute the Minimum Detectable Effect (MDE) for a fixed post-treatment length.
 
         This function inverts the permutation test to find the smallest constant
-        treatment effect τ that would be statistically detectable at level α.
+        treatment effect tau that would be statistically detectable at level alpha.
 
         Parameters
         ----------
@@ -674,7 +674,7 @@ def compute_detectability_curve(
         -------
         dict
             Contains:
-            - "curve": dict mapping n_post → mde_tau
+            - "curve": dict mapping n_post to mde_tau
             - "details": detailed results per horizon
             - "n_post_10pct": smallest n_post with MDE ≤ 10%
             - "n_post_5pct": smallest n_post with MDE ≤ 5%
@@ -703,14 +703,10 @@ def compute_detectability_curve(
         details[n_post] = res
 
     # Find smallest n_post achieving certain MDE thresholds
-    n_post_10pct = next((k for k, v in curve.items() if v <= 0.10), np.nan)
-    n_post_5pct = next((k for k, v in curve.items() if v <= 0.05), np.nan)
 
     return {
         "curve": curve,
         "details": details,
-        "n_post_10pct": n_post_10pct,
-        "n_post_5pct": n_post_5pct,
         "noise_level": noise_level,
         "post_imputation": post_imputation
     }
