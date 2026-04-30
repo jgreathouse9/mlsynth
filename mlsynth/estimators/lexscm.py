@@ -33,30 +33,12 @@ from ..utils.fast_scm_helpers.inference import compute_post_inference, compute_m
 
 from dataclasses import dataclass, field
 
-from ..utils.fast_scm_helpers.structure import SEDCandidate
-
-
-@dataclass
-class LEXSCMResults:
-    summary: pd.DataFrame
-    best_candidate: SEDCandidate
-    all_candidates: List[SEDCandidate]
-    bnb_metadata: Dict[str, Any]
-
-    n_units: int
-    n_periods: int
-    n_fit_periods: int
-    n_pre_periods: int
-    n_blank_periods: int
-    n_post_periods: int
-
-    # REQUIRED (no defaults)
-    timeindex: IndexSet
-    outcome: str
-
-    # OPTIONAL (defaults allowed)
-    y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
-
+from ..utils.fast_scm_helpers.structure import (
+    SEDCandidate,
+    LEXSCMResults,
+    UnitInfo,
+    TimeInfo
+)
 
 class LEXSCM:
     """
@@ -447,21 +429,48 @@ class LEXSCM:
             candidate_results[0]   # fallback
         )
 
-        T = len(time_index)
+        # =========================================================
+        # BUILD TIME METADATA
+        # =========================================================
+        time_info = TimeInfo(
+            n_total=len(final_time_index),
+            n_pre=len(E_idx) + len(B_idx),
+            n_fit=len(E_idx),
+            n_blank=len(B_idx),
+            n_post=len(post_idx),
+            index=final_time_index
+        )
 
+        # =========================================================
+        # BUILD UNIT METADATA
+        # =========================================================
+        best = best_candidate
+
+        treated_labels = list(best.treated_weight_dict.keys())
+        control_labels = list(best.control_weight_dict.keys())
+
+        unit_info = UnitInfo(
+            n_units_total=self.Y.shape[1],
+            treated_labels=treated_labels,
+            control_labels=control_labels
+        )
+
+        # =========================================================
+        # FINAL RESULTS OBJECT
+        # =========================================================
         results = LEXSCMResults(
             summary=shortlist,
             best_candidate=best_candidate,
             all_candidates=candidate_results,
             bnb_metadata=bbresults,
-            y_pop_mean_t=y_pop_mean_t,
-            n_units=self.Y.shape[1],
-            n_periods=T,
-            n_pre_periods=len(E_idx) + len(B_idx),
-            n_fit_periods=len(E_idx),
-            n_blank_periods=len(B_idx),
-            n_post_periods=len(post_idx), timeindex=final_time_index, outcome=self.outcome
+
+            time=time_info,
+            units=unit_info,
+
+            outcome=self.outcome,
+            y_pop_mean_t=y_pop_mean_t
         )
+        
         
         if self.display_graph:
             lexplot(results)
