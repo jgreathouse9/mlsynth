@@ -837,10 +837,16 @@ def lexplot(
     # =========================================================
     # Labels
     # =========================================================
+    tuplename = results.best_candidate.identification.tuple_id
+    w = results.bnb_metadata['top_tuples'][0].full_weights
+    m = np.sum(w > 0)
+
     plt.title(
-        f"{outcome_name}: Synthetic Treated vs Control",
+        f"{outcome_name}: Synthetic Treated vs Control | {tuplename} | m={m}",
         loc="left"
     )
+    
+    
     plt.xlabel("Time")
     plt.ylabel(outcome_name)
     plt.legend()
@@ -856,7 +862,7 @@ def lexplot(
             directory = save_plot_config.get("directory", ".")
             display = save_plot_config.get("display", True)
         else:
-            filename = f"{method_name}_lexplot"
+            filename = f"{outcome_name}_lexplot"
             extension = "png"
             directory = "."
             display = True
