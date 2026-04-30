@@ -1,35 +1,27 @@
 from dataclasses import dataclass, field
 import numpy as np
-from typing import Optional
+import pandas as pd
+from typing import Optional, List, Dict, Any
 
 from .fast_scm_bb_helpers import Solution
+from .fast_scm_setup import IndexSet
 
 
 @dataclass
+class Inference:
+    ate: Optional[float] = None
+    p_value: Optional[float] = None
+
+    ci_lower: Optional[float] = None
+    ci_upper: Optional[float] = None
+
+    treated_col_idx: Optional[list] = field(default_factory=list)
+
+# =========================================================
+# WEIGHTS
+# =========================================================
+@dataclass
 class WeightVectors:
-    """
-    Container for weight vectors defining the synthetic treated and control units.
-
-    Attributes
-    ----------
-    treated : np.ndarray, shape (k,)
-        Weights over the selected treated units (subset of indices).
-        These come from the branch-and-bound solution.
-    control : np.ndarray, shape (N,)
-        Synthetic control weights over all units, obtained from the control QP.
-        Entries at treated indices are zero.
-    control_sparse : np.ndarray, shape (N,)
-        Sparsified version of `control` with small-magnitude values set to zero.
-
-    Notes
-    -----
-    - `treated` defines the synthetic treated unit:
-        X[:, treated_idx] @ treated
-    - `control` defines the synthetic control unit:
-        X @ control
-    - `control_sparse` is intended for interpretability (reporting / inspection),
-      not for downstream computation.
-    """
     treated: np.ndarray
     control: np.ndarray
     control_sparse: np.ndarray = field(init=False)
@@ -38,68 +30,11 @@ class WeightVectors:
         self.control_sparse = np.where(np.abs(self.control) < 1e-8, 0.0, self.control)
 
 
-
-
-
-@dataclass
-class Inference:
-    """
-    Statistical results from the post-intervention analysis.
-
-    Attributes
-    ----------
-    ate : Optional[float]
-        Average Treatment Effect (mean of the gap during the post-period).
-    ci_lower : Optional[float]
-        Lower bound of the (1 - alpha) confidence interval.
-    ci_upper : Optional[float]
-        Upper bound of the (1 - alpha) confidence interval.
-    p_value : Optional[float]
-        Probability of observing an effect of magnitude `ate` or greater
-        under the null hypothesis (permutation-based).
-    alpha : float
-        Significance level used for the interval (default 0.05).
-
-    Notes
-    -----
-    - In the SED framework, CIs are constructed by inverting the
-      permutation test results.
-    - If the campaign hasn't started yet (Design Mode), these will be None.
-    """
-    ate: Optional[float] = None
-    ci_lower: Optional[float] = None
-    ci_upper: Optional[float] = None
-    p_value: Optional[float] = None
-    alpha: float = 0.05
-
-
-
+# =========================================================
+# PREDICTIONS
+# =========================================================
 @dataclass
 class PredictionVectors:
-    """
-    Container for all constructed time series in the synthetic experiment.
-
-    Attributes
-    ----------
-    synthetic_treated : np.ndarray, shape (T,)
-        Time series of the synthetic treated unit constructed from selected units.
-    synthetic_control : np.ndarray, shape (T,)
-        Time series of the synthetic control unit.
-    effects : np.ndarray, shape (T,)
-        Estimated treatment effects at each time point:
-            synthetic_treated - synthetic_control
-    residuals_E : np.ndarray
-        Effects restricted to the estimation period.
-    residuals_B : np.ndarray
-        Effects restricted to the baseline/backcast (validation) period.
-
-    Notes
-    -----
-    - `effects` is the primary object used for inference and power analysis.
-    - Residual splits (E, B) are used for:
-        * model fit (E)
-        * validation / placebo diagnostics (B)
-    """
     synthetic_treated: np.ndarray
     synthetic_control: np.ndarray
     effects: np.ndarray
@@ -107,115 +42,115 @@ class PredictionVectors:
     residuals_B: np.ndarray
 
 
+# =========================================================
+# LOSSES
+# =========================================================
 @dataclass
 class Losses:
-    """
-    Container for fit metrics used to evaluate candidate solutions.
-
-    Attributes
-    ----------
-    loss_E : float
-        Objective value from the branch-and-bound stage (estimation period).
-    nmse_E : float
-        Normalized mean squared error over the estimation period.
-    nmse_B : float
-        Normalized mean squared error over the baseline/backcast period.
-
-    Notes
-    -----
-    - `loss_E` is the optimization objective (used during search).
-    - `nmse_E` measures in-sample fit.
-    - `nmse_B` is the primary diagnostic for out-of-sample fit and robustness.
-    """
     loss_E: float
     nmse_E: float
     nmse_B: float
+    # synthetic treated vs synthetic control
+    rmse_sc_E: float
+    rmse_sc_B: float
+
+    # synthetic treated vs population target
+    rmse_pop_E: float
+    rmse_pop_B: float
 
 
+# =========================================================
+# IDENTIFICATION
+# =========================================================
 @dataclass
 class Identification:
-    """
-    Identification metadata for a candidate synthetic experiment.
-
-    Attributes
-    ----------
-    solution : Solution
-        Original branch-and-bound solution object.
-    treated_idx : np.ndarray
-        Indices of units selected as treated.
-    tuple_id : str
-        Human-readable identifier for the candidate.
-
-    Notes
-    -----
-    - `tuple_id` is derived from `solution.label` if available,
-      otherwise constructed from `treated_idx`.
-    - This object links downstream evaluation results back to the
-      original combinatorial selection.
-    """
     solution: Solution
     treated_idx: np.ndarray
     tuple_id: str = field(init=False)
 
     def __post_init__(self):
-        self.tuple_id = getattr(self.solution, "label", f"Tuple_{list(self.treated_idx)}")
+        self.tuple_id = getattr(
+            self.solution,
+            "label",
+            f"Tuple_{list(self.treated_idx)}"
+        )
 
 
+# =========================================================
+# CANDIDATE OBJECT
+# =========================================================
 @dataclass
 class SEDCandidate:
-    """
-    Complete representation of a candidate synthetic experiment design.
-
-    Attributes
-    ----------
-    identification : Identification
-        Metadata describing the selected treated units.
-    weights : WeightVectors
-        Treated and control weight vectors.
-    predictions : PredictionVectors
-        Constructed time series (treated, control, effects, residuals).
-    losses : Losses
-        Fit metrics for evaluation and ranking.
-    mde_results : dict, optional
-        Results from minimum detectable effect (MDE) analysis.
-
-    Notes
-    -----
-    This object encapsulates the full pipeline output for a single candidate:
-
-    1. Selection (Branch-and-Bound)
-        - `identification.solution`
-        - `identification.treated_idx`
-
-    2. Construction (Control QP)
-        - `weights.treated`
-        - `weights.control`
-
-    3. Time Series
-        - `predictions.synthetic_treated`
-        - `predictions.synthetic_control`
-        - `predictions.effects`
-
-    4. Evaluation
-        - `losses` (fit metrics)
-
-    5. Power Analysis (optional)
-        - `mde_results`
-
-    - Designed to be the core unit passed through ranking, reporting,
-      and downstream inference.
-    - Mutated in-place by later stages (e.g., power analysis).
-    """
     identification: Identification
     weights: WeightVectors
     predictions: PredictionVectors
     losses: Losses
-    mde_results: Optional[dict] = None
-    inference: Inference = field(default_factory=Inference)  # <--- Added Section
-    control_weight_dict: Optional[dict] = None
-    treated_weight_dict: Optional[dict] = None
 
-    def __post_init__(self):
-        # Ensure we always have an inference container even if empty
-        if self.inference is None:
-            self.inference = Inference()
+    inference: Inference = field(default_factory=Inference)
+
+    treated_weight_dict: Dict[str, float] = field(default_factory=dict)
+    control_weight_dict: Dict[str, float] = field(default_factory=dict)
+
+    # -------- Useful derived helpers --------
+    @property
+    def treated_size(self) -> int:
+        return len(self.identification.treated_idx)
+
+    @property
+    def control_idx(self) -> np.ndarray:
+        return np.where(self.weights.control > 1e-6)[0]
+
+    @property
+    def control_size(self) -> int:
+        return len(self.control_idx)
+
+
+# =========================================================
+# TIME METADATA
+# =========================================================
+@dataclass
+class TimeInfo:
+    n_total: int
+    n_pre: int
+    n_fit: int
+    n_blank: int
+    n_post: int
+    index: IndexSet
+
+
+# =========================================================
+# UNIT METADATA
+# =========================================================
+@dataclass
+class UnitInfo:
+    n_units_total: int
+    treated_labels: List[str]
+    control_labels: List[str]
+
+    @property
+    def treated_size(self) -> int:
+        return len(self.treated_labels)
+
+    @property
+    def control_size(self) -> int:
+        return len(self.control_labels)
+
+
+# =========================================================
+# FINAL RESULTS OBJECT
+# =========================================================
+@dataclass
+class LEXSCMResults:
+    summary: pd.DataFrame
+    best_candidate: SEDCandidate
+    all_candidates: List[SEDCandidate]
+    bnb_metadata: Dict[str, Any]
+
+    # structured metadata
+    time: TimeInfo
+    units: UnitInfo
+
+    outcome: str
+
+    # OPTIONAL
+    y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
