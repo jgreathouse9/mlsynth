@@ -529,11 +529,6 @@ class LEXSCMConfig(BaseMAREXConfig):
     # SYNTHETIC CONTROL SPECIFICATION
     # =========================================================
 
-    weight_col: Optional[str] = Field(
-        default=None,
-        description="Optional unit-level weights (population, revenue, etc.)."
-    )
-
     covariates: Optional[List[str]] = Field(
         default=None,
         description="Optional covariates included in synthetic control."
