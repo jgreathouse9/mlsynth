@@ -223,9 +223,7 @@ class LEXSCM:
         self.n_sims: int = config.n_sims
         self.post_imputation: str = config.post_imputation
         self.test_statistic: str = config.test_statistic
-        self.delta: float = config.delta
-        self.relative_delta: Optional[float] = config.relative_delta
-        self.target_mde_horizon: str = config.target_mde_horizon
+        self.target_mde_horizon: Literal["early_mean", "early_min", "late"] = config.mde_horizon
         self.max_shortlist: int = config.max_shortlist
         
         self.display_graph: bool = config.display_graph
@@ -357,7 +355,7 @@ class LEXSCM:
             f=self.f,
             E_idx=E_idx,  # ← you must pass this now
             B_idx=B_idx,
-            lambda_penalty=self.lambda_penalty
+            lambda_penalty=self.lambda_penalty, index_set=unit_index
         )
 
         candidate_mdes = run_mde_analysis(
@@ -369,10 +367,7 @@ class LEXSCM:
         
         winner, shortlist = select_best_tuple(
             candidate_mdes,
-            delta=self.delta,
-            relative_delta=self.relative_delta,
-            target_mde_horizon=self.target_mde_horizon,
-            return_shortlist=True
+            mde_horizon="early_min"
         )
 
 
