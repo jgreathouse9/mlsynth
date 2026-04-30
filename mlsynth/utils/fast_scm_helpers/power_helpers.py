@@ -2,39 +2,432 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from typing import Dict, List, Optional, Literal
 from math import comb
-from typing import Dict, List, Literal, Optional
 from .structure import SEDCandidate
 
 
 # =========================================================
 # TEST STATISTIC
 # =========================================================
-def test_statistic(e: np.ndarray, method: str = "mean_abs") -> float:
+def test_statistic(x: np.ndarray) -> float:
     """
-        Compute a scalar test statistic from a vector of residuals (treatment effects).
+    Compute the test statistic used in the permutation procedure.
 
-        This statistic is used to construct the rejection region in the permutation test.
+    Parameters
+    ----------
+    x : np.ndarray
+        Vector of treatment effect residuals.
 
-        Parameters
-        ----------
-        e : np.ndarray
-            Vector of residuals (e.g., synthetic treated minus synthetic control).
-        method : {"mean_abs", "mean", "rms"}, default="mean_abs"
-            Aggregation method:
-            - "mean_abs": Mean of absolute residuals (default, robust to sign).
-            - "mean": Signed mean (less common).
-            - "rms": Root mean square.
+    Returns
+    -------
+    float
+        Mean absolute value of the input vector.
+    """
+    return float(np.mean(np.abs(x)))
 
-        Returns
-        -------
-        float
-            Scalar test statistic value.
 
-        Notes
-        -----
-        "mean_abs" is the recommended default as it aligns with common practice in
-        synthetic control placebo tests and is invariant to the sign of the effect.
+# =========================================================
+# NULL DISTRIBUTION
+# =========================================================
+def compute_null_distribution(full_series, n_post, n_sims=5000, seed=1400):
+    """
+    Estimate the null distribution of the test statistic via permutation.
+
+    Parameters
+    ----------
+    full_series : array-like
+        Combined residual series (pre + pseudo-post under null).
+    n_post : int
+        Number of observations sampled as pseudo post-treatment period.
+    n_sims : int
+        Number of Monte Carlo permutations.
+    seed : int
+        Random seed.
+
+    Returns
+    -------
+    np.ndarray
+        Sorted simulated test statistics under the null hypothesis.
+    """
+    rng = np.random.default_rng(seed)
+    full_series = np.asarray(full_series)
+
+    null_stats = np.zeros(n_sims)
+
+    for i in range(n_sims):
+        idx = rng.choice(len(full_series), size=n_post, replace=False)
+        null_stats[i] = np.mean(np.abs(full_series[idx]))
+
+    return np.sort(null_stats)
+
+
+def critical_value_from_null(null_stats, alpha):
+    """
+    Compute critical value from null distribution.
+
+    Parameters
+    ----------
+    null_stats : np.ndarray
+        Sorted null test statistics.
+    alpha : float
+        Significance level.
+
+    Returns
+    -------
+    float
+        (1 - alpha) quantile of null distribution.
+    """
+    return float(np.quantile(null_stats, 1 - alpha))
+
+
+# =========================================================
+# NOISE
+# =========================================================
+def impute_noise_level(residuals_B, method="mean"):
+    """
+    Estimate relative noise level from pre-treatment residuals.
+
+    Parameters
+    ----------
+    residuals_B : array-like
+        Pre-treatment residuals.
+    method : {"mean", "max", "double_max"}
+        Aggregation rule for noise estimation.
+
+    Returns
+    -------
+    float
+        Relative noise level (scale-free, percentage space compatible).
+    """
+    r = np.asarray(residuals_B)
+
+    scale = np.mean(np.abs(r)) + 1e-8
+    r = r / scale
+
+    if method == "mean":
+        return float(np.mean(np.abs(r)))
+    if method == "max":
+        return float(np.max(np.abs(r)))
+    if method == "double_max":
+        return float(2 * np.max(np.abs(r)))
+
+    raise ValueError()
+
+
+# =========================================================
+# MDE CORE (FIXED)
+# =========================================================
+def _analytical_mde(residuals_B,
+                    synth_treated,
+                    n_post,
+                    alpha=0.05,
+                    n_sims=5000,
+                    seed=1400):
+    """
+    Compute Minimum Detectable Effect (MDE) in percentage space.
+
+    This function simulates power across effect sizes and returns the
+    smallest detectable percentage effect at 80% power.
+
+    Parameters
+    ----------
+    residuals_B : array-like
+        Pre-treatment residuals.
+    synth_treated : array-like
+        Synthetic treated outcome series.
+    n_post : int
+        Post-treatment window length.
+    alpha : float
+        Significance level.
+    n_sims : int
+        Number of Monte Carlo simulations for null.
+    seed : int
+        Random seed.
+
+    Returns
+    -------
+    dict
+        MDE result including percentage effect size and feasibility flag.
+    """
+    rng = np.random.default_rng(seed)
+
+    residuals_B = np.asarray(residuals_B)
+    synth_treated = np.asarray(synth_treated)
+
+    baseline = np.mean(synth_treated[-n_post:])
+    baseline = max(baseline, 1e-8)
+
+    rel_B = residuals_B / baseline
+
+    # --- FIX: null must include same structure as test statistic space
+    full_null = np.concatenate([
+        rel_B,
+        rng.normal(0, np.std(rel_B) + 1e-8, n_post)
+    ])
+
+    null_stats = compute_null_distribution(full_null, n_post, n_sims, seed)
+    c_star = critical_value_from_null(null_stats, alpha)
+
+    tau_grid = np.linspace(0.001, 0.10, 60)
+
+    for tau in tau_grid:
+
+        hits = 0
+
+        for _ in range(300):
+            noise = rng.normal(0, np.std(rel_B) + 1e-8, n_post)
+
+            post = tau + noise  # percent effect space
+
+            stat = np.mean(np.abs(post))
+
+            if stat >= c_star:
+                hits += 1
+
+        power = hits / 300
+
+        if power >= 0.8:
+            return {
+                "mde_tau": float(tau),
+                "mde_pct": float(100 * tau),
+                "baseline": baseline,
+                "critical_stat": float(c_star),
+                "feasible": True
+            }
+
+    return {
+        "mde_tau": np.nan,
+        "mde_pct": np.nan,
+        "baseline": baseline,
+        "critical_stat": float(c_star),
+        "feasible": False
+    }
+
+
+# =========================================================
+# DETECTABILITY CURVE (FIXED SIGNATURE)
+# =========================================================
+def compute_detectability_curve(candidate,
+                                n_post_grid,
+                                alpha=0.05,
+                                n_sims=5000,
+                                seed=1400):
+    """
+    Compute MDE curve across different post-treatment horizons.
+
+    Parameters
+    ----------
+    candidate : SEDCandidate
+        Synthetic experiment candidate.
+    n_post_grid : list[int]
+        List of post-treatment lengths to evaluate.
+    alpha : float
+        Significance level.
+    n_sims : int
+        Number of Monte Carlo simulations.
+    seed : int
+        Random seed.
+
+    Returns
+    -------
+    dict
+        Curve of MDE (%) by horizon and summary thresholds.
+    """
+    residuals_B = np.asarray(candidate.predictions.residuals_B)
+    synth_treated = np.asarray(candidate.predictions.synthetic_treated)
+
+    curve = {}
+    details = {}
+
+    for n_post in n_post_grid:
+
+        res = _analytical_mde(
+            residuals_B,
+            synth_treated,
+            n_post,
+            alpha,
+            n_sims,
+            seed
+        )
+
+        curve[n_post] = res["mde_pct"]
+        details[n_post] = res
+
+    return {
+        "curve": curve,
+        "details": details,
+        "n_post_10pct": next((k for k, v in curve.items() if v <= 10), np.nan),
+        "n_post_5pct": next((k for k, v in curve.items() if v <= 5), np.nan),
+    }
+
+
+# =========================================================
+# BATCH
+# =========================================================
+def run_mde_analysis(candidates,
+                     n_post_grid=None,
+                     alpha=0.05,
+                     n_sims=5000,
+                     seed=1400):
+    """
+    Run MDE analysis over multiple candidates.
+
+    Parameters
+    ----------
+    candidates : list[SEDCandidate]
+        Candidate synthetic designs.
+    n_post_grid : list[int]
+        Post-treatment horizons.
+    alpha : float
+        Significance level.
+    n_sims : int
+        Monte Carlo simulations.
+    seed : int
+        Random seed.
+
+    Returns
+    -------
+    list[SEDCandidate]
+        Candidates with attached MDE results.
+    """
+    if n_post_grid is None:
+        n_post_grid = list(range(2, 9))
+
+    for c in candidates:
+        c.mde_results = compute_detectability_curve(
+            c,
+            n_post_grid,
+            alpha,
+            n_sims,
+            seed
+        )
+
+    return candidates
+
+
+# =========================================================
+# SUMMARY
+# =========================================================
+def mde_summary_table(candidates):
+    """
+    Build summary table of NMSE and MDE curves.
+
+    Parameters
+    ----------
+    candidates : list[SEDCandidate]
+
+    Returns
+    -------
+    pd.DataFrame
+        Summary table sorted by pre-treatment fit quality.
+    """
+    rows = []
+
+    for c in candidates:
+
+        r = c.mde_results or {}
+        d = r.get("details", {})
+
+        row = {
+            "tuple_id": getattr(c.identification, "tuple_id", "unknown"),
+            "nmse_B": getattr(c.losses, "nmse_B", np.nan),
+        }
+
+        for w in range(2, 9):
+            row[f"mde_{w}w"] = d.get(w, {}).get("mde_pct", np.nan)
+
+        rows.append(row)
+
+    return pd.DataFrame(rows).sort_values("nmse_B").reset_index(drop=True)
+
+
+
+def _dominates(a_nmse, a_mde, b_nmse, b_mde):
+    return (a_nmse <= b_nmse and a_mde <= b_mde) and (a_nmse < b_nmse or a_mde < b_mde)
+
+def select_best_tuple(
+    candidates,
+    n_post_aggregation=(2, 3, 4),
+    max_shortlist=5,
+    mde_mode="early_min"
+):
+    df = mde_summary_table(candidates).copy()
+
+    if df.empty:
+        raise ValueError("No candidates")
+
+    # -------------------------------------------------
+    # MDE LOSS DEFINITION (LOWER = BETTER)
+    # -------------------------------------------------
+    if mde_mode == "early_mean":
+        cols = [f"mde_{w}w" for w in n_post_aggregation]
+        df["mde_score"] = df[cols].mean(axis=1)
+
+    elif mde_mode == "early_min":
+        cols = [f"mde_{w}w" for w in n_post_aggregation]
+        df["mde_score"] = df[cols].min(axis=1)
+
+    elif mde_mode == "late":
+        # default: most stable / realistic detectability horizon
+        df["mde_score"] = df["mde_8w"]
+
+    else:
+        raise ValueError("Unknown mde_mode")
+
+    df = df.dropna(subset=["mde_score", "nmse_B"]).reset_index(drop=True)
+
+    # -------------------------------------------------
+    # PARETO FRONTIER (MINIMIZE BOTH OBJECTIVES)
+    # -------------------------------------------------
+    def dominates(a_nmse, a_mde, b_nmse, b_mde):
+        return (
+            a_nmse <= b_nmse and a_mde <= b_mde
+        ) and (
+            a_nmse < b_nmse or a_mde < b_mde
+        )
+
+    pareto_mask = np.ones(len(df), dtype=bool)
+
+    for i in range(len(df)):
+        for j in range(len(df)):
+            if i == j:
+                continue
+
+            if dominates(
+                df.loc[j, "nmse_B"],
+                df.loc[j, "mde_score"],
+                df.loc[i, "nmse_B"],
+                df.loc[i, "mde_score"]
+            ):
+                pareto_mask[i] = False
+                break
+
+    pareto_df = df[pareto_mask].copy()
+
+    # -------------------------------------------------
+    # TRADE-OFF SCORING INSIDE PARETO SET
+    # -------------------------------------------------
+    # normalize so both axes are comparable
+    pareto_df["score"] = (
+        pareto_df["nmse_B"] / (pareto_df["nmse_B"].max() + 1e-8)
+        + pareto_df["mde_score"] / (pareto_df["mde_score"].max() + 1e-8)
+    )
+
+    pareto_df = pareto_df.sort_values("score").reset_index(drop=True)
+
+    pareto_df["recommended"] = False
+    pareto_df.loc[0, "recommended"] = True
+
+    winner_id = pareto_df.iloc[0]["tuple_id"]
+
+    winner = next(
+        c for c in candidates
+        if getattr(c.identification, "tuple_id", None) == winner_id
+    )
+
+
+    return winner, pareto_df.head(max_shortlist)        synthetic control placebo tests and is invariant to the sign of the effect.
     """
     if method == "mean_abs":
         return float(np.mean(np.abs(e)))
