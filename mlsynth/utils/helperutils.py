@@ -762,7 +762,6 @@ def sc_diagplot(config_list: List[Dict[str, Any]], save: Optional[str] = None) -
         plt.show()
 
 
-
 def lexplot(
     results,
     save_plot_config: Union[bool, Dict[str, str]] = False,
@@ -773,91 +772,174 @@ def lexplot(
     import matplotlib.pyplot as plt
 
     # =========================================================
-    # Extract required fields
+    # Extract core components
     # =========================================================
-    time_index = results.timeindex.labels
-    pre_periods = results.n_pre_periods
+    time_info = results.time
+
+    n_fit = time_info.n_fit
+    n_blank = time_info.n_blank
+    n_post = time_info.n_post
 
     synthetic_treated = results.best_candidate.predictions.synthetic_treated
     synthetic_control = results.best_candidate.predictions.synthetic_control
     population_mean = results.y_pop_mean_t
 
     outcome_name = results.outcome
+    x = time_info.index.labels
 
+    best = results.best_candidate
 
-    T = len(synthetic_treated)
-    x = np.arange(T)
+    # =========================================================
+    # Helper metrics (safe guards)
+    # =========================================================
+    def rmse(a, b):
+        return float(np.sqrt(np.mean((np.asarray(a) - np.asarray(b)) ** 2)))
+
+    est_end = n_fit
+    blank_end = n_fit + n_blank
+    post_end = n_fit + n_blank + n_post
 
     # =========================================================
     # Plot setup
     # =========================================================
-    plt.figure(figsize=(11, 5))
+    fig, ax = plt.subplots(figsize=(11, 5))
 
-    # treatment line
-    plt.axvline(
-        x=pre_periods,
+
+    # =========================================================
+    # Vertical lines
+    # =========================================================
+
+    ax.axvline(
+        x=est_end,
         linestyle="--",
         color="gray",
         linewidth=1.5,
-        label="Treatment start",
+        label="End of estimation",
     )
 
+    if n_post > 0:
+        ax.axvline(
+            x=blank_end,
+            linestyle="--",
+            color="black",
+            linewidth=1.5,
+            label="Treatment start",
+        )
+
     # =========================================================
-    # SERIES
+    # SERIES (split in-sample vs OOS)
     # =========================================================
 
-    # Population mean (thick black line)
-    plt.plot(
-        x,
-        population_mean,
+    # --- in-sample (solid) ---
+    ax.plot(
+        x[:blank_end],
+        population_mean[:blank_end],
         color="black",
         linewidth=3,
-        label="Population Mean",
-        alpha=0.9,
+        label="Population Mean"
     )
 
-    # Synthetic treated (blue)
-    plt.plot(
-        x,
-        synthetic_treated,
+    ax.plot(
+        x[:blank_end],
+        synthetic_treated[:blank_end],
         color="tab:blue",
         linewidth=2,
-        label="Synthetic Treated",
+        label="Synthetic Treated"
     )
 
-    # Synthetic control (red)
-    plt.plot(
-        x,
-        synthetic_control,
+    ax.plot(
+        x[:blank_end],
+        synthetic_control[:blank_end],
         color="tab:red",
         linewidth=2,
-        label="Synthetic Control",
+        label="Synthetic Control"
     )
 
+    # --- out-of-sample (dashed + thinner) ---
+    if n_post > 0:
+        ax.plot(
+            x[blank_end:],
+            population_mean[blank_end:],
+            color="black",
+            linewidth=3,
+            linestyle="-",
+            alpha=0.8
+        )
+
+        ax.plot(
+            x[blank_end:],
+            synthetic_treated[blank_end:],
+            color="tab:blue",
+            linewidth=1.5,
+            linestyle="--",
+            alpha=0.9
+        )
+
+        ax.plot(
+            x[blank_end:],
+            synthetic_control[blank_end:],
+            color="tab:red",
+            linewidth=1.5,
+            linestyle="--",
+            alpha=0.9
+        )
+
     # =========================================================
-    # Labels
+    # METRICS FOR TITLE
     # =========================================================
-    tuplename = results.best_candidate.identification.tuple_id
+
+    est_slice = slice(0, est_end)
+    blank_slice = slice(est_end, blank_end)
+
+    rmse_est_pop = rmse(population_mean[est_slice], synthetic_treated[est_slice])
+    rmse_blank_pop = rmse(population_mean[blank_slice], synthetic_treated[blank_slice])
+
+    rmse_est_ctrl = rmse(synthetic_control[est_slice], synthetic_treated[est_slice])
+
+    tuplename = best.identification.tuple_id
     w = results.bnb_metadata['top_tuples'][0].full_weights
     m = np.sum(w > 0)
 
-    plt.title(
-        f"{outcome_name}: Synthetic Treated vs Control | {tuplename} | m={m}",
-        loc="left"
+    # =========================================================
+    # TITLE
+    # =========================================================
+
+    title = (
+        f"{outcome_name} | {tuplename} | m={m}\n"
+        f"RMSE(est, pop): {rmse_est_pop:.3f} | "
+        f"RMSE(blank, pop): {rmse_blank_pop:.3f} | "
+        f"RMSE(T vs C, est): {rmse_est_ctrl:.3f}"
     )
-    
-    
-    plt.xlabel("Time")
-    plt.ylabel(outcome_name)
-    plt.legend()
-    plt.grid(alpha=0.3)
+
+    if n_post > 0 and hasattr(best, "inference"):
+        ci_l = getattr(best.inference, "ci_lower", None)
+        ci_u = getattr(best.inference, "ci_upper", None)
+        pval = getattr(best.inference, "p_value", None)
+        ate = getattr(best.inference, "ate", None)
+
+        if ci_l is not None and ci_u is not None and ate is not None:
+            title += (
+                f"\nATT={ate:.3f} | "
+                f"CI=[{ci_l:.3f}, {ci_u:.3f}] | "
+                f"p={pval:.3g}"
+            )
+
+    ax.set_title(title, loc="left")
 
     # =========================================================
-    # Save / show
+    # LABELS
+    # =========================================================
+    ax.set_xlabel("Time")
+    ax.set_ylabel(outcome_name)
+    ax.legend()
+    ax.grid(alpha=0.3)
+
+    # =========================================================
+    # SAVE / SHOW
     # =========================================================
     if save_plot_config:
         if isinstance(save_plot_config, dict):
-            filename = save_plot_config.get("filename", f"{method_name}_lexplot")
+            filename = save_plot_config.get("filename", f"{outcome_name}_lexplot")
             extension = save_plot_config.get("extension", "png")
             directory = save_plot_config.get("directory", ".")
             display = save_plot_config.get("display", True)
