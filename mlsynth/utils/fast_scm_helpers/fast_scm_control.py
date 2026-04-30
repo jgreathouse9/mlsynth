@@ -135,6 +135,9 @@ def evaluate_candidates(
         synth_control = X @ v
         effects = synth_treated - synth_control
 
+        def _rmse(a, b, idx):
+            return float(np.sqrt(np.mean((a[idx] - b[idx]) ** 2)))
+
         # Inline NMSE
         def _nmse(period_idx):
             synth_p = synth_treated[period_idx]
@@ -142,9 +145,23 @@ def evaluate_candidates(
             std_t = np.maximum(np.std(X[period_idx], axis=1, ddof=1), 1e-8)
             return float(np.mean(((synth_p - targ_p) / std_t) ** 2))
 
+        rmse_sc_E = _rmse(synth_treated, synth_control, E_idx)
+        rmse_sc_B = _rmse(synth_treated, synth_control, B_idx)
+
+        rmse_pop_E = _rmse(synth_treated, target, E_idx)
+        rmse_pop_B = _rmse(synth_treated, target, B_idx)
+
         candidate = SEDCandidate(
-            identification=Identification(solution=sol, treated_idx=treated_idx),
-            weights=WeightVectors(treated=w.copy(), control=v.copy()),
+            identification=Identification(
+                solution=sol,
+                treated_idx=treated_idx
+            ),
+
+            weights=WeightVectors(
+                treated=w.copy(),
+                control=v.copy()
+            ),
+
             predictions=PredictionVectors(
                 synthetic_treated=synth_treated.copy(),
                 synthetic_control=synth_control.copy(),
@@ -152,13 +169,22 @@ def evaluate_candidates(
                 residuals_E=effects[E_idx].copy(),
                 residuals_B=effects[B_idx].copy(),
             ),
+
             losses=Losses(
                 loss_E=float(sol.loss),
                 nmse_E=_nmse(E_idx),
                 nmse_B=_nmse(B_idx),
+
+                rmse_sc_E=rmse_sc_E,
+                rmse_sc_B=rmse_sc_B,
+
+                rmse_pop_E=rmse_pop_E,
+                rmse_pop_B=rmse_pop_B
             ),
-            control_weight_dict=control_weights,
-            treated_weight_dict=treated_weights
+
+            # NEW structured metadata
+            treated_weight_dict=treated_weights,
+            control_weight_dict=control_weights
         )
 
         results.append(candidate)
