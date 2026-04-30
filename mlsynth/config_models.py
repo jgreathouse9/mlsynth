@@ -580,6 +580,11 @@ class LEXSCMConfig(BaseMAREXConfig):
     # =========================================================
     # INTERNAL / SYSTEM
     # =========================================================
+    
+    display_graph: bool = Field(
+        default=False,
+        description="Display plot."
+    )
 
     verbose: bool = Field(
         default=True,
