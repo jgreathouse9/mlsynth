@@ -79,6 +79,32 @@ class LEXSCM:
 
         The following fields are supported:
 
+    Returns
+    -------
+    LEXSCM
+        Initialized estimator ready for `.fit()` execution.
+
+    See Also
+    --------
+    LEXSCM.fit : Executes the full optimization and estimation pipeline
+
+    Notes
+    -----
+    - The pipeline integrates: search, estimation, evaluation, power analysis, selection.
+    - Designed for fully automated experimental design under constraints.
+
+    References
+    ----------
+    This implementation is based on the synthetic experimental design framework:
+
+    - https://economics.mit.edu/sites/default/files/2026-02/Synthetic%20Controls%20for%20Experimental%20Design%20Feb%202026.pdf
+      Develops the formal framework for selecting treated units using synthetic controls
+      to reduce bias and improve experimental design in aggregate settings.
+
+    - https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf
+      Provides a practical guide to synthetic experimental design in policy contexts,
+      including inference and design trade-offs.
+
         Required
         --------
         df : pd.DataFrame
@@ -96,7 +122,7 @@ class LEXSCM:
             Number of units selected per treated tuple.
 
         Identification / Design
-        ------------------------
+        -----------------------
         post_col : str, optional
             Indicator for post-treatment period (0/1).
         frac_E : float
@@ -109,7 +135,7 @@ class LEXSCM:
             Random seed for reproducibility.
 
         Synthetic Control Specification
-        --------------------------------
+        -------------------------------
         weight_col : str, optional
             Unit-level weights (e.g., population, revenue).
         covariates : list of str, optional
@@ -149,32 +175,6 @@ class LEXSCM:
         ----------------
         verbose : bool
             If True, enables progress logging.
-
-    Returns
-    -------
-    LEXSCM
-        Initialized estimator ready for `.fit()` execution.
-
-    References
-    ----------
-    This implementation is based on the synthetic experimental design framework:
-
-    - https://economics.mit.edu/sites/default/files/2026-02/Synthetic%20Controls%20for%20Experimental%20Design%20Feb%202026.pdf  
-      Develops the formal framework for selecting treated units using synthetic controls
-      to reduce bias and improve experimental design in aggregate settings.
-
-    - https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf  
-      Provides a practical guide to synthetic experimental design in policy contexts,
-      including inference and design trade-offs.
-
-    Notes
-    -----
-    - The pipeline integrates: search, estimation, evaluation, power analysis, selection.
-    - Designed for fully automated experimental design under constraints.
-
-    See Also
-    --------
-    LEXSCM.fit : Executes the full optimization and estimation pipeline
     """
 
     def __init__(self, config):
