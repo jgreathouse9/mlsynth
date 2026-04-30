@@ -676,8 +676,6 @@ def compute_detectability_curve(
             Contains:
             - "curve": dict mapping n_post to mde_tau
             - "details": detailed results per horizon
-            - "n_post_10pct": smallest n_post with MDE ≤ 10%
-            - "n_post_5pct": smallest n_post with MDE ≤ 5%
             - "noise_level": imputed noise level used
     """
     residuals_B = np.asarray(candidate.predictions.residuals_B)
