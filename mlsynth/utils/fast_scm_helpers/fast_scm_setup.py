@@ -5,43 +5,109 @@ from typing import Optional, Tuple, Dict, List
 import pandas as pd
 from typing import Any, Dict, Iterable
 
-
 @dataclass(frozen=True)
 class IndexSet:
+    """
+    Immutable bidirectional index mapping between arbitrary labels and integer indices.
+
+    This class provides a lightweight utility for converting between human-readable
+    unit/time labels and integer indices used in NumPy arrays.
+
+    Attributes
+    ----------
+    labels : np.ndarray
+        Ordered array of labels (e.g., unit IDs or time periods).
+    label_to_idx : Dict[Any, int]
+        Mapping from label → integer index.
+
+    Methods
+    -------
+    from_labels(labels)
+        Construct IndexSet from an iterable of labels.
+    get_labels(indices)
+        Convert integer indices to labels.
+    get_index(labels)
+        Convert labels to integer indices.
+
+    Notes
+    -----
+    - This structure is immutable (`frozen=True`).
+    - Intended for consistent indexing across panel datasets.
+    """
+
     labels: np.ndarray
     label_to_idx: Dict[Any, int]
 
     @classmethod
     def from_labels(cls, labels: Iterable[Any]) -> "IndexSet":
+        """
+        Construct an IndexSet from an iterable of labels.
+
+        Parameters
+        ----------
+        labels : Iterable[Any]
+            Ordered sequence of unique identifiers.
+
+        Returns
+        -------
+        IndexSet
+            Mapping object for label-index conversions.
+        """
         labels = np.asarray(list(labels))
         return cls(
             labels=labels,
             label_to_idx={label: i for i, label in enumerate(labels)}
         )
 
-    # -----------------------------
-    # Core mapping utilities
-    # -----------------------------
     def get_labels(self, indices):
+        """
+        Convert integer indices into corresponding labels.
+
+        Parameters
+        ----------
+        indices : array-like
+            Integer indices.
+
+        Returns
+        -------
+        np.ndarray
+            Corresponding labels.
+        """
         return self.labels[np.asarray(indices)]
 
     def get_index(self, labels):
+        """
+        Convert labels into integer indices.
+
+        Parameters
+        ----------
+        labels : array-like
+            Input labels.
+
+        Returns
+        -------
+        np.ndarray
+            Integer indices corresponding to input labels.
+        """
         return np.array([self.label_to_idx[l] for l in labels])
 
-    # -----------------------------
-    # Python / NumPy interoperability
-    # -----------------------------
     def __len__(self):
+        """Return number of labels."""
         return len(self.labels)
 
     def __iter__(self):
+        """Iterate over labels."""
         return iter(self.labels)
 
     def __array__(self):
+        """Return labels as NumPy array."""
         return self.labels
 
     def __repr__(self):
         return f"IndexSet(n={len(self.labels)})"
+
+
+
 
 def _prepare_working_df(
     df: pd.DataFrame, 
@@ -98,6 +164,25 @@ def _prepare_working_df(
 
 # In mlsynth/utils/fast_scm_setup.py  (or wherever your helpers live)
 def build_candidate_mask(working_df, candidate_col, unit_index, unitid):
+    """
+    Construct boolean mask identifying candidate units.
+
+    Parameters
+    ----------
+    working_df : pd.DataFrame
+        Preprocessed panel data.
+    candidate_col : str
+        Column indicating eligibility for treatment.
+    unit_index : IndexSet
+        Full set of unit labels.
+    unitid : str
+        Unit identifier column name.
+
+    Returns
+    -------
+    np.ndarray
+        Boolean mask of candidate units aligned with `unit_index`.
+    """
     return (
         working_df.groupby(unitid)[candidate_col]
         .first()
@@ -110,6 +195,27 @@ def build_candidate_mask(working_df, candidate_col, unit_index, unitid):
 
 
 def build_Y_matrix(working_df, outcome, time, unitid, unit_index):
+    """
+    Construct outcome matrix in (time × unit) format.
+
+    Parameters
+    ----------
+    working_df : pd.DataFrame
+        Input panel data.
+    outcome : str
+        Outcome variable name.
+    time : str
+        Time index column.
+    unitid : str
+        Unit identifier column.
+    unit_index : IndexSet
+        Ordered unit index.
+
+    Returns
+    -------
+    np.ndarray, shape (T, J)
+        Wide-format outcome matrix.
+    """
     Y_wide = (
         working_df.pivot(index=time, columns=unitid, values=outcome)
         .reindex(columns=unit_index)
@@ -119,6 +225,27 @@ def build_Y_matrix(working_df, outcome, time, unitid, unit_index):
 
 
 def build_Z_matrix(working_df, covariates, time, unitid, unit_index):
+    """
+    Construct stacked covariate matrix.
+
+    Parameters
+    ----------
+    working_df : pd.DataFrame
+        Input panel data.
+    covariates : list of str
+        List of covariate column names.
+    time : str
+        Time column.
+    unitid : str
+        Unit identifier column.
+    unit_index : IndexSet
+        Unit ordering.
+
+    Returns
+    -------
+    np.ndarray or None
+        Stacked covariate tensor (covariates × time × units flattened).
+    """
     if not covariates:
         return None
 
@@ -134,6 +261,25 @@ def build_Z_matrix(working_df, covariates, time, unitid, unit_index):
 
 
 def build_f_vector(working_df, weight_col, unitid, unit_index):
+    """
+    Construct unit weighting vector.
+
+    Parameters
+    ----------
+    working_df : pd.DataFrame
+        Input dataset.
+    weight_col : str or None
+        Optional column defining unit weights.
+    unitid : str
+        Unit identifier column.
+    unit_index : IndexSet
+        Unit ordering.
+
+    Returns
+    -------
+    np.ndarray
+        Normalized weight vector over units.
+    """
     J = len(unit_index)
 
     if weight_col is not None:
