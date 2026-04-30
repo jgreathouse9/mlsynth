@@ -3,7 +3,7 @@ import cvxpy as cp
 import matplotlib.pyplot as plt
 from matplotlib import rc_context
 import os
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Tuple, Any, Union
 
 import cvxpy # For cvxpy.error.SolverError
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEstimationError
@@ -761,3 +761,114 @@ def sc_diagplot(config_list: List[Dict[str, Any]], save: Optional[str] = None) -
     else:
         plt.show()
 
+
+
+def lexplot(
+    results,
+    save_plot_config: Union[bool, Dict[str, str]] = False,
+) -> None:
+
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    # =========================================================
+    # Extract required fields
+    # =========================================================
+    time_index = results.timeindex.labels
+    pre_periods = results.n_pre_periods
+
+    synthetic_treated = results.best_candidate.predictions.synthetic_treated
+    synthetic_control = results.best_candidate.predictions.synthetic_control
+    population_mean = results.y_pop_mean_t
+
+    outcome_name = results.outcome
+
+
+    T = len(synthetic_treated)
+    x = np.arange(T)
+
+    # =========================================================
+    # Plot setup
+    # =========================================================
+    plt.figure(figsize=(11, 5))
+
+    # treatment line
+    plt.axvline(
+        x=pre_periods,
+        linestyle="--",
+        color="gray",
+        linewidth=1.5,
+        label="Treatment start",
+    )
+
+    # =========================================================
+    # SERIES
+    # =========================================================
+
+    # Population mean (thick black line)
+    plt.plot(
+        x,
+        population_mean,
+        color="black",
+        linewidth=3,
+        label="Population Mean",
+        alpha=0.9,
+    )
+
+    # Synthetic treated (blue)
+    plt.plot(
+        x,
+        synthetic_treated,
+        color="tab:blue",
+        linewidth=2,
+        label="Synthetic Treated",
+    )
+
+    # Synthetic control (red)
+    plt.plot(
+        x,
+        synthetic_control,
+        color="tab:red",
+        linewidth=2,
+        label="Synthetic Control",
+    )
+
+    # =========================================================
+    # Labels
+    # =========================================================
+    plt.title(
+        f"{outcome_name}: Synthetic Treated vs Control",
+        loc="left"
+    )
+    plt.xlabel("Time")
+    plt.ylabel(outcome_name)
+    plt.legend()
+    plt.grid(alpha=0.3)
+
+    # =========================================================
+    # Save / show
+    # =========================================================
+    if save_plot_config:
+        if isinstance(save_plot_config, dict):
+            filename = save_plot_config.get("filename", f"{method_name}_lexplot")
+            extension = save_plot_config.get("extension", "png")
+            directory = save_plot_config.get("directory", ".")
+            display = save_plot_config.get("display", True)
+        else:
+            filename = f"{method_name}_lexplot"
+            extension = "png"
+            directory = "."
+            display = True
+
+        os.makedirs(directory, exist_ok=True)
+        filepath = os.path.join(directory, f"{filename}.{extension}")
+
+        plt.savefig(filepath, bbox_inches="tight", dpi=150)
+
+        if display:
+            plt.show()
+    else:
+        plt.show()
+
+    plt.close()
