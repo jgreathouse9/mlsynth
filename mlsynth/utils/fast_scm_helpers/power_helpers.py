@@ -64,9 +64,7 @@ def compute_null_distribution(full_series, n_post, n_sims=5000, seed=1400):
 
 
 def critical_value_from_null(null_stats: np.ndarray, alpha: float) -> float:
-    """
-    (1 - alpha) quantile of null distribution.
-    """
+    """(1 - alpha) quantile of null distribution."""
     return float(np.quantile(null_stats, 1 - alpha))
 
 
@@ -206,9 +204,7 @@ def run_mde_analysis(
     n_sims=5000,
     seed=1400
 ):
-    """
-    Attach detectability curves to all candidates.
-    """
+    """Attach detectability curves to all candidates."""
     if n_post_grid is None:
         n_post_grid = list(range(2, 9))
 
@@ -228,9 +224,7 @@ def run_mde_analysis(
 # SUMMARY TABLE
 # =========================================================
 def mde_summary_table(candidates):
-    """
-    Flatten detectability curves into analysis table.
-    """
+    """Flatten detectability curves into analysis table."""
     rows = []
 
     for c in candidates:
