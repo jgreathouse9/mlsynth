@@ -19,18 +19,6 @@ The pipeline consists of:
 3. Power analysis (MDE)
 4. Final selection (validity-first rule)
 
-Quick Start
------------
-
-.. code-block:: python
-
-    from mlsynth.estimators import LexSCM
-
-    model = LexSCM(...)
-    results = model.fit(data)
-
-    results.summary()
-
 Core API
 --------
 
@@ -96,8 +84,7 @@ Low-level helpers used internally by the search and estimation routines.
 Example: Synthetic Sales Study with LEXSCM
 ===========================================
 
-This example demonstrates a full end-to-end workflow:
-synthetic data generation → model fitting → inference → visualization.
+This example demonstrates a full end-to-end workflow.
 
 Generate Synthetic Panel Data
 -----------------------------
@@ -107,7 +94,7 @@ Generate Synthetic Panel Data
     import numpy as np
     import pandas as pd
 
-    from mlsynth import LEXSCM, lexplot
+    from mlsynth import LEXSCM
 
 
     def generate_synthetic_sales_panel(
