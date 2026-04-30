@@ -89,9 +89,7 @@ def compute_null_distribution(
 
 
 def critical_value_from_null(null_stats: np.ndarray, alpha: float) -> float:
-    """
-    Compute (1 - alpha) quantile from null distribution.
-    """
+    """Compute (1 - alpha) quantile from null distribution."""
     return float(np.quantile(null_stats, 1 - alpha))
 
 
@@ -102,9 +100,7 @@ def impute_noise_level(
     residuals_B: np.ndarray,
     method: PostImputation = "mean"
 ) -> float:
-    """
-    Estimate post-treatment noise level from pre-treatment residuals.
-    """
+    """Estimate post-treatment noise level from pre-treatment residuals."""
     abs_r = np.abs(residuals_B)
 
     if method == "mean":
@@ -202,9 +198,7 @@ def compute_detectability_curve(
     statistic: TestStatistic = "mean_abs",
     seed: Optional[int] = 1400,
 ) -> Dict:
-    """
-    Compute MDE curve over multiple horizons.
-    """
+    """Compute MDE curve over multiple horizons."""
     residuals_B = np.asarray(candidate.predictions.residuals_B)
     synth_treated = np.asarray(candidate.predictions.synthetic_treated)
 
@@ -242,9 +236,7 @@ def run_mde_analysis(
     n_post_grid: Optional[List[int]] = None,
     **kwargs,
 ) -> List[SEDCandidate]:
-    """
-    Attach MDE results to candidates.
-    """
+    """Attach MDE results to candidates."""
     if n_post_grid is None:
         n_post_grid = list(range(2, 9))
 
@@ -262,9 +254,7 @@ def run_mde_analysis(
 # SUMMARY
 # =========================================================
 def mde_summary_table(candidates: List[SEDCandidate]) -> pd.DataFrame:
-    """
-    Build summary table of NMSE and MDEs.
-    """
+    """Build summary table of NMSE and MDEs."""
     rows = []
 
     for c in candidates:
@@ -295,9 +285,7 @@ def select_best_tuple(
     target: str = "early",
     max_shortlist: int = 5,
 ) -> Tuple[SEDCandidate, pd.DataFrame]:
-    """
-    Validity-first selection: filter by fit, then optimize power.
-    """
+    """Validity-first selection: filter by fit, then optimize power."""
     df = mde_summary_table(candidates)
 
     if df.empty:
