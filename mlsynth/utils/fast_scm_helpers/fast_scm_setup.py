@@ -4,110 +4,8 @@ import numpy as np
 from typing import Optional, Tuple, Dict, List
 import pandas as pd
 from typing import Any, Dict, Iterable
-
-@dataclass(frozen=True)
-class IndexSet:
-    """
-    Immutable bidirectional index mapping between arbitrary labels and integer indices.
-
-    This class provides a lightweight utility for converting between human-readable
-    unit/time labels and integer indices used in NumPy arrays.
-
-    Attributes
-    ----------
-    labels : np.ndarray
-        Ordered array of labels (e.g., unit IDs or time periods).
-    label_to_idx : Dict[Any, int]
-        Mapping from label → integer index.
-
-    Methods
-    -------
-    from_labels(labels)
-        Construct IndexSet from an iterable of labels.
-    get_labels(indices)
-        Convert integer indices to labels.
-    get_index(labels)
-        Convert labels to integer indices.
-
-    Notes
-    -----
-    - This structure is immutable (`frozen=True`).
-    - Intended for consistent indexing across panel datasets.
-    """
-
-    labels: np.ndarray
-    label_to_idx: Dict[Any, int]
-
-    @classmethod
-    def from_labels(cls, labels: Iterable[Any]) -> "IndexSet":
-        """
-        Construct an IndexSet from an iterable of labels.
-
-        Parameters
-        ----------
-        labels : Iterable[Any]
-            Ordered sequence of unique identifiers.
-
-        Returns
-        -------
-        IndexSet
-            Mapping object for label-index conversions.
-        """
-        labels = np.asarray(list(labels))
-        return cls(
-            labels=labels,
-            label_to_idx={label: i for i, label in enumerate(labels)}
-        )
-
-    def get_labels(self, indices):
-        """
-        Convert integer indices into corresponding labels.
-
-        Parameters
-        ----------
-        indices : array-like
-            Integer indices.
-
-        Returns
-        -------
-        np.ndarray
-            Corresponding labels.
-        """
-        return self.labels[np.asarray(indices)]
-
-    def get_index(self, labels):
-        """
-        Convert labels into integer indices.
-
-        Parameters
-        ----------
-        labels : array-like
-            Input labels.
-
-        Returns
-        -------
-        np.ndarray
-            Integer indices corresponding to input labels.
-        """
-        return np.array([self.label_to_idx[l] for l in labels])
-
-    def __len__(self):
-        """Return number of labels."""
-        return len(self.labels)
-
-    def __iter__(self):
-        """Iterate over labels."""
-        return iter(self.labels)
-
-    def __array__(self):
-        """Return labels as NumPy array."""
-        return self.labels
-
-    def __repr__(self):
-        return f"IndexSet(n={len(self.labels)})"
-
-
-
+from .inference import compute_moving_block_conformal_ci, compute_post_inference
+from.structure import IndexSet
 
 def _prepare_working_df(
     df: pd.DataFrame, 
@@ -473,3 +371,105 @@ def build_X_tilde(X: np.ndarray, f: np.ndarray, idx: np.ndarray, J: int):
     G = XE.T @ XE
     
     return XE, G
+
+
+
+
+def _run_post_intervention_updates(
+    candidate_results,
+    Y_pre,
+    post_df,
+    post_idx,
+    unit_index,
+    unitid,
+    time,
+    outcome,
+    n_sims,
+    alpha,
+    seed
+):
+    """
+    Extend all candidate results into the post-intervention period and compute
+    final inference statistics.
+
+    This includes:
+        - constructing full outcome matrix (pre + post)
+        - recomputing synthetic treated/control paths
+        - computing effects
+        - estimating ATE
+        - running inference (p-values + conformal CI)
+
+    Returns
+    -------
+    y_pop_mean_t : np.ndarray
+        Population mean over full time horizon.
+    candidate_results : list
+        Updated candidates with post-intervention quantities.
+    """
+
+    # =========================================================
+    # 1. Default baseline (pre-period only)
+    # =========================================================
+    y_pop_mean_t = Y_pre.mean(axis=1)
+
+    # No post period → nothing to update
+    if len(post_idx) == 0 or post_df is None or post_df.empty:
+        return y_pop_mean_t, candidate_results
+
+    # =========================================================
+    # 2. Build full outcome matrix
+    # =========================================================
+    Y_post = build_Y_matrix(
+        working_df=post_df,
+        outcome=outcome,
+        time=time,
+        unitid=unitid,
+        unit_index=unit_index
+    )
+
+    Y_full = np.vstack([Y_pre, Y_post])
+    y_pop_mean_t = Y_full.mean(axis=1)
+
+    # =========================================================
+    # 3. Update each candidate
+    # =========================================================
+    for cand in candidate_results:
+
+        treated_col_idx = np.asarray(cand.identification.treated_idx, dtype=int)
+
+        w_t = cand.weights.treated
+        w_c = cand.weights.control
+
+        # Synthetic paths
+        synth_treated = Y_full[:, treated_col_idx] @ w_t
+        synth_control = Y_full @ w_c
+
+        effects = synth_treated - synth_control
+
+        cand.predictions.synthetic_treated = synth_treated
+        cand.predictions.synthetic_control = synth_control
+        cand.predictions.effects = effects
+
+        # ATE (post period only)
+        post_effects = effects[post_idx]
+        cand.inference.ate = float(np.mean(post_effects))
+
+        cand.inference.treated_col_idx = treated_col_idx.tolist()
+
+        # p-value
+        cand.inference.p_value = compute_post_inference(
+            candidate=cand,
+            post_idx=post_idx,
+            n_perms=n_sims,
+            seed=seed
+        ).inference.p_value
+
+        # conformal CI
+        cand = compute_moving_block_conformal_ci(
+            candidate=cand,
+            post_idx=post_idx,
+            alpha=alpha,
+            seed=seed
+        )
+
+    return y_pop_mean_t, candidate_results
