@@ -322,8 +322,9 @@ class LEXSCM:
             candidate_idx=candidate_idx,
             m=self.m,
             top_K=self.top_K,
-            unit_index=unit_index
-        )
+            unit_index=unit_index,
+            unit_costs=self.unit_cost_col,
+            budget=self.budget        )
 
         # ------------------- Stage 2: Evaluate candidates -------------------
         candidate_results = evaluate_candidates(
