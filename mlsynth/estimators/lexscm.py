@@ -18,7 +18,7 @@ from ..utils.fast_scm_helpers.fast_scm_setup import (
     build_Y_matrix,
     build_Z_matrix,
     prepare_experiment_inputs,
-    split_periods, IndexSet
+    split_periods, IndexSet, _run_post_intervention_updates
 )
 
 # Utilities - Search and Evaluation
@@ -351,73 +351,22 @@ class LEXSCM:
             candidate_mdes,
             mde_horizon="early_min"
         )
+        
+        if self.post_col is not None and not self.post_df.empty:
 
-
-        # ------------------- Stage 3: Inference (Post-Intervention) -------------------
-        # ==============================================================
-        # 5. Post-Intervention Inference 
-        # ==============================================================
-        # We only compute effects using the selected treated units 
-        # (their column indices are stored in .identification.treated_idx)
-
-        # Default: use full pre-period population mean
-        y_pop_mean_t = self.Y.mean(axis=1)
-
-        if len(post_idx) > 0 and not self.post_df.empty:
-            # Build full timeline matrix (pre + post)
-            Y_post = build_Y_matrix(
-                working_df=self.post_df,
-                outcome=self.outcome,
-                time=self.time,
+            y_pop_mean_t, candidate_results = _run_post_intervention_updates(
+                candidate_results=candidate_results,
+                Y_pre=self.Y,
+                post_df=self.post_df,
+                post_idx=post_idx,
+                unit_index=unit_index,
                 unitid=self.unitid,
-                unit_index=unit_index
+                time=self.time,
+                outcome=self.outcome,
+                n_sims=self.n_sims,
+                alpha=self.alpha,
+                seed=self.seed
             )
-            Y_full = np.vstack([self.Y, Y_post])
-
-            # Update population mean over the full timeline
-            y_pop_mean_t = Y_full.mean(axis=1)
-
-            # Update predictions and effects for each candidate
-            for cand in candidate_results:
-                # Get the column indices of the selected treated units for this candidate
-                treated_col_idx = np.asarray(cand.identification.treated_idx, dtype=int)
-
-                # Extract weights
-                treated_weights = cand.weights.treated      # weights for the m treated units
-                control_weights = cand.weights.control      # full control weights (length N)
-
-                # Compute synthetic treated using ONLY the selected treated columns
-                synth_treated_full = Y_full[:, treated_col_idx] @ treated_weights
-
-                # Compute synthetic control using all units
-                synth_control_full = Y_full @ control_weights
-
-                # Store results
-                cand.predictions.synthetic_treated = synth_treated_full
-                cand.predictions.synthetic_control = synth_control_full
-                cand.predictions.effects = synth_treated_full - synth_control_full
-
-                # Point estimate (Average Treatment Effect) over post periods
-                post_gap = cand.predictions.effects[post_idx]
-                cand.inference.ate = float(np.mean(post_gap))
-
-                # Optional: store the treated column indices used
-                cand.inference.treated_col_idx = treated_col_idx.tolist()
-
-                # Run inference (permutation test + conformal CI)
-                cand.inference.p_value = compute_post_inference(
-                    candidate=cand,
-                    post_idx=post_idx,
-                    n_perms=self.n_sims,
-                    seed=getattr(self.seed, 'seed', 42)
-                ).inference.p_value
-
-                cand = compute_moving_block_conformal_ci(
-                    candidate=cand,
-                    post_idx=post_idx,
-                    alpha=0.05,
-                    seed=getattr(self.seed, 'seed', 42)
-                )
 
         # ==============================================================
         # 6. Final Assembly
