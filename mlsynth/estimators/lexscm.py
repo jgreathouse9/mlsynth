@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Literal
 
 # Configuration and Exceptions
 from ..config_models import BaseMAREXConfig, LEXSCMConfig
@@ -26,8 +26,8 @@ from ..utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
 from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
 # Utilities - Power and Ranking
 from ..utils.fast_scm_helpers.power_helpers import (select_best_tuple,
-    run_mde_analysis,
-)
+                                                    run_mde_analysis,
+                                                    )
 
 from ..utils.fast_scm_helpers.inference import compute_post_inference, compute_moving_block_conformal_ci
 
@@ -39,6 +39,7 @@ from ..utils.fast_scm_helpers.structure import (
     UnitInfo,
     TimeInfo
 )
+
 
 class LEXSCM:
     """
@@ -207,7 +208,7 @@ class LEXSCM:
         self.test_statistic: str = config.test_statistic
         self.target_mde_horizon: Literal["early_mean", "early_min", "late"] = config.mde_horizon
         self.max_shortlist: int = config.max_shortlist
-        
+
         self.display_graph: bool = config.display_graph
 
         # =========================================================
@@ -215,8 +216,6 @@ class LEXSCM:
         # =========================================================
         self.seed: int = config.seed
         self.verbose: bool = config.verbose
-
-        
 
     def fit(self, **kwargs) -> "LEXSCM":
         """
@@ -245,7 +244,7 @@ class LEXSCM:
             - bnb_metadata : search diagnostics
             - additional dataset and inference diagnostics
         """
-    
+
         balance(self.df, self.unitid, self.time)
 
         # Step 1: Prepare working DataFrame using the helper
@@ -253,7 +252,7 @@ class LEXSCM:
             self.df,
             self.post_col
         )
-        self.pre_df = working_df   # store for convenience if desired
+        self.pre_df = working_df  # store for convenience if desired
 
         unit_index = IndexSet.from_labels(
             sorted(working_df[self.unitid].unique())
@@ -325,8 +324,6 @@ class LEXSCM:
             top_K=self.top_K,
             unit_index=unit_index
         )
-        
-
 
         # ------------------- Stage 2: Evaluate candidates -------------------
         candidate_results = evaluate_candidates(
@@ -346,14 +343,15 @@ class LEXSCM:
             n_sims=self.n_sims
         )
 
-        
+        y_pop_mean_t = self.Y.mean(axis=1)
+
         winner, shortlist = select_best_tuple(
             candidate_mdes,
-            mde_horizon="early_min"
+            mde_horizon=self.target_mde_horizon,
+            max_shortlist=self.max_shortlist
         )
-        
-        if self.post_col is not None and not self.post_df.empty:
 
+        if self.post_col is not None and not self.post_df.empty:
             y_pop_mean_t, candidate_results = _run_post_intervention_updates(
                 candidate_results=candidate_results,
                 Y_pre=self.Y,
@@ -373,9 +371,9 @@ class LEXSCM:
         # ==============================================================
         # Re-fetch the winner (now with updated post-intervention results)
         best_candidate = next(
-            (c for c in candidate_results 
+            (c for c in candidate_results
              if c.identification.tuple_id == winner.identification.tuple_id),
-            candidate_results[0]   # fallback
+            candidate_results[0]  # fallback
         )
 
         # =========================================================
@@ -419,8 +417,7 @@ class LEXSCM:
             outcome=self.outcome,
             y_pop_mean_t=y_pop_mean_t
         )
-        
-        
+
         if self.display_graph:
             lexplot(results)
 
