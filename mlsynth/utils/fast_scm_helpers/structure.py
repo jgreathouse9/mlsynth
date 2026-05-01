@@ -1,10 +1,116 @@
 from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Iterable
 
 from .fast_scm_bb_helpers import Solution
-from .fast_scm_setup import IndexSet
+#from .fast_scm_setup import IndexSet
+
+
+
+@dataclass(frozen=True)
+class IndexSet:
+    """
+    Immutable bidirectional index mapping between arbitrary labels and integer indices.
+
+    This class provides a lightweight utility for converting between human-readable
+    unit/time labels and integer indices used in NumPy arrays.
+
+    Attributes
+    ----------
+    labels : np.ndarray
+        Ordered array of labels (e.g., unit IDs or time periods).
+    label_to_idx : Dict[Any, int]
+        Mapping from label → integer index.
+
+    Methods
+    -------
+    from_labels(labels)
+        Construct IndexSet from an iterable of labels.
+    get_labels(indices)
+        Convert integer indices to labels.
+    get_index(labels)
+        Convert labels to integer indices.
+
+    Notes
+    -----
+    - This structure is immutable (`frozen=True`).
+    - Intended for consistent indexing across panel datasets.
+    """
+
+    labels: np.ndarray
+    label_to_idx: Dict[Any, int]
+
+    @classmethod
+    def from_labels(cls, labels: Iterable[Any]) -> "IndexSet":
+        """
+        Construct an IndexSet from an iterable of labels.
+
+        Parameters
+        ----------
+        labels : Iterable[Any]
+            Ordered sequence of unique identifiers.
+
+        Returns
+        -------
+        IndexSet
+            Mapping object for label-index conversions.
+        """
+        labels = np.asarray(list(labels))
+        return cls(
+            labels=labels,
+            label_to_idx={label: i for i, label in enumerate(labels)}
+        )
+
+    def get_labels(self, indices):
+        """
+        Convert integer indices into corresponding labels.
+
+        Parameters
+        ----------
+        indices : array-like
+            Integer indices.
+
+        Returns
+        -------
+        np.ndarray
+            Corresponding labels.
+        """
+        return self.labels[np.asarray(indices)]
+
+    def get_index(self, labels):
+        """
+        Convert labels into integer indices.
+
+        Parameters
+        ----------
+        labels : array-like
+            Input labels.
+
+        Returns
+        -------
+        np.ndarray
+            Integer indices corresponding to input labels.
+        """
+        return np.array([self.label_to_idx[l] for l in labels])
+
+    def __len__(self):
+        """Return number of labels."""
+        return len(self.labels)
+
+    def __iter__(self):
+        """Iterate over labels."""
+        return iter(self.labels)
+
+    def __array__(self):
+        """Return labels as NumPy array."""
+        return self.labels
+
+    def __repr__(self):
+        return f"IndexSet(n={len(self.labels)})"
+
+
+
 
 
 @dataclass
