@@ -72,10 +72,6 @@ def compute_post_inference(candidate, post_idx, alpha: float = 0.05, n_perms: in
 
     return candidate
 
-
-
-
-
 def compute_moving_block_conformal_ci(
     candidate: SEDCandidate,
     post_idx: np.ndarray,
@@ -84,40 +80,74 @@ def compute_moving_block_conformal_ci(
     seed: int = 42
 ) -> SEDCandidate:
     """
-    Compute Moving Block Conformal Confidence Intervals for the Average Treatment Effect (ATE).
+    Moving Block Conformal Confidence Interval for the Average Treatment Effect (ATE).
 
-    This is a time-series-aware conformal inference method that uses overlapping (moving)
-    blocks to better capture temporal dependence, seasonality, and autocorrelation in sales data.
+    This function implements a time-series-aware conformal inference procedure
+    using moving (overlapping) blocks of pre-treatment residuals to construct
+    a nonparametric confidence interval for the post-treatment average effect.
 
-    It is generally preferred over non-overlapping block conformal when working with
-    marketing time series data.
+    The method accounts for temporal dependence (autocorrelation, seasonality)
+    by using block-level conformity scores rather than i.i.d. assumptions.
 
     Parameters
     ----------
     candidate : SEDCandidate
-        Candidate containing `predictions.effects` and `predictions.residuals_B`.
+        Candidate object containing:
+        - `predictions.effects` (full time series treatment effects)
+        - `predictions.residuals_B` (pre-treatment / blank period residuals)
+
     post_idx : np.ndarray
-        Indices of the post-treatment periods in the full timeline.
+        Integer indices corresponding to post-treatment time periods in the
+        full effects vector.
+
     alpha : float, default=0.05
-        Significance level (target coverage = 1 - alpha).
+        Significance level. The resulting interval aims for (1 - alpha) coverage.
+
     block_size : int, optional
-        Size of each moving block. If None, defaults to roughly sqrt(T_post).
+        Size of moving blocks used to compute conformity scores.
+        If None, defaults to max(3, sqrt(T_post)).
+
     seed : int, default=42
-        Random seed for reproducibility.
+        Random seed for reproducibility (reserved for future stochastic extensions).
 
     Returns
     -------
-    candidate : SEDCandidate
-        Updated candidate with `inference.ci_lower` and `inference.ci_upper` populated.
+    SEDCandidate
+        Updated candidate with:
+        - `inference.ci_lower`
+        - `inference.ci_upper`
+
+    Notes
+    -----
+    - Uses absolute mean block residuals as conformity scores.
+    - Includes both standard and circular moving blocks.
+    - If no valid conformal solutions exist, returns a wide fallback interval.
+    - Fully deterministic given fixed inputs.
+
+    Edge Cases
+    ----------
+    - If `post_idx` is empty:
+        Returns CI = (NaN, NaN)
+    - If pre-period residuals are too short:
+        fallback interval is used
     """
+
+    # =========================================================
+    # Defensive indexing
+    # =========================================================
+    post_idx = np.asarray(post_idx, dtype=int)
+
     rng = np.random.default_rng(seed)
 
     e_B = np.asarray(candidate.predictions.residuals_B).flatten()
-    e_post = np.asarray(candidate.predictions.effects[post_idx]).flatten()
+    e_post = np.asarray(candidate.predictions.effects)[post_idx].flatten()
 
     n_B = len(e_B)
     n_post = len(e_post)
 
+    # =========================================================
+    # Edge case: no post-treatment data
+    # =========================================================
     if n_post == 0:
         candidate.inference.ci_lower = np.nan
         candidate.inference.ci_upper = np.nan
@@ -125,31 +155,44 @@ def compute_moving_block_conformal_ci(
 
     observed_ate = float(np.mean(e_post))
 
-    # Set block size (common heuristic for time series)
+    # =========================================================
+    # Block size heuristic
+    # =========================================================
     if block_size is None:
         block_size = max(3, int(np.sqrt(n_post)))
 
-    # Create conformity scores using moving blocks from blank period
+    # =========================================================
+    # Construct conformity scores (moving blocks)
+    # =========================================================
     conformity_scores = []
 
-    # Moving blocks from blank period (pre-treatment residuals)
-    for i in range(n_B - block_size + 1):
-        block = e_B[i : i + block_size]
+    # Standard moving blocks
+    for i in range(max(0, n_B - block_size + 1)):
+        block = e_B[i:i + block_size]
         conformity_scores.append(np.mean(np.abs(block)))
 
-    # Also add circular blocks for better coverage at edges (optional but recommended)
-    for i in range(n_B - block_size + 1):
-        block = np.concatenate([e_B[i:], e_B[:max(0, block_size - (n_B - i))]])
+    # Circular blocks for edge coverage
+    for i in range(max(0, n_B - block_size + 1)):
+        tail = e_B[i:]
+        head_len = max(0, block_size - len(tail))
+        block = np.concatenate([tail, e_B[:head_len]])
+
         if len(block) == block_size:
             conformity_scores.append(np.mean(np.abs(block)))
 
-    conformity_scores = np.array(conformity_scores)
+    conformity_scores = np.asarray(conformity_scores)
 
-    # For each possible theta, compute conformity score of adjusted post-period
-    # We use a grid search around the observed ATE
-    std_err_proxy = np.std(e_B) / np.sqrt(n_post) if n_B > 0 else 1.0
+    # =========================================================
+    # Grid search around observed ATE
+    # =========================================================
+    std_err_proxy = np.std(e_B) / np.sqrt(max(n_post, 1)) if n_B > 0 else 1.0
     grid_width = 6 * std_err_proxy
-    grid = np.linspace(observed_ate - grid_width, observed_ate + grid_width, 200)
+
+    grid = np.linspace(
+        observed_ate - grid_width,
+        observed_ate + grid_width,
+        200
+    )
 
     accepted_thetas = []
 
@@ -157,18 +200,20 @@ def compute_moving_block_conformal_ci(
         adjusted_post = e_post - theta
         post_score = np.mean(np.abs(adjusted_post))
 
-        # Count how many blank-period block scores are >= this post score
         p_val = np.mean(conformity_scores >= post_score)
 
         if p_val > alpha:
             accepted_thetas.append(theta)
 
-    if accepted_thetas:
-        candidate.inference.ci_lower = float(min(accepted_thetas))
-        candidate.inference.ci_upper = float(max(accepted_thetas))
+    # =========================================================
+    # Confidence interval construction
+    # =========================================================
+    if len(accepted_thetas) > 0:
+        candidate.inference.ci_lower = float(np.min(accepted_thetas))
+        candidate.inference.ci_upper = float(np.max(accepted_thetas))
     else:
-        # Fallback: very wide interval if nothing is accepted
-        candidate.inference.ci_lower = observed_ate - 4 * std_err_proxy
-        candidate.inference.ci_upper = observed_ate + 4 * std_err_proxy
+        fallback = 4 * std_err_proxy
+        candidate.inference.ci_lower = observed_ate - fallback
+        candidate.inference.ci_upper = observed_ate + fallback
 
     return candidate
