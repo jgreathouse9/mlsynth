@@ -5,8 +5,16 @@ on:
     branches: [main]
     paths-ignore:
       - "coverage.svg"
+
   pull_request:
     branches: [main]
+
+  workflow_dispatch:
+    inputs:
+      test_module:
+        description: "Test module or specific test (e.g. tests/test_lexscm.py or tests/test_file.py::test_name)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -16,37 +24,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # ----------------------------
+    # CHECKOUT
+    # ----------------------------
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # ----------------------------
+    # PYTHON SETUP
+    # ----------------------------
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
 
+    # ----------------------------
+    # INSTALL DEPENDENCIES
+    # ----------------------------
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest pytest-mock pytest-cov coverage coverage-badge
 
+    # ----------------------------
+    # PYTHONPATH
+    # ----------------------------
     - name: Set PYTHONPATH
       run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
 
-    - name: Run unit tests (fail fast)
+    # ----------------------------
+    # RUN TESTS
+    # ----------------------------
+    - name: Run tests
       run: |
-        pytest -x --cov=mlsynth --cov-report=xml --tb=short
+        if [ -z "${{ github.event.inputs.test_module }}" ]; then
+          echo "Running full test suite with coverage"
+          pytest -x --cov=mlsynth --cov-report=xml --tb=short
+        else
+          echo "Running targeted test: ${{ github.event.inputs.test_module }}"
+          pytest -x ${{ github.event.inputs.test_module }} --tb=short
+        fi
 
+    # ----------------------------
+    # COVERAGE REPORT (ONLY FULL RUN)
+    # ----------------------------
     - name: Show missed coverage lines
+      if: ${{ github.event.inputs.test_module == '' }}
       run: |
         coverage report -m
 
     - name: Generate coverage badge
+      if: ${{ github.event.inputs.test_module == '' }}
       run: |
         coverage xml
         coverage-badge -o coverage.svg -f
 
+    # ----------------------------
+    # COMMIT COVERAGE BADGE
+    # ----------------------------
     - name: Commit coverage badge to repo
+      if: ${{ github.event.inputs.test_module == '' }}
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
@@ -54,10 +92,16 @@ jobs:
         git commit -m "Update coverage badge" || echo "No changes to commit"
         git push
 
+    # ----------------------------
+    # BUILD DISTRIBUTION
+    # ----------------------------
     - name: Build source distribution
       run: |
         python setup.py sdist
 
+    # ----------------------------
+    # UPLOAD ARTIFACT
+    # ----------------------------
     - name: Upload distribution artifact
       uses: actions/upload-artifact@v4
       with:
