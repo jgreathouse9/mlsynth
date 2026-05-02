@@ -22,7 +22,7 @@ class _DataErr(Exception):
     pass
 
 
-def _candidate():
+def _setup_candidate():
     return SEDCandidate(
         identification=Identification(solution=_DummySolution(), treated_idx=np.array([0])),
         weights=WeightVectors(treated=np.array([1.0]), control=np.array([0.0, 1.0])),
@@ -134,7 +134,7 @@ def test_split_periods_and_build_x_tilde():
 
 
 def test_run_post_intervention_updates_smoke(monkeypatch):
-    cand = _candidate()
+    cand = _setup_candidate()
     unit_idx = IndexSet.from_labels(["A", "B"])
     Y_pre = np.array([[1.0, 2.0], [1.5, 2.5]])
     post_df = pd.DataFrame(
@@ -180,7 +180,7 @@ def test_run_post_intervention_updates_smoke(monkeypatch):
 
 
 def test_run_post_intervention_updates_returns_early_when_no_post():
-    cand = _candidate()
+    cand = _setup_candidate()
     Y_pre = np.array([[1.0, 2.0], [1.5, 2.5]])
     y_pop, updated = setup_mod._run_post_intervention_updates(
         candidate_results=[cand],
@@ -197,6 +197,8 @@ def test_run_post_intervention_updates_returns_early_when_no_post():
     )
     np.testing.assert_allclose(y_pop, Y_pre.mean(axis=1))
     assert updated[0].inference.p_value is None
+
+
 
 
 
@@ -225,7 +227,7 @@ class _SolutionWithoutLabel:
     pass
 
 
-def _candidate(solution, treated_idx=None, control=None):
+def _structure_candidate(solution, treated_idx=None, control=None):
     if treated_idx is None:
         treated_idx = np.array([0, 2])
     if control is None:
@@ -272,15 +274,15 @@ def test_weightvectors_control_sparse_thresholding():
 
 
 def test_identification_tuple_id_from_label_and_fallback():
-    c1 = _candidate(_SolutionWithLabel())
+    c1 = _structure_candidate(_SolutionWithLabel())
     assert c1.identification.tuple_id == "labelled_tuple"
 
-    c2 = _candidate(_SolutionWithoutLabel(), treated_idx=np.array([1, 4]))
+    c2 = _structure_candidate(_SolutionWithoutLabel(), treated_idx=np.array([1, 4]))
     assert c2.identification.tuple_id == "Tuple_[np.int64(1), np.int64(4)]"
 
 
 def test_sedcandidate_properties_and_defaults():
-    cand = _candidate(_SolutionWithLabel())
+    cand = _structure_candidate(_SolutionWithLabel())
     assert cand.treated_size == 2
     np.testing.assert_array_equal(cand.control_idx, np.array([1, 3]))
     assert cand.control_size == 2
@@ -297,7 +299,7 @@ def test_timeinfo_unitinfo_and_results_container():
     assert unit_info.treated_size == 1
     assert unit_info.control_size == 3
 
-    candidate = _candidate(_SolutionWithLabel())
+    candidate = _structure_candidate(_SolutionWithLabel())
     summary = pd.DataFrame({"candidate": ["c1"], "score": [0.1]})
     results = LEXSCMResults(
         summary=summary,
