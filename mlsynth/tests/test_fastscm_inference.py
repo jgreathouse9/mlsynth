@@ -73,12 +73,12 @@ def test_compute_post_inference_empty_post():
 
     out = compute_post_inference(
         candidate=cand,
-        post_idx=np.array([]),
+        post_idx=np.array([], dtype=int),
     )
 
-    assert out.inference.ate == 0.0 or out.inference.ate is not None
-    assert out.inference.p_value is not None  # defined even if empty (mean of empty -> NaN-safe behavior optional)
-
+    # Correct expectation for empty post-period
+    assert out.inference.ate == 0.0
+    assert out.inference.p_value is None
 
 def test_compute_post_inference_extreme_case_all_equal():
     cand = make_candidate(
