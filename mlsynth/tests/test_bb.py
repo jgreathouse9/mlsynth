@@ -456,3 +456,36 @@ def test_random_psd_inputs(seed):
 
     assert np.isfinite(loss)
     assert np.isclose(w.sum(), 1.0)
+
+
+
+
+
+import itertools
+
+def brute_force_best(G, idx, m):
+    best = float("inf")
+
+    for comb in itertools.combinations(idx, m):
+        Q = G[np.ix_(comb, comb)]
+        loss, _ = solve_qp_simplex_value(Q)
+        best = min(best, loss)
+
+    return best
+
+
+def test_matches_bruteforce():
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(4, 4))
+    G = X.T @ X
+
+    idx = np.arange(4)
+
+    from mlsynth.utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
+
+    res = branch_and_bound_topK(G, idx, m=2, top_K=1)
+
+    best_bnb = res["top_tuples"][0].loss
+    best_true = brute_force_best(G, idx, m=2)
+
+    assert np.isclose(best_bnb, best_true, atol=1e-6)
