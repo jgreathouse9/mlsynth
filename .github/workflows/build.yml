@@ -11,10 +11,10 @@ on:
 
   workflow_dispatch:
     inputs:
-      test_module:
-        description: "Test module or specific test (e.g. tests/test_lexscm.py or tests/test_file.py::test_name)"
+      test_target:
+        description: "Enter 'all' or a test file (e.g. test_lexscm.py)"
         required: false
-        default: ""
+        default: "smoke"
 
 permissions:
   contents: write
@@ -27,25 +27,23 @@ jobs:
     # ----------------------------
     # CHECKOUT
     # ----------------------------
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     # ----------------------------
-    # PYTHON SETUP
+    # PYTHON
     # ----------------------------
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - uses: actions/setup-python@v5
       with:
         python-version: "3.11"
 
     # ----------------------------
-    # INSTALL DEPENDENCIES
+    # INSTALL
     # ----------------------------
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest pytest-mock pytest-cov coverage coverage-badge
+        pip install pytest pytest-cov coverage coverage-badge
 
     # ----------------------------
     # PYTHONPATH
@@ -54,55 +52,84 @@ jobs:
       run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
 
     # ----------------------------
-    # RUN TESTS
+    # DEBUG (optional but useful)
+    # ----------------------------
+    - name: Show repo structure
+      run: ls -R
+
+    # ----------------------------
+    # RUN TESTS (SMART LOGIC)
     # ----------------------------
     - name: Run tests
       run: |
-        if [ -z "${{ github.event.inputs.test_module }}" ]; then
-          echo "Running full test suite with coverage"
-          pytest -x --cov=mlsynth --cov-report=xml --tb=short
-        else
-          echo "Running targeted test: ${{ github.event.inputs.test_module }}"
-          pytest -x ${{ github.event.inputs.test_module }} --tb=short
+        TARGET="${{ github.event.inputs.test_target }}"
+
+        echo "Test target: $TARGET"
+
+        # ------------------------
+        # CASE 1: PUSH / PR (no input)
+        # ------------------------
+        if [ -z "$TARGET" ]; then
+          echo "No target specified → running smoke tests"
+          pytest -k "smoke" --tb=short || echo "No smoke tests found"
+          exit 0
         fi
 
+        # ------------------------
+        # CASE 2: ALL TESTS
+        # ------------------------
+        if [ "$TARGET" = "all" ]; then
+          echo "Running FULL test suite"
+          pytest -x --cov=mlsynth --cov-report=xml --tb=short
+          exit 0
+        fi
+
+        # ------------------------
+        # CASE 3: SPECIFIC TEST
+        # ------------------------
+        echo "Searching for test file: $TARGET"
+
+        MATCH=$(find . -name "$TARGET" | head -n 1)
+
+        if [ -z "$MATCH" ]; then
+          echo "ERROR: Could not find test file: $TARGET"
+          echo "Available tests:"
+          find . -name "test_*.py"
+          exit 1
+        fi
+
+        echo "Running: $MATCH"
+        pytest -x "$MATCH" --tb=short
+
     # ----------------------------
-    # COVERAGE REPORT (ONLY FULL RUN)
+    # COVERAGE (ONLY FOR FULL RUN)
     # ----------------------------
-    - name: Show missed coverage lines
-      if: ${{ github.event.inputs.test_module == '' }}
+    - name: Coverage report
+      if: ${{ github.event.inputs.test_target == 'all' }}
       run: |
         coverage report -m
-
-    - name: Generate coverage badge
-      if: ${{ github.event.inputs.test_module == '' }}
-      run: |
         coverage xml
         coverage-badge -o coverage.svg -f
 
     # ----------------------------
-    # COMMIT COVERAGE BADGE
+    # COMMIT BADGE
     # ----------------------------
-    - name: Commit coverage badge to repo
-      if: ${{ github.event.inputs.test_module == '' }}
+    - name: Commit coverage badge
+      if: ${{ github.event.inputs.test_target == 'all' }}
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
         git add coverage.svg
-        git commit -m "Update coverage badge" || echo "No changes to commit"
+        git commit -m "Update coverage badge" || echo "No changes"
         git push
 
     # ----------------------------
-    # BUILD DISTRIBUTION
+    # BUILD DIST
     # ----------------------------
-    - name: Build source distribution
-      run: |
-        python setup.py sdist
+    - name: Build distribution
+      run: python setup.py sdist
 
-    # ----------------------------
-    # UPLOAD ARTIFACT
-    # ----------------------------
-    - name: Upload distribution artifact
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: mlsynth-dist
