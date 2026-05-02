@@ -210,3 +210,108 @@ def test_post_intervention_no_post():
 
     assert y_pop.shape == (2,)
     assert updated[0].inference.p_value is None
+
+
+
+
+# =========================================================
+# ADDITIONAL HIGH-VALUE INVARIANT TESTS
+# =========================================================
+
+def test_build_y_matrix_alignment(panel_df):
+    unit_idx = IndexSet.from_labels(["A", "B"])
+    pre = panel_df[panel_df["is_post"] == 0]
+
+    Y = setup.build_Y_matrix(pre, "y", "time", "unit", unit_idx)
+
+    assert Y.shape == (2, 2)
+    assert np.isfinite(Y).all()
+
+
+def test_build_z_matrix_stacking(panel_df):
+    unit_idx = IndexSet.from_labels(["A", "B"])
+    pre = panel_df[panel_df["is_post"] == 0]
+
+    Z = setup.build_Z_matrix(pre, ["z1", "z2"], "time", "unit", unit_idx)
+
+    # 2 covariates stacked vertically → 2 * 2 time periods = 4 rows
+    assert Z.shape == (4, 2)
+
+
+def test_split_periods_no_post():
+    E, B, P = setup.split_periods(T0=4, frac_E=0.5, post_df=None)
+
+    assert len(E) == 2
+    assert len(B) == 2
+    assert len(P) == 0
+
+
+def test_candidate_mask_extension():
+    Y = np.array([[1, 2], [3, 4]])
+
+    # intentionally too short mask → should auto-extend
+    mask = np.array([True])
+
+    X, f, idx, T, N = setup.prepare_experiment_inputs(
+        Y,
+        candidate_mask=mask,
+        m=1,
+    )
+
+    # still valid output
+    assert T == 2
+    assert N == 2
+    assert len(idx) >= 1
+
+
+def test_build_x_tilde_stability():
+    X = np.array([
+        [1.0, 2.0],
+        [3.0, 4.0],
+    ])
+
+    f = np.array([0.5, 0.5])
+
+    XE, G = setup.build_X_tilde(X, f, idx=np.array([0, 1]), J=2)
+
+    assert XE.shape == (2, 2)
+    assert np.isfinite(XE).all()
+    assert np.isfinite(G).all()
+
+
+def test_post_intervention_effect_computation(monkeypatch):
+    cand = make_candidate()
+
+    Y_pre = np.array([
+        [1, 2],
+        [3, 4],
+    ])
+
+    post_df = pd.DataFrame({
+        "time": [3, 3],
+        "unit": ["A", "B"],
+        "y": [5, 6],
+    })
+
+    def fake_post(*args, **kwargs):
+        return args[0]
+
+    monkeypatch.setattr(setup, "compute_post_inference", fake_post)
+    monkeypatch.setattr(setup, "compute_moving_block_conformal_ci", lambda *a, **k: a[0])
+
+    _, updated = setup._run_post_intervention_updates(
+        [cand],
+        Y_pre,
+        post_df,
+        np.array([2]),
+        IndexSet.from_labels(["A", "B"]),
+        "unit",
+        "time",
+        "y",
+        10,
+        0.05,
+        123,
+    )
+
+    assert updated[0].predictions.effects is not None
+    assert updated[0].inference.ate is not None
