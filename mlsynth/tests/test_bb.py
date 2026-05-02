@@ -474,18 +474,22 @@ def brute_force_best(G, idx, m):
     return best
 
 
-def test_matches_bruteforce():
-    rng = np.random.default_rng(0)
-    X = rng.normal(size=(4, 4))
+@pytest.mark.parametrize("seed", [0, 1, 2])
+@pytest.mark.parametrize("m", [1, 2, 3])
+def test_matches_bruteforce(seed, m):
+    rng = np.random.default_rng(seed)
+
+    N = 50
+    X = rng.normal(size=(N, N))
     G = X.T @ X
 
-    idx = np.arange(4)
+    idx = np.arange(N)
 
     from mlsynth.utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
 
-    res = branch_and_bound_topK(G, idx, m=2, top_K=1)
+    res = branch_and_bound_topK(G, idx, m=m, top_K=1)
 
     best_bnb = res["top_tuples"][0].loss
-    best_true = brute_force_best(G, idx, m=2)
+    best_true = brute_force_best(G, idx, m=m)
 
     assert np.isclose(best_bnb, best_true, atol=1e-6)
