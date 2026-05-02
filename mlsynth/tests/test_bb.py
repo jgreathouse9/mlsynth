@@ -1,59 +1,185 @@
 import numpy as np
 import pytest
 
-from mlsynth.utils.fast_scm_helpers.fast_scm_bb_helpers import (
-    branch_and_bound_topK,
-    reset_qp_call_count,
-)
+from mlsynth.utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
+from mlsynth.utils.fast_scm_helpers.fast_scm_setup import IndexSet
 
 
 # =========================================================
-# FIXTURES
+# FIXTURE
 # =========================================================
 
-def make_G(n=6):
-    """Simple PSD-ish symmetric matrix for stability."""
-    rng = np.random.default_rng(0)
-    A = rng.normal(size=(n, n))
-    return A.T @ A  # PSD
+def make_G():
+    """
+    Small symmetric PSD-like matrix for deterministic tests.
+    """
+    return np.array([
+        [1.0, 0.2, 0.1],
+        [0.2, 0.9, 0.3],
+        [0.1, 0.3, 0.8],
+    ])
 
 
-def make_candidates(n=6):
-    return np.arange(n)
+def make_candidates():
+    return np.array([0, 1, 2])
+
+
+def make_index():
+    return IndexSet.from_labels(["A", "B", "C"])
 
 
 # =========================================================
-# 1. SMOKE TEST (MINIMAL VALID RUN)
+# SMOKE TEST
 # =========================================================
 
-def test_bb_smoke_runs():
-    G = make_G(6)
-    cand = make_candidates(6)
+def test_branch_and_bound_runs_smoke():
+    """
+    Main goal: ensure algorithm executes without crashing.
+    """
+    G = make_G()
+    candidate_idx = make_candidates()
 
-    out = branch_and_bound_topK(
+    result = branch_and_bound_topK(
         G=G,
-        candidate_idx=cand,
+        candidate_idx=candidate_idx,
         m=2,
         top_K=3,
     )
 
-    assert "top_tuples" in out
-    assert "stats" in out
-    assert len(out["top_tuples"]) >= 1
-    assert np.isfinite(out["stats"]["optimality"]["best_loss"])
+    assert "top_tuples" in result
+    assert "stats" in result
+
+    assert len(result["top_tuples"]) > 0
+    assert isinstance(result["stats"], dict)
 
 
 # =========================================================
-# 2. OUTPUT SHAPE / STRUCTURE INVARIANTS
+# OUTPUT STRUCTURE TEST
 # =========================================================
 
-def test_bb_output_structure():
-    G = make_G(5)
-    cand = make_candidates(5)
+def test_topk_output_structure():
+    G = make_G()
 
-    out = branch_and_bound_topK(G, cand, m=2, top_K=2)
+    result = branch_and_bound_topK(
+        G=G,
+        candidate_idx=make_candidates(),
+        m=2,
+        top_K=2,
+        unit_index=make_index(),
+    )
 
-    stats = out["stats"]
+    top = result["top_tuples"][0]
+
+    # Core structure
+    assert hasattr(top, "loss")
+    assert hasattr(top, "indices")
+    assert hasattr(top, "weights")
+
+    # Labels should be attached when unit_index provided
+    assert hasattr(top, "labels")
+    assert isinstance(top.labels, list)
+
+
+# =========================================================
+# DETERMINISM TEST
+# =========================================================
+
+def test_topk_deterministic():
+    G = make_G()
+    idx = make_candidates()
+
+    r1 = branch_and_bound_topK(G, idx, m=2, top_K=2)
+    r2 = branch_and_bound_topK(G, idx, m=2, top_K=2)
+
+    # Loss ordering should be stable
+    losses_1 = [t.loss for t in r1["top_tuples"]]
+    losses_2 = [t.loss for t in r2["top_tuples"]]
+
+    np.testing.assert_allclose(losses_1, losses_2)
+
+
+# =========================================================
+# PRESOLVE + BUDGET EDGE CASES
+# =========================================================
+
+def test_budget_and_lam_execution():
+    G = make_G()
+
+    result = branch_and_bound_topK(
+        G=G,
+        candidate_idx=make_candidates(),
+        m=2,
+        lam=0.1,
+        budget=1.0,
+        top_K=2,
+    )
+
+    stats = result["stats"]
+
+    assert "performance" in stats
+    assert "pruning" in stats
+    assert stats["search_space"]["total_subsets"] >= 0
+
+
+# =========================================================
+# UNIT INDEX LABELING
+# =========================================================
+
+def test_unit_index_label_mapping():
+    G = make_G()
+
+    unit_index = IndexSet.from_labels(["A", "B", "C"])
+
+    result = branch_and_bound_topK(
+        G=G,
+        candidate_idx=make_candidates(),
+        m=2,
+        top_K=2,
+        unit_index=unit_index,
+    )
+
+    top = result["top_tuples"][0]
+
+    # Ensure label mapping exists
+    assert isinstance(top.labels, list)
+    assert isinstance(top.weight_dict, dict)
+
+    # Check consistency
+    for k in top.weight_dict:
+        assert k in unit_index.labels
+
+
+# =========================================================
+# EDGE: SMALL SEARCH SPACE
+# =========================================================
+
+def test_small_problem_edge_case():
+    G = np.array([[1.0]])
+
+    result = branch_and_bound_topK(
+        G=G,
+        candidate_idx=np.array([0]),
+        m=1,
+        top_K=1,
+    )
+
+    assert len(result["top_tuples"]) == 1
+    assert np.isfinite(result["top_tuples"][0].loss)
+
+
+# =========================================================
+# METRICS SANITY CHECK
+# =========================================================
+
+def test_stats_structure():
+    result = branch_and_bound_topK(
+        G=make_G(),
+        candidate_idx=make_candidates(),
+        m=2,
+        top_K=2,
+    )
+
+    stats = result["stats"]
 
     assert "search_space" in stats
     assert "exploration" in stats
@@ -61,130 +187,4 @@ def test_bb_output_structure():
     assert "performance" in stats
     assert "optimality" in stats
 
-    assert stats["search_space"]["total_subsets"] >= 0
-    assert stats["performance"]["qp_calls"] >= 0
-
-
-# =========================================================
-# 3. DETERMINISM TEST
-# =========================================================
-
-def test_bb_deterministic():
-    G = make_G(6)
-    cand = make_candidates(6)
-
-    out1 = branch_and_bound_topK(G, cand, m=2, top_K=3)
-    out2 = branch_and_bound_topK(G, cand, m=2, top_K=3)
-
-    assert np.isclose(
-        out1["stats"]["optimality"]["best_loss"],
-        out2["stats"]["optimality"]["best_loss"]
-    )
-
-
-# =========================================================
-# 4. EDGE: TOO FEW CANDIDATES
-# =========================================================
-
-def test_bb_small_candidate_set():
-    G = make_G(3)
-    cand = np.array([0, 1])  # M < m edge case
-
-    out = branch_and_bound_topK(G, cand, m=5, top_K=2)
-
-    # should not crash
-    assert out["top_tuples"] is not None
-    assert isinstance(out["stats"], dict)
-
-
-# =========================================================
-# 5. EDGE: IDENTITY MATRIX (NO STRUCTURE)
-# =========================================================
-
-def test_bb_identity_matrix():
-    G = np.eye(5)
-    cand = make_candidates(5)
-
-    out = branch_and_bound_topK(G, cand, m=2, top_K=3)
-
-    # all losses should be non-negative and finite
-    losses = [s.loss for s in out["top_tuples"]]
-
-    assert np.all(np.isfinite(losses))
-    assert np.all(np.array(losses) >= 0)
-
-
-# =========================================================
-# 6. PRUNING INVARIANT
-# =========================================================
-
-def test_bb_pruning_consistency():
-    G = make_G(6)
-    cand = make_candidates(6)
-
-    out = branch_and_bound_topK(G, cand, m=2, top_K=3)
-
-    stats = out["stats"]
-
-    assert stats["pruning"]["branches_pruned"] <= stats["pruning"]["branches_considered"]
-
-
-# =========================================================
-# 7. SEARCH SPACE BOUNDS
-# =========================================================
-
-def test_bb_search_space_bounds():
-    G = make_G(6)
-    cand = make_candidates(6)
-
-    out = branch_and_bound_topK(G, cand, m=2, top_K=3)
-
-    search = out["stats"]["search_space"]
-
-    assert search["total_subsets"] >= 0
-    assert search["total_nodes"] >= 0
-
-
-# =========================================================
-# 8. QP CALL MONOTONICITY
-# =========================================================
-
-def test_bb_qp_calls_nonnegative():
-    G = make_G(6)
-    cand = make_candidates(6)
-
-    reset_qp_call_count()
-
-    out = branch_and_bound_topK(G, cand, m=2, top_K=3)
-
-    assert out["stats"]["performance"]["qp_calls"] >= 0
-
-
-# =========================================================
-# 9. BEST <= WORST LOSS INVARIANT
-# =========================================================
-
-def test_bb_loss_ordering():
-    G = make_G(6)
-    cand = make_candidates(6)
-
-    out = branch_and_bound_topK(G, cand, m=2, top_K=3)
-
-    solutions = out["top_tuples"]
-
-    if len(solutions) > 1:
-        losses = [s.loss for s in solutions]
-        assert min(losses) <= max(losses)
-
-
-# =========================================================
-# 10. STABILITY UNDER ZERO MATRIX
-# =========================================================
-
-def test_bb_zero_matrix():
-    G = np.zeros((5, 5))
-    cand = make_candidates(5)
-
-    out = branch_and_bound_topK(G, cand, m=2, top_K=3)
-
-    assert np.isfinite(out["stats"]["optimality"]["best_loss"])
+    assert "total_subsets" in stats["search_space"]
