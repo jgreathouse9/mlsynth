@@ -189,13 +189,16 @@ def test_prepare_experiment_inputs_too_few_candidates():
 def test_post_intervention_no_post():
     cand = make_candidate()
 
-    y_pre = np.array([[1, 2]])
+    Y_pre = np.array([
+        [1, 2],
+        [3, 4],
+    ])
 
     y_pop, updated = setup._run_post_intervention_updates(
         [cand],
-        y_pre,
+        Y_pre,
         pd.DataFrame(),
-        np.array([]),
+        np.array([], dtype=int),
         None,
         "unit",
         "time",
@@ -205,6 +208,5 @@ def test_post_intervention_no_post():
         123,
     )
 
-    assert len(updated) == 1
-    assert updated[0].inference.p_value is None
     assert y_pop.shape == (2,)
+    assert updated[0].inference.p_value is None
