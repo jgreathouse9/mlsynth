@@ -263,20 +263,8 @@ def expand_tuple(
 
         # Step D: Lower Bound Check for the potential new node
         lb_node = simplex_lower_bound(Q_new)
-
-        # Step E: Lookahead Check (Predictive)
-        # We do this here so it counts as pruning the branch we just 'considered'
-        if k + 1 < m:
-            # Remaining pool for the NEXT level
-            next_start_pos = np.where(candidate_idx == j)[0][0] + 1
-            remaining_pool = candidate_idx[next_start_pos:]
-
-            lb_predicted = lookahead_lower_bound(G, lb_node, remaining_pool, m - (k + 1), m)
-            lb_to_check = max(lb_node, lb_predicted)
-        else:
-            lb_to_check = lb_node
-
-        if lb_to_check >= current_ub:
+        
+        if lb_node >= current_ub:
             stats["branches_pruned"] += 1
             continue
 
