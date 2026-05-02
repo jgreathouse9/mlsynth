@@ -37,6 +37,16 @@ def compute_post_inference(candidate, post_idx, alpha: float = 0.05, n_perms: in
     - A local RNG is used to ensure that parallel execution or multiple calls
       produce deterministic results.
     """
+
+    post_idx = np.asarray(post_idx, dtype=int)
+
+    # Early exit safety for empty post-period
+    if post_idx.size == 0:
+        candidate.inference.p_value = None
+        candidate.inference.ate = 0.0
+        return candidate
+
+
     # Use a local RNG for thread-safety and reproducibility
     rng = np.random.default_rng(seed)
 
