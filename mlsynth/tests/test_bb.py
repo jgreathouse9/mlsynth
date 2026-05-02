@@ -10,9 +10,7 @@ from mlsynth.utils.fast_scm_helpers.fast_scm_setup import IndexSet
 # =========================================================
 
 def make_G():
-    """
-    Small symmetric PSD-like matrix for deterministic tests.
-    """
+    """Small symmetric PSD-like matrix for deterministic tests."""
     return np.array([
         [1.0, 0.2, 0.1],
         [0.2, 0.9, 0.3],
@@ -33,9 +31,7 @@ def make_index():
 # =========================================================
 
 def test_branch_and_bound_runs_smoke():
-    """
-    Main goal: ensure algorithm executes without crashing.
-    """
+    """Main goal: ensure algorithm executes without crashing."""
     G = make_G()
     candidate_idx = make_candidates()
 
