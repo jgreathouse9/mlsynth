@@ -27,17 +27,19 @@ jobs:
     # ----------------------------
     # CHECKOUT
     # ----------------------------
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     # ----------------------------
-    # PYTHON
+    # PYTHON SETUP
     # ----------------------------
-    - uses: actions/setup-python@v5
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
 
     # ----------------------------
-    # INSTALL
+    # INSTALL DEPENDENCIES
     # ----------------------------
     - name: Install dependencies
       run: |
@@ -46,13 +48,19 @@ jobs:
         pip install pytest pytest-cov coverage coverage-badge
 
     # ----------------------------
-    # PYTHONPATH
+    # SET PYTHONPATH
     # ----------------------------
     - name: Set PYTHONPATH
       run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
 
     # ----------------------------
-    # DEBUG (optional but useful)
+    # SUPPRESS WARNINGS (GLOBAL)
+    # ----------------------------
+    - name: Suppress warnings
+      run: echo "PYTHONWARNINGS=ignore" >> $GITHUB_ENV
+
+    # ----------------------------
+    # DEBUG (optional)
     # ----------------------------
     - name: Show repo structure
       run: ls -R
@@ -112,7 +120,7 @@ jobs:
         coverage-badge -o coverage.svg -f
 
     # ----------------------------
-    # COMMIT BADGE
+    # COMMIT COVERAGE BADGE
     # ----------------------------
     - name: Commit coverage badge
       if: ${{ github.event.inputs.test_target == 'all' }}
@@ -124,7 +132,7 @@ jobs:
         git push
 
     # ----------------------------
-    # BUILD DIST
+    # BUILD DISTRIBUTION
     # ----------------------------
     - name: Build distribution
       run: python setup.py sdist
