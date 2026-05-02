@@ -168,25 +168,8 @@ def solve_qp_simplex_value(
 # LOWER BOUND
 # ============================================================
 
-def simplex_lower_bound(Q: np.ndarray) -> float:
-    """Balanced safe + tighter bound for Gram submatrices (PSD)"""
-    k = Q.shape[0]
-    if k == 1:
-        return float(Q[0, 0])
-
-    diags = np.diag(Q)
-    diag_min = float(np.min(diags))
-    lambda_min = float(np.min(np.linalg.eigvalsh(Q)))
-
-    # A bit more aggressive but still reasonably safe combination
-    lb = max(
-        0.0,
-        lambda_min,                    # strong and safe
-        diag_min * 0.65,               # increased from 0.5
-        (diag_min + lambda_min) * 0.5  # gentle blending
-    )
-    return lb
-
+def simplex_lower_bound(Q):
+    return float(np.min(np.diag(Q)))
 
 
 # ============================================================
