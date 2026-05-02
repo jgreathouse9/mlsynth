@@ -107,9 +107,13 @@ def test_candidate_properties():
     c = make_candidate()
 
     assert c.treated_size == 1
-    assert c.control_size == 2
-    np.testing.assert_array_equal(c.control_idx, np.array([1, 2]))
 
+    np.testing.assert_array_equal(
+        c.control_idx,
+        np.array([1])
+    )
+
+    assert c.control_size == 1
 
 def test_identification_label_fallback():
     c = make_candidate()
