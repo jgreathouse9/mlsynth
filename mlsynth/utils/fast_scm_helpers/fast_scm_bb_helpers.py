@@ -169,8 +169,14 @@ def solve_qp_simplex_value(
 # ============================================================
 
 def simplex_lower_bound(Q):
-    return float(np.min(np.diag(Q)))
+    k = Q.shape[0]
 
+    if k == 1:
+        return float(Q[0, 0])
+
+    lambda_min = float(np.min(np.linalg.eigvalsh(Q)))
+
+    return max(0.0, lambda_min / k)
 
 # ============================================================
 # GREEDY INITIAL SOLUTION
