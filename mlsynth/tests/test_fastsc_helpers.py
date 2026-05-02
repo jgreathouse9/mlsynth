@@ -197,3 +197,119 @@ def test_run_post_intervention_updates_returns_early_when_no_post():
     )
     np.testing.assert_allclose(y_pop, Y_pre.mean(axis=1))
     assert updated[0].inference.p_value is None
+
+
+
+import numpy as np
+import pandas as pd
+
+from mlsynth.utils.fast_scm_helpers.structure import (
+    Identification,
+    IndexSet,
+    Inference,
+    LEXSCMResults,
+    Losses,
+    PredictionVectors,
+    SEDCandidate,
+    TimeInfo,
+    UnitInfo,
+    WeightVectors,
+)
+
+
+class _SolutionWithLabel:
+    label = "labelled_tuple"
+
+
+class _SolutionWithoutLabel:
+    pass
+
+
+def _candidate(solution, treated_idx=None, control=None):
+    if treated_idx is None:
+        treated_idx = np.array([0, 2])
+    if control is None:
+        control = np.array([0.0, 1.0, 1e-9, 0.2])
+
+    ident = Identification(solution=solution, treated_idx=treated_idx)
+    weights = WeightVectors(treated=np.array([0.5, 0.5]), control=control)
+    preds = PredictionVectors(
+        synthetic_treated=np.array([1.0, 2.0]),
+        synthetic_control=np.array([1.5, 1.7]),
+        effects=np.array([-0.5, 0.3]),
+        residuals_E=np.array([0.1, -0.2]),
+        residuals_B=np.array([0.05, -0.03]),
+    )
+    losses = Losses(1.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.1)
+    return SEDCandidate(identification=ident, weights=weights, predictions=preds, losses=losses)
+
+
+def test_indexset_roundtrip_and_helpers():
+    idx = IndexSet.from_labels(["u3", "u1", "u2"])
+    assert len(idx) == 3
+    assert repr(idx) == "IndexSet(n=3)"
+
+    np.testing.assert_array_equal(idx.get_labels([0, 2]), np.array(["u3", "u2"]))
+    np.testing.assert_array_equal(idx.get_index(["u1", "u3"]), np.array([1, 0]))
+    np.testing.assert_array_equal(np.array(idx), np.array(["u3", "u1", "u2"]))
+
+
+def test_inference_defaults_and_mutation():
+    inf = Inference()
+    assert inf.ate is None
+    assert inf.p_value is None
+    assert inf.treated_col_idx == []
+
+    inf.ate = 1.23
+    inf.treated_col_idx = [0, 1]
+    assert inf.ate == 1.23
+    assert inf.treated_col_idx == [0, 1]
+
+
+def test_weightvectors_control_sparse_thresholding():
+    weights = WeightVectors(treated=np.array([1.0]), control=np.array([1e-12, -1e-9, 3e-8, 0.4]))
+    np.testing.assert_allclose(weights.control_sparse, np.array([0.0, 0.0, 3e-8, 0.4]))
+
+
+def test_identification_tuple_id_from_label_and_fallback():
+    c1 = _candidate(_SolutionWithLabel())
+    assert c1.identification.tuple_id == "labelled_tuple"
+
+    c2 = _candidate(_SolutionWithoutLabel(), treated_idx=np.array([1, 4]))
+    assert c2.identification.tuple_id == "Tuple_[np.int64(1), np.int64(4)]"
+
+
+def test_sedcandidate_properties_and_defaults():
+    cand = _candidate(_SolutionWithLabel())
+    assert cand.treated_size == 2
+    np.testing.assert_array_equal(cand.control_idx, np.array([1, 3]))
+    assert cand.control_size == 2
+    assert cand.treated_weight_dict == {}
+    assert cand.control_weight_dict == {}
+
+
+def test_timeinfo_unitinfo_and_results_container():
+    idx = IndexSet.from_labels([1, 2, 3])
+    time_info = TimeInfo(n_total=10, n_pre=7, n_fit=5, n_blank=2, n_post=3, index=idx)
+    unit_info = UnitInfo(n_units_total=4, treated_labels=["A"], control_labels=["B", "C", "D"])
+
+    assert time_info.n_post == 3
+    assert unit_info.treated_size == 1
+    assert unit_info.control_size == 3
+
+    candidate = _candidate(_SolutionWithLabel())
+    summary = pd.DataFrame({"candidate": ["c1"], "score": [0.1]})
+    results = LEXSCMResults(
+        summary=summary,
+        best_candidate=candidate,
+        all_candidates=[candidate],
+        bnb_metadata={"nodes": 5},
+        time=time_info,
+        units=unit_info,
+        outcome="y",
+    )
+
+    assert results.summary.shape == (1, 2)
+    assert results.best_candidate.identification.tuple_id == "labelled_tuple"
+    assert results.bnb_metadata["nodes"] == 5
+    assert results.y_pop_mean_t.size == 0
