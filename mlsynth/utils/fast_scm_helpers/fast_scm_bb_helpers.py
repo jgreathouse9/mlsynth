@@ -121,14 +121,11 @@ def simplex_lower_bound(Q: np.ndarray) -> float:
         each row assumes all negative mass is fully usable.
     """
 
-    best = np.inf
+    lam = np.linalg.eigvalsh(Q)[0]
+    diag_min = np.min(np.diag(Q))
 
-    for i in range(Q.shape[0]):
-        row = Q[i]
-        bound = row[i] + np.sum(np.minimum(0.0, np.delete(row, i)))
-        best = min(best, bound)
-
-    return max(0.0, best)
+    # key correction: convex combination safety
+    return max(0.0, min(lam, diag_min))
 
 
 # ============================================================
