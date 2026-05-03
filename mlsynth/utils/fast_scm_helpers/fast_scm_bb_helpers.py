@@ -77,9 +77,9 @@ def solve_qp_simplex_value(Q: np.ndarray):
 def solve_relaxed_lower_bound(G: np.ndarray, indices: List[int], remaining_idx: np.ndarray, m: int) -> float:
     """
     Diagonal-based Simplex Lower Bound.
-    
-    This provides a 'just right' floor: it is conservative enough to never 
-    prune the global optimum, but tight enough to kill branches where 
+
+    This provides a 'just right' floor: it is conservative enough to never
+    prune the global optimum, but tight enough to kill branches where
     all remaining donors are poor.
     """
     # Pool of all donors available for the rest of this branch
