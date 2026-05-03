@@ -69,7 +69,7 @@ def branch_and_bound_topK(
     # 3. SEEDING (Synchronized with Pruning Metrics)
     # ============================================================
     # We only seed from the high-quality candidates
-    num_seeds = min(M, max(10, 100* m))
+    num_seeds = M if m <= 3 else min(M, max(20, 5 * m))   # Use ALL candidates for m=1,2,3
     seed_set = candidate_idx[:num_seeds]
     print(f"Seeding from first {len(seed_set)} candidates (for m={m})")  # debug
 
