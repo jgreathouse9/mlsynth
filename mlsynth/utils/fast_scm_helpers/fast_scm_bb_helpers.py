@@ -290,15 +290,6 @@ def expand_tuple(
         Q_new[k, k] = G[j, j]
 
         # -----------------------------------------------------
-        # SPECTRAL PRUNING (SAFE)
-        # -----------------------------------------------------
-        lb = spectral_lower_bound(Q_new)
-
-        if lb >= current_ub:
-            stats["branches_pruned"] += 1
-            continue
-
-        # -----------------------------------------------------
         # RECURSION
         # -----------------------------------------------------
         expand_tuple(
