@@ -155,10 +155,8 @@ def solve_qp_simplex_value(Q: np.ndarray, w_init=None, indices=None):
 def greedy_initial_solution(G, candidate_idx, m):
     selected = list(candidate_idx[:m])
     Q = G[np.ix_(selected, selected)]
+    return solve_qp_simplex_value(Q, indices=selected)
 
-    loss, w = solve_qp_simplex_value(Q, indices=selected)
-
-    return loss, selected, w
 
 def expand_weights_to_full(indices, weights, total_units):
     w = np.zeros(total_units)
@@ -202,7 +200,7 @@ def prune_by_cost(candidate_idx, unit_costs, budget):
 
 
 # ============================================================
-# BnB CORE
+# BnB CORE (FIXED COMBINATORIAL LOGIC)
 # ============================================================
 
 def expand_tuple(
@@ -213,7 +211,6 @@ def expand_tuple(
     top_tuples,
     indices,
     stats,
-    start_pos,
     Q_partial,
     unit_costs=None,
     budget=None,
@@ -226,9 +223,12 @@ def expand_tuple(
 
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
 
+    # -----------------------------
     # BASE CASE
+    # -----------------------------
     if k == m:
         stats["subsets_evaluated"] += 1
+
         loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
 
         top_tuples.append(Solution(loss, indices[:], w))
@@ -236,18 +236,18 @@ def expand_tuple(
 
         if len(top_tuples) > top_K:
             top_tuples.pop()
+
         return
 
-    # EXPAND
-    candidates = candidate_idx[start_pos:]
+    # -----------------------------
+    # COMBINATORIAL EXPANSION (FIXED)
+    # -----------------------------
+    last = indices[-1] if len(indices) > 0 else -1
 
-    scored = [
-        (j, strong_branch_score(G, Q_partial, candidate_idx, j, indices))
-        for j in candidates
-    ]
-    scored.sort(key=lambda x: x[1])
+    for j in candidate_idx:
+        if j <= last:
+            continue
 
-    for j, _ in scored:
         stats["branches_considered"] += 1
 
         new_cost = current_cost + (unit_costs[j] if unit_costs is not None else 0.0)
@@ -259,6 +259,7 @@ def expand_tuple(
         Q_new = np.empty((k_new, k_new))
 
         Q_new[:k, :k] = Q_partial
+
         g = G[j, indices] if k > 0 else np.array([])
 
         Q_new[k, :k] = g
@@ -268,13 +269,8 @@ def expand_tuple(
         lb_node = simplex_lower_bound(Q_new)
 
         if slots_left > 1:
-            next_pos = np.where(candidate_idx == j)[0][0] + 1
-            remaining_pool = candidate_idx[next_pos:]
-
-            lb_pred = lookahead_lower_bound(
-                G, lb_node, remaining_pool, slots_left - 1, m
-            )
-
+            remaining = np.array([x for x in candidate_idx if x > j])
+            lb_pred = lookahead_lower_bound(G, lb_node, remaining, slots_left - 1, m)
             lb = max(lb_node, lb_pred)
         else:
             lb = lb_node
@@ -291,7 +287,6 @@ def expand_tuple(
             top_tuples,
             indices + [j],
             stats,
-            np.where(candidate_idx == j)[0][0] + 1,
             Q_new,
             unit_costs,
             budget,
