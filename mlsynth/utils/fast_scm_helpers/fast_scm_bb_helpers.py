@@ -209,6 +209,7 @@ def branch_score(G: np.ndarray, j: int, indices: List[int]) -> float:
 # 8. BnB CORE (CORRECT + SAFE)
 # ============================================================
 
+
 def expand_tuple(
     G: np.ndarray,
     candidate_idx: np.ndarray,
@@ -218,6 +219,8 @@ def expand_tuple(
     indices: List[int],
     stats: Dict[str, int],
     Q_partial: np.ndarray,
+    unit_costs: Optional[np.ndarray] = None,
+    budget: Optional[float] = None,
     current_cost: float = 0.0,
 ):
 
@@ -227,7 +230,7 @@ def expand_tuple(
     current_ub = top_tuples[-1].loss if len(top_tuples) >= top_K else np.inf
 
     # =========================================================
-    # LEAF
+    # LEAF NODE
     # =========================================================
     if k == m:
         stats["subsets_evaluated"] += 1
@@ -247,18 +250,35 @@ def expand_tuple(
     # CHILD SELECTION
     # =========================================================
     if indices:
-        start = int(np.searchsorted(candidate_idx, indices[-1])) + 1
+        start_pos = int(np.searchsorted(candidate_idx, indices[-1])) + 1
     else:
-        start = 0
+        start_pos = 0
 
-    remaining = candidate_idx[start:]
+    remaining = candidate_idx[start_pos:]
+
     ordered = sorted(remaining, key=lambda j: branch_score(G, j, indices))
 
     # =========================================================
-    # EXPAND
+    # EXPAND CHILDREN
     # =========================================================
     for j in ordered:
 
+        stats["branches_considered"] += 1
+
+        # -----------------------------------------------------
+        # COST PRUNING (RESTORED)
+        # -----------------------------------------------------
+        new_cost = current_cost + (
+            float(unit_costs[j]) if unit_costs is not None else 0.0
+        )
+
+        if budget is not None and new_cost > budget:
+            stats["branches_pruned"] += 1
+            continue
+
+        # -----------------------------------------------------
+        # BUILD Q MATRIX
+        # -----------------------------------------------------
         k_new = k + 1
         Q_new = np.empty((k_new, k_new))
         Q_new[:k, :k] = Q_partial
@@ -269,23 +289,28 @@ def expand_tuple(
 
         Q_new[k, k] = G[j, j]
 
-        # =====================================================
-        # SAFE SPECTRAL PRUNING (ONLY AT VALID DEPTH)
-        # =====================================================
+        # -----------------------------------------------------
+        # SPECTRAL PRUNING (SAFE)
+        # -----------------------------------------------------
         lb = spectral_lower_bound(Q_new)
 
         if lb >= current_ub:
             stats["branches_pruned"] += 1
             continue
 
+        # -----------------------------------------------------
+        # RECURSION
+        # -----------------------------------------------------
         expand_tuple(
-            G,
-            candidate_idx,
-            m,
-            top_K,
-            top_tuples,
-            indices + [j],
-            stats,
-            Q_new,
-            current_cost,
+            G=G,
+            candidate_idx=candidate_idx,
+            m=m,
+            top_K=top_K,
+            top_tuples=top_tuples,
+            indices=indices + [j],
+            stats=stats,
+            Q_partial=Q_new,
+            unit_costs=unit_costs,
+            budget=budget,
+            current_cost=new_cost,
         )
