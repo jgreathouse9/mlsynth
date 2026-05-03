@@ -75,7 +75,7 @@ def branch_and_bound_topK(
     else:
         num_seeds = min(M, max(20, 150 * m))   # increased base + scaling
 
-    seed_set = candidate_idx[:num_seeds]
+    seed_set = candidate_idx
     print(f"Seeding from first {len(seed_set)} / {M} candidates (for m={m})")
 
     for j in seed_set:
