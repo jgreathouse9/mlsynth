@@ -139,11 +139,6 @@ def branch_and_bound_topK(
         else 0.0
     )
 
-    speedup_factor = (
-        brute_force_runtime_sec / elapsed
-        if brute_force_runtime_sec is not None and elapsed > 0
-        else None
-    )
 
     stats_out = {
         "search_space": {
@@ -169,8 +164,7 @@ def branch_and_bound_topK(
             "nodes_per_sec": stats["nodes_visited"] / elapsed if elapsed else 0.0,
             "qp_calls": qp_calls,
             "qp_per_node": qp_per_node,
-            "qp_per_subset_ratio": qp_per_subset_ratio,
-            "speedup_factor_vs_bruteforce": speedup_factor,
+            "qp_per_subset_ratio": qp_per_subset_ratio
         },
         "optimality": {
             "best_loss": best_loss,
