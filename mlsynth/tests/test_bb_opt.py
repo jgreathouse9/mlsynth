@@ -50,3 +50,41 @@ def test_branch_and_bound_matches_bruteforce():
 
     # Strong consistency check
     assert np.isclose(best_bnb, best_true, atol=1e-6)
+
+
+
+
+
+
+def test_bnb_when_greedy_is_suboptimal():
+    """
+    Construct a G where the greedy pick is deliberately misleading —
+    the best single unit is not part of the optimal pair/triple.
+    """
+    rng = np.random.default_rng(42)
+    # Try multiple seeds to increase the chance greedy != optimal
+    for seed in range(20):
+        rng = np.random.default_rng(seed)
+        X = rng.normal(size=(15, 8))
+        G = X.T @ X  # 8×8, so m=3 is non-trivial relative to rank
+        idx = np.arange(8)
+
+        res = branch_and_bound_topK(G, idx, m=3, top_K=1)
+        best_bnb = res["top_tuples"][0].loss
+        best_true = brute_force_best(G, idx, m=3)
+
+        assert np.isclose(best_bnb, best_true, atol=1e-6), f"Failed on seed {seed}"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
