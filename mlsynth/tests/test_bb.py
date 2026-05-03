@@ -477,10 +477,10 @@ def brute_force_best(G, idx, m):
 
 def test_matches_bruteforce():
     rng = np.random.default_rng(0)
-    X = rng.normal(size=(4, 4))
+    X = rng.normal(size=(10, 10))
     G = X.T @ X
 
-    idx = np.arange(4)
+    idx = np.arange(10)
 
     from mlsynth.utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
 
