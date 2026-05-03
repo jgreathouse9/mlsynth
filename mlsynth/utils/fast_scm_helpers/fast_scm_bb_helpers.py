@@ -256,9 +256,6 @@ def expand_tuple(
 
         loss, w = solve_qp_simplex_value(Q_exact, indices=indices)
 
-        # ------------------------------------------------------------
-        # DEBUG: solver + objective diagnostics
-        # ------------------------------------------------------------
         if debug:
             diag_min = np.min(np.diag(Q_exact))
             eig_min = np.min(np.linalg.eigvalsh(Q_exact))
@@ -271,18 +268,10 @@ def expand_tuple(
             print("qp loss:", loss)
             print("weights:", w)
 
-            # sanity: diagonal baseline
-            print("diag baseline:", diag_min)
-
-        # ------------------------------------------------------------
-        # consistency check
-        # ------------------------------------------------------------
         if debug:
             loss_check, _ = solve_qp_simplex_value(Q_exact)
             if not np.isclose(loss, loss_check, atol=1e-8):
                 print("\n[WARNING] INCONSISTENT SOLVER RUN")
-                print("loss:", loss)
-                print("check:", loss_check)
                 raise ValueError("QP mismatch detected")
 
         top_tuples.append(Solution(loss, indices[:], w))
@@ -330,14 +319,18 @@ def expand_tuple(
             print("eig_min:", np.min(np.linalg.eigvalsh(Q_new)))
 
         # ============================================================
-        # PRUNING (disabled but logged if active)
+        # PRUNING (RE-ENABLED)
         # ============================================================
-        # lb_node = np.min(np.linalg.eigvalsh(Q_new))
-        # if lb_node >= current_ub:
-        #     stats["branches_pruned"] += 1
-        #     if debug:
-        #         print(f"[PRUNE] lb={lb_node} >= ub={current_ub}")
-        #     continue
+        if len(top_tuples) == top_K:
+            # fast lower bound using diagonal relaxation
+            diag_lb = np.sum(np.minimum(0.0, np.diag(Q_new)))
+            lb_node = current_cost + diag_lb
+
+            if lb_node >= current_ub:
+                stats["branches_pruned"] += 1
+                if debug:
+                    print(f"[PRUNE] lb={lb_node:.6f} >= ub={current_ub:.6f}")
+                continue
 
         # ============================================================
         # RECURSE
