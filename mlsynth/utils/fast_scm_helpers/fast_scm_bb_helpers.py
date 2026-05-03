@@ -213,7 +213,6 @@ def strong_branch_score(G, Q_partial, candidate_idx, j, indices):
 # BnB CORE EXPANSION
 # ============================================================
 
-
 def expand_tuple(
         G,
         candidate_idx,
@@ -257,22 +256,10 @@ def expand_tuple(
         loss, w = solve_qp_simplex_value(Q_exact, indices=indices)
 
         if debug:
-            diag_min = np.min(np.diag(Q_exact))
-            eig_min = np.min(np.linalg.eigvalsh(Q_exact))
-
             print("\n[LEAF]")
             print("indices:", indices)
-            print("Q shape:", Q_exact.shape)
-            print("diag min:", diag_min)
-            print("eig min:", eig_min)
             print("qp loss:", loss)
             print("weights:", w)
-
-        if debug:
-            loss_check, _ = solve_qp_simplex_value(Q_exact)
-            if not np.isclose(loss, loss_check, atol=1e-8):
-                print("\n[WARNING] INCONSISTENT SOLVER RUN")
-                raise ValueError("QP mismatch detected")
 
         top_tuples.append(Solution(loss, indices[:], w))
         top_tuples.sort(key=lambda s: s.loss)
@@ -314,23 +301,34 @@ def expand_tuple(
         if debug:
             print("[Q DEBUG]")
             print("new_indices:", new_indices)
-            print("Q_new shape:", Q_new.shape)
-            print("diag:", np.diag(Q_new))
-            print("eig_min:", np.min(np.linalg.eigvalsh(Q_new)))
 
         # ============================================================
-        # PRUNING (RE-ENABLED)
+        # PRUNING SANITY CHECK (ALWAYS EVALUATED)
         # ============================================================
+        lb_node = None
+        can_prune = False
+
         if len(top_tuples) == top_K:
-            # fast lower bound using diagonal relaxation
+            stats["lb_evaluated"] = stats.get("lb_evaluated", 0) + 1
+
+            # current heuristic bound
             diag_lb = np.sum(np.minimum(0.0, np.diag(Q_new)))
             lb_node = current_cost + diag_lb
 
-            if lb_node >= current_ub:
-                stats["branches_pruned"] += 1
-                if debug:
-                    print(f"[PRUNE] lb={lb_node:.6f} >= ub={current_ub:.6f}")
-                continue
+            can_prune = lb_node >= current_ub
+
+            if can_prune:
+                stats["lb_prunable"] = stats.get("lb_prunable", 0) + 1
+
+            if debug:
+                print(f"[LB] lb_node={lb_node:.6f}, ub={current_ub:.6f}, prunable={can_prune}")
+
+        # actual pruning decision
+        if can_prune:
+            stats["branches_pruned"] += 1
+            if debug:
+                print(f"[PRUNE] lb={lb_node:.6f} >= ub={current_ub:.6f}")
+            continue
 
         # ============================================================
         # RECURSE
