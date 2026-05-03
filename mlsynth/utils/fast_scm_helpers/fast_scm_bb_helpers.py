@@ -254,12 +254,10 @@ def expand_tuple(
     budget: Optional[float] = None,
     current_cost: float = 0.0,
 ) -> None:
-    """
-    Recursive BnB node expansion with branch ordering.
-    """
+    """Recursive BnB node expansion with branch ordering."""
     stats["nodes_visited"] += 1
 
-    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]), \
+    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]),\
         "candidate_idx must be sorted ascending before entering expand_tuple"
 
     k          = len(indices)
