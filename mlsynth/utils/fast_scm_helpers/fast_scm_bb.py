@@ -100,8 +100,8 @@ def branch_and_bound_topK(
             current_cost=float(unit_costs[j])
         )
         
-        print(f"Final B&B best loss: {top_tuples[0].loss:.6f}")
-        print(f"Best combination found: {sorted(top_tuples[0].indices)}")
+    print(f"Final B&B best loss: {top_tuples[0].loss:.6f}")
+    print(f"Best combination found: {sorted(top_tuples[0].indices)}")
 
     # ============================================================
     # FINAL SORT
