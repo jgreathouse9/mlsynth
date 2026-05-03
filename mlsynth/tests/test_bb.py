@@ -465,12 +465,16 @@ import itertools
 
 def brute_force_best(G, idx, m):
     best = float("inf")
+    best_comb = None
 
     for comb in itertools.combinations(idx, m):
         Q = G[np.ix_(comb, comb)]
         loss, _ = solve_qp_simplex_value(Q)
-        best = min(best, loss)
+        if loss < best:
+            best = loss
+            best_comb = comb
 
+    print(f"Brute force best loss: {best} (comb: {best_comb})")  # for debugging
     return best
 
 
