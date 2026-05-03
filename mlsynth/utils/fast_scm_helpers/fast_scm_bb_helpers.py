@@ -168,24 +168,27 @@ def solve_qp_simplex_value(
 # LOWER BOUND
 # ============================================================
 
-def lower_bound(Q: np.ndarray) -> float:
+
+
+def lower_bound(G, partial_idx, candidate_idx, m):
     """
-    Valid lower bound for simplex-constrained quadratic program:
-        min w^T Q w,  w >= 0, sum w = 1
+    Crude but VALID lower bound:
+    assumes best possible remaining additions are the smallest diagonal entries.
     """
 
-    # ---- 1. Eigenvalue bound (always valid) ----
-    eig_lb = np.min(np.linalg.eigvalsh(Q))
+    k = len(partial_idx)
+    slots_left = m - k
 
-    # ---- 2. Gershgorin-style tightening ----
-    # Each row gives a disk: center Qii, radius sum(|Qij|)
-    # Lower bound per row: Qii - sum(|Qij|)
-    row_bounds = np.diag(Q) - np.sum(np.abs(Q), axis=1)
-    gersh_lb = np.min(row_bounds)
+    if slots_left <= 0:
+        Q = G[np.ix_(partial_idx, partial_idx)]
+        return lower_bound(0.5 * (Q + Q.T))
 
-    # ---- 3. Combine conservatively ----
-    return max(eig_lb, gersh_lb)
+    # best possible remaining candidates
+    remaining = [i for i in candidate_idx if i not in partial_idx]
+    best_vars = np.sort(np.diag(G)[remaining])[:slots_left]
 
+    # optimistic completion bound
+    return np.mean(best_vars)
 
 # ============================================================
 # GREEDY INITIAL SOLUTION
@@ -329,7 +332,7 @@ def expand_tuple(
         if len(top_tuples) == top_K:
             stats["lb_evaluated"] = stats.get("lb_evaluated", 0) + 1
 
-            lb_node = lower_bound(Q_new)
+            lb_node = lower_bound(G, new_indices, candidate_idx, m)
 
             can_prune = lb_node >= current_ub
 
