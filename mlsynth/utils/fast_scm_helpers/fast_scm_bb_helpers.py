@@ -278,7 +278,7 @@ def expand_tuple(
             Q_new[k, k] = G[j, j]
 
         # ---- OPTIONAL pruning (can be improved later) ----
-        lb_node = simplex_lower_bound(Q_new)
+        lb_node, _ = solve_qp_simplex_value(Q_new)
         if lb_node >= current_ub:
             stats["branches_pruned"] += 1
             continue
