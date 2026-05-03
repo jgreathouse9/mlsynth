@@ -33,10 +33,10 @@ def test_branch_and_bound_matches_bruteforce():
     rng = np.random.default_rng(0)
 
     # Create a PSD matrix
-    X = rng.normal(size=(15, 15))
+    X = rng.normal(size=(25, 25))
     G = X.T @ X
 
-    idx = np.arange(15)
+    idx = np.arange(25)
 
     # Run branch-and-bound
     res = branch_and_bound_topK(G, idx, m=3, top_K=1)
