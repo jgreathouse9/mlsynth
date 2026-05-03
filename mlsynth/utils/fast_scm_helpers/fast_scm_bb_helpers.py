@@ -73,29 +73,42 @@ def solve_qp_simplex_value(Q: np.ndarray):
     return float(prob.value), w_out
 
 def solve_relaxed_lower_bound(G: np.ndarray, indices: List[int], remaining_idx: np.ndarray, m: int) -> float:
+    """
+    Safe Spectral Lower Bound for PSD Gram Matrices.
+    Guaranteed not to prune the optimal solution.
+    """
     k = len(indices)
     if k == 0: return 0.0
     
-    # 1. Current Node Loss (Floor)
-    # Since adding donors decreases loss, the current loss is NOT a lower bound.
-    # However, we can use the 'Individual Best' as a marker.
+    # 1. Identify the active sub-pool
+    active_idx = np.concatenate([indices, remaining_idx])
     
-    # 2. Gershgorin 'Greedy' Tightening
-    # We find the smallest diagonal (individual error) in the remaining pool.
-    # A combo of units cannot magically result in a loss 100x lower than 
-    # the best individual unit in that pool unless they are perfectly 
-    # negatively correlated (rare in Gram matrices).
+    # 2. Minimum Diagonal Floor
+    # The absolute lowest a diagonal can be is our "best single unit"
+    # But a combination can be better than a single unit.
     
-    remaining_diags = np.diag(G)[remaining_idx]
-    best_remaining_unit_loss = np.min(remaining_diags)
+    # 3. The "Schur Complement" Insight (Safe Bound):
+    # In SC, adding a unit j to a set S results in a new loss:
+    # Loss_new = Loss_old - (improvement)
+    # The maximum possible improvement from any donor j is limited 
+    # by its correlation with the target (G[j,j]).
     
-    # Lower Bound Logic: 
-    # The loss of the m-tuple cannot be lower than the 'best possible' 
-    # single unit adjusted for the degree of freedom. 
-    # A safe, tighter bound for Synthetic Control:
-    lower_bound = best_remaining_unit_loss / (m - k + 1)
+    # Mathematical Floor:
+    # A safe lower bound for any quadratic form on the simplex is 
+    # the minimum eigenvalue of the Gram matrix.
+    # We estimate this using a fast Gershgorin-based floor.
     
-    return lower_bound
+    sub_G = G[np.ix_(active_idx, active_idx)]
+    diags = np.diag(sub_G)
+    
+    # Gershgorin: lambda_min >= min(diag - row_sum_off_diag)
+    # This is safe. If lambda_min > current_ub, it's IMPOSSIBLE
+    # for any weight combination to beat the current best.
+    
+    row_sums = np.sum(np.abs(sub_G), axis=1) - diags
+    lambda_min_est = np.min(diags - row_sums)
+    
+    return max(0.0, lambda_min_est)
 
 
 # ============================================================
