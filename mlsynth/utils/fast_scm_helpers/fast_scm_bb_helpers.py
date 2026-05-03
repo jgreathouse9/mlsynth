@@ -226,12 +226,17 @@ def expand_tuple(
     # 1. BASE CASE: REACHED SIZE M
     # -----------------------------
     if k == m:
+        print("Evaluating subset:", indices)   # 👈 DIAGNOSTIC
+
         stats["subsets_evaluated"] += 1
+
         loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
         top_tuples.append(Solution(loss, indices[:], w))
         top_tuples.sort(key=lambda s: s.loss)
+
         if len(top_tuples) > top_K:
             top_tuples.pop()
+
         return
 
     # -----------------------------
@@ -261,16 +266,24 @@ def expand_tuple(
         Q_new[:k, k] = g
         Q_new[k, k] = G[j, j]
 
-        # Step D: Lower Bound Check for the potential new node
+        # Step D: Lower Bound Check (currently disabled)
         lb_node = simplex_lower_bound(Q_new)
-        
-        #if lb_node >= current_ub:
-            #stats["branches_pruned"] += 1
-            #continue
+        # if lb_node >= current_ub:
+        #     stats["branches_pruned"] += 1
+        #     continue
 
-        # Step F: Success! Visit the child
+        # Step F: Recurse
         expand_tuple(
-            G, candidate_idx, m, top_K, top_tuples, indices + [j], stats,
-                                                    np.where(candidate_idx == j)[0][0] + 1,
-            Q_new, unit_costs, budget, new_cost
+            G,
+            candidate_idx,
+            m,
+            top_K,
+            top_tuples,
+            indices + [j],
+            stats,
+            np.where(candidate_idx == j)[0][0] + 1,  # ⚠️ likely bug
+            Q_new,
+            unit_costs,
+            budget,
+            new_cost
         )
