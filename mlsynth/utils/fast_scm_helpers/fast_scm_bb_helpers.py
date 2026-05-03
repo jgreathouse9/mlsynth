@@ -34,7 +34,10 @@ def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
     return leaves, nodes
 
 
-
+def expand_weights_to_full(indices, weights, total_units):
+    w = np.zeros(total_units)
+    w[indices] = weights
+    return w
 
 # ============================================================
 # 2. SOLUTION CONTAINER
