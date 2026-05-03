@@ -227,7 +227,7 @@ def expand_tuple(
         unit_costs=None,
         budget=None,
         current_cost=0.0,
-        debug=False,
+        debug=True,
 ):
 
     stats["nodes_visited"] += 1
