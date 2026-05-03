@@ -167,11 +167,19 @@ def solve_qp_simplex_value(
 # ============================================================
 # LOWER BOUND
 # ============================================================
+def lower_bound_partial(G, indices, candidate_idx):
+    if len(indices) == 0:
+        return -np.inf
 
+    Q = G[np.ix_(indices, indices)]
 
+    # current best achievable inside node
+    base = np.min(np.diag(Q))
 
-def lower_bound(Q: np.ndarray) -> float:
-    return np.min(np.diag(Q))
+    # allow adding best possible future unit
+    best_future = np.min(np.diag(G)[candidate_idx])
+
+    return min(base, best_future)
 
 # ============================================================
 # GREEDY INITIAL SOLUTION
@@ -213,8 +221,6 @@ def strong_branch_score(G, Q_partial, candidate_idx, j, indices):
 # ============================================================
 # BnB CORE EXPANSION
 # ============================================================
-
-
 
 def expand_tuple(
         G,
@@ -273,6 +279,22 @@ def expand_tuple(
         return
 
     # ============================================================
+    # PRUNING HELPERS (VALID LOWER BOUND)
+    # ============================================================
+    def lower_bound_partial(G, idx_set):
+        """
+        Valid but simple lower bound for partial selection.
+        Uses diagonal relaxation (safe for pruning).
+        """
+        if len(idx_set) == 0:
+            return -np.inf
+
+        Q = G[np.ix_(idx_set, idx_set)]
+
+        # diagonal relaxation (SAFE bound)
+        return np.min(np.diag(Q))
+
+    # ============================================================
     # EXPANSION LOOP
     # ============================================================
     n = len(candidate_idx)
@@ -299,34 +321,28 @@ def expand_tuple(
         # ============================================================
         new_indices = indices + [j]
 
-        Q_new = G[np.ix_(new_indices, new_indices)]
-        Q_new = 0.5 * (Q_new + Q_new.T)
-
         if debug:
             print("[Q DEBUG]")
             print("new_indices:", new_indices)
 
         # ============================================================
-        # VALID LOWER BOUND PRUNING
+        # LOWER BOUND PRUNING (CORRECT VERSION)
         # ============================================================
-        can_prune = False
-        lb_node = -np.inf
-
         if len(top_tuples) == top_K:
             stats["lb_evaluated"] = stats.get("lb_evaluated", 0) + 1
 
-            lb_node = lower_bound(G)
+            lb_node = lower_bound_partial(G, new_indices)
 
             can_prune = lb_node >= current_ub
 
             if debug:
                 print(f"[LB] lb_node={lb_node:.6f}, ub={current_ub:.6f}, prunable={can_prune}")
 
-        if can_prune:
-            stats["branches_pruned"] += 1
-            if debug:
-                print(f"[PRUNE] lb={lb_node:.6f} >= ub={current_ub:.6f}")
-            continue
+            if can_prune:
+                stats["branches_pruned"] += 1
+                if debug:
+                    print(f"[PRUNE] lb={lb_node:.6f} >= ub={current_ub:.6f}")
+                continue
 
         # ============================================================
         # RECURSE
