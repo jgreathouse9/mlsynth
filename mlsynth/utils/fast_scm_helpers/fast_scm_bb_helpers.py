@@ -1,5 +1,5 @@
 """
-Fast_scm_bb_helpers.py
+fast_scm_bb_helpers.py
 ----------------------
 Helper primitives for the branch-and-bound synthetic control solver.
 
@@ -7,12 +7,11 @@ Sections
     1. Global solver state
     2. Solution container
     3. Search-space sizing
-    4. Pre-solve candidate filtering
-    5. Lower-bound functions
-    6. QP solver
-    7. Initialisation utilities
-    8. Scoring / pruning helpers
-    9. BnB recursive core
+    4. Lower-bound functions
+    5. QP solver
+    6. Utility
+    7. Scoring / pruning helpers
+    8. BnB recursive core
 """
 
 from __future__ import annotations
@@ -80,64 +79,7 @@ def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
 
 
 # ============================================================
-# 4.  PRE-SOLVE CANDIDATE FILTERING
-# ============================================================
-
-def presolve_candidates(
-    G: np.ndarray,
-    candidate_idx: np.ndarray,
-    budget: Optional[float] = None,
-    unit_costs: Optional[np.ndarray] = None,
-    m: int = 1,
-) -> np.ndarray:
-    """
-    Remove obviously poor candidates before BnB.
-
-    Steps
-        1. Drop units that exceed the budget.
-        2. Drop units whose diagonal G[j,j] is an outlier (> 50× median).
-        3. Deduplicate near-identical units (correlation > 0.999), keeping
-           the cheaper one when costs are supplied.
-    """
-    idx = np.asarray(candidate_idx, dtype=int)
-
-    # --- budget gate ---
-    if budget is not None and unit_costs is not None:
-        idx = idx[unit_costs[idx] <= budget]
-
-    if len(idx) == 0:
-        return idx
-
-    # --- diagonal outlier removal ---
-    diags     = np.diag(G)[idx]
-    threshold = np.median(diags) * 50.0
-    idx       = idx[diags < threshold]
-
-    if len(idx) == 0:
-        return idx
-
-    # --- near-duplicate removal ---
-    if unit_costs is not None:
-        to_drop: set = set()
-        for i in range(len(idx)):
-            u = idx[i]
-            if u in to_drop:
-                continue
-            for j in range(i + 1, len(idx)):
-                v = idx[j]
-                if v in to_drop:
-                    continue
-                corr = G[u, v] / (np.sqrt(G[u, u] * G[v, v]) + 1e-12)
-                if corr > 0.999:
-                    drop = v if unit_costs[v] >= unit_costs[u] else u
-                    to_drop.add(drop)
-        idx = np.array([c for c in idx if c not in to_drop], dtype=int)
-
-    return idx
-
-
-# ============================================================
-# 5.  LOWER BOUNDS
+# 4.  LOWER BOUNDS
 # ============================================================
 
 def simplex_lower_bound(Q: np.ndarray) -> float:
@@ -178,7 +120,7 @@ def lookahead_lower_bound(
 
 
 # ============================================================
-# 6.  QP SOLVER
+# 5.  QP SOLVER
 # ============================================================
 
 def solve_qp_simplex_value(
@@ -231,48 +173,8 @@ def solve_qp_simplex_value(
 
 
 # ============================================================
-# 7.  INITIALISATION UTILITIES
+# 6.  UTILITY
 # ============================================================
-
-def greedy_initial_solution(
-    G: np.ndarray,
-    candidate_idx: np.ndarray,
-    m: int,
-) -> Tuple[float, List[int], np.ndarray]:
-    """
-    Build a greedy incumbent by sequentially adding the candidate that
-    most reduces the QP loss, starting from the best single unit.
-
-    This gives a tighter initial upper bound than arbitrary first-m selection,
-    which improves BnB pruning at the root.
-    """
-    # best single unit
-    diags   = np.diag(G)[candidate_idx]
-    best_i  = int(candidate_idx[int(np.argmin(diags))])
-    selected = [best_i]
-
-    for _ in range(m - 1):
-        best_loss = np.inf
-        best_j    = -1
-        best_w    = None
-
-        for j in candidate_idx:
-            if j in selected:
-                continue
-            trial = selected + [j]
-            Q_trial = G[np.ix_(trial, trial)]
-            loss, w = solve_qp_simplex_value(Q_trial, indices=trial)
-            if loss < best_loss:
-                best_loss, best_j, best_w = loss, j, w
-
-        if best_j == -1:
-            break
-        selected.append(best_j)
-
-    Q_final = G[np.ix_(selected, selected)]
-    loss, w = solve_qp_simplex_value(Q_final, indices=selected)
-    return loss, selected, w
-
 
 def expand_weights_to_full(
     indices: List[int],
@@ -286,7 +188,7 @@ def expand_weights_to_full(
 
 
 # ============================================================
-# 8.  SCORING / PRUNING HELPERS
+# 7.  SCORING / PRUNING HELPERS
 # ============================================================
 
 def strong_branch_score(
@@ -340,7 +242,7 @@ def prune_by_cost(
 
 
 # ============================================================
-# 9.  BnB RECURSIVE CORE
+# 8.  BnB RECURSIVE CORE
 # ============================================================
 
 def expand_tuple(
@@ -373,7 +275,7 @@ def expand_tuple(
     stats["nodes_visited"] += 1
 
     # candidate_idx must be sorted for position-based ordering to work
-    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]),\
+    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]), \
         "candidate_idx must be sorted ascending before entering expand_tuple"
 
     k          = len(indices)
