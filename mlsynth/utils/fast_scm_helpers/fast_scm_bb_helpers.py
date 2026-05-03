@@ -310,7 +310,7 @@ def expand_tuple(
             stats["branches_pruned"] += 1
             continue
 
-        # Incremental Q
+        # Incremental Gram matrix update
         g = G[j, indices]
         Q_new = np.empty((k + 1, k + 1))
         Q_new[:k, :k] = Q_partial
@@ -318,9 +318,9 @@ def expand_tuple(
         Q_new[:k, k] = g
         Q_new[k, k] = G[j, j]
 
-        # Recurse - pass i+1 (critical!)
+        # Recurse
         expand_tuple(
             G, candidate_idx, m, top_K, top_tuples, 
-            indices + [j], stats, **i + 1**,   # <--- use i+1
+            indices + [j], stats, i + 1,          # <-- This is the key line
             Q_new, unit_costs, budget, new_cost
         )
