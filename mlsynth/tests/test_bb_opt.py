@@ -33,17 +33,17 @@ def test_branch_and_bound_matches_bruteforce():
     rng = np.random.default_rng(0)
 
     # Create a PSD matrix
-    X = rng.normal(size=(10, 10))
+    X = rng.normal(size=(40, 4p))
     G = X.T @ X
 
-    idx = np.arange(10)
+    idx = np.arange(40)
 
     # Run branch-and-bound
-    res = branch_and_bound_topK(G, idx, m=2, top_K=1)
+    res = branch_and_bound_topK(G, idx, m=3, top_K=1)
     best_bnb = res["top_tuples"][0].loss
 
     # Compute brute-force optimum
-    best_true = brute_force_best(G, idx, m=2)
+    best_true = brute_force_best(G, idx, m=3)
 
     print("\nBNB best loss:", best_bnb)
     print("Brute force best loss:", best_true)
