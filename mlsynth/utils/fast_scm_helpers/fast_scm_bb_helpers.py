@@ -99,7 +99,11 @@ def solve_relaxed_lower_bound(G: np.ndarray, indices: List[int], remaining_idx: 
 # ============================================================
 # 4. SEARCH HELPERS
 # ============================================================
-
+def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
+    leaves = comb(M, m)
+    nodes = sum(comb(M, k) for k in range(1, m + 1))
+    return leaves, nodes
+    
 def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
     """Provides a strong starting upper bound to accelerate pruning."""
     selected = []
