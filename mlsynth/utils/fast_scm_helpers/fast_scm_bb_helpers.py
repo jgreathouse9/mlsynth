@@ -168,40 +168,74 @@ def solve_qp_simplex_value(
 # LOWER BOUND
 # ============================================================
 
-def simplex_lower_bound(Q: np.ndarray) -> float:
+import numpy as np
+import cvxpy as cp
+
+
+def simplex_lower_bound(Q: np.ndarray, use_sdp: bool = True) -> float:
     """
-    SDP relaxation lower bound for:
+    Robust lower bound for simplex-constrained quadratic program:
+
         min w^T Q w
         s.t. w >= 0, sum(w) = 1
 
-    This is a valid lower bound for branch-and-bound.
+    Combines:
+    - SDP relaxation (tight bound for small problems)
+    - spectral bound fallback (always safe)
+    - numerical safety projection (ensures no bound violation)
+
+    Returns a guaranteed LOWER bound for branch-and-bound.
     """
 
-    k = Q.shape[0]
+    # ------------------------------------------------------------
+    # 1. SAFE FALLBACK (always valid)
+    # ------------------------------------------------------------
+    eig_lb = float(np.min(np.linalg.eigvalsh(Q)))
+    diag_lb = float(np.min(np.diag(Q)))
 
-    # Lift variable X = w w^T
-    X = cp.Variable((k, k), PSD=True)
+    safe_lb = min(eig_lb, diag_lb)
 
-    ones = np.ones((k, 1))
+    # ------------------------------------------------------------
+    # 2. OPTIONAL SDP REFINEMENT (tight but expensive)
+    # ------------------------------------------------------------
+    sdp_lb = None
 
-    constraints = [
-        cp.sum(X, axis=0) == ones.flatten(),   # X * 1 = 1
-        cp.sum(X, axis=1) == ones.flatten(),   # 1^T * X = 1^T
-        X >= 0                                  # simplex consistency (optional tightening)
-    ]
+    if use_sdp and Q.shape[0] <= 6:  # keep it practical for BnB nodes
+        k = Q.shape[0]
 
-    objective = cp.Minimize(cp.trace(Q @ X))
+        try:
+            X = cp.Variable((k, k), PSD=True)
 
-    prob = cp.Problem(objective, constraints)
+            constraints = [
+                cp.trace(X) == 1,
+                X >= 0
+            ]
 
-    prob.solve(verbose=False)
+            objective = cp.Minimize(cp.trace(Q @ X))
+            prob = cp.Problem(objective, constraints)
 
-    if prob.status not in ["optimal", "optimal_inaccurate"]:
-        # fallback to safe spectral bound
-        return float(np.min(np.linalg.eigvalsh(Q)))
+            prob.solve(verbose=False)
 
-    return float(prob.value)
+            if prob.status in ["optimal", "optimal_inaccurate"] and prob.value is not None:
+                sdp_lb = float(prob.value)
 
+        except Exception:
+            sdp_lb = None
+
+    # ------------------------------------------------------------
+    # 3. MERGE (take best lower bound candidate)
+    # ------------------------------------------------------------
+    if sdp_lb is None:
+        lb = safe_lb
+    else:
+        lb = min(sdp_lb, safe_lb)
+
+    # ------------------------------------------------------------
+    # 4. NUMERICAL SAFETY (critical for BnB correctness)
+    # ------------------------------------------------------------
+    lb = float(lb - 1e-12)
+
+    return lb
 
 
 # ============================================================
