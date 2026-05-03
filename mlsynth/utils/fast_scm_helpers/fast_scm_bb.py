@@ -69,8 +69,9 @@ def branch_and_bound_topK(
     # 3. SEEDING (Synchronized with Pruning Metrics)
     # ============================================================
     # We only seed from the high-quality candidates
-    num_seeds = min(M, max(1, 2 * m))
+    num_seeds = min(M, max(10, 100* m))
     seed_set = candidate_idx[:num_seeds]
+    print(f"Seeding from first {len(seed_set)} candidates (for m={m})")  # debug
 
     for j in seed_set:
         # Every seed call is technically 'considering' a branch from the root
