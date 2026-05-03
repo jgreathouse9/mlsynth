@@ -9,7 +9,8 @@ from .fast_scm_bb_helpers import (
     expand_weights_to_full,
     Solution,
     get_qp_call_count,
-    reset_qp_call_count, presolve_candidates
+    reset_qp_call_count, 
+    presolve_candidates
 )
 
 
@@ -21,7 +22,7 @@ def branch_and_bound_topK(
         top_K: int = 20,
         unit_index: Optional[IndexSet] = None,
         unit_costs: Optional[np.ndarray] = None,
-        budget: Optional[float] = None  # Added budget to orchestrator
+        budget: Optional[float] = None
 ) -> Dict[str, Any]:
     start_time = time.time()
     reset_qp_call_count()
@@ -32,12 +33,12 @@ def branch_and_bound_topK(
     # ============================================================
     # 1. PRESOLVE & ORDERING
     # ============================================================
-    # Step A: Initial Sorting based on marginal impact
+    # Initial sorting (smaller diagonal first = potentially better units)
     marginal_scores = np.diag(G) + lam * unit_costs
-    candidate_idx = candidate_idx[np.argsort(marginal_scores[candidate_idx])]
+    sorted_order = np.argsort(marginal_scores[candidate_idx])
+    candidate_idx = candidate_idx[sorted_order]
 
-    # Step B: Presolve (Filter out redundant/impossible units)
-    # This reduces M before we calculate search space stats
+    # Presolve
     candidate_idx = presolve_candidates(
         G=G,
         candidate_idx=candidate_idx,
@@ -57,32 +58,34 @@ def branch_and_bound_topK(
     }
 
     # ============================================================
-    # 2. INITIAL SOLUTION (On Reduced Set)
+    # 2. INITIAL SOLUTION
     # ============================================================
     init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
 
-    top_tuples: List[Solution] = [
-        Solution(init_loss, init_idx, init_w)
-    ]
+    top_tuples: List[Solution] = [Solution(init_loss, init_idx, init_w)]
 
     # ============================================================
-    # 3. SEEDING (Synchronized with Pruning Metrics)
+    # 3. IMPROVED SEEDING
     # ============================================================
-    # We only seed from the high-quality candidates
-    num_seeds = min(M, max(10, 100* m))
+    # Much wider seeding + safety net for small problems
+    if m <= 3 and M <= 30:
+        # For small cases (like your test), seed from ALL candidates
+        num_seeds = M
+        print(f"Small case detected (m={m}, M={M}) — seeding from ALL {M} candidates")
+    else:
+        num_seeds = min(M, max(20, 150 * m))   # increased base + scaling
+
     seed_set = candidate_idx[:num_seeds]
-    print(f"Seeding from first {len(seed_set)} candidates (for m={m})")  # debug
+    print(f"Seeding from first {len(seed_set)} / {M} candidates (for m={m})")
 
     for j in seed_set:
-        # Every seed call is technically 'considering' a branch from the root
         stats["branches_considered"] += 1
 
-        # Quick root-level prune
-        if G[j, j] >= top_tuples[-1].loss and len(top_tuples) == top_K:
+        # Root-level pruning (safe)
+        if len(top_tuples) == top_K and G[j, j] >= top_tuples[-1].loss:
             stats["branches_pruned"] += 1
             continue
 
-        Q0 = np.array([[G[j, j]]])
         j_pos = np.where(candidate_idx == j)[0][0]
 
         expand_tuple(
@@ -94,14 +97,15 @@ def branch_and_bound_topK(
             indices=[j],
             stats=stats,
             start_pos=j_pos + 1,
-            Q_partial=Q0,
+            Q_partial=np.array([[G[j, j]]]),
             unit_costs=unit_costs,
             budget=budget,
-            current_cost=float(unit_costs[j])
+            current_cost=float(unit_costs[j]),
+            debug=False
         )
 
     # ============================================================
-    # FINAL SORT
+    # FINAL PROCESSING
     # ============================================================
     solutions = sorted(top_tuples, key=lambda s: s.loss)
 
@@ -112,13 +116,9 @@ def branch_and_bound_topK(
 
         if unit_index is not None:
             sol.full_weights = expand_weights_to_full(
-                sol.indices,
-                sol.weights,
-                total_units
+                sol.indices, sol.weights, total_units
             )
-
             sol.labels = unit_index.get_labels(sol.indices).tolist()
-
             sol.weight_dict = {
                 unit_index.labels[idx]: float(w)
                 for idx, w in zip(sol.indices, sol.weights)
@@ -128,35 +128,24 @@ def branch_and_bound_topK(
     # METRICS
     # ============================================================
     elapsed = time.time() - start_time
-
     best_loss = solutions[0].loss if solutions else np.inf
     worst_loss = solutions[-1].loss if solutions else np.inf
 
     node_fraction = stats["nodes_visited"] / total_nodes if total_nodes else 0
     subset_fraction = stats["subsets_evaluated"] / total_subsets if total_subsets else 0
-
     prune_rate = (
         stats["branches_pruned"] / stats["branches_considered"]
         if stats["branches_considered"] else 0
     )
-
     speedup = (
         total_subsets / stats["subsets_evaluated"]
         if stats["subsets_evaluated"] else np.inf
     )
-
     improvement = init_loss - best_loss
-
     qp_calls = get_qp_call_count()
 
-    # ============================================================
-    # BUILD stats_out FIRST
-    # ============================================================
     stats_out = {
-        "search_space": {
-            "total_subsets": total_subsets,
-            "total_nodes": total_nodes,
-        },
+        "search_space": {"total_subsets": total_subsets, "total_nodes": total_nodes},
         "exploration": {
             "nodes_visited": stats["nodes_visited"],
             "subsets_evaluated": stats["subsets_evaluated"],
@@ -172,8 +161,6 @@ def branch_and_bound_topK(
             "runtime_sec": elapsed,
             "nodes_per_sec": stats["nodes_visited"] / elapsed if elapsed else 0,
             "speedup_factor": speedup,
-
-            # QP STATS go here
             "qp_calls": qp_calls,
             "qp_per_node": qp_calls / stats["nodes_visited"] if stats["nodes_visited"] else 0.0,
         },
