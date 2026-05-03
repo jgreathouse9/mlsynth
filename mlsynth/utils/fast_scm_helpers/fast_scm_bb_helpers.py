@@ -227,19 +227,35 @@ def expand_tuple(
         unit_costs=None,
         budget=None,
         current_cost=0.0,
+        debug=False,
 ):
 
     stats["nodes_visited"] += 1
     k = len(indices)
+
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
 
     # ============================================================
-    # BASE CASE: full subset
+    # BASE CASE
     # ============================================================
     if k == m:
         stats["subsets_evaluated"] += 1
 
-        loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
+        # ------------------------------------------------------------
+        # 🔴 CRITICAL: enforce exact same objective as brute force
+        # ------------------------------------------------------------
+        Q_exact = G[np.ix_(indices, indices)]
+
+        loss, w = solve_qp_simplex_value(Q_exact, indices=indices)
+
+        # optional sanity check
+        if debug:
+            loss_check, _ = solve_qp_simplex_value(Q_exact)
+            if not np.isclose(loss, loss_check, atol=1e-8):
+                print("OBJECTIVE INCONSISTENCY DETECTED")
+                print("indices:", indices)
+                print("loss:", loss, "check:", loss_check)
+                raise ValueError("QP mismatch detected")
 
         top_tuples.append(Solution(loss, indices[:], w))
         top_tuples.sort(key=lambda s: s.loss)
@@ -250,7 +266,7 @@ def expand_tuple(
         return
 
     # ============================================================
-    # EXPAND IN STRICT INCREASING INDEX ORDER
+    # EXPANSION LOOP (STRICT COMBINATORIAL ORDER)
     # ============================================================
     n = len(candidate_idx)
 
@@ -259,42 +275,46 @@ def expand_tuple(
 
         stats["branches_considered"] += 1
 
-        # ---- budget pruning (safe) ----
+        # ---- budget pruning ----
         new_cost = current_cost + (unit_costs[j] if unit_costs is not None else 0.0)
         if budget is not None and new_cost > budget:
             stats["branches_pruned"] += 1
             continue
 
-        # ---- build QP incrementally ----
-        k = len(indices)
-        if k == 0:
-            Q_new = np.array([[G[j, j]]])
-        else:
-            g = G[j, indices]
-            Q_new = np.empty((k + 1, k + 1))
-            Q_new[:k, :k] = Q_partial
-            Q_new[k, :k] = g
-            Q_new[:k, k] = g
-            Q_new[k, k] = G[j, j]
+        # ============================================================
+        # SAFE STATE UPDATE (no incremental Q used for correctness)
+        # ============================================================
+        new_indices = indices + [j]
 
-        # ---- OPTIONAL pruning (can be improved later) ----
-        lb_node, _ = solve_qp_simplex_value(Q_new)
-        if lb_node >= current_ub:
-            stats["branches_pruned"] += 1
-            continue
+        k_next = len(new_indices)
+        Q_new = G[np.ix_(new_indices, new_indices)]
 
-        # ---- recurse with STRICT ordering ----
+        # optional symmetry safety (helps OSQP stability)
+        Q_new = 0.5 * (Q_new + Q_new.T)
+
+        # ============================================================
+        # OPTIONAL PRUNING (currently minimal / safe)
+        # ============================================================
+        # lb_node = np.min(np.linalg.eigvalsh(Q_new))
+        # if lb_node >= current_ub:
+        #     stats["branches_pruned"] += 1
+        #     continue
+
+        # ============================================================
+        # RECURSE
+        # ============================================================
         expand_tuple(
             G,
             candidate_idx,
             m,
             top_K,
             top_tuples,
-            indices + [j],
+            new_indices,
             stats,
-            i + 1,                 # 🔥 CRITICAL FIX
-            Q_new,
-            unit_costs,
-            budget,
-            new_cost,
+            i + 1,
+            Q_partial=None,   # not used anymore
+            unit_costs=unit_costs,
+            budget=budget,
+            current_cost=new_cost,
+            debug=debug,
         )
