@@ -168,8 +168,23 @@ def solve_qp_simplex_value(
 # LOWER BOUND
 # ============================================================
 
-def simplex_lower_bound(Q):
-    return np.min(np.linalg.eigvalsh(Q))
+def lower_bound(Q: np.ndarray) -> float:
+    """
+    Valid lower bound for simplex-constrained quadratic program:
+        min w^T Q w,  w >= 0, sum w = 1
+    """
+
+    # ---- 1. Eigenvalue bound (always valid) ----
+    eig_lb = np.min(np.linalg.eigvalsh(Q))
+
+    # ---- 2. Gershgorin-style tightening ----
+    # Each row gives a disk: center Qii, radius sum(|Qij|)
+    # Lower bound per row: Qii - sum(|Qij|)
+    row_bounds = np.diag(Q) - np.sum(np.abs(Q), axis=1)
+    gersh_lb = np.min(row_bounds)
+
+    # ---- 3. Combine conservatively ----
+    return max(eig_lb, gersh_lb)
 
 
 # ============================================================
@@ -212,6 +227,8 @@ def strong_branch_score(G, Q_partial, candidate_idx, j, indices):
 # ============================================================
 # BnB CORE EXPANSION
 # ============================================================
+
+
 
 def expand_tuple(
         G,
@@ -295,6 +312,7 @@ def expand_tuple(
         # STATE UPDATE
         # ============================================================
         new_indices = indices + [j]
+
         Q_new = G[np.ix_(new_indices, new_indices)]
         Q_new = 0.5 * (Q_new + Q_new.T)
 
@@ -303,27 +321,21 @@ def expand_tuple(
             print("new_indices:", new_indices)
 
         # ============================================================
-        # PRUNING SANITY CHECK (ALWAYS EVALUATED)
+        # VALID LOWER BOUND PRUNING
         # ============================================================
-        lb_node = None
         can_prune = False
+        lb_node = -np.inf
 
         if len(top_tuples) == top_K:
             stats["lb_evaluated"] = stats.get("lb_evaluated", 0) + 1
 
-            # current heuristic bound
-            diag_lb = np.sum(np.minimum(0.0, np.diag(Q_new)))
-            lb_node = current_cost + diag_lb
+            lb_node = lower_bound(Q_new)
 
             can_prune = lb_node >= current_ub
-
-            if can_prune:
-                stats["lb_prunable"] = stats.get("lb_prunable", 0) + 1
 
             if debug:
                 print(f"[LB] lb_node={lb_node:.6f}, ub={current_ub:.6f}, prunable={can_prune}")
 
-        # actual pruning decision
         if can_prune:
             stats["branches_pruned"] += 1
             if debug:
