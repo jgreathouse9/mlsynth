@@ -1,7 +1,7 @@
 """
 Fast_scm_bb_helpers.py
 ----------------------
-Helper primitives for the branch-and-bound synthetic control solver.
+Helper primitives for branch-and-bound synthetic control.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ class Solution:
 
 
 # ============================================================
-# 3. SEARCH SIZE
+# 3. SEARCH SPACE
 # ============================================================
 
 def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
@@ -63,7 +63,7 @@ def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
 
 
 # ============================================================
-# 4. GREEDY INITIAL SOLUTION (RESTORED + IMPORTANT)
+# 4. GREEDY INITIALIZER (STRONG UB)
 # ============================================================
 
 def greedy_initial_solution(
@@ -71,14 +71,6 @@ def greedy_initial_solution(
     candidate_idx: np.ndarray,
     m: int,
 ) -> Tuple[List[int], float, np.ndarray]:
-    """
-    Construct a strong initial incumbent solution.
-
-    This is CRITICAL for BnB performance because:
-    - defines initial upper bound
-    - strongly influences pruning rate
-    - reduces search depth explosion
-    """
 
     selected: List[int] = []
     Q_partial = None
@@ -118,7 +110,7 @@ def greedy_initial_solution(
 
 
 # ============================================================
-# 5. LOWER BOUND (PARTIAL, FAST, STABLE)
+# 5. LOWER BOUND (PARTIAL RELAXATION)
 # ============================================================
 
 def partial_lower_bound(Q: np.ndarray) -> float:
@@ -174,7 +166,24 @@ def solve_qp_simplex_value(
 
 
 # ============================================================
-# 7. SCORING
+# 7. UTILITY: EXPAND WEIGHTS (RESTORED)
+# ============================================================
+
+def expand_weights_to_full(
+    indices: List[int],
+    weights: np.ndarray,
+    total_units: int,
+) -> np.ndarray:
+    """
+    Embed sparse solution into full-dimensional weight vector.
+    """
+    w = np.zeros(total_units)
+    w[indices] = weights
+    return w
+
+
+# ============================================================
+# 8. SCORING
 # ============================================================
 
 def strong_branch_score(
@@ -190,7 +199,7 @@ def strong_branch_score(
 
 
 # ============================================================
-# 8. BnB CORE
+# 9. BnB CORE
 # ============================================================
 
 def expand_tuple(
@@ -215,9 +224,9 @@ def expand_tuple(
     k = len(indices)
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
 
-    # ------------------------------------------------------------
+    # -----------------------------
     # CHILD SELECTION
-    # ------------------------------------------------------------
+    # -----------------------------
     start_pos = (
         int(np.searchsorted(candidate_idx, indices[-1])) + 1
         if indices else 0
@@ -233,9 +242,9 @@ def expand_tuple(
             key=lambda j: strong_branch_score(G, Q_partial, candidate_idx, j, indices)
         )
 
-    # ------------------------------------------------------------
+    # -----------------------------
     # EXPAND
-    # ------------------------------------------------------------
+    # -----------------------------
     for j in ordered:
 
         stats["branches_considered"] += 1
@@ -261,9 +270,9 @@ def expand_tuple(
 
         Q_new[k, k] = G[j, j]
 
-        # --------------------------------------------------------
+        # -----------------------------
         # PARTIAL LOWER BOUND PRUNING
-        # --------------------------------------------------------
+        # -----------------------------
         lb = partial_lower_bound(Q_new)
 
         if lb >= current_ub:
@@ -271,6 +280,7 @@ def expand_tuple(
             stats["nodes_pruned"] = stats.get("nodes_pruned", 0) + 1
             continue
 
+        # recurse
         expand_tuple(
             G=G,
             candidate_idx=candidate_idx,
