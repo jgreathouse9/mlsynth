@@ -170,25 +170,8 @@ def solve_qp_simplex_value(
 
 
 
-def lower_bound(G, partial_idx, candidate_idx, m):
-    """
-    Crude but VALID lower bound:
-    assumes best possible remaining additions are the smallest diagonal entries.
-    """
-
-    k = len(partial_idx)
-    slots_left = m - k
-
-    if slots_left <= 0:
-        Q = G[np.ix_(partial_idx, partial_idx)]
-        return lower_bound(0.5 * (Q + Q.T))
-
-    # best possible remaining candidates
-    remaining = [i for i in candidate_idx if i not in partial_idx]
-    best_vars = np.sort(np.diag(G)[remaining])[:slots_left]
-
-    # optimistic completion bound
-    return np.mean(best_vars)
+def lower_bound(Q: np.ndarray) -> float:
+    return np.min(np.diag(Q))
 
 # ============================================================
 # GREEDY INITIAL SOLUTION
@@ -332,7 +315,7 @@ def expand_tuple(
         if len(top_tuples) == top_K:
             stats["lb_evaluated"] = stats.get("lb_evaluated", 0) + 1
 
-            lb_node = lower_bound(G, new_indices, candidate_idx, m)
+            lb_node = lower_bound(G)
 
             can_prune = lb_node >= current_ub
 
