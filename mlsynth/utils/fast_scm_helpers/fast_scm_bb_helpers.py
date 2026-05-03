@@ -26,6 +26,16 @@ def reset_qp_call_count() -> None:
     global _qp_call_count
     _qp_call_count = 0
 
+
+
+def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
+    leaves = comb(M, m)
+    nodes = sum(comb(M, k) for k in range(1, m + 1))
+    return leaves, nodes
+
+
+
+
 # ============================================================
 # 2. SOLUTION CONTAINER
 # ============================================================
