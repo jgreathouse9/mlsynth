@@ -10,9 +10,7 @@ from mlsynth.utils.fast_scm_helpers.fast_scm_bb_helpers import solve_qp_simplex_
 # =========================================================
 
 def brute_force_best(G, idx, m):
-    """
-    Computes the true optimal value by exhaustive search over all subsets.
-    """
+    """Computes the true optimal value by exhaustive search over all subsets."""
     best = float("inf")
 
     for comb in itertools.combinations(idx, m):
