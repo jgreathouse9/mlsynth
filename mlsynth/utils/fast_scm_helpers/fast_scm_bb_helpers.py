@@ -1,5 +1,5 @@
 """
-Fast_scm_bb_helpers.py
+fast_scm_bb_helpers.py
 ----------------------
 Helper primitives for the branch-and-bound synthetic control solver.
 
@@ -371,6 +371,10 @@ def expand_tuple(
     """
     stats["nodes_visited"] += 1
 
+    # candidate_idx must be sorted for position-based ordering to work
+    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]), \
+        "candidate_idx must be sorted ascending before entering expand_tuple"
+
     k          = len(indices)
     slots_left = m - k
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
@@ -389,12 +393,16 @@ def expand_tuple(
         return
 
     # ------------------------------------------------------------------
-    # ENUMERATE CHILDREN (strictly larger indices only)
+    # ENUMERATE CHILDREN (strictly later positions only)
     # ------------------------------------------------------------------
-    last = indices[-1] if indices else -1
-
-    # Use searchsorted to skip candidates ≤ last in O(log M) instead of O(M)
-    start_pos = int(np.searchsorted(candidate_idx, last + 1))
+    # Ordering is by *position* in candidate_idx, not by global unit value.
+    # This guarantees each m-subset is visited exactly once regardless of
+    # whether candidate_idx is sorted.
+    if indices:
+        last_pos  = int(np.searchsorted(candidate_idx, indices[-1]))
+        start_pos = last_pos + 1
+    else:
+        start_pos = 0
 
     for pos in range(start_pos, len(candidate_idx)):
         j = candidate_idx[pos]
