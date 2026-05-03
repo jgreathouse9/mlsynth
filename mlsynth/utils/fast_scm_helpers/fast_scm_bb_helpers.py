@@ -155,8 +155,10 @@ def solve_qp_simplex_value(Q: np.ndarray, w_init=None, indices=None):
 def greedy_initial_solution(G, candidate_idx, m):
     selected = list(candidate_idx[:m])
     Q = G[np.ix_(selected, selected)]
-    return solve_qp_simplex_value(Q, indices=selected)
 
+    loss, w = solve_qp_simplex_value(Q, indices=selected)
+
+    return loss, selected, w
 
 def expand_weights_to_full(indices, weights, total_units):
     w = np.zeros(total_units)
