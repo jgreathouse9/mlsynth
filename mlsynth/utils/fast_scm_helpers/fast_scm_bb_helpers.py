@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 # ============================================================
-# 1. GLOBAL SOLVER STATE
+# 1. GLOBAL STATE
 # ============================================================
 
 _qp_call_count: int = 0
@@ -37,7 +37,7 @@ def clear_solver_cache() -> None:
 
 
 # ============================================================
-# 2. SOLUTION CONTAINER
+# 2. SOLUTION OBJECT
 # ============================================================
 
 @dataclass(order=True)
@@ -53,7 +53,7 @@ class Solution:
 
 
 # ============================================================
-# 3. SEARCH SPACE
+# 3. SEARCH SIZE
 # ============================================================
 
 def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
@@ -63,37 +63,73 @@ def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
 
 
 # ============================================================
-# 4. LOWER BOUND (REPLACED WITH STRONG PARTIAL BOUND)
+# 4. GREEDY INITIAL SOLUTION (RESTORED + IMPORTANT)
+# ============================================================
+
+def greedy_initial_solution(
+    G: np.ndarray,
+    candidate_idx: np.ndarray,
+    m: int,
+) -> Tuple[List[int], float, np.ndarray]:
+    """
+    Construct a strong initial incumbent solution.
+
+    This is CRITICAL for BnB performance because:
+    - defines initial upper bound
+    - strongly influences pruning rate
+    - reduces search depth explosion
+    """
+
+    selected: List[int] = []
+    Q_partial = None
+
+    for _ in range(m):
+        best_j = None
+        best_loss = np.inf
+        best_Q = None
+
+        for j in candidate_idx:
+            if j in selected:
+                continue
+
+            if not selected:
+                Q_new = np.array([[G[j, j]]])
+            else:
+                k = len(selected)
+                Q_new = np.empty((k + 1, k + 1))
+                Q_new[:k, :k] = Q_partial
+                g = G[j, selected]
+                Q_new[k, :k] = g
+                Q_new[:k, k] = g
+                Q_new[k, k] = G[j, j]
+
+            loss, _ = solve_qp_simplex_value(Q_new)
+
+            if loss < best_loss:
+                best_loss = loss
+                best_j = j
+                best_Q = Q_new
+
+        selected.append(best_j)
+        Q_partial = best_Q
+
+    loss, w = solve_qp_simplex_value(Q_partial)
+    return selected, loss, w
+
+
+# ============================================================
+# 5. LOWER BOUND (PARTIAL, FAST, STABLE)
 # ============================================================
 
 def partial_lower_bound(Q: np.ndarray) -> float:
-    """
-    Stronger partial lower bound:
-
-    Penalized diagonal relaxation:
-        min_i (Q_ii - sum_j |Q_ij|)
-
-    - valid for partial tuples
-    - monotone with added structure
-    - cheap O(k^2)
-    """
     diag = np.diag(Q)
-
-    # interaction penalty per row
     interaction = np.sum(np.abs(Q), axis=1) - diag
-
     adjusted = diag - interaction
-
     return float(max(0.0, np.min(adjusted)))
 
 
-# legacy stub (kept for compatibility)
-def lookahead_lower_bound(*args, **kwargs) -> float:
-    return 0.0
-
-
 # ============================================================
-# 5. QP SOLVER
+# 6. QP SOLVER
 # ============================================================
 
 def solve_qp_simplex_value(
@@ -138,7 +174,7 @@ def solve_qp_simplex_value(
 
 
 # ============================================================
-# 6. SCORING
+# 7. SCORING
 # ============================================================
 
 def strong_branch_score(
@@ -154,7 +190,7 @@ def strong_branch_score(
 
 
 # ============================================================
-# 7. BnB CORE
+# 8. BnB CORE
 # ============================================================
 
 def expand_tuple(
@@ -226,7 +262,7 @@ def expand_tuple(
         Q_new[k, k] = G[j, j]
 
         # --------------------------------------------------------
-        # PARTIAL LOWER BOUND PRUNING (ALL DEPTHS)
+        # PARTIAL LOWER BOUND PRUNING
         # --------------------------------------------------------
         lb = partial_lower_bound(Q_new)
 
@@ -235,7 +271,6 @@ def expand_tuple(
             stats["nodes_pruned"] = stats.get("nodes_pruned", 0) + 1
             continue
 
-        # recurse
         expand_tuple(
             G=G,
             candidate_idx=candidate_idx,
@@ -248,4 +283,4 @@ def expand_tuple(
             unit_costs=unit_costs,
             budget=budget,
             current_cost=new_cost,
-            )
+        )
