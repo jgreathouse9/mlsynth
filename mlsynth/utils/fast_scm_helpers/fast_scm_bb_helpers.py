@@ -124,45 +124,74 @@ import cvxpy as cp
 
 # Global cache can still be used if you want, but CVXPY warm-start is limited for small problems
 
+import numpy as np
+import cvxpy as cp
+from typing import Optional, Tuple, List
+
 def solve_qp_simplex_value(
     Q: np.ndarray,
     w_init: Optional[np.ndarray] = None,
     indices: Optional[List[int]] = None,
     **kwargs
 ) -> Tuple[float, np.ndarray]:
-
+    """
+    Reliable CVXPY-only simplex QP: min w^T Q w  s.t. w >= 0, sum(w) = 1
+    """
     global _qp_call_count
     _qp_call_count += 1
 
+    Q = np.asarray(Q, dtype=float)
     k = Q.shape[0]
 
-    w = cp.Variable(k, nonneg=True)
-    objective = cp.quad_form(w, Q)
-    prob = cp.Problem(cp.Minimize(objective), [cp.sum(w) == 1])
+    # Try OSQP first (fast)
+    solvers = [cp.OSQP, cp.ECOS, cp.SCS]   # fallback order
 
-    # Optional: warm start (CVXPY supports it modestly)
-    if w_init is not None:
-        w.value = np.maximum(w_init, 0.0)
-        w.value /= np.sum(w.value) + 1e-14
+    for solver in solvers:
+        try:
+            w = cp.Variable(k, nonneg=True)
+            objective = cp.Minimize(cp.quad_form(w, Q))
+            constraints = [cp.sum(w) == 1]
+            prob = cp.Problem(objective, constraints)
 
-    prob.solve(solver=cp.OSQP, verbose=False, eps_abs=1e-10, eps_rel=1e-10)
+            # Warm start if provided
+            if w_init is not None:
+                w.value = np.maximum(w_init, 0.0)
+                w.value /= np.sum(w.value) + 1e-14
 
-    if prob.status in ["optimal", "optimal_inaccurate"]:
-        weights = np.maximum(w.value, 0.0)
-        weights /= np.sum(weights) + 1e-14
-        loss = float(prob.value)
-    else:
-        # Fallback: use diagonal minimum if solver fails
-        weights = np.zeros(k)
-        weights[np.argmin(np.diag(Q))] = 1.0
-        loss = float(Q[np.argmin(np.diag(Q)), np.argmin(np.diag(Q))])
+            prob.solve(
+                solver=solver,
+                verbose=False,
+                eps_abs=1e-9,
+                eps_rel=1e-9,
+                max_iter=10000
+            )
 
-    # Optional caching
-    if indices is not None:
-        _warm_start_cache[tuple(indices)] = weights.copy()
+            if prob.status in ["optimal", "optimal_inaccurate"]:
+                weights = np.maximum(w.value, 0.0)
+                weights /= np.sum(weights) + 1e-14
+                
+                # CRITICAL: Always recompute loss exactly from weights
+                loss = float(weights.T @ Q @ weights)
+                
+                # Optional sanity check
+                if abs(loss - prob.value) > 1e-5:
+                    print(f"Warning: solver discrepancy {prob.value:.6f} vs recomputed {loss:.6f}")
+                
+                if indices is not None:
+                    _warm_start_cache[tuple(indices)] = weights.copy()
+                
+                return loss, weights
+
+        except Exception:
+            continue  # try next solver
+
+    # Ultimate fallback: best single unit (vertex)
+    i = int(np.argmin(np.diag(Q)))
+    weights = np.zeros(k)
+    weights[i] = 1.0
+    loss = float(Q[i, i])
 
     return loss, weights
-
 
 # ============================================================
 # LOWER BOUND
