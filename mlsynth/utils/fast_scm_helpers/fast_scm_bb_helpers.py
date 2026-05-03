@@ -1,5 +1,5 @@
 """
-Fast_scm_bb_helpers.py
+fast_scm_bb_helpers.py
 ----------------------
 Helper primitives for the branch-and-bound synthetic control solver.
 
@@ -418,11 +418,15 @@ def expand_tuple(
         Q_new[k, k] = G[j, j]
 
         # --- lower bounds ---
-        lb = simplex_lower_bound(Q_new)
-
-        if slots_left > 1:
-            remaining = candidate_idx[pos + 1:]          # already sorted, O(1) slice
-            lb = max(lb, lookahead_lower_bound(G, lb, remaining, slots_left - 1, m))
+        # simplex_lower_bound is only a valid lower bound on the *completed*
+        # m-tuple loss when k_new == m (the tuple is full).  At shallower
+        # depths, adding more units can only decrease w'Qw, so the partial
+        # bound is too high and would incorrectly prune good branches.
+        if k_new == m:
+            lb = simplex_lower_bound(Q_new)
+        else:
+            remaining = candidate_idx[pos + 1:]
+            lb = lookahead_lower_bound(G, 0.0, remaining, slots_left - 1, m)
 
         if lb >= current_ub:
             stats["branches_pruned"] += 1
