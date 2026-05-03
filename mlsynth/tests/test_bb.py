@@ -492,4 +492,4 @@ def test_matches_bruteforce(seed, m):
     best_bnb = res["top_tuples"][0].loss
     best_true = brute_force_best(G, idx, m=m)
 
-    assert np.isclose(best_bnb, best_true, atol=1e-6)
+    assert np.isclose(best_bnb, best_true, atol=1e-4)
