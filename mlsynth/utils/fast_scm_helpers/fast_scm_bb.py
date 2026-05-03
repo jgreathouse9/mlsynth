@@ -75,7 +75,7 @@ def branch_and_bound_topK(
             unit_costs=unit_costs,
             budget=budget,
             current_cost=float(unit_costs[candidate_idx[i]]),
-            debug=False
+            debug=True
         )
 
     # ============================================================
