@@ -6,7 +6,7 @@ from .fast_scm_bb_helpers import (
     compute_search_space_size,
     expand_tuple,
     expand_weights_to_full,
-    Solution,
+    Solution, greedy_initial_solution,
     get_qp_call_count,
     reset_qp_call_count,
 )
@@ -29,6 +29,8 @@ def branch_and_bound_topK(
     # Sorted order is required by expand_tuple's position-based combinatorics
     candidate_idx = np.sort(np.asarray(candidate_idx))
 
+    init_idx, init_loss, init_w = greedy_initial_solution(G, candidate_idx, m)
+
     if unit_costs is None:
         unit_costs = np.zeros(G.shape[0])
 
@@ -41,10 +43,8 @@ def branch_and_bound_topK(
         "branches_pruned": 0,
         "branches_considered": 0,
     }
-
-    # No incumbent — start with an empty top_tuples list.
-    # current_ub inside expand_tuple will be inf until top_K leaves are found.
-    top_tuples: List[Solution] = []
+    
+    top_tuples = [Solution(init_loss, init_idx, init_w)]
 
     print(f"[BnB] Running pure search over {M} candidates, m={m}")
 
