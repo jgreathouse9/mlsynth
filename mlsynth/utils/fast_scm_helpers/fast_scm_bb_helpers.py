@@ -1,5 +1,5 @@
 """
-fast_scm_bb_helpers.py
+Fast_scm_bb_helpers.py
 ----------------------
 Branch-and-bound synthetic control solver (simplex-bound version).
 
