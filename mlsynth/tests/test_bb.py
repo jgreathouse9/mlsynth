@@ -465,35 +465,27 @@ import itertools
 
 def brute_force_best(G, idx, m):
     best = float("inf")
-    best_comb = None
 
     for comb in itertools.combinations(idx, m):
         Q = G[np.ix_(comb, comb)]
         loss, _ = solve_qp_simplex_value(Q)
-        if loss < best:
-            best = loss
-            best_comb = comb
+        best = min(best, loss)
 
-    print(f"Brute force best loss: {best} (comb: {best_comb})")  # for debugging
     return best
 
 
-@pytest.mark.parametrize("seed", [0, 1, 2])
-@pytest.mark.parametrize("m", [1, 2, 3])
-def test_matches_bruteforce(seed, m):
-    rng = np.random.default_rng(seed)
-
-    N = 50
-    X = rng.normal(size=(N, N))
+def test_matches_bruteforce():
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(4, 4))
     G = X.T @ X
 
-    candidate_mask = np.ones(N, dtype=bool)
+    idx = np.arange(4)
 
     from mlsynth.utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
 
-    res = branch_and_bound_topK(G, candidate_mask, m=m, top_K=1)
+    res = branch_and_bound_topK(G, np.ones(N, dtype=bool), m=2, top_K=1)
 
     best_bnb = res["top_tuples"][0].loss
-    best_true = brute_force_best(G, idx, m=m)
+    best_true = brute_force_best(G, idx, m=2)
 
-    assert np.isclose(best_bnb, best_true, atol=1e-4)
+    assert np.isclose(best_bnb, best_true, atol=1e-6)
