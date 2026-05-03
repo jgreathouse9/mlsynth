@@ -1,14 +1,12 @@
 """
 Fast_scm_bb_helpers.py
 ----------------------
-Branch-and-bound synthetic control solver (simplex-bound version).
+Correct branch-and-bound synthetic control solver.
 
 Fixes:
-    ✔ spectral bound replaced with simplex-tight relaxation
-    ✔ pruning actually active
-    ✔ expand_tuple signature restored (unit_costs supported)
-    ✔ greedy initialization restored
-    ✔ correctness preserved (matches brute force)
+    ✔ full combinatorial correctness restored
+    ✔ no accidental subset exclusion
+    ✔ safe pruning only via explicit budget
 """
 
 from __future__ import annotations
@@ -60,7 +58,7 @@ class Solution:
 
 
 # ============================================================
-# 3. SEARCH SPACE SIZE
+# 3. GREEDY INITIAL SOLUTION
 # ============================================================
 
 def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
@@ -68,6 +66,7 @@ def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
     Q_partial = None
 
     for _ in range(m):
+
         best_j = None
         best_loss = np.inf
         best_Q = None
@@ -99,82 +98,48 @@ def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
         Q_partial = best_Q
 
     loss, w = solve_qp_simplex_value(Q_partial)
+
     return selected, loss, w
 
 
-def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
-    leaves = comb(M, m)
-    nodes = sum(comb(M, k) for k in range(1, m + 1))
-    return leaves, nodes
-
-
 # ============================================================
-# 4. TIGHT SIMPLEX LOWER BOUND (FIXED CORE)
+# 4. QP SOLVER
 # ============================================================
 
-def simplex_lower_bound(Q: np.ndarray) -> float:
-    """
-    Tight relaxation for:
-        min_{w in simplex} w^T Q w
-
-    Uses row-wise worst-case simplex collapse:
-        each row assumes all negative mass is fully usable.
-    """
-
-    lam = np.linalg.eigvalsh(Q)[0]
-    diag_min = np.min(np.diag(Q))
-
-    # key correction: convex combination safety
-    return max(0.0, min(lam, diag_min))
-
-
-# ============================================================
-# 5. QP SOLVER
-# ============================================================
-
-def solve_qp_simplex_value(
-    Q: np.ndarray,
-    w_init: Optional[np.ndarray] = None,
-    indices: Optional[List[int]] = None,
-) -> Tuple[float, np.ndarray]:
+def solve_qp_simplex_value(Q: np.ndarray,
+                          w_init=None,
+                          indices=None):
 
     global _qp_call_count
     _qp_call_count += 1
 
     k = Q.shape[0]
 
-    if w_init is None and indices is not None:
-        cached = _warm_start_cache.get(tuple(indices))
-        if cached is not None and len(cached) == k:
-            w_init = cached
-
     w = cp.Variable(k, nonneg=True)
-    prob = cp.Problem(cp.Minimize(cp.quad_form(w, Q)), [cp.sum(w) == 1])
+    prob = cp.Problem(cp.Minimize(cp.quad_form(w, Q)),
+                      [cp.sum(w) == 1])
 
     if w_init is not None:
-        wv = np.maximum(w_init, 0.0)
-        s = wv.sum()
-        w.value = wv / (s + 1e-12) if s > 0 else np.ones(k) / k
+        w0 = np.maximum(w_init, 0.0)
+        s = w0.sum()
+        w.value = w0 / (s + 1e-12) if s > 0 else np.ones(k) / k
 
     prob.solve(solver=cp.OSQP, verbose=False, warm_start=True)
 
-    if w.value is None or prob.status not in ("optimal", "optimal_inaccurate"):
-        best = int(np.argmin(np.diag(Q)))
+    if w.value is None:
+        i = int(np.argmin(np.diag(Q)))
         w_out = np.zeros(k)
-        w_out[best] = 1.0
-        return float(Q[best, best]), w_out
+        w_out[i] = 1.0
+        return float(Q[i, i]), w_out
 
     w_out = np.maximum(w.value, 0.0)
     w_out /= w_out.sum() + 1e-12
-
-    if indices is not None:
-        _warm_start_cache[tuple(indices)] = w_out.copy()
 
     return float(prob.value), w_out
 
 
 # ============================================================
-# 6. UTILS
+# 5. UTILITIES
 # ============================================================
 
 def expand_weights_to_full(indices, weights, total_units):
@@ -183,18 +148,14 @@ def expand_weights_to_full(indices, weights, total_units):
     return w
 
 
-# ============================================================
-# 7. HEURISTIC SCORE
-# ============================================================
-
-def branch_score(G: np.ndarray, j: int, indices: List[int]) -> float:
+def branch_score(G, j, indices):
     if len(indices) == 0:
         return -G[j, j]
     return -(G[j, j] + np.mean(G[j, indices]))
 
 
 # ============================================================
-# 8. BnB CORE (FIXED PRUNING)
+# 6. CORE BnB (FIXED)
 # ============================================================
 
 def expand_tuple(
@@ -212,13 +173,9 @@ def expand_tuple(
 ):
 
     stats["nodes_visited"] += 1
-
     k = len(indices)
 
-    if top_tuples:
-        current_ub = top_tuples[0].loss
-    else:
-        current_ub = np.inf
+    current_ub = top_tuples[-1].loss if len(top_tuples) >= top_K else np.inf
 
     # =========================================================
     # LEAF
@@ -238,10 +195,14 @@ def expand_tuple(
         return
 
     # =========================================================
-    # CHILD SELECTION
+    # CRITICAL FIX: correct remaining set (NO searchsorted slicing)
     # =========================================================
-    start_pos = int(np.searchsorted(candidate_idx, indices[-1])) + 1 if indices else 0
-    remaining = candidate_idx[start_pos:]
+    if len(indices) == 0:
+        remaining = candidate_idx
+    else:
+        last = indices[-1]
+        remaining = candidate_idx[candidate_idx > last]
+
     ordered = sorted(remaining, key=lambda j: branch_score(G, j, indices))
 
     # =========================================================
@@ -251,7 +212,9 @@ def expand_tuple(
 
         stats["branches_considered"] += 1
 
-        new_cost = current_cost + (float(unit_costs[j]) if unit_costs is not None else 0.0)
+        new_cost = current_cost + (
+            float(unit_costs[j]) if unit_costs is not None else 0.0
+        )
 
         if budget is not None and new_cost > budget:
             stats["branches_pruned"] += 1
@@ -267,25 +230,16 @@ def expand_tuple(
 
         Q_new[k, k] = G[j, j]
 
-        # =====================================================
-        # KEY FIX: BOUND-BASED PRUNING
-        # =====================================================
-        lb = simplex_lower_bound(Q_new)
-
-        if lb >= current_ub:
-            stats["branches_pruned"] += 1
-            continue
-
         expand_tuple(
-            G,
-            candidate_idx,
-            m,
-            top_K,
-            top_tuples,
-            indices + [j],
-            stats,
-            Q_new,
-            unit_costs,
-            budget,
-            new_cost,
+            G=G,
+            candidate_idx=candidate_idx,
+            m=m,
+            top_K=top_K,
+            top_tuples=top_tuples,
+            indices=indices + [j],
+            stats=stats,
+            Q_partial=Q_new,
+            unit_costs=unit_costs,
+            budget=budget,
+            current_cost=new_cost,
         )
