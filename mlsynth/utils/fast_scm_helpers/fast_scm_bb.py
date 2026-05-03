@@ -138,6 +138,7 @@ def branch_and_bound_topK(
         }
     }
 
+    print(stats_out)
     return {
         "top_tuples": solutions,
         "stats": stats_out
