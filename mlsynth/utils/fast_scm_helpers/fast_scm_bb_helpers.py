@@ -108,9 +108,7 @@ def compute_search_space_size(M: int, m: int):
 # ============================================================
 
 def spectral_lower_bound(Q: np.ndarray) -> float:
-    """
-    Valid lower bound for quadratic form over simplex (PSD case).
-    """
+    """Valid lower bound for quadratic form over simplex (PSD case)."""
     lam_min = float(np.linalg.eigvalsh(Q)[0])
     return max(0.0, lam_min)
 
