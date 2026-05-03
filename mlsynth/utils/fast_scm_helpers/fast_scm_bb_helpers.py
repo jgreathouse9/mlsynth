@@ -241,7 +241,7 @@ def prune_by_cost(
 # 8.  BnB RECURSIVE CORE
 # ============================================================
 
-def expand_tuple(
+depth def expand_tuple(
     G: np.ndarray,
     candidate_idx: np.ndarray,
     m: int,
@@ -255,23 +255,11 @@ def expand_tuple(
     current_cost: float = 0.0,
 ) -> None:
     """
-    Recursive BnB node expansion.
-
-    Invariants
-        • *indices* is strictly increasing (enforced by `j > last` gate).
-        • *Q_partial* is the Gram sub-matrix for the units in *indices*.
-        • Children are only spawned for j > last, guaranteeing each subset
-          is visited exactly once.
-
-    Pruning
-        • Budget cut: skip j if adding its cost exceeds the budget.
-        • Eigenvalue lower bound: skip j if lb(Q_new) ≥ current upper bound.
-        • Lookahead bound: tighter prediction using best remaining diagonals.
+    Recursive BnB node expansion with branch ordering.
     """
     stats["nodes_visited"] += 1
 
-    # candidate_idx must be sorted for position-based ordering to work
-    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]),\
+    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]), \
         "candidate_idx must be sorted ascending before entering expand_tuple"
 
     k          = len(indices)
@@ -292,20 +280,32 @@ def expand_tuple(
         return
 
     # ------------------------------------------------------------------
-    # ENUMERATE CHILDREN (strictly later positions only)
+    # DETERMINE CHILD CANDIDATES (respect ordering constraint)
     # ------------------------------------------------------------------
-    # Ordering is by *position* in candidate_idx, not by global unit value.
-    # This guarantees each m-subset is visited exactly once regardless of
-    # whether candidate_idx is sorted.
     if indices:
         last_pos  = int(np.searchsorted(candidate_idx, indices[-1]))
         start_pos = last_pos + 1
     else:
         start_pos = 0
 
-    for pos in range(start_pos, len(candidate_idx)):
-        j = candidate_idx[pos]
+    remaining = candidate_idx[start_pos:]
 
+    # ------------------------------------------------------------------
+    # NEW: ORDER CHILDREN BY HEURISTIC (lower score = more promising)
+    # ------------------------------------------------------------------
+    if len(indices) == 0:
+        # no interaction yet → use diagonal only
+        ordered = sorted(remaining, key=lambda j: -G[j, j])
+    else:
+        ordered = sorted(
+            remaining,
+            key=lambda j: strong_branch_score(G, Q_partial, candidate_idx, j, indices)
+        )
+
+    # ------------------------------------------------------------------
+    # ENUMERATE CHILDREN IN ORDER
+    # ------------------------------------------------------------------
+    for j in ordered:
         stats["branches_considered"] += 1
 
         # --- budget gate ---
@@ -314,21 +314,19 @@ def expand_tuple(
             stats["branches_pruned"] += 1
             continue
 
-        # --- build Q_new by appending row/column for j ---
-        k_new   = k + 1
-        Q_new   = np.empty((k_new, k_new))
+        # --- build Q_new ---
+        k_new = k + 1
+        Q_new = np.empty((k_new, k_new))
         Q_new[:k, :k] = Q_partial
+
         if k > 0:
             g = G[j, indices]
             Q_new[k, :k] = g
             Q_new[:k, k] = g
+
         Q_new[k, k] = G[j, j]
 
-        # --- lower bound (leaf only) ---
-        # simplex_lower_bound on the complete m-tuple is a valid lower bound.
-        # At partial depth we have no cheap valid bound, so we don't prune —
-        # off-diagonal cancellation means G[j,j] and diagonal-based heuristics
-        # are not lower bounds on the completed tuple loss.
+        # --- lower bound (only valid at full depth) ---
         if k_new == m:
             lb = simplex_lower_bound(Q_new)
             if lb >= current_ub:
@@ -348,4 +346,4 @@ def expand_tuple(
             unit_costs=unit_costs,
             budget=budget,
             current_cost=new_cost,
-            )
+        )
