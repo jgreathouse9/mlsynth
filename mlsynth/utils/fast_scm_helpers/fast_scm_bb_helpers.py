@@ -241,7 +241,7 @@ def prune_by_cost(
 # 8.  BnB RECURSIVE CORE
 # ============================================================
 
-depth def expand_tuple(
+def expand_tuple(
     G: np.ndarray,
     candidate_idx: np.ndarray,
     m: int,
