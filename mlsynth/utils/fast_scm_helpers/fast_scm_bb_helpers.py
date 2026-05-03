@@ -72,42 +72,41 @@ def solve_qp_simplex_value(Q: np.ndarray):
     w_out /= (w_out.sum() + 1e-12)
     return float(prob.value), w_out
 
+
+
+
 def solve_relaxed_lower_bound(G: np.ndarray, indices: List[int], remaining_idx: np.ndarray, m: int) -> float:
     """
-    Safe and Tighter Lower Bound for M=200.
-    Based on the Harmonic Mean of the best possible contributors.
+    Dual-Feasible Lower Bound.
+    Guaranteed safe (lower than or equal to global min).
     """
     k = len(indices)
     if k == 0: return 0.0
     
-    # 1. Identify the pool
     active_idx = np.concatenate([indices, remaining_idx])
-    diags = np.diag(G)[active_idx]
+    # Take the sub-matrix for the current branch
+    # To keep it O(M^2) instead of O(M^3), we use the trace and the min-diagonal
+    sub_diag = np.diag(G)[active_idx]
     
-    # 2. THE ANALYTICAL LOWER BOUND:
-    # For any PSD matrix G, the minimum of the quadratic form w'Gw on the simplex
-    # is exactly 1 / (ones' * G^-1 * ones) if we ignore non-negativity.
-    # To keep it fast and safe for non-negativity:
-    # min(w'Gw) >= 1 / sum(1 / diag(G_ii))
+    # 1. The 'Single Best' is an Upper Bound, not a Lower Bound.
+    # 2. The 'Combined floor' for PSD matrices:
+    # If we have m units, the variance of the sum is 1/m^2 * sum(G_ij).
+    # A safe lower bound for w'Gw on the simplex:
     
-    # This is the 'Parallel Resistance' or 'Harmonic Mean' bound.
-    # It accounts for the fact that combining donors reduces variance, 
-    # but it provides a strict floor that cannot be cheated.
+    # We use the fact that w'Gw >= min_eig(G) * ||w||^2.
+    # On the simplex with m units, ||w||^2 >= 1/m.
+    # Therefore: Floor = lambda_min(sub_G) / m.
     
-    inv_diags = 1.0 / (diags + 1e-12)
-    harmonic_floor = 1.0 / np.sum(inv_diags)
+    # Fast Gershgorin λ_min estimate:
+    # λ_min >= min_i ( G_ii - sum_{j!=i} |G_ij| )
+    row_sums = np.sum(np.abs(G[np.ix_(active_idx, active_idx)]), axis=1)
+    # G_ii is already in the row_sum, so G_ii - (row_sum - G_ii) = 2*G_ii - row_sum
+    lambda_min = np.min(2 * sub_diag - row_sums)
     
-    # 3. TIGHTENING FOR SUBSETS:
-    # Since we can only pick 'm' units, we can't actually reach the 
-    # harmonic floor of the ENTIRE pool. We can only reach the harmonic 
-    # floor of the BEST 'm' units in this branch.
-    
-    if len(diags) > m:
-        # Sort diags and take the 'm' smallest (best) ones
-        best_m_diags = np.sort(diags)[:m]
-        harmonic_floor = 1.0 / np.sum(1.0 / (best_m_diags + 1e-12))
+    # Safe floor: lambda_min / m 
+    # (Since ||w||^2 is at least 1/m on the simplex)
+    return max(0.0, lambda_min / m)
 
-    return harmonic_floor
 
 
 # ============================================================
