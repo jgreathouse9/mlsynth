@@ -142,6 +142,14 @@ def solve_qp_simplex_value(Q: np.ndarray,
 # 5. UTILITIES
 # ============================================================
 
+
+def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
+    leaves = comb(M, m)
+    nodes = sum(comb(M, k) for k in range(1, m + 1))
+    return leaves, nodes
+
+
+
 def expand_weights_to_full(indices, weights, total_units):
     w = np.zeros(total_units)
     w[indices] = weights
