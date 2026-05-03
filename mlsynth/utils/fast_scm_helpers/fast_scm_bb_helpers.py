@@ -1,8 +1,12 @@
 """
 Fast_scm_bb_helpers.py
 ----------------------
-Correct branch-and-bound synthetic control solver with Optimality Pruning.
-Optimized for M=200 using Lagrangian Simplex Bounding.
+Correct branch-and-bound synthetic control solver.
+
+Fixes:
+    ✔ full combinatorial correctness restored
+    ✔ no accidental subset exclusion
+    ✔ safe pruning only via explicit budget
 """
 
 from __future__ import annotations
@@ -13,31 +17,29 @@ from dataclasses import dataclass, field
 from math import comb
 from typing import Any, Dict, List, Optional, Tuple
 
+
 # ============================================================
 # 1. GLOBAL STATE
 # ============================================================
 
 _qp_call_count: int = 0
+_warm_start_cache: Dict[Tuple[int, ...], np.ndarray] = {}
+
 
 def get_qp_call_count() -> int:
     return _qp_call_count
+
 
 def reset_qp_call_count() -> None:
     global _qp_call_count
     _qp_call_count = 0
 
 
+def clear_solver_cache() -> None:
+    global _qp_call_count, _warm_start_cache
+    _qp_call_count = 0
+    _warm_start_cache.clear()
 
-def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
-    leaves = comb(M, m)
-    nodes = sum(comb(M, k) for k in range(1, m + 1))
-    return leaves, nodes
-
-
-def expand_weights_to_full(indices, weights, total_units):
-    w = np.zeros(total_units)
-    w[indices] = weights
-    return w
 
 # ============================================================
 # 2. SOLUTION CONTAINER
@@ -54,17 +56,75 @@ class Solution:
     cost: float = 0.0
     label: Optional[str] = field(default=None, compare=False)
 
+
 # ============================================================
-# 3. QP SOLVERS
+# 3. GREEDY INITIAL SOLUTION
 # ============================================================
 
-def solve_qp_simplex_value(Q: np.ndarray):
+def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
+    selected = []
+    Q_partial = None
+
+    for _ in range(m):
+
+        best_j = None
+        best_loss = np.inf
+        best_Q = None
+
+        for j in candidate_idx:
+            if j in selected:
+                continue
+
+            if not selected:
+                Q_new = np.array([[G[j, j]]])
+            else:
+                k = len(selected)
+                Q_new = np.empty((k + 1, k + 1))
+                Q_new[:k, :k] = Q_partial
+
+                g = G[j, selected]
+                Q_new[k, :k] = g
+                Q_new[:k, k] = g
+                Q_new[k, k] = G[j, j]
+
+            loss, _ = solve_qp_simplex_value(Q_new)
+
+            if loss < best_loss:
+                best_loss = loss
+                best_j = j
+                best_Q = Q_new
+
+        selected.append(best_j)
+        Q_partial = best_Q
+
+    loss, w = solve_qp_simplex_value(Q_partial)
+
+    return selected, loss, w
+
+
+# ============================================================
+# 4. QP SOLVER
+# ============================================================
+
+def solve_qp_simplex_value(Q: np.ndarray,
+                          w_init=None,
+                          indices=None):
+
     global _qp_call_count
     _qp_call_count += 1
+
     k = Q.shape[0]
+
     w = cp.Variable(k, nonneg=True)
-    prob = cp.Problem(cp.Minimize(cp.quad_form(w, Q)), [cp.sum(w) == 1])
-    prob.solve(solver=cp.OSQP, verbose=False)
+    prob = cp.Problem(cp.Minimize(cp.quad_form(w, Q)),
+                      [cp.sum(w) == 1])
+
+    if w_init is not None:
+        w0 = np.maximum(w_init, 0.0)
+        s = w0.sum()
+        w.value = w0 / (s + 1e-12) if s > 0 else np.ones(k) / k
+
+    prob.solve(solver=cp.OSQP, verbose=False, warm_start=True)
 
     if w.value is None:
         i = int(np.argmin(np.diag(Q)))
@@ -73,70 +133,37 @@ def solve_qp_simplex_value(Q: np.ndarray):
         return float(Q[i, i]), w_out
 
     w_out = np.maximum(w.value, 0.0)
-    w_out /= (w_out.sum() + 1e-12)
+    w_out /= w_out.sum() + 1e-12
+
     return float(prob.value), w_out
 
-def solve_relaxed_lower_bound(G: np.ndarray, indices: List[int], remaining_idx: np.ndarray, m: int) -> float:
-    """
-    Lagrangian Simplex Bound (Harmonic Floor).
-    Mathematically safe: The minimum of a quadratic form on the simplex
-    is bounded by the harmonic mean of the variances (diagonals).
-    """
-    k = len(indices)
-    # Pool of all donors available in this branch
-    active_idx = np.concatenate([indices, remaining_idx])
-    diags = np.diag(G)[active_idx]
-    
-    # Tightening: Since we can only pick 'm' units, the best possible loss
-    # is bounded by the best 'm' units available in this branch.
-    if len(diags) > m:
-        # Get the m smallest diagonals (best individual donors)
-        best_diags = np.partition(diags, m-1)[:m]
-    else:
-        best_diags = diags
-
-    # The absolute floor of w'Gw on a simplex of size m is:
-    # Floor = 1 / sum(1/sigma_i^2)
-    # This is derived from the KKT conditions of the equality-constrained problem.
-    inv_sum = np.sum(1.0 / (best_diags + 1e-12))
-    lower_bound = 1.0 / inv_sum
-    
-    return lower_bound
 
 # ============================================================
-# 4. SEARCH HELPERS
+# 5. UTILITIES
 # ============================================================
 
-def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
-    selected = []
-    current_Q = None
-    for _ in range(m):
-        best_j, best_loss, best_Q = None, np.inf, None
-        for j in candidate_idx:
-            if j in selected: continue
-            if not selected:
-                Q_new = np.array([[G[j, j]]])
-            else:
-                sz = len(selected)
-                Q_new = np.empty((sz+1, sz+1))
-                Q_new[:sz, :sz] = current_Q
-                g = G[j, selected]
-                Q_new[sz, :sz] = Q_new[:sz, sz] = g
-                Q_new[sz, sz] = G[j, j]
-            loss, _ = solve_qp_simplex_value(Q_new)
-            if loss < best_loss:
-                best_loss, best_j, best_Q = loss, j, Q_new
-        selected.append(best_j)
-        current_Q = best_Q
-    loss, w = solve_qp_simplex_value(current_Q)
-    return selected, loss, w
+
+def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
+    leaves = comb(M, m)
+    nodes = sum(comb(M, k) for k in range(1, m + 1))
+    return leaves, nodes
+
+
+
+def expand_weights_to_full(indices, weights, total_units):
+    w = np.zeros(total_units)
+    w[indices] = weights
+    return w
+
 
 def branch_score(G, j, indices):
-    if len(indices) == 0: return -G[j, j]
+    if len(indices) == 0:
+        return -G[j, j]
     return -(G[j, j] + np.mean(G[j, indices]))
 
+
 # ============================================================
-# 5. CORE BRANCH AND BOUND
+# 6. CORE BnB (FIXED)
 # ============================================================
 
 def expand_tuple(
@@ -152,54 +179,75 @@ def expand_tuple(
     budget: Optional[float] = None,
     current_cost: float = 0.0,
 ):
+
     stats["nodes_visited"] += 1
     k = len(indices)
-    
-    # 1. Dynamic Upper Bound
+
     current_ub = top_tuples[-1].loss if len(top_tuples) >= top_K else np.inf
 
-    # 2. Pruning
-    if k < m:
-        last = indices[-1] if k > 0 else -1
-        remaining = candidate_idx[candidate_idx > last]
-        
-        if len(remaining) < (m - k):
-            return
-
-        # Lagrangian Lower Bound
-        # We use a small epsilon (1e-9) to avoid pruning the optimum due to float noise
-        lb = solve_relaxed_lower_bound(G, indices, remaining, m)
-        if lb > current_ub + 1e-9 and current_ub != np.inf:
-            stats["branches_pruned"] += 1
-            return
-
-    # 3. Leaf
+    # =========================================================
+    # LEAF
+    # =========================================================
     if k == m:
         stats["subsets_evaluated"] += 1
-        loss, w = solve_qp_simplex_value(Q_partial)
-        if loss < current_ub + 1e-9:
+
+        loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
+
+        if loss < current_ub:
             top_tuples.append(Solution(loss, indices[:], w))
             top_tuples.sort(key=lambda s: s.loss)
+
             if len(top_tuples) > top_K:
                 top_tuples.pop()
+
         return
 
-    # 4. Expansion
+    # =========================================================
+    # CRITICAL FIX: correct remaining set (NO searchsorted slicing)
+    # =========================================================
+    if len(indices) == 0:
+        remaining = candidate_idx
+    else:
+        last = indices[-1]
+        remaining = candidate_idx[candidate_idx > last]
+
     ordered = sorted(remaining, key=lambda j: branch_score(G, j, indices))
+
+    # =========================================================
+    # EXPAND
+    # =========================================================
     for j in ordered:
+
         stats["branches_considered"] += 1
-        new_cost = current_cost + (float(unit_costs[j]) if unit_costs is not None else 0.0)
+
+        new_cost = current_cost + (
+            float(unit_costs[j]) if unit_costs is not None else 0.0
+        )
+
         if budget is not None and new_cost > budget:
             stats["branches_pruned"] += 1
             continue
 
-        k_next = k + 1
-        Q_next = np.empty((k_next, k_next))
-        Q_next[:k, :k] = Q_partial
-        if k > 0:
-            g = G[j, indices]
-            Q_next[k, :k] = Q_next[:k, k] = g
-        Q_next[k, k] = G[j, j]
+        k_new = k + 1
+        Q_new = np.empty((k_new, k_new))
+        Q_new[:k, :k] = Q_partial
 
-        expand_tuple(G, candidate_idx, m, top_K, top_tuples, indices + [j], 
-                     stats, Q_next, unit_costs, budget, new_cost)
+        if k > 0:
+            Q_new[k, :k] = G[j, indices]
+            Q_new[:k, k] = G[j, indices]
+
+        Q_new[k, k] = G[j, j]
+
+        expand_tuple(
+            G=G,
+            candidate_idx=candidate_idx,
+            m=m,
+            top_K=top_K,
+            top_tuples=top_tuples,
+            indices=indices + [j],
+            stats=stats,
+            Q_partial=Q_new,
+            unit_costs=unit_costs,
+            budget=budget,
+            current_cost=new_cost,
+        )
