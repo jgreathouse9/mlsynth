@@ -61,6 +61,58 @@ class Solution:
 # 3. SEARCH SPACE SIZE
 # ============================================================
 
+
+
+def greedy_initial_solution(G: np.ndarray, candidate_idx: np.ndarray, m: int):
+    """
+    Greedy construction of feasible m-tuple using incremental QP evaluation.
+
+    This produces a strong initial upper bound for BnB.
+    """
+
+    selected = []
+    Q_partial = None
+
+    for _ in range(m):
+
+        best_j = None
+        best_loss = np.inf
+        best_Q = None
+
+        for j in candidate_idx:
+            if j in selected:
+                continue
+
+            # build incremental Q
+            if not selected:
+                Q_new = np.array([[G[j, j]]])
+            else:
+                k = len(selected)
+                Q_new = np.empty((k + 1, k + 1))
+                Q_new[:k, :k] = Q_partial
+
+                g = G[j, selected]
+                Q_new[k, :k] = g
+                Q_new[:k, k] = g
+                Q_new[k, k] = G[j, j]
+
+            # exact evaluation (same as BnB leaf objective)
+            loss, _ = solve_qp_simplex_value(Q_new)
+
+            if loss < best_loss:
+                best_loss = loss
+                best_j = j
+                best_Q = Q_new
+
+        selected.append(best_j)
+        Q_partial = best_Q
+
+    # final refinement (full QP solve)
+    loss, w = solve_qp_simplex_value(Q_partial)
+
+    return selected, loss, w
+
+
 def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
     leaves = comb(M, m)
     nodes = sum(comb(M, k) for k in range(1, m + 1))
