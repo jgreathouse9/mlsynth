@@ -483,7 +483,7 @@ def test_matches_bruteforce():
 
     from mlsynth.utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
 
-    res = branch_and_bound_topK(G, np.ones(N, dtype=bool), m=2, top_K=1)
+    res = branch_and_bound_topK(G, np.ones(4, dtype=bool), m=2, top_K=1)
 
     best_bnb = res["top_tuples"][0].loss
     best_true = brute_force_best(G, idx, m=2)
