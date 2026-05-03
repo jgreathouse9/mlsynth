@@ -173,7 +173,7 @@ import numpy as np
 import cvxpy as cp
 
 
-def simplex_sdp_lower_bound(Q: np.ndarray) -> float:
+def simplex_lower_bound(Q: np.ndarray) -> float:
     """
     Correct SDP relaxation lower bound for simplex-constrained QP:
         min w^T Q w
