@@ -134,9 +134,7 @@ def solve_qp_simplex_value(
     indices: Optional[List[int]] = None,
     **kwargs
 ) -> Tuple[float, np.ndarray]:
-    """
-    Reliable CVXPY-only simplex QP: min w^T Q w  s.t. w >= 0, sum(w) = 1
-    """
+    """Reliable CVXPY-only simplex QP: min w^T Q w  s.t. w >= 0, sum(w) = 1"""
     global _qp_call_count
     _qp_call_count += 1
 
