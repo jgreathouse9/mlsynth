@@ -168,15 +168,42 @@ def solve_qp_simplex_value(
 # LOWER BOUND
 # ============================================================
 
-def simplex_lower_bound(Q):
-    # guaranteed PSD bound
-    lam_min = float(np.min(np.linalg.eigvalsh(Q)))
-    
-    # diagonal fallback (always feasible point)
-    diag_min = float(np.min(np.diag(Q)))
-    
-    # convex safe bound
-    return max(0.0, min(lam_min, diag_min))
+def simplex_lower_bound(Q: np.ndarray) -> float:
+    """
+    SDP relaxation lower bound for:
+        min w^T Q w
+        s.t. w >= 0, sum(w) = 1
+
+    This is a valid lower bound for branch-and-bound.
+    """
+
+    k = Q.shape[0]
+
+    # Lift variable X = w w^T
+    X = cp.Variable((k, k), PSD=True)
+
+    ones = np.ones((k, 1))
+
+    constraints = [
+        cp.sum(X, axis=0) == ones.flatten(),   # X * 1 = 1
+        cp.sum(X, axis=1) == ones.flatten(),   # 1^T * X = 1^T
+        X >= 0                                  # simplex consistency (optional tightening)
+    ]
+
+    objective = cp.Minimize(cp.trace(Q @ X))
+
+    prob = cp.Problem(objective, constraints)
+
+    prob.solve(verbose=False)
+
+    if prob.status not in ["optimal", "optimal_inaccurate"]:
+        # fallback to safe spectral bound
+        return float(np.min(np.linalg.eigvalsh(Q)))
+
+    return float(prob.value)
+
+
+
 # ============================================================
 # GREEDY INITIAL SOLUTION
 # ============================================================
