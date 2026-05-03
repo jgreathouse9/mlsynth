@@ -174,9 +174,7 @@ def expand_weights_to_full(
     weights: np.ndarray,
     total_units: int,
 ) -> np.ndarray:
-    """
-    Embed sparse solution into full-dimensional weight vector.
-    """
+    """Embed sparse solution into full-dimensional weight vector."""
     w = np.zeros(total_units)
     w[indices] = weights
     return w
