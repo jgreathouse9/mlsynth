@@ -1,5 +1,5 @@
 """
-fast_scm_bb_helpers.py
+Fast_scm_bb_helpers.py
 ----------------------
 Helper primitives for the branch-and-bound synthetic control solver.
 
