@@ -248,27 +248,7 @@ def strong_branch_score(
     return -G[j, j] - 2.0 * float(np.mean(G[j, indices]))
 
 
-def prune_by_correlation(
-    G: np.ndarray,
-    candidate_idx: np.ndarray,
-    threshold: float = 0.999,
-) -> np.ndarray:
-    """Remove near-duplicate candidates (pairwise correlation > threshold)."""
-    keep:    List[int] = []
-    removed: set       = set()
 
-    for i in candidate_idx:
-        if i in removed:
-            continue
-        keep.append(i)
-        for j in candidate_idx:
-            if i == j:
-                continue
-            corr = G[i, j] / (np.sqrt(G[i, i] * G[j, j]) + 1e-12)
-            if corr > threshold:
-                removed.add(j)
-
-    return np.array(keep, dtype=int)
 
 
 def prune_by_cost(
