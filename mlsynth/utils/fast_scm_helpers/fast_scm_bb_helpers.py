@@ -66,7 +66,7 @@ def solve_qp_simplex_value(Q: np.ndarray):
 def solve_relaxed_lower_bound(G: np.ndarray, indices: List[int], remaining_idx: np.ndarray, m: int) -> float:
     """
     Lagrangian Simplex Bound (Harmonic Floor).
-    Mathematically safe: The minimum of a quadratic form on the simplex 
+    Mathematically safe: The minimum of a quadratic form on the simplex
     is bounded by the harmonic mean of the variances (diagonals).
     """
     k = len(indices)
