@@ -212,25 +212,35 @@ def strong_branch_score(G, Q_partial, candidate_idx, j, indices):
 # ============================================================
 # BnB CORE EXPANSION
 # ============================================================
+
+
 def expand_tuple(
-        G, candidate_idx, m, top_K, top_tuples, indices, stats,
-        start_pos, Q_partial, unit_costs=None, budget=None, current_cost=0.0,
+        G,
+        candidate_idx,
+        m,
+        top_K,
+        top_tuples,
+        indices,
+        stats,
+        start_pos,
+        Q_partial,
+        unit_costs=None,
+        budget=None,
+        current_cost=0.0,
 ):
-    # This is a 'Node Visit', not a 'Branch Consideration'
+
     stats["nodes_visited"] += 1
     k = len(indices)
-    slots_left = m - k
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
 
-    # -----------------------------
-    # 1. BASE CASE: REACHED SIZE M
-    # -----------------------------
+    # ============================================================
+    # BASE CASE: full subset
+    # ============================================================
     if k == m:
-        print("Evaluating subset:", indices)   # 👈 DIAGNOSTIC
-
         stats["subsets_evaluated"] += 1
 
         loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
+
         top_tuples.append(Solution(loss, indices[:], w))
         top_tuples.sort(key=lambda s: s.loss)
 
@@ -239,40 +249,41 @@ def expand_tuple(
 
         return
 
-    # -----------------------------
-    # 2. EXPANSION LOOP
-    # -----------------------------
-    candidates = candidate_idx[start_pos:]
+    # ============================================================
+    # EXPAND IN STRICT INCREASING INDEX ORDER
+    # ============================================================
+    n = len(candidate_idx)
 
-    # Pre-calculate scores for the children of THIS node
-    scored = [(j, strong_branch_score(G, Q_partial, candidate_idx, j, indices)) for j in candidates]
-    scored.sort(key=lambda x: x[1])
+    for i in range(start_pos, n):
+        j = candidate_idx[i]
 
-    for j, _ in scored:
-        # Step A: Mark that we are LOOKING at this specific unit as a candidate
         stats["branches_considered"] += 1
 
-        # Step B: Check Budget for this specific unit
+        # ---- budget pruning (safe) ----
         new_cost = current_cost + (unit_costs[j] if unit_costs is not None else 0.0)
         if budget is not None and new_cost > budget:
             stats["branches_pruned"] += 1
             continue
 
-        # Step C: Incremental Gram Matrix update
-        g = G[j, indices]
-        Q_new = np.empty((k + 1, k + 1))
-        Q_new[:k, :k] = Q_partial
-        Q_new[k, :k] = g
-        Q_new[:k, k] = g
-        Q_new[k, k] = G[j, j]
+        # ---- build QP incrementally ----
+        k = len(indices)
+        if k == 0:
+            Q_new = np.array([[G[j, j]]])
+        else:
+            g = G[j, indices]
+            Q_new = np.empty((k + 1, k + 1))
+            Q_new[:k, :k] = Q_partial
+            Q_new[k, :k] = g
+            Q_new[:k, k] = g
+            Q_new[k, k] = G[j, j]
 
-        # Step D: Lower Bound Check (currently disabled)
+        # ---- OPTIONAL pruning (can be improved later) ----
         lb_node = simplex_lower_bound(Q_new)
-        # if lb_node >= current_ub:
-        #     stats["branches_pruned"] += 1
-        #     continue
+        if lb_node >= current_ub:
+            stats["branches_pruned"] += 1
+            continue
 
-        # Step F: Recurse
+        # ---- recurse with STRICT ordering ----
         expand_tuple(
             G,
             candidate_idx,
@@ -281,9 +292,9 @@ def expand_tuple(
             top_tuples,
             indices + [j],
             stats,
-            np.where(candidate_idx == j)[0][0] + 1,  # ⚠️ likely bug
+            i + 1,                 # 🔥 CRITICAL FIX
             Q_new,
             unit_costs,
             budget,
-            new_cost
+            new_cost,
         )
