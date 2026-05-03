@@ -487,11 +487,11 @@ def test_matches_bruteforce(seed, m):
     X = rng.normal(size=(N, N))
     G = X.T @ X
 
-    idx = np.arange(N)
+    candidate_mask = np.ones(N, dtype=bool)
 
     from mlsynth.utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
 
-    res = branch_and_bound_topK(G, idx, m=m, top_K=1)
+    res = branch_and_bound_topK(G, candidate_mask, m=m, top_K=1)
 
     best_bnb = res["top_tuples"][0].loss
     best_true = brute_force_best(G, idx, m=m)
