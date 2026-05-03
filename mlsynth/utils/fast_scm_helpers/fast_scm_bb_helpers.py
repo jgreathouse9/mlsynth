@@ -288,15 +288,12 @@ def expand_tuple(
         G, candidate_idx, m, top_K, top_tuples, indices, stats,
         start_pos, Q_partial, unit_costs=None, budget=None, current_cost=0.0,
 ):
-    # This is a 'Node Visit', not a 'Branch Consideration'
     stats["nodes_visited"] += 1
     k = len(indices)
     slots_left = m - k
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
 
-    # -----------------------------
-    # 1. BASE CASE: REACHED SIZE M
-    # -----------------------------
+    # Base case
     if k == m:
         stats["subsets_evaluated"] += 1
         loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
@@ -306,26 +303,24 @@ def expand_tuple(
             top_tuples.pop()
         return
 
-    # -----------------------------
-    # 2. EXPANSION LOOP
-    # -----------------------------
+    # Expansion
     candidates = candidate_idx[start_pos:]
 
-    # Pre-calculate scores for the children of THIS node
-    scored = [(j, strong_branch_score(G, Q_partial, candidate_idx, j, indices)) for j in candidates]
+    # Strong branching ordering
+    scored = [(j, strong_branch_score(G, Q_partial, candidate_idx, j, indices)) 
+              for j in candidates]
     scored.sort(key=lambda x: x[1])
 
-    for j, _ in scored:
-        # Step A: Mark that we are LOOKING at this specific unit as a candidate
+    for j, score in scored:
         stats["branches_considered"] += 1
 
-        # Step B: Check Budget for this specific unit
+        # Budget pruning
         new_cost = current_cost + (unit_costs[j] if unit_costs is not None else 0.0)
         if budget is not None and new_cost > budget:
             stats["branches_pruned"] += 1
             continue
 
-        # Step C: Incremental Gram Matrix update
+        # Incremental Q update
         g = G[j, indices]
         Q_new = np.empty((k + 1, k + 1))
         Q_new[:k, :k] = Q_partial
@@ -333,19 +328,24 @@ def expand_tuple(
         Q_new[:k, k] = g
         Q_new[k, k] = G[j, j]
 
-        # Step D: Lower Bound Check for the potential new node
+        # === LOWER BOUND (TEMPORARILY DISABLED) ===
         lb_node = simplex_lower_bound(Q_new)
-
-
-        # disable ALL lb pruning
-        if lb_node >= current_ub:
-            continue
         
+        # DISABLED for now - we need to fix correctness first
+        # if lb_node >= current_ub + 1e-6:   # small tolerance later
+        #     stats["branches_pruned"] += 1
+        #     continue
 
+        # === FIXED start_pos calculation ===
+        try:
+            pos = np.searchsorted(candidate_idx, j)   # faster + safer than np.where
+            next_start_pos = pos + 1
+        except:
+            next_start_pos = start_pos
 
-        # Step F: Success! Visit the child
+        # Recurse
         expand_tuple(
-            G, candidate_idx, m, top_K, top_tuples, indices + [j], stats,
-                                                    np.where(candidate_idx == j)[0][0] + 1,
+            G, candidate_idx, m, top_K, top_tuples, 
+            indices + [j], stats, next_start_pos,
             Q_new, unit_costs, budget, new_cost
         )
