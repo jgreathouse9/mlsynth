@@ -248,18 +248,6 @@ def strong_branch_score(
     return -G[j, j] - 2.0 * float(np.mean(G[j, indices]))
 
 
-
-
-
-def prune_by_cost(
-    candidate_idx: np.ndarray,
-    unit_costs: np.ndarray,
-    budget: float,
-) -> np.ndarray:
-    """Keep only candidates whose unit cost fits within the budget."""
-    return np.array([i for i in candidate_idx if unit_costs[i] <= budget], dtype=int)
-
-
 # ============================================================
 # 8.  BnB RECURSIVE CORE
 # ============================================================
