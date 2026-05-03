@@ -1,5 +1,5 @@
 """
-Fast_scm_bb_helpers.py
+fast_scm_bb_helpers.py
 ----------------------
 Helper primitives for the branch-and-bound synthetic control solver.
 
@@ -144,13 +144,14 @@ def simplex_lower_bound(Q: np.ndarray) -> float:
     """
     Lower bound on min_{w in Δ} w'Qw via the minimum eigenvalue of Q.
 
-    For any w in the probability simplex, w'Qw ≥ λ_min(Q) · ||w||² ≥ λ_min(Q)/k
-    where k = dim(w).  We clamp at zero because losses are non-negative.
+    For w in the probability simplex, w'Qw ≥ λ_min(Q)/k where k = dim(Q).
+    Only meaningful when Q is the *complete* m-tuple sub-matrix — off-diagonal
+    cancellation means partial-tuple diagonals are not valid lower bounds for
+    the completed loss.  Callers must only apply this when k_new == m.
     """
-    if Q.shape[0] == 1:
-        return float(Q[0, 0])
+    k = Q.shape[0]
     lam_min = float(np.linalg.eigvalsh(Q)[0])
-    return max(0.0, lam_min / Q.shape[0])
+    return max(0.0, lam_min / k)
 
 
 def lookahead_lower_bound(
@@ -372,7 +373,7 @@ def expand_tuple(
     stats["nodes_visited"] += 1
 
     # candidate_idx must be sorted for position-based ordering to work
-    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]),\
+    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]), \
         "candidate_idx must be sorted ascending before entering expand_tuple"
 
     k          = len(indices)
