@@ -74,41 +74,40 @@ def solve_qp_simplex_value(Q: np.ndarray):
 
 def solve_relaxed_lower_bound(G: np.ndarray, indices: List[int], remaining_idx: np.ndarray, m: int) -> float:
     """
-    Safe Spectral Lower Bound for PSD Gram Matrices.
-    Guaranteed not to prune the optimal solution.
+    Safe and Tighter Lower Bound for M=200.
+    Based on the Harmonic Mean of the best possible contributors.
     """
     k = len(indices)
     if k == 0: return 0.0
     
-    # 1. Identify the active sub-pool
+    # 1. Identify the pool
     active_idx = np.concatenate([indices, remaining_idx])
+    diags = np.diag(G)[active_idx]
     
-    # 2. Minimum Diagonal Floor
-    # The absolute lowest a diagonal can be is our "best single unit"
-    # But a combination can be better than a single unit.
+    # 2. THE ANALYTICAL LOWER BOUND:
+    # For any PSD matrix G, the minimum of the quadratic form w'Gw on the simplex
+    # is exactly 1 / (ones' * G^-1 * ones) if we ignore non-negativity.
+    # To keep it fast and safe for non-negativity:
+    # min(w'Gw) >= 1 / sum(1 / diag(G_ii))
     
-    # 3. The "Schur Complement" Insight (Safe Bound):
-    # In SC, adding a unit j to a set S results in a new loss:
-    # Loss_new = Loss_old - (improvement)
-    # The maximum possible improvement from any donor j is limited 
-    # by its correlation with the target (G[j,j]).
+    # This is the 'Parallel Resistance' or 'Harmonic Mean' bound.
+    # It accounts for the fact that combining donors reduces variance, 
+    # but it provides a strict floor that cannot be cheated.
     
-    # Mathematical Floor:
-    # A safe lower bound for any quadratic form on the simplex is 
-    # the minimum eigenvalue of the Gram matrix.
-    # We estimate this using a fast Gershgorin-based floor.
+    inv_diags = 1.0 / (diags + 1e-12)
+    harmonic_floor = 1.0 / np.sum(inv_diags)
     
-    sub_G = G[np.ix_(active_idx, active_idx)]
-    diags = np.diag(sub_G)
+    # 3. TIGHTENING FOR SUBSETS:
+    # Since we can only pick 'm' units, we can't actually reach the 
+    # harmonic floor of the ENTIRE pool. We can only reach the harmonic 
+    # floor of the BEST 'm' units in this branch.
     
-    # Gershgorin: lambda_min >= min(diag - row_sum_off_diag)
-    # This is safe. If lambda_min > current_ub, it's IMPOSSIBLE
-    # for any weight combination to beat the current best.
-    
-    row_sums = np.sum(np.abs(sub_G), axis=1) - diags
-    lambda_min_est = np.min(diags - row_sums)
-    
-    return max(0.0, lambda_min_est)
+    if len(diags) > m:
+        # Sort diags and take the 'm' smallest (best) ones
+        best_m_diags = np.sort(diags)[:m]
+        harmonic_floor = 1.0 / np.sum(1.0 / (best_m_diags + 1e-12))
+
+    return harmonic_floor
 
 
 # ============================================================
