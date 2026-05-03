@@ -297,45 +297,49 @@ def expand_tuple(
     budget: Optional[float] = None,
     current_cost: float = 0.0,
 ) -> None:
-    """Recursive BnB node expansion with branch ordering."""
-    stats["nodes_visited"] += 1
 
-    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]),\
+    stats["nodes_visited"] += 1
+    stats["nodes_generated"] = stats.get("nodes_generated", 0) + 1
+
+    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]), \
         "candidate_idx must be sorted ascending before entering expand_tuple"
 
-    k          = len(indices)
+    k = len(indices)
     slots_left = m - k
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
 
-    # ------------------------------------------------------------------
-    # BASE CASE: tuple is complete
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------------
+    # BASE CASE (leaf node)
+    # ---------------------------------------------------------------
     if k == m:
         stats["subsets_evaluated"] += 1
+        stats["leaf_nodes"] = stats.get("leaf_nodes", 0) + 1
+
         loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
 
         top_tuples.append(Solution(loss, indices[:], w))
         top_tuples.sort(key=lambda s: s.loss)
+
         if len(top_tuples) > top_K:
             top_tuples.pop()
+
         return
 
-    # ------------------------------------------------------------------
-    # DETERMINE CHILD CANDIDATES (respect ordering constraint)
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------------
+    # CHILD SELECTION (ordering constraint)
+    # ---------------------------------------------------------------
     if indices:
-        last_pos  = int(np.searchsorted(candidate_idx, indices[-1]))
+        last_pos = int(np.searchsorted(candidate_idx, indices[-1]))
         start_pos = last_pos + 1
     else:
         start_pos = 0
 
     remaining = candidate_idx[start_pos:]
 
-    # ------------------------------------------------------------------
-    # NEW: ORDER CHILDREN BY HEURISTIC (lower score = more promising)
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------------
+    # HEURISTIC ORDERING
+    # ---------------------------------------------------------------
     if len(indices) == 0:
-        # no interaction yet → use diagonal only
         ordered = sorted(remaining, key=lambda j: -G[j, j])
     else:
         ordered = sorted(
@@ -343,19 +347,24 @@ def expand_tuple(
             key=lambda j: strong_branch_score(G, Q_partial, candidate_idx, j, indices)
         )
 
-    # ------------------------------------------------------------------
-    # ENUMERATE CHILDREN IN ORDER
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------------
+    # EXPAND CHILDREN
+    # ---------------------------------------------------------------
     for j in ordered:
+
         stats["branches_considered"] += 1
 
-        # --- budget gate ---
-        new_cost = current_cost + (float(unit_costs[j]) if unit_costs is not None else 0.0)
+        new_cost = current_cost + (
+            float(unit_costs[j]) if unit_costs is not None else 0.0
+        )
+
+        # ---- budget pruning ----
         if budget is not None and new_cost > budget:
             stats["branches_pruned"] += 1
+            stats["nodes_pruned"] = stats.get("nodes_pruned", 0) + 1
             continue
 
-        # --- build Q_new ---
+        # ---- build Q_new ----
         k_new = k + 1
         Q_new = np.empty((k_new, k_new))
         Q_new[:k, :k] = Q_partial
@@ -367,14 +376,15 @@ def expand_tuple(
 
         Q_new[k, k] = G[j, j]
 
-        # --- lower bound (only valid at full depth) ---
+        # ---- bound pruning (only at full depth) ----
         if k_new == m:
             lb = simplex_lower_bound(Q_new)
             if lb >= current_ub:
                 stats["branches_pruned"] += 1
+                stats["nodes_pruned"] = stats.get("nodes_pruned", 0) + 1
                 continue
 
-        # --- recurse ---
+        # ---- recurse ----
         expand_tuple(
             G=G,
             candidate_idx=candidate_idx,
