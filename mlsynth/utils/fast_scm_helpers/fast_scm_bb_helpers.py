@@ -169,7 +169,7 @@ def solve_qp_simplex_value(
 # ============================================================
 
 def simplex_lower_bound(Q):
-    return float(np.min(np.diag(Q)))
+    return np.min(np.linalg.eigvalsh(Q))
 
 
 # ============================================================
