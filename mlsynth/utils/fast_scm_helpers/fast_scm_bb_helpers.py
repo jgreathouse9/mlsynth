@@ -74,8 +74,8 @@ def solve_qp_simplex_value(Q: np.ndarray):
 
 def solve_relaxed_lower_bound(G: np.ndarray, indices: List[int], remaining_idx: np.ndarray, m: int) -> float:
     """
-    Computes a lower bound for the branch. 
-    It allows the remaining (m - k) units to be selected from the 'remaining_idx' 
+    Computes a lower bound for the branch.
+    It allows the remaining (m - k) units to be selected from the 'remaining_idx'
     pool with continuous weights (a convex relaxation of the subset selection).
     """
     k = len(indices)
