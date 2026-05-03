@@ -9,8 +9,7 @@ from .fast_scm_bb_helpers import (
     expand_weights_to_full,
     Solution,
     get_qp_call_count,
-    reset_qp_call_count, 
-    presolve_candidates
+    reset_qp_call_count,
 )
 
 
@@ -24,6 +23,7 @@ def branch_and_bound_topK(
         unit_costs: Optional[np.ndarray] = None,
         budget: Optional[float] = None
 ) -> Dict[str, Any]:
+
     start_time = time.time()
     reset_qp_call_count()
 
@@ -31,21 +31,10 @@ def branch_and_bound_topK(
         unit_costs = np.zeros(G.shape[0])
 
     # ============================================================
-    # 1. PRESOLVE & ORDERING
+    # NO HEURISTIC ORDERING
+    # PURE DETERMINISTIC ORDER
     # ============================================================
-    # Initial sorting (smaller diagonal first = potentially better units)
-    marginal_scores = np.diag(G) + lam * unit_costs
-    sorted_order = np.argsort(marginal_scores[candidate_idx])
-    candidate_idx = candidate_idx[sorted_order]
-
-    # Presolve
-    candidate_idx = presolve_candidates(
-        G=G,
-        candidate_idx=candidate_idx,
-        budget=budget,
-        unit_costs=unit_costs,
-        m=m
-    )
+    candidate_idx = np.array(candidate_idx)
 
     M = len(candidate_idx)
     total_subsets, total_nodes = compute_search_space_size(M, m)
@@ -58,49 +47,34 @@ def branch_and_bound_topK(
     }
 
     # ============================================================
-    # 2. INITIAL SOLUTION
+    # INITIAL SOLUTION (kept ONLY for top-K initialization)
     # ============================================================
     init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
-
     top_tuples: List[Solution] = [Solution(init_loss, init_idx, init_w)]
 
     # ============================================================
-    # 3. IMPROVED SEEDING
+    # PURE ENUMERATION START
     # ============================================================
-    # Much wider seeding + safety net for small problems
-    if m <= 3 and M <= 30:
-        # For small cases (like your test), seed from ALL candidates
-        num_seeds = M
-        print(f"Small case detected (m={m}, M={M}) — seeding from ALL {M} candidates")
-    else:
-        num_seeds = min(M, max(20, 150 * m))   # increased base + scaling
+    print(f"[BnB] Running pure search over {M} candidates, m={m}")
 
-    seed_set = candidate_idx
-    print(f"Seeding from first {len(seed_set)} / {M} candidates (for m={m})")
+    for i in range(M):
 
-    for j in seed_set:
         stats["branches_considered"] += 1
 
-        # Root-level pruning (safe)
-        if len(top_tuples) == top_K and G[j, j] >= top_tuples[-1].loss:
-            stats["branches_pruned"] += 1
-            continue
-
-        j_pos = np.where(candidate_idx == j)[0][0]
-
+        # Root expansion
         expand_tuple(
             G=G,
             candidate_idx=candidate_idx,
             m=m,
             top_K=top_K,
             top_tuples=top_tuples,
-            indices=[j],
+            indices=[candidate_idx[i]],
             stats=stats,
-            start_pos=j_pos + 1,
-            Q_partial=np.array([[G[j, j]]]),
+            start_pos=i + 1,
+            Q_partial=np.array([[G[candidate_idx[i], candidate_idx[i]]]]),
             unit_costs=unit_costs,
             budget=budget,
-            current_cost=float(unit_costs[j]),
+            current_cost=float(unit_costs[candidate_idx[i]]),
             debug=False
         )
 
@@ -133,15 +107,6 @@ def branch_and_bound_topK(
 
     node_fraction = stats["nodes_visited"] / total_nodes if total_nodes else 0
     subset_fraction = stats["subsets_evaluated"] / total_subsets if total_subsets else 0
-    prune_rate = (
-        stats["branches_pruned"] / stats["branches_considered"]
-        if stats["branches_considered"] else 0
-    )
-    speedup = (
-        total_subsets / stats["subsets_evaluated"]
-        if stats["subsets_evaluated"] else np.inf
-    )
-    improvement = init_loss - best_loss
     qp_calls = get_qp_call_count()
 
     stats_out = {
@@ -155,19 +120,18 @@ def branch_and_bound_topK(
         "pruning": {
             "branches_considered": stats["branches_considered"],
             "branches_pruned": stats["branches_pruned"],
-            "prune_rate": prune_rate,
+            "prune_rate": 0.0,  # disabled
         },
         "performance": {
             "runtime_sec": elapsed,
             "nodes_per_sec": stats["nodes_visited"] / elapsed if elapsed else 0,
-            "speedup_factor": speedup,
             "qp_calls": qp_calls,
             "qp_per_node": qp_calls / stats["nodes_visited"] if stats["nodes_visited"] else 0.0,
         },
         "optimality": {
             "initial_loss": init_loss,
             "best_loss": best_loss,
-            "improvement": improvement,
+            "improvement": init_loss - best_loss,
         },
         "bestvworst": {
             "design_stability": (worst_loss - best_loss) / best_loss if best_loss else 0
