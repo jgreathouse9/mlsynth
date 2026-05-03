@@ -236,25 +236,53 @@ def expand_tuple(
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
 
     # ============================================================
+    # DEBUG: NODE ENTRY
+    # ============================================================
+    if debug:
+        print("\n" + "=" * 80)
+        print(f"[NODE] indices={indices}")
+        print(f"[NODE] depth={k} / {m}")
+        print(f"[NODE] current_ub={current_ub}")
+        print(f"[NODE] current_cost={current_cost}")
+
+    # ============================================================
     # BASE CASE
     # ============================================================
     if k == m:
         stats["subsets_evaluated"] += 1
 
-        # ------------------------------------------------------------
-        # 🔴 CRITICAL: enforce exact same objective as brute force
-        # ------------------------------------------------------------
         Q_exact = G[np.ix_(indices, indices)]
+        Q_exact = 0.5 * (Q_exact + Q_exact.T)
 
         loss, w = solve_qp_simplex_value(Q_exact, indices=indices)
 
-        # optional sanity check
+        # ------------------------------------------------------------
+        # DEBUG: solver + objective diagnostics
+        # ------------------------------------------------------------
+        if debug:
+            diag_min = np.min(np.diag(Q_exact))
+            eig_min = np.min(np.linalg.eigvalsh(Q_exact))
+
+            print("\n[LEAF]")
+            print("indices:", indices)
+            print("Q shape:", Q_exact.shape)
+            print("diag min:", diag_min)
+            print("eig min:", eig_min)
+            print("qp loss:", loss)
+            print("weights:", w)
+
+            # sanity: diagonal baseline
+            print("diag baseline:", diag_min)
+
+        # ------------------------------------------------------------
+        # consistency check
+        # ------------------------------------------------------------
         if debug:
             loss_check, _ = solve_qp_simplex_value(Q_exact)
             if not np.isclose(loss, loss_check, atol=1e-8):
-                print("OBJECTIVE INCONSISTENCY DETECTED")
-                print("indices:", indices)
-                print("loss:", loss, "check:", loss_check)
+                print("\n[WARNING] INCONSISTENT SOLVER RUN")
+                print("loss:", loss)
+                print("check:", loss_check)
                 raise ValueError("QP mismatch detected")
 
         top_tuples.append(Solution(loss, indices[:], w))
@@ -266,7 +294,7 @@ def expand_tuple(
         return
 
     # ============================================================
-    # EXPANSION LOOP (STRICT COMBINATORIAL ORDER)
+    # EXPANSION LOOP
     # ============================================================
     n = len(candidate_idx)
 
@@ -275,29 +303,40 @@ def expand_tuple(
 
         stats["branches_considered"] += 1
 
-        # ---- budget pruning ----
         new_cost = current_cost + (unit_costs[j] if unit_costs is not None else 0.0)
+
+        if debug:
+            print(f"\n[BRANCH] trying j={j}, cost={new_cost}")
+
+        # ---- budget pruning ----
         if budget is not None and new_cost > budget:
             stats["branches_pruned"] += 1
+            if debug:
+                print(f"[PRUNE] budget exceeded: {new_cost} > {budget}")
             continue
 
         # ============================================================
-        # SAFE STATE UPDATE (no incremental Q used for correctness)
+        # STATE UPDATE
         # ============================================================
         new_indices = indices + [j]
-
-        k_next = len(new_indices)
         Q_new = G[np.ix_(new_indices, new_indices)]
-
-        # optional symmetry safety (helps OSQP stability)
         Q_new = 0.5 * (Q_new + Q_new.T)
 
+        if debug:
+            print("[Q DEBUG]")
+            print("new_indices:", new_indices)
+            print("Q_new shape:", Q_new.shape)
+            print("diag:", np.diag(Q_new))
+            print("eig_min:", np.min(np.linalg.eigvalsh(Q_new)))
+
         # ============================================================
-        # OPTIONAL PRUNING (currently minimal / safe)
+        # PRUNING (disabled but logged if active)
         # ============================================================
         # lb_node = np.min(np.linalg.eigvalsh(Q_new))
         # if lb_node >= current_ub:
         #     stats["branches_pruned"] += 1
+        #     if debug:
+        #         print(f"[PRUNE] lb={lb_node} >= ub={current_ub}")
         #     continue
 
         # ============================================================
@@ -312,7 +351,7 @@ def expand_tuple(
             new_indices,
             stats,
             i + 1,
-            Q_partial=None,   # not used anymore
+            Q_partial=None,
             unit_costs=unit_costs,
             budget=budget,
             current_cost=new_cost,
