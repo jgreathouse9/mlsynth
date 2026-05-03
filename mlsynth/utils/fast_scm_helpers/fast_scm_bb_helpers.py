@@ -167,19 +167,27 @@ def solve_qp_simplex_value(
 # ============================================================
 # LOWER BOUND
 # ============================================================
-def lower_bound_partial(G, indices, candidate_idx):
-    if len(indices) == 0:
-        return -np.inf
 
-    Q = G[np.ix_(indices, indices)]
+def simplex_lower_bound(Q: np.ndarray) -> float:
+    """Balanced safe + tighter bound for Gram submatrices (PSD)"""
+    k = Q.shape[0]
+    if k == 1:
+        return float(Q[0, 0])
 
-    # current best achievable inside node
-    base = np.min(np.diag(Q))
+    diags = np.diag(Q)
+    diag_min = float(np.min(diags))
+    lambda_min = float(np.min(np.linalg.eigvalsh(Q)))
 
-    # allow adding best possible future unit
-    best_future = np.min(np.diag(G)[candidate_idx])
+    # A bit more aggressive but still reasonably safe combination
+    lb = max(
+        0.0,
+        lambda_min,                    # strong and safe
+        diag_min * 0.65,               # increased from 0.5
+        (diag_min + lambda_min) * 0.5  # gentle blending
+    )
+    return lb
 
-    return min(base, best_future)
+
 
 # ============================================================
 # GREEDY INITIAL SOLUTION
@@ -221,144 +229,77 @@ def strong_branch_score(G, Q_partial, candidate_idx, j, indices):
 # ============================================================
 # BnB CORE EXPANSION
 # ============================================================
-
 def expand_tuple(
-        G,
-        candidate_idx,
-        m,
-        top_K,
-        top_tuples,
-        indices,
-        stats,
-        start_pos,
-        Q_partial,
-        unit_costs=None,
-        budget=None,
-        current_cost=0.0,
-        debug=True,
+        G, candidate_idx, m, top_K, top_tuples, indices, stats,
+        start_pos, Q_partial, unit_costs=None, budget=None, current_cost=0.0,
 ):
-
+    # This is a 'Node Visit', not a 'Branch Consideration'
     stats["nodes_visited"] += 1
     k = len(indices)
-
+    slots_left = m - k
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
 
-    # ============================================================
-    # DEBUG: NODE ENTRY
-    # ============================================================
-    if debug:
-        print("\n" + "=" * 80)
-        print(f"[NODE] indices={indices}")
-        print(f"[NODE] depth={k} / {m}")
-        print(f"[NODE] current_ub={current_ub}")
-        print(f"[NODE] current_cost={current_cost}")
-
-    # ============================================================
-    # BASE CASE
-    # ============================================================
+    # -----------------------------
+    # 1. BASE CASE: REACHED SIZE M
+    # -----------------------------
     if k == m:
         stats["subsets_evaluated"] += 1
-
-        Q_exact = G[np.ix_(indices, indices)]
-        Q_exact = 0.5 * (Q_exact + Q_exact.T)
-
-        loss, w = solve_qp_simplex_value(Q_exact, indices=indices)
-
-        if debug:
-            print("\n[LEAF]")
-            print("indices:", indices)
-            print("qp loss:", loss)
-            print("weights:", w)
-
+        loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
         top_tuples.append(Solution(loss, indices[:], w))
         top_tuples.sort(key=lambda s: s.loss)
-
         if len(top_tuples) > top_K:
             top_tuples.pop()
-
         return
 
-    # ============================================================
-    # PRUNING HELPERS (VALID LOWER BOUND)
-    # ============================================================
-    def lower_bound_partial(G, idx_set):
-        """
-        Valid but simple lower bound for partial selection.
-        Uses diagonal relaxation (safe for pruning).
-        """
-        if len(idx_set) == 0:
-            return -np.inf
+    # -----------------------------
+    # 2. EXPANSION LOOP
+    # -----------------------------
+    candidates = candidate_idx[start_pos:]
 
-        Q = G[np.ix_(idx_set, idx_set)]
+    # Pre-calculate scores for the children of THIS node
+    scored = [(j, strong_branch_score(G, Q_partial, candidate_idx, j, indices)) for j in candidates]
+    scored.sort(key=lambda x: x[1])
 
-        # diagonal relaxation (SAFE bound)
-        return np.min(np.diag(Q))
-
-    # ============================================================
-    # EXPANSION LOOP
-    # ============================================================
-    n = len(candidate_idx)
-
-    for i in range(start_pos, n):
-        j = candidate_idx[i]
-
+    for j, _ in scored:
+        # Step A: Mark that we are LOOKING at this specific unit as a candidate
         stats["branches_considered"] += 1
 
+        # Step B: Check Budget for this specific unit
         new_cost = current_cost + (unit_costs[j] if unit_costs is not None else 0.0)
-
-        if debug:
-            print(f"\n[BRANCH] trying j={j}, cost={new_cost}")
-
-        # ---- budget pruning ----
         if budget is not None and new_cost > budget:
             stats["branches_pruned"] += 1
-            if debug:
-                print(f"[PRUNE] budget exceeded: {new_cost} > {budget}")
             continue
 
-        # ============================================================
-        # STATE UPDATE
-        # ============================================================
-        new_indices = indices + [j]
+        # Step C: Incremental Gram Matrix update
+        g = G[j, indices]
+        Q_new = np.empty((k + 1, k + 1))
+        Q_new[:k, :k] = Q_partial
+        Q_new[k, :k] = g
+        Q_new[:k, k] = g
+        Q_new[k, k] = G[j, j]
 
-        if debug:
-            print("[Q DEBUG]")
-            print("new_indices:", new_indices)
+        # Step D: Lower Bound Check for the potential new node
+        lb_node = simplex_lower_bound(Q_new)
 
-        # ============================================================
-        # LOWER BOUND PRUNING (CORRECT VERSION)
-        # ============================================================
-        if len(top_tuples) == top_K:
-            stats["lb_evaluated"] = stats.get("lb_evaluated", 0) + 1
+        # Step E: Lookahead Check (Predictive)
+        # We do this here so it counts as pruning the branch we just 'considered'
+        if k + 1 < m:
+            # Remaining pool for the NEXT level
+            next_start_pos = np.where(candidate_idx == j)[0][0] + 1
+            remaining_pool = candidate_idx[next_start_pos:]
 
-            lb_node = lower_bound_partial(G, new_indices)
+            lb_predicted = lookahead_lower_bound(G, lb_node, remaining_pool, m - (k + 1), m)
+            lb_to_check = max(lb_node, lb_predicted)
+        else:
+            lb_to_check = lb_node
 
-            can_prune = lb_node >= current_ub
+        if lb_to_check >= current_ub:
+            stats["branches_pruned"] += 1
+            continue
 
-            if debug:
-                print(f"[LB] lb_node={lb_node:.6f}, ub={current_ub:.6f}, prunable={can_prune}")
-
-            if can_prune:
-                stats["branches_pruned"] += 1
-                if debug:
-                    print(f"[PRUNE] lb={lb_node:.6f} >= ub={current_ub:.6f}")
-                continue
-
-        # ============================================================
-        # RECURSE
-        # ============================================================
+        # Step F: Success! Visit the child
         expand_tuple(
-            G,
-            candidate_idx,
-            m,
-            top_K,
-            top_tuples,
-            new_indices,
-            stats,
-            i + 1,
-            Q_partial=None,
-            unit_costs=unit_costs,
-            budget=budget,
-            current_cost=new_cost,
-            debug=debug,
+            G, candidate_idx, m, top_K, top_tuples, indices + [j], stats,
+                                                    np.where(candidate_idx == j)[0][0] + 1,
+            Q_new, unit_costs, budget, new_cost
         )
