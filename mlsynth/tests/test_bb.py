@@ -474,6 +474,7 @@ def brute_force_best(G, idx, m):
     return best
 
 
+
 def test_matches_bruteforce():
     rng = np.random.default_rng(0)
     X = rng.normal(size=(4, 4))
@@ -487,5 +488,8 @@ def test_matches_bruteforce():
 
     best_bnb = res["top_tuples"][0].loss
     best_true = brute_force_best(G, idx, m=2)
+
+    print("\nBNB best loss:", best_bnb)
+    print("Brute force best loss:", best_true)
 
     assert np.isclose(best_bnb, best_true, atol=1e-6)
