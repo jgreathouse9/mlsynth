@@ -137,9 +137,7 @@ def expand_weights_to_full(
     weights: np.ndarray,
     total_units: int,
 ) -> np.ndarray:
-    """
-    Expand sparse weight vector into full-length representation.
-    """
+    """Expand sparse weight vector into full-length representation."""
     w = np.zeros(total_units)
     w[indices] = weights
     return w
