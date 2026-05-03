@@ -1,5 +1,5 @@
 """
-Fast_scm_bb_helpers.py
+fast_scm_bb_helpers.py
 ----------------------
 Helper primitives for the branch-and-bound synthetic control solver.
 
@@ -104,19 +104,15 @@ def lookahead_lower_bound(
     m: int,
 ) -> float:
     """
-    Cheap predictive lower bound that blends the current partial bound with
-    the average diagonal of the best `slots_left` remaining candidates.
+    Always returns 0.0.
 
-    Ignores cross-terms, so it is optimistic but fast.
+    A diagonal-based lookahead is not a valid lower bound for w'Qw over the
+    m-tuple simplex because off-diagonal cancellation can drive the completed
+    loss arbitrarily below any individual G[j,j].  This stub is kept so call
+    sites compile; it will be replaced once a provably valid partial bound is
+    derived.
     """
-    if slots_left <= 0 or len(remaining) == 0:
-        return lb_so_far
-
-    best_diags = np.sort(np.diag(G)[remaining])[: max(1, slots_left)]
-    avg_best   = float(np.mean(best_diags))
-
-    k_filled = m - slots_left
-    return max(lb_so_far, (k_filled / m) * lb_so_far + (slots_left / m) * avg_best)
+    return 0.0
 
 
 # ============================================================
@@ -275,7 +271,7 @@ def expand_tuple(
     stats["nodes_visited"] += 1
 
     # candidate_idx must be sorted for position-based ordering to work
-    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]),\
+    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]), \
         "candidate_idx must be sorted ascending before entering expand_tuple"
 
     k          = len(indices)
@@ -328,20 +324,16 @@ def expand_tuple(
             Q_new[:k, k] = g
         Q_new[k, k] = G[j, j]
 
-        # --- lower bounds ---
-        # simplex_lower_bound is only a valid lower bound on the *completed*
-        # m-tuple loss when k_new == m (the tuple is full).  At shallower
-        # depths, adding more units can only decrease w'Qw, so the partial
-        # bound is too high and would incorrectly prune good branches.
+        # --- lower bound (leaf only) ---
+        # simplex_lower_bound on the complete m-tuple is a valid lower bound.
+        # At partial depth we have no cheap valid bound, so we don't prune —
+        # off-diagonal cancellation means G[j,j] and diagonal-based heuristics
+        # are not lower bounds on the completed tuple loss.
         if k_new == m:
             lb = simplex_lower_bound(Q_new)
-        else:
-            remaining = candidate_idx[pos + 1:]
-            lb = lookahead_lower_bound(G, 0.0, remaining, slots_left - 1, m)
-
-        if lb >= current_ub:
-            stats["branches_pruned"] += 1
-            continue
+            if lb >= current_ub:
+                stats["branches_pruned"] += 1
+                continue
 
         # --- recurse ---
         expand_tuple(
@@ -356,4 +348,4 @@ def expand_tuple(
             unit_costs=unit_costs,
             budget=budget,
             current_cost=new_cost,
-        )
+            )
