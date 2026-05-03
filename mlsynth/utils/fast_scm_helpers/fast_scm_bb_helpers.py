@@ -269,6 +269,11 @@ def expand_tuple(
 
         # Step D: Lower Bound Check for the potential new node
         lb_node = simplex_lower_bound(Q_new)
+
+
+        # disable ALL lb pruning
+        if lb_node >= current_ub:
+            continue
         
 
 
