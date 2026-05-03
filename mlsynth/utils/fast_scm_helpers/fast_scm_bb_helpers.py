@@ -177,7 +177,7 @@ def simplex_lower_bound(Q: np.ndarray,
                        eps: float = 1e-8) -> float:
     """
     SDP relaxation lower bound for min w^T Q w  s.t.  w >= 0, sum(w)=1.
-    
+
     Returns a valid lower bound (up to numerical tolerance).
     """
     k = Q.shape[0]
