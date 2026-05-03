@@ -1,12 +1,14 @@
 import numpy as np
 import time
 from typing import List, Optional, Dict, Any
+
 from .fast_scm_setup import IndexSet
 from .fast_scm_bb_helpers import (
     compute_search_space_size,
     expand_tuple,
     expand_weights_to_full,
-    Solution, greedy_initial_solution,
+    Solution,
+    greedy_initial_solution,
     get_qp_call_count,
     reset_qp_call_count,
 )
@@ -26,10 +28,10 @@ def branch_and_bound_topK(
     start_time = time.time()
     reset_qp_call_count()
 
-    # Sorted order is required by expand_tuple's position-based combinatorics
+    # ------------------------------------------------------------
+    # PREP
+    # ------------------------------------------------------------
     candidate_idx = np.sort(np.asarray(candidate_idx))
-
-    init_idx, init_loss, init_w = greedy_initial_solution(G, candidate_idx, m)
 
     if unit_costs is None:
         unit_costs = np.zeros(G.shape[0])
@@ -37,18 +39,27 @@ def branch_and_bound_topK(
     M = len(candidate_idx)
     total_subsets, total_nodes = compute_search_space_size(M, m)
 
+    # ------------------------------------------------------------
+    # INITIAL UPPER BOUND (greedy)
+    # ------------------------------------------------------------
+    init_idx, init_loss, init_w = greedy_initial_solution(G, candidate_idx, m)
+    top_tuples: List[Solution] = [Solution(init_loss, init_idx, init_w)]
+
+    print(f"[BnB] Running pure search over {M} candidates, m={m}")
+
+    # ------------------------------------------------------------
+    # STATS
+    # ------------------------------------------------------------
     stats = {
         "nodes_visited": 0,
         "subsets_evaluated": 0,
         "branches_pruned": 0,
         "branches_considered": 0,
     }
-    
-    top_tuples = [Solution(init_loss, init_idx, init_w)]
 
-    print(f"[BnB] Running pure search over {M} candidates, m={m}")
-
-    # Root expansion: seed one unit at a time
+    # ------------------------------------------------------------
+    # ROOT EXPANSION
+    # ------------------------------------------------------------
     for i in candidate_idx:
         stats["branches_considered"] += 1
 
@@ -71,9 +82,9 @@ def branch_and_bound_topK(
             current_cost=cost_i,
         )
 
-    # ----------------------------------------------------------------
-    # Final processing
-    # ----------------------------------------------------------------
+    # ------------------------------------------------------------
+    # FINAL SOLUTIONS
+    # ------------------------------------------------------------
     solutions = sorted(top_tuples, key=lambda s: s.loss)
 
     total_units = len(unit_index) if unit_index is not None else G.shape[0]
@@ -88,16 +99,41 @@ def branch_and_bound_topK(
                 for idx, w in zip(sol.indices, sol.weights)
             }
 
-    # ----------------------------------------------------------------
-    # Stats
-    # ----------------------------------------------------------------
-    elapsed       = time.time() - start_time
-    best_loss     = solutions[0].loss if solutions else np.inf
-    worst_loss    = solutions[-1].loss if solutions else np.inf
+    # ------------------------------------------------------------
+    # PERFORMANCE METRICS
+    # ------------------------------------------------------------
+    elapsed = time.time() - start_time
+    best_loss = solutions[0].loss if solutions else np.inf
+    worst_loss = solutions[-1].loss if solutions else np.inf
+
     node_fraction = stats["nodes_visited"] / total_nodes if total_nodes else 0
     subset_fraction = stats["subsets_evaluated"] / total_subsets if total_subsets else 0
-    qp_calls      = get_qp_call_count()
 
+    qp_calls = get_qp_call_count()
+
+    # ------------------------------------------------------------
+    # NEW METRICS
+    # ------------------------------------------------------------
+
+    prune_rate = (
+        stats["branches_pruned"] / stats["branches_considered"]
+        if stats["branches_considered"] > 0 else 0.0
+    )
+
+    exhaustive_qp_calls = total_subsets
+    speedup_factor = (
+        exhaustive_qp_calls / qp_calls
+        if qp_calls > 0 else float("inf")
+    )
+
+    qp_per_subset_ratio = (
+        qp_calls / total_subsets
+        if total_subsets > 0 else 0.0
+    )
+
+    # ------------------------------------------------------------
+    # OUTPUT STATS
+    # ------------------------------------------------------------
     stats_out = {
         "search_space": {
             "total_subsets": total_subsets,
@@ -112,18 +148,21 @@ def branch_and_bound_topK(
         "pruning": {
             "branches_considered": stats["branches_considered"],
             "branches_pruned": stats["branches_pruned"],
+            "prune_rate": prune_rate,
         },
         "performance": {
             "runtime_sec": elapsed,
-            "nodes_per_sec": stats["nodes_visited"] / elapsed if elapsed else 0,
+            "nodes_per_sec": stats["nodes_visited"] / elapsed if elapsed else 0.0,
             "qp_calls": qp_calls,
             "qp_per_node": qp_calls / stats["nodes_visited"] if stats["nodes_visited"] else 0.0,
+            "qp_per_subset_ratio": qp_per_subset_ratio,
+            "speedup_factor_vs_bruteforce": speedup_factor,
         },
         "optimality": {
             "best_loss": best_loss,
         },
         "bestvworst": {
-            "design_stability": (worst_loss - best_loss) / best_loss if best_loss else 0,
+            "design_stability": (worst_loss - best_loss) / best_loss if best_loss else 0.0,
         },
     }
 
