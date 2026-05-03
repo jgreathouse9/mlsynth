@@ -169,15 +169,14 @@ def solve_qp_simplex_value(
 # ============================================================
 
 def simplex_lower_bound(Q):
-    k = Q.shape[0]
-
-    if k == 1:
-        return float(Q[0, 0])
-
-    lambda_min = float(np.min(np.linalg.eigvalsh(Q)))
-
-    return max(0.0, lambda_min / k)
-
+    # guaranteed PSD bound
+    lam_min = float(np.min(np.linalg.eigvalsh(Q)))
+    
+    # diagonal fallback (always feasible point)
+    diag_min = float(np.min(np.diag(Q)))
+    
+    # convex safe bound
+    return max(0.0, min(lam_min, diag_min))
 # ============================================================
 # GREEDY INITIAL SOLUTION
 # ============================================================
