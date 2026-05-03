@@ -125,15 +125,13 @@ def branch_and_bound_topK(
         else 0.0
     )
 
+    node_prune_rate = stats["nodes_pruned"] / max(stats["nodes_generated"], 1)
+
     qp_per_node = (
         qp_calls / stats["nodes_visited"] if stats["nodes_visited"] else 0.0
     )
 
-    qp_per_subset_ratio = (
-        qp_calls / stats["subsets_evaluated"]
-        if stats["subsets_evaluated"]
-        else 0.0
-    )
+    qp_per_subset_ratio = qp_calls / max(stats["subsets_evaluated"], 1)
 
     design_stability = (
         (worst_loss - best_loss) / abs(best_loss)
