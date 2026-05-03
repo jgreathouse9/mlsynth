@@ -14,14 +14,14 @@ from .fast_scm_bb_helpers import (
 
 
 def branch_and_bound_topK(
-        G: np.ndarray,
-        candidate_idx: np.ndarray,
-        m: int = 5,
-        lam: float = 0.0,
-        top_K: int = 20,
-        unit_index: Optional[IndexSet] = None,
-        unit_costs: Optional[np.ndarray] = None,
-        budget: Optional[float] = None
+    G: np.ndarray,
+    candidate_idx: np.ndarray,
+    m: int = 5,
+    lam: float = 0.0,
+    top_K: int = 20,
+    unit_index: Optional[IndexSet] = None,
+    unit_costs: Optional[np.ndarray] = None,
+    budget: Optional[float] = None
 ) -> Dict[str, Any]:
 
     start_time = time.time()
@@ -30,10 +30,6 @@ def branch_and_bound_topK(
     if unit_costs is None:
         unit_costs = np.zeros(G.shape[0])
 
-    # ============================================================
-    # NO HEURISTIC ORDERING
-    # PURE DETERMINISTIC ORDER
-    # ============================================================
     candidate_idx = np.array(candidate_idx)
 
     M = len(candidate_idx)
@@ -46,40 +42,45 @@ def branch_and_bound_topK(
         "branches_considered": 0,
     }
 
-    # ============================================================
-    # INITIAL SOLUTION (kept ONLY for top-K initialization)
-    # ============================================================
+    # ------------------------------------------------------------
+    # INITIAL SOLUTION (incumbent)
+    # ------------------------------------------------------------
     init_loss, init_idx, init_w = greedy_initial_solution(G, candidate_idx, m)
     top_tuples: List[Solution] = [Solution(init_loss, init_idx, init_w)]
 
-    # ============================================================
-    # PURE ENUMERATION START
-    # ============================================================
     print(f"[BnB] Running pure search over {M} candidates, m={m}")
 
-    for i in range(M):
+    # ------------------------------------------------------------
+    # ROOT EXPANSION (FIXED)
+    # ------------------------------------------------------------
+    for i in candidate_idx:
 
         stats["branches_considered"] += 1
 
-        # Root expansion
+        cost_i = float(unit_costs[i]) if unit_costs is not None else 0.0
+        if budget is not None and cost_i > budget:
+            stats["branches_pruned"] += 1
+            continue
+
+        Q0 = np.array([[G[i, i]]])
+
         expand_tuple(
             G=G,
             candidate_idx=candidate_idx,
             m=m,
             top_K=top_K,
             top_tuples=top_tuples,
-            indices=[candidate_idx[i]],
+            indices=[i],
             stats=stats,
-            start_pos=i + 1,
-            Q_partial=np.array([[G[candidate_idx[i], candidate_idx[i]]]]),
+            Q_partial=Q0,
             unit_costs=unit_costs,
             budget=budget,
-            current_cost=float(unit_costs[candidate_idx[i]])
+            current_cost=cost_i,
         )
 
-    # ============================================================
+    # ------------------------------------------------------------
     # FINAL PROCESSING
-    # ============================================================
+    # ------------------------------------------------------------
     solutions = sorted(top_tuples, key=lambda s: s.loss)
 
     total_units = len(unit_index) if unit_index is not None else G.shape[0]
@@ -97,9 +98,9 @@ def branch_and_bound_topK(
                 for idx, w in zip(sol.indices, sol.weights)
             }
 
-    # ============================================================
+    # ------------------------------------------------------------
     # METRICS
-    # ============================================================
+    # ------------------------------------------------------------
     elapsed = time.time() - start_time
     best_loss = solutions[0].loss if solutions else np.inf
     worst_loss = solutions[-1].loss if solutions else np.inf
@@ -119,7 +120,6 @@ def branch_and_bound_topK(
         "pruning": {
             "branches_considered": stats["branches_considered"],
             "branches_pruned": stats["branches_pruned"],
-            "prune_rate": 0.0,  # disabled
         },
         "performance": {
             "runtime_sec": elapsed,
@@ -138,6 +138,7 @@ def branch_and_bound_topK(
     }
 
     print(stats_out)
+
     return {
         "top_tuples": solutions,
         "stats": stats_out
