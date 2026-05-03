@@ -74,8 +74,7 @@ def branch_and_bound_topK(
             Q_partial=np.array([[G[candidate_idx[i], candidate_idx[i]]]]),
             unit_costs=unit_costs,
             budget=budget,
-            current_cost=float(unit_costs[candidate_idx[i]]),
-            debug=True
+            current_cost=float(unit_costs[candidate_idx[i]])
         )
 
     # ============================================================
