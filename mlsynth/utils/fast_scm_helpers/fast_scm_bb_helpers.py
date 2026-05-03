@@ -74,7 +74,7 @@ def solve_qp_simplex_value(Q: np.ndarray):
 def solve_relaxed_lower_bound(G: np.ndarray, indices: List[int], remaining_idx: np.ndarray, m: int) -> float:
     """
     Computes a spectral lower bound for the branch using Gershgorin properties.
-    For a PSD Gram matrix G, the min of w'Gw on the simplex is bounded by the 
+    For a PSD Gram matrix G, the min of w'Gw on the simplex is bounded by the
     smallest eigenvalue, which we estimate via Gershgorin discs.
     """
     k = len(indices)
