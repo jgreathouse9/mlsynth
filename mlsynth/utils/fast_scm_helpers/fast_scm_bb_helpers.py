@@ -300,4 +300,3 @@ def expand_tuple(
             Q_partial=Q_new, global_lb=global_lb, unit_costs=unit_costs,
             budget=budget, current_cost=new_cost
         )
-```
