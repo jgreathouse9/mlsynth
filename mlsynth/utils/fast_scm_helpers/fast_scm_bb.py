@@ -39,6 +39,8 @@ def branch_and_bound_topK(
     # Compute once — valid lower bound at every depth and every subset.
     global_lb = compute_global_lower_bound(G, m)
 
+    lam_min_global = float(np.linalg.eigvalsh(G)[0])
+
     stats: Dict[str, Any] = {
         "nodes_visited":       0,
         "nodes_generated":     0,
@@ -77,6 +79,7 @@ def branch_and_bound_topK(
             indices=[i],
             stats=stats,
             Q_partial=np.array([[G[i, i]]]),
+            lam_min_global=lam_min_global,
             global_lb=global_lb,
             unit_costs=unit_costs,
             budget=budget,
