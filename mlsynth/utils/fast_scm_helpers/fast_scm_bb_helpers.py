@@ -1,17 +1,8 @@
+
 """
 Fast_scm_bb_helpers.py
 ----------------------
 Helper primitives for the branch-and-bound synthetic control solver.
-
-Sections
-    1. Global solver state
-    2. Solution container
-    3. Search-space sizing
-    4. Lower-bound functions
-    5. QP solver
-    6. Utility
-    7. Scoring / pruning helpers
-    8. BnB recursive core
 """
 
 from __future__ import annotations
@@ -85,13 +76,6 @@ def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
 def compute_global_lower_bound(G: np.ndarray, m: int) -> float:
     """
     Universal lower bound λ_min(G) / m, valid at any partial depth.
-
-    Proof: Cauchy interlacing guarantees λ_min(Q_S) ≥ λ_min(G) for any
-    principal submatrix Q_S of G.  For any w ∈ Δ_m:
-        w'Q_S w ≥ λ_min(Q_S) / m ≥ λ_min(G) / m.
-
-    Compute once before the search; pass the scalar into expand_tuple.
-    Empirically validated against all partial depths in test_partial_bounds.py.
     """
     lam_min = float(np.linalg.eigvalsh(G)[0])
     return max(0.0, lam_min / m)
@@ -100,10 +84,6 @@ def compute_global_lower_bound(G: np.ndarray, m: int) -> float:
 def simplex_lower_bound(Q: np.ndarray) -> float:
     """
     Tighter leaf-only bound: λ_min(Q_full) / m for the complete m-tuple.
-
-    Only valid when Q is the full m×m submatrix (k_new == m).  At partial
-    depth, off-diagonal cancellation invalidates diagonal-based or partial
-    eigenvalue bounds — use global_lb there instead.
     """
     k = Q.shape[0]
     lam_min = float(np.linalg.eigvalsh(Q)[0])
@@ -119,17 +99,11 @@ def solve_qp_simplex_value(
     w_init: Optional[np.ndarray] = None,
     indices: Optional[List[int]] = None,
 ) -> Tuple[float, np.ndarray]:
-    """
-    Solve  min_{w ≥ 0, 1'w = 1}  w'Qw  via OSQP.
-
-    Warm-starts from cache when w_init is absent; stores result when
-    indices is provided.  Falls back to best single-unit on solver failure.
-    """
+    """Solve min_{w ≥ 0, 1'w = 1} w'Qw via OSQP."""
     global _qp_call_count
     _qp_call_count += 1
 
     k = Q.shape[0]
-
     if w_init is None and indices is not None:
         cached = _warm_start_cache.get(tuple(indices))
         if cached is not None and len(cached) == k:
@@ -169,7 +143,6 @@ def expand_weights_to_full(
     weights: np.ndarray,
     total_units: int,
 ) -> np.ndarray:
-    """Embed a sparse weight vector into a zero-padded full-length array."""
     w = np.zeros(total_units)
     w[indices] = weights
     return w
@@ -180,36 +153,25 @@ def greedy_initial_solution(
     candidate_idx: np.ndarray,
     m: int,
 ) -> Tuple[List[int], float, np.ndarray]:
-    """
-    Build a feasible m-tuple greedily by minimizing QP loss at each step.
-    Returns (indices, loss, weights).
-    """
     selected: List[int]             = []
     Q_partial: Optional[np.ndarray] = None
 
     for _ in range(m):
-        best_j    = None
-        best_loss = np.inf
-        best_Q    = None
-
+        best_j, best_loss, best_Q = None, np.inf, None
         for j in candidate_idx:
-            if j in selected:
-                continue
+            if j in selected: continue
             if not selected:
                 Q_new = np.array([[G[j, j]]])
             else:
-                k     = len(selected)
+                k = len(selected)
                 Q_new = np.empty((k + 1, k + 1))
                 Q_new[:k, :k] = Q_partial
                 g = G[j, selected]
-                Q_new[k, :k] = g
-                Q_new[:k, k] = g
-                Q_new[k, k]  = G[j, j]
+                Q_new[k, :k], Q_new[:k, k], Q_new[k, k] = g, g, G[j, j]
 
             loss, _ = solve_qp_simplex_value(Q_new)
             if loss < best_loss:
                 best_loss, best_j, best_Q = loss, j, Q_new
-
         selected.append(best_j)
         Q_partial = best_Q
 
@@ -228,11 +190,6 @@ def strong_branch_score(
     j: int,
     indices: List[int],
 ) -> float:
-    """
-    Cheap heuristic branching score (lower = more promising).
-
-    Uses diagonal self-interaction and mean cross-term with current selection.
-    """
     if len(indices) == 0:
         return -G[j, j]
     return -G[j, j] - 2.0 * float(np.mean(G[j, indices]))
@@ -256,64 +213,49 @@ def expand_tuple(
     budget: Optional[float] = None,
     current_cost: float = 0.0,
 ) -> None:
-    """
-    Recursive BnB node expansion.
-
-    Two-layer pruning:
-        1. Any depth  — global_lb = λ_min(G)/m.  Validated in
-           test_partial_bounds.py; prunes entire subtrees for free.
-        2. Leaf only  — simplex_lower_bound(Q_new) = λ_min(Q_full)/m.
-           Tighter than the global bound; avoids the QP call when it fires.
-    """
-    stats["nodes_visited"]  += 1
-    stats["nodes_generated"] = stats.get("nodes_generated", 0) + 1
-
-    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]),\
-        "candidate_idx must be sorted ascending"
-
-    k          = len(indices)
+    """Recursive BnB node expansion with branch-killer local diagonal pruning."""
+    stats["nodes_visited"] += 1
+    k = len(indices)
     current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
 
-    # ------------------------------------------------------------------
-    # LAYER 1: partial-depth global bound
-    # Prune this node immediately if no completion can beat the incumbent.
-    # ------------------------------------------------------------------
+    # LAYER 1: Global Cauchy Bound
     if global_lb >= current_ub:
         stats["branches_pruned"] += 1
-        stats["nodes_pruned"]     = stats.get("nodes_pruned", 0) + 1
         key = f"depth_{k}_global"
         stats["pruned_by_depth"][key] = stats["pruned_by_depth"].get(key, 0) + 1
         return
 
-    # ------------------------------------------------------------------
     # BASE CASE
-    # ------------------------------------------------------------------
     if k == m:
         stats["subsets_evaluated"] += 1
-        stats["leaf_nodes"]         = stats.get("leaf_nodes", 0) + 1
-
+        stats["leaf_nodes"] = stats.get("leaf_nodes", 0) + 1
         loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
-
         top_tuples.append(Solution(loss, indices[:], w))
         top_tuples.sort(key=lambda s: s.loss)
-        if len(top_tuples) > top_K:
-            top_tuples.pop()
+        if len(top_tuples) > top_K: top_tuples.pop()
         return
 
-    # ------------------------------------------------------------------
-    # CHILD ORDERING
-    # Position-based start_pos ensures each subset is visited exactly once.
-    # Heuristic ordering puts promising children first to tighten current_ub
-    # early and increase pruning effectiveness downstream.
-    # ------------------------------------------------------------------
+    # FIND REMAINING CANDIDATES
     if indices:
-        last_pos  = int(np.searchsorted(candidate_idx, indices[-1]))
+        last_pos = int(np.searchsorted(candidate_idx, indices[-1]))
         start_pos = last_pos + 1
     else:
         start_pos = 0
-
     remaining = candidate_idx[start_pos:]
 
+    # LAYER 1.5: Local Diagonal Bound (THE BRANCH KILLER)
+    # If the best remaining individual donor is still too poor to contribute to a 
+    # winning tuple, kill the entire subtree. Valid floor for simplex: min(diag)/m.
+    if len(remaining) > 0:
+        best_rem_diag = np.min(np.diag(G)[remaining])
+        local_branch_lb = best_rem_diag / m
+        if local_branch_lb >= current_ub:
+            stats["branches_pruned"] += 1
+            key = f"depth_{k}_local_diag"
+            stats["pruned_by_depth"][key] = stats["pruned_by_depth"].get(key, 0) + 1
+            return
+
+    # HEURISTIC ORDERING
     if len(indices) == 0:
         ordered = sorted(remaining, key=lambda j: -G[j, j])
     else:
@@ -322,52 +264,40 @@ def expand_tuple(
             key=lambda j: strong_branch_score(G, Q_partial, candidate_idx, j, indices),
         )
 
-    # ------------------------------------------------------------------
     # EXPAND CHILDREN
-    # ------------------------------------------------------------------
     for j in ordered:
         stats["branches_considered"] += 1
 
-        # budget gate
+        # Budget Gate
         new_cost = current_cost + (float(unit_costs[j]) if unit_costs is not None else 0.0)
         if budget is not None and new_cost > budget:
             stats["branches_pruned"] += 1
-            stats["nodes_pruned"]     = stats.get("nodes_pruned", 0) + 1
             key = f"depth_{k}_budget"
             stats["pruned_by_depth"][key] = stats["pruned_by_depth"].get(key, 0) + 1
             continue
 
-        # incremental Gram sub-matrix
+        # Incremental Gram construction
         k_new = k + 1
         Q_new = np.empty((k_new, k_new))
         Q_new[:k, :k] = Q_partial
         if k > 0:
             g = G[j, indices]
-            Q_new[k, :k] = g
-            Q_new[:k, k] = g
+            Q_new[k, :k], Q_new[:k, k] = g, g
         Q_new[k, k] = G[j, j]
 
-        # LAYER 2: tighter leaf-only bound (saves the QP call when it fires)
+        # LAYER 2: Tighter Leaf-only Eigenvalue Bound
         if k_new == m:
             lb_leaf = simplex_lower_bound(Q_new)
             if lb_leaf >= current_ub:
                 stats["branches_pruned"] += 1
-                stats["nodes_pruned"]     = stats.get("nodes_pruned", 0) + 1
                 key = f"depth_{k_new}_leaf_eig"
                 stats["pruned_by_depth"][key] = stats["pruned_by_depth"].get(key, 0) + 1
                 continue
 
         expand_tuple(
-            G=G,
-            candidate_idx=candidate_idx,
-            m=m,
-            top_K=top_K,
-            top_tuples=top_tuples,
-            indices=indices + [j],
-            stats=stats,
-            Q_partial=Q_new,
-            global_lb=global_lb,
-            unit_costs=unit_costs,
-            budget=budget,
-            current_cost=new_cost,
+            G=G, candidate_idx=candidate_idx, m=m, top_K=top_K,
+            top_tuples=top_tuples, indices=indices + [j], stats=stats,
+            Q_partial=Q_new, global_lb=global_lb, unit_costs=unit_costs,
+            budget=budget, current_cost=new_cost
         )
+```
