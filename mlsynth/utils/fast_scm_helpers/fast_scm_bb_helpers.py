@@ -74,17 +74,13 @@ def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
 # ============================================================
 
 def compute_global_lower_bound(G: np.ndarray, m: int) -> float:
-    """
-    Universal lower bound λ_min(G) / m, valid at any partial depth.
-    """
+    """Universal lower bound λ_min(G) / m, valid at any partial depth."""
     lam_min = float(np.linalg.eigvalsh(G)[0])
     return max(0.0, lam_min / m)
 
 
 def simplex_lower_bound(Q: np.ndarray) -> float:
-    """
-    Tighter leaf-only bound: λ_min(Q_full) / m for the complete m-tuple.
-    """
+    """Tighter leaf-only bound: λ_min(Q_full) / m for the complete m-tuple."""
     k = Q.shape[0]
     lam_min = float(np.linalg.eigvalsh(Q)[0])
     return max(0.0, lam_min / k)
