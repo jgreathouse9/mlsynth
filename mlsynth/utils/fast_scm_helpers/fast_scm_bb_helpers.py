@@ -1,5 +1,5 @@
 """
-fast_scm_bb_helpers.py
+Fast_scm_bb_helpers.py
 ----------------------
 Helper primitives for the branch-and-bound synthetic control solver.
 
@@ -268,7 +268,7 @@ def expand_tuple(
     stats["nodes_visited"]  += 1
     stats["nodes_generated"] = stats.get("nodes_generated", 0) + 1
 
-    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]), \
+    assert np.all(candidate_idx[:-1] <= candidate_idx[1:]),\
         "candidate_idx must be sorted ascending"
 
     k          = len(indices)
