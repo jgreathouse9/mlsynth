@@ -1,309 +1,390 @@
-"""
-Fast_scm_bb_helpers.py
-----------------------
-Helper primitives for the branch-and-bound synthetic control solver.
-
-Now includes:
-- Global Cauchy bound (safe)
-- Leaf eigenvalue bound (safe)
-- Schur-style relaxation bound for partial nodes (safe + tighter)
-
-Guaranteed to find the global optimum.
-"""
-
 from __future__ import annotations
 
 import numpy as np
 import cvxpy as cp
 from dataclasses import dataclass, field
 from math import comb
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 
 # ============================================================
-# 1. GLOBAL SOLVER STATE
+# GLOBAL STATE
 # ============================================================
 
-_qp_call_count: int = 0
-_warm_start_cache: Dict[Tuple[int, ...], np.ndarray] = {}
+_qp_call_count = 0
+_warm_start_cache = {}
 
 
-def get_qp_call_count() -> int:
-    return _qp_call_count
-
-
-def reset_qp_call_count() -> None:
+def reset_qp_call_count():
     global _qp_call_count
     _qp_call_count = 0
 
 
-def clear_solver_cache() -> None:
+def get_qp_call_count():
+    return _qp_call_count
+
+
+def clear_cache():
     global _qp_call_count, _warm_start_cache
     _qp_call_count = 0
     _warm_start_cache.clear()
 
 
-def expand_weights_to_full(indices: List[int], weights: np.ndarray, total: int) -> np.ndarray:
-    w = np.zeros(total)
-    w[indices] = weights
-    return w
+def compute_search_space_size(M: int, m: int):
+    total_subsets = comb(M, m)
+    total_nodes = sum(comb(M, k) for k in range(1, m + 1))
+    return total_subsets, total_nodes
+
+
+def expand_weights_to_full(indices, weights, total_units):
+    w_full = np.zeros(total_units)
+    w_full[indices] = weights
+    return w_full
+
 
 # ============================================================
-# 2. SOLUTION CONTAINER
+# PRECOMPUTED STRUCTURE
+# ============================================================
+
+class Precomputed:
+    def __init__(self, G: np.ndarray):
+        self.G = G
+        self.n = G.shape[0]
+        self.lam_min_global = float(np.linalg.eigvalsh(G)[0])
+
+
+# ============================================================
+# SOLUTION
 # ============================================================
 
 @dataclass(order=True)
 class Solution:
     loss: float
-    indices: List[int]                      = field(compare=False)
-    weights: np.ndarray                     = field(compare=False)
-    labels: Optional[List[Any]]             = field(default=None, compare=False)
-    full_weights: Optional[np.ndarray]      = field(default=None, compare=False)
-    weight_dict: Optional[Dict[Any, float]] = field(default=None, compare=False)
-    cost: float                             = 0.0
-    label: Optional[str]                    = field(default=None, compare=False)
+    indices: List[int] = field(compare=False)
+    weights: np.ndarray = field(compare=False)
 
 
 # ============================================================
-# 3. SEARCH SPACE
+# PRESOLVE
 # ============================================================
 
-def compute_search_space_size(M: int, m: int) -> Tuple[int, int]:
-    leaves = comb(M, m)
-    nodes  = sum(comb(M, k) for k in range(1, m + 1))
-    return leaves, nodes
+def presolve(pre: Precomputed, candidate_idx: np.ndarray, budget=None, unit_costs=None):
+
+    idx = candidate_idx.copy()
+
+    if budget is not None and unit_costs is not None:
+        idx = idx[unit_costs[idx] <= budget]
+
+    # simple variance filter (kept as heuristic ONLY for search space reduction)
+    diag = np.diag(pre.G)[idx]
+    med = np.median(diag)
+    idx = idx[diag <= med * 30]
+
+    keep = []
+    for i in idx:
+        if not keep:
+            keep.append(i)
+            continue
+
+        if all(
+            pre.G[i, j] / np.sqrt(pre.G[i, i] * pre.G[j, j]) < 0.9995
+            for j in keep[-10:]
+        ):
+            keep.append(i)
+
+    return np.array(keep)
 
 
 # ============================================================
-# 4. LOWER BOUNDS
+# BOUNDS (UPDATED: SIMPLEX-AWARE)
 # ============================================================
 
-def compute_global_lower_bound(G: np.ndarray, m: int) -> float:
-    lam_min = float(np.linalg.eigvalsh(G)[0])
-    return max(0.0, lam_min / m)
+def global_lower_bound(pre: Precomputed, m: int) -> float:
+    return max(0.0, pre.lam_min_global / m)
 
 
-def simplex_lower_bound(Q: np.ndarray) -> float:
+def diagonal_bound_Q(Q: np.ndarray):
+    return float(np.min(np.diag(Q)))
+
+
+def spectral_lower_bound(Q: np.ndarray):
+    return float(np.linalg.eigvalsh(Q)[0])
+
+
+def affine_relaxation_bound(Q: np.ndarray):
+    """
+    Tight lower bound using:
+        min w^T Q w  s.t. sum(w)=1 (no nonnegativity)
+
+    This captures the simplex structure MUCH better than eigenvalue bounds.
+    """
     k = Q.shape[0]
-    lam_min = float(np.linalg.eigvalsh(Q)[0])
-    return max(0.0, lam_min / k)
+
+    if k == 1:
+        return float(Q[0, 0])
+
+    ones = np.ones(k)
+
+    try:
+        # Solve Qx = 1 (more stable than inverse)
+        x = np.linalg.solve(Q, ones)
+        denom = ones @ x
+
+        if denom <= 1e-12:
+            return 0.0
+
+        val = 1.0 / denom
+        return float(max(0.0, val))
+
+    except np.linalg.LinAlgError:
+        return spectral_lower_bound(Q)
 
 
-def schur_relaxation_lower_bound(
-    Q_partial: np.ndarray,
-    lam_min_global: float
-) -> float:
-    """
-    Valid partial-node bound using a two-block relaxation.
+def completion_cross_bound(pre: Precomputed, Q: np.ndarray, remaining: np.ndarray):
 
-    Combines:
-        current curvature (λ_min(Q_partial))
-        best-case future curvature (λ_min(G))
+    # current subset relaxation
+    f_S = affine_relaxation_bound(Q)
 
-    Returns
-    -------
-    float
-        Safe lower bound for any completion.
-    """
-    if Q_partial.size == 0:
+    if len(remaining) == 0:
+        return f_S
+
+    diag = np.diag(pre.G)
+    d_R = float(np.min(diag[remaining]))
+
+    # cross-term approximation
+    cross_vals = []
+    for i in range(Q.shape[0]):
+        cross_vals.append(np.min(pre.G[i, remaining]))
+
+    c_bar = float(np.min(cross_vals))
+
+    # avoid degenerate cases
+    if d_R <= 0:
         return 0.0
 
-    a = float(np.linalg.eigvalsh(Q_partial)[0])
-    b = lam_min_global
+    den = f_S + d_R - 2 * c_bar
+    if abs(den) < 1e-12:
+        return min(f_S, d_R)
 
-    a = max(a, 0.0)
-    b = max(b, 0.0)
+    alpha = (d_R - c_bar) / den
+    alpha = np.clip(alpha, 0.0, 1.0)
 
-    if a + b <= 1e-12:
-        return 0.0
+    return (
+        (f_S + d_R - 2*c_bar) * alpha**2
+        + 2*(c_bar - d_R) * alpha
+        + d_R
+    )
 
-    return (a * b) / (a + b)
+
+def sdp_bound(Q: np.ndarray):
+    """
+    (Optional) SDP relaxation.
+    Kept for experimentation, but usually unnecessary now.
+    """
+    k = Q.shape[0]
+
+    X = cp.Variable((k, k), PSD=True)
+
+    constraints = [
+        cp.trace(X) == 1,
+        cp.sum(X) == 1,
+    ]
+
+    prob = cp.Problem(cp.Minimize(cp.trace(Q @ X)), constraints)
+    prob.solve()
+
+    if X.value is None:
+        return spectral_lower_bound(Q)
+
+    return float(prob.value)
 
 
 # ============================================================
-# 5. QP SOLVER
+# QP SOLVER (CACHED)
 # ============================================================
 
-def solve_qp_simplex_value(
-    Q: np.ndarray,
-    w_init: Optional[np.ndarray] = None,
-    indices: Optional[List[int]] = None,
-) -> Tuple[float, np.ndarray]:
-    global _qp_call_count
+
+def solve_qp(Q: np.ndarray):
+    global _qp_call_count, _warm_start_cache
+
+    # Better cache key (faster + safer)
+    key = Q.tobytes()
+
+    if key in _warm_start_cache:
+        return _warm_start_cache[key]
+
     _qp_call_count += 1
 
     k = Q.shape[0]
-
-    if w_init is None and indices is not None:
-        cached = _warm_start_cache.get(tuple(indices))
-        if cached is not None and len(cached) == k:
-            w_init = cached
-
     w = cp.Variable(k, nonneg=True)
-    prob = cp.Problem(cp.Minimize(cp.quad_form(w, Q)), [cp.sum(w) == 1])
 
-    if w_init is not None:
-        w_val = np.maximum(w_init, 0.0)
-        s = w_val.sum()
-        w.value = w_val / (s + 1e-12) if s > 0 else np.ones(k) / k
+    prob = cp.Problem(
+        cp.Minimize(cp.quad_form(w, Q)),
+        [cp.sum(w) == 1]
+    )
 
-    prob.solve(solver=cp.OSQP, verbose=False, warm_start=(w_init is not None))
+    prob.solve(solver=cp.OSQP, verbose=False)
 
-    if w.value is None or prob.status not in ("optimal", "optimal_inaccurate"):
-        best = int(np.argmin(np.diag(Q)))
+    if w.value is None:
+        best = np.argmin(np.diag(Q))
         w_out = np.zeros(k)
         w_out[best] = 1.0
-        return float(Q[best, best]), w_out
+        result = (Q[best, best], w_out)
+    else:
+        w_out = np.maximum(w.value, 0)
+        w_out /= w_out.sum() + 1e-12
+        result = (float(prob.value), w_out)
 
-    w_out = np.maximum(w.value, 0.0)
-    w_out /= w_out.sum() + 1e-12
+    _warm_start_cache[key] = result
+    return result
 
-    if indices is not None:
-        _warm_start_cache[tuple(indices)] = w_out.copy()
 
-    return float(prob.value), w_out
 
 
 # ============================================================
-# 6. GREEDY INIT
+# GREEDY INITIALIZATION
 # ============================================================
 
-def greedy_initial_solution(G, candidate_idx, m):
+def greedy_init(pre: Precomputed, candidate_idx: np.ndarray, m: int):
+
     selected = []
-    Q_partial = None
+    Q = None
 
     for _ in range(m):
-        best_j, best_loss, best_Q = None, np.inf, None
 
-        for j in candidate_idx:
-            if j in selected:
-                continue
+        best_j, best_loss, best_Q = None, np.inf, None
+        remaining = candidate_idx[~np.isin(candidate_idx, selected)]
+
+        scores = -np.diag(pre.G)[remaining]
+        order = np.argsort(scores)[::-1]
+
+        for idx in order[:min(20, len(order))]:
+            j = remaining[idx]
 
             if not selected:
-                Q_new = np.array([[G[j, j]]])
+                Q_new = np.array([[pre.G[j, j]]])
             else:
                 k = len(selected)
                 Q_new = np.empty((k + 1, k + 1))
-                Q_new[:k, :k] = Q_partial
-                g = G[j, selected]
+                Q_new[:k, :k] = Q
+                g = pre.G[j, selected]
                 Q_new[k, :k] = g
                 Q_new[:k, k] = g
-                Q_new[k, k] = G[j, j]
+                Q_new[k, k] = pre.G[j, j]
 
-            if len(selected) > 0 and simplex_lower_bound(Q_new) > best_loss:
-                continue
-
-            loss, _ = solve_qp_simplex_value(Q_new)
+            loss, _ = solve_qp(Q_new)
 
             if loss < best_loss:
                 best_loss, best_j, best_Q = loss, j, Q_new
 
         selected.append(best_j)
-        Q_partial = best_Q
+        Q = best_Q
 
-    loss, w = solve_qp_simplex_value(Q_partial)
+    loss, w = solve_qp(Q)
     return selected, loss, w
 
 
 # ============================================================
-# 7. BRANCH HEURISTIC
+# BRANCH SCORE
 # ============================================================
 
-def strong_branch_score(G, Q_partial, j, indices):
+def branch_score(pre: Precomputed, j: int, indices: List[int]):
     if not indices:
-        return -G[j, j]
-    return -G[j, j] - 2.0 * float(np.mean(G[j, indices]))
+        return -pre.G[j, j]
+
+    return -pre.G[j, j] - np.mean([pre.G[j, i] for i in indices])
 
 
 # ============================================================
-# 8. BnB CORE
+# BnB EXPAND (FULL FIXED VERSION)
 # ============================================================
 
-def expand_tuple(
-    G,
-    candidate_idx,
-    m,
-    top_K,
-    top_tuples,
-    indices,
-    stats,
-    Q_partial,
-    global_lb,
-    lam_min_global,
-    unit_costs=None,
-    budget=None,
-    current_cost=0.0,
+def expand(
+    pre: Precomputed,
+    candidate_idx: np.ndarray,
+    m: int,
+    top_K: int,
+    top: List[Solution],
+    indices: List[int],
+    stats: Dict,
+    Q: np.ndarray,
 ):
+
     stats["nodes_visited"] += 1
+
     k = len(indices)
+    ub = top[-1].loss if len(top) == top_K else np.inf
 
-    current_ub = top_tuples[-1].loss if len(top_tuples) == top_K else np.inf
-
-    # GLOBAL PRUNE
-    if global_lb >= current_ub:
+    # ========================================================
+    # LEVEL 1: DIAGONAL (SAFE LOCAL BOUND)
+    # ========================================================
+    if diagonal_bound_Q(Q) >= ub:
         stats["branches_pruned"] += 1
         return
 
+    # ========================================================
     # LEAF
+    # ========================================================
     if k == m:
+        loss, w = solve_qp(Q)
+
+        top.append(Solution(loss, indices[:], w))
+        top.sort(key=lambda x: x.loss)
+
+        if len(top) > top_K:
+            top.pop()
+
         stats["subsets_evaluated"] += 1
-        loss, w = solve_qp_simplex_value(Q_partial, indices=indices)
-
-        top_tuples.append(Solution(loss, indices[:], w))
-        top_tuples.sort(key=lambda s: s.loss)
-
-        if len(top_tuples) > top_K:
-            top_tuples.pop()
+        stats["leaf_nodes"] += 1
         return
 
-    # branching
-    start_pos = np.searchsorted(candidate_idx, indices[-1]) + 1 if indices else 0
-    remaining = candidate_idx[start_pos:]
-
-    ordered = sorted(
-        remaining,
-        key=lambda j: strong_branch_score(G, Q_partial, j, indices)
+    # ========================================================
+    # CHILDREN
+    # ========================================================
+    start = (
+        np.searchsorted(candidate_idx, indices[-1]) + 1
+        if indices else 0
     )
 
+    remaining = candidate_idx[start:]
+    ordered = sorted(remaining, key=lambda j: branch_score(pre, j, indices))
+
     for j in ordered:
+
         stats["branches_considered"] += 1
 
         k_new = k + 1
         Q_new = np.empty((k_new, k_new))
-        Q_new[:k, :k] = Q_partial
+        Q_new[:k, :k] = Q
 
         if k > 0:
-            g = G[j, indices]
+            g = pre.G[j, indices]
             Q_new[k, :k] = g
             Q_new[:k, k] = g
 
-        Q_new[k, k] = G[j, j]
+        Q_new[k, k] = pre.G[j, j]
 
-        lb_partial = schur_relaxation_lower_bound(Q_new, lam_min_global)
+        # ====================================================
+        # LEVEL 2: SIMPLEX-AWARE BOUND (MAIN PRUNER)
+        # ====================================================
+        lb = completion_cross_bound(pre, Q_new, remaining)
 
-        if lb_partial >= current_ub:
+        if lb >= ub:
             stats["branches_pruned"] += 1
             continue
 
-        # leaf eigen prune
-        if k_new == m:
-            lb_leaf = simplex_lower_bound(Q_new)
-            if lb_leaf >= current_ub:
-                stats["branches_pruned"] += 1
-                continue
+        lb_sdp = sdp_bound(Q_new)
+        if lb_sdp >= ub:
+            stats["branches_pruned"] += 1
+            continue
 
-        expand_tuple(
-            G,
+        expand(
+            pre,
             candidate_idx,
             m,
             top_K,
-            top_tuples,
+            top,
             indices + [j],
             stats,
             Q_new,
-            global_lb,
-            lam_min_global,
-            unit_costs,
-            budget,
-            current_cost,
         )
