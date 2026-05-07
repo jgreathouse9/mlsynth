@@ -84,7 +84,7 @@ def make_stats():
 
 
 def hit(stats: Dict, bound: str, kind: str):
-    """kind ∈ {'node', 'branch'}"""
+    """Kind ∈ {'node', 'branch'}"""
     stats["bound_hits"][bound][kind] += 1
 
     if kind == "node":
