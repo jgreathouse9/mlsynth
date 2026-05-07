@@ -30,6 +30,10 @@ def clear_cache():
     _warm_start_cache.clear()
 
 
+# ============================================================
+# UTILITIES
+# ============================================================
+
 def compute_search_space_size(M: int, m: int):
     total_subsets = comb(M, m)
     total_nodes = sum(comb(M, k) for k in range(1, m + 1))
@@ -40,6 +44,53 @@ def expand_weights_to_full(indices, weights, total_units):
     w_full = np.zeros(total_units)
     w_full[indices] = weights
     return w_full
+
+
+# ============================================================
+# STATS (REDESIGNED CLEAN MODEL)
+# ============================================================
+
+def make_stats():
+    """
+    Clean attribution-based stats.
+
+    NO mixed denominators.
+    NO internal/leaf ambiguity.
+    Every prune is attributed to EXACTLY ONE cause.
+    """
+
+    bounds = ["diagonal", "fw", "inverse_rank", "spectral", "global", "sdp"]
+
+    return {
+        # ---- ground truth exploration ----
+        "nodes_visited": 0,
+        "branches_generated": 0,
+        "leaves_solved": 0,
+        "qp_calls": 0,
+
+        # ---- pruning totals ----
+        "node_prunes": 0,
+        "branch_prunes": 0,
+
+        # ---- per-bound attribution ----
+        "bound_hits": {
+            b: {
+                "node": 0,
+                "branch": 0,
+            }
+            for b in bounds
+        },
+    }
+
+
+def hit(stats: Dict, bound: str, kind: str):
+    """kind ∈ {'node', 'branch'}"""
+    stats["bound_hits"][bound][kind] += 1
+
+    if kind == "node":
+        stats["node_prunes"] += 1
+    else:
+        stats["branch_prunes"] += 1
 
 
 # ============================================================
@@ -65,17 +116,15 @@ class Solution:
 
 
 # ============================================================
-# PRESOLVE
+# PRESOLVE (UNCHANGED LOGIC)
 # ============================================================
 
 def presolve(pre: Precomputed, candidate_idx: np.ndarray, budget=None, unit_costs=None):
-
     idx = candidate_idx.copy()
 
     if budget is not None and unit_costs is not None:
         idx = idx[unit_costs[idx] <= budget]
 
-    # simple variance filter (kept as heuristic ONLY for search space reduction)
     diag = np.diag(pre.G)[idx]
     med = np.median(diag)
     idx = idx[diag <= med * 30]
@@ -96,120 +145,57 @@ def presolve(pre: Precomputed, candidate_idx: np.ndarray, budget=None, unit_cost
 
 
 # ============================================================
-# BOUNDS (UPDATED: SIMPLEX-AWARE)
+# BOUNDS
 # ============================================================
 
-def global_lower_bound(pre: Precomputed, m: int) -> float:
-    return max(0.0, pre.lam_min_global / m)
-
-
-def diagonal_bound_Q(Q: np.ndarray):
+def diagonal_bound_Q(Q):
     return float(np.min(np.diag(Q)))
 
 
-def spectral_lower_bound(Q: np.ndarray):
+def spectral_lower_bound(Q):
     return float(np.linalg.eigvalsh(Q)[0])
 
 
-def affine_relaxation_bound(Q: np.ndarray):
-    """
-    Tight lower bound using:
-        min w^T Q w  s.t. sum(w)=1 (no nonnegativity)
+def fw_completion_bound(pre, indices, remaining, max_iters=3):
+    full_idx = np.concatenate([indices, remaining])
+    G = pre.G[np.ix_(full_idx, full_idx)]
+    n = len(full_idx)
 
-    This captures the simplex structure MUCH better than eigenvalue bounds.
-    """
+    w = np.zeros(n)
+    if len(indices) > 0:
+        k = len(indices)
+        w[:k] = 1.0 / k
+    else:
+        w[:] = 1.0 / n
+
+    for t in range(max_iters):
+        grad = 2 * G @ w
+        j = np.argmin(grad)
+        s = np.zeros(n)
+        s[j] = 1.0
+        gamma = 2.0 / (t + 2.0)
+        w = (1 - gamma) * w + gamma * s
+
+    return float(w @ G @ w)
+
+
+def inverse_rank_bound(Q):
     k = Q.shape[0]
-
     if k == 1:
         return float(Q[0, 0])
 
-    ones = np.ones(k)
-
-    try:
-        # Solve Qx = 1 (more stable than inverse)
-        x = np.linalg.solve(Q, ones)
-        denom = ones @ x
-
-        if denom <= 1e-12:
-            return 0.0
-
-        val = 1.0 / denom
-        return float(max(0.0, val))
-
-    except np.linalg.LinAlgError:
-        return spectral_lower_bound(Q)
-
-
-def completion_cross_bound(pre: Precomputed, Q: np.ndarray, remaining: np.ndarray):
-
-    # current subset relaxation
-    f_S = affine_relaxation_bound(Q)
-
-    if len(remaining) == 0:
-        return f_S
-
-    diag = np.diag(pre.G)
-    d_R = float(np.min(diag[remaining]))
-
-    # cross-term approximation
-    cross_vals = []
-    for i in range(Q.shape[0]):
-        cross_vals.append(np.min(pre.G[i, remaining]))
-
-    c_bar = float(np.min(cross_vals))
-
-    # avoid degenerate cases
-    if d_R <= 0:
-        return 0.0
-
-    den = f_S + d_R - 2 * c_bar
-    if abs(den) < 1e-12:
-        return min(f_S, d_R)
-
-    alpha = (d_R - c_bar) / den
-    alpha = np.clip(alpha, 0.0, 1.0)
-
-    return (
-        (f_S + d_R - 2*c_bar) * alpha**2
-        + 2*(c_bar - d_R) * alpha
-        + d_R
-    )
-
-
-def sdp_bound(Q: np.ndarray):
-    """
-    (Optional) SDP relaxation.
-    Kept for experimentation, but usually unnecessary now.
-    """
-    k = Q.shape[0]
-
-    X = cp.Variable((k, k), PSD=True)
-
-    constraints = [
-        cp.trace(X) == 1,
-        cp.sum(X) == 1,
-    ]
-
-    prob = cp.Problem(cp.Minimize(cp.trace(Q @ X)), constraints)
-    prob.solve()
-
-    if X.value is None:
-        return spectral_lower_bound(Q)
-
-    return float(prob.value)
+    d = np.diag(Q)
+    return float(np.min(d))
 
 
 # ============================================================
-# QP SOLVER (CACHED)
+# QP SOLVER
 # ============================================================
 
-
-def solve_qp(Q: np.ndarray):
+def solve_qp(Q):
     global _qp_call_count, _warm_start_cache
 
-    # Better cache key (faster + safer)
     key = Q.tobytes()
-
     if key in _warm_start_cache:
         return _warm_start_cache[key]
 
@@ -217,12 +203,7 @@ def solve_qp(Q: np.ndarray):
 
     k = Q.shape[0]
     w = cp.Variable(k, nonneg=True)
-
-    prob = cp.Problem(
-        cp.Minimize(cp.quad_form(w, Q)),
-        [cp.sum(w) == 1]
-    )
-
+    prob = cp.Problem(cp.Minimize(cp.quad_form(w, Q)), [cp.sum(w) == 1])
     prob.solve(solver=cp.OSQP, verbose=False)
 
     if w.value is None:
@@ -239,19 +220,15 @@ def solve_qp(Q: np.ndarray):
     return result
 
 
-
-
 # ============================================================
-# GREEDY INITIALIZATION
+# GREEDY INIT (UNCHANGED LOGIC)
 # ============================================================
 
-def greedy_init(pre: Precomputed, candidate_idx: np.ndarray, m: int):
-
+def greedy_init(pre, candidate_idx, m):
     selected = []
     Q = None
 
     for _ in range(m):
-
         best_j, best_loss, best_Q = None, np.inf, None
         remaining = candidate_idx[~np.isin(candidate_idx, selected)]
 
@@ -288,59 +265,48 @@ def greedy_init(pre: Precomputed, candidate_idx: np.ndarray, m: int):
 # BRANCH SCORE
 # ============================================================
 
-def branch_score(pre: Precomputed, j: int, indices: List[int]):
+def branch_score(pre, j, indices):
     if not indices:
         return -pre.G[j, j]
-
     return -pre.G[j, j] - np.mean([pre.G[j, i] for i in indices])
 
 
 # ============================================================
-# BnB EXPAND (FULL FIXED VERSION)
+# EXPAND (CLEAN ATTRIBUTION VERSION)
 # ============================================================
 
-def expand(
-    pre: Precomputed,
-    candidate_idx: np.ndarray,
-    m: int,
-    top_K: int,
-    top: List[Solution],
-    indices: List[int],
-    stats: Dict,
-    Q: np.ndarray,
-):
+def expand(pre, candidate_idx, m, top_K, top, indices, stats, Q):
 
     stats["nodes_visited"] += 1
 
     k = len(indices)
     ub = top[-1].loss if len(top) == top_K else np.inf
 
-    # ========================================================
-    # LEVEL 1: DIAGONAL (SAFE LOCAL BOUND)
-    # ========================================================
-    if diagonal_bound_Q(Q) >= ub:
-        stats["branches_pruned"] += 1
+    # -------------------------
+    # NODE PRUNE (diagonal)
+    # -------------------------
+    lb = diagonal_bound_Q(Q)
+    if lb >= ub:
+        hit(stats, "diagonal", "node")
         return
 
-    # ========================================================
+    # -------------------------
     # LEAF
-    # ========================================================
+    # -------------------------
     if k == m:
         loss, w = solve_qp(Q)
+        stats["qp_calls"] += 1
+        stats["leaves_solved"] += 1
 
         top.append(Solution(loss, indices[:], w))
         top.sort(key=lambda x: x.loss)
-
         if len(top) > top_K:
             top.pop()
-
-        stats["subsets_evaluated"] += 1
-        stats["leaf_nodes"] += 1
         return
 
-    # ========================================================
+    # -------------------------
     # CHILDREN
-    # ========================================================
+    # -------------------------
     start = (
         np.searchsorted(candidate_idx, indices[-1]) + 1
         if indices else 0
@@ -351,7 +317,7 @@ def expand(
 
     for j in ordered:
 
-        stats["branches_considered"] += 1
+        stats["branches_generated"] += 1
 
         k_new = k + 1
         Q_new = np.empty((k_new, k_new))
@@ -364,27 +330,20 @@ def expand(
 
         Q_new[k, k] = pre.G[j, j]
 
-        # ====================================================
-        # LEVEL 2: SIMPLEX-AWARE BOUND (MAIN PRUNER)
-        # ====================================================
-        lb = completion_cross_bound(pre, Q_new, remaining)
-
-        if lb >= ub:
-            stats["branches_pruned"] += 1
+        # -------------------------
+        # FW BRANCH PRUNE
+        # -------------------------
+        lb_fw = fw_completion_bound(pre, indices + [j], remaining)
+        if lb_fw >= ub:
+            hit(stats, "fw", "branch")
             continue
 
-        lb_sdp = sdp_bound(Q_new)
-        if lb_sdp >= ub:
-            stats["branches_pruned"] += 1
+        # -------------------------
+        # IRB BRANCH PRUNE
+        # -------------------------
+        lb_irb = inverse_rank_bound(Q_new)
+        if lb_irb >= ub:
+            hit(stats, "inverse_rank", "branch")
             continue
 
-        expand(
-            pre,
-            candidate_idx,
-            m,
-            top_K,
-            top,
-            indices + [j],
-            stats,
-            Q_new,
-        )
+        expand(pre, candidate_idx, m, top_K, top, indices + [j], stats, Q_new)
