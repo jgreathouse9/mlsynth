@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, List, Literal
 # Configuration and Exceptions
 from ..config_models import BaseMAREXConfig, LEXSCMConfig
 from ..exceptions import MlsynthDataError, MlsynthEstimationError
-from ..utils.plotter import lexplot
+from ..utils.fast_scm_helpers.plotter import lexplot
 # Utilities - Data Handling
 from ..utils.datautils import balance
 
