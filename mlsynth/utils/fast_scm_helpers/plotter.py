@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any, Union
-    import os
-    import numpy as np
-    import matplotlib.pyplot as plt
+import os
+import numpy as np
+import matplotlib.pyplot as plt
 
 def lexplot(
     results,
