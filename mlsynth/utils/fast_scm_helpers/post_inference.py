@@ -4,7 +4,7 @@ import numpy as np
 from typing import List, Optional
 
 from .structure import SEDCandidate
-from .inference import compute_post_inference, compute_moving_block_conformal_ci   # Adjust path if needed
+from .inference import compute_moving_block_conformal_ci   # Adjust path if needed
 
 
 def update_post_inference(
