@@ -11,9 +11,9 @@ from .fast_scm_bb_helpers import (
     Solution,
     get_qp_call_count,
     reset_qp_call_count,
-    global_lower_bound,
     expand_weights_to_full,
     compute_search_space_size,
+    make_stats,
 )
 
 
@@ -49,45 +49,35 @@ def branch_and_bound_topK(
     if unit_costs is None:
         unit_costs = np.zeros(G.shape[0])
 
-    # search space stats
     total_subsets, total_nodes = compute_search_space_size(M, m)
 
     # =========================================================
-    # GLOBAL LOWER BOUND
+    # GREEDY INIT (UPPER BOUND SEED)
     # =========================================================
-    global_lb = global_lower_bound(pre, m)
-
-    # =========================================================
-    # GREEDY INIT (UB SEED)
-    # =========================================================
-    greedy_indices, greedy_loss, greedy_w = greedy_init(pre, candidate_idx, m)
+    greedy_indices, greedy_loss, greedy_w = greedy_init(
+        pre, candidate_idx, m
+    )
 
     top: List[Solution] = [
         Solution(greedy_loss, greedy_indices, greedy_w)
     ]
 
-    # =========================================================
-    # STATS
-    # =========================================================
-    stats = {
-        "nodes_visited": 0,
-        "branches_considered": 0,
-        "branches_pruned": 0,
-        "subsets_evaluated": 0,
-        "leaf_nodes": 0,
-    }
+    # tighten UB immediately
+    ub = greedy_loss
 
     # =========================================================
-    # ROOT EXPANSION (FIXED — NO PRUNING)
+    # STATS (NEW CLEAN SYSTEM)
+    # =========================================================
+    stats = make_stats()
+
+    # =========================================================
+    # ROOT EXPANSION
     # =========================================================
     for i in candidate_idx:
 
-        # cost constraint
-        cost_i = float(unit_costs[i])
-        if budget is not None and cost_i > budget:
-            continue
-
-        stats["branches_considered"] += 1
+        if unit_costs is not None and budget is not None:
+            if float(unit_costs[i]) > budget:
+                continue
 
         Q_init = np.array([[pre.G[i, i]]])
 
@@ -103,7 +93,7 @@ def branch_and_bound_topK(
         )
 
     # =========================================================
-    # FINALIZE
+    # FINALIZE SOLUTIONS
     # =========================================================
     solutions = sorted(top, key=lambda s: s.loss)
 
@@ -113,23 +103,39 @@ def branch_and_bound_topK(
     best_loss = solutions[0].loss if solutions else np.inf
     worst_loss = solutions[-1].loss if solutions else np.inf
 
+    # =========================================================
+    # STATS EXTRACTION (NEW MODEL)
+    # =========================================================
     nodes_visited = stats["nodes_visited"]
-    branches_considered = stats["branches_considered"]
-    branches_pruned = stats["branches_pruned"]
-    subsets_eval = stats["subsets_evaluated"]
-    leaf_nodes = stats["leaf_nodes"]
+    node_prunes = stats["node_prunes"]
+    branch_prunes = stats["branch_prunes"]
+    qp_solved = stats["leaves_solved"]
 
     node_fraction = nodes_visited / total_nodes if total_nodes else 0.0
-    subset_fraction = subsets_eval / total_subsets if total_subsets else 0.0
 
-    prune_rate = (
-        branches_pruned / branches_considered
-        if branches_considered else 0.0
-    )
+    # =========================================================
+    # BOUND BREAKDOWN (CLEAN + CONSISTENT)
+    # =========================================================
+    bound_hits = stats["bound_hits"]
 
-    qp_speedup = total_subsets / qp_calls if qp_calls else np.inf
-    node_speedup = total_nodes / nodes_visited if nodes_visited else np.inf
+    pruning_breakdown = {
+        name: {
+            "node": v["node"],
+            "branch": v["branch"],
+            "total": v["node"] + v["branch"],
+            "fraction": round(
+                (v["node"] + v["branch"]) /
+                max(node_prunes + branch_prunes, 1),
+                6
+            ),
+        }
+        for name, v in bound_hits.items()
+        if (v["node"] + v["branch"]) > 0
+    }
 
+    # =========================================================
+    # OUTPUT
+    # =========================================================
     stats_out = {
         "search_space": {
             "M": M,
@@ -140,21 +146,14 @@ def branch_and_bound_topK(
 
         "exploration": {
             "nodes_visited": nodes_visited,
-            "subsets_evaluated": subsets_eval,
-            "leaf_nodes": leaf_nodes,
             "node_fraction": node_fraction,
-            "subset_fraction": subset_fraction,
+            "qp_solved": qp_solved,
         },
 
         "pruning": {
-            "branches_considered": branches_considered,
-            "branches_pruned": branches_pruned,
-            "prune_rate": prune_rate,
-        },
-
-        "speedup": {
-            "qp_speedup": round(qp_speedup, 2),
-            "node_speedup": round(node_speedup, 2),
+            "node_prunes": node_prunes,
+            "branch_prunes": branch_prunes,
+            "by_bound": pruning_breakdown,
         },
 
         "performance": {
@@ -162,14 +161,14 @@ def branch_and_bound_topK(
             "nodes_per_sec": round(nodes_visited / elapsed, 1) if elapsed else 0,
             "qp_calls": qp_calls,
             "qp_per_node": round(qp_calls / nodes_visited, 6) if nodes_visited else 0.0,
-            "qp_per_subset": round(qp_calls / subsets_eval, 6) if subsets_eval else 0.0,
         },
 
         "optimality": {
             "best_loss": best_loss,
             "worst_in_topK": worst_loss,
             "design_stability": round(
-                (worst_loss - best_loss) / (best_loss + 1e-12), 6
+                (worst_loss - best_loss) / (best_loss + 1e-12),
+                6
             ),
         },
     }
