@@ -4,7 +4,7 @@ import numpy as np
 from typing import Optional, Tuple, Dict, List
 import pandas as pd
 from typing import Any, Dict, Iterable
-from .inference import compute_moving_block_conformal_ci, compute_post_inference
+from .inference import compute_moving_block_conformal_ci
 from.structure import IndexSet
 
 def _prepare_working_df(
@@ -456,16 +456,8 @@ def _run_post_intervention_updates(
 
         cand.inference.treated_col_idx = treated_col_idx.tolist()
 
-        # p-value
-        cand.inference.p_value = compute_post_inference(
-            candidate=cand,
-            post_idx=post_idx,
-            n_perms=n_sims,
-            seed=seed
-        ).inference.p_value
-
         # conformal CI
-        cand = compute_moving_block_conformal_ci(
+        cand2 = compute_moving_block_conformal_ci(
             candidate=cand,
             post_idx=post_idx,
             alpha=alpha,
