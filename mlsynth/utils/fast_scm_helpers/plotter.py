@@ -1,13 +1,14 @@
-
+from typing import List, Optional, Dict, Any, Union
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
 
 def lexplot(
     results,
     save_plot_config: Union[bool, Dict[str, str]] = False,
 ) -> None:
 
-    import os
-    import numpy as np
-    import matplotlib.pyplot as plt
+
 
     # =========================================================
     # Extract core components
