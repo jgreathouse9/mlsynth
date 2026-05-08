@@ -1,5 +1,5 @@
 """
-synthetic_design.py
+Synthetic_design.py
 
 One-way global synthetic experimental design using the closed-form
 reduced objective from Theorem 1 of Doudchenko et al. (2021).
@@ -80,7 +80,7 @@ def evaluate_objective(D_val: np.ndarray, a: np.ndarray, sigma2: float) -> float
     Parameters
     ----------
     D_val : np.ndarray, shape (N,), binary int
-    a     : np.ndarray, shape (N,)
+    a : np.ndarray, shape (N,)
         Time-averaged outcome per unit.
     sigma2 : float
 
@@ -122,15 +122,15 @@ def build_subproblem_expressions(
 
     Parameters
     ----------
-    a      : np.ndarray, shape (N,)
-    K      : int
+    a : np.ndarray, shape (N,)
+    K : int
     sigma2 : float
 
     Returns
     -------
-    D_var       : cp.Variable  — binary decision variable, shape (N,)
-    f_expr      : cp.Expression — numerator quadratic
-    g_expr      : cp.Expression — denominator quadratic
+    D_var : cp.Variable  — binary decision variable, shape (N,)
+    f_expr : cp.Expression — numerator quadratic
+    g_expr : cp.Expression — denominator quadratic
     constraints : list          — base constraints [sum(D)==K]
     """
     N = len(a)
@@ -171,16 +171,16 @@ def solve_subproblem(
 
     Parameters
     ----------
-    D_var       : cp.Variable
-    f_expr      : cp.Expression
-    g_expr      : cp.Expression
+    D_var : cp.Variable
+    f_expr : cp.Expression
+    g_expr : cp.Expression
     constraints : list
-    eta         : float  — current Dinkelbach parameter
+    eta : float  — current Dinkelbach parameter
 
     Returns
     -------
-    D_new       : np.ndarray, shape (N,), binary int — optimal assignment
-    sub_value   : float — optimal subproblem objective value
+    D_new : np.ndarray, shape (N,), binary int — optimal assignment
+    sub_value : float — optimal subproblem objective value
     """
     problem = cp.Problem(cp.Minimize(f_expr - eta * g_expr), constraints)
 
@@ -225,16 +225,16 @@ def dinkelbach_loop(
 
     Parameters
     ----------
-    D_init   : np.ndarray, shape (N,) — initial feasible assignment
-    a        : np.ndarray, shape (N,) — time-averaged outcomes
-    sigma2   : float
-    K        : int
+    D_init : np.ndarray, shape (N,) — initial feasible assignment
+    a : np.ndarray, shape (N,) — time-averaged outcomes
+    sigma2 : float
+    K : int
     max_iter : int
-    tol      : float — convergence tolerance on subproblem value
+    tol : float — convergence tolerance on subproblem value
 
     Returns
     -------
-    best_D   : np.ndarray, shape (N,), binary int
+    best_D : np.ndarray, shape (N,), binary int
     best_obj : float — best reduced objective value f/g achieved
     """
     N = len(a)
@@ -278,8 +278,8 @@ def compute_closed_form_weights(
 
     Parameters
     ----------
-    D_val  : np.ndarray, shape (N,), binary int
-    a      : np.ndarray, shape (N,) — time-averaged outcomes
+    D_val : np.ndarray, shape (N,), binary int
+    a : np.ndarray, shape (N,) — time-averaged outcomes
     sigma2 : float
 
     Returns
@@ -322,16 +322,16 @@ def one_way_global_design(
 
     Parameters
     ----------
-    Y      : np.ndarray, shape (T, N)
+    Y : np.ndarray, shape (T, N)
         Panel outcome matrix. Rows = time periods, columns = units.
-    K      : int
+    K : int
         Number of units to assign to treatment.
     sigma2 : float or None
         Ridge penalty / noise variance. Defaults to average per-unit
         sample variance across pre-treatment periods (Section 6).
-    seed     : int   — random seed for initialisation
+    seed : int   — random seed for initialisation
     max_iter : int   — max Dinkelbach iterations
-    tol      : float — convergence tolerance
+    tol : float — convergence tolerance
 
     Returns
     -------
@@ -404,9 +404,9 @@ def estimate_atet(
 
     Parameters
     ----------
-    Y_post    : np.ndarray, shape (S_post, N)
+    Y_post : np.ndarray, shape (S_post, N)
         Outcome matrix over post-treatment periods only.
-    D         : np.ndarray, shape (N,), binary int
+    D : np.ndarray, shape (N,), binary int
     w_control : np.ndarray, shape (N,)
         Pre-computed control weights (0 for treated units).
 
@@ -439,7 +439,7 @@ def test_statistic(atet: float, n_treat_periods: int) -> float:
 
     Parameters
     ----------
-    atet            : float
+    atet : float
     n_treat_periods : int
 
     Returns
@@ -473,9 +473,9 @@ def generate_permutations(
 
     Parameters
     ----------
-    S      : int    — total number of time periods (pre + post)
+    S : int    — total number of time periods (pre + post)
     scheme : str    — "iid" or "moving_block"
-    seed   : int    — random seed (used only for iid scheme)
+    seed : int    — random seed (used only for iid scheme)
 
     Returns
     -------
@@ -520,14 +520,14 @@ def bootstrap_distribution(
 
     Parameters
     ----------
-    Y_full          : np.ndarray, shape (S, N)
+    Y_full : np.ndarray, shape (S, N)
         Full outcome matrix (all pre + post periods, NO treatment added).
         Under the sharp null, Y_full is the observed control potential outcome.
-    D               : np.ndarray, shape (N,), binary int
-    w_control       : np.ndarray, shape (N,)
+    D : np.ndarray, shape (N,), binary int
+    w_control : np.ndarray, shape (N,)
     n_treat_periods : int   — number of post-treatment periods
-    scheme          : str   — "iid" or "moving_block"
-    seed            : int
+    scheme : str   — "iid" or "moving_block"
+    seed : int
 
     Returns
     -------
@@ -566,14 +566,14 @@ def permutation_test(
 
     Parameters
     ----------
-    Y_pre     : np.ndarray, shape (T, N)   — pre-treatment outcomes
-    Y_post    : np.ndarray, shape (S_post, N) — post-treatment outcomes
+    Y_pre : np.ndarray, shape (T, N)   — pre-treatment outcomes
+    Y_post : np.ndarray, shape (S_post, N) — post-treatment outcomes
                 (observed, including any true treatment effect)
-    D         : np.ndarray, shape (N,), binary int
+    D : np.ndarray, shape (N,), binary int
     w_control : np.ndarray, shape (N,)
-    alpha     : float — significance level (e.g. 0.10 for 90% test)
-    scheme    : str   — "iid" or "moving_block"
-    seed      : int
+    alpha : float — significance level (e.g. 0.10 for 90% test)
+    scheme : str   — "iid" or "moving_block"
+    seed : int
 
     Returns
     -------
@@ -630,8 +630,8 @@ def inject_treatment_effect(
     ----------
     Y_post_clean : np.ndarray, shape (S_post, N)
         Post-treatment outcomes under the null (no treatment effect).
-    D            : np.ndarray, shape (N,), binary int
-    tau          : float — true ATET to inject
+    D : np.ndarray, shape (N,), binary int
+    tau : float — true ATET to inject
 
     Returns
     -------
@@ -668,16 +668,16 @@ def rejection_rate_at_tau(
 
     Parameters
     ----------
-    Y_pre         : np.ndarray, shape (T, N)
-    Y_post_clean  : np.ndarray, shape (S_post, N)
+    Y_pre : np.ndarray, shape (T, N)
+    Y_post_clean : np.ndarray, shape (S_post, N)
         Post-treatment outcomes with NO treatment effect.
-    D             : np.ndarray, shape (N,), binary int
-    w_control     : np.ndarray, shape (N,)
-    tau           : float — true treatment effect to inject
+    D : np.ndarray, shape (N,), binary int
+    w_control : np.ndarray, shape (N,)
+    tau : float — true treatment effect to inject
     n_simulations : int   — number of simulation replications
-    alpha         : float — significance level
-    scheme        : str   — "iid" or "moving_block"
-    seed          : int   — base random seed
+    alpha : float — significance level
+    scheme : str   — "iid" or "moving_block"
+    seed : int   — base random seed
 
     Returns
     -------
@@ -721,18 +721,18 @@ def power_curve(
 
     Parameters
     ----------
-    Y_pre         : np.ndarray, shape (T, N)
-    Y_post_clean  : np.ndarray, shape (S_post, N)
+    Y_pre : np.ndarray, shape (T, N)
+    Y_post_clean : np.ndarray, shape (S_post, N)
         Post-treatment outcomes with NO treatment effect.
-    D             : np.ndarray, shape (N,), binary int
-    w_control     : np.ndarray, shape (N,)
-    tau_grid      : np.ndarray, shape (n_tau,)
+    D : np.ndarray, shape (N,), binary int
+    w_control : np.ndarray, shape (N,)
+    tau_grid : np.ndarray, shape (n_tau,)
         Grid of true ATET values to evaluate power at.
         Should include 0 to verify test size.
     n_simulations : int   — simulations per tau value
-    alpha         : float — significance level
-    scheme        : str   — "iid" or "moving_block"
-    seed          : int   — base random seed
+    alpha : float — significance level
+    scheme : str   — "iid" or "moving_block"
+    seed : int   — base random seed
 
     Returns
     -------
