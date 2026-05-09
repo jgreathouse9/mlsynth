@@ -306,16 +306,27 @@ class LEXSCM:
             self.Y, self.Z, self.f, candidate_mask, self.m
         )
 
-        # Get logical indices
-        E_idx, B_idx, post_idx = split_periods(
-            T0=self.pre_df[self.time].nunique(),
+        n_covs = self.Z.shape[0] if self.Z is not None else 0
+
+        # 2. Split the periods and capture the new time-count metadata
+        E_idx, B_idx, post_idx, n_fit_time, n_blank_time = split_periods(
+            T0=self.Y.shape[0],
+            n_covariates=n_covs,
             frac_E=self.frac_E,
-            post_df=self.post_df,
+            post_df=self.post_df,  # Ensure this is passed if you have post-treatment data
             time_col=self.time
         )
 
+        # Store as a simple dictionary for the results object
+        time_metadata = {
+            "n_fit_time": n_fit_time,
+            "n_blank_time": n_blank_time,
+            "n_post": len(post_idx),
+            "index_labels": working_df[self.time].unique()  # Actual X-axis values
+        }
+
         # Standardize over estimation period
-        X_E, G = build_X_tilde(X, f, E_idx, J=self.Y.shape[1])
+        X_E, G = build_X_tilde(X, f, E_idx)
 
         bbresults = branch_and_bound_topK(
             G=G,
@@ -326,14 +337,15 @@ class LEXSCM:
             unit_costs=self.unit_cost_col,
             budget=self.budget        )
 
+
         # ------------------- Stage 2: Evaluate candidates -------------------
         candidate_results = evaluate_candidates(
-            candidates=bbresults['top_tuples'],  # now list of Solution objects
+            candidates=bbresults['top_tuples'],
             X=X,
             X_E=X_E,
             Y=self.Y,
             f=self.f,
-            E_idx=E_idx,  # ← you must pass this now
+            E_idx=E_idx,
             B_idx=B_idx,
             lambda_penalty=self.lambda_penalty, index_set=unit_index
         )
@@ -382,8 +394,10 @@ class LEXSCM:
         # =========================================================
         time_info = TimeInfo(
             n_total=len(final_time_index),
-            n_pre=len(E_idx) + len(B_idx),
-            n_fit=len(E_idx),
+            n_pre=n_fit_time + n_blank_time,
+            n_fit_time=n_fit_time,  # Pure time count for plotting
+            n_blank_time=n_blank_time,
+            n_fit=len(E_idx),  # Math count (includes covariates) for diagnostics
             n_blank=len(B_idx),
             n_post=len(post_idx),
             index=final_time_index
