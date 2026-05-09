@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, List, Literal
 # Configuration and Exceptions
 from ..config_models import BaseMAREXConfig, LEXSCMConfig
 from ..exceptions import MlsynthDataError, MlsynthEstimationError
-from ..utils.fast_scm_helpers.plotter import lexplot
+from ..utils.helperutils import lexplot
 # Utilities - Data Handling
 from ..utils.datautils import balance
 
@@ -328,15 +328,33 @@ class LEXSCM:
         # Standardize over estimation period
         X_E, G = build_X_tilde(X, f, E_idx)
 
+        # --- Cost Alignment Logic ---
+        if self.unit_cost_col and self.unit_cost_col in self.df.columns:
+            # Map costs to Unit IDs
+            unit_to_cost_map = self.df.groupby(self.unitid)[self.unit_cost_col].first().to_dict()
+
+            # Align to the IndexSet
+            costs_aligned = np.array([
+                unit_to_cost_map.get(label, 0.0) for label in unit_index.labels
+            ])
+        else:
+            # If no cost column provided, every unit is free
+            costs_aligned = np.zeros(len(unit_index))
+
+        # --- Budget Sanitization ---
+        # If no budget is provided, set to infinity so no pruning occurs
+        effective_budget = self.budget if self.budget is not None else np.inf
+
+        # --- Call the Solver ---
         bbresults = branch_and_bound_topK(
             G=G,
             candidate_idx=candidate_idx,
             m=self.m,
             top_K=self.top_K,
             unit_index=unit_index,
-            unit_costs=self.unit_cost_col,
-            budget=self.budget        )
-
+            unit_costs=costs_aligned,
+            budget=effective_budget
+        )
 
         # ------------------- Stage 2: Evaluate candidates -------------------
         candidate_results = evaluate_candidates(
