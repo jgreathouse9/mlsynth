@@ -218,8 +218,10 @@ class SEDCandidate:
 class TimeInfo:
     n_total: int
     n_pre: int
-    n_fit: int
-    n_blank: int
+    n_fit_time: int    # Time periods used for estimation (excluding covariates)
+    n_blank_time: int  # Time periods used for the blank/validation window
+    n_fit: int         # Total features in estimation (Time + Covariates)
+    n_blank: int       # Typically same as n_blank_time
     n_post: int
     index: IndexSet
 
