@@ -121,10 +121,10 @@ def build_Y_matrix(working_df, outcome, time, unitid, unit_index):
     return Y_wide.to_numpy(dtype=float)
 
 
-
 def build_Z_matrix(working_df, covariates, time, unitid, unit_index):
     """
-    Construct stacked covariate matrix.
+    Construct stacked covariate matrix, collapsing time-invariant 
+    variables to a single row to prevent unintended over-weighting.
 
     Parameters
     ----------
@@ -142,21 +142,36 @@ def build_Z_matrix(working_df, covariates, time, unitid, unit_index):
     Returns
     -------
     np.ndarray or None
-        Stacked covariate tensor (covariates × time × units flattened).
+        Stacked covariate matrix (N rows x Units).
     """
     if not covariates:
         return None
 
     covariate_list = []
     for col in covariates:
+        # Pivot to get (Time x Units)
         cov_wide = (
             working_df.pivot(index=time, columns=unitid, values=col)
             .reindex(columns=unit_index)
         )
-        covariate_list.append(cov_wide.to_numpy(dtype=float))
 
+        # Check if the covariate is time-invariant for each unit.
+        # If the number of unique values in every column is 1, it's invariant.
+        is_invariant = cov_wide.nunique(axis=0).max() <= 1
+
+        if is_invariant:
+            # Collapse to a single row (1 x Units)
+            # This ensures this covariate has the same 'weight' as one year of outcomes
+            cov_data = cov_wide.iloc[0:1, :].to_numpy(dtype=float)
+        else:
+            # Keep the full time-series (Time x Units)
+            # Use this for variables like annual unemployment rates
+            cov_data = cov_wide.to_numpy(dtype=float)
+
+        covariate_list.append(cov_data)
+
+    # Stack vertically: total rows will be (Num_Invariant + (Num_Variant * T))
     return np.vstack(covariate_list)
-
 
 def build_f_vector(working_df, weight_col, unitid, unit_index):
     """
@@ -242,92 +257,62 @@ def prepare_experiment_inputs(
     - Candidate mask is automatically extended to match the full feature dimension.
     - By default, only outcome columns (Y) are considered candidates.
     """
-    X = np.concatenate([Y, Z], axis=1) if Z is not None else Y.copy()
-    T, N = X.shape
-    J = Y.shape[1]
+    # STAGE 1: Vertical stacking of outcomes (T x J) and covariates (K x J)
+    # Resulting X shape: (T + K, J)
+    X = np.concatenate([Y, Z], axis=0) if Z is not None else Y.copy()
 
-    # Default weights
+    num_features, J = X.shape
+
+    # Default weights (f) should be length J (number of units)
     if f is None:
-        f = np.ones(N) / N
+        f = np.ones(J) / J
 
-    # Handle candidate_mask
+    # Handle candidate_mask (who can be in the treated m-tuple)
+    # This must be length J, as it refers to units, not features.
     if candidate_mask is None:
-        candidate_mask = np.zeros(N, dtype=bool)
-        candidate_mask[:J] = True  # only outcome units
+        candidate_idx = np.arange(J)
     else:
-        # Extend user-provided mask to match N
-        if len(candidate_mask) < N:
-            candidate_mask = np.concatenate([
-                candidate_mask,
-                np.zeros(N - len(candidate_mask), dtype=bool)
-            ])
-        elif len(candidate_mask) > N:
-            raise ValueError(f"user-provided candidate_mask length ({len(candidate_mask)}) > N ({N})")
-
-    candidate_idx = np.where(candidate_mask)[0]
+        candidate_idx = np.where(candidate_mask)[0]
 
     if len(candidate_idx) < m:
         raise ValueError(f"Not enough candidate units: {len(candidate_idx)} < m={m}")
 
-    return X, f, candidate_idx, T, N
-
-
-
+    return X, f, candidate_idx, num_features, J
 
 
 def split_periods(
-    T0: int, 
-    frac_E: float = 0.7, 
-    post_df: Optional[pd.DataFrame] = None,
-    time_col: str = "time"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        T0: int,
+        n_covariates: int,
+        frac_E: float = 0.7,
+        post_df: Optional[pd.DataFrame] = None,
+        time_col: str = "time"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
     """
-    Split the time series into estimation, backcast (baseline), and post-treatment periods.
-
-    Parameters
-    ----------
-    T0 : int
-        Number of pre-treatment time points.
-    T : int
-        Total number of time points in the series.
-    frac_E : float, default=0.7
-        Fraction of pre-treatment period to allocate for estimation (E). The remainder is used for
-        baseline/backcast (B).
-
-    Returns
-    -------
-    E_idx : np.ndarray, shape (int( T0*frac_E ),)
-        Indices of the estimation period (pre-treatment).
-    B_idx : np.ndarray, shape (T0 - int(T0*frac_E),)
-        Indices of the backcast/baseline period used for evaluation.
-    post_idx : np.ndarray, shape (T - T0,)
-        Indices of the post-treatment period.
-
-    Notes
-    -----
-    - E_idx and B_idx together span the pre-treatment period [0, T0).
-    - post_idx spans the post-treatment period [T0, T).
+    Returns indices and time-period counts.
     """
-    # 1. Calculate Pre-period splits
-    TE = int(T0 * frac_E)
-    E_idx = np.arange(TE)
-    B_idx = np.arange(TE, T0)
+    # 1. Split the Time-Series (the visible X-axis)
+    n_fit_time = int(T0 * frac_E)
+    n_blank_time = T0 - n_fit_time
 
-    # 2. Determine Post-period length
-    # If post_df is provided, we count unique time periods in it.
-    # Otherwise, we assume a Design-only mode with 0 post-periods.
+    E_time_idx = np.arange(n_fit_time)
+    B_idx = np.arange(n_fit_time, T0)
+
+    # 2. Add Covariates to the Estimation Index (The math/QP side)
+    cov_idx = np.arange(T0, T0 + n_covariates)
+    E_idx = np.concatenate([E_time_idx, cov_idx]).astype(int)
+
+    # 3. Post-period
     if post_df is not None and not post_df.empty:
         n_post = post_df[time_col].nunique()
     else:
         n_post = 0
-
-    # 3. Create indices relative to the full Y matrix (size T0 + n_post)
     post_idx = np.arange(T0, T0 + n_post)
 
-    return E_idx, B_idx, post_idx
+    # Return indices PLUS the time-counts for the plotter
+    return E_idx, B_idx, post_idx, n_fit_time, n_blank_time
 
 
-def build_X_tilde(X: np.ndarray, f: np.ndarray, idx: np.ndarray, J: int):
+def build_X_tilde(X: np.ndarray, f: np.ndarray, idx: np.ndarray):
     """
     Standardize the feature matrix X over the estimation period, returning a normalized matrix
     and its Gram matrix.
@@ -359,19 +344,24 @@ def build_X_tilde(X: np.ndarray, f: np.ndarray, idx: np.ndarray, J: int):
     - This function is fully vectorized using NumPy for efficiency.
     """
     X_sub = X[idx, :]
-    
-    # Weighted mean over the first J columns only (outcomes)
-    mu = X_sub[:, :J] @ f[:J].reshape(-1, 1)      # FIXED: use f[:J]
-    
-    # Per-time standard deviation (across all units)
+
+    # Calculate the target population mean for each feature (row)
+    # mu shape: (len(idx), 1)
+    mu = (X_sub @ f).reshape(-1, 1)
+
+    # Per-row standard deviation for scaling
+    # This is critical when mixing outcomes (e.g., USD) with covariates (e.g., Percentages)
     sigma = np.std(X_sub, axis=1, keepdims=True)
     sigma[sigma < 1e-8] = 1.0
-    
-    XE = (X_sub - mu) / sigma
-    G = XE.T @ XE
-    
-    return XE, G
 
+    # Standardize: (Unit_Value - Population_Mean) / Sigma
+    XE = (X_sub - mu) / sigma
+
+    # The Gram matrix G (J x J) represents the feature-weighted distance between units.
+    # Minimizing w'Gw minimizes the MSE across all included outcomes and covariates.
+    G = XE.T @ XE
+
+    return XE, G
 
 
 
