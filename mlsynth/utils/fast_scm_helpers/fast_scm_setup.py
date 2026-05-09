@@ -123,7 +123,7 @@ def build_Y_matrix(working_df, outcome, time, unitid, unit_index):
 
 def build_Z_matrix(working_df, covariates, time, unitid, unit_index):
     """
-    Construct stacked covariate matrix, collapsing time-invariant 
+    Construct stacked covariate matrix, collapsing time-invariant
     variables to a single row to prevent unintended over-weighting.
 
     Parameters
@@ -287,9 +287,7 @@ def split_periods(
         post_df: Optional[pd.DataFrame] = None,
         time_col: str = "time"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
-    """
-    Returns indices and time-period counts.
-    """
+    """Returns indices and time-period counts."""
     # 1. Split the Time-Series (the visible X-axis)
     n_fit_time = int(T0 * frac_E)
     n_blank_time = T0 - n_fit_time
