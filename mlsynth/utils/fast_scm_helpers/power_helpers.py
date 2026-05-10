@@ -387,7 +387,7 @@ def select_best_tuple(
 ):
     """
     Select optimal design via Pareto frontier with a Contrastive Explanation.
-    Displays unit labels for every tuple mentioned in the comparison.
+    Attaches the full audit DataFrame to the winner object for transparency.
     """
     df = mde_summary_table(candidates).copy()
     if df.empty:
@@ -399,14 +399,13 @@ def select_best_tuple(
     for c in candidates:
         sol = getattr(c.identification, "solution", None)
         t_id = getattr(c.identification, "tuple_id", "unknown")
-
         costs.append(getattr(sol, "total_cost", np.nan))
 
-        # Extract unit labels (city names/IDs) from the solution
         labels = getattr(sol, "labels", [])
         unit_labels_map[t_id] = f"[{', '.join(map(str, labels))}]"
 
     df["total_cost"] = costs
+    df["units"] = df["tuple_id"].map(unit_labels_map)
 
     # 2. Define MDE Objective
     if mde_horizon == "early_mean":
@@ -427,8 +426,9 @@ def select_best_tuple(
                 pareto_mask[i] = False
                 break
 
-    pareto_df = df[pareto_mask].copy()
-    dominated_df = df[~pareto_mask].copy()
+    df["is_pareto"] = pareto_mask
+    pareto_df = df[df["is_pareto"]].copy()
+    dominated_df = df[~df["is_pareto"]].copy()
 
     # 4. Tie-Break: Budget Efficiency
     has_cost_data = not pareto_df["total_cost"].isna().all() and (pareto_df["total_cost"] > 0).any()
@@ -454,7 +454,7 @@ def select_best_tuple(
 
     explanation.append("\nWHY OTHER TUPLES WERE NOT PREFERRED:")
 
-    # Case A: Quality Peers (Pareto Optimal)
+    # Case A: Quality Peers
     quality_peers = pareto_df[pareto_df["tuple_id"] != winner_id].head(3)
     for _, row in quality_peers.iterrows():
         t_id = row['tuple_id']
@@ -465,7 +465,7 @@ def select_best_tuple(
             f"but was rejected because it is ${cost_diff:,.2f} more expensive."
         )
 
-    # Case B: Dominated Tuples (Worse Quality)
+    # Case B: Dominated Tuples
     top_dominated = dominated_df.sort_values("nmse_B").head(8)
     for _, row in top_dominated.iterrows():
         t_id = row['tuple_id']
@@ -478,10 +478,8 @@ def select_best_tuple(
         else:
             fin_text = f"Despite being ${abs(cost_delta):,.2f} cheaper"
 
-        if mde_gap > 0.01:
-            power_text = f"requires an additional {mde_gap:.2f}% in treatment effect to detect success"
-        else:
-            power_text = "offers comparable detection power"
+        power_text = (f"requires an additional {mde_gap:.2f}% in treatment effect to detect success"
+                      if mde_gap > 0.01 else "offers comparable detection power")
 
         explanation.append(
             f"- {t_id} {unit_labels_map.get(t_id, '')}: Strictly dominated. {fin_text}, "
@@ -489,10 +487,15 @@ def select_best_tuple(
             f"and it {power_text}."
         )
 
+    # Attach results to the winner candidate object
     winner = next(c for c in candidates if getattr(c.identification, "tuple_id", None) == winner_id)
     winner.selection_explanation = "\n".join(explanation)
 
-    return winner, pareto_df.head(max_shortlist)
+    # Mark the recommendation and attach the full audit dataframe
+    df["recommended"] = (df["tuple_id"] == winner_id)
+    winner.audit_df = df.sort_values(["recommended", "is_pareto", "nmse_B"], ascending=[False, False, True])
+
+    return winner, winner.audit_df.head(max_shortlist)
 
 
 
