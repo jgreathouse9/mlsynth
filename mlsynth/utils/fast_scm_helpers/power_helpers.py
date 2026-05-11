@@ -379,6 +379,7 @@ def _dominates(a_nmse, a_mde, b_nmse, b_mde):
 # FINAL DESIGN SELECTION (PARETO)
 # =========================================================
 
+
 def select_best_tuple(
         candidates,
         mde_horizon="late",
@@ -386,37 +387,45 @@ def select_best_tuple(
         max_shortlist=5
 ):
     """
-    Select optimal design via Pareto frontier with a Contrastive Explanation.
-    Attaches the full audit DataFrame to the winner object for transparency.
+    Selects optimal design via Pareto frontier + Efficiency Score argmin.
+    Provides a detailed contrastive explanation including MDE, Stability, and Cost.
     """
     df = mde_summary_table(candidates).copy()
     if df.empty:
         raise ValueError("No candidates found in MDE summary.")
 
-    # 1. Map in Total Cost and Unit Labels
-    costs = []
-    unit_labels_map = {}
+    # 1. Extract Metrics & Meta
+    insample_nmses, costs, utilization, unit_labels_map = [], [], [], {}
+
     for c in candidates:
         sol = getattr(c.identification, "solution", None)
         t_id = getattr(c.identification, "tuple_id", "unknown")
+
+        insample_nmses.append(getattr(c.losses, "nmse_E", 1.0))
         costs.append(getattr(sol, "total_cost", np.nan))
+        utilization.append(getattr(sol, "utilization_pct", 0.0) / 100.0)
 
         labels = getattr(sol, "labels", [])
         unit_labels_map[t_id] = f"[{', '.join(map(str, labels))}]"
 
+    df["nmse_E"] = insample_nmses
     df["total_cost"] = costs
+    df["util_ratio"] = utilization
     df["units"] = df["tuple_id"].map(unit_labels_map)
 
-    # 2. Define MDE Objective
+    # 2. Objectives & Scoring
     if mde_horizon == "early_mean":
         cols = [f"mde_{w}w" for w in n_post_aggregation]
         df["mde_score"] = df[cols].mean(axis=1)
     elif mde_horizon == "late":
         df["mde_score"] = df["mde_8w"]
 
+    df["stability_ratio"] = df["nmse_B"] / (df["nmse_E"] + 1e-9)
+    df["eff_score"] = df["stability_ratio"] * df["mde_score"] * df["util_ratio"]
+
     df = df.dropna(subset=["mde_score", "nmse_B"]).reset_index(drop=True)
 
-    # 3. Identify Pareto Frontier
+    # 3. Pareto Masking
     pareto_mask = np.ones(len(df), dtype=bool)
     for i in range(len(df)):
         for j in range(len(df)):
@@ -430,75 +439,57 @@ def select_best_tuple(
     pareto_df = df[df["is_pareto"]].copy()
     dominated_df = df[~df["is_pareto"]].copy()
 
-    # 4. Tie-Break: Budget Efficiency
-    has_cost_data = not pareto_df["total_cost"].isna().all() and (pareto_df["total_cost"] > 0).any()
-    if has_cost_data:
-        pareto_df = pareto_df.sort_values("total_cost", ascending=True).reset_index(drop=True)
-    else:
-        pareto_df = pareto_df.sort_values("nmse_B").reset_index(drop=True)
-
-    winner_row = pareto_df.iloc[0]
+    # 4. Determine Winner
+    winner_row = pareto_df.sort_values("eff_score").iloc[0]
     winner_id = winner_row["tuple_id"]
 
-    # -----------------------------
-    # CONTRASTIVE EXPLANATION
-    # -----------------------------
+    # ---------------------------------------------------------
+    # DATA-DRIVEN CONTRASTIVE EXPLANATION
+    # ---------------------------------------------------------
     explanation = [
-        f"RECOMMENDATION: {winner_id}",
-        f"Selected Units: {unit_labels_map.get(winner_id, '[]')}",
-        f"Selection Logic: Top-tier statistical quality at minimum financial cost.",
-        f"Stats: NMSE_B = {winner_row['nmse_B']:.4f}, MDE = {winner_row['mde_score']:.2f}%"
+        f"--- DESIGN RECOMMENDATION: {winner_id} ---",
+        f"Units: {unit_labels_map.get(winner_id, '[]')}",
+        f"\nWINNER METRICS:",
+        f"- Efficiency Score: {winner_row['eff_score']:.4f} (Lower is better)",
+        f"- Detection Power (MDE): {winner_row['mde_score']:.2f}%",
+        f"- Stability Ratio: {winner_row['stability_ratio']:.2f}x (NMSE_B/NMSE_E)",
+        f"- Budget Utilization: {winner_row['util_ratio'] * 100:.1f}% (${winner_row['total_cost']:,.2f})",
+        f"\nCOMPARISON AGAINST ALTERNATIVES:"
     ]
-    if has_cost_data:
-        explanation.append(f"Total Cost: ${winner_row['total_cost']:,.2f}")
 
-    explanation.append("\nWHY OTHER TUPLES WERE NOT PREFERRED:")
-
-    # Case A: Quality Peers
-    quality_peers = pareto_df[pareto_df["tuple_id"] != winner_id].head(3)
-    for _, row in quality_peers.iterrows():
+    # Case A: Quality Peers on Frontier
+    peers = pareto_df[pareto_df["tuple_id"] != winner_id].sort_values("eff_score").head(3)
+    for _, row in peers.iterrows():
         t_id = row['tuple_id']
-        cost_diff = row['total_cost'] - winner_row['total_cost']
+        cost_delta = row['total_cost'] - winner_row['total_cost']
         explanation.append(
-            f"- {t_id} {unit_labels_map.get(t_id, '')}: Offers comparable statistical quality "
-            f"(Error: {row['nmse_B']:.4f}, MDE: {row['mde_score']:.2f}%) "
-            f"but was rejected because it is ${cost_diff:,.2f} more expensive."
+            f"- {t_id}: MDE {row['mde_score']:.2f}%, Stability {row['stability_ratio']:.2f}x, "
+            f"Spend {row['util_ratio'] * 100:.1f}% (${row['total_cost']:,.2f}). "
+            f"Rejected: Eff Score {row['eff_score']:.4f} (Winner: {winner_row['eff_score']:.4f}). "
+            f"Reason: Costs ${abs(cost_delta):,.2f} {'more' if cost_delta > 0 else 'less'} than winner."
         )
 
-    # Case B: Dominated Tuples
-    top_dominated = dominated_df.sort_values("nmse_B").head(8)
+    # Case B: Dominated Tuples (The "Tuple 3" case)
+    top_dominated = dominated_df.sort_values("eff_score").head(5)
     for _, row in top_dominated.iterrows():
         t_id = row['tuple_id']
-        err_factor = row['nmse_B'] / (winner_row['nmse_B'] + 1e-9)
-        mde_gap = row['mde_score'] - winner_row['mde_score']
         cost_delta = row['total_cost'] - winner_row['total_cost']
-
-        if cost_delta > 0:
-            fin_text = f"This design is more expensive (+${abs(cost_delta):,.2f})"
-        else:
-            fin_text = f"Despite being ${abs(cost_delta):,.2f} cheaper"
-
-        power_text = (f"requires an additional {mde_gap:.2f}% in treatment effect to detect success"
-                      if mde_gap > 0.01 else "offers comparable detection power")
-
+        # If MDE and Stability are better/equal, cost MUST be the reason it's "inefficient"
         explanation.append(
-            f"- {t_id} {unit_labels_map.get(t_id, '')}: Strictly dominated. {fin_text}, "
-            f"the historical error is {err_factor:.1f}x higher than the winner, "
-            f"and it {power_text}."
+            f"- {t_id}: MDE {row['mde_score']:.2f}%, Stability {row['stability_ratio']:.2f}x, "
+            f"Spend {row['util_ratio'] * 100:.1f}% (${row['total_cost']:,.2f}). "
+            f"Rejected: Despite stats, this design {'is $' + f'{abs(cost_delta):,.2f}' + ' more expensive' if cost_delta > 0 else 'is inefficient'}."
         )
 
-    # Attach results to the winner candidate object
+    # Attach logic
     winner = next(c for c in candidates if getattr(c.identification, "tuple_id", None) == winner_id)
     winner.selection_explanation = "\n".join(explanation)
 
-    # Mark the recommendation and attach the full audit dataframe
     df["recommended"] = (df["tuple_id"] == winner_id)
-    winner.audit_df = df.sort_values(["recommended", "is_pareto", "nmse_B"], ascending=[False, False, True])
+    winner.audit_df = df.sort_values(["recommended", "is_pareto", "eff_score"],
+                                     ascending=[False, False, True])
 
     return winner, winner.audit_df.head(max_shortlist)
-
-
-
 
 
 
