@@ -137,9 +137,6 @@ class MAREXConfig(BaseMAREXConfig):
         else:
             raise MlsynthDataError(f"Unsupported dtype for time column '{time_col}': {time_dtype}")
 
-        else:
-            raise MlsynthDataError(f"Unsupported dtype for time column '{time_col}': {time_vals.dtype}")
-
         # --- cluster handling ---
         if cluster_col is not None:
             if cluster_col not in df.columns:
