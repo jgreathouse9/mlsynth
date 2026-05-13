@@ -62,6 +62,35 @@ def _build_per_unit(Y: np.ndarray, D: cp.Variable, K: int, lam: float):
     return unpack_problem_components(components)
 
 
+def _extract_weights(mode, assignment, values):
+    N = len(assignment)
+    K = assignment.sum()
+
+    w = values.get("w")
+    q = values.get("q")
+
+    # ----------------------------
+    # Equal weights case
+    # ----------------------------
+    if mode == "global_equal_weights":
+        treated_weights = assignment / K
+        control_weights = (1 - assignment) / (N - K)
+        contrast_weights = treated_weights - control_weights
+        return treated_weights, control_weights, contrast_weights
+
+    # ----------------------------
+    # Learned-weight cases
+    # ----------------------------
+    if w is not None and q is not None:
+        treated_weights = q
+        control_weights = w - q
+        contrast_weights = 2 * q - w
+        return treated_weights, control_weights, contrast_weights
+
+    return None, None, None
+
+
+
 def solve_synthetic_design(
     Y: np.ndarray,
     K: int,
@@ -71,9 +100,9 @@ def solve_synthetic_design(
     verbose: bool = False,
     unit_index: Optional[IndexSet] = None,
 ) -> SCDIDesign:
-    """Solve an SCDI synthetic design optimization problem."""
 
     _validate_design_inputs(Y, K)
+
     lam_value = estimate_lambda(Y) if lam is None else float(lam)
     if lam_value < 0:
         raise MlsynthConfigError("lam must be nonnegative.")
@@ -81,12 +110,9 @@ def solve_synthetic_design(
     _, N = Y.shape
     D = cp.Variable(N, boolean=True)
 
-    try:
-        components = build_scdi_problem_components(
-            Y=Y, D=D, K=K, lam=lam_value, mode=mode
-        )
-    except ValueError as exc:
-        raise MlsynthConfigError(str(exc)) from exc
+    components = build_scdi_problem_components(
+        Y=Y, D=D, K=K, lam=lam_value, mode=mode
+    )
 
     problem = cp.Problem(cp.Minimize(components.objective), components.constraints)
 
@@ -99,12 +125,17 @@ def solve_synthetic_design(
 
     if problem.status not in _OPTIMAL_STATUSES:
         raise MlsynthEstimationError(f"SCDI optimization failed: {problem.status}")
+
     if D.value is None:
         raise MlsynthEstimationError("SCDI optimization did not return an assignment.")
 
+    # ----------------------------
+    # core outputs
+    # ----------------------------
     assignment = (np.asarray(D.value).reshape(-1) >= 0.5).astype(int)
     selected_indices = np.where(assignment == 1)[0]
 
+    # labels
     if unit_index is not None:
         selected_labels = unit_index.get_labels(selected_indices)
         all_labels = unit_index.labels
@@ -112,24 +143,41 @@ def solve_synthetic_design(
         selected_labels = selected_indices
         all_labels = np.arange(N)
 
+    # raw solver outputs
+    values = {name: var.value for name, var in components.variables.items()}
+
+    # ----------------------------
+    # NEW: unified weight extraction
+    # ----------------------------
+    treated_w, control_w, contrast_w = _extract_weights(mode, assignment, values)
+
     raw_results: Dict[str, Any] = {
         "status": problem.status,
         "solver": solver,
     }
-    values = {name: var.value for name, var in components.variables.items()}
 
     return SCDIDesign(
         mode=mode,
         objective_value=float(problem.value),
         lambda_value=lam_value,
+
         assignment=assignment,
         selected_unit_indices=selected_indices,
         selected_unit_labels=np.asarray(selected_labels),
         assignment_by_unit={
             label: int(val) for label, val in zip(all_labels, assignment)
         },
+
         w=values.get("w"),
         q=values.get("q"),
         z=values.get("z"),
+
+        # ----------------------------
+        # NEW FIELDS (important)
+        # ----------------------------
+        treated_weights=treated_w,
+        control_weights=control_w,
+        contrast_weights=contrast_w,
+
         raw_results=raw_results,
     )
