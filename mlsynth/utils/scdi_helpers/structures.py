@@ -225,16 +225,16 @@ class SCDIResults:
     inference : SCDIInference or None
         Optional inference results.
 
+    Notes
+    -----
+    This is the primary return object of SCDI.fit().
+
     Properties
     ----------
     mode : str
         Alias for design.mode.
     selected_unit_labels : np.ndarray
         Labels of treated units selected by the design.
-
-    Notes
-    -----
-    This is the primary return object of SCDI.fit().
     """
 
     design: SCDIDesign
