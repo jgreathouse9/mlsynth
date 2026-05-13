@@ -14,7 +14,8 @@ from .estimators.shc import SHC # Check
 from .estimators.laxscm import RESCM # Check
 from .estimators.scexp import MAREX
 from .estimators.lexscm import LEXSCM
-# Define __all__ to specify the public API of the package
+from .estimators.scdi import SCDI
+
 __all__ = [
     "TSSC",
     "FMA",
@@ -32,4 +33,5 @@ __all__ = [
     "RESCM",
     "MAREX",
     "LEXSCM",
+    "SCDI",
 ]
