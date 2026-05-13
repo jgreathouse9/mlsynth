@@ -12,7 +12,7 @@ from .structures import SCDIResults
 def plot_scdi_design(results: SCDIResults) -> None:
     """Dispatch to the appropriate SCDI plot for a result object."""
 
-    if results.mode == "global_2way":
+    if results.mode in {"global_2way", "global_equal_weights"}:
         plot_global_design(results)
     elif results.mode == "per_unit":
         plot_per_unit_design(results)
@@ -20,26 +20,38 @@ def plot_scdi_design(results: SCDIResults) -> None:
         raise MlsynthPlottingError(f"Unknown SCDI plot mode: {results.mode}")
 
 
+
+
+
 def plot_global_design(results: SCDIResults) -> None:
     """Plot synthetic treated/control aggregate series for a global SCDI design."""
 
     design = results.design
-    if design.w is None or design.q is None:
-        raise MlsynthPlottingError("Global SCDI plotting requires w and q weights.")
+
+    # ----------------------------
+    # unified requirement
+    # ----------------------------
+    if design.treated_weights is None or design.control_weights is None:
+        raise MlsynthPlottingError("Missing treated/control weights.")
 
     Y_full = _stack_pre_post(results)
     n_pre = results.inputs.Y_pre.shape[0]
-    treated_series = Y_full @ design.q
-    control_series = Y_full @ (design.w - design.q)
+
+    treated_series = Y_full @ design.treated_weights
+    control_series = Y_full @ design.control_weights
 
     plt.figure(figsize=(12, 5))
     plt.plot(treated_series, lw=3, label="Synthetic Treated")
     plt.plot(control_series, lw=2, ls="--", label="Synthetic Control")
     plt.axvline(x=n_pre - 0.5, color="red", alpha=0.4, label="Treatment Start")
-    plt.title("SCDI Global Two-Way Design")
+    plt.title(f"SCDI Global Design ({results.mode})")
     plt.legend()
     plt.grid(alpha=0.2)
     plt.show()
+
+
+
+
 
 
 def plot_per_unit_design(results: SCDIResults) -> None:
