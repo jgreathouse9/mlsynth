@@ -16,7 +16,27 @@ from .structures import SCDIProblemComponents
 
 
 def build_global_2way_variables(T: int, N: int) -> Dict[str, cp.Variable]:
-    """Create optimization variables for the global two-way SCDI formulation."""
+    """
+    Create CVXPY decision variables for the global two-way SCDI formulation.
+
+    This formulation jointly optimizes treatment assignment and global
+    synthetic contrast weights.
+
+    Parameters
+    ----------
+    T : int
+        Number of pre-treatment time periods.
+    N : int
+        Number of units.
+
+    Returns
+    -------
+    dict
+        Dictionary containing:
+        - "w": unit weights (N,)
+        - "q": treated-weight interaction variables (N,)
+        - "z": residual vector over time (T,)
+    """
 
     return {
         "w": cp.Variable(N, nonneg=True),
@@ -31,7 +51,31 @@ def build_global_2way_constraints(
     K: int,
     variables: Dict[str, cp.Variable],
 ) -> List[cp.Constraint]:
-    """Build constraints for the global two-way SCDI formulation."""
+    """
+    Build constraints for the global two-way SCDI formulation.
+
+    The formulation enforces:
+    - exactly K treated units
+    - linearized interaction terms q_i = w_i * D_i
+    - normalization constraints on weights
+    - residual construction for pre-treatment fit
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix of shape (T, N).
+    D : cp.Variable
+        Binary treatment assignment vector.
+    K : int
+        Number of treated units.
+    variables : dict
+        CVXPY variables {"w", "q", "z"}.
+
+    Returns
+    -------
+    list of cp.Constraint
+        Constraints defining the feasible region.
+    """
 
     T, _ = Y.shape
 
@@ -67,7 +111,29 @@ def build_global_2way_objective(
     lam: float,
     variables: Dict[str, cp.Variable],
 ) -> cp.Expression:
-    """Build the objective expression for the global two-way SCDI formulation."""
+    """
+    Construct objective for global two-way SCDI.
+
+    Objective corresponds to:
+
+        (1/T) * sum_t z_t^2 + lam * ||w||_2^2
+
+    where z_t is the pre-treatment residual of the treated-control contrast.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix (T, N).
+    lam : float
+        Regularization strength on weights.
+    variables : dict
+        CVXPY variables {"w", "z"}.
+
+    Returns
+    -------
+    cp.Expression
+        Convex objective expression.
+    """
 
     T, _ = Y.shape
 
@@ -86,7 +152,31 @@ def build_global_2way_components(
     K: int,
     lam: float,
 ) -> SCDIProblemComponents:
-    """Build objective, constraints, and variables for global two-way SCDI."""
+    """
+    Construct full SCDI problem (global two-way formulation).
+
+    Returns a complete CVXPY optimization specification consisting of:
+    - objective
+    - constraints
+    - variables
+    - assignment variable
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix (T, N).
+    D : cp.Variable
+        Binary assignment vector.
+    K : int
+        Number of treated units.
+    lam : float
+        Weight regularization parameter.
+
+    Returns
+    -------
+    SCDIProblemComponents
+        Fully specified optimization problem.
+    """
 
     T, N = Y.shape
 
@@ -125,13 +215,27 @@ def build_global_equal_weights_variables(
     T: int,
     N: int,
 ) -> Dict[str, cp.Variable]:
-    """Create optimization variables for the equal-weight global formulation.
+    """
+    Create CVXPY variables for the equal-weight global formulation.
 
-    This special case fixes:
-        treated weights  = 1 / K
-        control weights  = 1 / (N - K)
+    This is a restricted version of global two-way SCDI where:
+        - treated weights are fixed to 1/K
+        - control weights are fixed to 1/(N-K)
 
-    The only optimization decision is the binary assignment vector D.
+    Only the assignment vector D is optimized.
+
+    Parameters
+    ----------
+    T : int
+        Number of time periods.
+    N : int
+        Number of units.
+
+    Returns
+    -------
+    dict
+        Contains only:
+        - "z": residual vector over time (T,)
     """
 
     return {
@@ -145,7 +249,29 @@ def build_global_equal_weights_constraints(
     K: int,
     variables: Dict[str, cp.Variable],
 ) -> List[cp.Constraint]:
-    """Build constraints for the equal-weight global SCDI formulation."""
+    """
+    Build constraints for the equal-weight global SCDI formulation.
+
+    The model enforces a fixed weighting scheme:
+        treated units: 1/K
+        control units: 1/(N-K)
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix (T, N).
+    D : cp.Variable
+        Binary assignment vector.
+    K : int
+        Number of treated units.
+    variables : dict
+        Contains residual variable "z".
+
+    Returns
+    -------
+    list of cp.Constraint
+        Feasibility constraints for assignment and residual definition.
+    """
 
     T, N = Y.shape
 
@@ -185,7 +311,32 @@ def build_global_equal_weights_objective(
     lam: float,
     variables: Dict[str, cp.Variable],
 ) -> cp.Expression:
-    """Build objective for equal-weight global SCDI formulation."""
+    """
+    Construct objective for equal-weight global SCDI.
+
+    The objective is:
+
+        (1/T) * sum_t z_t^2 + lam * (1/K + 1/(N-K))
+
+    The second term is constant with respect to D and only reflects
+    the fixed weighting scheme.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix (T, N).
+    K : int
+        Number of treated units.
+    lam : float
+        Regularization parameter.
+    variables : dict
+        Contains residual variable "z".
+
+    Returns
+    -------
+    cp.Expression
+        Objective function.
+    """
 
     T, N = Y.shape
 
@@ -223,7 +374,25 @@ def build_global_equal_weights_components(
     K: int,
     lam: float,
 ) -> SCDIProblemComponents:
-    """Build objective, constraints, and variables for equal-weight global SCDI."""
+    """
+    Build full equal-weight global SCDI problem.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix.
+    D : cp.Variable
+        Assignment variable.
+    K : int
+        Number of treated units.
+    lam : float
+        Regularization parameter.
+
+    Returns
+    -------
+    SCDIProblemComponents
+        Complete optimization specification.
+    """
 
     T, N = Y.shape
 
@@ -258,7 +427,27 @@ def build_global_equal_weights_components(
 
 
 def build_per_unit_variables(T: int, N: int) -> Dict[str, cp.Variable]:
-    """Create optimization variables for the per-unit SCDI formulation."""
+    """
+    Create CVXPY variables for the per-unit SCDI formulation.
+
+    This formulation constructs a separate synthetic control for each
+    treated unit i.
+
+    Parameters
+    ----------
+    T : int
+        Number of pre-treatment periods.
+    N : int
+        Number of units.
+
+    Returns
+    -------
+    dict
+        Contains:
+        - "w": (N, N) unit-specific weights
+        - "q": (N, N) interaction terms q_ij = w_ij (1 - D_j)
+        - "z": (N, T) residuals per unit and time
+    """
 
     return {
         "w": cp.Variable((N, N), nonneg=True),
@@ -273,7 +462,33 @@ def build_per_unit_constraints(
     K: int,
     variables: Dict[str, cp.Variable],
 ) -> List[cp.Constraint]:
-    """Build constraints for the per-unit SCDI formulation."""
+    """
+    Build constraints for per-unit SCDI formulation.
+
+    Each treated unit constructs its own synthetic control using control
+    units only.
+
+    Structure:
+    - D selects treated units
+    - each treated unit i has weights over donor pool j
+    - q_ij enforces interaction q_ij = w_ij * (1 - D_j)
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix (T, N).
+    D : cp.Variable
+        Binary treatment assignment.
+    K : int
+        Number of treated units.
+    variables : dict
+        Contains w, q, z.
+
+    Returns
+    -------
+    list of cp.Constraint
+        Constraints defining per-unit synthetic control system.
+    """
 
     T, N = Y.shape
 
@@ -326,7 +541,32 @@ def build_per_unit_objective(
     lam: float,
     variables: Dict[str, cp.Variable],
 ) -> cp.Expression:
-    """Build objective expression for the per-unit SCDI formulation."""
+    """
+    Construct objective for per-unit SCDI formulation.
+
+    Objective corresponds to:
+
+        (1 / (K T)) * sum_i sum_t z_it^2
+        + (lam / K) * ||w||_F^2
+
+    where z_it is the synthetic control residual for treated unit i.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix.
+    K : int
+        Number of treated units.
+    lam : float
+        Regularization parameter.
+    variables : dict
+        Contains "w" and "z".
+
+    Returns
+    -------
+    cp.Expression
+        Objective function.
+    """
 
     T, _ = Y.shape
 
@@ -345,7 +585,25 @@ def build_per_unit_components(
     K: int,
     lam: float,
 ) -> SCDIProblemComponents:
-    """Build objective, constraints, and variables for per-unit SCDI."""
+    """
+    Construct full per-unit SCDI optimization problem.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix.
+    D : cp.Variable
+        Assignment vector.
+    K : int
+        Number of treated units.
+    lam : float
+        Regularization parameter.
+
+    Returns
+    -------
+    SCDIProblemComponents
+        Full per-unit optimization specification.
+    """
 
     T, N = Y.shape
 
@@ -386,7 +644,32 @@ def build_scdi_problem_components(
     lam: float,
     mode: str,
 ) -> SCDIProblemComponents:
-    """Dispatch to the formulation builder for an SCDI optimization mode."""
+    """
+    Dispatch SCDI formulation builder based on mode.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix.
+    D : cp.Variable
+        Binary treatment assignment.
+    K : int
+        Number of treated units.
+    lam : float
+        Regularization parameter.
+    mode : {"global_2way", "global_equal_weights", "per_unit"}
+        SCDI formulation selector.
+
+    Returns
+    -------
+    SCDIProblemComponents
+        Fully specified optimization problem.
+
+    Raises
+    ------
+    ValueError
+        If mode is not recognized.
+    """
 
     if mode == "global_2way":
         return build_global_2way_components(
@@ -430,7 +713,19 @@ def unpack_problem_components(
     List[cp.Constraint],
     Dict[str, cp.Variable],
 ]:
-    """Return objective, constraints, and variables from problem components."""
+    """
+    Unpack SCDI problem components.
+
+    Parameters
+    ----------
+    components : SCDIProblemComponents
+        Structured optimization container.
+
+    Returns
+    -------
+    tuple
+        (objective, constraints, variables)
+    """
 
     return (
         components.objective,
