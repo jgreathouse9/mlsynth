@@ -68,6 +68,9 @@ class SCDIDesign:
     q: Optional[np.ndarray] = None
     z: Optional[np.ndarray] = None
     raw_results: Dict[str, Any] = field(default_factory=dict)
+    treated_weights: Optional[np.ndarray] = None
+    control_weights: Optional[np.ndarray] = None
+    contrast_weights: Optional[np.ndarray] = None
 
 
 @dataclass(frozen=True)
