@@ -608,13 +608,14 @@ class LEXSCMConfig(BaseMAREXConfig):
         extra = "forbid"
 
 
+
 class SCDIConfig(BaseMAREXConfig):
     """Configuration for the Synthetic Control Design Intervention (SCDI) estimator."""
 
     K: int = Field(..., gt=0, description="Number of units selected into treatment.")
-    mode: Literal["global_2way", "per_unit"] = Field(
+    mode: Literal["global_2way", "global_equal_weights", "per_unit"] = Field(
         default="global_2way",
-        description="Mixed-integer SCDI formulation to solve.",
+        description="SCDI formulation to solve.",
     )
     lam: Optional[float] = Field(
         default=None,
@@ -644,6 +645,9 @@ class SCDIConfig(BaseMAREXConfig):
 
         if values.K > n_units:
             raise MlsynthConfigError("K cannot exceed the number of unique units in df.")
+
+        if values.K == n_units:
+            raise MlsynthConfigError("K must be less than the number of unique units in df.")
 
         if values.post_col is not None and values.post_col not in df.columns:
             raise MlsynthConfigError(f"post_col '{values.post_col}' is not present in df.")
