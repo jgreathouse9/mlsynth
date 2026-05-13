@@ -125,13 +125,17 @@ class MAREXConfig(BaseMAREXConfig):
 
         # --- consecutive time check ---
         time_vals = df[time_col].sort_values().unique()
-        if np.issubdtype(time_vals.dtype, np.number):
+        time_dtype = df[time_col].dtype
+        if pd.api.types.is_numeric_dtype(time_dtype):
             if not np.all(np.diff(time_vals) == 1):
                 raise MlsynthDataError(f"Time periods in '{time_col}' are not consecutive: {time_vals}")
-        elif np.issubdtype(time_vals.dtype, np.datetime64):
+        elif pd.api.types.is_datetime64_any_dtype(time_dtype):
             diffs = np.diff(time_vals)
             if len(diffs) > 0 and not np.all(diffs == diffs[0]):
                 raise MlsynthDataError(f"Datetime time periods in '{time_col}' are not consecutive.")
+
+        else:
+            raise MlsynthDataError(f"Unsupported dtype for time column '{time_col}': {time_dtype}")
 
         else:
             raise MlsynthDataError(f"Unsupported dtype for time column '{time_col}': {time_vals.dtype}")
@@ -607,7 +611,50 @@ class LEXSCMConfig(BaseMAREXConfig):
         extra = "forbid"
 
 
+class SCDIConfig(BaseMAREXConfig):
+    """Configuration for the Synthetic Control Design Intervention (SCDI) estimator."""
 
+    K: int = Field(..., gt=0, description="Number of units selected into treatment.")
+    mode: Literal["global_2way", "per_unit"] = Field(
+        default="global_2way",
+        description="Mixed-integer SCDI formulation to solve.",
+    )
+    lam: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Penalty parameter. If None, estimated from pre-treatment outcomes.",
+    )
+    T0: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Number of pre-treatment periods when post_col is not supplied.",
+    )
+    post_col: Optional[str] = Field(
+        default=None,
+        description="Optional 0/1 or boolean column identifying post-treatment periods.",
+    )
+    alpha: float = Field(default=0.10, gt=0.0, lt=1.0, description="Test size for permutation inference.")
+    run_inference: bool = Field(default=True, description="Run post-period inference when post data are available.")
+    solver: Any = Field(default="SCIP", description="CVXPY-compatible mixed-integer solver name or object.")
+    display_graph: bool = Field(default=False, description="Whether to display SCDI plots.")
+    verbose: bool = Field(default=False, description="Whether to print solver progress.")
+
+    @model_validator(mode="after")
+    def check_scdi_params(cls, values: Any) -> Any:
+        df = values.df
+        n_units = df[values.unitid].nunique()
+        n_periods = df[values.time].nunique()
+
+        if values.K > n_units:
+            raise MlsynthConfigError("K cannot exceed the number of unique units in df.")
+
+        if values.post_col is not None and values.post_col not in df.columns:
+            raise MlsynthConfigError(f"post_col '{values.post_col}' is not present in df.")
+
+        if values.T0 is not None and values.T0 > n_periods:
+            raise MlsynthConfigError("T0 cannot exceed the number of unique time periods in df.")
+
+        return values
 
 
 class SRCConfig(BaseEstimatorConfig):
