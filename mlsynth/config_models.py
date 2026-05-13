@@ -610,7 +610,57 @@ class LEXSCMConfig(BaseMAREXConfig):
 
 
 class SCDIConfig(BaseMAREXConfig):
-    """Configuration for the Synthetic Control Design Intervention (SCDI) estimator."""
+    """
+    Configuration for Synthetic Control Design Intervention (SCDI).
+
+    Defines joint treatment assignment and synthetic control optimization.
+
+    Parameters
+    ----------
+    K : int
+        Number of treated units.
+    mode : {"global_2way", "global_equal_weights", "per_unit"}
+        SCDI optimization formulation.
+    lam : float or None, optional
+        L2 penalty on weights. If None, estimated from data.
+    T0 : int or None, optional
+        Number of pre-treatment periods.
+    post_col : str or None, optional
+        Column indicating post-treatment periods.
+    alpha : float
+        Significance level for permutation inference.
+    run_inference : bool
+        Whether to run post-treatment inference.
+    solver : Any
+        CVXPY-compatible solver.
+    display_graph : bool
+        Whether to display design visualization.
+    verbose : bool
+        Solver verbosity.
+
+    Attributes
+    ----------
+    df : pandas.DataFrame
+        Input panel dataset.
+    unitid : str
+        Unit identifier column.
+    time : str
+        Time column.
+    outcome : str
+        Outcome variable column.
+
+    Raises
+    ------
+    MlsynthConfigError
+        If configuration constraints are violated.
+
+    Notes
+    -----
+    Constraints enforced:
+    - K < number of units
+    - valid post_col (if provided)
+    - T0 within available time range
+    """
 
     K: int = Field(..., gt=0, description="Number of units selected into treatment.")
     mode: Literal["global_2way", "global_equal_weights", "per_unit"] = Field(
