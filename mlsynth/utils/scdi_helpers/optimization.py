@@ -16,7 +16,26 @@ _OPTIMAL_STATUSES = {"optimal", "optimal_inaccurate"}
 
 
 def estimate_lambda(Y: np.ndarray) -> float:
-    """Estimate the paper-recommended penalty as average within-unit variance."""
+    """
+    Estimate SCDI penalty parameter as average within-unit variance.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Pre-treatment outcome matrix of shape (T, N).
+
+    Returns
+    -------
+    float
+        Estimated lambda value.
+
+    Raises
+    ------
+    MlsynthDataError
+        If Y is not 2D.
+    MlsynthConfigError
+        If fewer than 2 time periods are provided.
+    """
 
     if Y.ndim != 2:
         raise MlsynthDataError("Y must be a two-dimensional T x N matrix.")
@@ -26,6 +45,21 @@ def estimate_lambda(Y: np.ndarray) -> float:
 
 
 def _validate_design_inputs(Y: np.ndarray, K: int) -> None:
+    """
+    Validate basic SCDI design inputs.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix of shape (T, N).
+    K : int
+        Number of treated units.
+
+    Raises
+    ------
+    MlsynthConfigError
+        If Y is not 2D, K is invalid, or K exceeds number of units.
+    """
     if Y.ndim != 2:
         raise MlsynthConfigError("Y must be a two-dimensional T x N matrix.")
     if K <= 0:
@@ -35,12 +69,24 @@ def _validate_design_inputs(Y: np.ndarray, K: int) -> None:
 
 
 def _build_global_2way(Y: np.ndarray, D: cp.Variable, K: int, lam: float):
-    """Build the global two-way formulation components.
+    """
+    Construct global two-way SCDI optimization components.
 
-    This compatibility wrapper delegates to
-    :func:`mlsynth.utils.scdi_helpers.formulation.build_global_2way_components`.
-    New code should use the formulation module directly when it needs to add or
-    inspect constraints before solving.
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix (T, N).
+    D : cp.Variable
+        Binary treatment assignment variable.
+    K : int
+        Number of treated units.
+    lam : float
+        Regularization parameter.
+
+    Returns
+    -------
+    tuple
+        (objective, constraints, variables)
     """
 
     components = build_scdi_problem_components(
@@ -50,12 +96,24 @@ def _build_global_2way(Y: np.ndarray, D: cp.Variable, K: int, lam: float):
 
 
 def _build_per_unit(Y: np.ndarray, D: cp.Variable, K: int, lam: float):
-    """Build the per-unit formulation components.
+    """
+    Construct per-unit SCDI optimization components.
 
-    This compatibility wrapper delegates to
-    :func:`mlsynth.utils.scdi_helpers.formulation.build_per_unit_components`.
-    New code should use the formulation module directly when it needs to add or
-    inspect constraints before solving.
+    Parameters
+    ----------
+    Y : np.ndarray
+        Outcome matrix (T, N).
+    D : cp.Variable
+        Binary treatment assignment variable.
+    K : int
+        Number of treated units.
+    lam : float
+        Regularization parameter.
+
+    Returns
+    -------
+    tuple
+        (objective, constraints, variables)
     """
 
     components = build_scdi_problem_components(Y=Y, D=D, K=K, lam=lam, mode="per_unit")
@@ -63,6 +121,23 @@ def _build_per_unit(Y: np.ndarray, D: cp.Variable, K: int, lam: float):
 
 
 def _extract_weights(mode, assignment, values):
+    """
+    Extract implied weights from solved SCDI optimization.
+
+    Parameters
+    ----------
+    mode : str
+        SCDI formulation mode.
+    assignment : np.ndarray
+        Binary treatment assignment vector of shape (N,).
+    values : dict
+        Dictionary of solved CVXPY variable values.
+
+    Returns
+    -------
+    tuple of np.ndarray or (None, None, None)
+        treated_weights, control_weights, contrast_weights
+    """
     N = len(assignment)
     K = assignment.sum()
 
@@ -100,7 +175,38 @@ def solve_synthetic_design(
     verbose: bool = False,
     unit_index: Optional[IndexSet] = None,
 ) -> SCDIDesign:
+    """
+    Solve the SCDI synthetic design optimization problem.
 
+    Parameters
+    ----------
+    Y : np.ndarray
+        Pre-treatment outcome matrix of shape (T, N).
+    K : int
+        Number of treated units.
+    mode : {"global_2way", "global_equal_weights", "per_unit"}, optional
+        SCDI formulation type.
+    lam : float, optional
+        Regularization parameter. If None, estimated from Y.
+    solver : Any, optional
+        CVXPY-compatible solver specification.
+    verbose : bool, optional
+        Whether to enable solver verbosity.
+    unit_index : IndexSet, optional
+        Mapping from indices to unit labels.
+
+    Returns
+    -------
+    SCDIDesign
+        Optimized design object.
+
+    Raises
+    ------
+    MlsynthConfigError
+        If inputs are invalid or lambda is negative.
+    MlsynthEstimationError
+        If optimization fails or is infeasible.
+    """
     _validate_design_inputs(Y, K)
 
     lam_value = estimate_lambda(Y) if lam is None else float(lam)
