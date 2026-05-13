@@ -6,7 +6,7 @@ Synthetic Control Design Intervention (SCDI)
 Overview
 --------
 
-Synthetic Control Design Intervention (SCDI) is an experimental-design style
+Synthetic Control Design Intervention (SCDI) `arXiv:2112.00278 <https://arxiv.org/abs/2112.00278>`_ is an experimental-design style
 module. Unlike estimators that consume an observed treatment indicator, SCDI
 selects ``K`` treated units from a balanced panel and constructs synthetic
 contrasts from pre-treatment outcomes.
