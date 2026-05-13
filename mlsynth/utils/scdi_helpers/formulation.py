@@ -119,6 +119,8 @@ def build_global_2way_components(
 # ============================================================
 
 
+
+
 def build_global_equal_weights_variables(
     T: int,
     N: int,
