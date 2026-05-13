@@ -23,13 +23,73 @@ from ..utils.scdi_helpers.structures import SCDIResults
 
 
 class SCDI:
-    """Synthetic Control Design Intervention estimator.
+    """
+    Synthetic Control Design Intervention (SCDI) estimator.
 
-    SCDI solves a mixed-integer synthetic design problem that selects ``K``
-    treated units from a balanced panel and constructs either a global two-way
-    synthetic treated/control contrast or per-unit synthetic twins. Unlike
-    standard treatment-effect estimators, SCDI designs the assignment vector
-    rather than consuming an observed treatment indicator.
+    Jointly optimizes treatment assignment and synthetic control weights
+    via a mixed-integer program.
+
+    Unlike standard synthetic control methods, SCDI selects the treated
+    units and constructs synthetic controls simultaneously.
+
+    Parameters
+    ----------
+    config : SCDIConfig or dict
+        Configuration object defining data, estimator mode, and solver settings.
+
+    Attributes
+    ----------
+    config : SCDIConfig
+        Parsed configuration object.
+    df : pandas.DataFrame
+        Input panel data.
+    outcome : str
+        Name of outcome column.
+    unitid : str
+        Unit identifier column.
+    time : str
+        Time identifier column.
+    K : int
+        Number of treated units to select.
+    mode : {"global_2way", "global_equal_weights", "per_unit"}
+        Optimization formulation.
+    lam : float or None
+        L2 regularization parameter on weights.
+    T0 : int or None
+        Number of pre-treatment periods.
+    post_col : str or None
+        Indicator for post-treatment periods.
+    alpha : float
+        Significance level for inference.
+    run_inference : bool
+        Whether to run permutation inference.
+    solver : Any
+        CVXPY-compatible solver.
+    display_graph : bool
+        Whether to plot treatment/control structure.
+    verbose : bool
+        Solver verbosity flag.
+
+    Returns
+    -------
+    SCDIResults
+        Object containing optimized design, inputs, and optional inference.
+
+    Notes
+    -----
+    Supported modes correspond to different optimization problems:
+
+    global_2way
+        Joint optimization of weighted treated vs control contrast.
+
+    global_equal_weights
+        Constrained global model with equal weights on treated units.
+
+    per_unit
+        Unit-specific synthetic control weights for each treated unit.
+
+    The underlying optimization is a mixed-integer program and may be
+    NP-hard in general.
     """
 
     def __init__(self, config: Union[SCDIConfig, dict]) -> None:
