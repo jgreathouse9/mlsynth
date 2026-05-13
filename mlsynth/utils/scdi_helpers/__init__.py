@@ -43,7 +43,6 @@ __all__ = [
     "permutation_test_global",
     "prepare_scdi_inputs",
     "solve_synthetic_design",
-]
     "permutation_test_global",
     "prepare_scdi_inputs",
     "solve_synthetic_design",
