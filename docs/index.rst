@@ -32,6 +32,7 @@ MLSYNTH
    pda
    tssc
    lexscm
+   scdi
    proximal
    fscm
    src
