@@ -13,11 +13,34 @@ from ..fast_scm_helpers.structure import IndexSet
 
 @dataclass(frozen=True)
 class SCDIProblemComponents:
-    """CVXPY components for an SCDI optimization formulation.
+    """
+    CVXPY components for an SCDI optimization problem.
 
-    Keeping these pieces together makes the solver thin while allowing new
-    helper functions to add constraints or swap objective pieces before the
-    :class:`cvxpy.Problem` is created.
+    This container stores the symbolic elements required to construct and
+    solve the mixed-integer program underlying SCDI.
+
+    Parameters
+    ----------
+    mode : str
+        SCDI formulation ("global_2way", "global_equal_weights", "per_unit").
+    objective : cp.Expression
+        CVXPY objective function.
+    constraints : list of cp.Constraint
+        Linear and convex constraints defining the feasible set.
+    variables : dict of str -> cp.Variable
+        Named CVXPY decision variables (e.g., weights, assignment variables).
+    assignment_variable : cp.Variable
+        Binary treatment assignment variable D.
+
+    Methods
+    -------
+    with_constraints(additional_constraints)
+        Return a new problem with extra constraints appended.
+
+    Notes
+    -----
+    This object is intentionally “solver-agnostic” and is used to separate
+    model construction from optimization execution.
     """
 
     mode: str
@@ -29,8 +52,18 @@ class SCDIProblemComponents:
     def with_constraints(
         self, additional_constraints: List[cp.Constraint]
     ) -> "SCDIProblemComponents":
-        """Return a copy with additional constraints appended."""
+        """Append additional constraints to the current formulation.
 
+        Parameters
+        ----------
+        additional_constraints : list of cp.Constraint
+            Extra constraints to include in the optimization problem.
+
+        Returns
+        -------
+        SCDIProblemComponents
+            New instance with extended constraint set.
+        """
         return SCDIProblemComponents(
             mode=self.mode,
             objective=self.objective,
@@ -42,7 +75,34 @@ class SCDIProblemComponents:
 
 @dataclass(frozen=True)
 class SCDIInputs:
-    """Prepared panel matrices and label metadata for SCDI."""
+    """
+    Preprocessed panel data for SCDI estimation.
+
+    Contains matrix representations of outcomes and index mappings used in
+    optimization.
+
+    Parameters
+    ----------
+    Y_pre : np.ndarray
+        Pre-treatment outcome matrix of shape (N, T_pre).
+    Y_post : np.ndarray or None
+        Post-treatment outcome matrix of shape (N, T_post), if available.
+    unit_index : IndexSet
+        Mapping from unit labels to integer indices.
+    time_index : IndexSet
+        Mapping from time labels to integer indices.
+    pre_time_index : IndexSet
+        Index set for pre-treatment periods.
+    post_time_index : IndexSet or None
+        Index set for post-treatment periods.
+    outcome : str
+        Name of outcome variable.
+
+    Notes
+    -----
+    All matrices are aligned such that rows correspond to units and columns
+    correspond to time periods.
+    """
 
     Y_pre: np.ndarray
     Y_post: Optional[np.ndarray]
@@ -55,7 +115,49 @@ class SCDIInputs:
 
 @dataclass(frozen=True)
 class SCDIDesign:
-    """Optimization output for an SCDI design solve."""
+    """
+    Optimized SCDI design solution.
+
+    Contains the outcome of solving the mixed-integer program, including
+    treatment assignment and synthetic control weights.
+
+    Parameters
+    ----------
+    mode : str
+        Optimization mode used.
+    objective_value : float
+        Optimal value of the objective function.
+    lambda_value : float
+        Regularization parameter used in optimization.
+    assignment : np.ndarray
+        Binary treatment assignment vector D.
+    selected_unit_indices : np.ndarray
+        Integer indices of treated units.
+    selected_unit_labels : np.ndarray
+        Original labels of treated units.
+    assignment_by_unit : dict
+        Mapping from unit label to treatment indicator.
+
+    w : np.ndarray or None, optional
+        Synthetic control weights (global or per-unit depending on mode).
+    q : np.ndarray or None, optional
+        Auxiliary optimization variables (mode-dependent).
+    z : np.ndarray or None, optional
+        Additional binary or continuous decision variables.
+    raw_results : dict, optional
+        Raw solver output.
+    treated_weights : np.ndarray or None, optional
+        Normalized weights over treated units.
+    control_weights : np.ndarray or None, optional
+        Normalized weights over control units.
+    contrast_weights : np.ndarray or None, optional
+        Difference weights used in global estimators.
+
+    Notes
+    -----
+    This object represents the *solution to the design stage only*.
+    Post-treatment estimation and inference are handled separately.
+    """
 
     mode: str
     objective_value: float
@@ -75,7 +177,28 @@ class SCDIDesign:
 
 @dataclass(frozen=True)
 class SCDIInference:
-    """Inference output for an SCDI design."""
+    """
+    Permutation-based inference results for SCDI.
+
+    Parameters
+    ----------
+    atet : float
+        Estimated average treatment effect on treated units.
+    p_value : float
+        Permutation-based p-value.
+    reject : bool
+        Whether the null hypothesis is rejected at level alpha.
+    alpha : float
+        Significance level used for the test.
+    method : str
+        Name of inference procedure.
+    null_stats : np.ndarray or None
+        Empirical null distribution of test statistics.
+
+    Notes
+    -----
+    Inference is currently implemented for the global_2way mode only.
+    """
 
     atet: float
     p_value: float
@@ -87,7 +210,32 @@ class SCDIInference:
 
 @dataclass(frozen=True)
 class SCDIResults:
-    """Top-level result object returned by :class:`mlsynth.SCDI`."""
+    """
+    Complete SCDI estimation output.
+
+    This object bundles the optimized design, prepared inputs, and optional
+    inference results.
+
+    Parameters
+    ----------
+    design : SCDIDesign
+        Optimization solution.
+    inputs : SCDIInputs
+        Preprocessed data used in estimation.
+    inference : SCDIInference or None
+        Optional inference results.
+
+    Properties
+    ----------
+    mode : str
+        Alias for design.mode.
+    selected_unit_labels : np.ndarray
+        Labels of treated units selected by the design.
+
+    Notes
+    -----
+    This is the primary return object of SCDI.fit().
+    """
 
     design: SCDIDesign
     inputs: SCDIInputs
@@ -95,10 +243,10 @@ class SCDIResults:
 
     @property
     def mode(self) -> str:
-        """Return the design mode used by the optimizer."""
+        """Return the optimization mode used."""
         return self.design.mode
 
     @property
     def selected_unit_labels(self) -> np.ndarray:
-        """Labels for units selected into treatment by the design."""
+        """Return labels of selected treated units."""
         return self.design.selected_unit_labels
