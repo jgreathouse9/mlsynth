@@ -256,3 +256,19 @@ Preferred interface:
 estimator = ESTIMATOR(config)
 results = estimator.fit()
 ```
+
+
+Avoid introducing incompatible API patterns unless explicitly instructed.
+
+Preferred Design Principles
+
+Prefer:
+
+explicit over implicit behavior
+typed structures over free dictionaries
+reusable helpers over duplicated logic
+standardized outputs over custom formats
+composable pipelines over monolithic procedures
+continuation of repository conventions over novel architecture
+
+Agents should study existing estimators before implementing new abstractions.
