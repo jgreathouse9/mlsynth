@@ -52,7 +52,7 @@ class GDEX:
         verbose: bool = True
     ) -> List[str]:
         """
-        Selects optimal treatment units based on fixed-k cardinality 
+        Selects optimal treatment units based on fixed-k cardinality
         or an explicit financial budget constraint.
         """
         if k is None and budget is None:
