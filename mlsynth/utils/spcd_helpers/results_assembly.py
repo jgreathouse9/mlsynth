@@ -59,7 +59,7 @@ def build_summary(
 
     unit_labels = inputs.unit_index.labels
     donor_weights = {
-        str(unit_labels[i]): float(design.contrast_weights[i])
+        str(unit_labels[i]): float(design.control_weights[i])
         for i in range(len(unit_labels))
     }
 
