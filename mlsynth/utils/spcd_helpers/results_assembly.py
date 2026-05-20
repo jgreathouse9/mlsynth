@@ -63,6 +63,11 @@ def build_summary(
         for i in range(len(unit_labels))
     }
 
+    treated_weights =  {
+        str(unit_labels[i]): float(design.treated_weights[i])
+        for i in range(len(unit_labels))
+    }
+
     pre_periods = inputs.pre_time_index.labels
     if inputs.post_time_index is not None:
         post_periods = inputs.post_time_index.labels
@@ -84,6 +89,7 @@ def build_summary(
         ),
         weights=WeightsResults(
             donor_weights=donor_weights,
+            treated_weights=treated_weights,
             summary_stats={
                 "n_treated": int(design.n_treated),
                 "n_control": int(len(unit_labels) - design.n_treated),
