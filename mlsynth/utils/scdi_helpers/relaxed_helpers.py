@@ -117,9 +117,7 @@ def _extract_weights(
     D: np.ndarray,
     w: np.ndarray,
 ) -> Dict[str, np.ndarray]:
-    """
-    Unified extraction of treated/control weights.
-    """
+    """Unified extraction of treated/control weights."""
 
     treated_raw = D * w
     control_raw = (1 - D) * w

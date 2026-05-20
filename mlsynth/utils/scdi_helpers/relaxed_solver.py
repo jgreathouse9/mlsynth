@@ -33,9 +33,7 @@ def solve_two_way_relaxed(
         decay: float = 0.97,
         verbose: bool = True,
 ):
-    """
-    Two-way relaxed synthetic control with annealed D-step optimization.
-    """
+    """Two-way relaxed synthetic control with annealed D-step optimization."""
 
     lam = float(np.mean(np.var(Y, axis=0))) if lam is None else float(lam)
 
