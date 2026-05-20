@@ -29,6 +29,7 @@ Synthetic Controls." arXiv:2211.15241v1.
 """
 
 from __future__ import annotations
+
 import warnings
 from dataclasses import replace
 from typing import Any, Optional
@@ -177,3 +178,189 @@ def solve_spcd(
         lam_balance=lam_used,
         beta=beta_used,
     )
+
+
+def solve_spcd_with_holdout(
+    inputs: SPCDInputs,
+    *,
+    variant: str = "norm_spcd",
+    weights: str = "empirical",
+    alpha: Optional[float] = None,
+    lam: Optional[float] = None,
+    beta: Optional[float] = None,
+    max_iter: int = 200,
+    solver: Optional[Any] = None,
+    verbose: bool = False,
+    enable_inference: bool = True,
+    holdout_frac_E: float = 0.7,
+    inference_alpha: float = 0.05,
+    power_target: float = 0.8,
+    mde_n_sims: int = 5000,
+    mde_n_trials: int = 400,
+    mde_horizon_grid: Optional[list] = None,
+    inference_seed: int = 1400,
+    min_blank_size: int = 5,
+):
+    """Run SPCD with the train-on-E / calibrate-on-B inference flow.
+
+    When ``enable_inference=False`` this falls back to
+    :func:`solve_spcd` on the full pretreatment matrix and returns
+    ``(design, None, None)`` for backwards compatibility with the
+    pre-inference SPCD release.
+
+    When ``enable_inference=True``:
+
+    1. Split ``inputs.Y_pre`` into ``Y_E`` (first ``frac_E``) and
+       ``Y_B`` (remainder).
+    2. Fit the SPCD design on ``Y_E`` only.
+    3. Re-render the synthetic paths over the *full* timeline
+       (``Y_E`` + ``Y_B`` + ``Y_post``) so plots show the entire window.
+    4. Compute holdout residuals ``r_B = Y_B @ contrast_weights``.
+    5. Run the Monte Carlo MDE analysis on ``r_B`` (always, since this
+       is pre-experiment planning).
+    6. If ``Y_post`` is present, also compute the moving-block
+       conformal CI for the ATT.
+
+    Returns
+    -------
+    design : SPCDDesign
+        The SPCD design, with synthetic paths spanning the full
+        timeline. Fit on ``Y_E`` only when ``enable_inference=True``.
+    conformal : SPCDConformalResult or None
+        Conformal CI for the post-period ATT. ``None`` if
+        ``Y_post is None`` or ``enable_inference=False`` or the holdout
+        window is too small.
+    power : SPCDPowerAnalysis or None
+        MDE / detectability output. ``None`` if
+        ``enable_inference=False`` or the holdout window is too small.
+    """
+
+    # ------------------------------------------------------------------
+    # Fast path: inference disabled -> exactly the legacy behavior.
+    # ------------------------------------------------------------------
+    if not enable_inference:
+        design = solve_spcd(
+            inputs=inputs,
+            variant=variant,
+            weights=weights,
+            alpha=alpha,
+            lam=lam,
+            beta=beta,
+            max_iter=max_iter,
+            solver=solver,
+            verbose=verbose,
+        )
+        return design, None, None
+
+    # ------------------------------------------------------------------
+    # Holdout split. May raise if the estimation window is too small.
+    # ------------------------------------------------------------------
+    Y_E, Y_B, n_E, n_B, can_infer = split_pre_window(
+        inputs.Y_pre, frac_E=holdout_frac_E, min_blank_size=min_blank_size
+    )
+
+    if not can_infer:
+        warnings.warn(
+            f"SPCD: holdout window of {n_B} period(s) is below "
+            f"min_blank_size={min_blank_size}. Fitting the design on "
+            f"the estimation window but skipping inference and power.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    # ------------------------------------------------------------------
+    # Fit the SPCD design on Y_E only. Y_post is set to None during this
+    # call so the inner solve_spcd doesn't try to render paths beyond E.
+    # ------------------------------------------------------------------
+    training_inputs = replace(inputs, Y_pre=Y_E, Y_post=None)
+    design_E = solve_spcd(
+        inputs=training_inputs,
+        variant=variant,
+        weights=weights,
+        alpha=alpha,
+        lam=lam,
+        beta=beta,
+        max_iter=max_iter,
+        solver=solver,
+        verbose=verbose,
+    )
+
+    # ------------------------------------------------------------------
+    # Re-render synthetic paths over the full timeline.
+    # ------------------------------------------------------------------
+    Y_pre_full = inputs.Y_pre  # already Y_E vstack Y_B by construction
+    synthetic_treated, synthetic_control, synthetic_gap = build_synthetic_paths(
+        Y_pre=Y_pre_full,
+        Y_post=inputs.Y_post,
+        treated_weights=design_E.treated_weights,
+        control_weights=design_E.control_weights,
+    )
+    design = replace(
+        design_E,
+        synthetic_treated=synthetic_treated,
+        synthetic_control=synthetic_control,
+        synthetic_gap=synthetic_gap,
+    )
+
+    # ------------------------------------------------------------------
+    # If the holdout is too small, return early with the design only.
+    # ------------------------------------------------------------------
+    if not can_infer:
+        return design, None, None
+
+    # ------------------------------------------------------------------
+    # Holdout residuals are the calibration set for both inference and
+    # power. Baseline is the holdout-window mean of synthetic_treated.
+    # ------------------------------------------------------------------
+    r_B = compute_holdout_residuals(Y_B, design.contrast_weights)
+
+    holdout_treated = Y_B @ design.treated_weights
+    baseline = float(np.mean(holdout_treated))
+
+    # ------------------------------------------------------------------
+    # MDE always runs (its purpose is *pre-experiment* planning).
+    # Default horizon = len(Y_post) if available, otherwise len(Y_B).
+    # ------------------------------------------------------------------
+    n_post_for_power = (
+        int(inputs.Y_post.shape[0]) if inputs.Y_post is not None else int(n_B)
+    )
+    n_post_for_power = max(n_post_for_power, 1)
+    power = compute_mde(
+        residuals_B=r_B,
+        baseline=baseline,
+        n_post=n_post_for_power,
+        alpha=inference_alpha,
+        power_target=power_target,
+        n_sims=mde_n_sims,
+        n_trials=mde_n_trials,
+        seed=inference_seed,
+    )
+
+    if mde_horizon_grid:
+        detectability = compute_detectability_curve(
+            residuals_B=r_B,
+            baseline=baseline,
+            horizon_grid=list(mde_horizon_grid),
+            alpha=inference_alpha,
+            power_target=power_target,
+            n_sims=mde_n_sims,
+            n_trials=mde_n_trials,
+            seed=inference_seed,
+        )
+        power = replace(power, detectability=detectability)
+
+    # ------------------------------------------------------------------
+    # Conformal CI only when post data exists.
+    # ------------------------------------------------------------------
+    conformal: Optional[SPCDConformalResult]
+    if inputs.Y_post is not None:
+        post_gap = inputs.Y_post @ design.contrast_weights
+        conformal = compute_conformal_ci(
+            residuals_B=r_B,
+            post_gap=post_gap,
+            alpha=inference_alpha,
+        )
+    else:
+        conformal = None
+
+    return design, conformal, power
