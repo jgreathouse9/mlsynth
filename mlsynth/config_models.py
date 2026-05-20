@@ -826,6 +826,58 @@ class SPCDConfig(BaseMAREXConfig):
     display_graph: bool = Field(default=False, description="Whether to display SPCD plots.")
     verbose: bool = Field(default=False, description="Whether to print solver progress.")
 
+    # ------------------------------------------------------------------
+    # Inference and power analysis (LEXSCM-style E/B holdout split).
+    # ------------------------------------------------------------------
+    enable_inference: bool = Field(
+        default=True,
+        description="Run conformal inference + Monte Carlo power analysis. "
+                    "Trains the design on the first holdout_frac_E of pretreatment "
+                    "and uses the remaining periods as out-of-sample residuals.",
+    )
+    holdout_frac_E: float = Field(
+        default=0.7,
+        ge=0.1,
+        le=0.95,
+        description="Fraction of pretreatment periods used for the SPCD design fit. "
+                    "The remaining 1 - holdout_frac_E periods form the holdout window.",
+    )
+    inference_alpha: float = Field(
+        default=0.05,
+        gt=0.0,
+        lt=1.0,
+        description="Two-sided significance level for conformal CI and MDE.",
+    )
+    power_target: float = Field(
+        default=0.8,
+        gt=0.0,
+        lt=1.0,
+        description="Target statistical power for the MDE search.",
+    )
+    mde_n_sims: int = Field(
+        default=5000, gt=0,
+        description="Monte Carlo draws for the null distribution in the MDE.",
+    )
+    mde_n_trials: int = Field(
+        default=400, gt=0,
+        description="Trials per tau grid point for empirical power estimation.",
+    )
+    mde_horizon_grid: Optional[List[int]] = Field(
+        default=None,
+        description="Optional list of post-treatment horizons for the "
+                    "detectability curve. If None, no curve is computed.",
+    )
+    inference_seed: int = Field(
+        default=1400,
+        description="Seed for the Monte Carlo MDE machinery.",
+    )
+    min_blank_size: int = Field(
+        default=5, gt=0,
+        description="Minimum holdout-window size below which inference is "
+                    "skipped with a warning (design is still fit on the "
+                    "estimation window).",
+    )
+
     @model_validator(mode="after")
     def check_spcd_params(cls, values: Any) -> Any:
         df = values.df
