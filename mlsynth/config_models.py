@@ -730,6 +730,116 @@ class SCDIConfig(BaseMAREXConfig):
         return values
 
 
+class SPCDConfig(BaseMAREXConfig):
+    """
+    Configuration for the Synthetic Principal Component Design (SPCD) estimator.
+
+    Implements Lu, Li, Ying, Blanchet (2022), "Synthetic Principal Component
+    Design: Fast Covariate Balancing with Synthetic Controls",
+    arXiv:2211.15241v1.
+
+    Parameters
+    ----------
+    variant : {"spcd", "norm_spcd"}
+        Iteration-box choice. ``"spcd"`` uses Eq. (4)/(7) of the paper;
+        ``"norm_spcd"`` uses Eq. (5)/(8). The paper's Section 4
+        experiments use ``"norm_spcd"`` with closed-form weights.
+    weights : {"empirical", "exact"}
+        Final-weight-step choice. ``"empirical"`` uses Eq. (9) — the
+        closed-form approximation used in all of the paper's
+        experiments. ``"exact"`` solves Eq. (6) via cvxpy.
+    alpha_ridge : float or None, optional
+        Ridge term ``alpha`` in Eq. (2). Auto-estimated from the
+        spectrum of ``Y_pre.T @ Y_pre`` if ``None``.
+    lam_balance : float or None, optional
+        Sum-zero penalty ``lambda`` in Eq. (2). Auto-estimated if
+        ``None``. Theorem 1 requires this to be "large enough".
+    beta : float or None, optional
+        Iteration step parameter ``beta`` in Eqs. (4)/(5)/(7)/(8).
+        Auto-estimated from the spectrum if ``None``.
+    max_iter : int
+        Maximum iterations for the SPCD/NormSPCD while loop.
+    T0 : int or None, optional
+        Number of pre-treatment periods.
+    post_col : str or None, optional
+        Column indicating post-treatment periods.
+    solver : Any, optional
+        CVXPY-compatible solver. Used only when ``weights="exact"``.
+    display_graph : bool
+        Whether to display the synthetic treated/control plot.
+    verbose : bool
+        Solver verbosity.
+
+    Notes
+    -----
+    Algorithms 3 and 4 of the paper (Appendix 3.2) are abstract
+    meta-versions used in the proof of Theorem 3 (global convergence).
+    They correspond to the same iterations as Algorithms 1 and 2 acting
+    on a generic Hermitian perturbed rank-1 matrix and are not exposed
+    as separate user options here.
+    """
+
+    variant: Literal["spcd", "norm_spcd"] = Field(
+        default="norm_spcd",
+        description="SPCD iteration variant. 'spcd' uses Eq. (4)/(7); "
+                    "'norm_spcd' uses Eq. (5)/(8).",
+    )
+    weights: Literal["empirical", "exact"] = Field(
+        default="empirical",
+        description="Final-weight-step choice. 'empirical' uses Eq. (9); "
+                    "'exact' solves Eq. (6) via cvxpy.",
+    )
+    alpha_ridge: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Ridge term alpha in Eq. (2). Auto-estimated if None.",
+    )
+    lam_balance: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Sum-zero penalty lambda in Eq. (2). Auto-estimated if None.",
+    )
+    beta: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Iteration step parameter beta in Eqs. (4)/(5)/(7)/(8). "
+                    "Auto-estimated if None.",
+    )
+    max_iter: int = Field(
+        default=200,
+        gt=0,
+        description="Maximum iterations for the SPCD/NormSPCD while loop.",
+    )
+    T0: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Number of pre-treatment periods when post_col is not supplied.",
+    )
+    post_col: Optional[str] = Field(
+        default=None,
+        description="Optional 0/1 or boolean column identifying post-treatment periods.",
+    )
+    solver: Any = Field(
+        default=None,
+        description="CVXPY-compatible solver, only used when weights='exact'.",
+    )
+    display_graph: bool = Field(default=False, description="Whether to display SPCD plots.")
+    verbose: bool = Field(default=False, description="Whether to print solver progress.")
+
+    @model_validator(mode="after")
+    def check_spcd_params(cls, values: Any) -> Any:
+        df = values.df
+        n_periods = df[values.time].nunique()
+
+        if values.post_col is not None and values.post_col not in df.columns:
+            raise MlsynthConfigError(f"post_col '{values.post_col}' is not present in df.")
+
+        if values.T0 is not None and values.T0 > n_periods:
+            raise MlsynthConfigError("T0 cannot exceed the number of unique time periods in df.")
+
+        return values
+
+
 class SRCConfig(BaseEstimatorConfig):
     """
     Configuration for the Synthetic Regressing Control (SRC) estimator.
