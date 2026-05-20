@@ -29,15 +29,23 @@ Synthetic Controls." arXiv:2211.15241v1.
 """
 
 from __future__ import annotations
-
+import warnings
+from dataclasses import replace
 from typing import Any, Optional
 
 import numpy as np
 
 from ...exceptions import MlsynthConfigError
 from .formulation import build_iteration_matrix
+from .holdout import compute_holdout_residuals, split_pre_window
+from .inference import SPCDConformalResult, compute_conformal_ci
 from .iteration_norm_spcd import run_norm_spcd_iteration
 from .iteration_spcd import run_spcd_iteration
+from .power import (
+    SPCDPowerAnalysis,
+    compute_detectability_curve,
+    compute_mde,
+)
 from .spectral_init import spectral_initialization
 from .structures import SPCDDesign, SPCDInputs
 from .treatment_effect import (
