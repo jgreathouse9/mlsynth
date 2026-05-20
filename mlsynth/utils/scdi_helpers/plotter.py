@@ -6,13 +6,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ...exceptions import MlsynthPlottingError
+from .relaxed_structures import RelaxedSolverResults
 from .structures import SCDIResults
 
 
-def plot_scdi_design(results: SCDIResults) -> None:
+def plot_scdi_design(results: SCDIResults | RelaxedSolverResults) -> None:
     """Dispatch to the appropriate SCDI plot for a result object."""
 
-    if results.mode in {"global_2way", "global_equal_weights"}:
+    if results.mode == "global_2way_relaxed":
+        plot_relaxed_design(results)
+    elif results.mode in {"global_2way", "global_equal_weights"}:
         plot_global_design(results)
     elif results.mode == "per_unit":
         plot_per_unit_design(results)
@@ -20,17 +23,11 @@ def plot_scdi_design(results: SCDIResults) -> None:
         raise MlsynthPlottingError(f"Unknown SCDI plot mode: {results.mode}")
 
 
-
-
-
 def plot_global_design(results: SCDIResults) -> None:
     """Plot synthetic treated/control aggregate series for a global SCDI design."""
 
     design = results.design
 
-    # ----------------------------
-    # unified requirement
-    # ----------------------------
     if design.treated_weights is None or design.control_weights is None:
         raise MlsynthPlottingError("Missing treated/control weights.")
 
@@ -48,10 +45,6 @@ def plot_global_design(results: SCDIResults) -> None:
     plt.legend()
     plt.grid(alpha=0.2)
     plt.show()
-
-
-
-
 
 
 def plot_per_unit_design(results: SCDIResults) -> None:
@@ -82,7 +75,44 @@ def plot_per_unit_design(results: SCDIResults) -> None:
     plt.show()
 
 
-def _stack_pre_post(results: SCDIResults) -> np.ndarray:
+def plot_relaxed_design(results: RelaxedSolverResults) -> None:
+    """Plot synthetic treated/control aggregate series for a relaxed SCDI design.
+
+    Parameters
+    ----------
+    results : RelaxedSolverResults
+        Output of the relaxed annealing solver. Must have ``inputs``
+        attached so that pre/post matrices can be stacked.
+
+    Raises
+    ------
+    MlsynthPlottingError
+        If the result has no attached ``inputs``.
+    """
+
+    if results.inputs is None:
+        raise MlsynthPlottingError(
+            "Relaxed SCDI plotting requires inputs to be attached to the result."
+        )
+
+    design = results.design
+    Y_full = _stack_pre_post(results)
+    n_pre = results.inputs.Y_pre.shape[0]
+
+    treated_series = Y_full @ design.treated_weights
+    control_series = Y_full @ design.control_weights
+
+    plt.figure(figsize=(12, 5))
+    plt.plot(treated_series, lw=3, label="Synthetic Treated")
+    plt.plot(control_series, lw=2, ls="--", label="Synthetic Control")
+    plt.axvline(x=n_pre - 0.5, color="red", alpha=0.4, label="Treatment Start")
+    plt.title("SCDI Global Design (global_2way_relaxed)")
+    plt.legend()
+    plt.grid(alpha=0.2)
+    plt.show()
+
+
+def _stack_pre_post(results: SCDIResults | RelaxedSolverResults) -> np.ndarray:
     if results.inputs.Y_post is None:
         return results.inputs.Y_pre
     return np.vstack([results.inputs.Y_pre, results.inputs.Y_post])
