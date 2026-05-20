@@ -19,6 +19,7 @@ from ..fast_scm_helpers.structure import IndexSet
 
 if TYPE_CHECKING:
     pass
+    from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -140,7 +141,6 @@ class SPCDDesign:
     lam_balance: float
     beta: float
 
-
 @dataclass(frozen=True)
 class SPCDResults:
     """User-facing output of the SPCD estimator.
@@ -153,15 +153,26 @@ class SPCDResults:
         Preprocessed data used in estimation. Attached by the
         :class:`mlsynth.estimators.SPCD` orchestrator so the result is
         self-contained for plotting.
+    summary : BaseEstimatorResults, optional
+        Standardized result bundle containing ATT, pre/post fit RMSEs,
+        synthetic-paths time series, per-unit signed weights, and method
+        diagnostics. Attached by the SPCD orchestrator so users get a
+        single object whose shape matches the rest of the mlsynth
+        estimator suite.
 
     Notes
     -----
     ``mode`` always reports ``"spcd"`` so plotting and dispatch code can
     branch on it uniformly with :class:`SCDIResults`.
+
+    Convenience properties (``att``, ``rmse_pre``, ``rmse_post``,
+    ``donor_weights``) forward to the corresponding fields of
+    ``summary`` when it is attached.
     """
 
     design: SPCDDesign
     inputs: Optional[SPCDInputs] = None
+    summary: Optional["BaseEstimatorResults"] = None
 
     @property
     def mode(self) -> str:
@@ -184,3 +195,31 @@ class SPCDResults:
         if self.inputs is None:
             return self.design.selected_unit_indices
         return self.inputs.unit_index.get_labels(self.design.selected_unit_indices)
+
+    @property
+    def att(self) -> Optional[float]:
+        """Average treatment effect on the treated, or ``None`` if no summary."""
+        if self.summary is None or self.summary.effects is None:
+            return None
+        return self.summary.effects.att
+
+    @property
+    def rmse_pre(self) -> Optional[float]:
+        """Pre-treatment RMSE of the synthetic gap."""
+        if self.summary is None or self.summary.fit_diagnostics is None:
+            return None
+        return self.summary.fit_diagnostics.rmse_pre
+
+    @property
+    def rmse_post(self) -> Optional[float]:
+        """Post-treatment RMSE of the synthetic gap, if a post period exists."""
+        if self.summary is None or self.summary.fit_diagnostics is None:
+            return None
+        return self.summary.fit_diagnostics.rmse_post
+
+    @property
+    def donor_weights(self) -> Optional[dict]:
+        """Per-unit signed contrast weights as a label-to-float dict."""
+        if self.summary is None or self.summary.weights is None:
+            return None
+        return self.summary.weights.donor_weights
