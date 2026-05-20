@@ -15,6 +15,7 @@ from .estimators.laxscm import RESCM # Check
 from .estimators.scexp import MAREX
 from .estimators.lexscm import LEXSCM
 from .estimators.scdi import SCDI
+from .estimators.spcd import SPCD
 
 __all__ = [
     "TSSC",
@@ -34,4 +35,5 @@ __all__ = [
     "MAREX",
     "LEXSCM",
     "SCDI",
+    "SPCD"
 ]
