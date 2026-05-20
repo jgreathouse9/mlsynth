@@ -214,7 +214,8 @@ from mlsynth.utils.fast_scm_helpers.fast_scm_bb_helpers import (
 
 def test_presolve_budget_filter():
     """Budget filter drops units whose cost plus the cheapest partners
-    exceeds the budget."""
+    exceeds the budget.
+    """
     G = np.eye(4)
     candidate_idx = np.array([0, 1, 2, 3])
     costs = np.array([1.0, 5.0, 2.0, 10.0])
