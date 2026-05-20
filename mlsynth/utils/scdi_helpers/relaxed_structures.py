@@ -10,6 +10,7 @@ import numpy as np
 if TYPE_CHECKING:
     from .structures import SCDIInputs
 
+
 @dataclass(frozen=True)
 class RelaxedSwapLog:
     """Per-iteration Metropolis swap diagnostics for the annealed D-step.
@@ -119,8 +120,37 @@ class RelaxedDesign:
 
 
 @dataclass(frozen=True)
+class RelaxedInference:
+    """Permutation-based inference results for the relaxed SCDI design.
+
+    Parameters
+    ----------
+    atet : float
+        Estimated average treatment effect on treated units, computed as
+        the mean of ``Y_post @ contrast_weights``.
+    p_value : float
+        Two-sided moving-block permutation p-value.
+    reject : bool
+        Whether the null hypothesis is rejected at level ``alpha``.
+    alpha : float
+        Significance level used for the test.
+    method : str
+        Name of the inference procedure.
+    null_stats : np.ndarray or None
+        Empirical null distribution of test statistics.
+    """
+
+    atet: float
+    p_value: float
+    reject: bool
+    alpha: float
+    method: str
+    null_stats: Optional[np.ndarray] = None
+
+
+@dataclass(frozen=True)
 class RelaxedSolverResults:
-    """Complete output of :func:`solve_two_way_relaxed`.
+    """User-facing output of :func:`solve_two_way_relaxed`.
 
     Parameters
     ----------
@@ -128,16 +158,31 @@ class RelaxedSolverResults:
         Best-state design solution found by the chain.
     trace : RelaxedAnnealingTrace
         Iteration-level diagnostics of the annealing run.
+    inputs : SCDIInputs, optional
+        Preprocessed panel data the solver was run on. Attached by the
+        :class:`mlsynth.estimators.SCDI` orchestrator so the result is
+        self-contained for plotting and post-processing.
+    inference : RelaxedInference, optional
+        Optional permutation-inference output.
 
     Notes
     -----
     The split between ``design`` and ``trace`` mirrors the existing
     :class:`SCDIDesign` / :class:`SCDIResults` separation used by the
-    mixed-integer SCDI pipeline.
+    mixed-integer SCDI pipeline. ``mode`` always reports
+    ``"global_2way_relaxed"`` so plotting and dispatch code can branch on
+    it uniformly with :class:`SCDIResults`.
     """
 
     design: RelaxedDesign
     trace: RelaxedAnnealingTrace
+    inputs: Optional["SCDIInputs"] = None
+    inference: Optional[RelaxedInference] = None
+
+    @property
+    def mode(self) -> str:
+        """Solver mode reported to downstream consumers."""
+        return "global_2way_relaxed"
 
     @property
     def assignment(self) -> np.ndarray:
@@ -153,3 +198,23 @@ class RelaxedSolverResults:
     def rmse(self) -> float:
         """Alias for ``design.rmse``."""
         return self.design.rmse
+
+    @property
+    def selected_unit_indices(self) -> np.ndarray:
+        """Integer indices of units selected into treatment."""
+        return np.where(self.design.assignment == 1)[0]
+
+    @property
+    def selected_unit_labels(self) -> np.ndarray:
+        """Labels of units selected into treatment.
+
+        Returns
+        -------
+        np.ndarray
+            Original unit labels when ``inputs`` is attached, otherwise the
+            raw integer indices.
+        """
+        idx = self.selected_unit_indices
+        if self.inputs is None:
+            return idx
+        return self.inputs.unit_index.get_labels(idx)
