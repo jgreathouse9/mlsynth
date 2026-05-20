@@ -297,6 +297,148 @@ convergence theorem (Theorem 3) and operate on a generic matrix
 iteration matrix :math:`M`. The two ``variant`` options exposed in the
 API already cover both procedures applied to :math:`M`.
 
+Inference and Power Analysis
+----------------------------
+
+Beyond the design itself, :class:`SPCD` produces a moving-block
+conformal confidence interval for the post-period ATT and a Monte
+Carlo estimate of the minimum detectable effect (MDE). The procedure
+mirrors LEXSCM's train-on-E / calibrate-on-B discipline.
+
+Estimation / Holdout Split
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Given the pretreatment matrix :math:`Y_{\text{pre}} \in
+\mathbb{R}^{T_{\text{pre}} \times N}`, SPCD splits the pretreatment
+window into
+
+.. math::
+
+   Y_{\text{pre}}
+   \;=\;
+   \begin{bmatrix}
+       Y_{E} \\[3pt]
+       Y_{B}
+   \end{bmatrix},
+
+where :math:`Y_E` contains the first ``holdout_frac_E`` of the
+pretreatment periods (default 70 %) and :math:`Y_B` contains the
+remainder. The SPCD design — sign vector, treated/control weights,
+and the iteration matrix :math:`M` — is fit on :math:`Y_E` *only*.
+
+Backwards-Compatibility Guarantee
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Because the design is fit on :math:`Y_E` alone, two callers who share
+the same pretreatment data — one in *planning mode* (no
+:math:`Y_{\text{post}}` yet) and one in *retrospective mode* (with
+:math:`Y_{\text{post}}`) — receive **identical** designs. The only
+difference between the two callers is whether a post-period ATT and
+its conformal CI are reported.
+
+Holdout Residuals
+^^^^^^^^^^^^^^^^^
+
+Applying the design weights to :math:`Y_B` gives an out-of-sample
+synthetic-gap series
+
+.. math::
+
+   r_B \;=\; Y_B \cdot w,
+
+where :math:`w` is the signed ``contrast_weights`` vector from the
+:math:`Y_E`-fit design. Under the linear-factor model with no
+treatment, :math:`r_B` is a zero-mean noise series whose empirical
+distribution characterizes the noise structure of any synthetic-gap
+linear functional based on the same :math:`w`. This makes :math:`r_B`
+the natural calibration set for inference and the natural noise pool
+for power simulations.
+
+Moving-Block Conformal CI
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When :math:`Y_{\text{post}}` is supplied, the post-period synthetic
+gap is :math:`g = Y_{\text{post}} \cdot w \in \mathbb{R}^S`, with mean
+
+.. math::
+
+   \hat\tau \;=\; \frac{1}{S} \sum_{t=1}^S g_t.
+
+The test statistic is :math:`T(g) = \mathrm{mean}(|g|)`. Conformity
+scores are computed by taking mean-absolute values over all sliding
+blocks of size :math:`b = \max(3, \lfloor\sqrt{S}\rfloor)` (both
+standard and circular) of :math:`r_B`. The conformal p-value vs.
+:math:`H_0\colon \tau = 0` is
+
+.. math::
+
+   p \;=\; \frac{
+       \#\{\text{blocks with score} \geq T(g)\}
+   }{\text{number of blocks}}.
+
+The :math:`(1 - \alpha)` confidence interval for :math:`\hat\tau` is
+obtained by inversion: scan a grid of candidate values :math:`\theta`
+around :math:`\hat\tau`, include :math:`\theta` if the
+adjusted-residual score :math:`T(g - \theta)` is in the in-distribution
+region of the block-score empirical distribution. Pointwise bands at
+the :math:`(1 - \alpha)` quantile :math:`q` of the block scores are
+reported as :math:`g_t \pm q`.
+
+This is exchangeability-based inference: coverage holds in finite
+samples under the assumption that overlapping blocks of :math:`r_B`
+are exchangeable with overlapping blocks of :math:`g` under the null.
+This is a stronger assumption than IID noise and weaker than perfect
+:math:`H_0`. It breaks if the treatment introduces variance changes.
+
+Monte Carlo MDE
+^^^^^^^^^^^^^^^
+
+The MDE answers the pre-experiment planning question: *given my
+holdout residuals and a planned post-period horizon* :math:`S` , *what
+is the smallest constant treatment effect I could detect with power*
+:math:`\geq \pi`?
+
+The procedure follows :mod:`mlsynth.utils.fast_scm_helpers.power_helpers`:
+
+1. Build the null distribution of :math:`T` at horizon :math:`S` by
+   resampling :math:`r_B` (padded with Gaussian draws so that
+   resampling of size :math:`S` is always feasible). Compute
+   :math:`c_\alpha = \text{quantile}(\text{null}, 1 - \alpha)`.
+2. For each candidate :math:`\tau` on a grid of effect sizes, draw
+   :math:`n_{\text{trials}}` post-period vectors of the form
+   :math:`\tau + \mathcal{N}(0, \hat\sigma_B^2)` and count the fraction
+   exceeding :math:`c_\alpha`.
+3. The smallest :math:`\tau` whose empirical power reaches the target
+   :math:`\pi` is reported as the MDE, both on the absolute scale
+   (``mde``) and as a percentage of the holdout-baseline outcome
+   level (``mde_pct``).
+
+A detectability curve — the MDE as a function of :math:`S` — can be
+requested by passing ``mde_horizon_grid`` to the config. This answers
+the related question: *how long do I need to run the experiment to
+detect a target effect?*
+
+Power Analysis Always Runs
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The MDE computation depends only on :math:`r_B`, not on
+:math:`Y_{\text{post}}`. So power analysis runs whenever
+``enable_inference=True`` and the holdout window is large enough
+(at least ``min_blank_size`` periods, default 5). The conformal CI
+only runs when :math:`Y_{\text{post}}` is supplied; otherwise the
+ATT and CI are reported as ``None`` (honest absence rather than a
+silent zero).
+
+Opting Out
+^^^^^^^^^^
+
+Setting ``enable_inference=False`` skips the E/B split entirely. The
+design is then fit on the full pretreatment matrix (legacy behavior),
+no holdout residuals are produced, and inference / power analysis
+are not run. Use this when you need byte-identical reproducibility
+against a pre-inference SPCD release, or when your pretreatment window
+is too short to spare a holdout.
+
 Core API
 --------
 
@@ -344,6 +486,19 @@ Helper Modules
    :undoc-members:
 
 .. automodule:: mlsynth.utils.spcd_helpers.treatment_effect
+   :members:
+   :undoc-members:
+
+
+.. automodule:: mlsynth.utils.spcd_helpers.holdout
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.spcd_helpers.inference
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.spcd_helpers.power
    :members:
    :undoc-members:
 
