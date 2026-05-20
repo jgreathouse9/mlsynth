@@ -124,6 +124,65 @@ def build_weight_groups(
     return selected_mask, treated_weights, control_weights, contrast_weights
 
 
+def compute_att_and_fit(
+    Y_pre: np.ndarray,
+    Y_post: Optional[np.ndarray],
+    treated_weights: np.ndarray,
+    control_weights: np.ndarray,
+) -> Tuple[float, float, Optional[float]]:
+    """Compute SPCD's ATT and pre/post fit RMSEs.
+
+    Implements the ``tau_hat`` formula at the bottom of Algorithm 1
+    (page 7) of the paper, averaged over the post-treatment horizon:
+
+        ATT = (1/S) sum_{t=T+1..T+S} (
+                sum_{gamma(i)=+1} w(i) Y_{i,t}
+              - sum_{gamma(i)=-1} w(i) Y_{i,t}
+              )
+            = mean(synthetic_gap[post])
+
+    When no post-treatment matrix is provided, the SPCD design step is
+    pure covariate-balancing and ATT is reported as 0.0.
+
+    ``rmse_pre`` measures the pre-period balance achieved by the design
+    (the residual of Eq. (1)/(2) on the chosen sign vector); smaller is
+    better. ``rmse_post`` measures the post-period dispersion of the
+    synthetic gap, useful for sanity-checking convergence behavior.
+
+    Parameters
+    ----------
+    Y_pre : np.ndarray
+        Pre-treatment matrix of shape ``(T_pre, N)``.
+    Y_post : np.ndarray or None
+        Post-treatment matrix of shape ``(T_post, N)``, or ``None``.
+    treated_weights : np.ndarray
+        Length-N treated-group weights summing to 1.
+    control_weights : np.ndarray
+        Length-N control-group weights summing to 1.
+
+    Returns
+    -------
+    att : float
+        Mean of the post-period synthetic gap, or ``0.0`` when ``Y_post``
+        is ``None``.
+    rmse_pre : float
+        Root-mean-square synthetic gap over the pre-treatment period.
+    rmse_post : float or None
+        Root-mean-square synthetic gap over the post-treatment period,
+        or ``None`` when ``Y_post`` is ``None``.
+    """
+
+    pre_gap = Y_pre @ (treated_weights - control_weights)
+    rmse_pre = float(np.sqrt(np.mean(pre_gap ** 2)))
+
+    if Y_post is None:
+        return 0.0, rmse_pre, None
+
+    post_gap = Y_post @ (treated_weights - control_weights)
+    att = float(np.mean(post_gap))
+    rmse_post = float(np.sqrt(np.mean(post_gap ** 2)))
+    return att, rmse_pre, rmse_post
+
 def build_synthetic_paths(
     Y_pre: np.ndarray,
     Y_post: Optional[np.ndarray],
