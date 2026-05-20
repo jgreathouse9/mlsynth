@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
 
+if TYPE_CHECKING:
+    from .structures import SCDIInputs
 
 @dataclass(frozen=True)
 class RelaxedSwapLog:
