@@ -38,6 +38,7 @@ from ..exceptions import (
 )
 from ..utils.datautils import balance
 from ..utils.spcd_helpers.orchestration import solve_spcd
+from ..utils.spcd_helpers.results_assembly import build_summary
 from ..utils.spcd_helpers.plotter import plot_spcd_design
 from ..utils.spcd_helpers.setup import prepare_spcd_inputs
 from ..utils.spcd_helpers.structures import SPCDResults
@@ -160,7 +161,8 @@ class SPCD:
                 verbose=self.verbose,
             )
 
-            results = SPCDResults(design=design, inputs=inputs)
+            summary = build_summary(design=design, inputs=inputs)
+            results = SPCDResults(design=design, inputs=inputs, summary=summary)
 
             if self.display_graph:
                 try:
