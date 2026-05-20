@@ -37,6 +37,7 @@ MLSYNTH
    fscm
    src
    scmo
+   spcd
    shc
    si
    data
