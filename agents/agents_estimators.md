@@ -271,4 +271,4 @@ standardized outputs over custom formats
 composable pipelines over monolithic procedures
 continuation of repository conventions over novel architecture
 
-Agents should study existing estimators before implementing new abstractions.
+Agents should study existing estimators before implementing new abstractions (the best examples are the FDID, SCDI, LEXSCM, and SPCD modules, as templates).
