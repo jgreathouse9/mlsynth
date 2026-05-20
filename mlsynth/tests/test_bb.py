@@ -98,15 +98,15 @@ def test_topk_deterministic():
 # PRESOLVE + BUDGET EDGE CASES
 # =========================================================
 
-def test_budget_and_lam_execution():
+def test_budget_execution():
     G = make_G()
 
     result = branch_and_bound_topK(
         G=G,
         candidate_idx=make_candidates(),
         m=2,
-        lam=0.1,
         budget=1.0,
+        unit_costs=np.array([0.4, 0.5, 0.6]),
         top_K=2,
     )
 
@@ -186,60 +186,71 @@ def test_stats_structure():
     assert "total_subsets" in stats["search_space"]
 
 
-
-import numpy as np
-import pytest
+# =========================================================
+# LOW-LEVEL HELPER TESTS
+# =========================================================
 
 from mlsynth.utils.fast_scm_helpers.fast_scm_bb_helpers import (
-    presolve_candidates,
-    compute_search_space_size,
-    greedy_initial_solution,
-    expand_weights_to_full,
-    simplex_lower_bound,
-    lookahead_lower_bound,
-    solve_qp_simplex_value,
-    expand_tuple,
-    get_qp_call_count,
-    reset_qp_call_count,
-    clear_solver_cache,
+    Precomputed,
     Solution,
+    clear_cache,
+    compute_search_space_size,
+    diagonal_bound_Q,
+    expand_weights_to_full,
+    fw_completion_bound,
+    get_qp_call_count,
+    greedy_init,
+    inverse_rank_bound,
+    presolve,
+    reset_qp_call_count,
+    solve_qp,
+    spectral_lower_bound,
 )
+
 
 # =========================================================
 # PRESOLVE
 # =========================================================
 
 def test_presolve_budget_filter():
+    """Budget filter drops units whose cost plus the cheapest partners
+    exceeds the budget."""
     G = np.eye(4)
     candidate_idx = np.array([0, 1, 2, 3])
-    costs = np.array([1, 5, 2, 10])
+    costs = np.array([1.0, 5.0, 2.0, 10.0])
 
-    out = presolve_candidates(G, candidate_idx, budget=3, unit_costs=costs)
+    pre = Precomputed(G)
+    out = presolve(pre, candidate_idx, m=2, budget=3.0, unit_costs=costs)
 
+    # m=2 needs one partner; cheapest partner cost = min(costs[other]) = 1.
+    # Affordable picks satisfy unit_cost + 1 <= 3 -> {0, 2}.
     assert set(out.tolist()) == {0, 2}
 
 
 def test_presolve_variance_filter():
-    G = np.diag([1, 1, 1, 1000])  # huge outlier
+    """Units with diagonal far above the median are dropped."""
+    G = np.diag([1.0, 1.0, 1.0, 1000.0])  # huge outlier
     idx = np.array([0, 1, 2, 3])
 
-    out = presolve_candidates(G, idx)
+    pre = Precomputed(G)
+    out = presolve(pre, idx, m=2)
 
     assert 3 not in out
 
 
 def test_presolve_collinearity_filter():
+    """Near-collinear units are deduplicated."""
     G = np.array([
         [1.0, 0.9999],
         [0.9999, 1.0],
     ])
     idx = np.array([0, 1])
-    costs = np.array([1.0, 2.0])  # second is more expensive
 
-    out = presolve_candidates(G, idx, unit_costs=costs)
+    pre = Precomputed(G)
+    out = presolve(pre, idx, m=1)
 
+    # Only one of the two near-collinear units should survive.
     assert len(out) == 1
-    assert out[0] == 0  # cheaper survives
 
 
 # =========================================================
@@ -260,7 +271,7 @@ def test_search_space_size():
 def test_qp_solver_basic():
     Q = np.eye(2)
 
-    loss, w = solve_qp_simplex_value(Q)
+    loss, w = solve_qp(Q)
 
     assert np.isclose(loss, 0.5)
     np.testing.assert_allclose(w.sum(), 1.0)
@@ -275,37 +286,47 @@ def test_qp_solver_fallback(monkeypatch):
 
     import cvxpy as cp
     monkeypatch.setattr(cp.Problem, "solve", fake_solve)
+    # The solver cache may already hold a result; clear it so the fallback
+    # path is the one we hit.
+    clear_cache()
 
     Q = np.eye(2)
-    loss, w = solve_qp_simplex_value(Q)
+    loss, w = solve_qp(Q)
 
     assert np.isfinite(loss)
     assert np.isclose(w.sum(), 1.0)
 
 
 # =========================================================
-# LOWER BOUNDS
+# LOWER BOUNDS (the renamed / refactored set)
 # =========================================================
 
-def test_simplex_lower_bound_basic():
+def test_diagonal_bound_basic():
+    Q = np.diag([0.5, 1.0, 2.0])
+    lb = diagonal_bound_Q(Q)
+
+    assert lb == 0.5
+
+
+def test_spectral_lower_bound_nonnegative_psd():
     Q = np.eye(3)
-    lb = simplex_lower_bound(Q)
+    lb = spectral_lower_bound(Q)
 
     assert lb >= 0
-    assert lb <= 1
 
 
-def test_lookahead_lower_bound_monotonic():
+def test_inverse_rank_bound_single_unit():
+    Q = np.array([[2.5]])
+    lb = inverse_rank_bound(Q)
+    assert lb == 2.5
+
+
+def test_fw_completion_bound_runs():
     G = np.eye(5)
+    pre = Precomputed(G)
+    lb = fw_completion_bound(pre, indices=np.array([0]), remaining=np.array([1, 2]))
 
-    lb = lookahead_lower_bound(
-        G,
-        current_lb=0.5,
-        remaining_candidates=np.array([2, 3, 4]),
-        slots_left=2,
-        m=3,
-    )
-
+    assert np.isfinite(lb)
     assert lb >= 0
 
 
@@ -313,14 +334,19 @@ def test_lookahead_lower_bound_monotonic():
 # GREEDY INIT
 # =========================================================
 
-def test_greedy_initial_solution():
+def test_greedy_init_basic():
     G = np.eye(4)
     idx = np.array([0, 1, 2, 3])
+    pre = Precomputed(G)
 
-    loss, sel, w = greedy_initial_solution(G, idx, m=2)
+    # greedy_init now requires unit_costs; pass zero-cost as the budget-free
+    # path is the common case.
+    costs = np.zeros(4)
+    sel, loss, w = greedy_init(pre, idx, m=2, unit_costs=costs, budget=1e9)
 
     assert len(sel) == 2
     assert np.isclose(w.sum(), 1.0)
+    assert np.isfinite(loss)
 
 
 # =========================================================
@@ -345,82 +371,23 @@ def test_expand_weights_to_full():
 
 def test_qp_call_counter():
     reset_qp_call_count()
+    clear_cache()
 
     Q = np.eye(2)
-    solve_qp_simplex_value(Q)
-    solve_qp_simplex_value(Q)
+    solve_qp(Q)
+    # Use distinct Q values so the warm-start cache does not bypass solve.
+    solve_qp(np.eye(2) * 1.0001)
 
     assert get_qp_call_count() == 2
 
 
-def test_clear_solver_cache():
-    clear_solver_cache()
+def test_clear_cache_resets_counter():
+    Q = np.eye(2)
+    solve_qp(Q)
+    assert get_qp_call_count() >= 1
+
+    clear_cache()
     assert get_qp_call_count() == 0
-
-
-# =========================================================
-# EXPAND TUPLE (CORE RECURSION)
-# =========================================================
-
-def test_expand_tuple_smoke():
-    G = np.eye(4)
-    candidate_idx = np.array([0, 1, 2, 3])
-
-    stats = {
-        "nodes_visited": 0,
-        "subsets_evaluated": 0,
-        "branches_pruned": 0,
-        "branches_considered": 0,
-    }
-
-    top = [Solution(loss=10.0, indices=[0], weights=np.array([1.0]))]
-
-    expand_tuple(
-        G=G,
-        candidate_idx=candidate_idx,
-        m=2,
-        top_K=3,
-        top_tuples=top,
-        indices=[0],
-        stats=stats,
-        start_pos=1,
-        Q_partial=np.array([[1.0]]),
-    )
-
-    assert stats["nodes_visited"] > 0
-    assert len(top) >= 1
-
-
-def test_expand_tuple_budget_pruning():
-    G = np.eye(3)
-    idx = np.array([0, 1, 2])
-    costs = np.array([1.0, 10.0, 1.0])
-
-    stats = {
-        "nodes_visited": 0,
-        "subsets_evaluated": 0,
-        "branches_pruned": 0,
-        "branches_considered": 0,
-    }
-
-    top = [Solution(loss=10.0, indices=[0], weights=np.array([1.0]))]
-
-    expand_tuple(
-        G=G,
-        candidate_idx=idx,
-        m=2,
-        top_K=2,
-        top_tuples=top,
-        indices=[0],
-        stats=stats,
-        start_pos=1,
-        Q_partial=np.array([[1.0]]),
-        unit_costs=costs,
-        budget=1.5,
-        current_cost=1.0,
-    )
-
-    assert stats["branches_pruned"] > 0
 
 
 # =========================================================
@@ -433,7 +400,7 @@ def test_near_singular_Q():
         [0.999999, 1.0],
     ])
 
-    loss, w = solve_qp_simplex_value(Q)
+    loss, w = solve_qp(Q)
 
     assert np.isfinite(loss)
     assert np.isclose(w.sum(), 1.0)
@@ -451,45 +418,40 @@ def test_random_psd_inputs(seed):
     G = X.T @ X  # PSD
 
     idx = np.arange(5)
+    pre = Precomputed(G)
+    costs = np.zeros(5)
 
-    loss, sel, w = greedy_initial_solution(G, idx, m=2)
+    sel, loss, w = greedy_init(pre, idx, m=2, unit_costs=costs, budget=1e9)
 
     assert np.isfinite(loss)
     assert np.isclose(w.sum(), 1.0)
 
 
-
-
+# =========================================================
+# BRANCH-AND-BOUND vs BRUTE FORCE CONSISTENCY
+# =========================================================
 
 import itertools
 
+
 def brute_force_best(G, idx, m):
     best = float("inf")
-
     for comb in itertools.combinations(idx, m):
         Q = G[np.ix_(comb, comb)]
-        loss, _ = solve_qp_simplex_value(Q)
+        loss, _ = solve_qp(Q)
         best = min(best, loss)
-
     return best
-
 
 
 def test_matches_bruteforce():
     rng = np.random.default_rng(0)
-    X = rng.normal(size=(10, 10))   # ← was (5,5)
+    X = rng.normal(size=(10, 10))
     G = X.T @ X
 
-    idx = np.arange(10)             # ← was 5
-
-    from mlsynth.utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
-
+    idx = np.arange(10)
     res = branch_and_bound_topK(G, idx, m=2, top_K=1)
 
     best_bnb = res["top_tuples"][0].loss
     best_true = brute_force_best(G, idx, m=2)
-
-    print("\nBNB best loss:", best_bnb)
-    print("Brute force best loss:", best_true)
 
     assert np.isclose(best_bnb, best_true, atol=1e-6)

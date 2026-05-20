@@ -239,7 +239,9 @@ def test_build_z_matrix_stacking(panel_df):
 
 
 def test_split_periods_no_post():
-    E, B, P = setup.split_periods(T0=4, frac_E=0.5, post_df=None)
+    E, B, P, _n_fit, _n_blank = setup.split_periods(
+        T0=4, n_covariates=0, frac_E=0.5, post_df=None
+    )
 
     assert len(E) == 2
     assert len(B) == 2
@@ -272,7 +274,7 @@ def test_build_x_tilde_stability():
 
     f = np.array([0.5, 0.5])
 
-    XE, G = setup.build_X_tilde(X, f, idx=np.array([0, 1]), J=2)
+    XE, G = setup.build_X_tilde(X, f, idx=np.array([0, 1]))
 
     assert XE.shape == (2, 2)
     assert np.isfinite(XE).all()
@@ -282,29 +284,33 @@ def test_build_x_tilde_stability():
 def test_post_intervention_effect_computation(monkeypatch):
     cand = make_candidate()
 
+    # make_candidate uses control weights of length 3, so Y_pre must have
+    # 3 columns; Y_post likewise must have 3 columns per row.
     Y_pre = np.array([
-        [1, 2],
-        [3, 4],
+        [1.0, 2.0, 1.5],
+        [3.0, 4.0, 3.5],
     ])
 
     post_df = pd.DataFrame({
-        "time": [3, 3],
-        "unit": ["A", "B"],
-        "y": [5, 6],
+        "time": [3, 3, 3],
+        "unit": ["A", "B", "C"],
+        "y": [5.0, 6.0, 5.5],
     })
 
-    def fake_post(*args, **kwargs):
-        return args[0]
-
-    monkeypatch.setattr(setup, "compute_post_inference", fake_post)
-    monkeypatch.setattr(setup, "compute_moving_block_conformal_ci", lambda *a, **k: a[0])
+    # compute_post_inference was removed during the LEXSCM refactor — its
+    # work is now done inline inside _run_post_intervention_updates.
+    monkeypatch.setattr(
+        setup,
+        "compute_moving_block_conformal_ci",
+        lambda *a, **k: k.get("candidate") if "candidate" in k else (a[0] if a else None),
+    )
 
     _, updated = setup._run_post_intervention_updates(
         [cand],
         Y_pre,
         post_df,
         np.array([2]),
-        IndexSet.from_labels(["A", "B"]),
+        IndexSet.from_labels(["A", "B", "C"]),
         "unit",
         "time",
         "y",

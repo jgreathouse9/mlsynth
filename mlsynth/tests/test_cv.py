@@ -825,5 +825,4 @@ def test_name_elastic_net_model_with_mocked_panel(incrementality_synth_panel):
         X_pre, y_pre, X_post, donor_names=donor_names,
         alpha=0.01, lam=0.1, second_norm="L1_INF", y=y
     )
-    hg
     assert result["Model"] == "$\\ell_\\infty$"

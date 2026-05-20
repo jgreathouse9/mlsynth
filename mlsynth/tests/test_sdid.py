@@ -378,8 +378,16 @@ def test_sdid_fit_nan_in_outcome(mock_sdid_plot, sdid_panel_data):
     try:
         estimator_nan_treat.fit()
     except Exception as e:
+        from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
         # Allow for known numerical/data issues, but fail on unexpected errors
-        if not isinstance(e, (np.linalg.LinAlgError, ValueError, cvxpy.error.SolverError, cvxpy.error.DCPError)):
+        if not isinstance(e, (
+            np.linalg.LinAlgError,
+            ValueError,
+            cvxpy.error.SolverError,
+            cvxpy.error.DCPError,
+            MlsynthDataError,
+            MlsynthEstimationError,
+        )):
             pytest.fail(f"SDID.fit() with NaN in treated pre-period failed unexpectedly: {e}")
     mock_sdid_plot.assert_not_called()
     mock_sdid_plot.reset_mock()
@@ -401,8 +409,16 @@ def test_sdid_fit_nan_in_outcome(mock_sdid_plot, sdid_panel_data):
     try:
         estimator_all_nan.fit()
     except Exception as e:
+        from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
         # Allow for known numerical/data issues
-        if not isinstance(e, (np.linalg.LinAlgError, ValueError, cvxpy.error.SolverError, cvxpy.error.DCPError)):
+        if not isinstance(e, (
+            np.linalg.LinAlgError,
+            ValueError,
+            cvxpy.error.SolverError,
+            cvxpy.error.DCPError,
+            MlsynthDataError,
+            MlsynthEstimationError,
+        )):
             pytest.fail(f"SDID.fit() failed unexpectedly when all pre-treatment treated data is NaN: {e}")
     mock_sdid_plot.assert_not_called()
     mock_sdid_plot.reset_mock()
@@ -421,9 +437,11 @@ def test_sdid_fit_nan_in_outcome(mock_sdid_plot, sdid_panel_data):
         pytest.fail(f"SDIDConfig validation failed for NaN in control pre-period: {ve}")
     estimator_nan_control = SDID(config=sdid_config_nan_control)
     
-    # Expect MlsynthEstimationError wrapping CVXPY errors if NaNs propagate
-    with pytest.raises(MlsynthEstimationError,
-                       match=r"(CVXPY solver error in SDID|CVXPY solver failed in unit_weights|Problem does not follow DCP rules|Solver failed|infeasible|unbounded|nan|NaN)") as excinfo:
+    # Expect either MlsynthEstimationError (CVXPY wrap) or MlsynthDataError
+    # (NaN propagation caught at preprocessing) when NaNs are present in
+    # the control donor pool.
+    with pytest.raises((MlsynthEstimationError, MlsynthDataError),
+                       match=r"(CVXPY solver error in SDID|CVXPY solver failed in unit_weights|Problem does not follow DCP rules|Solver failed|infeasible|unbounded|nan|NaN|Inf)") as excinfo:
         estimator_nan_control.fit()
     
     # Plotting should not be called if fit fails with an exception

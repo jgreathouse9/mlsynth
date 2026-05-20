@@ -311,7 +311,9 @@ def test_l2_relaxed_objective_has_no_entropy(incrementality_synth_panel):
     atom_set = atom_names(res["problem"].objective)
 
     assert "entr" not in atom_set
-    assert "Pnorm" in atom_set
+    # cvxpy renamed the p-norm atom (Pnorm -> PnormApprox) in newer releases;
+    # accept either form.
+    assert any("Pnorm" in name for name in atom_set)
 
 
 # -------------------------------
@@ -504,6 +506,7 @@ def test_l2_relaxation_atoms(incrementality_synth_panel):
 
     atoms = atom_names(res["problem"].objective)
     assert "entr" not in atoms
-    assert "Pnorm" in atoms
+    # cvxpy renamed the p-norm atom in recent releases; either form is valid.
+    assert any("Pnorm" in name for name in atoms)
 
 
