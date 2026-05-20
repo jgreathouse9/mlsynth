@@ -85,9 +85,15 @@ def build_summary(
     att = att_raw if inputs.Y_post is not None else None
 
     unit_labels = inputs.unit_index.labels
-    donor_weights = {
-        str(unit_labels[i]): float(design.contrast_weights[i])
+    treated_weights_by_unit = {
+        str(unit_labels[i]): float(design.treated_weights[i])
         for i in range(len(unit_labels))
+        if design.treated_weights[i] != 0.0
+    }
+    control_weights_by_unit = {
+        str(unit_labels[i]): float(design.control_weights[i])
+        for i in range(len(unit_labels))
+        if design.control_weights[i] != 0.0
     }
 
     pre_periods = inputs.pre_time_index.labels
@@ -153,7 +159,8 @@ def build_summary(
             time_periods=time_periods,
         ),
         weights=WeightsResults(
-            donor_weights=donor_weights,
+            treated_weights_by_unit=treated_weights_by_unit,
+            control_weights_by_unit=control_weights_by_unit,
             summary_stats={
                 "n_treated": int(design.n_treated),
                 "n_control": int(len(unit_labels) - design.n_treated),
