@@ -619,8 +619,10 @@ class SCDIConfig(BaseMAREXConfig):
     ----------
     K : int
         Number of treated units.
-    mode : {"global_2way", "global_equal_weights", "per_unit"}
-        SCDI optimization formulation.
+    mode : {"global_2way", "global_equal_weights", "per_unit", "global_2way_relaxed"}
+        SCDI optimization formulation. ``"global_2way_relaxed"`` selects the
+        simulated-annealing relaxation of ``"global_2way"``, which trades the
+        MIP optimality guarantee for a non-commercial solver dependency.
     lam : float or None, optional
         L2 penalty on weights. If None, estimated from data.
     T0 : int or None, optional
@@ -632,7 +634,11 @@ class SCDIConfig(BaseMAREXConfig):
     run_inference : bool
         Whether to run post-treatment inference.
     solver : Any
-        CVXPY-compatible solver.
+        CVXPY-compatible solver. Ignored when ``mode="global_2way_relaxed"``.
+    relaxed_max_iter : int
+        Number of outer annealing iterations for the relaxed solver.
+    relaxed_decay : float
+        Geometric decay factor for the relaxed solver's temperature schedule.
     display_graph : bool
         Whether to display design visualization.
     verbose : bool
@@ -663,7 +669,12 @@ class SCDIConfig(BaseMAREXConfig):
     """
 
     K: int = Field(..., gt=0, description="Number of units selected into treatment.")
-    mode: Literal["global_2way", "global_equal_weights", "per_unit"] = Field(
+    mode: Literal[
+        "global_2way",
+        "global_equal_weights",
+        "per_unit",
+        "global_2way_relaxed",
+    ] = Field(
         default="global_2way",
         description="SCDI formulation to solve.",
     )
@@ -684,6 +695,17 @@ class SCDIConfig(BaseMAREXConfig):
     alpha: float = Field(default=0.10, gt=0.0, lt=1.0, description="Test size for permutation inference.")
     run_inference: bool = Field(default=True, description="Run post-period inference when post data are available.")
     solver: Any = Field(default="SCIP", description="CVXPY-compatible mixed-integer solver name or object.")
+    relaxed_max_iter: int = Field(
+        default=40,
+        gt=0,
+        description="Outer annealing iterations for mode='global_2way_relaxed'.",
+    )
+    relaxed_decay: float = Field(
+        default=0.97,
+        gt=0.0,
+        lt=1.0,
+        description="Geometric decay factor for the relaxed solver's temperature schedule.",
+    )
     display_graph: bool = Field(default=False, description="Whether to display SCDI plots.")
     verbose: bool = Field(default=False, description="Whether to print solver progress.")
 
