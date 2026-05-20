@@ -18,8 +18,9 @@ import numpy as np
 from ..fast_scm_helpers.structure import IndexSet
 
 if TYPE_CHECKING:
-    pass
     from ...config_models import BaseEstimatorResults
+    from .inference import SPCDConformalResult
+    from .power import SPCDPowerAnalysis
 
 
 @dataclass(frozen=True)
@@ -173,6 +174,8 @@ class SPCDResults:
     design: SPCDDesign
     inputs: Optional[SPCDInputs] = None
     summary: Optional["BaseEstimatorResults"] = None
+    conformal: Optional["SPCDConformalResult"] = None
+    power: Optional["SPCDPowerAnalysis"] = None
 
     @property
     def mode(self) -> str:
@@ -223,3 +226,30 @@ class SPCDResults:
         if self.summary is None or self.summary.weights is None:
             return None
         return self.summary.weights.donor_weights
+
+
+
+    @property
+    def p_value(self) -> Optional[float]:
+        """Conformal p-value vs. H0: tau = 0, if computed."""
+        return self.conformal.p_value if self.conformal is not None else None
+
+    @property
+    def ci_lower(self) -> Optional[float]:
+        """Conformal lower bound of the ATT CI, if computed."""
+        return self.conformal.ci_lower if self.conformal is not None else None
+
+    @property
+    def ci_upper(self) -> Optional[float]:
+        """Conformal upper bound of the ATT CI, if computed."""
+        return self.conformal.ci_upper if self.conformal is not None else None
+
+    @property
+    def mde(self) -> Optional[float]:
+        """Minimum detectable effect on the absolute scale, if computed."""
+        return self.power.mde_tau if self.power is not None else None
+
+    @property
+    def mde_pct(self) -> Optional[float]:
+        """Minimum detectable effect as a percentage of the holdout baseline."""
+        return self.power.mde_pct if self.power is not None else None
