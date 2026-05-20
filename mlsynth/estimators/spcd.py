@@ -37,7 +37,7 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.datautils import balance
-from ..utils.spcd_helpers.orchestration import solve_spcd
+from ..utils.spcd_helpers.orchestration import solve_spcd_with_holdout
 from ..utils.spcd_helpers.results_assembly import build_summary
 from ..utils.spcd_helpers.plotter import plot_spcd_design
 from ..utils.spcd_helpers.setup import prepare_spcd_inputs
@@ -129,6 +129,17 @@ class SPCD:
         self.display_graph: bool = config.display_graph
         self.verbose: bool = config.verbose
 
+        # Inference and power analysis controls (see SPCDConfig docs).
+        self.enable_inference: bool = config.enable_inference
+        self.holdout_frac_E: float = config.holdout_frac_E
+        self.inference_alpha: float = config.inference_alpha
+        self.power_target: float = config.power_target
+        self.mde_n_sims: int = config.mde_n_sims
+        self.mde_n_trials: int = config.mde_n_trials
+        self.mde_horizon_grid = config.mde_horizon_grid
+        self.inference_seed: int = config.inference_seed
+        self.min_blank_size: int = config.min_blank_size
+
     def fit(self) -> SPCDResults:
         """Run the SPCD pipeline and return the design.
 
@@ -149,7 +160,7 @@ class SPCD:
                 post_col=self.post_col,
             )
 
-            design = solve_spcd(
+            design, conformal, power = solve_spcd_with_holdout(
                 inputs=inputs,
                 variant=self.variant,
                 weights=self.weights,
@@ -159,10 +170,27 @@ class SPCD:
                 max_iter=self.max_iter,
                 solver=self.solver,
                 verbose=self.verbose,
+                enable_inference=self.enable_inference,
+                holdout_frac_E=self.holdout_frac_E,
+                inference_alpha=self.inference_alpha,
+                power_target=self.power_target,
+                mde_n_sims=self.mde_n_sims,
+                mde_n_trials=self.mde_n_trials,
+                mde_horizon_grid=self.mde_horizon_grid,
+                inference_seed=self.inference_seed,
+                min_blank_size=self.min_blank_size,
             )
 
-            summary = build_summary(design=design, inputs=inputs)
-            results = SPCDResults(design=design, inputs=inputs, summary=summary)
+            summary = build_summary(
+                design=design, inputs=inputs, conformal=conformal, power=power
+            )
+            results = SPCDResults(
+                design=design,
+                inputs=inputs,
+                summary=summary,
+                conformal=conformal,
+                power=power,
+            )
 
             if self.display_graph:
                 try:
