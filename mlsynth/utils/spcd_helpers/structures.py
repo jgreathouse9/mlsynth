@@ -223,9 +223,35 @@ class SPCDResults:
     @property
     def donor_weights(self) -> Optional[dict]:
         """Per-unit signed contrast weights as a label-to-float dict."""
+        """Control-side weights as ``{label: weight}`` (non-negative, sum to 1).
+
+        Synthetic-control literature calls control units "donors", so
+        ``donor_weights`` is the dict of control-unit labels mapped to
+        their positive weights. Use :py:meth:`treated_weights_by_unit`
+        for the treated-side equivalent.
+        """
         if self.summary is None or self.summary.weights is None:
             return None
         return self.summary.weights.donor_weights
+
+    @property
+    def treated_weights_by_unit(self) -> Optional[dict]:
+        """Treated-side weights as ``{label: weight}`` (non-negative, sum to 1)."""
+        if self.summary is None or self.summary.weights is None:
+            return None
+        return getattr(self.summary.weights, "treated_weights_by_unit", None)
+
+    @property
+    def control_weights_by_unit(self) -> Optional[dict]:
+        """Control-side weights as ``{label: weight}`` (non-negative, sum to 1).
+
+        Alias of :py:meth:`donor_weights` for users who prefer the
+        explicit treated/control naming over the SC-literature
+        "donor" terminology.
+        """
+        if self.summary is None or self.summary.weights is None:
+            return None
+        return getattr(self.summary.weights, "control_weights_by_unit", None)
 
 
 
