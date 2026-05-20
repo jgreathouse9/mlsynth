@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, Optional, Union
 
 import pandas as pd
@@ -15,9 +16,14 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.datautils import balance
-from ..utils.scdi_helpers.inference import permutation_test_global
+from ..utils.scdi_helpers.inference import (
+    permutation_test_global,
+    permutation_test_relaxed_global,
+)
 from ..utils.scdi_helpers.optimization import solve_synthetic_design
 from ..utils.scdi_helpers.plotter import plot_scdi_design
+from ..utils.scdi_helpers.relaxed_solver import solve_two_way_relaxed
+from ..utils.scdi_helpers.relaxed_structures import RelaxedSolverResults
 from ..utils.scdi_helpers.setup import prepare_scdi_inputs
 from ..utils.scdi_helpers.structures import SCDIResults
 
@@ -27,7 +33,8 @@ class SCDI:
     Synthetic Control Design Intervention (SCDI) estimator.
 
     Jointly optimizes treatment assignment and synthetic control weights
-    via a mixed-integer program.
+    via a mixed-integer program, or via a simulated-annealing relaxation
+    when ``mode="global_2way_relaxed"``.
 
     Unlike standard synthetic control methods, SCDI selects the treated
     units and constructs synthetic controls simultaneously.
@@ -51,7 +58,7 @@ class SCDI:
         Time identifier column.
     K : int
         Number of treated units to select.
-    mode : {"global_2way", "global_equal_weights", "per_unit"}
+    mode : {"global_2way", "global_equal_weights", "per_unit", "global_2way_relaxed"}
         Optimization formulation.
     lam : float or None
         L2 regularization parameter on weights.
@@ -64,7 +71,11 @@ class SCDI:
     run_inference : bool
         Whether to run permutation inference.
     solver : Any
-        CVXPY-compatible solver.
+        CVXPY-compatible solver. Ignored when ``mode="global_2way_relaxed"``.
+    relaxed_max_iter : int
+        Outer annealing iterations for the relaxed solver.
+    relaxed_decay : float
+        Temperature decay factor for the relaxed solver.
     display_graph : bool
         Whether to plot treatment/control structure.
     verbose : bool
@@ -72,8 +83,12 @@ class SCDI:
 
     Returns
     -------
-    SCDIResults
-        Object containing optimized design, inputs, and optional inference.
+    SCDIResults or RelaxedSolverResults
+        For the MIP modes, an :class:`SCDIResults` object containing the
+        optimized design, inputs, and optional inference. For
+        ``mode="global_2way_relaxed"`` the relaxed solver returns its own
+        :class:`RelaxedSolverResults` container with ``design``, ``trace``,
+        attached ``inputs``, and optional ``inference`` fields.
 
     Notes
     -----
@@ -88,8 +103,13 @@ class SCDI:
     per_unit
         Unit-specific synthetic control weights for each treated unit.
 
-    The underlying optimization is a mixed-integer program and may be
-    NP-hard in general.
+    global_2way_relaxed
+        Simulated-annealing relaxation of ``global_2way`` that avoids
+        the mixed-integer program. Useful when a commercial MIP solver
+        is unavailable or the problem size makes MIP impractical.
+
+    The underlying MIP formulation may be NP-hard in general; the
+    relaxed mode trades that optimality guarantee for cheap iterations.
     """
 
     def __init__(self, config: Union[SCDIConfig, dict]) -> None:
@@ -122,10 +142,12 @@ class SCDI:
         self.alpha: float = config.alpha
         self.run_inference: bool = config.run_inference
         self.solver: Any = config.solver
+        self.relaxed_max_iter: int = config.relaxed_max_iter
+        self.relaxed_decay: float = config.relaxed_decay
         self.display_graph: bool = config.display_graph
         self.verbose: bool = config.verbose
 
-    def fit(self) -> SCDIResults:
+    def fit(self) -> Union[SCDIResults, RelaxedSolverResults]:
         """Run the SCDI design, optional post-period inference, and plotting pipeline."""
 
         try:
@@ -139,31 +161,10 @@ class SCDI:
                 post_col=self.post_col,
             )
 
-            design = solve_synthetic_design(
-                Y=inputs.Y_pre,
-                K=self.K,
-                mode=self.mode,
-                lam=self.lam,
-                solver=self.solver,
-                verbose=self.verbose,
-                unit_index=inputs.unit_index,
-            )
-
-            inference = None
-            if self.run_inference and inputs.Y_post is not None:
-                if self.mode == "global_2way":
-                    inference = permutation_test_global(
-                        Y_pre=inputs.Y_pre,
-                        Y_post=inputs.Y_post,
-                        design=design,
-                        alpha=self.alpha,
-                    )
-                else:
-                    raise MlsynthConfigError(
-                        "Post-period inference is currently implemented only for mode='global_2way'."
-                    )
-
-            results = SCDIResults(design=design, inputs=inputs, inference=inference)
+            if self.mode == "global_2way_relaxed":
+                results = self._fit_relaxed(inputs)
+            else:
+                results = self._fit_mip(inputs)
 
             if self.display_graph:
                 try:
@@ -177,3 +178,55 @@ class SCDI:
             raise
         except Exception as exc:
             raise MlsynthEstimationError(f"SCDI estimation failed: {exc}") from exc
+
+    def _fit_mip(self, inputs) -> SCDIResults:
+        """Solve the mixed-integer SCDI formulation and assemble results."""
+
+        design = solve_synthetic_design(
+            Y=inputs.Y_pre,
+            K=self.K,
+            mode=self.mode,
+            lam=self.lam,
+            solver=self.solver,
+            verbose=self.verbose,
+            unit_index=inputs.unit_index,
+        )
+
+        inference = None
+        if self.run_inference and inputs.Y_post is not None:
+            if self.mode == "global_2way":
+                inference = permutation_test_global(
+                    Y_pre=inputs.Y_pre,
+                    Y_post=inputs.Y_post,
+                    design=design,
+                    alpha=self.alpha,
+                )
+            else:
+                raise MlsynthConfigError(
+                    "Post-period inference is currently implemented only for mode='global_2way'."
+                )
+
+        return SCDIResults(design=design, inputs=inputs, inference=inference)
+
+    def _fit_relaxed(self, inputs) -> RelaxedSolverResults:
+        """Run the simulated-annealing relaxation and assemble results."""
+
+        relaxed = solve_two_way_relaxed(
+            Y=inputs.Y_pre,
+            K=self.K,
+            lam=self.lam,
+            max_iter=self.relaxed_max_iter,
+            decay=self.relaxed_decay,
+            verbose=self.verbose,
+        )
+
+        inference = None
+        if self.run_inference and inputs.Y_post is not None:
+            inference = permutation_test_relaxed_global(
+                Y_pre=inputs.Y_pre,
+                Y_post=inputs.Y_post,
+                design=relaxed.design,
+                alpha=self.alpha,
+            )
+
+        return replace(relaxed, inputs=inputs, inference=inference)
