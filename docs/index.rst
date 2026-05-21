@@ -43,6 +43,7 @@ MLSYNTH
    sbc
    si
    tasc
+   mlsc
    data
    selector
    spill
