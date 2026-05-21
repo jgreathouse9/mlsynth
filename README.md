@@ -1,73 +1,138 @@
-#  ``mlsynth``
-
-
-## License
-
-`mlsynth` is open-source and distributed under the [MIT License](LICENSE).
+# `mlsynth`
 
 ![coverage](coverage.svg)
 
-``mlsynth`` is a python package for doing policy evaluation using panel data estimators. See the [full documentation](https://mlsynth.readthedocs.io/) and the [landing page](https://jgreathouse9.github.io/mlsynth/webdir/mlsynthlanding.html) for more.
+`mlsynth` is a Python framework for **synthetic control causal inference and
+synthetic-control-based experimental design**. It bundles over 20 modern estimators
+under a single typed `Config` / `.fit()` / typed-results interface, so swapping
+between, say, Forward DiD, TASC, and SPCD is a one-line change.
 
+Documentation: <https://mlsynth.readthedocs.io/> · Landing page:
+<https://jgreathouse9.github.io/mlsynth/webdir/mlsynthlanding.html>
 
-## What is  ``mlsynth``
- ``mlsynth`` employs synthetic control methods. It includes difference-in-differences, panel data approaches, and factor modeling.  ``mlsynth`` is a suite of tools for addressing questions like "How does Policy X affect some outcome Y". It operates on the assumption that the user has panel data, or a setup where we have observations for the same units across multiple time points.
+---
 
-## Installing  ``mlsynth``
- ``mlsynth`` is compatible with Python 3.8 or later. To install it, please do
+## Why `mlsynth`
 
-```{shell}
+The synthetic control literature has fragmented across econometrics, statistics,
+marketing science, and machine learning. Reference implementations are scattered
+across paper-supplemental GitHub repositories in heterogeneous languages and
+with idiosyncratic APIs, so comparing several methods on a single panel
+typically means translating four or five codebases into a common shape before
+any analysis begins. `mlsynth` removes that translation cost.
+
+Three things distinguish it from other SCM libraries. First, **breadth**: it
+covers regularized variants of the canonical convex-hull estimator (ridge-
+augmented, $L_\infty$, low-rank, and Bayesian shrinkage), methods in which the
+donor pool is chosen explicitly rather than implicitly through convex weighting
+(forward selection, clustering, proximal identification, matrix completion),
+and synthetic-control-based experimental design. Second, **a uniform API**:
+every estimator takes a Pydantic-validated config and returns a typed dataclass
+of results. Third,
+**experimental design as a first-class concern**: `SCDI`, `MAREX`, `LEXSCM`,
+and `SPCD` jointly optimize *which* units to treat with minimum detectable
+effect (MDE) analysis and, in the case of `LEXSCM`, explicit unit-level cost
+and budget constraints solved by branch-and-bound. This last capability is
+largely unavailable in other SCM packages.
+
+## Install
+
+```bash
 pip install -U git+https://github.com/jgreathouse9/mlsynth.git
 ```
 
-Note that  ``mlsynth`` is an active project. New estimators, such as [this one](https://doi.org/10.48550/arXiv.2006.07691), will soon join the toolkit.
+`mlsynth` supports Python 3.8 and later.
 
-## Contributing to ``mlsynth``
+## Quickstart
 
-``mlsynth`` welcomes expertise and novelty, Bayesian or Frequentist.
+```python
+import pandas as pd
+from mlsynth import FDID
 
-Small improvements or fixes are always appreciated. If you are wish to add in new estimators,
-inference tests, or other wider ranging changes, please email Jared first. Some of the newer 
-estimators on the list for development are [continuous treatments](https://doi.org/10.1080/07350015.2021.1927743), [some](https://economics.mit.edu/sites/default/files/inline-files/_Factor_Bayesian_SC_0.pdf) [Bayesian](https://arxiv.org/pdf/2503.06454) methods, [Random Forests](https://onlinelibrary.wiley.com/doi/abs/10.1002/jae.3123), [synthetic historical controls](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4995085), [infernce for simplex weights](https://arxiv.org/pdf/2501.15692), [prediction intervals](https://doi.org/10.1002/jae.3134), [synthetic business cycles](https://arxiv.org/pdf/2505.22388), and other things that we may add.
+config = {
+    "df": pd.read_csv("panel.csv"),
+    "outcome": "sales",
+    "unitid":  "state",
+    "time":    "year",
+    "treat":   "treated",          # binary 0/1 treatment indicator
+}
 
-Whatever changes are proposed, they must be performed on the Basque, Proposition 99, or West Germany dataset, or they must reproduce the findings of the original paper the empirical innovation was proposed for.
+results = FDID(config).fit()
+```
 
-In addition to writing code, you may also
+The same five `df`/`outcome`/`unitid`/`time`/`treat` fields work for every
+estimator. Swap `FDID` for `TASC`, `CLUSTERSC`, `BVSS`, or any other class in the
+table below; only the class name and any estimator-specific hyperparameters
+change.
 
-- develop tutorials, presentations, and other educational materials using ``mlsynth``
-- promote ``mlsynth`` on LinkedIn or in the classroom
-- help with outreach and onboard new contributors
+## Estimators
 
+| Estimator | Reference | Class |
+|---|---|---|
+| [L1PDA](https://doi.org/10.1016/j.jeconom.2016.01.011) | Li & Bell (2017), *Journal of Econometrics* 197(1):65–75 | `PDA` |
+| [Forward-Selected Panel Data Approach](https://doi.org/10.1016/j.jeconom.2021.04.009) | Shi & Huang (2023), *Journal of Econometrics* 234(2):512–535 | `PDA` |
+| [L2-Relaxation for Economic Prediction](https://doi.org/10.13140/RG.2.2.11670.97609) | Shi & Wang (2024) | `PDA` |
+| [Synthetic Control Method (vanilla SCM)](https://doi.org/10.1198/jasa.2009.ap08746) | Abadie, Diamond, Hainmueller (2010), *JASA* 105(490):493–505 | `TSSC` |
+| [Two-Step Synthetic Control](https://doi.org/10.1287/mnsc.2023.4878) | Li & Shankar (2024), *Management Science* 70(6):3734–3755 | `TSSC` |
+| [Forward Difference-in-Differences](https://doi.org/10.1287/mksc.2022.0212) | Li (2024), *Marketing Science* 43(2):267–279 | `FDID` |
+| [Factor Model Approach](https://doi.org/10.1177/00222437221137533) | Li & Sonnier (2023), *JMR* 60(3) | `FMA` |
+| [Optimal Initial Donor Selection for SCM](https://doi.org/10.1016/j.econlet.2024.111976) | Cerulli (2024), *Economics Letters* 244:111976 | `FSCM` |
+| [Principal Component Regression](https://doi.org/10.1080/01621459.2021.1928513) | Agarwal et al. (2021), *JASA* 116(536):1731–1745 | `CLUSTERSC` |
+| [Robust PCA Synthetic Control](https://academicworks.cuny.edu/gc_etds/4984) | Bayani (2022), CUNY Academic Works | `CLUSTERSC` |
+| [CLUSTERSC](https://doi.org/10.48550/arXiv.2503.21629) | Rho, Tang, Bergam, Cummings, Misra (2024), arXiv:2503.21629 | `CLUSTERSC` |
+| [SCM with Nonlinear Outcomes](https://arxiv.org/abs/2306.01967) | Tian (2023), arXiv:2306.01967 | `NSC` |
+| [Proximal SCM Framework](https://arxiv.org/abs/2108.13935) | Shi, Li, Miao, Hu, Tchetgen Tchetgen (2023), arXiv:2108.13935 | `PROXIMAL` |
+| [Proximal Causal Inference for SCM (Surrogates)](https://arxiv.org/abs/2308.09527) | Liu, Tchetgen Tchetgen, Varjão (2023), arXiv:2308.09527 | `PROXIMAL` |
+| [SCM with Multiple Outcomes](https://arxiv.org/abs/2304.02272) | Tian, Lee, Panchenko (2023), arXiv:2304.02272 | `SCMO` |
+| [Synthetic Difference-in-Differences](https://www.aeaweb.org/articles?id=10.1257/aer.20190159) | Arkhangelsky et al. (2021), *AER* 111(12):4088–4118 | `SDID` |
+| [Synthetic Historical Control](https://ssrn.com/abstract=4995085) | Chen, Yang, Yang (2024), SSRN | `SHC` |
+| [Synthetic Regressing Control](https://arxiv.org/abs/2306.02584) | — | `SRC` |
+| [Synthetic Interventions](https://arxiv.org/abs/2006.07691) | Agarwal, Shah, Shen (2020), arXiv:2006.07691 | `SI` |
+| [Relaxed Balanced Synthetic Control](https://arxiv.org/abs/2508.01793) | Liao, Shi, Zheng (2025), arXiv:2508.01793 | `RESCM` |
+| [$L_\infty$ Synthetic Control](https://arxiv.org/abs/2510.26053) | Wang, Xing, Ye (2025), arXiv:2510.26053 | `RESCM` |
+| [Bayesian SC with Soft Simplex Constraint](https://arxiv.org/abs/2503.06454) | Xu & Zhou (2025), arXiv:2503.06454 | `BVSS` |
+| [Time-Aware Synthetic Control](https://arxiv.org/abs/2601.03099) | Rho, Illick, Narasipura, Abadie, Hsu, Misra (2026), arXiv:2601.03099 | `TASC` |
+| [Synthetic Business Cycle](https://arxiv.org/abs/2505.22388) | Shi, Xi, Xie (2025), arXiv:2505.22388 | `SBC` |
+| [Synthetic Controls for Experimental Design](https://arxiv.org/abs/2108.02196) | Abadie & Zhao (2025), arXiv:2108.02196 | `SCDI` |
+| [Lexicographic Synthetic Control](https://economics.mit.edu/sites/default/files/2026-02/Synthetic%20Controls%20for%20Experimental%20Design%20Feb%202026.pdf) | Vives-i-Bastida (2022) | `LEXSCM` |
+| [Synthetic Principal Component Design](https://arxiv.org/abs/2211.15241) | Lu, Li, Ying, Blanchet (2022), arXiv:2211.15241 | `SPCD` |
+| [Synthetic Experimental Design](https://arxiv.org/abs/2108.02196) | Abadie & Zhao (2025), arXiv:2108.02196 | `MAREX` |
 
-    
-## Using  ``mlsynth``
+Several entries share a class because the underlying estimator generalizes
+several methods through a single configuration (`PDA` covers three norm
+choices, `RESCM` covers relaxation- and $L_\infty$-balanced variants, and so
+on).
 
-We have implemented the following estimators for  ``mlsynth``  
+## Inference and design tools
 
-| Estimator | Reference | Class in `mlsynth` |
-|----------|-----------|---------------------|
-| [L1PDA](https://doi.org/10.1016/j.jeconom.2016.01.011) | Li, Kathleen T., and David R. Bell. "Estimation of Average Treatment Effects with Panel Data: Asymptotic Theory and Implementation." *Journal of Econometrics* 197(1):65–75, 2017. | PDA |
-| [Synthetic Control Method (Vanilla SCM)](https://doi.org/10.1198/jasa.2009.ap08746) | Abadie, Alberto; Diamond, Alexis; Hainmueller, Jens. "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California's Tobacco Control Program." *Journal of the American Statistical Association* 105(490):493–505, 2010. | TSSC |
-| [Forward Selected Panel Data Approach](https://doi.org/10.1016/j.jeconom.2021.04.009) | Shi, Zhentao; Huang, Jingyi. "Forward-selected panel data approach for program evaluation." *Journal of Econometrics* 234(2):512–535, 2023. | PDA |
-| [Principal Component Regression](https://doi.org/10.1080/01621459.2021.1928513) | Agarwal, Anish; Shah, Devavrat; Shen, Dennis; Song, Dogyoon. "On Robustness of Principal Component Regression." *Journal of the American Statistical Association* 116(536):1731–1745, 2021. | CLUSTERSC |
-| [Factor Model Approach](https://doi.org/10.1177/00222437221137533) | Li, Kathleen T.; Sonnier, Garrett P. "Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings." *Journal of Marketing Research* 60(3), 2023. | FMA |
-| [Forward Difference-in-Differences](https://doi.org/10.1287/mksc.2022.0212) | Li, Kathleen T. "Frontiers: A Simple Forward Difference-in-Differences Method." *Marketing Science* 43(2):267–279, 2023. | FDID |
-| [Two Step Synthetic Control](https://doi.org/10.1287/mnsc.2023.4878) | Li, Kathleen T.; Shankar, Venkatesh. "A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events." *Management Science* 70(6):3734–3755, 2023. | TSSC |
-| [Synthetic Control Method with Nonlinear Outcomes](https://arxiv.org/abs/2306.01967) | Tian, Wei. "The Synthetic Control Method with Nonlinear Outcomes: Estimating the Impact of the 2019 Anti-Extradition Law Amendments Bill Protests on Hong Kong's Economy." arXiv:2306.01967, 2023. | NSC |
-| [Proximal Causal Inference for SCM (Surrogates)](https://arxiv.org/abs/2308.09527) | Liu, Jizhou; Tchetgen Tchetgen, Eric J.; Varjão, Carlos. "Proximal Causal Inference for Synthetic Control with Surrogates." arXiv:2308.09527, 2023. | PROXIMAL |
-| [Proximal SCM Framework](https://arxiv.org/abs/2108.13935) | Shi, Xu; Li, Kendrick; Miao, Wang; Hu, Mengtong; Tchetgen Tchetgen, Eric J. "Theory for Identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework." arXiv:2108.13935, 2023. | PROXIMAL |
-| [Robust PCA Synthetic Control](https://academicworks.cuny.edu/gc_etds/4984) | Bayani, Mani. "Essays on Machine Learning Methods in Economics." CUNY Academic Works, 2022. | CLUSTERSC |
-| [CLUSTERSC](https://doi.org/10.48550/arXiv.2503.21629) | Rho, Saeyoung; Tang, Andrew; Bergam, Noah; Cummings, Rachel; Misra, Vishal. "CLUSTERSC: Advancing Synthetic Control with Donor Clustering for Disaggregate-Level Data." arXiv:2503.21629, 2024. | CLUSTERSC |
-| [Optimal Initial Donor Selection for SCM](https://doi.org/10.1016/j.econlet.2024.111976) | Cerulli, Giovanni. "Optimal initial donor selection for the synthetic control method." *Economics Letters* 244:111976, 2024. | FSCM |
-| [L2-relaxation for Economic Prediction](https://doi.org/10.13140/RG.2.2.11670.97609) | Shi, Zhentao; Wang, Yishu. "L2-relaxation for Economic Prediction." November 2024. DOI:10.13140/RG.2.2.11670.97609. | PDA |
-| [Synthetic Historical Control](https://ssrn.com/abstract=4995085) | Chen, Yi-Ting; Yang, Jui-Chung; Yang, Tzu-Ting. "Synthetic Historical Control for Policy Evaluation." SSRN, September 2024. DOI:10.2139/ssrn.4995085. | SHC |
-| [Relaxed Balanced Synthetic Control](https://arxiv.org/abs/2508.01793) | Liao, Chengwang; Shi, Zhentao; Zheng, Yapeng. "A Relaxation Approach to Synthetic Control." arXiv:2508.01793, 2025. | RESCM |
-| [L∞ Synthetic Control](https://arxiv.org/abs/2510.26053) | Wang, Le; Xing, Xin; Ye, Youhui. "A L-infinity Norm Synthetic Control Approach." arXiv:2510.26053, 2025. | RESCM |
-| [Synthetic Control with Multiple Outcomes (TLP and SBMF)](https://arxiv.org/abs/2304.02272) | Tian, Wei; Lee, Seojeong; Panchenko, Valentyn. "Synthetic Controls with Multiple Outcomes." arXiv:2304.02272, 2023. | SCMO |
-| [Synthetic Controls for Experimental Design](https://arxiv.org/abs/2108.02196) | Abadie, Alberto; Zhao, Jinglong. "Synthetic Controls for Experimental Design." arXiv:2108.02196, 2026. | MAREX |
-| [Synthetic Experimental Design in Policy Contexts](https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf) | Vives-i-Bastida, Jaume. "Synthetic Experimental Design in Policy Contexts." Working paper, 2022. | LEXSCM |
-| [Synthetic Design: An Optimization Approach](https://arxiv.org/abs/2112.00278) | Doudchenko, Nick; Khosravi, Khashayar; Pouget-Abadie, Jean; Lahaie, Sébastien; Lubin, Miles; Mirrokni, Vahab; Spiess, Jann; et al. "Synthetic Design: An Optimization Approach to Experimental Design with Synthetic Controls." *NeurIPS* 2021. | SCDI |
-| [Synthetic Principal Component Design](https://arxiv.org/abs/2211.15241) | Lu, Yiping; Li, Jiajin; Ying, Lexing; Blanchet, José. "Synthetic Principal Component Design: Fast Covariate Balancing with Synthetic Controls." arXiv:2211.15241, 2022. | SPCD |
+Beyond point estimates, `mlsynth` ships three families of inference: moving-block conformal prediction intervals for `SPCD` and
+`LEXSCM`; and posterior credible intervals for the Bayesian and state-space
+estimators (`BVSS`, `TASC`).
 
+For experimental design, `SCDI`, `SPCD`,
+`LEXSCM`, and `MAREX` jointly select treated units and donor weights, and
+expose pre-experiment minimum-detectable-effect curves so power can be
+evaluated before the experiment is run.
 
-Several estimators are implemented as special cases within the RESCM framework via alternative norm geometries and relaxation objectives.
+## Contributing
+
+Small fixes are always welcome. For new estimators, inference tests, or
+larger changes, please email Jared first. Estimators currently on the
+development list include continuous-treatment synthetic controls, Bayesian
+factor SCMs, random-forest-based SCMs, simplex-weight inference, and
+prediction-interval refinements.
+
+Whatever change is proposed, it must reproduce either a canonical benchmark
+application from the SCM literature (Basque Country, California Proposition 99,
+or West Germany reunification) or the empirical findings reported in the
+originating methodological paper. Continuous integration runs the unit test
+suite, a fresh-install smoke check, and coverage reporting on every pull
+request.
+
+In addition to code, you can also develop tutorials, presentations, and
+educational materials using `mlsynth`, promote it on LinkedIn or in the
+classroom, and help with outreach and onboarding new contributors.
+
+## License
+
+`mlsynth` is open source and distributed under the [MIT License](LICENSE).
