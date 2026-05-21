@@ -39,6 +39,7 @@ MLSYNTH
    scmo
    spcd
    shc
+   sbc
    si
    tasc
    data
