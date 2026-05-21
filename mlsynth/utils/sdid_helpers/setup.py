@@ -90,7 +90,13 @@ def prepare_sdid_inputs(
             )
             total = pre + post
 
-        cohort_key = int(pre)
+        # ``cohort_key`` is the 1-based index of the *first treated period* so
+        # that ``ell = arange(T) - (cohort_key - 1)`` puts ell = 0 on the first
+        # treated period (e.g. 1989 for Prop 99). Setting it to ``pre`` instead
+        # would shift the post-treatment mask one period early and include the
+        # last pre-treatment period in the post-treatment ATT — see
+        # Arkhangelsky et al. (2021), Table 1 for the canonical -15.6 value.
+        cohort_key = int(pre) + 1
         cohorts_dict = {
             cohort_key: {
                 "y": prep["y"].reshape(-1, 1),
