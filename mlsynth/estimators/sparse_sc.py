@@ -64,23 +64,23 @@ class SparseSC:
 
     Notes
     -----
-    Unlike most ``mlsynth`` estimators, this one needs a separate
-    ``predictors_df`` argument: a unit-by-predictor table with one
-    numeric value per (unit, predictor) pair. The first column is
-    treated as the "anchor" predictor whose V-weight is fixed at 1.
+    Predictors are supplied through ``covariates`` (columns in ``df``
+    whose per-unit pre-treatment mean becomes one predictor row) and/or
+    ``outcome_lag_periods`` (specific pre-treatment time labels whose
+    outcome values become predictor rows -- the canonical ADH lagged-
+    outcome predictors). The first predictor is the "anchor" whose
+    V-weight is fixed at 1.
 
     Examples
     --------
     >>> import pandas as pd                                                  # doctest: +SKIP
     >>> from mlsynth import SparseSC                                         # doctest: +SKIP
     >>> df = pd.read_csv("smoking_long.csv")                                 # doctest: +SKIP
-    >>> X = pd.read_csv("X_redux.csv")                                       # doctest: +SKIP
     >>> res = SparseSC({                                                     # doctest: +SKIP
     ...     "df": df, "outcome": "cigsale",
     ...     "treat": "Proposition 99", "unitid": "state", "time": "year",
-    ...     "predictors_df": X, "predictors_unitid": "state",
-    ...     "predictor_cols": ["p_cig", "loginc", "pct15-24",
-    ...                        "pc_beer", "smk_75", "smk_80", "smk_88"],
+    ...     "covariates": ["p_cig", "loginc", "pct15-24", "pc_beer"],
+    ...     "outcome_lag_periods": [1975, 1980, 1988],
     ...     "display_graphs": False,
     ... }).fit()
     >>> res.att                                                              # doctest: +SKIP
@@ -104,9 +104,8 @@ class SparseSC:
         self.unitid: str = config.unitid
         self.time: str = config.time
 
-        self.predictors_df: pd.DataFrame = config.predictors_df
-        self.predictors_unitid: str = config.predictors_unitid
-        self.predictor_cols = config.predictor_cols
+        self.covariates = config.covariates
+        self.outcome_lag_periods = config.outcome_lag_periods
         self.T0_train = config.T0_train
         self.lambda_grid = (
             np.asarray(config.lambda_grid, dtype=float)
@@ -131,9 +130,8 @@ class SparseSC:
             inputs = prepare_sparse_sc_inputs(
                 df=self.df, outcome=self.outcome, treat=self.treat,
                 unitid=self.unitid, time=self.time,
-                predictors_df=self.predictors_df,
-                predictors_unitid=self.predictors_unitid,
-                predictor_cols=self.predictor_cols,
+                covariates=self.covariates,
+                outcome_lag_periods=self.outcome_lag_periods,
                 T0_train=self.T0_train,
                 standardize=self.standardize,
             )
