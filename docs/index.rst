@@ -40,6 +40,7 @@ MLSYNTH
    spcd
    shc
    si
+   tasc
    data
    selector
    spill
