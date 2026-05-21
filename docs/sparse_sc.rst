@@ -153,28 +153,28 @@ where :math:`B` is the number of completed placebos. Re-using
 ``placebo_resweep=True`` to re-select :math:`\lambda` for every
 placebo (much slower).
 
-Predictor Table Convention
---------------------------
+Predictor Convention
+--------------------
 
-Unlike most :mod:`mlsynth` estimators, SparseSC needs a *separate*
-predictor table in addition to the long-format outcome panel,
-because the predictors are unit-level (one value per
-:math:`(\text{unit}, \text{predictor})` pair, typically pre-
-treatment averages or other unit-level features), not period-level.
-``predictors_df`` is a wide table with one row per unit and one
-numeric column per predictor:
+Like every other :mod:`mlsynth` estimator, SparseSC is fed a single
+long-format ``df`` with one row per ``(unit, time)``. Predictors
+are constructed under the hood from the same frame, in two flavors:
 
-.. code-block:: text
+* ``covariates`` — column names in ``df`` whose **per-unit pre-
+  treatment mean** is taken as the predictor value. Time-invariant
+  unit characteristics collapse trivially; time-varying covariates
+  are summarized by the pre-period mean.
+* ``outcome_lag_periods`` — specific pre-treatment time labels (as
+  found in the ``time`` column) whose **outcome values** become
+  additional predictor rows. These are the canonical Abadie,
+  Diamond & Hainmueller (2010) lagged-outcome predictors (e.g., the
+  ``smk_75``, ``smk_80``, ``smk_88`` rows in the Prop 99 example).
 
-   state         p_cig    loginc   pct15-24  ...  smk_88
-   Alabama       9.68     89.34    0.175     ...  111.7
-   California    7.96    101.10    0.221     ...   97.1
-   ...
-
-The first column listed in ``predictor_cols`` is treated as the
-*anchor*: its :math:`v`-weight is pinned to 1. Choose an anchor
-that is at least somewhat informative — its scale fixes the overall
-penalty scale.
+The two lists are concatenated to form the predictor matrix; the
+first predictor (first entry of ``covariates`` if any, otherwise
+the first outcome lag) is the *anchor* whose :math:`v`-weight is
+fixed at 1. Choose an anchor that is at least somewhat informative
+— its scale fixes the overall penalty scale.
 
 Core API
 --------
@@ -230,30 +230,23 @@ Example
    import pandas as pd
    from mlsynth import SparseSC
 
-   # Long-format outcome panel, one row per (unit, time).
-   df = pd.read_csv("smoking_long.csv")  # cigsale, treat in {0, 1}, etc.
-
-   # Unit-level predictor table, one row per unit.
-   X = pd.read_csv("smoking_predictors.csv")
-   predictors = [
-       "p_cig", "loginc", "pct15-24",
-       "pc_beer", "smk_75", "smk_80", "smk_88",
-   ]
+   # Long-format panel: one row per (state, year). Covariate columns
+   # (p_cig, loginc, pct15-24, pc_beer) sit alongside cigsale.
+   df = pd.read_csv("smoking_long.csv")
 
    results = SparseSC({
-       "df":                df,
-       "outcome":           "cigsale",
-       "treat":             "Proposition 99",
-       "unitid":            "state",
-       "time":              "year",
-       "predictors_df":     X,
-       "predictors_unitid": "state",
-       "predictor_cols":    predictors,   # first one is the v_1 = 1 anchor
-       "standardize":       True,         # default
-       "run_inference":     True,
-       "n_placebo":         None,         # use all donors
-       "placebo_resweep":   False,
-       "display_graphs":    True,
+       "df":                  df,
+       "outcome":             "cigsale",
+       "treat":               "Proposition 99",
+       "unitid":              "state",
+       "time":                "year",
+       "covariates":          ["p_cig", "loginc", "pct15-24", "pc_beer"],
+       "outcome_lag_periods": [1975, 1980, 1988],  # ADH lagged-outcome predictors
+       "standardize":         True,                # default
+       "run_inference":       True,
+       "n_placebo":           None,                # use all donors
+       "placebo_resweep":     False,
+       "display_graphs":      True,
    }).fit()
 
    print(results.att)                     # post-period ATT
