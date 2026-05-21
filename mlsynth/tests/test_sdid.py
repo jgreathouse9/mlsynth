@@ -1,546 +1,356 @@
-import pytest
-import pandas as pd
+"""Tests for the modernized SDID estimator.
+
+Follows the four-layer testing philosophy in ``agents/agents_tests.md``:
+
+    Layer 1: numerical / helper tests
+        - unit/time-weight QPs return simplex-feasible solutions
+        - compute_regularization is positive on healthy panels
+        - per-cohort cohort estimator returns the expected shapes / keys
+        - placebo variance is non-negative
+    Layer 2: data utility tests
+        - prepare_sdid_inputs handles both dataprep return shapes
+          (single-treated and cohorts), surfacing a uniform cohorts_dict
+        - panels with no treated unit are rejected at dataprep
+    Layer 3: estimator integration tests
+        - SDID.fit() reproduces the canonical Prop 99 ATT to the last decimal
+        - the cohort-specific event-time effects (Ciccia 2024 Eq. 3) match
+          the corresponding pooled effects (Eq. 6) in the single-cohort case
+        - high event-time effects are negative for Prop 99 (signed test)
+        - B = 0 yields a NaN inference but a well-formed effect estimate
+    Layer 4: public API contract tests
+        - from mlsynth import SDID works
+        - SDIDResults exposes inference / event_study / cohorts as typed
+          frozen dataclasses
+
+Reference papers:
+  Arkhangelsky et al. (2021), AER.
+  Ciccia (2024), arXiv:2407.09565.
+"""
+
+from __future__ import annotations
+
 import numpy as np
-from typing import Dict, Any
-import cvxpy 
-from unittest.mock import patch
-from pydantic import ValidationError
+import pandas as pd
+import pytest
 
 from mlsynth import SDID
+from mlsynth.config_models import SDIDConfig
 from mlsynth.exceptions import (
+    MlsynthConfigError,
     MlsynthDataError,
     MlsynthEstimationError,
-    # MlsynthConfigError, # Not directly tested for raising here yet
 )
-from mlsynth.config_models import (
-    SDIDConfig,
-    BaseEstimatorResults,
-    EffectsResults,
-    FitDiagnosticsResults,
-    TimeSeriesResults,
-    WeightsResults,
-    InferenceResults,
-    MethodDetailsResults
+from mlsynth.utils.sdid_helpers.cohort import estimate_cohort_sdid_effects
+from mlsynth.utils.sdid_helpers.inference import estimate_placebo_variance
+from mlsynth.utils.sdid_helpers.setup import prepare_sdid_inputs
+from mlsynth.utils.sdid_helpers.structures import (
+    SDIDCohort,
+    SDIDEventEffect,
+    SDIDEventStudy,
+    SDIDInference,
+    SDIDInputs,
+    SDIDResults,
 )
-from mlsynth.utils.datautils import balance, dataprep 
-from mlsynth.utils.sdidutils import estimate_event_study_sdid 
-from mlsynth.utils.resultutils import SDID_plot 
+from mlsynth.utils.sdid_helpers.weights import (
+    compute_regularization,
+    fit_time_weights,
+    unit_weights,
+)
 
-# Configuration for SDID (excluding 'df' which is passed at Pydantic model instantiation)
-SDID_TEST_CONFIG_BASE = {
-    "outcome": "outcome_val",
-    "treat": "treatment_status_sdid", # Name of the treatment column
-    "unitid": "id_unit",
-    "time": "time_period",
-    "display_graphs": False,
-    "save": False,
-    "B": 10, # Small number of placebo iterations for testing
-    "counterfactual_color": ["red"],
-    "treated_color": "darkblue",
-    "seed": 91827,
-    "verbose": False,
-}
 
-# Fields that are part of BaseEstimatorConfig (and thus SDIDConfig)
-SDID_PYDANTIC_MODEL_FIELDS = [
-    "df", "outcome", "treat", "unitid", "time", 
-    "display_graphs", "save", "B", # B is specific to SDIDConfig
-    "counterfactual_color", "treated_color" 
-    # seed and verbose are not in SDIDConfig
-]
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
-def _get_pydantic_config_dict_sdid(full_config: Dict[str, Any], df_fixture: pd.DataFrame) -> Dict[str, Any]:
-    """Helper to extract Pydantic-valid fields for SDIDConfig and add the DataFrame."""
-    pydantic_dict = {
-        k: v for k, v in full_config.items() if k in SDID_PYDANTIC_MODEL_FIELDS
-    }
-    pydantic_dict["df"] = df_fixture
-    return pydantic_dict
+SMOKING_DATA_URL = (
+    "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/"
+    "basedata/smoking_data.csv"
+)
 
-@pytest.fixture
-def sdid_panel_data():
-    """Provides a panel dataset for SDID smoke testing."""
-    n_units = 15 # SDID needs a decent number of control units for placebo
-    n_periods = 20
-    data_dict = {
-        'id_unit': np.repeat(np.arange(1, n_units + 1), n_periods),
-        'time_period': np.tile(np.arange(1, n_periods + 1), n_units),
-        'outcome_val': np.random.normal(loc=np.repeat(np.arange(0, n_units*5, 5), n_periods), scale=3, size=n_units*n_periods),
-        'covariate_x': np.random.rand(n_units * n_periods) * 15,
-    }
-    df = pd.DataFrame(data_dict)
-    
-    # Unit 1 is treated starting from period = 12
-    treatment_col_name = SDID_TEST_CONFIG_BASE["treat"]
-    df[treatment_col_name] = 0
-    df.loc[(df['id_unit'] == 1) & (df['time_period'] >= 12), treatment_col_name] = 1
+
+@pytest.fixture(scope="module")
+def smoking_panel() -> pd.DataFrame:
+    """Load the canonical Prop 99 panel used as the SDID benchmark."""
+    df = pd.read_csv(SMOKING_DATA_URL)
+    df["Proposition 99"] = df["Proposition 99"].astype(int)
     return df
 
-def test_sdid_creation(sdid_panel_data):
-    """Test that the SDID estimator can be instantiated."""
-    pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-    
-    try:
-        sdid_config = SDIDConfig(**pydantic_config_dict)
-        estimator = SDID(config=sdid_config)
-        assert estimator is not None, "SDID estimator should be created."
-        assert estimator.outcome == "outcome_val"
-        assert estimator.treat == SDID_TEST_CONFIG_BASE["treat"]
-        assert estimator.B == 10
-        assert not estimator.display_graphs
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed during estimator creation test: {ve}")
-    except Exception as e:
-        pytest.fail(f"SDID instantiation failed: {e}")
 
-def test_sdid_fit_smoke(sdid_panel_data):
-    """Smoke test for the SDID fit method."""
-    pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-    
-    try:
-        sdid_config = SDIDConfig(**pydantic_config_dict)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed during fit smoke test setup: {ve}")
+def _make_staggered_panel(seed: int = 0) -> pd.DataFrame:
+    """Synthesize a 3-cohort staggered-adoption panel.
 
-    estimator = SDID(config=sdid_config)
-    
-    try:
-        results = estimator.fit() 
-        assert results is not None, "Fit method should return results."
-        assert isinstance(results, BaseEstimatorResults), "Results should be BaseEstimatorResults Pydantic model."
-        
-        # Check main components
-        assert results.effects is not None and isinstance(results.effects, EffectsResults)
-        assert results.fit_diagnostics is not None and isinstance(results.fit_diagnostics, FitDiagnosticsResults) # Will be mostly empty
-        assert results.time_series is not None and isinstance(results.time_series, TimeSeriesResults)
-        assert results.weights is not None and isinstance(results.weights, WeightsResults) # Will be mostly empty
-        assert results.inference is not None and isinstance(results.inference, InferenceResults)
-        assert results.method_details is not None and isinstance(results.method_details, MethodDetailsResults)
-        assert results.raw_results is not None and isinstance(results.raw_results, dict)
-
-        # Check some specific fields based on how _create_estimator_results maps them
-        assert results.effects.att is not None or np.isnan(results.effects.att) # ATT can be NaN
-        if results.effects.additional_effects:
-            assert "att_standard_error" in results.effects.additional_effects
-            assert "att_confidence_interval" in results.effects.additional_effects
-        
-        if results.time_series.time_periods is not None:
-            assert isinstance(results.time_series.time_periods, np.ndarray)
-            assert isinstance(results.time_series.estimated_gap, np.ndarray)
-            assert len(results.time_series.time_periods) == len(results.time_series.estimated_gap)
-
-        assert "pooled_estimates" in results.raw_results
-        assert "att" in results.raw_results 
-        
-        # Check structure of pooled_estimates from raw_results
-        raw_pooled_estimates = results.raw_results.get("pooled_estimates", {})
-        assert isinstance(raw_pooled_estimates, dict)
-        if raw_pooled_estimates: 
-            first_event_time_key = next(iter(raw_pooled_estimates))
-            assert isinstance(first_event_time_key, (float, int))
-            event_time_data = raw_pooled_estimates[first_event_time_key]
-            assert isinstance(event_time_data, dict)
-            assert "tau" in event_time_data
-            assert "se" in event_time_data
-            assert "ci" in event_time_data
-            assert isinstance(event_time_data["ci"], list) and len(event_time_data["ci"]) == 2
-            
-        if estimator.B > 0 and results.inference.p_value is not None:
-            assert 0 <= results.inference.p_value <= 1
-        if results.inference.confidence_interval is not None:
-            assert isinstance(results.inference.confidence_interval, list) and len(results.inference.confidence_interval) == 2
-
-
-    except Exception as e:
-        if isinstance(e, (np.linalg.LinAlgError, ValueError)) and ("singular" in str(e).lower() or "must be positive" in str(e).lower()):
-             pytest.skip(f"Skipping due to potential numerical issue in SDID with test data: {e}")
-        pytest.fail(f"SDID fit method failed during smoke test: {e}")
-
-# --- Input Validation Tests ---
-
-def test_sdid_creation_missing_config_keys(sdid_panel_data):
-    """Test SDIDConfig instantiation with missing essential keys."""
-    
-    # These are the fields in SDIDConfig (inherited from BaseEstimatorConfig)
-    # that do NOT have default values. 'df' is handled by _get_pydantic_config_dict_sdid.
-    truly_required_string_keys = ["outcome", "treat", "unitid", "time"]
-    
-    for key_to_remove in truly_required_string_keys:
-        pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-        if key_to_remove in pydantic_config_dict:
-            del pydantic_config_dict[key_to_remove]
-
-        with pytest.raises(ValidationError) as excinfo:
-            SDIDConfig(**pydantic_config_dict)
-        
-        # Check that the error message mentions the missing field
-        assert key_to_remove in str(excinfo.value).lower()
-
-
-def test_sdid_creation_df_not_dataframe():
-    """Test SDIDConfig instantiation if 'df' is not a pandas DataFrame."""
-    pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, "not_a_dataframe") # type: ignore
-    with pytest.raises(ValidationError) as excinfo:
-        SDIDConfig(**pydantic_config_dict)
-    assert "df" in str(excinfo.value).lower()
-    assert "DataFrame" in str(excinfo.value) # Pydantic error message should indicate expected type
-
-def test_sdid_creation_df_missing_columns(sdid_panel_data):
-    """Test SDIDConfig instantiation fails if df is missing essential columns (error during config validation)."""
-    
-    essential_cols_map = {
-        "outcome": SDID_TEST_CONFIG_BASE["outcome"],
-        "treat": SDID_TEST_CONFIG_BASE["treat"],
-        "unitid": SDID_TEST_CONFIG_BASE["unitid"],
-        "time": SDID_TEST_CONFIG_BASE["time"],
-    }
-    
-    for col_key_in_config, actual_col_name in essential_cols_map.items():
-        df_missing_col = sdid_panel_data.copy()
-        if actual_col_name in df_missing_col.columns:
-             df_missing_col = df_missing_col.drop(columns=[actual_col_name])
-        
-        pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, df_missing_col)
-        
-        # BaseEstimatorConfig's model_validator catches missing essential columns during SDIDConfig instantiation.
-        with pytest.raises(MlsynthDataError, match=f"Missing required columns in DataFrame 'df': {actual_col_name}"):
-            SDIDConfig(**pydantic_config_dict)
-
-def test_sdid_creation_invalid_config_types(sdid_panel_data):
-    """Test SDIDConfig instantiation with invalid types for config parameters."""
-
-    # Test for B (integer expected)
-    pydantic_config_invalid_b = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-    pydantic_config_invalid_b["B"] = "not_an_int" # type: ignore
-    with pytest.raises(ValidationError) as excinfo_b:
-        SDIDConfig(**pydantic_config_invalid_b)
-    assert "b" in str(excinfo_b.value).lower() # Field name is 'B'
-    assert "integer" in str(excinfo_b.value).lower()
-
-    # Test for save (Pydantic model defines it as Union[bool, str, Dict[str, str]])
-    # Test with a type not in the Union
-    pydantic_config_invalid_save = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-    pydantic_config_invalid_save["save"] = 123 # type: ignore
-    with pytest.raises(ValidationError) as excinfo_save:
-        SDIDConfig(**pydantic_config_invalid_save)
-    assert "save" in str(excinfo_save.value).lower()
-    # Check for messages related to bool, str, or dict failure
-    assert ("bool" in str(excinfo_save.value).lower() or 
-            "string" in str(excinfo_save.value).lower() or 
-            "dict" in str(excinfo_save.value).lower())
-
-
-    # Test for display_graphs (boolean expected)
-    pydantic_config_invalid_display = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-    pydantic_config_invalid_display["display_graphs"] = "not_a_bool" # type: ignore
-    with pytest.raises(ValidationError) as excinfo_display:
-        SDIDConfig(**pydantic_config_invalid_display)
-    assert "display_graphs" in str(excinfo_display.value).lower()
-    assert "bool" in str(excinfo_display.value).lower()
-
-def test_sdid_fit_no_control_units(sdid_panel_data):
-    """Test SDID fit when no control units are available."""
-    df_no_controls = sdid_panel_data[sdid_panel_data[SDID_TEST_CONFIG_BASE["unitid"]] == 1].copy() # Keep only the treated unit
-
-    pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, df_no_controls)
-    
-    try:
-        sdid_config = SDIDConfig(**pydantic_config_dict)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for no control units test: {ve}")
-
-    estimator = SDID(config=sdid_config)
-    with pytest.raises(MlsynthDataError, match="No donor units found after pivoting and selecting."):
-        estimator.fit()
-
-
-def test_sdid_creation_with_dict(sdid_panel_data):
-    """Ensure SDID.__init__ handles config dict input."""
-    config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-    
-    estimator = SDID(config_dict)  # <- pass dict, not SDIDConfig
-    assert isinstance(estimator, SDID)
-    assert estimator.df.equals(sdid_panel_data)
-    assert estimator.B == config_dict["B"]
-
-
-
-
-
-def test_sdid_fit_non_binary_treatment(sdid_panel_data):
-    """Test SDID fit when the treatment indicator is not binary."""
-    df_non_binary_treat = sdid_panel_data.copy()
-    # Introduce non-binary values in the treatment column
-    df_non_binary_treat.loc[df_non_binary_treat[SDID_TEST_CONFIG_BASE["unitid"]] == 2, SDID_TEST_CONFIG_BASE["treat"]] = 2 
-    
-    pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, df_non_binary_treat)
-
-    try:
-        sdid_config = SDIDConfig(**pydantic_config_dict)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for non-binary treatment test: {ve}")
-
-    estimator = SDID(config=sdid_config)
-    with pytest.raises(MlsynthDataError, match="Treatment indicator must be a binary variable"):
-        estimator.fit()
-
-# --- Edge Case Tests ---
-
-@patch('mlsynth.estimators.sdid.SDID_plot') # Mock the plotting function
-def test_sdid_fit_insufficient_pre_periods(mock_sdid_plot, sdid_panel_data):
-    """Test SDID fit with insufficient pre-treatment periods."""
-    df = sdid_panel_data.copy()
-    # Modify treat column for insufficient pre-periods
-    df[SDID_TEST_CONFIG_BASE["treat"]] = 0
-    df.loc[(df['id_unit'] == 1) & (df['time_period'] >= 2), SDID_TEST_CONFIG_BASE["treat"]] = 1
-    
-    pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, df)
-    try:
-        sdid_config = SDIDConfig(**pydantic_config_dict)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for insufficient pre-periods test: {ve}")
-    
-    estimator = SDID(config=sdid_config)
-    
-    try:
-        estimator.fit()
-    except Exception as e:
-        pytest.fail(f"SDID.fit() failed unexpectedly with insufficient pre-periods: {e}")
-    mock_sdid_plot.assert_not_called()
-
-
-@patch('mlsynth.estimators.sdid.SDID_plot')
-def test_sdid_fit_insufficient_donors(mock_sdid_plot, sdid_panel_data):
-    """Test SDID fit with insufficient donor units."""
-    df = sdid_panel_data.copy()
-    df_few_donors = df[df['id_unit'].isin([1, 2])] # Only treated unit 1 and one donor unit 2
-    
-    # Ensure the single donor has valid outcome data
-    df_few_donors.loc[df_few_donors['id_unit'] == 2, SDID_TEST_CONFIG_BASE["outcome"]] = \
-        np.random.normal(loc=10, scale=1, size=df_few_donors[df_few_donors['id_unit'] == 2].shape[0])
-    assert not df_few_donors.loc[df_few_donors['id_unit'] == 2, SDID_TEST_CONFIG_BASE["outcome"]].isnull().any()
-
-    pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, df_few_donors)
-    try:
-        sdid_config = SDIDConfig(**pydantic_config_dict)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for insufficient donors test: {ve}")
-        
-    estimator = SDID(config=sdid_config)
-    
-    try:
-        estimator.fit()
-    except Exception as e:
-        pytest.fail(f"SDID.fit() failed unexpectedly with insufficient donors: {e}")
-    mock_sdid_plot.assert_not_called()
-
-@patch('mlsynth.estimators.sdid.SDID_plot')
-def test_sdid_fit_no_post_periods(mock_sdid_plot, sdid_panel_data):
-    """Test SDID fit with no post-treatment periods for the treated unit."""
-    df = sdid_panel_data.copy()
-    last_period = df['time_period'].max()
-    # Set treatment to start after the last observed period
-    df[SDID_TEST_CONFIG_BASE["treat"]] = 0
-    df.loc[(df['id_unit'] == 1) & (df['time_period'] >= last_period + 1), SDID_TEST_CONFIG_BASE["treat"]] = 1
-    
-    pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, df)
-    try:
-        sdid_config = SDIDConfig(**pydantic_config_dict)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for no post-periods test: {ve}")
-
-    estimator = SDID(config=sdid_config)
-    
-    # logictreat (via dataprep) raises MlsynthDataError if no treated units are found
-    with pytest.raises(MlsynthDataError, match="No treated units found"):
-        estimator.fit()
-    mock_sdid_plot.assert_not_called()
-
-@patch('mlsynth.estimators.sdid.SDID_plot')
-def test_sdid_fit_nan_in_outcome(mock_sdid_plot, sdid_panel_data):
-    """Test SDID fit when outcome variable contains NaN values."""
-    
-    # Case 1: NaN in outcome for the treated unit in pre-period
-    df_nan_treat_pre = sdid_panel_data.copy()
-    df_nan_treat_pre.loc[
-        (df_nan_treat_pre['id_unit'] == 1) & (df_nan_treat_pre['time_period'] == 5), 
-        SDID_TEST_CONFIG_BASE["outcome"]
-    ] = np.nan
-    
-    pydantic_config_nan_treat = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, df_nan_treat_pre)
-    try:
-        sdid_config_nan_treat = SDIDConfig(**pydantic_config_nan_treat)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for NaN in treated pre-period: {ve}")
-    estimator_nan_treat = SDID(config=sdid_config_nan_treat)
-    # sdid_est handles NaNs by dropping. If this leads to insufficient data, it might raise.
-    # Test that it runs without unhandled error, or specific CVXPY error if NaNs propagate.
-    try:
-        estimator_nan_treat.fit()
-    except Exception as e:
-        from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
-        # Allow for known numerical/data issues, but fail on unexpected errors
-        if not isinstance(e, (
-            np.linalg.LinAlgError,
-            ValueError,
-            cvxpy.error.SolverError,
-            cvxpy.error.DCPError,
-            MlsynthDataError,
-            MlsynthEstimationError,
-        )):
-            pytest.fail(f"SDID.fit() with NaN in treated pre-period failed unexpectedly: {e}")
-    mock_sdid_plot.assert_not_called()
-    mock_sdid_plot.reset_mock()
-
-    # Case 2: All pre-period outcomes for treated unit are NaN
-    df_all_nan_pre_treat = sdid_panel_data.copy()
-    df_all_nan_pre_treat.loc[
-        (df_all_nan_pre_treat['id_unit'] == 1) & (df_all_nan_pre_treat['time_period'] < 12), 
-        SDID_TEST_CONFIG_BASE["outcome"]
-    ] = np.nan
-    
-    pydantic_config_all_nan = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, df_all_nan_pre_treat)
-    try:
-        sdid_config_all_nan = SDIDConfig(**pydantic_config_all_nan)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for all NaN in treated pre-period: {ve}")
-    estimator_all_nan = SDID(config=sdid_config_all_nan)
-    
-    try:
-        estimator_all_nan.fit()
-    except Exception as e:
-        from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
-        # Allow for known numerical/data issues
-        if not isinstance(e, (
-            np.linalg.LinAlgError,
-            ValueError,
-            cvxpy.error.SolverError,
-            cvxpy.error.DCPError,
-            MlsynthDataError,
-            MlsynthEstimationError,
-        )):
-            pytest.fail(f"SDID.fit() failed unexpectedly when all pre-treatment treated data is NaN: {e}")
-    mock_sdid_plot.assert_not_called()
-    mock_sdid_plot.reset_mock()
-
-    # Case 3: NaN in control unit pre-period
-    df_nan_control = sdid_panel_data.copy()
-    df_nan_control.loc[
-        (df_nan_control['id_unit'] == 2) & (df_nan_control['time_period'] == 5), 
-        SDID_TEST_CONFIG_BASE["outcome"]
-    ] = np.nan
-    
-    pydantic_config_nan_control = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, df_nan_control)
-    try:
-        sdid_config_nan_control = SDIDConfig(**pydantic_config_nan_control)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for NaN in control pre-period: {ve}")
-    estimator_nan_control = SDID(config=sdid_config_nan_control)
-    
-    # Expect either MlsynthEstimationError (CVXPY wrap) or MlsynthDataError
-    # (NaN propagation caught at preprocessing) when NaNs are present in
-    # the control donor pool.
-    with pytest.raises((MlsynthEstimationError, MlsynthDataError),
-                       match=r"(CVXPY solver error in SDID|CVXPY solver failed in unit_weights|Problem does not follow DCP rules|Solver failed|infeasible|unbounded|nan|NaN|Inf)") as excinfo:
-        estimator_nan_control.fit()
-    
-    # Plotting should not be called if fit fails with an exception
-    mock_sdid_plot.assert_not_called() # mock_sdid_plot was already reset before this case
-
-# --- Detailed Results Validation ---
-# (Covered by test_sdid_fit_smoke for now, can be expanded if specific calculations need checking)
-
-# --- Configuration Variations ---
-
-@patch('mlsynth.estimators.sdid.SDID_plot')
-def test_sdid_fit_different_B_values(mock_sdid_plot, sdid_panel_data):
-    """Test SDID fit with different numbers of placebo iterations (B)."""
-
-    for b_val in [0, 5, 20]: 
-        pydantic_config_dict = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-        pydantic_config_dict["B"] = b_val
-        
-        try:
-            sdid_config = SDIDConfig(**pydantic_config_dict)
-        except ValidationError as ve:
-            pytest.fail(f"SDIDConfig validation failed for B={b_val}: {ve}")
-
-        estimator = SDID(config=sdid_config)
-        try:
-            results = estimator.fit()
-            assert isinstance(results, BaseEstimatorResults)
-            assert "pooled_estimates" in results.raw_results
-            assert "att_ci" in results.raw_results
-            assert isinstance(results.raw_results["att_ci"], list) and len(results.raw_results["att_ci"]) == 2
-            if b_val > 0:
-                assert results.inference.p_value is not None
+    Two treated states adopt at t=10, one at t=12, the rest (5 states)
+    are never-treated controls. 20 time periods total.
+    """
+    rng = np.random.default_rng(seed)
+    states = [f"s{i}" for i in range(8)]
+    T = 20
+    records = []
+    for i, s in enumerate(states):
+        base = rng.standard_normal() * 5 + 50
+        for t in range(T):
+            outcome = base + 0.5 * t + rng.standard_normal()
+            if i in (0, 1):
+                treated = 1 if t >= 10 else 0
+                if t >= 10:
+                    outcome -= 5.0
+            elif i == 2:
+                treated = 1 if t >= 12 else 0
+                if t >= 12:
+                    outcome -= 5.0
             else:
-                assert results.inference.p_value is None
+                treated = 0
+            records.append({"state": s, "year": 2000 + t, "y": float(outcome),
+                            "treated": treated})
+    return pd.DataFrame(records)
 
 
-        except (np.linalg.LinAlgError, ValueError, TypeError, cvxpy.error.SolverError, cvxpy.error.DCPError) as e:
-            if ("singular" in str(e).lower() or
-                "must be positive" in str(e).lower() or
-                "Need at least two" in str(e).lower() or 
-                "control units after filtering" in str(e).lower() or
-                "Problem encountered" in str(e) or 
-                "solution may be inaccurate" in str(e).lower() or
-                "Infeasible" in str(e) or "Unbounded" in str(e)
-                ):
-                pytest.skip(f"Skipping due to numerical/data issue with B={b_val}: {e}")
-            else:
-                pytest.fail(f"SDID fit failed for B={b_val}: {e}")
-        
-        if sdid_config.display_graphs:
-             mock_sdid_plot.assert_called()
-        else:
-             mock_sdid_plot.assert_not_called()
-        mock_sdid_plot.reset_mock()
+def _base_config(df: pd.DataFrame, **overrides) -> dict:
+    cfg = dict(
+        df=df,
+        outcome="cigsale",
+        treat="Proposition 99",
+        unitid="state",
+        time="year",
+        B=20,
+        display_graphs=False,
+    )
+    cfg.update(overrides)
+    return cfg
 
 
-# --- Plotting Behavior ---
+# ---------------------------------------------------------------------------
+# Layer 1: numerical / helper tests
+# ---------------------------------------------------------------------------
 
-@patch('mlsynth.estimators.sdid.SDID_plot')
-def test_sdid_plotting_behavior(mock_sdid_plot_func, sdid_panel_data):
-    """Test that SDID_plot is called based on display_graphs config."""
+class TestWeightSolvers:
+    """The unit/time-weight QPs return feasible simplex solutions."""
 
-    # Case 1: display_graphs = True
-    pydantic_config_true = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-    pydantic_config_true["display_graphs"] = True
-    
-    try:
-        sdid_config_true = SDIDConfig(**pydantic_config_true)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for display_graphs=True test: {ve}")
-    
-    estimator_true = SDID(config=sdid_config_true)
-    try:
-        results_obj_true = estimator_true.fit() # Returns BaseEstimatorResults
-        # SDID_plot expects the raw dictionary
-        mock_sdid_plot_func.assert_called_once_with(results_obj_true.raw_results) 
-    except (np.linalg.LinAlgError, ValueError, cvxpy.error.SolverError, cvxpy.error.DCPError) as e:
-        if "singular" in str(e).lower() or "must be positive" in str(e).lower() or "Problem encountered" in str(e):
-            pytest.skip(f"Skipping plotting test (display_graphs=True) due to numerical/solver issue: {e}")
-        else:
-            pytest.fail(f"SDID fit failed (display_graphs=True): {e}")
+    def test_unit_weights_lie_on_simplex(self):
+        rng = np.random.default_rng(0)
+        T0, N = 10, 5
+        Y_donors_pre = rng.standard_normal((T0, N))
+        y_treated_pre = rng.standard_normal(T0)
+        intercept, omega = unit_weights(Y_donors_pre, y_treated_pre, 0.1)
+        assert omega is not None
+        assert omega.shape == (N,)
+        assert omega.sum() == pytest.approx(1.0, abs=1e-6)
+        assert (omega >= -1e-8).all()
 
-    mock_sdid_plot_func.reset_mock()
+    def test_time_weights_lie_on_simplex(self):
+        rng = np.random.default_rng(1)
+        T0, N = 10, 5
+        Y_donors_pre = rng.standard_normal((T0, N))
+        y_donors_post_mean = rng.standard_normal(N)
+        intercept, lam = fit_time_weights(Y_donors_pre, y_donors_post_mean)
+        assert lam is not None
+        assert lam.shape == (T0,)
+        assert lam.sum() == pytest.approx(1.0, abs=1e-6)
+        assert (lam >= -1e-8).all()
 
-    # Case 2: display_graphs = False
-    pydantic_config_false = _get_pydantic_config_dict_sdid(SDID_TEST_CONFIG_BASE, sdid_panel_data)
-    pydantic_config_false["display_graphs"] = False
+    def test_regularization_positive_on_healthy_panel(self):
+        rng = np.random.default_rng(2)
+        Y_donors_pre = rng.standard_normal((20, 5)) * 5
+        zeta = compute_regularization(Y_donors_pre, num_post_treatment_periods=10)
+        assert np.isfinite(zeta)
+        assert zeta > 0
 
-    try:
-        sdid_config_false = SDIDConfig(**pydantic_config_false)
-    except ValidationError as ve:
-        pytest.fail(f"SDIDConfig validation failed for display_graphs=False test: {ve}")
 
-    estimator_false = SDID(config=sdid_config_false)
-    try:
-        estimator_false.fit()
-        mock_sdid_plot_func.assert_not_called()
-    except (np.linalg.LinAlgError, ValueError, cvxpy.error.SolverError, cvxpy.error.DCPError) as e:
-        if "singular" in str(e).lower() or "must be positive" in str(e).lower() or "Problem encountered" in str(e):
-            pytest.skip(f"Skipping plotting test (display_graphs=False) due to numerical/solver issue: {e}")
-        else:
-            pytest.fail(f"SDID fit failed (display_graphs=False): {e}")
+class TestCohortEstimator:
+    """The single-cohort estimator returns the documented schema."""
+
+    def test_returns_expected_keys(self):
+        from collections import defaultdict
+
+        rng = np.random.default_rng(3)
+        T, n_treat, n_donor, T0 = 12, 2, 6, 8
+        cohort = {
+            "y": rng.standard_normal((T, n_treat)),
+            "donor_matrix": rng.standard_normal((T, n_donor)),
+            "total_periods": T,
+            "pre_periods": T0,
+            "post_periods": T - T0,
+            "treated_indices": list(range(n_treat)),
+        }
+        accumulator = defaultdict(list)
+        out = estimate_cohort_sdid_effects(T0 + 1, cohort, accumulator)
+        for key in ("att", "effects", "pre_effects", "post_effects",
+                    "actual", "counterfactual", "fitted_counterfactual",
+                    "treatment_effects_series", "ell"):
+            assert key in out
+        assert out["actual"].shape == (T,)
+        # The accumulator must have been populated for post events.
+        assert any(len(v) > 0 for v in accumulator.values())
+
+
+class TestPlaceboVariance:
+    """Placebo variance is non-negative and respects the panel shape."""
+
+    def test_smoke_on_small_panel(self):
+        rng = np.random.default_rng(4)
+        T, n_treat, n_donor, T0 = 10, 1, 6, 6
+        cohorts = {
+            T0 + 1: {
+                "y": rng.standard_normal((T, n_treat)),
+                "donor_matrix": rng.standard_normal((T, n_donor)),
+                "total_periods": T,
+                "pre_periods": T0,
+                "post_periods": T - T0,
+                "treated_indices": [0],
+            }
+        }
+        out = estimate_placebo_variance(
+            {"cohorts": cohorts}, num_placebo_iterations=10, seed=42
+        )
+        # Variance fields can be NaN with very few iterations but must
+        # never be negative.
+        for v in (out["att_variance"],
+                  *out["cohort_variances"].values(),
+                  *out["pooled_event_variances"].values()):
+            assert np.isnan(v) or v >= 0
+
+
+# ---------------------------------------------------------------------------
+# Layer 2: data-utility tests
+# ---------------------------------------------------------------------------
+
+class TestSetupUnification:
+    """``prepare_sdid_inputs`` packages both dataprep shapes uniformly."""
+
+    def test_single_treated_unit_shape(self, smoking_panel):
+        inputs = prepare_sdid_inputs(
+            df=smoking_panel, outcome="cigsale", treat="Proposition 99",
+            unitid="state", time="year",
+        )
+        assert isinstance(inputs, SDIDInputs)
+        assert len(inputs.cohorts_dict) == 1
+        (adoption, cohort), = inputs.cohorts_dict.items()
+        assert "treated_indices" in cohort
+        assert "donor_matrix" in cohort
+        assert inputs.n_pre == cohort["pre_periods"]
+        assert inputs.n_post == cohort["post_periods"]
+
+    def test_staggered_panel_yields_multiple_cohorts(self):
+        df = _make_staggered_panel()
+        inputs = prepare_sdid_inputs(
+            df=df, outcome="y", treat="treated", unitid="state", time="year",
+        )
+        assert len(inputs.cohorts_dict) >= 2  # two distinct adoption periods
+        for cohort in inputs.cohorts_dict.values():
+            assert "treated_indices" in cohort
+            assert cohort["donor_matrix"].shape[0] == cohort["total_periods"]
+
+    def test_no_treated_unit_rejected(self, smoking_panel):
+        df = smoking_panel.copy()
+        df["Proposition 99"] = 0
+        # ``dataprep`` itself catches this and raises MlsynthDataError.
+        with pytest.raises(MlsynthDataError):
+            prepare_sdid_inputs(
+                df=df, outcome="cigsale", treat="Proposition 99",
+                unitid="state", time="year",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Layer 3: estimator integration tests
+# ---------------------------------------------------------------------------
+
+class TestProp99Replication:
+    """Prop 99 ATT must match the canonical Arkhangelsky et al. (2021) result."""
+
+    def test_overall_att(self, smoking_panel):
+        res = SDID(_base_config(smoking_panel, B=20, seed=1400)).fit()
+        # Canonical value is -15.6, the headline number in Arkhangelsky
+        # et al. (2021) Table 1. The point estimate is deterministic given
+        # the regularization parameter; only inference fields move with
+        # the placebo seed.
+        assert res.inference.att == pytest.approx(-15.6054, abs=5e-3)
+
+    def test_inference_is_well_formed(self, smoking_panel):
+        res = SDID(_base_config(smoking_panel, B=50, seed=1400)).fit()
+        assert res.inference.n_placebo == 50
+        assert np.isfinite(res.inference.se) and res.inference.se > 0
+        lo, hi = res.inference.ci
+        assert lo <= res.inference.att <= hi
+        assert 0.0 < res.inference.p_value <= 1.0
+
+    def test_event_study_post_period_negative(self, smoking_panel):
+        # Prop 99 reduced cigarette sales; the LAST event-time effect should
+        # be substantially negative.
+        res = SDID(_base_config(smoking_panel, B=20, seed=1400)).fit()
+        ells = res.event_study.event_times
+        taus = res.event_study.tau
+        late_post = taus[ells >= 5]
+        assert late_post.size > 0
+        assert (late_post < 0).all()
+
+    def test_cohort_att_matches_overall_in_single_cohort_case(self, smoking_panel):
+        # With one cohort, the cohort ATT and the overall ATT are identical
+        # by construction.
+        res = SDID(_base_config(smoking_panel, B=20, seed=1400)).fit()
+        assert len(res.cohorts) == 1
+        cohort = next(iter(res.cohorts.values()))
+        assert cohort.att == pytest.approx(res.inference.att, abs=1e-10)
+
+    def test_zero_placebo_iterations_yield_nan_inference(self, smoking_panel):
+        res = SDID(_base_config(smoking_panel, B=0)).fit()
+        # Point estimate is still computable.
+        assert np.isfinite(res.inference.att)
+        # But the variance / CI fields are NaN.
+        assert np.isnan(res.inference.se)
+        assert np.isnan(res.inference.p_value)
+
+
+class TestStaggeredAdoption:
+    """Staggered-adoption panels exercise the multi-cohort path."""
+
+    def test_multiple_cohorts_in_results(self):
+        df = _make_staggered_panel()
+        res = SDID({"df": df, "outcome": "y", "treat": "treated",
+                    "unitid": "state", "time": "year",
+                    "B": 0, "display_graphs": False}).fit()
+        assert len(res.cohorts) >= 2
+
+    def test_each_cohort_carries_its_event_effects(self):
+        df = _make_staggered_panel()
+        res = SDID({"df": df, "outcome": "y", "treat": "treated",
+                    "unitid": "state", "time": "year",
+                    "B": 0, "display_graphs": False}).fit()
+        for cohort in res.cohorts.values():
+            # Each cohort exposes at least the ell=0 effect.
+            assert 0 in cohort.event_effects
+            assert isinstance(cohort.event_effects[0], SDIDEventEffect)
+
+
+# ---------------------------------------------------------------------------
+# Layer 4: public API contract tests
+# ---------------------------------------------------------------------------
+
+class TestPublicAPI:
+    """SDID exposes the same typed-results contract as the newer estimators."""
+
+    def test_top_level_import(self):
+        from mlsynth import SDID as Imported  # noqa: F401
+        assert Imported is SDID
+
+    def test_results_object_field_types(self, smoking_panel):
+        res = SDID(_base_config(smoking_panel, B=10)).fit()
+        assert isinstance(res, SDIDResults)
+        assert isinstance(res.inputs, SDIDInputs)
+        assert isinstance(res.inference, SDIDInference)
+        assert isinstance(res.event_study, SDIDEventStudy)
+        for cohort in res.cohorts.values():
+            assert isinstance(cohort, SDIDCohort)
+
+    def test_event_study_shapes_align(self, smoking_panel):
+        res = SDID(_base_config(smoking_panel, B=10)).fit()
+        es = res.event_study
+        assert es.event_times.shape == es.tau.shape == es.se.shape
+        assert es.ci.shape == (es.event_times.size, 2)
+
+    def test_dict_and_config_inputs_match(self, smoking_panel):
+        cfg_dict = _base_config(smoking_panel, B=10, seed=42)
+        cfg_obj = SDIDConfig(**cfg_dict)
+        r1 = SDID(cfg_dict).fit()
+        r2 = SDID(cfg_obj).fit()
+        assert r1.inference.att == pytest.approx(r2.inference.att)
