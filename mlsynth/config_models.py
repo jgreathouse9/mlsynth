@@ -1218,6 +1218,100 @@ class SDIDConfig(BaseEstimatorConfig):
     )
 
 
+class SparseSCConfig(BaseEstimatorConfig):
+    """Configuration for the Sparse Synthetic Control (SparseSC) estimator.
+
+    Implements the L1-penalized predictor-weighting SCM variant of
+    Vives-i-Bastida and collaborators (port of the MATLAB
+    ``sparse_synth.m`` driver) for the canonical Abadie, Diamond, and
+    Hainmueller (2010) framework.
+
+    Unlike most ``mlsynth`` estimators this one needs a *separate*
+    predictor table supplied via ``predictors_df``, with one row per
+    unit and one column per predictor; predictor values are pooled to
+    a single number per ``(unit, predictor)`` pair before fitting.
+    """
+
+    predictors_df: pd.DataFrame = Field(
+        ...,
+        description=(
+            "Unit-level predictor table. One row per unit; columns are "
+            "predictors. Must include a column identifying the unit "
+            "(see ``predictors_unitid``)."
+        ),
+    )
+    predictors_unitid: str = Field(
+        ...,
+        description=(
+            "Column in ``predictors_df`` matching ``unitid`` in ``df``."
+        ),
+    )
+    predictor_cols: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Subset of columns in ``predictors_df`` to use. Defaults to "
+            "every column except ``predictors_unitid``."
+        ),
+    )
+    T0_train: Optional[int] = Field(
+        default=None,
+        ge=2,
+        description=(
+            "End of the training block within the pre-treatment period "
+            "(exclusive). Validation runs on [T0_train, T0_total). "
+            "Defaults to floor(T0_total * 0.75)."
+        ),
+    )
+    lambda_grid: Optional[List[float]] = Field(
+        default=None,
+        description=(
+            "L1 penalty grid for predictor selection. Defaults to "
+            "[0] + numpy.logspace(-4, 0, 50) -- the MATLAB default."
+        ),
+    )
+    standardize: bool = Field(
+        default=True,
+        description=(
+            "Standardize each predictor across all units before fitting."
+        ),
+    )
+    solver: Any = Field(
+        default=None,
+        description="CVXPY solver for the inner W-weight QP. Defaults to OSQP.",
+    )
+    max_outer_iter: int = Field(
+        default=200,
+        ge=10,
+        description=(
+            "Max iterations of the outer L-BFGS-B optimization of V-weights "
+            "per lambda."
+        ),
+    )
+    run_inference: bool = Field(
+        default=True,
+        description="Whether to run the Abadie placebo permutation test.",
+    )
+    n_placebo: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Number of placebo donors to use. ``None`` uses every donor."
+        ),
+    )
+    placebo_resweep: bool = Field(
+        default=False,
+        description=(
+            "If True, re-run the full lambda sweep for each placebo. "
+            "Slow but most faithful to the actual fit; ``False`` reuses "
+            "the lambda selected on the actual treated unit."
+        ),
+    )
+    seed: int = Field(
+        default=1400,
+        description="Random seed for the placebo subsample.",
+    )
+
+
 class PPSCMConfig(BaseEstimatorConfig):
     """Configuration for the Partially Pooled SCM (PPSCM) estimator.
 

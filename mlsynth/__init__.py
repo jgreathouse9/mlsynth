@@ -22,6 +22,7 @@ from .estimators.bvss import BVSS
 from .estimators.mlsc import MLSC
 from .estimators.seq_sdid import SequentialSDID
 from .estimators.ppscm import PPSCM
+from .estimators.sparse_sc import SparseSC
 
 __all__ = [
     "TSSC",
@@ -46,5 +47,6 @@ __all__ = [
     "SBC", "BVSS",
     "MLSC",
     "SequentialSDID",
-    "PPSCM"
+    "PPSCM",
+    "SparseSC",
 ]
