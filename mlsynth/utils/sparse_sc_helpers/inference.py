@@ -18,23 +18,28 @@ from typing import Any, Tuple
 
 import numpy as np
 
-from .objective import training_loss, validation_mse
+from .objective import outer_loss
 from .optimization import default_v20, recover_w, sweep_lambda
 from scipy.optimize import minimize
 
 
 def _refit_at_lambda(
     X1: np.ndarray, X0: np.ndarray,
-    Z1_train: np.ndarray, Z0_train: np.ndarray,
+    Z1_outer: np.ndarray, Z0_outer: np.ndarray,
     lam: float, solver: Any,
 ) -> np.ndarray:
-    """Refit V-weights at a fixed lambda; return full v including v[0] = 1."""
+    """Refit V-weights at a fixed lambda; return full v including v[0] = 1.
+
+    ``Z1_outer``, ``Z0_outer`` are the outcome block the outer V loss
+    is evaluated on -- validation block by default, training block in
+    MATLAB-driver mode. The caller picks the window.
+    """
     P = X0.shape[0]
     v20 = default_v20(X0)
     bounds = [(0.0, None)] * (P - 1)
     res = minimize(
-        training_loss, x0=v20,
-        args=(X1, X0, Z1_train, Z0_train, float(lam), solver),
+        outer_loss, x0=v20,
+        args=(X1, X0, Z1_outer, Z0_outer, float(lam), solver),
         method="L-BFGS-B", bounds=bounds,
         options={"maxiter": 200, "ftol": 1e-8},
     )
@@ -52,6 +57,7 @@ def run_placebo(
     lambda_grid: np.ndarray | None = None,
     n_placebo: int | None = None,
     seed: int = 1400,
+    outer_loss_window: str = "validation",
 ) -> Tuple[np.ndarray, float, int]:
     """Return ``(placebo_atts, p_value, n_completed)``.
 
@@ -90,8 +96,12 @@ def run_placebo(
         X1_placebo = X0[:, j].copy()
         Y1_placebo = Y0[:, j].copy()
 
-        Z1t = Y1_placebo[:T0_train]
-        Z0t = Y0_loo[:T0_train, :]
+        if outer_loss_window == "validation":
+            Z1_outer = Y1_placebo[T0_train:T0_total]
+            Z0_outer = Y0_loo[T0_train:T0_total, :]
+        else:
+            Z1_outer = Y1_placebo[:T0_train]
+            Z0_outer = Y0_loo[:T0_train, :]
 
         if resweep:
             best_v, _, _, _, _, _ = sweep_lambda(
@@ -99,12 +109,13 @@ def run_placebo(
                 Y1=Y1_placebo, Y0=Y0_loo,
                 T0_total=T0_total, T0_train=T0_train,
                 lambda_grid=lambda_grid, solver=solver,
+                outer_loss_window=outer_loss_window,
             )
         else:
             try:
                 best_v = _refit_at_lambda(
                     X1=X1_placebo, X0=X0_loo,
-                    Z1_train=Z1t, Z0_train=Z0t,
+                    Z1_outer=Z1_outer, Z0_outer=Z0_outer,
                     lam=float(selected_lambda), solver=solver,
                 )
             except Exception:

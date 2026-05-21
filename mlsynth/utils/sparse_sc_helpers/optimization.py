@@ -7,8 +7,16 @@ calls the inner W-weight QP, so the total cost is roughly
 
     |grid| * (outer iterations) * (one cvxpy solve per outer iter).
 
-The selected lambda is the value that minimizes the *validation* MSE
-on the held-out post-training pre-treatment block.
+The selected lambda is the value that minimizes the *unpenalized*
+validation-block MSE, regardless of which block the outer V-objective
+uses. The outer V-objective window is controlled by
+``outer_loss_window``:
+
+* ``"validation"`` (default, paper) -- outer V minimizes validation-
+  block MSE + lambda * ||V||_1. Matches Vives-i-Bastida (2023)
+  Algorithm 1.
+* ``"training"`` -- outer V minimizes training-block MSE + lambda *
+  ||V||_1. Matches the unpublished MATLAB driver ``sparse_synth.m``.
 """
 
 from __future__ import annotations
@@ -19,7 +27,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 from .inner import solve_w
-from .objective import training_loss, validation_mse
+from .objective import outer_loss, selection_mse
 
 
 def default_lambda_grid(size: int = 51) -> np.ndarray:
@@ -45,8 +53,16 @@ def sweep_lambda(
     solver: Any = None,
     max_outer_iter: int = 200,
     ftol: float = 1e-8,
+    outer_loss_window: str = "validation",
 ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Sweep lambda and return the best V-weights.
+
+    Parameters
+    ----------
+    outer_loss_window : {"validation", "training"}
+        Which pre-treatment block the outer V-objective evaluates the
+        outcome MSE over. ``"validation"`` (default) follows the paper;
+        ``"training"`` follows the MATLAB driver.
 
     Returns
     -------
@@ -56,13 +72,20 @@ def sweep_lambda(
         Lambda value selected on the validation MSE.
     grid : np.ndarray
         Lambda grid actually used.
-    train_curve : np.ndarray
-        Training loss at each grid point.
+    outer_curve : np.ndarray
+        Penalized outer objective at each grid point.
     val_curve : np.ndarray
-        Validation MSE at each grid point.
+        Unpenalized validation MSE at each grid point. This is what
+        selects the optimal lambda.
     v_path : np.ndarray
         Per-grid-point V-weights, shape ``(len(grid), P)``.
     """
+    if outer_loss_window not in {"validation", "training"}:
+        raise ValueError(
+            "outer_loss_window must be 'validation' or 'training', "
+            f"got {outer_loss_window!r}."
+        )
+
     if lambda_grid is None:
         lambda_grid = default_lambda_grid()
     lambda_grid = np.asarray(lambda_grid, dtype=float)
@@ -72,11 +95,16 @@ def sweep_lambda(
     Z0_val = Y0[T0_train:T0_total, :]
     Z1_val = Y1[T0_train:T0_total]
 
+    if outer_loss_window == "validation":
+        Z0_outer, Z1_outer = Z0_val, Z1_val
+    else:
+        Z0_outer, Z1_outer = Z0_train, Z1_train
+
     P = X0.shape[0]
     v20 = default_v20(X0)
     bounds = [(0.0, None)] * (P - 1)
 
-    train_curve = np.full(lambda_grid.size, np.nan)
+    outer_curve = np.full(lambda_grid.size, np.nan)
     val_curve = np.full(lambda_grid.size, np.nan)
     v_path = np.zeros((lambda_grid.size, P))
 
@@ -86,24 +114,24 @@ def sweep_lambda(
 
     for idx, lam in enumerate(lambda_grid):
         res = minimize(
-            training_loss,
+            outer_loss,
             x0=v20,
-            args=(X1, X0, Z1_train, Z0_train, float(lam), solver),
+            args=(X1, X0, Z1_outer, Z0_outer, float(lam), solver),
             method="L-BFGS-B",
             bounds=bounds,
             options={"maxiter": int(max_outer_iter), "ftol": float(ftol)},
         )
         v2_hat = np.clip(res.x, 0.0, None)
-        train_curve[idx] = float(res.fun)
-        val_curve[idx] = validation_mse(v2_hat, X1, X0, Z1_val, Z0_val,
-                                        solver=solver)
+        outer_curve[idx] = float(res.fun)
+        val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val,
+                                       solver=solver)
         v_path[idx, :] = np.concatenate([[1.0], v2_hat])
         if val_curve[idx] < best_val:
             best_val = val_curve[idx]
             best_lambda = float(lam)
             best_v = v_path[idx, :].copy()
 
-    return best_v, best_lambda, lambda_grid, train_curve, val_curve, v_path
+    return best_v, best_lambda, lambda_grid, outer_curve, val_curve, v_path
 
 
 def recover_w(
