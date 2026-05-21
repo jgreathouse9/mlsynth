@@ -378,7 +378,7 @@ class TestPowerHelpers:
 # =========================================================================
 
 class TestUpdatePostInference:
-    """update_post_inference uses an internal call to ``compute_post_inference``
+    """Update_post_inference uses an internal call to ``compute_post_inference``
     which was removed during the LEXSCM refactor; we monkeypatch the symbol
     into the module so that the survivable code paths can be smoke-tested.
     """
