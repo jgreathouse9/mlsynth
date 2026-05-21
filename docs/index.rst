@@ -45,6 +45,7 @@ MLSYNTH
    tasc
    mlsc
    sdid
+   seq_sdid
    data
    selector
    spill
