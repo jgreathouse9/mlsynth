@@ -33,7 +33,8 @@ def _unit_membership(
     time_labels: np.ndarray,
 ) -> Tuple[List[np.ndarray], List[int]]:
     """For each cohort column, return the integer row indices (in df) of its
-    members and the integer index of the cohort in the Y_agg column order."""
+    members and the integer index of the cohort in the Y_agg column order.
+    """
 
     treat_wide = (
         df.pivot(index=time, columns=unitid, values=treat)
