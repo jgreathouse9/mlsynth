@@ -1226,31 +1226,30 @@ class SparseSCConfig(BaseEstimatorConfig):
     ``sparse_synth.m`` driver) for the canonical Abadie, Diamond, and
     Hainmueller (2010) framework.
 
-    Unlike most ``mlsynth`` estimators this one needs a *separate*
-    predictor table supplied via ``predictors_df``, with one row per
-    unit and one column per predictor; predictor values are pooled to
-    a single number per ``(unit, predictor)`` pair before fitting.
+    Like every other ``mlsynth`` estimator this one is fed a single
+    long-format ``df`` with one row per (unit, time). Predictors are
+    constructed under the hood from the long frame: each column listed
+    in ``covariates`` is collapsed to its pre-treatment mean per unit,
+    and each entry of ``outcome_lag_periods`` adds the outcome at that
+    specific pre-treatment period as a predictor.
     """
 
-    predictors_df: pd.DataFrame = Field(
-        ...,
-        description=(
-            "Unit-level predictor table. One row per unit; columns are "
-            "predictors. Must include a column identifying the unit "
-            "(see ``predictors_unitid``)."
-        ),
-    )
-    predictors_unitid: str = Field(
-        ...,
-        description=(
-            "Column in ``predictors_df`` matching ``unitid`` in ``df``."
-        ),
-    )
-    predictor_cols: Optional[List[str]] = Field(
+    covariates: Optional[List[str]] = Field(
         default=None,
         description=(
-            "Subset of columns in ``predictors_df`` to use. Defaults to "
-            "every column except ``predictors_unitid``."
+            "Names of columns in ``df`` to use as predictors. For each "
+            "covariate, the per-unit pre-treatment mean is taken as the "
+            "predictor value. The first covariate is the *anchor*: its "
+            "V-weight is pinned to 1."
+        ),
+    )
+    outcome_lag_periods: Optional[List[Any]] = Field(
+        default=None,
+        description=(
+            "Optional list of pre-treatment time labels (as found in the "
+            "``time`` column) whose outcome values become additional "
+            "predictors -- the canonical ADH lagged-outcome predictors. "
+            "Appended after ``covariates`` in the predictor matrix."
         ),
     )
     T0_train: Optional[int] = Field(
