@@ -6,14 +6,14 @@ Sparse Synthetic Control (SparseSC)
 Overview
 --------
 
-SparseSC is a Python port of Vives-i-Bastida's MATLAB
-``sparse_synth.m``: an L1-penalized predictor-weighting variant of
-canonical synthetic control. It targets the same Abadie, Diamond,
-and Hainmueller (2010) framework as classical SCM, but adds a
-*lasso* penalty on the predictor-importance vector :math:`v` to
-deliver interpretable *predictor selection*: as the L1 penalty
-grows, uninformative predictors get :math:`v`-weights of exactly
-zero and are dropped from the fit.
+SparseSC implements the L1-penalized predictor-weighting variant of
+canonical synthetic control proposed by Vives-i-Bastida (2023,
+*Predictor Selection for Synthetic Controls*). It targets the same
+Abadie, Diamond, and Hainmueller (2010) framework as classical SCM,
+but adds a *lasso* penalty on the predictor-importance vector
+:math:`v` to deliver interpretable *predictor selection*: as the L1
+penalty grows, uninformative predictors get :math:`v`-weights of
+exactly zero and are dropped from the fit.
 
 Compared with the canonical SCM data-driven :math:`V` choice (a
 cross-validated grid search over diagonal :math:`V` minimizing
@@ -66,15 +66,15 @@ OSQP (and SCS as fallback).
 Outer V-weight problem
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The :math:`v`-weights themselves minimize a penalized training
-objective:
+The :math:`v`-weights minimize a penalized *validation*-block
+outcome MSE (the upper-level loss :math:`L_V` of the paper):
 
 .. math::
 
    v^*(\lambda)
    = \arg\min_{v \in \mathbb{R}^P_{\ge 0},\; v_1 = 1}
-   \; \frac{1}{T_0^{\text{tr}}}
-   \sum_{t = 1}^{T_0^{\text{tr}}}
+   \; \frac{1}{T_0 - T_0^{\text{tr}}}
+   \sum_{t = T_0^{\text{tr}} + 1}^{T_0}
    \bigl(Y_{1, t} - Y_{0, t}^\top w^*(v)\bigr)^2
    + \lambda \, \|v\|_1.
 
@@ -82,13 +82,18 @@ The :math:`v_1 = 1` anchor is what prevents the trivial all-zero
 solution at any :math:`\lambda > 0`. Each evaluation of the outer
 objective invokes the inner QP, so the outer problem is a smooth
 bound-constrained NLP solved with L-BFGS-B (``scipy.optimize``).
-This mirrors MATLAB's ``fmincon``.
 
-Lambda selection (held-out)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The unpublished MATLAB driver ``sparse_synth.m`` evaluates the
+outer outcome MSE on the *training* block instead, which gives
+genuinely different :math:`v^*(\lambda)`. That behavior is
+available via ``outer_loss_window="training"``. The default
+follows the paper.
 
-The penalty :math:`\lambda` is selected on the held-out
-validation block:
+Lambda selection
+^^^^^^^^^^^^^^^^
+
+The penalty :math:`\lambda` is selected by the *unpenalized*
+validation-block outcome MSE:
 
 .. math::
 
@@ -99,9 +104,9 @@ validation block:
    \bigl(Y_{1, t} - Y_{0, t}^\top w^*(v^*(\lambda))\bigr)^2.
 
 The default grid is :math:`\Lambda = \{0\} \cup
-\text{logspace}(10^{-4}, 1, 50)`, matching the MATLAB driver.
-Setting :math:`\lambda = 0` recovers the unpenalized data-driven
-SCM with a unit-anchored first predictor.
+\text{logspace}(10^{-4}, 1, 50)`. Setting :math:`\lambda = 0`
+recovers the unpenalized data-driven SCM with a unit-anchored
+first predictor.
 
 Predictor selection
 ^^^^^^^^^^^^^^^^^^^
@@ -242,6 +247,7 @@ Example
        "time":                "year",
        "covariates":          ["p_cig", "loginc", "pct15-24", "pc_beer"],
        "outcome_lag_periods": [1975, 1980, 1988],  # ADH lagged-outcome predictors
+       "outer_loss_window":   "validation",        # default (paper)
        "standardize":         True,                # default
        "run_inference":       True,
        "n_placebo":           None,                # use all donors
@@ -269,5 +275,5 @@ Methods for Comparative Case Studies: Estimating the Effect of
 California's Tobacco Control Program." *Journal of the American
 Statistical Association* 105(490):493-505.
 
-Vives-i-Bastida, J. (2025). Sparse Synthetic Controls (MATLAB
-implementation ``sparse_synth.m``).
+Vives-i-Bastida, J. (2023). "Predictor Selection for Synthetic
+Controls." arXiv:2203.11576v2.
