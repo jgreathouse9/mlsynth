@@ -1,4 +1,4 @@
-"""mlSC QP solver.
+"""MlSC QP solver.
 
 Solves Equation 5.2 of Bottmer (2025):
 
