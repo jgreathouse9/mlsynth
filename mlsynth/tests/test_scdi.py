@@ -29,35 +29,47 @@ from mlsynth.exceptions import (
     MlsynthDataError,
     MlsynthEstimationError,
 )
-from mlsynth.utils.scdi_helpers import (
+from mlsynth.utils.scdi_helpers.structures import (
     SCDIDesign,
     SCDIInference,
     SCDIInputs,
     SCDIResults,
+)
+from mlsynth.utils.scdi_helpers.relaxed_structures import (
     RelaxedAnnealingTrace,
     RelaxedDesign,
     RelaxedInference,
     RelaxedSolverResults,
     RelaxedSwapLog,
+)
+from mlsynth.utils.scdi_helpers.relaxed_formulation import (
     compute_energy,
     compute_rmse_gap,
-    d_step_annealed,
-    default_lambda,
-    estimate_lambda,
     extract_weights,
-    init_assignment,
-    permutation_test_global,
-    permutation_test_relaxed_global,
-    plot_scdi_design,
-    prepare_scdi_inputs,
-    propose_swap,
-    solve_synthetic_design,
-    solve_two_way_relaxed,
     solve_weights_global,
     synthetic_paths,
-    temperature_schedule,
+)
+from mlsynth.utils.scdi_helpers.relaxed_initialization import (
+    default_lambda,
+    init_assignment,
     validate_relaxed_inputs,
 )
+from mlsynth.utils.scdi_helpers.relaxed_annealing import (
+    d_step_annealed,
+    propose_swap,
+    temperature_schedule,
+)
+from mlsynth.utils.scdi_helpers.relaxed_solver import solve_two_way_relaxed
+from mlsynth.utils.scdi_helpers.inference import (
+    permutation_test_global,
+    permutation_test_relaxed_global,
+)
+from mlsynth.utils.scdi_helpers.optimization import (
+    estimate_lambda,
+    solve_synthetic_design,
+)
+from mlsynth.utils.scdi_helpers.plotter import plot_scdi_design
+from mlsynth.utils.scdi_helpers.setup import prepare_scdi_inputs
 
 
 # =========================================================================

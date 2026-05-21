@@ -28,35 +28,51 @@ from mlsynth.exceptions import (
     MlsynthDataError,
     MlsynthEstimationError,
 )
-from mlsynth.utils.spcd_helpers import (
+from mlsynth.utils.spcd_helpers.structures import (
     SPCDDesign,
     SPCDInputs,
     SPCDResults,
-    apply_minority_flip,
+)
+from mlsynth.utils.spcd_helpers.setup import prepare_spcd_inputs
+from mlsynth.utils.spcd_helpers.formulation import (
     build_iteration_matrix,
-    build_summary,
+    validate_spcd_inputs,
+)
+from mlsynth.utils.spcd_helpers.spectral_init import spectral_initialization
+from mlsynth.utils.spcd_helpers.iteration_spcd import (
+    run_spcd_iteration,
+    spcd_step,
+)
+from mlsynth.utils.spcd_helpers.iteration_norm_spcd import (
+    norm_spcd_step,
+    run_norm_spcd_iteration,
+)
+from mlsynth.utils.spcd_helpers.weights_empirical import empirical_weights
+from mlsynth.utils.spcd_helpers.treatment_effect import (
+    apply_minority_flip,
     build_synthetic_paths,
     build_weight_groups,
     compute_att_and_fit,
-    compute_conformal_ci,
-    compute_detectability_curve,
+)
+from mlsynth.utils.spcd_helpers.holdout import (
     compute_holdout_residuals,
+    split_pre_window,
+)
+from mlsynth.utils.spcd_helpers.inference import (
+    SPCDConformalResult,
+    compute_conformal_ci,
+)
+from mlsynth.utils.spcd_helpers.power import (
+    SPCDPowerAnalysis,
+    compute_detectability_curve,
     compute_mde,
-    empirical_weights,
-    norm_spcd_step,
-    plot_spcd_design,
-    prepare_spcd_inputs,
-    run_norm_spcd_iteration,
-    run_spcd_iteration,
+)
+from mlsynth.utils.spcd_helpers.orchestration import (
     solve_spcd,
     solve_spcd_with_holdout,
-    spcd_step,
-    spectral_initialization,
-    split_pre_window,
-    validate_spcd_inputs,
 )
-from mlsynth.utils.spcd_helpers.inference import SPCDConformalResult
-from mlsynth.utils.spcd_helpers.power import SPCDPowerAnalysis
+from mlsynth.utils.spcd_helpers.results_assembly import build_summary
+from mlsynth.utils.spcd_helpers.plotter import plot_spcd_design
 
 
 # =========================================================================
