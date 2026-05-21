@@ -46,6 +46,7 @@ MLSYNTH
    mlsc
    sdid
    seq_sdid
+   ppscm
    data
    selector
    spill
