@@ -280,7 +280,7 @@ class TestConfigValidation:
 
 
 class TestDataPreparation:
-    """prepare_mlsc_inputs handles both dataprep return shapes."""
+    """Prepare_mlsc_inputs handles both dataprep return shapes."""
 
     def test_cohorts_path_multiple_treated_children(self):
         # Default fixture has C=4 treated counties -> dataprep cohorts path.
