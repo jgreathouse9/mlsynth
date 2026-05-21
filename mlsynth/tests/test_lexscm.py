@@ -64,13 +64,17 @@ from mlsynth.utils.fast_scm_helpers.structure import (
 # FIXTURES
 # =========================================================================
 
-def _make_panel(n_units=8, T=20, T_post=5, n_candidates=4, L=2,
-                sigma=0.3, seed=0):
-    """A small panel with a candidate-eligibility column and post indicator."""
+def _make_panel(n_units=15, T=40, T_post=12, n_candidates=8, L=2,
+                sigma=0.1, seed=0, baseline=100.0):
+    """A small panel with a candidate-eligibility column and post indicator.
+
+    Adds a positive ``baseline`` so the percentage-scale MDE is finite
+    (LEXSCM divides by the synth-treated mean over the holdout window).
+    """
     rng = np.random.default_rng(seed)
     gamma = rng.standard_normal((n_units, L))
     nu = rng.standard_normal((T, L))
-    Y = nu @ gamma.T + sigma * rng.standard_normal((T, n_units))
+    Y = baseline + nu @ gamma.T + sigma * rng.standard_normal((T, n_units))
     rows = []
     for i in range(n_units):
         for t in range(T):
@@ -378,7 +382,7 @@ class TestPowerHelpers:
 # =========================================================================
 
 class TestUpdatePostInference:
-    """Update_post_inference uses an internal call to ``compute_post_inference``
+    """update_post_inference uses an internal call to ``compute_post_inference``
     which was removed during the LEXSCM refactor; we monkeypatch the symbol
     into the module so that the survivable code paths can be smoke-tested.
     """
@@ -462,7 +466,7 @@ class TestLEXSCMEstimator:
             "post_col": "post", "unit_cost_col": "cost",
             "budget": 10.0, "top_K": 3, "n_sims": 50,
             "n_post_grid": [2, 4, 6, 8], "mde_horizon": "late",
-            "verbose": False
+            "verbose": False,
         })
         result = est.fit()
         assert result is not None
