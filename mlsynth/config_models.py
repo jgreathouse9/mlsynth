@@ -1274,6 +1274,15 @@ class SparseSCConfig(BaseEstimatorConfig):
             "Standardize each predictor across all units before fitting."
         ),
     )
+    outer_loss_window: str = Field(
+        default="validation",
+        description=(
+            "Which pre-treatment block the outer V-objective evaluates "
+            "the outcome MSE over. 'validation' (default) follows the "
+            "paper's Algorithm 1; 'training' follows the (unpublished) "
+            "MATLAB driver sparse_synth.m."
+        ),
+    )
     solver: Any = Field(
         default=None,
         description="CVXPY solver for the inner W-weight QP. Defaults to OSQP.",
