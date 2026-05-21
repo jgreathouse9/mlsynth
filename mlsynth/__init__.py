@@ -16,6 +16,7 @@ from .estimators.scexp import MAREX
 from .estimators.lexscm import LEXSCM
 from .estimators.scdi import SCDI
 from .estimators.spcd import SPCD
+from .estimators.tasc import TASC
 
 __all__ = [
     "TSSC",
@@ -35,5 +36,6 @@ __all__ = [
     "MAREX",
     "LEXSCM",
     "SCDI",
-    "SPCD"
+    "SPCD",
+    "TASC"
 ]
