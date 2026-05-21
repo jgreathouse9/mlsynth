@@ -1,23 +1,28 @@
 """Sparse Synthetic Control (SparseSC) estimator.
 
-Implements the L1-penalized predictor-weighting SCM variant of
-Vives-i-Bastida and collaborators -- a Python port of the MATLAB
-``sparse_synth.m`` driver applied to the canonical Abadie, Diamond,
-and Hainmueller (2010) framework.
+Implements the L1-penalized predictor-weighting SCM of
+Vives-i-Bastida (2023, *Predictor Selection for Synthetic Controls*),
+applied to the canonical Abadie, Diamond, and Hainmueller (2010)
+framework.
 
 The estimator has a two-level structure. The *inner* problem is the
 standard SCM simplex QP that picks donor weights ``w`` given a fixed
 diagonal predictor-importance matrix ``diag(v)``. The *outer* problem
-picks the V-weights themselves by minimizing the pre-treatment
-mean-squared outcome error on a training block of the pre-period plus
-an L1 penalty on ``|v|``. The penalty parameter is selected on a
-held-out validation block. The first V-weight is pinned to 1 to anchor
-the scale; the others are bound-constrained non-negative.
+picks the V-weights themselves by minimizing the validation-block
+pre-treatment outcome MSE plus an L1 penalty on ``|v|`` (matching
+Algorithm 1 of the paper). The penalty parameter is selected by the
+unpenalized validation MSE. The first V-weight is pinned to 1 to
+anchor the scale; the others are bound-constrained non-negative.
 
 Compared with canonical SCM, the L1 penalty yields interpretable
 *predictor selection*: as ``lambda`` increases, V-weights collapse to
 zero on uninformative predictors, leaving a sparse explanation of the
 fit.
+
+The unpublished MATLAB driver ``sparse_synth.m`` minimizes the
+outcome MSE on the *training* block (not the validation block) in the
+outer V step. That behavior is available via
+``outer_loss_window="training"``.
 """
 
 from __future__ import annotations
@@ -112,6 +117,7 @@ class SparseSC:
             if config.lambda_grid is not None else None
         )
         self.standardize: bool = config.standardize
+        self.outer_loss_window: str = config.outer_loss_window
         self.solver: Any = config.solver
         self.max_outer_iter: int = config.max_outer_iter
         self.run_inference: bool = config.run_inference
@@ -143,6 +149,7 @@ class SparseSC:
                 lambda_grid=self.lambda_grid,
                 solver=self.solver,
                 max_outer_iter=self.max_outer_iter,
+                outer_loss_window=self.outer_loss_window,
             )
             optw = recover_w(optv, inputs.X1, inputs.X0, solver=self.solver)
 
@@ -173,6 +180,7 @@ class SparseSC:
                     lambda_grid=self.lambda_grid,
                     n_placebo=self.n_placebo,
                     seed=self.seed,
+                    outer_loss_window=self.outer_loss_window,
                 )
                 inference = SparseSCInference(
                     method="abadie_placebo_permutation",
