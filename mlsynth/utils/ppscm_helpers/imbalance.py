@@ -53,7 +53,8 @@ def normalize_imbalances(
 ) -> tuple[float, float]:
     """Return ``(q_tilde_sep, q_tilde_pool)`` normalized by the
     separate-SCM baseline. Guards against zero baselines (returns the
-    raw imbalance unchanged in that degenerate case)."""
+    raw imbalance unchanged in that degenerate case).
+    """
     q_tilde_sep = q_sep / q_sep_base if q_sep_base > 0 else q_sep
     q_tilde_pool = q_pool / q_pool_base if q_pool_base > 0 else q_pool
     return q_tilde_sep, q_tilde_pool
