@@ -1,12 +1,18 @@
 """Panel and predictor preparation for SparseSC.
 
-The estimator needs two parallel data structures:
+The estimator takes a single long-format ``df`` (one row per
+``(unit, time)``) and constructs both the outcome panel and the
+unit-by-predictor matrix internally. Predictors come from two
+sources:
 
-  * A balanced long-format outcome panel with a single treated unit and
-    a donor pool, as in canonical SCM.
-  * A unit-by-predictor table giving one numeric value per (unit,
-    predictor) pair. Predictor names must be supplied explicitly so
-    that the V-weights returned later can be mapped back to them.
+* ``covariates`` -- columns in ``df`` whose per-unit pre-treatment
+  mean becomes one predictor row.
+* ``outcome_lag_periods`` -- specific pre-treatment time labels whose
+  outcome values become additional predictor rows (the canonical
+  Abadie, Diamond & Hainmueller (2010) lagged-outcome predictors).
+
+The first predictor (first entry of ``covariates`` if any, otherwise
+the first outcome lag) is the *anchor* whose V-weight is fixed at 1.
 """
 
 from __future__ import annotations
@@ -21,42 +27,93 @@ from ..datautils import balance, dataprep
 from .structures import SparseSCInputs
 
 
+def _per_unit_pre_means(
+    df: pd.DataFrame,
+    column: str,
+    unitid: str,
+    time: str,
+    pre_time_labels: np.ndarray,
+    unit_order: Sequence,
+) -> np.ndarray:
+    """Return per-unit pre-treatment mean of ``column`` in ``unit_order``."""
+    pre_mask = df[time].isin(pre_time_labels)
+    means = (
+        df.loc[pre_mask].groupby(unitid)[column].mean()
+    )
+    # Reindex to unit_order; missing units (none expected for a balanced
+    # panel after `balance()`) come back NaN.
+    aligned = means.reindex(unit_order)
+    if aligned.isna().any():
+        missing = aligned.index[aligned.isna()].tolist()
+        raise MlsynthDataError(
+            f"Covariate '{column}' has no pre-treatment observations "
+            f"for these units: {missing[:5]}"
+        )
+    return aligned.to_numpy(dtype=float)
+
+
+def _outcome_at_period(
+    df: pd.DataFrame,
+    outcome: str,
+    unitid: str,
+    time: str,
+    period_label: Any,
+    unit_order: Sequence,
+) -> np.ndarray:
+    """Return ``outcome`` at ``period_label`` for every unit in order."""
+    row = df.loc[df[time] == period_label, [unitid, outcome]]
+    if row.empty:
+        raise MlsynthDataError(
+            f"outcome_lag_periods entry {period_label!r} not found in "
+            f"the '{time}' column."
+        )
+    aligned = (
+        row.drop_duplicates(subset=[unitid])
+        .set_index(unitid)[outcome]
+        .reindex(unit_order)
+    )
+    if aligned.isna().any():
+        missing = aligned.index[aligned.isna()].tolist()
+        raise MlsynthDataError(
+            f"Outcome at period {period_label!r} missing for these units: "
+            f"{missing[:5]}"
+        )
+    return aligned.to_numpy(dtype=float)
+
+
 def prepare_sparse_sc_inputs(
     df: pd.DataFrame,
     outcome: str,
     treat: str,
     unitid: str,
     time: str,
-    predictors_df: pd.DataFrame,
-    predictors_unitid: str,
-    predictor_cols: Optional[Sequence[str]] = None,
+    covariates: Optional[Sequence[str]] = None,
+    outcome_lag_periods: Optional[Sequence[Any]] = None,
     T0_train: Optional[int] = None,
     standardize: bool = True,
 ) -> SparseSCInputs:
-    """Build SparseSC inputs from an outcome panel and a predictor table.
+    """Build SparseSC inputs from a single long-format panel.
 
     Parameters
     ----------
     df : pd.DataFrame
         Long-format balanced panel: one row per ``(unit, time)`` with
-        the outcome and a binary treatment indicator.
+        the outcome, a binary treatment indicator, and any covariates.
     outcome, treat, unitid, time : str
         Column names in ``df``.
-    predictors_df : pd.DataFrame
-        Unit-level predictor table: one row per unit, with a column
-        identifying the unit and one column per predictor. Units must
-        cover every unit appearing in ``df``.
-    predictors_unitid : str
-        Column in ``predictors_df`` matching ``unitid`` in ``df``.
-    predictor_cols : Sequence[str], optional
-        Subset of columns in ``predictors_df`` to use as predictors.
-        Defaults to every column except ``predictors_unitid``.
+    covariates : Sequence[str], optional
+        Columns in ``df`` whose per-unit pre-treatment mean becomes a
+        predictor row. The first covariate is the anchor (V-weight
+        pinned to 1).
+    outcome_lag_periods : Sequence, optional
+        Specific pre-treatment time labels whose outcome values become
+        additional predictor rows. Appended after ``covariates``.
     T0_train : int, optional
         End of the training block within the pre-period (exclusive).
-        Defaults to ``floor(T0_total * 0.75)`` -- i.e., a 75/25 split.
+        Defaults to ``floor(T0_total * 0.75)`` -- a 75/25 split.
     standardize : bool
-        Standardize each predictor by its sample standard deviation
-        across all units (treated + donors). Default ``True``.
+        Standardize each predictor row by its sample standard deviation
+        across all units. Default ``True``.
     """
 
     balance(df, unitid, time)
@@ -89,45 +146,50 @@ def prepare_sparse_sc_inputs(
             f"got T0_train = {T0_train}."
         )
 
-    # Predictor table sanity checks.
-    if predictors_unitid not in predictors_df.columns:
+    covariates = list(covariates) if covariates else []
+    outcome_lag_periods = list(outcome_lag_periods) if outcome_lag_periods else []
+    if not covariates and not outcome_lag_periods:
         raise MlsynthDataError(
-            f"predictors_unitid '{predictors_unitid}' not found in predictors_df."
-        )
-    if predictor_cols is None:
-        predictor_cols = [c for c in predictors_df.columns
-                          if c != predictors_unitid]
-    predictor_cols = list(predictor_cols)
-    missing = [c for c in predictor_cols if c not in predictors_df.columns]
-    if missing:
-        raise MlsynthDataError(
-            f"predictors_df missing columns: {missing}"
+            "SparseSC needs at least one predictor: provide ``covariates`` "
+            "and/or ``outcome_lag_periods``."
         )
 
-    # Index predictors by unit and align with the treated / donor order.
-    pred_indexed = (
-        predictors_df.drop_duplicates(subset=[predictors_unitid])
-        .set_index(predictors_unitid)
-    )
-    required_units = [treated_unit_name] + donor_names
-    missing_units = [u for u in required_units if u not in pred_indexed.index]
-    if missing_units:
+    missing_cov = [c for c in covariates if c not in df.columns]
+    if missing_cov:
         raise MlsynthDataError(
-            f"predictors_df missing rows for these units: "
-            f"{missing_units[:5]} (and possibly more)."
+            f"covariate columns missing from df: {missing_cov}"
         )
 
-    X_treated = pred_indexed.loc[treated_unit_name, predictor_cols].to_numpy(dtype=float)
-    X_donors = pred_indexed.loc[donor_names, predictor_cols].to_numpy(dtype=float).T
-    # X1 shape (P,), X0 shape (P, N)
-
-    if X_treated.ndim != 1 or X_donors.ndim != 2:
+    pre_time_labels = time_labels[:T0_total]
+    bad_lags = [p for p in outcome_lag_periods if p not in pre_time_labels]
+    if bad_lags:
         raise MlsynthDataError(
-            "Unexpected predictor matrix shape after alignment."
+            f"outcome_lag_periods must lie in the pre-treatment window; "
+            f"these are not pre-period: {bad_lags}"
         )
+
+    unit_order = [treated_unit_name] + donor_names
+
+    predictor_rows = []
+    predictor_names = []
+    for cov in covariates:
+        predictor_rows.append(
+            _per_unit_pre_means(df, cov, unitid, time,
+                                pre_time_labels, unit_order)
+        )
+        predictor_names.append(cov)
+    for lag_period in outcome_lag_periods:
+        predictor_rows.append(
+            _outcome_at_period(df, outcome, unitid, time,
+                               lag_period, unit_order)
+        )
+        predictor_names.append(f"{outcome}@{lag_period}")
+
+    big = np.vstack(predictor_rows)            # shape (P, N+1)
+    X_treated = big[:, 0].astype(float)        # (P,)
+    X_donors = big[:, 1:].astype(float)        # (P, N)
 
     if standardize:
-        big = np.column_stack([X_donors, X_treated.reshape(-1, 1)])
         sd = big.std(axis=1, ddof=1)
         sd = np.where(sd == 0, 1.0, sd)
         X_donors = X_donors / sd[:, None]
@@ -139,7 +201,7 @@ def prepare_sparse_sc_inputs(
         T=T, T0_total=T0_total, T0_train=T0_train,
         treated_unit_name=treated_unit_name,
         donor_names=donor_names,
-        predictor_names=predictor_cols,
+        predictor_names=predictor_names,
         time_labels=time_labels,
         Ywide=prep["Ywide"],
         outcome=outcome,
