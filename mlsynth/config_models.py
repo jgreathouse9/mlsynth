@@ -609,188 +609,6 @@ class LEXSCMConfig(BaseMAREXConfig):
 
 
 
-class MLSCConfig(BaseModel):
-    """Configuration for the Multi-Level Synthetic Control (mlSC) estimator.
-
-    Implements the data-driven hierarchical-aggregation estimator of
-    Bottmer (2025, "Synthetic Control with Disaggregated Data"). Unlike the
-    rest of mlsynth's estimators, mlSC operates on a *two-level* panel: an
-    aggregate-level DataFrame (e.g. state-by-time) and a disaggregate-level
-    DataFrame (e.g. county-by-time, with a column linking each county to
-    its parent state). Treatment is assigned at the aggregate level and the
-    estimand is the aggregate-level ATT, but the disaggregate data enters
-    the donor pool with a ridge-type penalty that shrinks the disaggregated
-    weights toward "population-share times aggregate weight" — recovering
-    classical SC in the large-penalty limit and fully-disaggregated SC at
-    penalty zero.
-
-    v1 implements only the heuristic and fixed-lambda penalty-selection
-    paths from Section 5.2 of the paper; cross-validation will follow.
-    """
-
-    df_agg: pd.DataFrame = Field(
-        ..., description="Aggregate-level long-form panel (e.g. states x time)."
-    )
-    df_disagg: pd.DataFrame = Field(
-        ...,
-        description=(
-            "Disaggregate-level long-form panel (e.g. counties x time). Must "
-            "contain a column identifying each disaggregate unit's parent "
-            "aggregate unit (see ``agg_id``)."
-        ),
-    )
-    outcome: str = Field(
-        ..., description="Outcome column name (must exist in both dataframes)."
-    )
-    time: str = Field(
-        ..., description="Time-period column name (must exist in both dataframes)."
-    )
-    treat: str = Field(
-        ...,
-        description=(
-            "Binary 0/1 treatment indicator column (must exist in both "
-            "dataframes). Treatment is assigned at the aggregate level; each "
-            "disaggregate unit's treat value must equal its parent aggregate's "
-            "treat value at every period."
-        ),
-    )
-    unitid_agg: str = Field(
-        ...,
-        description="Aggregate-unit identifier column in ``df_agg`` (e.g. 'state').",
-    )
-    unitid_disagg: str = Field(
-        ...,
-        description=(
-            "Disaggregate-unit identifier column in ``df_disagg`` "
-            "(e.g. 'county_fips')."
-        ),
-    )
-    agg_id: str = Field(
-        ...,
-        description=(
-            "Column in ``df_disagg`` mapping each disaggregate unit to its "
-            "parent aggregate unit. Values must match ``unitid_agg`` labels "
-            "in ``df_agg``."
-        ),
-    )
-    weight_col: Optional[str] = Field(
-        default=None,
-        description=(
-            "Optional column in ``df_disagg`` giving population weights "
-            "``v_sc`` for the aggregation rule ``Y_st = sum_c v_sc Y_sct``. "
-            "Within each aggregate the weights are normalized to sum to 1. "
-            "If None, uniform weights ``1 / C_s`` are used (the paper's "
-            "simulation default)."
-        ),
-    )
-    lambda_est: Literal["heuristic", "fixed"] = Field(
-        default="heuristic",
-        description=(
-            "Penalty-selection rule. 'heuristic' uses the Appendix-B closed "
-            "form ``lambda = 2 * sigma_eps^2 / sigma_y^2`` estimated from "
-            "the disaggregate pre-treatment panel (Appendix G). 'fixed' uses "
-            "``lambda_val`` directly. Cross-validation is planned for v2."
-        ),
-    )
-    lambda_val: float = Field(
-        default=1e-4,
-        ge=0.0,
-        description="Penalty value used when ``lambda_est == 'fixed'``.",
-    )
-    solver: Any = Field(
-        default=None,
-        description=(
-            "CVXPY-compatible solver. ``None`` (default) falls back to SCS, "
-            "which ships with cvxpy and handles the QP comfortably."
-        ),
-    )
-    display_graphs: bool = Field(
-        default=True, description="Whether to display the counterfactual plot."
-    )
-    save: Union[bool, str, Dict[str, str]] = Field(
-        default=False,
-        description=(
-            "Plot save configuration, identical to BaseEstimatorConfig.save."
-        ),
-    )
-    counterfactual_color: Union[str, List[str]] = Field(
-        default_factory=lambda: ["red"],
-        description="Counterfactual line color(s) in the plot.",
-    )
-    treated_color: str = Field(
-        default="black", description="Treated-unit line color in the plot."
-    )
-
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "forbid"
-
-    @model_validator(mode="after")
-    def _check_mlsc_panels(self) -> "MLSCConfig":
-        df_a = self.df_agg
-        df_d = self.df_disagg
-        if df_a.empty:
-            raise MlsynthDataError("'df_agg' is empty.")
-        if df_d.empty:
-            raise MlsynthDataError("'df_disagg' is empty.")
-
-        agg_required = {self.outcome, self.time, self.treat, self.unitid_agg}
-        agg_missing = agg_required - set(df_a.columns)
-        if agg_missing:
-            raise MlsynthDataError(
-                f"'df_agg' is missing required columns: {sorted(agg_missing)}."
-            )
-
-        disagg_required = {
-            self.outcome,
-            self.time,
-            self.treat,
-            self.unitid_disagg,
-            self.agg_id,
-        }
-        if self.weight_col is not None:
-            disagg_required.add(self.weight_col)
-        disagg_missing = disagg_required - set(df_d.columns)
-        if disagg_missing:
-            raise MlsynthDataError(
-                f"'df_disagg' is missing required columns: {sorted(disagg_missing)}."
-            )
-
-        # Time alignment: same set of periods in both panels.
-        t_agg = set(df_a[self.time].unique())
-        t_disagg = set(df_d[self.time].unique())
-        if t_agg != t_disagg:
-            sym = (t_agg ^ t_disagg)
-            raise MlsynthDataError(
-                "Aggregate and disaggregate panels must cover the same time "
-                f"periods. Mismatching periods: {sorted(list(sym))[:10]}."
-            )
-
-        # Each disaggregate unit must map to exactly one aggregate.
-        per_unit_aggs = (
-            df_d.groupby(self.unitid_disagg)[self.agg_id]
-            .nunique()
-        )
-        offenders = per_unit_aggs[per_unit_aggs > 1]
-        if not offenders.empty:
-            raise MlsynthDataError(
-                "Each disaggregate unit must belong to exactly one aggregate "
-                f"unit. Offending units: {offenders.index.tolist()[:5]}."
-            )
-
-        # Disaggregate agg_id labels must be a subset of aggregate unit labels.
-        disagg_aggs = set(df_d[self.agg_id].unique())
-        agg_units = set(df_a[self.unitid_agg].unique())
-        orphan = disagg_aggs - agg_units
-        if orphan:
-            raise MlsynthDataError(
-                "Disaggregate units reference aggregate labels missing from "
-                f"'df_agg': {sorted(orphan)[:5]}."
-            )
-
-        return self
-
-
 
 class TASCConfig(BaseEstimatorConfig):
     """Configuration for the Time-Aware Synthetic Control (TASC) estimator.
@@ -909,75 +727,7 @@ class SBCConfig(BaseEstimatorConfig):
 
 
 
-class SequentialSDIDConfig(BaseEstimatorConfig):
-    """Configuration for the Sequential Synthetic Difference-in-Differences estimator.
 
-    Implements Arkhangelsky & Samkov (2025, arXiv:2404.00164v2). Operates on
-    cohort-level aggregates and is robust to violations of parallel trends
-    induced by interactive fixed effects. Inherits the standard ``df`` /
-    ``outcome`` / ``treat`` / ``unitid`` / ``time`` panel interface from
-    :class:`BaseEstimatorConfig`.
-    """
-
-    eta: float = Field(
-        default=0.0,
-        ge=0.0,
-        description=(
-            "Non-negative regularization for the two QPs. Larger values shrink "
-            "the unit weights toward ``omega_j proportional to pi_j`` (the "
-            "stacked-DiD imputation limit of Remark 2.2)."
-        ),
-    )
-    mode: Literal["ssdid", "sdid_imputation"] = Field(
-        default="ssdid",
-        description=(
-            "Estimator mode. 'ssdid' is the paper's main estimator with a "
-            "finite ``eta``. 'sdid_imputation' forces the limit ``eta -> "
-            "infinity``, recovering the imputation-style sequential DiD of "
-            "Remark 2.2 (Borusyak et al. 2024-style)."
-        ),
-    )
-    K: Optional[int] = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Maximum event-time horizon to estimate. ``None`` (default) "
-            "auto-sets ``K = T - a_max`` so every estimable effect fits "
-            "inside the panel."
-        ),
-    )
-    a_min: Optional[int] = Field(
-        default=None,
-        description=(
-            "Earliest treated cohort (1-based time index) to include. "
-            "``None`` (default) uses the earliest adopting cohort."
-        ),
-    )
-    a_max: Optional[int] = Field(
-        default=None,
-        description=(
-            "Latest treated cohort (1-based time index) to include. ``None`` "
-            "(default) uses the latest finitely-adopting cohort."
-        ),
-    )
-    n_bootstrap: int = Field(
-        default=500,
-        ge=0,
-        description=(
-            "Number of Bayesian-bootstrap iterations for SE/CI (Section 2.3 "
-            "of the paper). Set to 0 to skip inference."
-        ),
-    )
-    alpha: float = Field(
-        default=0.05,
-        gt=0.0,
-        lt=1.0,
-        description="Significance level for the Wald confidence band.",
-    )
-    seed: int = Field(
-        default=1400,
-        description="Random seed for the bootstrap.",
-    )
 
 
 
@@ -1334,11 +1084,74 @@ class SPCDConfig(BaseMAREXConfig):
 
 
 class SRCConfig(BaseEstimatorConfig):
+    """Configuration for the Synthetic Regressing Control (SRC) estimator.
+
+    Implements Zhu (2026, *Observational Studies* 12(1):91-122). Adds
+    knobs for the noise-variance normalization (the paper's Eq. 19 is
+    re-interpreted as Mallows' Cp with per-period variance by default),
+    Algorithm 2's SIRS screening, and placebo inference.
     """
-    Configuration for the Synthetic Regressing Control (SRC) estimator.
-    This estimator currently uses only the common configuration parameters.
-    """
-    pass
+
+    sigma_normalization: Literal["mallows_cp", "paper_eq19", "unbiased"] = Field(
+        default="mallows_cp",
+        description=(
+            "Normalization for sigma_hat^2 in the Mallows' Cp penalty. "
+            "'mallows_cp' (default) divides the paper's Eq. 19 SSR by T0 "
+            "so the penalty is a proper per-period variance; 'paper_eq19' "
+            "keeps the literal Eq. 19 form; 'unbiased' divides by an "
+            "effective degrees-of-freedom estimate."
+        ),
+    )
+    screen: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Whether to apply Algorithm 2 (SIRS screening) before fitting. "
+            "When None (default), screening is auto-triggered if "
+            "J >= screen_threshold * T0."
+        ),
+    )
+    screen_threshold: float = Field(
+        default=0.8,
+        gt=0.0,
+        description=(
+            "Auto-screen trigger: J >= screen_threshold * T0. The paper "
+            "recommends 4/5."
+        ),
+    )
+    screen_n_override: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Number of donors to retain after SIRS screening. None uses "
+            "the paper's default k = round(T0 / log(T0 / 2))."
+        ),
+    )
+    run_inference: bool = Field(
+        default=True,
+        description=(
+            "Whether to run the Abadie placebo permutation test for the "
+            "overall ATT."
+        ),
+    )
+    n_placebo: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Maximum number of placebo donors to use. None (default) uses "
+            "every active donor."
+        ),
+    )
+    solver: Any = Field(
+        default=None,
+        description=(
+            "CVXPY solver. None falls back to OSQP, which handles the SRC "
+            "QP comfortably."
+        ),
+    )
+    seed: int = Field(
+        default=1400,
+        description="Seed used for the placebo subsample when n_placebo truncates.",
+    )
 
 class SCMOConfig(BaseEstimatorConfig):
     """Configuration for the Synthetic Control with Multiple Outcomes (SCMO) estimator."""
@@ -1382,8 +1195,171 @@ class NSCConfig(BaseEstimatorConfig):
         return values
 
 class SDIDConfig(BaseEstimatorConfig):
-    """Configuration for the Synthetic Difference-in-Differences (SDID) estimator."""
-    B: int = Field(default=500, description="Number of placebo iterations for inference.", ge=0) # B can be 0 if no inference desired
+    """Configuration for the Synthetic Difference-in-Differences (SDID) estimator.
+
+    Implements Arkhangelsky, Athey, Hirshberg, Imbens & Wager (2021)'s SDID
+    with the event-study aggregation of Ciccia (2024, arXiv:2407.09565).
+    Inherits the standard ``df`` / ``outcome`` / ``treat`` / ``unitid`` /
+    ``time`` panel-data interface from :class:`BaseEstimatorConfig`.
+    """
+
+    B: int = Field(
+        default=500,
+        ge=0,
+        description=(
+            "Number of placebo iterations for the variance estimator. "
+            "Set to 0 to skip placebo inference (att_se / p_value will be NaN). "
+            "The paper uses B = 500."
+        ),
+    )
+    seed: int = Field(
+        default=1400,
+        description="Random seed used for the placebo resampling.",
+    )
+
+
+class PPSCMConfig(BaseEstimatorConfig):
+    """Configuration for the Partially Pooled SCM (PPSCM) estimator.
+
+    Implements Ben-Michael, Feller & Rothstein (2022, *JRSS-B*
+    84(2):351-381). Targets staggered-adoption designs by minimizing a
+    weighted average of the per-treated-unit imbalance ``q_sep`` and
+    the average-treated imbalance ``q_pool``, with weighting hyper-
+    parameter ``nu``.
+    """
+
+    L: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Number of pre-treatment lags to use, common to every treated "
+            "unit. None (default) uses min_j (T_j - 1) so the earliest "
+            "cohort just fits in the pre-window."
+        ),
+    )
+    K: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Maximum event-time horizon. None (default) uses "
+            "min_j (T - T_j) so every treated unit contributes at every "
+            "modelled horizon."
+        ),
+    )
+    nu: Union[float, Literal["auto"]] = Field(
+        default="auto",
+        description=(
+            "Pooling parameter in [0, 1]. nu = 0 recovers separate SCM, "
+            "nu = 1 fully pooled SCM. 'auto' (default) selects nu by the "
+            "equal-imbalance heuristic: sweep a grid and pick the value "
+            "with q_tilde_sep ~ q_tilde_pool."
+        ),
+    )
+    nu_grid_size: int = Field(
+        default=21,
+        ge=3,
+        description="Grid resolution for the auto-nu sweep.",
+    )
+    lam: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Frobenius-norm regularization on the weight matrix.",
+    )
+    demean: bool = Field(
+        default=False,
+        description=(
+            "If True, demean each unit by its pre-treatment mean before "
+            "fitting (the paper's 'intercept shift' extension)."
+        ),
+    )
+    solver: Any = Field(
+        default=None,
+        description="CVXPY solver. None falls back to OSQP.",
+    )
+    run_inference: bool = Field(
+        default=True,
+        description=(
+            "Whether to run leave-one-treated-unit-out jackknife inference."
+        ),
+    )
+    alpha: float = Field(
+        default=0.05,
+        gt=0.0,
+        lt=1.0,
+        description="Significance level for the Wald confidence band.",
+    )
+
+
+class SequentialSDIDConfig(BaseEstimatorConfig):
+    """Configuration for the Sequential Synthetic Difference-in-Differences estimator.
+
+    Implements Arkhangelsky & Samkov (2025, arXiv:2404.00164v2). Operates on
+    cohort-level aggregates and is robust to violations of parallel trends
+    induced by interactive fixed effects. Inherits the standard ``df`` /
+    ``outcome`` / ``treat`` / ``unitid`` / ``time`` panel interface from
+    :class:`BaseEstimatorConfig`.
+    """
+
+    eta: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Non-negative regularization for the two QPs. Larger values shrink "
+            "the unit weights toward ``omega_j proportional to pi_j`` (the "
+            "stacked-DiD imputation limit of Remark 2.2)."
+        ),
+    )
+    mode: Literal["ssdid", "sdid_imputation"] = Field(
+        default="ssdid",
+        description=(
+            "Estimator mode. 'ssdid' is the paper's main estimator with a "
+            "finite ``eta``. 'sdid_imputation' forces the limit ``eta -> "
+            "infinity``, recovering the imputation-style sequential DiD of "
+            "Remark 2.2 (Borusyak et al. 2024-style)."
+        ),
+    )
+    K: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Maximum event-time horizon to estimate. ``None`` (default) "
+            "auto-sets ``K = T - a_max`` so every estimable effect fits "
+            "inside the panel."
+        ),
+    )
+    a_min: Optional[int] = Field(
+        default=None,
+        description=(
+            "Earliest treated cohort (1-based time index) to include. "
+            "``None`` (default) uses the earliest adopting cohort."
+        ),
+    )
+    a_max: Optional[int] = Field(
+        default=None,
+        description=(
+            "Latest treated cohort (1-based time index) to include. ``None`` "
+            "(default) uses the latest finitely-adopting cohort."
+        ),
+    )
+    n_bootstrap: int = Field(
+        default=500,
+        ge=0,
+        description=(
+            "Number of Bayesian-bootstrap iterations for SE/CI (Section 2.3 "
+            "of the paper). Set to 0 to skip inference."
+        ),
+    )
+    alpha: float = Field(
+        default=0.05,
+        gt=0.0,
+        lt=1.0,
+        description="Significance level for the Wald confidence band.",
+    )
+    seed: int = Field(
+        default=1400,
+        description="Random seed for the bootstrap.",
+    )
+
 
 class SHCConfig(BaseEstimatorConfig):
     m: int = Field(default=1, description="Length of the evaluation window.")
@@ -1405,6 +1381,190 @@ class SHCConfig(BaseEstimatorConfig):
                 raise MlsynthConfigError("All elements in 'bandwidth_grid' must be numeric.")
             if not all(h > 0 for h in self.bandwidth_grid):
                 raise MlsynthConfigError("All bandwidth values must be strictly positive.")
+
+        return self
+
+
+
+
+class MLSCConfig(BaseModel):
+    """Configuration for the Multi-Level Synthetic Control (mlSC) estimator.
+
+    Implements the data-driven hierarchical-aggregation estimator of
+    Bottmer (2025, "Synthetic Control with Disaggregated Data"). Unlike the
+    rest of mlsynth's estimators, mlSC operates on a *two-level* panel: an
+    aggregate-level DataFrame (e.g. state-by-time) and a disaggregate-level
+    DataFrame (e.g. county-by-time, with a column linking each county to
+    its parent state). Treatment is assigned at the aggregate level and the
+    estimand is the aggregate-level ATT, but the disaggregate data enters
+    the donor pool with a ridge-type penalty that shrinks the disaggregated
+    weights toward "population-share times aggregate weight" — recovering
+    classical SC in the large-penalty limit and fully-disaggregated SC at
+    penalty zero.
+
+    v1 implements only the heuristic and fixed-lambda penalty-selection
+    paths from Section 5.2 of the paper; cross-validation will follow.
+    """
+
+    df_agg: pd.DataFrame = Field(
+        ..., description="Aggregate-level long-form panel (e.g. states x time)."
+    )
+    df_disagg: pd.DataFrame = Field(
+        ...,
+        description=(
+            "Disaggregate-level long-form panel (e.g. counties x time). Must "
+            "contain a column identifying each disaggregate unit's parent "
+            "aggregate unit (see ``agg_id``)."
+        ),
+    )
+    outcome: str = Field(
+        ..., description="Outcome column name (must exist in both dataframes)."
+    )
+    time: str = Field(
+        ..., description="Time-period column name (must exist in both dataframes)."
+    )
+    treat: str = Field(
+        ...,
+        description=(
+            "Binary 0/1 treatment indicator column (must exist in both "
+            "dataframes). Treatment is assigned at the aggregate level; each "
+            "disaggregate unit's treat value must equal its parent aggregate's "
+            "treat value at every period."
+        ),
+    )
+    unitid_agg: str = Field(
+        ...,
+        description="Aggregate-unit identifier column in ``df_agg`` (e.g. 'state').",
+    )
+    unitid_disagg: str = Field(
+        ...,
+        description=(
+            "Disaggregate-unit identifier column in ``df_disagg`` "
+            "(e.g. 'county_fips')."
+        ),
+    )
+    agg_id: str = Field(
+        ...,
+        description=(
+            "Column in ``df_disagg`` mapping each disaggregate unit to its "
+            "parent aggregate unit. Values must match ``unitid_agg`` labels "
+            "in ``df_agg``."
+        ),
+    )
+    weight_col: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional column in ``df_disagg`` giving population weights "
+            "``v_sc`` for the aggregation rule ``Y_st = sum_c v_sc Y_sct``. "
+            "Within each aggregate the weights are normalized to sum to 1. "
+            "If None, uniform weights ``1 / C_s`` are used (the paper's "
+            "simulation default)."
+        ),
+    )
+    lambda_est: Literal["heuristic", "fixed"] = Field(
+        default="heuristic",
+        description=(
+            "Penalty-selection rule. 'heuristic' uses the Appendix-B closed "
+            "form ``lambda = 2 * sigma_eps^2 / sigma_y^2`` estimated from "
+            "the disaggregate pre-treatment panel (Appendix G). 'fixed' uses "
+            "``lambda_val`` directly. Cross-validation is planned for v2."
+        ),
+    )
+    lambda_val: float = Field(
+        default=1e-4,
+        ge=0.0,
+        description="Penalty value used when ``lambda_est == 'fixed'``.",
+    )
+    solver: Any = Field(
+        default=None,
+        description=(
+            "CVXPY-compatible solver. ``None`` (default) falls back to SCS, "
+            "which ships with cvxpy and handles the QP comfortably."
+        ),
+    )
+    display_graphs: bool = Field(
+        default=True, description="Whether to display the counterfactual plot."
+    )
+    save: Union[bool, str, Dict[str, str]] = Field(
+        default=False,
+        description=(
+            "Plot save configuration, identical to BaseEstimatorConfig.save."
+        ),
+    )
+    counterfactual_color: Union[str, List[str]] = Field(
+        default_factory=lambda: ["red"],
+        description="Counterfactual line color(s) in the plot.",
+    )
+    treated_color: str = Field(
+        default="black", description="Treated-unit line color in the plot."
+    )
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "forbid"
+
+    @model_validator(mode="after")
+    def _check_mlsc_panels(self) -> "MLSCConfig":
+        df_a = self.df_agg
+        df_d = self.df_disagg
+        if df_a.empty:
+            raise MlsynthDataError("'df_agg' is empty.")
+        if df_d.empty:
+            raise MlsynthDataError("'df_disagg' is empty.")
+
+        agg_required = {self.outcome, self.time, self.treat, self.unitid_agg}
+        agg_missing = agg_required - set(df_a.columns)
+        if agg_missing:
+            raise MlsynthDataError(
+                f"'df_agg' is missing required columns: {sorted(agg_missing)}."
+            )
+
+        disagg_required = {
+            self.outcome,
+            self.time,
+            self.treat,
+            self.unitid_disagg,
+            self.agg_id,
+        }
+        if self.weight_col is not None:
+            disagg_required.add(self.weight_col)
+        disagg_missing = disagg_required - set(df_d.columns)
+        if disagg_missing:
+            raise MlsynthDataError(
+                f"'df_disagg' is missing required columns: {sorted(disagg_missing)}."
+            )
+
+        # Time alignment: same set of periods in both panels.
+        t_agg = set(df_a[self.time].unique())
+        t_disagg = set(df_d[self.time].unique())
+        if t_agg != t_disagg:
+            sym = (t_agg ^ t_disagg)
+            raise MlsynthDataError(
+                "Aggregate and disaggregate panels must cover the same time "
+                f"periods. Mismatching periods: {sorted(list(sym))[:10]}."
+            )
+
+        # Each disaggregate unit must map to exactly one aggregate.
+        per_unit_aggs = (
+            df_d.groupby(self.unitid_disagg)[self.agg_id]
+            .nunique()
+        )
+        offenders = per_unit_aggs[per_unit_aggs > 1]
+        if not offenders.empty:
+            raise MlsynthDataError(
+                "Each disaggregate unit must belong to exactly one aggregate "
+                f"unit. Offending units: {offenders.index.tolist()[:5]}."
+            )
+
+        # Disaggregate agg_id labels must be a subset of aggregate unit labels.
+        disagg_aggs = set(df_d[self.agg_id].unique())
+        agg_units = set(df_a[self.unitid_agg].unique())
+        orphan = disagg_aggs - agg_units
+        if orphan:
+            raise MlsynthDataError(
+                "Disaggregate units reference aggregate labels missing from "
+                f"'df_agg': {sorted(orphan)[:5]}."
+            )
 
         return self
 
