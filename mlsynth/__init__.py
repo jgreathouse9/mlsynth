@@ -20,6 +20,7 @@ from .estimators.tasc import TASC
 from .estimators.sbc import SBC
 from .estimators.bvss import BVSS
 from .estimators.mlsc import MLSC
+from .estimators.seq_sdid import SequentialSDID
 
 __all__ = [
     "TSSC",
@@ -43,4 +44,5 @@ __all__ = [
     "TASC",
     "SBC", "BVSS",
     "MLSC"
+    "SequentialSDID"
 ]
