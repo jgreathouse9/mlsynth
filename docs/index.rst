@@ -33,6 +33,7 @@ MLSYNTH
    tssc
    lexscm
    scdi
+   bvss
    proximal
    fscm
    src
