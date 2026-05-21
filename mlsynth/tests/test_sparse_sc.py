@@ -33,38 +33,37 @@ from mlsynth.utils.sparse_sc_helpers.structures import (
 def _factor_panel(
     *, seed: int = 0, N_donors: int = 6, T: int = 20, T0: int = 14,
     P: int = 4, true_effect: float = -2.5, noise: float = 0.3,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Linear-factor panel + matched predictor table."""
+) -> pd.DataFrame:
+    """Linear-factor panel with covariate columns embedded in long form."""
     rng = np.random.default_rng(seed)
     n_units = N_donors + 1
     F = rng.standard_normal((T, P))
     Lambda = rng.standard_normal((n_units, P))
     Y = F @ Lambda.T + noise * rng.standard_normal((T, n_units))
-    # Treated unit is unit 0; effect from T0 onward.
     Y[T0:, 0] += true_effect
 
     records = []
     for u in range(n_units):
         name = f"unit_{u}"
+        # Unit-level covariates p0..p{P-1} are constant across time.
+        covs = {f"p{p}": float(Lambda[u, p]) for p in range(P)}
         for t in range(T):
-            records.append({
+            row = {
                 "unit": name, "year": 2000 + t,
                 "y": float(Y[t, u]),
                 "tr": int(u == 0 and t >= T0),
-            })
-    df = pd.DataFrame(records)
-
-    # Predictor table: pre-treatment factor loadings as observable proxies.
-    pred = pd.DataFrame({
-        "unit": [f"unit_{u}" for u in range(n_units)],
-        **{f"p{p}": Lambda[:, p] for p in range(P)},
-    })
-    return df, pred
+            }
+            row.update(covs)
+            records.append(row)
+    return pd.DataFrame(records)
 
 
 @pytest.fixture(scope="module")
-def small_panel() -> tuple[pd.DataFrame, pd.DataFrame]:
+def small_panel() -> pd.DataFrame:
     return _factor_panel()
+
+
+COVS = ["p0", "p1", "p2", "p3"]
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +82,6 @@ class TestInnerQP:
         assert (w >= -1e-8).all()
 
     def test_solve_w_recovers_replicated_donor(self):
-        # If X1 exactly equals a donor column, w should put most mass on it.
         rng = np.random.default_rng(1)
         X0 = rng.standard_normal((3, 4))
         X1 = X0[:, 2].copy()
@@ -112,76 +110,74 @@ class TestInnerQP:
 
 
 # ---------------------------------------------------------------------------
-# Layer 2: setup
+# Layer 2: setup (long-form covariate plumbing)
 # ---------------------------------------------------------------------------
 
 class TestSetup:
-    def test_basic_shapes(self, small_panel):
-        df, pred = small_panel
+    def test_covariates_collapsed_to_unit_means(self, small_panel):
         inputs = prepare_sparse_sc_inputs(
-            df=df, outcome="y", treat="tr",
+            df=small_panel, outcome="y", treat="tr",
             unitid="unit", time="year",
-            predictors_df=pred, predictors_unitid="unit",
+            covariates=COVS,
         )
         assert inputs.Y0.shape == (20, 6)
         assert inputs.Y1.shape == (20,)
-        assert inputs.X0.shape[1] == 6  # N donors
-        assert inputs.X1.shape[0] == inputs.X0.shape[0]
+        assert inputs.X0.shape == (4, 6)
+        assert inputs.X1.shape == (4,)
         assert inputs.T0_total == 14
         assert 1 < inputs.T0_train < inputs.T0_total
+        assert list(inputs.predictor_names) == COVS
 
-    def test_explicit_predictor_subset(self, small_panel):
-        df, pred = small_panel
+    def test_outcome_lag_periods_add_predictor_rows(self, small_panel):
         inputs = prepare_sparse_sc_inputs(
-            df=df, outcome="y", treat="tr",
+            df=small_panel, outcome="y", treat="tr",
             unitid="unit", time="year",
-            predictors_df=pred, predictors_unitid="unit",
-            predictor_cols=["p0", "p1"],
+            covariates=COVS,
+            outcome_lag_periods=[2003, 2007],
         )
-        assert inputs.P == 2
-        assert list(inputs.predictor_names) == ["p0", "p1"]
+        assert inputs.X0.shape[0] == 6  # 4 covs + 2 lagged outcomes
+        assert inputs.predictor_names[-2:] == ["y@2003", "y@2007"]
 
-    def test_missing_predictor_unit_rejected(self, small_panel):
-        df, pred = small_panel
-        truncated = pred[pred["unit"] != "unit_2"]
+    def test_requires_at_least_one_predictor(self, small_panel):
         with pytest.raises(MlsynthDataError):
             prepare_sparse_sc_inputs(
-                df=df, outcome="y", treat="tr",
+                df=small_panel, outcome="y", treat="tr",
                 unitid="unit", time="year",
-                predictors_df=truncated, predictors_unitid="unit",
             )
 
-    def test_missing_predictor_column_rejected(self, small_panel):
-        df, pred = small_panel
+    def test_unknown_covariate_rejected(self, small_panel):
         with pytest.raises(MlsynthDataError):
             prepare_sparse_sc_inputs(
-                df=df, outcome="y", treat="tr",
+                df=small_panel, outcome="y", treat="tr",
                 unitid="unit", time="year",
-                predictors_df=pred, predictors_unitid="unit",
-                predictor_cols=["does_not_exist"],
+                covariates=["does_not_exist"],
+            )
+
+    def test_post_period_lag_rejected(self, small_panel):
+        # 2017 is post-treatment (T0=14 -> last pre-year is 2013).
+        with pytest.raises(MlsynthDataError):
+            prepare_sparse_sc_inputs(
+                df=small_panel, outcome="y", treat="tr",
+                unitid="unit", time="year",
+                covariates=COVS, outcome_lag_periods=[2017],
             )
 
     def test_T0_train_validated(self, small_panel):
-        df, pred = small_panel
         with pytest.raises(MlsynthDataError):
             prepare_sparse_sc_inputs(
-                df=df, outcome="y", treat="tr",
+                df=small_panel, outcome="y", treat="tr",
                 unitid="unit", time="year",
-                predictors_df=pred, predictors_unitid="unit",
-                T0_train=0,
+                covariates=COVS, T0_train=0,
             )
 
     def test_short_pre_period_rejected(self, small_panel):
-        df, _ = small_panel
-        # Move treatment up so pre-period < 4.
-        df2 = df.copy()
+        df2 = small_panel.copy()
         df2["tr"] = ((df2["unit"] == "unit_0") & (df2["year"] >= 2003)).astype(int)
         with pytest.raises(MlsynthDataError):
             prepare_sparse_sc_inputs(
                 df=df2, outcome="y", treat="tr",
                 unitid="unit", time="year",
-                predictors_df=_factor_panel()[1],
-                predictors_unitid="unit",
+                covariates=COVS,
             )
 
 
@@ -195,7 +191,7 @@ class TestOptimization:
         assert grid.size == 11
         assert grid[0] == 0.0
         assert grid[-1] == pytest.approx(1.0, abs=1e-9)
-        assert (np.diff(grid[1:]) > 0).all()  # log-spaced strictly increasing
+        assert (np.diff(grid[1:]) > 0).all()
 
     def test_default_v20_anchors_to_first_predictor(self):
         rng = np.random.default_rng(0)
@@ -205,11 +201,10 @@ class TestOptimization:
         assert (v20 > 0).all()
 
     def test_sweep_lambda_returns_consistent_shapes(self, small_panel):
-        df, pred = small_panel
         inputs = prepare_sparse_sc_inputs(
-            df=df, outcome="y", treat="tr",
+            df=small_panel, outcome="y", treat="tr",
             unitid="unit", time="year",
-            predictors_df=pred, predictors_unitid="unit",
+            covariates=COVS,
         )
         grid = np.array([0.0, 0.01, 0.1])
         optv, opt_lam, grid_used, train, val, v_path = sweep_lambda(
@@ -228,22 +223,20 @@ class TestOptimization:
 
 class TestSyntheticRecovery:
     def test_recovers_true_effect(self, small_panel):
-        df, pred = small_panel
         res = SparseSC({
-            "df": df, "outcome": "y", "treat": "tr",
+            "df": small_panel, "outcome": "y", "treat": "tr",
             "unitid": "unit", "time": "year",
-            "predictors_df": pred, "predictors_unitid": "unit",
+            "covariates": COVS,
             "lambda_grid": [0.0, 0.001, 0.01, 0.1],
             "run_inference": False, "display_graphs": False,
         }).fit()
         assert res.att == pytest.approx(-2.5, abs=1.0)
 
     def test_w_sums_to_one(self, small_panel):
-        df, pred = small_panel
         res = SparseSC({
-            "df": df, "outcome": "y", "treat": "tr",
+            "df": small_panel, "outcome": "y", "treat": "tr",
             "unitid": "unit", "time": "year",
-            "predictors_df": pred, "predictors_unitid": "unit",
+            "covariates": COVS,
             "lambda_grid": [0.0, 0.01], "run_inference": False,
             "display_graphs": False,
         }).fit()
@@ -251,36 +244,45 @@ class TestSyntheticRecovery:
         assert (res.design.w >= -1e-8).all()
 
     def test_v_path_first_column_pinned(self, small_panel):
-        df, pred = small_panel
         res = SparseSC({
-            "df": df, "outcome": "y", "treat": "tr",
+            "df": small_panel, "outcome": "y", "treat": "tr",
             "unitid": "unit", "time": "year",
-            "predictors_df": pred, "predictors_unitid": "unit",
+            "covariates": COVS,
             "lambda_grid": [0.0, 0.01, 0.1],
             "run_inference": False, "display_graphs": False,
         }).fit()
         assert np.all(res.design.v_path[:, 0] == 1.0)
 
     def test_large_lambda_zeroes_v_weights(self, small_panel):
-        df, pred = small_panel
         res = SparseSC({
-            "df": df, "outcome": "y", "treat": "tr",
+            "df": small_panel, "outcome": "y", "treat": "tr",
             "unitid": "unit", "time": "year",
-            "predictors_df": pred, "predictors_unitid": "unit",
-            "lambda_grid": [1e3],  # huge penalty
+            "covariates": COVS,
+            "lambda_grid": [1e3],
             "run_inference": False, "display_graphs": False,
         }).fit()
-        # All non-anchored V-weights driven to 0 at very large lambda.
         assert np.allclose(res.design.v[1:], 0.0, atol=1e-3)
+
+    def test_outcome_lag_predictors_work_end_to_end(self, small_panel):
+        # 2008, 2010, 2012 are pre-treatment.
+        res = SparseSC({
+            "df": small_panel, "outcome": "y", "treat": "tr",
+            "unitid": "unit", "time": "year",
+            "covariates": COVS,
+            "outcome_lag_periods": [2008, 2010, 2012],
+            "lambda_grid": [0.0, 0.01], "run_inference": False,
+            "display_graphs": False,
+        }).fit()
+        assert res.design.v.shape == (7,)
+        assert res.design.v[0] == 1.0
 
 
 class TestPlacebo:
-    def test_placebo_disabled_by_default_in_test(self, small_panel):
-        df, pred = small_panel
+    def test_placebo_disabled(self, small_panel):
         res = SparseSC({
-            "df": df, "outcome": "y", "treat": "tr",
+            "df": small_panel, "outcome": "y", "treat": "tr",
             "unitid": "unit", "time": "year",
-            "predictors_df": pred, "predictors_unitid": "unit",
+            "covariates": COVS,
             "lambda_grid": [0.01], "run_inference": False,
             "display_graphs": False,
         }).fit()
@@ -289,11 +291,10 @@ class TestPlacebo:
         assert np.isnan(res.inference.p_value)
 
     def test_placebo_yields_valid_p_value(self, small_panel):
-        df, pred = small_panel
         res = SparseSC({
-            "df": df, "outcome": "y", "treat": "tr",
+            "df": small_panel, "outcome": "y", "treat": "tr",
             "unitid": "unit", "time": "year",
-            "predictors_df": pred, "predictors_unitid": "unit",
+            "covariates": COVS,
             "lambda_grid": [0.01], "run_inference": True,
             "n_placebo": 4, "display_graphs": False, "seed": 7,
         }).fit()
@@ -313,11 +314,10 @@ class TestPublicAPI:
         assert Imported is SparseSC
 
     def test_results_object_types(self, small_panel):
-        df, pred = small_panel
         res = SparseSC({
-            "df": df, "outcome": "y", "treat": "tr",
+            "df": small_panel, "outcome": "y", "treat": "tr",
             "unitid": "unit", "time": "year",
-            "predictors_df": pred, "predictors_unitid": "unit",
+            "covariates": COVS,
             "lambda_grid": [0.01], "run_inference": False,
             "display_graphs": False,
         }).fit()
@@ -327,11 +327,10 @@ class TestPublicAPI:
         assert isinstance(res.inference, SparseSCInference)
 
     def test_dict_vs_config_object(self, small_panel):
-        df, pred = small_panel
         cfg_dict = {
-            "df": df, "outcome": "y", "treat": "tr",
+            "df": small_panel, "outcome": "y", "treat": "tr",
             "unitid": "unit", "time": "year",
-            "predictors_df": pred, "predictors_unitid": "unit",
+            "covariates": COVS,
             "lambda_grid": [0.01], "run_inference": False,
             "display_graphs": False,
         }
@@ -345,11 +344,10 @@ class TestPublicAPI:
             SparseSC({"df": "not a dataframe"})
 
     def test_donor_and_predictor_weights_aligned(self, small_panel):
-        df, pred = small_panel
         res = SparseSC({
-            "df": df, "outcome": "y", "treat": "tr",
+            "df": small_panel, "outcome": "y", "treat": "tr",
             "unitid": "unit", "time": "year",
-            "predictors_df": pred, "predictors_unitid": "unit",
+            "covariates": COVS,
             "lambda_grid": [0.01], "run_inference": False,
             "display_graphs": False,
         }).fit()
@@ -359,4 +357,5 @@ class TestPublicAPI:
         assert set(res.predictor_weights.keys()) == set(
             res.inputs.predictor_names
         )
+        # First predictor (the anchor) gets v = 1.
         assert res.predictor_weights[res.inputs.predictor_names[0]] == pytest.approx(1.0)
