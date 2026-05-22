@@ -149,37 +149,154 @@ Estimating ``CLUSTERSC``
    :private-members:
    :special-members: __init__
 
-We can now turn to an empirical example, namely the reanalysis of West Germany' Reunification with East Germany and its effect upon West Germany's GDP per Capita.
+PCR variants
+~~~~~~~~~~~~
 
+The PCR family is implemented in
+``mlsynth/utils/clustersc_helpers/pcr/`` as a subpackage, organised by
+algorithmic role:
 
+* ``hsvt.py`` -- Hard Singular Value Thresholding (Algorithm 2 Step 2 of
+  Rho et al. 2025). Three rank-selection rules are exposed:
+  ``"cumvar"`` (paper default, smallest :math:`r` with cumulative
+  spectral energy at least ``cumvar_threshold``), ``"fixed"`` (caller
+  supplies ``rank``), and ``"usvt"`` (Chatterjee 2015 / Donoho-Gavish
+  universal threshold).
+* ``clustering.py`` -- Algorithm 3 (silhouette-driven :math:`k`-means on
+  rows of :math:`\\widetilde{U} = U\\Sigma_r`) plus Algorithm 4 Step 2
+  target matching via :math:`\\tilde{u} = V_r^\\top x_0^-`.
+* ``frequentist.py`` -- the paper's OLS weight solver
+  :math:`\\widehat{f} = \\arg\\min_f \\| \\widetilde{M}^- f - x_0^- \\|_2`
+  (Algorithm 2 Step 3), with optional elastic-net regularisation
+  (Appendix E).
+* ``bayesian.py`` -- mlsynth extension: replace OLS with the Bayani
+  (2022) Gaussian posterior over the weight vector, propagate samples
+  through the HSVT-denoised donor matrix in both pre and post periods
+  (Algorithm 4 Step 5) to produce per-period credible bands.
+* ``convex.py`` -- mlsynth extension: keep HSVT denoising but swap OLS
+  for the classical Abadie et al. (2010) simplex-constrained program.
+* ``pipeline.py`` -- the public dispatcher :func:`run_pcr` composing
+  the steps above into Algorithms 2 and 4.
+
+Configuration
+~~~~~~~~~~~~~
+
+The modernised :class:`mlsynth.config_models.CLUSTERSCConfig` exposes
+the paper-aligned knobs below.
+
+PCR family
+^^^^^^^^^^
+
+* ``method``: ``"pcr"``, ``"rpca"``, or ``"both"`` (case-insensitive).
+* ``primary``: when ``method="both"``, selects which family drives the
+  convenience aliases (``att``, ``counterfactual``, ``gap``,
+  ``donor_weights``). Default ``"pcr"``.
+* ``pcr_objective``: ``"OLS"`` (paper's Algorithm 2) or ``"SIMPLEX"``
+  (the convex mlsynth extension). Legacy alias: ``objective``.
+* ``estimator``: ``"frequentist"`` (Algorithm 2) or ``"bayesian"``
+  (Bayani 2022 posterior, Ch. 1). Legacy alias: ``Frequentist``
+  (bool).
+* ``clustering``: enable Algorithm 4 donor clustering + target
+  matching. Legacy alias: ``cluster``.
+* ``rank``: explicit HSVT truncation rank :math:`r`. ``None`` (default)
+  defers to ``rank_method``.
+* ``rank_method``: ``"cumvar"`` (default; paper Section 6.1's 95%
+  rule), ``"fixed"`` (use ``rank``), or ``"usvt"``.
+* ``cumvar_threshold``: cumulative-variance target when
+  ``rank_method="cumvar"``. Default ``0.95``.
+* ``k_clusters``: number of clusters for Algorithm 3. ``None`` lets
+  the silhouette coefficient pick :math:`k \\in [2, k_{\\max}]`.
+* ``k_max``: upper bound for the silhouette search. Default ``8``.
+* ``alpha``: nominal level for the Bayesian credible band
+  (default ``0.05``).
+* ``n_bayes_samples``: posterior sample count for the Bayesian path.
+  Default ``1000``.
+* ``random_state``: seed forwarded to k-means and the Bayesian sampler.
+  Default ``0``.
+* ``lambda_penalty``, ``p``, ``q``: optional elastic-net knobs for the
+  frequentist OLS path (Appendix E of Rho et al. 2025).
+
+RPCA family
+^^^^^^^^^^^
+
+* ``rpca_method``: ``"PCP"`` (Candes et al. 2011) or ``"HQF"`` (Wang
+  et al. 2023). Legacy alias: ``ROB``.
+
+Self-contained Monte Carlo example
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A copy-paste, dependency-free synthetic-panel illustration. We draw a
+two-factor panel, plant an ATT of ``1.0`` on the treated unit's
+post-period, fit CLUSTERSC under ``method="both"``, and inspect the
+PCR and RPCA fits side by side via the frozen results container.
+
+.. code-block:: python
+
+    import numpy as np
+    import pandas as pd
+    from mlsynth import CLUSTERSC
+
+    rng = np.random.default_rng(0)
+    J, T_pre, T_post, r = 12, 14, 6, 2
+    T = T_pre + T_post
+    F = rng.standard_normal((T, r))
+    lam = rng.standard_normal((J + 1, r))
+    eps = rng.standard_normal((T, J + 1)) * 0.4
+    Y = F @ lam.T + eps
+    Y[T_pre:, 0] += 1.0  # planted ATT on unit 0
+
+    df = pd.DataFrame(
+        [{"unit": j, "time": t, "y": float(Y[t, j]),
+          "D": int(j == 0 and t >= T_pre)}
+         for j in range(J + 1) for t in range(T)]
+    )
+
+    res = CLUSTERSC({
+        "df": df, "outcome": "y", "treat": "D",
+        "unitid": "unit", "time": "time",
+        "method": "both", "primary": "pcr",
+        "pcr_objective": "OLS", "estimator": "bayesian",
+        "rpca_method": "HQF", "alpha": 0.10,
+    }).fit()
+
+    print(f"selected family : {res.selected_variant}")
+    print(f"primary ATT     : {res.att:+.3f}")
+    print(f"PCR  ATT        : {res.pcr.att:+.3f}")
+    print(f"RPCA ATT        : {res.rpca.att:+.3f}")
+    print(f"PCR  pre-RMSE   : {res.pcr.pre_rmse:.3f}")
+    print(f"RPCA pre-RMSE   : {res.rpca.pre_rmse:.3f}")
+    if res.inference.method == "bayesian_credible":
+        lo, hi = res.inference.credible_interval
+        print(f"Bayesian {int((1 - 0.10) * 100)}% CrI : [{lo:+.3f}, {hi:+.3f}]")
+
+The PCR fit's posterior credible interval is exposed via
+``res.inference.credible_interval`` only when ``estimator="bayesian"``;
+otherwise ``res.inference.method == "none"``.
+
+Empirical example: German reunification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
     from mlsynth import CLUSTERSC
     import pandas as pd
-    
-    file = 'https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/german_reunification.csv'
-    # Load the CSV file using pandas
+
+    file = (
+        "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+        "refs/heads/main/basedata/german_reunification.csv"
+    )
     df = pd.read_csv(file)
-    
-    treat = "Reunification"
-    outcome = "gdp"
-    unitid = "country"
-    time = "year"
-    
-    config = {
+
+    res = CLUSTERSC({
         "df": df,
-        "treat": treat,
-        "time": time,
-        "outcome": outcome,
-        "unitid": unitid,
+        "outcome": "gdp",
+        "treat": "Reunification",
+        "unitid": "country",
+        "time": "year",
+        "method": "both",
+        "primary": "rpca",
         "display_graphs": True,
-        "cluster": True,
-    }
-    
-    model = CLUSTERSC(config)
-    
-    arco = model.fit()
+    }).fit()
 
 
 
