@@ -1,198 +1,190 @@
-"""Frozen dataclasses for the Synthetic IV (SIV) estimator.
+"""Per-unit synthetic-control weight solver for SIV.
 
-The SIV pipeline of Gulek and Vives-i-Bastida (2024) ("Synthetic IV
-Estimation in Panels", arXiv:2412.???) is a two-step procedure:
+For each unit ``i`` we solve the inner SC problem
 
-  1. For each unit ``i``, fit a synthetic control on the pre-period
-     using stacked outcome/treatment/instrument predictors and form
-     debiased series ``(\\tilde Y_i, \\tilde R_i, \\tilde Z_i)`` over
-     the post-period.
-  2. Run 2SLS of ``\\tilde Y`` on ``\\tilde R`` with instrument
-     ``\\tilde Z`` (or one of the variants that selectively debiases
-     only ``Z`` or runs an instrument-space projection first).
+    min_w  ||D_i - D_{-i}' w||_2^2
 
-The five layers below — inputs, per-unit weights, debiased series,
-estimates, inference — keep that pipeline pluggable.
+subject to either the standard SCM simplex ``w >= 0, sum(w) = 1``
+(the default per the paper's empirical applications) or the
+``l1``-ball ``||w||_1 <= C`` relaxation introduced in section 3.
 
-References
-----------
-Gulek, A. and Vives-i-Bastida, J. (2024). "Synthetic IV Estimation
-in Panels."
+We solve the simplex variant by calling Clarabel directly (same
+pattern as the SparseSC inner QP) to avoid CVXPY canonicalisation
+overhead. The ``l1``-ball variant uses an unconstrained Lagrangian
+form solved by NNLS-style projected gradient is more complex than
+the simplex; we fall back to CVXPY for that path because (a) it is
+rare in practice and (b) the projected gradient code is brittle.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Tuple
 
+import clarabel
 import numpy as np
+import scipy.sparse as sp
 
-from ..fast_scm_helpers.structure import IndexSet
-
-
-@dataclass(frozen=True)
-class SIVInputs:
-    """Preprocessed (unit x time) panel for SIV.
-
-    Parameters
-    ----------
-    Y, R, Z : np.ndarray
-        Shape ``(J, T)``. Outcome, treatment intensity, instrument.
-    unit_index : IndexSet
-        Sorted unit labels in row order of ``Y / R / Z``.
-    time_index : IndexSet
-        Time labels in column order.
-    T0 : int
-        Last pre-treatment period (inclusive); intervention starts at
-        column ``T0`` (0-indexed), so pre-period is ``[0, T0)`` and
-        post-period is ``[T0, T)``.
-    T0_train : Optional[int]
-        Optional train/blank split inside the pre-period used by the
-        ensemble CV and the split-conformal inference. ``None`` falls
-        back to a sensible default (``floor(0.75 * T0)``).
-    has_pre_treatment : bool
-        True iff the treatment ``R`` has any non-zero pre-period value.
-        In shift-share designs (like the paper's Syrian application)
-        ``R == 0`` for all ``t < T0`` and only outcome columns enter
-        the SC design matrix.
-    has_pre_instrument : bool
-        True iff ``Z`` has any non-zero pre-period value.
-    """
-
-    Y: np.ndarray
-    R: np.ndarray
-    Z: np.ndarray
-    unit_index: IndexSet
-    time_index: IndexSet
-    T0: int
-    T0_train: Optional[int] = None
-    has_pre_treatment: bool = False
-    has_pre_instrument: bool = False
-
-    @property
-    def J(self) -> int:
-        """Number of units."""
-        return int(self.Y.shape[0])
-
-    @property
-    def T(self) -> int:
-        """Total number of periods."""
-        return int(self.Y.shape[1])
-
-    @property
-    def T1(self) -> int:
-        """Number of post-treatment periods."""
-        return self.T - self.T0
+from ...exceptions import MlsynthEstimationError
+from .structures import SIVInputs, SIVWeights
 
 
-@dataclass(frozen=True)
-class SIVWeights:
-    """Per-unit synthetic control weights and debiased series.
+_CACHE: dict[int, tuple] = {}
 
-    For each unit ``i``, ``W[i]`` is a length-``J`` vector with
-    ``W[i, i] == 0`` and the remaining entries summing to 1 (under
-    the simplex constraint) or having ``l1``-norm <= C (under the
-    L1-ball constraint). Debiased series are computed for the full
-    panel, with the pre-period serving as the in-sample residual
-    series used by inference.
+
+def _build_simplex_skeleton(N: int):
+    """Return cached ``(A, b, cones, settings)`` for a length-N simplex QP."""
+
+    cached = _CACHE.get(N)
+    if cached is not None:
+        return cached
+    A_ineq = -sp.eye(N, format="csr")
+    A_eq = sp.csr_matrix(np.ones((1, N)))
+    A = sp.vstack([A_ineq, A_eq]).tocsc()
+    b = np.concatenate([np.zeros(N), [1.0]])
+    cones = [clarabel.NonnegativeConeT(N), clarabel.ZeroConeT(1)]
+    s = clarabel.DefaultSettings()
+    s.verbose = False
+    s.tol_gap_abs = 1e-9
+    s.tol_gap_rel = 1e-9
+    s.tol_feas = 1e-9
+    s.max_iter = 500
+    _CACHE[N] = (A, b, cones, s)
+    return _CACHE[N]
+
+
+def _solve_simplex_sc(D_i: np.ndarray, D_others: np.ndarray) -> np.ndarray:
+    """Solve the simplex SC QP for one unit.
 
     Parameters
     ----------
-    W : np.ndarray
-        Shape ``(J, J)`` weight matrix.
-    Y_sc, R_sc, Z_sc : np.ndarray
-        Shape ``(J, T)``. The synthetic-control imputation of each
-        series at every period.
-    Y_tilde, R_tilde, Z_tilde : np.ndarray
-        Shape ``(J, T)``. The debiased series ``X - X_sc``.
-    constraint : str
-        Either ``"simplex"`` or ``"l1_ball"``; mirrors the
-        ``SIVConfig.weight_constraint`` setting that produced the fit.
+    D_i : np.ndarray
+        Length-``p`` predictor vector for the focal unit.
+    D_others : np.ndarray
+        Shape ``(J - 1, p)`` predictor matrix for the donors.
+
+    Returns
+    -------
+    np.ndarray
+        Length-``(J - 1)`` simplex-constrained weight vector.
     """
 
-    W: np.ndarray
-    Y_sc: np.ndarray
-    R_sc: np.ndarray
-    Z_sc: np.ndarray
-    Y_tilde: np.ndarray
-    R_tilde: np.ndarray
-    Z_tilde: np.ndarray
-    constraint: str
+    if D_others.shape[0] == 0:
+        return np.asarray([], dtype=float)
+    # Inner QP: min 0.5 w' (2 D D') w + (-2 D_others D_i)' w
+    H = D_others @ D_others.T
+    H = 0.5 * (H + H.T)
+    diag_mean = np.trace(H) / max(H.shape[0], 1)
+    if diag_mean <= 0:
+        diag_mean = 1.0
+    H = H + 1e-10 * diag_mean * np.eye(H.shape[0])
+    q = -2.0 * (D_others @ D_i)
+    P_mat = sp.csc_matrix(2.0 * H)
+
+    N = D_others.shape[0]
+    A, b, cones, settings = _build_simplex_skeleton(N)
+    sol = clarabel.DefaultSolver(P_mat, q, A, b, cones, settings).solve()
+    status = str(sol.status)
+    if status not in {"Solved", "AlmostSolved"}:
+        # Last-resort uniform fallback so a single bad-unit doesn't abort
+        # the whole panel SC.
+        return np.full(N, 1.0 / N)
+    return np.clip(np.asarray(sol.x, dtype=float), 0.0, None)
 
 
-@dataclass(frozen=True)
-class SIVEstimate:
-    """A single 2SLS estimate (point + standard error).
+def _solve_l1ball_sc(D_i: np.ndarray, D_others: np.ndarray, C: float) -> np.ndarray:
+    """Solve the L1-ball relaxation of the SC QP for one unit.
 
-    The variant tag identifies which set of debiased series produced
-    the estimate so a downstream consumer can tell ``SIV`` from
-    ``SIV_Z`` from ``Projected`` apart in a results dict.
+    Falls back to CVXPY (the L1 constraint with a free sign is awkward
+    to express directly in Clarabel; CVXPY is acceptable here because
+    the L1-ball variant is rare in practice).
     """
 
-    variant: str
-    theta_hat: float
-    se: float
-    pi_hat: float                # reduced-form coefficient
-    beta_first_stage: float      # first-stage coefficient
-    f_stat: float                # first-stage F statistic
-    n_post_obs: int
+    if D_others.shape[0] == 0:
+        return np.asarray([], dtype=float)
+
+    import cvxpy as cp
+
+    N = D_others.shape[0]
+    w = cp.Variable(N)
+    obj = cp.sum_squares(D_i - D_others.T @ w)
+    constraints = [cp.norm1(w) <= C]
+    prob = cp.Problem(cp.Minimize(obj), constraints)
+    prob.solve(solver=cp.CLARABEL)
+    if w.value is None:
+        # Try OSQP as a fallback
+        prob.solve(solver=cp.OSQP)
+    if w.value is None:
+        raise MlsynthEstimationError(
+            "SIV inner SC QP (L1-ball variant) failed."
+        )
+    return np.asarray(w.value, dtype=float)
 
 
-@dataclass(frozen=True)
-class SIVInference:
-    """Inferential output: asymptotic Gaussian CI and split-conformal CI.
+def fit_synthetic_controls(
+    design: np.ndarray,
+    constraint: str = "simplex",
+    l1_C: float = 1.0,
+) -> np.ndarray:
+    """Fit per-unit synthetic-control weights on the supplied design.
 
     Parameters
     ----------
-    method : str
-        ``"asymptotic"``, ``"conformal"``, or ``"none"``.
-    alpha : float
-        Two-sided significance level used for the CI.
-    theta_hat : float
-        Selected estimate (the variant the user asked the orchestrator
-        to score; the *other* variants are also retained inside
-        :class:`SIVResults`).
-    ci_lower, ci_upper : float
-        ``(1 - alpha)`` confidence interval.
-    p_value : float
-        Two-sided test of ``H_0 : theta = 0``.
-    event_study_coefs : np.ndarray
-        Per-period reduced-form event-study coefficients used by the
-        split-conformal test (empty array for ``method != "conformal"``).
-    permutation_pvalue : float
-        Conformal permutation p-value (NaN for non-conformal methods).
+    design : np.ndarray
+        ``(J, p)`` predictor matrix. Row ``i`` is the focal unit; the
+        other ``J - 1`` rows are donor predictors.
+    constraint : {"simplex", "l1_ball"}
+        Simplex constraint is the canonical SCM choice; the L1-ball is
+        the regularised relaxation of Doudchenko & Imbens (2016) used
+        in the paper's theoretical analysis.
+    l1_C : float
+        L1-ball radius (used only when ``constraint == "l1_ball"``).
+
+    Returns
+    -------
+    np.ndarray
+        ``(J, J)`` weight matrix. ``W[i, i] = 0``; the remaining ``J -
+        1`` columns of row ``i`` are the simplex / L1-ball weights for
+        unit ``i``.
     """
 
-    method: str
-    alpha: float
-    theta_hat: float
-    ci_lower: float = float("nan")
-    ci_upper: float = float("nan")
-    p_value: float = float("nan")
-    event_study_coefs: np.ndarray = field(
-        default_factory=lambda: np.asarray([], dtype=float)
+    if constraint not in {"simplex", "l1_ball"}:
+        raise MlsynthEstimationError(
+            f"Unknown weight constraint {constraint!r}; expected "
+            f"'simplex' or 'l1_ball'."
+        )
+
+    J = design.shape[0]
+    W = np.zeros((J, J), dtype=float)
+
+    for i in range(J):
+        D_i = design[i]
+        donor_mask = np.ones(J, dtype=bool)
+        donor_mask[i] = False
+        D_others = design[donor_mask]
+        if constraint == "simplex":
+            w_donors = _solve_simplex_sc(D_i, D_others)
+        else:
+            w_donors = _solve_l1ball_sc(D_i, D_others, l1_C)
+        W[i, donor_mask] = w_donors
+
+    return W
+
+
+def assemble_weights(
+    inputs: SIVInputs,
+    W: np.ndarray,
+    constraint: str,
+) -> SIVWeights:
+    """Form synthetic and debiased series from a weight matrix."""
+
+    Y_sc = W @ inputs.Y
+    R_sc = W @ inputs.R
+    Z_sc = W @ inputs.Z
+    return SIVWeights(
+        W=W,
+        Y_sc=Y_sc, R_sc=R_sc, Z_sc=Z_sc,
+        Y_tilde=inputs.Y - Y_sc,
+        R_tilde=inputs.R - R_sc,
+        Z_tilde=inputs.Z - Z_sc,
+        constraint=constraint,
     )
-    permutation_pvalue: float = float("nan")
-
-
-@dataclass(frozen=True)
-class SIVResults:
-    """Top-level container returned by :meth:`mlsynth.SIV.fit`.
-
-    Holds preprocessed inputs, the SC weights and debiased series for
-    both the canonical and projected pipelines, every variant of the
-    2SLS estimator, and the inferential output.
-    """
-
-    inputs: SIVInputs
-    weights: SIVWeights
-    weights_projected: Optional[SIVWeights]
-    estimates: Dict[str, SIVEstimate]
-    selected_variant: str
-    inference: SIVInference
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def theta_hat(self) -> float:
-        """Point estimate of theta for the selected variant."""
-        return self.estimates[self.selected_variant].theta_hat
