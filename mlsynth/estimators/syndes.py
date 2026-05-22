@@ -101,6 +101,8 @@ class SYNDES:
         self.solver: Any = config.solver
         self.display_graph: bool = config.display_graph
         self.verbose: bool = config.verbose
+        self.costs = config.costs
+        self.budget = config.budget
 
     def fit(self) -> SCDIResults:
         """Solve the MIP, run optional inference, return :class:`SCDIResults`.
@@ -128,6 +130,8 @@ class SYNDES:
                 solver=self.solver,
                 verbose=self.verbose,
                 unit_index=inputs.unit_index,
+                costs=self.costs,
+                budget=self.budget,
             )
 
             # Re-tag the design with the paper-aligned mode name so
