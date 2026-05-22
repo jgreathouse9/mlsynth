@@ -44,7 +44,7 @@ def estimate_lambda(Y: np.ndarray) -> float:
     return float(np.mean(np.var(Y, axis=0, ddof=1)))
 
 
-def _validate_design_inputs(Y: np.ndarray, K: int) -> None:
+def _validate_design_inputs(Y: np.ndarray, K: Optional[int]) -> None:
     """
     Validate basic SCDI design inputs.
 
@@ -62,10 +62,11 @@ def _validate_design_inputs(Y: np.ndarray, K: int) -> None:
     """
     if Y.ndim != 2:
         raise MlsynthConfigError("Y must be a two-dimensional T x N matrix.")
-    if K <= 0:
-        raise MlsynthConfigError("K must be a positive integer.")
-    if K > Y.shape[1]:
-        raise MlsynthConfigError("K cannot exceed the number of units.")
+    if K is not None:
+        if K <= 0:
+            raise MlsynthConfigError("K must be a positive integer.")
+        if K > Y.shape[1]:
+            raise MlsynthConfigError("K cannot exceed the number of units.")
 
 
 def _build_global_2way(Y: np.ndarray, D: cp.Variable, K: int, lam: float):
@@ -145,7 +146,7 @@ def _extract_weights(mode, assignment, values):
     q = values.get("q")
 
     # ----------------------------
-    # Equal weights case
+    # Equal weights case (paper's "one-way global")
     # ----------------------------
     if mode == "global_equal_weights":
         treated_weights = assignment / K
@@ -154,7 +155,21 @@ def _extract_weights(mode, assignment, values):
         return treated_weights, control_weights, contrast_weights
 
     # ----------------------------
-    # Learned-weight cases
+    # Per-unit case: each treated unit has its own SC row in q.
+    # The aggregate ATET-producing contrast is
+    #   c_j = (1/K) (D_j - sum_i q[i, j])
+    # which integrates the K per-unit estimators into one vector that
+    # downstream inference can apply to a (T, N) panel.
+    # ----------------------------
+    if mode == "per_unit":
+        if q is None:
+            return None, None, None
+        q_arr = np.asarray(q, dtype=float)
+        contrast_weights = (assignment - q_arr.sum(axis=0)) / K
+        return q_arr, None, contrast_weights
+
+    # ----------------------------
+    # Learned-weight global case (two-way global)
     # ----------------------------
     if w is not None and q is not None:
         treated_weights = q

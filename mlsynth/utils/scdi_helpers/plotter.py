@@ -11,16 +11,19 @@ from .structures import SCDIResults
 
 
 def plot_scdi_design(results: SCDIResults | RelaxedSolverResults) -> None:
-    """Dispatch to the appropriate SCDI plot for a result object."""
+    """Dispatch to the appropriate SCDI / SYNDES plot for a result object."""
 
     if results.mode == "global_2way_relaxed":
         plot_relaxed_design(results)
-    elif results.mode in {"global_2way", "global_equal_weights"}:
+    elif results.mode in {
+        "global_2way", "global_equal_weights",
+        "two_way_global", "one_way_global",  # SYNDES paper-aligned names
+    }:
         plot_global_design(results)
     elif results.mode == "per_unit":
         plot_per_unit_design(results)
     else:
-        raise MlsynthPlottingError(f"Unknown SCDI plot mode: {results.mode}")
+        raise MlsynthPlottingError(f"Unknown SCDI/SYNDES plot mode: {results.mode}")
 
 
 def plot_global_design(results: SCDIResults) -> None:

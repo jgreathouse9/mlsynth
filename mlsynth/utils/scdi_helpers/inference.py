@@ -11,6 +11,64 @@ from .relaxed_structures import RelaxedDesign, RelaxedInference
 from .structures import SCDIDesign, SCDIInference
 
 
+def _build_contrast_vector(design: SCDIDesign, n_units: int) -> np.ndarray:
+    """Return the unit-level contrast that produces the ATET when applied to Y.
+
+    For all three Doudchenko et al. (2021) MIP formulations the
+    estimated ATET at period ``t`` is ``Y_t @ c`` for some unit-level
+    contrast vector ``c``:
+
+    * ``global_2way`` / ``global_equal_weights``  --  ``c = 2 q - w``,
+      i.e. ``(treated_weight - control_weight)`` per unit. The
+      contrast was already cached on the design as
+      :py:attr:`SCDIDesign.contrast_weights`.
+    * ``per_unit``  --  for each treated ``i`` the per-unit estimator
+      is ``Y_{i,t} - sum_j q_{ij} Y_{j,t}``; averaging across ``K``
+      treated units gives ``c_j = (1/K) (D_j - sum_i q_{ij})``.
+    """
+
+    # Accept both legacy SCDI mode names and the paper-aligned SYNDES
+    # names so the inference helper is callable from either orchestrator.
+    _ALIAS = {
+        "two_way_global": "global_2way",
+        "one_way_global": "global_equal_weights",
+    }
+    mode = _ALIAS.get(design.mode, design.mode)
+    if mode in {"global_2way", "global_equal_weights"}:
+        if design.contrast_weights is not None:
+            return np.asarray(design.contrast_weights, dtype=float)
+        if design.w is None or design.q is None:
+            raise MlsynthEstimationError(
+                f"{mode} inference requires w and q weights on the design."
+            )
+        return 2.0 * np.asarray(design.q) - np.asarray(design.w)
+
+    if mode == "per_unit":
+        if design.q is None or design.assignment is None:
+            raise MlsynthEstimationError(
+                "per_unit inference requires q weights and the assignment "
+                "vector on the design."
+            )
+        q = np.asarray(design.q, dtype=float)
+        D = np.asarray(design.assignment, dtype=float)
+        K = float(D.sum())
+        if K <= 0:
+            raise MlsynthEstimationError(
+                "per_unit inference requires at least one treated unit."
+            )
+        # c_j = (1/K) (D_j - sum_i q[i, j]) where q[i, j] is unit i's
+        # weight on donor j (per_unit q has shape (N, N), with row i
+        # holding the SC weights for treated unit i over the donor
+        # pool). The contrast aggregates the K per-unit estimators
+        # into an average ATET.
+        return (D - q.sum(axis=0)) / K
+
+    raise MlsynthConfigError(
+        f"Unknown SCDI mode {mode!r}; expected one of "
+        "{'global_2way', 'global_equal_weights', 'per_unit'}."
+    )
+
+
 def permutation_test_global(
     Y_pre: np.ndarray,
     Y_post: np.ndarray,
@@ -18,22 +76,27 @@ def permutation_test_global(
     alpha: float = 0.10,
     include_null_stats: bool = True,
 ) -> SCDIInference:
-    """Run a moving-block permutation test for a global two-way SCDI design."""
+    """Moving-block permutation test for any SCDI / Synthetic-Design mode.
 
-    if design.mode != "global_2way":
-        raise MlsynthConfigError(
-            "Permutation inference is currently implemented only for global_2way."
-        )
-    if design.w is None or design.q is None:
-        raise MlsynthEstimationError("Global SCDI inference requires w and q weights.")
+    Generalises the original ``global_2way``-only implementation to the
+    full set of MIP formulations from Doudchenko et al. (2021):
+    ``global_2way``, ``global_equal_weights`` (paper's "one-way global")
+    and ``per_unit``. The test follows the Chernozhukov, Wuethrich, and
+    Zhu (2021) permutation-across-time logic: we treat each period's
+    cross-unit contrast as exchangeable under the no-effect null and
+    compare the post-period mean to the null distribution obtained by
+    cyclically shifting the stacked panel.
+    """
+
     if Y_post is None or Y_post.size == 0:
         raise MlsynthDataError("Y_post is required for SCDI permutation inference.")
+
+    contrast = _build_contrast_vector(design, n_units=Y_pre.shape[1])
 
     Y_full = np.vstack([Y_pre, Y_post])
     n_post = Y_post.shape[0]
     total_periods = Y_full.shape[0]
 
-    contrast = 2 * np.asarray(design.q) - np.asarray(design.w)
     observed = float(np.mean(Y_post @ contrast))
     u_obs = abs(observed)
 
@@ -50,7 +113,7 @@ def permutation_test_global(
         p_value=p_value,
         reject=p_value <= alpha,
         alpha=alpha,
-        method="moving_block_permutation_global",
+        method=f"moving_block_permutation_{design.mode}",
         null_stats=null_stats_arr if include_null_stats else None,
     )
 

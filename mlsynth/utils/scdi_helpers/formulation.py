@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import cvxpy as cp
 import numpy as np
@@ -48,7 +48,7 @@ def build_global_2way_variables(T: int, N: int) -> Dict[str, cp.Variable]:
 def build_global_2way_constraints(
     Y: np.ndarray,
     D: cp.Variable,
-    K: int,
+    K: Optional[int],
     variables: Dict[str, cp.Variable],
 ) -> List[cp.Constraint]:
     """
@@ -84,8 +84,6 @@ def build_global_2way_constraints(
     z = variables["z"]
 
     constraints: List[cp.Constraint] = [
-        cp.sum(D) == K,
-
         # normalization
         cp.sum(q) == 1,
         cp.sum(w) == 2,
@@ -95,6 +93,16 @@ def build_global_2way_constraints(
         q <= w,
         q >= w - (1 - D),
     ]
+    # Paper allows K=None for global modes (see Doudchenko et al. 2021,
+    # paragraph after eq. 9); pin K only when explicitly supplied.
+    if K is not None:
+        constraints.append(cp.sum(D) == K)
+    else:
+        # Without a K-pin the trivial solution D=0 is admissible. Force
+        # at least one treated and one control so the contrast vector
+        # is well-defined.
+        constraints.append(cp.sum(D) >= 1)
+        constraints.append(cp.sum(D) <= Y.shape[1] - 1)
 
     residual_constraints = [
         z[t] == cp.sum(cp.multiply(2 * q - w, Y[t, :]))
@@ -246,7 +254,7 @@ def build_global_equal_weights_variables(
 def build_global_equal_weights_constraints(
     Y: np.ndarray,
     D: cp.Variable,
-    K: int,
+    K: Optional[int],
     variables: Dict[str, cp.Variable],
 ) -> List[cp.Constraint]:
     """
