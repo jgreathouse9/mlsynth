@@ -120,6 +120,8 @@ class SparseSC:
         self.outer_loss_window: str = config.outer_loss_window
         self.solver: Any = config.solver
         self.max_outer_iter: int = config.max_outer_iter
+        self.use_analytical_grad: bool = config.use_analytical_grad
+        self.warm_start: bool = config.warm_start
         self.run_inference: bool = config.run_inference
         self.n_placebo = config.n_placebo
         self.placebo_resweep: bool = config.placebo_resweep
@@ -150,6 +152,8 @@ class SparseSC:
                 solver=self.solver,
                 max_outer_iter=self.max_outer_iter,
                 outer_loss_window=self.outer_loss_window,
+                use_analytical_grad=self.use_analytical_grad,
+                warm_start=self.warm_start,
             )
             optw = recover_w(optv, inputs.X1, inputs.X0, solver=self.solver)
 
