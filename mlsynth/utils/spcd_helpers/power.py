@@ -1,223 +1,238 @@
-"""Pre-experiment power analysis for SPCD.
+"""Minimum-detectable-effect (MDE) power analysis for SYNDES designs.
 
-Adapts the Monte Carlo MDE machinery from
-``mlsynth.utils.fast_scm_helpers.power_helpers`` to operate directly on
-the SPCD holdout residuals ``r_B``. The MDE is the smallest treatment
-effect tau such that the mean-absolute-effect statistic rejects the
-null with probability at least ``power_target`` at significance
-``alpha``.
+The Doudchenko et al. (2021) Synthetic Design paper computes power
+curves by Monte Carlo simulation (Appendix A.4, Figure 2): seed a
+known true ATET, run the permutation test, repeat, and tally the
+rejection rate. Repeating that procedure across a grid of effect
+sizes traces out the rejection probability as a function of the
+true effect.
 
-Because SPCD's post-period estimator is a fixed linear functional
-``tau_hat_t = sum_i contrast_weights[i] * Y[i, t]``, the noise
-distribution of ``tau_hat_t`` under H0 is fully characterized by the
-distribution of ``r_B`` -- no further model-fitting is needed at the
-power stage.
+For a single fitted design we can short-circuit that loop by
+appealing to the asymptotic normality of the permutation test
+statistic under the null. With
+
+    sigma_perm = std_t (Y_t @ c)
+
+— the std of the per-period contrast applied to the **pre-period**
+outcome panel (the empirical null distribution of the test
+statistic, the same one the moving-block permutation test
+samples) — the variance of the ATT estimator over ``n_post``
+post-treatment periods is ``sigma_perm^2 / n_post``. The MDE at
+significance level ``alpha`` (two-sided) and power ``1 - beta`` is
+
+    MDE_abs(n_post) = (z_{1 - alpha/2} + z_{1 - beta})
+                       * sigma_perm / sqrt(n_post),
+
+which we report alongside its percentage version
+
+    MDE_pct(n_post) = 100 * MDE_abs(n_post) / baseline,
+
+where ``baseline`` defaults to the mean pre-period outcome on the
+SYNDES-selected treated units (so MDE_pct reads as a percentage of
+treated-unit baseline). Other baselines available: ``"overall"``
+(full panel mean), ``"control"`` (the SC-weighted control mean
+under the design's contrast), or a user-supplied scalar.
+
+Use :func:`power_analysis` as the public entry point; pass it the
+:class:`mlsynth.utils.scdi_helpers.structures.SCDIResults` returned
+by :meth:`mlsynth.SYNDES.fit` (or any of the legacy SCDI modes).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Iterable, Optional, Union
 
 import numpy as np
+from scipy.stats import norm
+
+from ...exceptions import MlsynthEstimationError
+from .inference import _build_contrast_vector
+from .structures import SCDIResults
 
 
 @dataclass(frozen=True)
-class SPCDPowerAnalysis:
-    """Container for MDE and detectability outputs.
+class SYNDESPower:
+    """Per-horizon MDE table for a fitted SYNDES design.
 
-    Attributes
+    Parameters
     ----------
-    mde_tau : float
-        Smallest absolute effect detectable at ``power_target``.
-        ``np.nan`` when no point on the grid reaches the target.
-    mde_pct : float
-        ``mde_tau`` expressed as a percentage of the holdout baseline.
+    n_post_periods : np.ndarray
+        Horizons evaluated, shape ``(H,)``.
+    mde_absolute : np.ndarray
+        MDE in the same units as the outcome, shape ``(H,)``.
+    mde_percent : np.ndarray
+        ``100 * MDE_abs / baseline``, shape ``(H,)``.
+    sigma_perm : float
+        Std of the per-period contrast applied to the pre-period
+        outcomes -- the permutation-null std the MDE rests on.
     baseline : float
-        Baseline level used for the percentage scaling
-        (mean of the synthetic-treated trajectory over the holdout
-        window).
-    critical_stat : float
-        ``(1 - alpha)``-quantile of the null distribution of the test
-        statistic at horizon ``n_post``.
-    feasible : bool
-        ``True`` if a non-``nan`` MDE was identified.
-    n_post : int
-        Post-treatment horizon for which the MDE was computed.
+        Baseline outcome level used to convert ``mde_absolute`` into a
+        percentage.
+    baseline_kind : str
+        Tag identifying which baseline was used (``"treated"``,
+        ``"overall"``, ``"control"``, or ``"custom"``).
     alpha : float
-        Significance level used.
-    power_target : float
-        Power target used.
-    detectability : dict[int, float] or None
-        Optional ``horizon -> MDE`` mapping if a horizon grid was
-        supplied; ``None`` otherwise.
+        Two-sided significance level used to build the CI.
+    power : float
+        Target power ``1 - beta`` used to compute the MDE.
+    contrast : np.ndarray
+        The unit-level contrast vector that maps outcomes to the ATT
+        estimator. Stored for downstream inspection.
     """
 
-    mde_tau: float
-    mde_pct: float
+    n_post_periods: np.ndarray
+    mde_absolute: np.ndarray
+    mde_percent: np.ndarray
+    sigma_perm: float
     baseline: float
-    critical_stat: float
-    feasible: bool
-    n_post: int
+    baseline_kind: str
     alpha: float
-    power_target: float
-    detectability: Optional[Dict[int, float]] = None
+    power: float
+    contrast: np.ndarray = field(repr=False)
+
+    def to_dataframe(self):
+        """Return a tidy ``(n_post, mde_abs, mde_pct)`` DataFrame."""
+        import pandas as pd  # local import keeps the helper light
+
+        return pd.DataFrame({
+            "n_post": self.n_post_periods,
+            "mde_absolute": self.mde_absolute,
+            "mde_percent": self.mde_percent,
+        })
 
 
-def _null_distribution(
-    residuals: np.ndarray, n_post: int, n_sims: int, rng: np.random.Generator
-) -> np.ndarray:
-    """Sample the null distribution of mean(|sample|) at horizon n_post.
-
-    Pads the residual pool with Gaussian draws so that resampling of
-    size ``n_post`` is always feasible even when ``n_post > len(residuals)``.
-    """
-
-    sigma = float(np.std(residuals)) + 1e-12
-    pool = np.concatenate([residuals, rng.normal(0.0, sigma, max(n_post, 1))])
-    stats = np.empty(n_sims)
-    for i in range(n_sims):
-        idx = rng.choice(len(pool), size=n_post, replace=False)
-        stats[i] = float(np.mean(np.abs(pool[idx])))
-    stats.sort()
-    return stats
-
-
-def compute_mde(
-    residuals_B: np.ndarray,
-    baseline: float,
-    n_post: int,
+def power_analysis(
+    results: SCDIResults,
+    n_post_periods: Iterable[int] = range(1, 13),
     alpha: float = 0.05,
-    power_target: float = 0.8,
-    tau_grid: Optional[np.ndarray] = None,
-    n_sims: int = 5000,
-    n_trials: int = 400,
-    seed: int = 1400,
-) -> SPCDPowerAnalysis:
-    """Compute the minimum detectable effect via Monte Carlo.
-
-    Procedure follows ``power_helpers._analytical_mde`` in
-    ``fast_scm_helpers``:
-
-    1. Build the null distribution of the test statistic at horizon
-       ``n_post`` by resampling ``residuals_B`` (padded with Gaussian
-       draws to handle horizon overflow).
-    2. Compute the critical value
-       ``c_alpha = quantile(null_stats, 1 - alpha)``.
-    3. For each candidate ``tau`` on the grid, draw ``n_trials``
-       post-period vectors of the form ``tau + Gaussian noise`` and
-       record the fraction of trials whose statistic exceeds
-       ``c_alpha``. The smallest ``tau`` with empirical power at or
-       above ``power_target`` is the MDE.
+    power: float = 0.80,
+    baseline: Union[str, float] = "treated",
+) -> SYNDESPower:
+    """Compute the per-horizon minimum detectable effect for a SYNDES design.
 
     Parameters
     ----------
-    residuals_B : np.ndarray
-        Out-of-sample residuals on the holdout window.
-    baseline : float
-        Baseline level used to express the MDE as a percentage.
-        Typically the mean of the synthetic-treated trajectory over the
-        holdout window.
-    n_post : int
-        Post-treatment horizon for the MDE.
-    alpha, power_target : float
-        Significance and power.
-    tau_grid : np.ndarray, optional
-        Grid of candidate effect sizes (in absolute units). Defaults
-        to ``linspace(0, 5 * std(residuals_B), 60)``.
-    n_sims, n_trials, seed : int
-        Monte Carlo control.
+    results : SCDIResults
+        Output of :meth:`mlsynth.SYNDES.fit` or :meth:`mlsynth.SCDI.fit`.
+        Only the ``design`` and ``inputs`` fields are read.
+    n_post_periods : iterable of int, default ``range(1, 13)``
+        Horizons (in post-treatment periods) at which to report the
+        MDE.
+    alpha : float, default 0.05
+        Two-sided significance level.
+    power : float, default 0.80
+        Target power for the MDE (``1 - beta``).
+    baseline : str or float, default ``"treated"``
+        Denominator for the percentage MDE. Choices:
+
+        * ``"treated"`` (default) -- mean pre-period outcome over the
+          SYNDES-selected treated units.
+        * ``"overall"``         -- mean pre-period outcome over every unit.
+        * ``"control"``         -- SC-weighted mean pre-period control
+          outcome implied by the design's contrast.
+        * float                   -- user-supplied baseline value.
 
     Returns
     -------
-    SPCDPowerAnalysis
+    SYNDESPower
+        Frozen container with per-horizon MDE in absolute and
+        percentage units.
     """
 
-    residuals_B = np.asarray(residuals_B, dtype=float).ravel()
-    rng = np.random.default_rng(seed)
+    inputs = results.inputs
+    design = results.design
 
-    sigma = float(np.std(residuals_B)) + 1e-12
-
-    if tau_grid is None:
-        tau_grid = np.linspace(1e-6, 5.0 * sigma, 60)
-
-    null_stats = _null_distribution(residuals_B, n_post, n_sims, rng)
-    c_alpha = float(np.quantile(null_stats, 1.0 - alpha))
-
-    safe_baseline = abs(baseline) if abs(baseline) > 1e-12 else 1.0
-
-    mde_tau = float("nan")
-    feasible = False
-    for tau in tau_grid:
-        hits = 0
-        for _ in range(n_trials):
-            noise = rng.normal(0.0, sigma, n_post)
-            stat = float(np.mean(np.abs(tau + noise)))
-            if stat >= c_alpha:
-                hits += 1
-        if hits / n_trials >= power_target:
-            mde_tau = float(tau)
-            feasible = True
-            break
-
-    mde_pct = (mde_tau / safe_baseline * 100.0) if feasible else float("nan")
-
-    return SPCDPowerAnalysis(
-        mde_tau=mde_tau,
-        mde_pct=mde_pct,
-        baseline=float(baseline),
-        critical_stat=c_alpha,
-        feasible=feasible,
-        n_post=int(n_post),
-        alpha=float(alpha),
-        power_target=float(power_target),
-        detectability=None,
-    )
-
-
-def compute_detectability_curve(
-    residuals_B: np.ndarray,
-    baseline: float,
-    horizon_grid: List[int],
-    alpha: float = 0.05,
-    power_target: float = 0.8,
-    n_sims: int = 5000,
-    n_trials: int = 400,
-    seed: int = 1400,
-) -> Dict[int, float]:
-    """Compute MDE as a function of post-treatment horizon length.
-
-    Useful for answering "how long does the experiment need to run to
-    detect a target effect?" before committing to a treatment window.
-
-    Parameters
-    ----------
-    residuals_B : np.ndarray
-        Out-of-sample holdout residuals.
-    baseline : float
-        Baseline level for percentage scaling.
-    horizon_grid : list of int
-        Horizons (number of post periods) at which to evaluate the MDE.
-    alpha, power_target, n_sims, n_trials, seed : see :func:`compute_mde`.
-
-    Returns
-    -------
-    dict
-        Mapping ``horizon -> MDE in percent``. Infeasible entries are
-        recorded as ``nan``.
-    """
-
-    curve: Dict[int, float] = {}
-    for h in horizon_grid:
-        result = compute_mde(
-            residuals_B=residuals_B,
-            baseline=baseline,
-            n_post=int(h),
-            alpha=alpha,
-            power_target=power_target,
-            n_sims=n_sims,
-            n_trials=n_trials,
-            seed=seed,
+    Y_pre = np.asarray(inputs.Y_pre, dtype=float)
+    if Y_pre.ndim != 2:
+        raise MlsynthEstimationError(
+            "power_analysis expects a 2-D pre-period outcome matrix."
         )
-        curve[int(h)] = result.mde_pct
-    return curve
+
+    n_units = Y_pre.shape[1]
+    contrast = _build_contrast_vector(design, n_units=n_units)
+    if contrast.size != n_units:
+        raise MlsynthEstimationError(
+            f"Contrast length ({contrast.size}) does not match the panel "
+            f"width ({n_units})."
+        )
+
+    # Permutation-null std: under the sharp null, the per-period
+    # contrast Y_t @ c is exchangeable across periods. Its empirical
+    # std on the pre-period gives the std of the post-period mean
+    # divided by sqrt(n_post).
+    per_period = Y_pre @ contrast
+    if per_period.size < 2:
+        raise MlsynthEstimationError(
+            "Need >= 2 pre-treatment periods to estimate the permutation "
+            "null variance."
+        )
+    sigma_perm = float(np.std(per_period, ddof=1))
+
+    # Baseline for the percentage conversion.
+    treated_idx = np.asarray(design.selected_unit_indices, dtype=int)
+    baseline_kind = baseline if isinstance(baseline, str) else "custom"
+    if isinstance(baseline, str):
+        if baseline == "treated":
+            if treated_idx.size == 0:
+                raise MlsynthEstimationError(
+                    "baseline='treated' requires at least one treated unit."
+                )
+            baseline_val = float(np.mean(Y_pre[:, treated_idx]))
+        elif baseline == "overall":
+            baseline_val = float(np.mean(Y_pre))
+        elif baseline == "control":
+            if design.control_weights is None:
+                # Two-way / per-unit fall back to overall in that case.
+                baseline_val = float(np.mean(Y_pre))
+                baseline_kind = "overall_fallback"
+            else:
+                control_w = np.asarray(design.control_weights, dtype=float)
+                if control_w.ndim != 1 or control_w.shape[0] != n_units:
+                    baseline_val = float(np.mean(Y_pre))
+                    baseline_kind = "overall_fallback"
+                else:
+                    baseline_val = float(np.mean(Y_pre @ control_w))
+        else:
+            raise MlsynthEstimationError(
+                f"Unknown baseline {baseline!r}; expected one of "
+                "'treated', 'overall', 'control', or a float."
+            )
+    else:
+        baseline_val = float(baseline)
+
+    if not np.isfinite(baseline_val) or abs(baseline_val) < 1e-12:
+        raise MlsynthEstimationError(
+            "baseline is zero or non-finite; pass a non-zero float baseline "
+            f"explicitly (got baseline_val={baseline_val})."
+        )
+
+    if not 0.0 < alpha < 1.0:
+        raise MlsynthEstimationError("alpha must lie in (0, 1).")
+    if not 0.0 < power < 1.0:
+        raise MlsynthEstimationError("power must lie in (0, 1).")
+
+    z_alpha = float(norm.ppf(1.0 - alpha / 2.0))
+    z_beta = float(norm.ppf(power))
+    multiplier = z_alpha + z_beta
+
+    horizons = np.asarray(list(n_post_periods), dtype=int)
+    if horizons.size == 0:
+        raise MlsynthEstimationError("n_post_periods is empty.")
+    if np.any(horizons <= 0):
+        raise MlsynthEstimationError("n_post_periods entries must be >= 1.")
+
+    mde_abs = multiplier * sigma_perm / np.sqrt(horizons.astype(float))
+    mde_pct = 100.0 * mde_abs / baseline_val
+
+    return SYNDESPower(
+        n_post_periods=horizons,
+        mde_absolute=mde_abs,
+        mde_percent=mde_pct,
+        sigma_perm=sigma_perm,
+        baseline=baseline_val,
+        baseline_kind=baseline_kind,
+        alpha=float(alpha),
+        power=float(power),
+        contrast=contrast,
+    )
