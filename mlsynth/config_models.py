@@ -475,6 +475,85 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         default=0.05, gt=0.0, lt=1.0,
         description="Two-sided credible-interval level (Bayesian PCR only).",
     )
+    rank: Optional[int] = Field(
+        default=None, ge=1,
+        description="Explicit HSVT truncation rank `r` (Rho et al. 2025, Algorithm 2). "
+                    "If unset, rank_method controls selection.",
+    )
+    rank_method: Literal["cumvar", "fixed", "usvt"] = Field(
+        default="cumvar",
+        description="Rank-selection rule: 'cumvar' (paper default; smallest r "
+                    "with cumulative spectral energy >= cumvar_threshold), 'fixed' "
+                    "(use explicit `rank`), or 'usvt' (Chatterjee 2015 / Donoho-Gavish).",
+    )
+    cumvar_threshold: float = Field(
+        default=0.95, gt=0.0, le=1.0,
+        description="Cumulative-variance target when rank_method='cumvar'. "
+                    "Paper Section 6.1 uses 0.95.",
+    )
+    k_clusters: Optional[int] = Field(
+        default=None, ge=1,
+        description="Number of clusters for Algorithm 3. If unset, the silhouette "
+                    "coefficient picks k in [2, k_max].",
+    )
+    k_max: int = Field(
+        default=8, ge=2,
+        description="Upper bound for the silhouette-driven k-search.",
+    )
+    n_bayes_samples: int = Field(
+        default=1000, ge=1,
+        description="Posterior sample count for Bayesian PCR credible bands.",
+    )
+    random_state: int = Field(
+        default=0,
+        description="Seed forwarded to k-means and the Bayesian sampler.",
+    )
+    fpca_cumvar: float = Field(
+        default=0.95, gt=0.0, le=1.0,
+        description="Cumulative-variance target for the FPCA truncation in "
+                    "RPCA-SC Step 1 (Bayani 2021 recommends >= 0.95).",
+    )
+    pcp_lambda: Optional[float] = Field(
+        default=None, ge=0.0,
+        description="PCP sparsity penalty (Candes et al. 2011). Defaults to "
+                    "1/sqrt(max(N, T)) when unset.",
+    )
+    pcp_mu: Optional[float] = Field(
+        default=None, gt=0.0,
+        description="PCP augmented-Lagrangian penalty mu. Defaults to "
+                    "N*T / (4 * sum |Y|) (Bayani 2021).",
+    )
+    pcp_max_iter: int = Field(
+        default=1000, ge=1,
+        description="Maximum ADMM iterations for the PCP solver.",
+    )
+    pcp_tol: float = Field(
+        default=1e-9, gt=0.0,
+        description="Convergence tolerance for the PCP solver (relative to ||Y||_F).",
+    )
+    hqf_rank: Optional[int] = Field(
+        default=None, ge=1,
+        description="Explicit factorisation rank for HQF. If unset, picked by "
+                    "hqf_cumvar (Bayani 2021 uses 0.999).",
+    )
+    hqf_cumvar: float = Field(
+        default=0.999, gt=0.0, le=1.0,
+        description="Cumulative-variance target for HQF rank selection when "
+                    "hqf_rank is None.",
+    )
+    hqf_lambda: Optional[float] = Field(
+        default=None, ge=0.0,
+        description="Tikhonov factor for HQF (Wang et al. 2023). Defaults to "
+                    "1/sqrt(max(m, n)).",
+    )
+    hqf_ip: float = Field(
+        default=1.0, gt=0.0,
+        description="HQF noise-scale adaptation factor (Bayani 2021 default 1.0).",
+    )
+    hqf_max_iter: int = Field(
+        default=1000, ge=1,
+        description="Maximum iterations for the HQF solver.",
+    )
 
     @model_validator(mode="before")
     @classmethod
