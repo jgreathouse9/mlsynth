@@ -32,7 +32,6 @@ MLSYNTH
    pda
    tssc
    lexscm
-   scdi
    bvss
    proximal
    fscm
@@ -49,6 +48,9 @@ MLSYNTH
    ppscm
    sparse_sc
    microsynth
+   nsc
+   siv
+   syndes
    data
    selector
    spill
