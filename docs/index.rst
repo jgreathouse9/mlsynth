@@ -48,6 +48,7 @@ MLSYNTH
    seq_sdid
    ppscm
    sparse_sc
+   microsynth
    data
    selector
    spill
