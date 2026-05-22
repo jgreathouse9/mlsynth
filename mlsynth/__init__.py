@@ -14,7 +14,8 @@ from .estimators.shc import SHC # Check
 from .estimators.laxscm import RESCM # Check
 from .estimators.scexp import MAREX
 from .estimators.lexscm import LEXSCM
-from .estimators.scdi import SCDI
+from .estimators.scdi import SCDI  # deprecated alias for SYNDES
+from .estimators.syndes import SYNDES
 from .estimators.spcd import SPCD
 from .estimators.tasc import TASC
 from .estimators.sbc import SBC
@@ -55,4 +56,5 @@ __all__ = [
     "MicroSynth",
     "EICP",
     "SIV",
+    "SYNDES",
 ]
