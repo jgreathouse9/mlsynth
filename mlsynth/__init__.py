@@ -15,6 +15,7 @@ from .estimators.laxscm import RESCM # Check
 from .estimators.scexp import MAREX
 from .estimators.lexscm import LEXSCM
 from .estimators.syndes import SYNDES
+from .utils.syndes_helpers.power import SYNDESPower, power_analysis
 from .estimators.spcd import SPCD
 from .estimators.tasc import TASC
 from .estimators.sbc import SBC
@@ -55,4 +56,6 @@ __all__ = [
     "EICP",
     "SIV",
     "SYNDES",
+    "SYNDESPower",
+    "power_analysis",
 ]

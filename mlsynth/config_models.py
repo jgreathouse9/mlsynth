@@ -731,129 +731,6 @@ class SBCConfig(BaseEstimatorConfig):
 
 
 
-class SCDIConfig(BaseMAREXConfig):
-    """
-    Configuration for Synthetic Control Design Intervention (SCDI).
-
-    Defines joint treatment assignment and synthetic control optimization.
-
-    Parameters
-    ----------
-    K : int
-        Number of treated units.
-    mode : {"global_2way", "global_equal_weights", "per_unit", "global_2way_relaxed"}
-        SCDI optimization formulation. ``"global_2way_relaxed"`` selects the
-        simulated-annealing relaxation of ``"global_2way"``, which trades the
-        MIP optimality guarantee for a non-commercial solver dependency.
-    lam : float or None, optional
-        L2 penalty on weights. If None, estimated from data.
-    T0 : int or None, optional
-        Number of pre-treatment periods.
-    post_col : str or None, optional
-        Column indicating post-treatment periods.
-    alpha : float
-        Significance level for permutation inference.
-    run_inference : bool
-        Whether to run post-treatment inference.
-    solver : Any
-        CVXPY-compatible solver. Ignored when ``mode="global_2way_relaxed"``.
-    relaxed_max_iter : int
-        Number of outer annealing iterations for the relaxed solver.
-    relaxed_decay : float
-        Geometric decay factor for the relaxed solver's temperature schedule.
-    display_graph : bool
-        Whether to display design visualization.
-    verbose : bool
-        Solver verbosity.
-
-    Attributes
-    ----------
-    df : pandas.DataFrame
-        Input panel dataset.
-    unitid : str
-        Unit identifier column.
-    time : str
-        Time column.
-    outcome : str
-        Outcome variable column.
-
-    Raises
-    ------
-    MlsynthConfigError
-        If configuration constraints are violated.
-
-    Notes
-    -----
-    Constraints enforced:
-    - K < number of units
-    - valid post_col (if provided)
-    - T0 within available time range
-    """
-
-    K: int = Field(..., gt=0, description="Number of units selected into treatment.")
-    mode: Literal[
-        "global_2way",
-        "global_equal_weights",
-        "per_unit",
-        "global_2way_relaxed",
-    ] = Field(
-        default="global_2way",
-        description="SCDI formulation to solve.",
-    )
-    lam: Optional[float] = Field(
-        default=None,
-        ge=0,
-        description="Penalty parameter. If None, estimated from pre-treatment outcomes.",
-    )
-    T0: Optional[int] = Field(
-        default=None,
-        gt=0,
-        description="Number of pre-treatment periods when post_col is not supplied.",
-    )
-    post_col: Optional[str] = Field(
-        default=None,
-        description="Optional 0/1 or boolean column identifying post-treatment periods.",
-    )
-    alpha: float = Field(default=0.10, gt=0.0, lt=1.0, description="Test size for permutation inference.")
-    run_inference: bool = Field(default=True, description="Run post-period inference when post data are available.")
-    solver: Any = Field(default="SCIP", description="CVXPY-compatible mixed-integer solver name or object.")
-    relaxed_max_iter: int = Field(
-        default=40,
-        gt=0,
-        description="Outer annealing iterations for mode='global_2way_relaxed'.",
-    )
-    relaxed_decay: float = Field(
-        default=0.97,
-        gt=0.0,
-        lt=1.0,
-        description="Geometric decay factor for the relaxed solver's temperature schedule.",
-    )
-    display_graph: bool = Field(default=False, description="Whether to display SCDI plots.")
-    verbose: bool = Field(default=False, description="Whether to print solver progress.")
-
-    @model_validator(mode="after")
-    def check_scdi_params(cls, values: Any) -> Any:
-        df = values.df
-        n_units = df[values.unitid].nunique()
-        n_periods = df[values.time].nunique()
-
-        if values.K > n_units:
-            raise MlsynthConfigError("K cannot exceed the number of unique units in df.")
-
-        if values.K == n_units:
-            raise MlsynthConfigError("K must be less than the number of unique units in df.")
-
-        if values.post_col is not None and values.post_col not in df.columns:
-            raise MlsynthConfigError(f"post_col '{values.post_col}' is not present in df.")
-
-        if values.T0 is not None and values.T0 > n_periods:
-            raise MlsynthConfigError("T0 cannot exceed the number of unique time periods in df.")
-
-        return values
-
-
-
-
 
 class BVSSConfig(BaseEstimatorConfig):
     """Configuration for the Bayesian Synthetic Control with Soft Simplex (BVS-SS).
@@ -1813,176 +1690,6 @@ class MLSCConfig(BaseModel):
         return self
 
 
-
-
-class SYNDESConfig(BaseMAREXConfig):
-    """Configuration for the Synthetic Design (SYNDES) estimator.
-
-    Implements the three MIP formulations of Doudchenko, Khosravi,
-    Pouget-Abadie, Lahaie, Lubin, Mirrokni, Spiess, and Imbens (2021),
-    *"Synthetic Design: An Optimization Approach to Experimental
-    Design with Synthetic Controls"* (arXiv:2112.00278). The estimator
-    jointly chooses
-
-    * which units to treat (binary assignment ``D``), and
-    * the synthetic-control weights ``w`` used to build the
-      counterfactual,
-
-    by minimising a single mean-squared-error objective. Three
-    formulations are exposed, each with a different geometry over the
-    treated/control sample-variance terms (Theorem 1 of the paper):
-
-    * ``"per_unit"``        --  separate SC weights for each treated
-                                 unit (paper's "per-unit" problem).
-    * ``"two_way_global"``  --  single weight vector applied
-                                 symmetrically to treated and control
-                                 (paper's "two-way global" problem).
-    * ``"one_way_global"``  --  ``"two_way_global"`` with equal
-                                 weights pinned on the treated set
-                                 (paper's "one-way global" problem,
-                                 same as the legacy SCDI
-                                 ``global_equal_weights``).
-
-    Parameters
-    ----------
-    K : int or None
-        Number of treated units. Required for ``per_unit`` and
-        ``one_way_global``. May be ``None`` for ``two_way_global``
-        (Doudchenko et al. 2021, paragraph after eq. 9, note that the
-        K-constraint is mathematically optional in the symmetric
-        formulation); when ``None`` the MIP picks the cardinality of
-        the treated set endogenously, with at least one treated and
-        one control unit.
-    mode : str
-        Paper-aligned mode name (see above).
-    lam : float or None
-        Penalty on the squared weights. ``None`` defaults to the
-        sample variance of the pre-treatment outcomes (Section 6 of
-        the paper).
-    T0 : int or None
-        Number of pre-treatment periods. Either ``T0`` or ``post_col``
-        must be supplied.
-    post_col : str or None
-        Optional 0/1 column identifying post-treatment periods.
-    alpha : float
-        Two-sided significance level for the permutation test.
-    run_inference : bool
-        Whether to run the moving-block permutation test
-        (Chernozhukov-Wuethrich-Zhu (2021) style; see Appendix A.4
-        of the paper).
-    solver : Any
-        CVXPY-compatible MIP solver. Defaults to SCIP.
-    display_graph : bool
-        Whether to plot the design.
-    verbose : bool
-        Solver verbosity.
-    """
-
-    K: Optional[int] = Field(
-        default=None, gt=0,
-        description="Number of treated units. Required for per_unit "
-        "and one_way_global; optional for two_way_global.",
-    )
-    mode: Literal[
-        "per_unit",
-        "two_way_global",
-        "one_way_global",
-    ] = Field(
-        default="two_way_global",
-        description="Paper-aligned formulation: per-unit / two-way / one-way global.",
-    )
-    lam: Optional[float] = Field(
-        default=None, ge=0,
-        description="L2 penalty on weights. Defaults to the pre-period sample variance.",
-    )
-    T0: Optional[int] = Field(
-        default=None, gt=0,
-        description="Number of pre-treatment periods when post_col is not supplied.",
-    )
-    post_col: Optional[str] = Field(
-        default=None,
-        description="Optional 0/1 column identifying post-treatment periods.",
-    )
-    alpha: float = Field(default=0.10, gt=0.0, lt=1.0,
-                          description="Permutation test significance level.")
-    run_inference: bool = Field(default=True,
-                                 description="Run post-period inference when post data are present.")
-    solver: Any = Field(default="SCIP",
-                         description="CVXPY-compatible mixed-integer solver.")
-    display_graph: bool = Field(default=False,
-                                 description="Whether to render the SYNDES design plot.")
-    verbose: bool = Field(default=False,
-                           description="Solver verbosity flag.")
-    costs: Optional[List[float]] = Field(
-        default=None,
-        description=(
-            "Optional per-unit cost vector of length N (same ordering "
-            "as the sorted ``unitid`` column). When supplied with "
-            "``budget``, the MIP adds the constraint ``sum_i c_i D_i "
-            "<= budget`` (Doudchenko et al. 2021 section 1: 'enforce "
-            "a budget constraint if there is a varying cost to treat "
-            "specific units'). Both fields must be set together."
-        ),
-    )
-    budget: Optional[float] = Field(
-        default=None, gt=0,
-        description=(
-            "Upper bound on the total cost of the treated set. "
-            "Required when ``costs`` is supplied; ignored otherwise."
-        ),
-    )
-
-    @model_validator(mode="after")
-    def _check_syndes_params(cls, values: Any) -> Any:
-        df = values.df
-        n_units = df[values.unitid].nunique()
-        n_periods = df[values.time].nunique()
-
-        if values.K is not None:
-            if values.K >= n_units:
-                raise MlsynthConfigError(
-                    "K must be strictly less than the number of unique units in df."
-                )
-        else:
-            if values.mode in {"per_unit", "one_way_global"}:
-                raise MlsynthConfigError(
-                    f"K=None is only supported for mode='two_way_global'; "
-                    f"got mode={values.mode!r}."
-                )
-
-        if values.post_col is not None and values.post_col not in df.columns:
-            raise MlsynthConfigError(
-                f"post_col '{values.post_col}' is not present in df."
-            )
-        if values.T0 is not None and values.T0 > n_periods:
-            raise MlsynthConfigError(
-                "T0 cannot exceed the number of unique time periods in df."
-            )
-        if values.T0 is None and values.post_col is None:
-            raise MlsynthConfigError(
-                "Either T0 or post_col must be supplied to SYNDESConfig."
-            )
-
-        if (values.costs is None) != (values.budget is None):
-            raise MlsynthConfigError(
-                "costs and budget must be supplied together (or both None)."
-            )
-        if values.costs is not None:
-            n_units = df[values.unitid].nunique()
-            if len(values.costs) != n_units:
-                raise MlsynthConfigError(
-                    f"costs must have length {n_units}; got {len(values.costs)}."
-                )
-            if any(c < 0 for c in values.costs):
-                raise MlsynthConfigError("costs must be non-negative.")
-
-        return values
-
-
-
-
-
-
 class RESCMConfig(BaseEstimatorConfig):
     """
     Configuration for the Relaxed Balanced SCM (RESCM) estimator.
@@ -2172,9 +1879,10 @@ class SYNDESConfig(BaseMAREXConfig):
                                  (paper's "two-way global" problem).
     * ``"one_way_global"``  --  ``"two_way_global"`` with equal
                                  weights pinned on the treated set
-                                 (paper's "one-way global" problem,
-                                 same as the legacy SCDI
-                                 ``global_equal_weights``).
+                                 (paper's "one-way global" problem).
+    * ``"two_way_global_annealed"`` -- simulated-annealing relaxation
+                                 of ``two_way_global`` (mlsynth-specific
+                                 extension; not in the paper).
 
     Parameters
     ----------
@@ -2220,9 +1928,15 @@ class SYNDESConfig(BaseMAREXConfig):
         "per_unit",
         "two_way_global",
         "one_way_global",
+        "two_way_global_annealed",
     ] = Field(
         default="two_way_global",
-        description="Paper-aligned formulation: per-unit / two-way / one-way global.",
+        description=(
+            "Paper-aligned formulation: per-unit / two-way / one-way "
+            "global from Doudchenko et al. (2021), or the simulated-"
+            "annealing relaxation of two-way global (mlsynth-specific "
+            "extension; not in the paper)."
+        ),
     )
     lam: Optional[float] = Field(
         default=None, ge=0,
@@ -2241,11 +1955,38 @@ class SYNDESConfig(BaseMAREXConfig):
     run_inference: bool = Field(default=True,
                                  description="Run post-period inference when post data are present.")
     solver: Any = Field(default="SCIP",
-                         description="CVXPY-compatible mixed-integer solver.")
+                         description="CVXPY-compatible mixed-integer solver "
+                         "(ignored for the annealed mode).")
+    relaxed_max_iter: int = Field(
+        default=40, gt=0,
+        description="Outer annealing iterations for mode='two_way_global_annealed'.",
+    )
+    relaxed_decay: float = Field(
+        default=0.97, gt=0.0, lt=1.0,
+        description="Geometric decay factor for the annealed solver's temperature.",
+    )
     display_graph: bool = Field(default=False,
                                  description="Whether to render the SYNDES design plot.")
     verbose: bool = Field(default=False,
                            description="Solver verbosity flag.")
+    costs: Optional[List[float]] = Field(
+        default=None,
+        description=(
+            "Optional per-unit cost vector of length N (same ordering "
+            "as the sorted ``unitid`` column). When supplied with "
+            "``budget``, the MIP adds the constraint ``sum_i c_i D_i "
+            "<= budget`` (Doudchenko et al. 2021 section 1: 'enforce "
+            "a budget constraint if there is a varying cost to treat "
+            "specific units'). Both fields must be set together."
+        ),
+    )
+    budget: Optional[float] = Field(
+        default=None, gt=0,
+        description=(
+            "Upper bound on the total cost of the treated set. "
+            "Required when ``costs`` is supplied; ignored otherwise."
+        ),
+    )
 
     @model_validator(mode="after")
     def _check_syndes_params(cls, values: Any) -> Any:
@@ -2259,9 +2000,9 @@ class SYNDESConfig(BaseMAREXConfig):
                     "K must be strictly less than the number of unique units in df."
                 )
         else:
-            if values.mode in {"per_unit", "one_way_global"}:
+            if values.mode != "two_way_global":
                 raise MlsynthConfigError(
-                    f"K=None is only supported for mode='two_way_global'; "
+                    "K=None is only supported for mode='two_way_global'; "
                     f"got mode={values.mode!r}."
                 )
 
@@ -2277,6 +2018,20 @@ class SYNDESConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "Either T0 or post_col must be supplied to SYNDESConfig."
             )
+
+        if (values.costs is None) != (values.budget is None):
+            raise MlsynthConfigError(
+                "costs and budget must be supplied together (or both None)."
+            )
+        if values.costs is not None:
+            n_units = df[values.unitid].nunique()
+            if len(values.costs) != n_units:
+                raise MlsynthConfigError(
+                    f"costs must have length {n_units}; got {len(values.costs)}."
+                )
+            if any(c < 0 for c in values.costs):
+                raise MlsynthConfigError("costs must be non-negative.")
+
         return values
 
 
