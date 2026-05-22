@@ -296,12 +296,75 @@ class TestPlacebo:
             "unitid": "unit", "time": "year",
             "covariates": COVS,
             "lambda_grid": [0.01], "run_inference": True,
+            "inference_method": "placebo",
             "n_placebo": 4, "display_graphs": False, "seed": 7,
         }).fit()
         assert res.inference.method == "abadie_placebo_permutation"
         assert 0.0 < res.inference.p_value <= 1.0
         assert res.inference.n_placebo > 0
         assert res.inference.placebo_atts.size == res.inference.n_placebo
+
+    def test_conformal_validation_default(self, small_panel):
+        res = SparseSC({
+            "df": small_panel, "outcome": "y", "treat": "tr",
+            "unitid": "unit", "time": "year",
+            "covariates": COVS,
+            "lambda_grid": [0.01], "run_inference": True,
+            "display_graphs": False,
+        }).fit()
+        # Default inference is the validation-block conformal.
+        assert res.inference.method == "conformal_validation"
+        assert np.isfinite(res.inference.att_observed)
+        assert np.isfinite(res.inference.ci_lower)
+        assert np.isfinite(res.inference.ci_upper)
+        assert res.inference.ci_lower <= res.inference.att_observed <= res.inference.ci_upper
+        assert 0.0 <= res.inference.p_value <= 1.0
+        assert res.inference.calibration_residuals.size > 0
+        n_post = (
+            res.inputs.T - res.inputs.T0_total
+        )
+        assert res.inference.pointwise_lower.size == n_post
+        assert res.inference.pointwise_upper.size == n_post
+        assert (
+            res.inference.pointwise_upper >= res.inference.pointwise_lower
+        ).all()
+
+    def test_conformal_pre_window(self, small_panel):
+        res = SparseSC({
+            "df": small_panel, "outcome": "y", "treat": "tr",
+            "unitid": "unit", "time": "year",
+            "covariates": COVS,
+            "lambda_grid": [0.01], "run_inference": True,
+            "conformal_window": "pre",
+            "display_graphs": False,
+        }).fit()
+        assert res.inference.method == "conformal_pre"
+        # The full pre-block has more residuals than the validation
+        # block alone, so the calibration set must be strictly larger.
+        assert res.inference.calibration_residuals.size > 0
+        assert (
+            res.inference.calibration_residuals.size
+            >= res.inputs.T0_total - res.inputs.T0_train
+        )
+
+    def test_conformal_ci_widens_with_lower_alpha(self, small_panel):
+        narrow = SparseSC({
+            "df": small_panel, "outcome": "y", "treat": "tr",
+            "unitid": "unit", "time": "year",
+            "covariates": COVS,
+            "lambda_grid": [0.01], "run_inference": True,
+            "alpha": 0.10, "display_graphs": False,
+        }).fit()
+        wide = SparseSC({
+            "df": small_panel, "outcome": "y", "treat": "tr",
+            "unitid": "unit", "time": "year",
+            "covariates": COVS,
+            "lambda_grid": [0.01], "run_inference": True,
+            "alpha": 0.01, "display_graphs": False,
+        }).fit()
+        narrow_width = narrow.inference.ci_upper - narrow.inference.ci_lower
+        wide_width = wide.inference.ci_upper - wide.inference.ci_lower
+        assert wide_width >= narrow_width
 
 
 # ---------------------------------------------------------------------------
