@@ -1292,11 +1292,15 @@ class SparseSCConfig(BaseEstimatorConfig):
         description="CVXPY solver for the inner W-weight QP. Defaults to OSQP.",
     )
     max_outer_iter: int = Field(
-        default=200,
+        default=500,
         ge=10,
         description=(
-            "Max iterations of the outer L-BFGS-B optimization of V-weights "
-            "per lambda."
+            "Max iterations of the outer L-BFGS-B optimization of "
+            "V-weights per lambda. With the analytical envelope-theorem "
+            "gradient and ftol=1e-12 (the analytical-mode default), "
+            "L-BFGS-B may need several hundred iterations to converge "
+            "fully on hard predictor sets; each iteration is microseconds "
+            "without the finite-difference multiplier, so 500 is cheap."
         ),
     )
     run_inference: bool = Field(
@@ -1321,6 +1325,33 @@ class SparseSCConfig(BaseEstimatorConfig):
     seed: int = Field(
         default=1400,
         description="Random seed for the placebo subsample.",
+    )
+    use_analytical_grad: bool = Field(
+        default=False,
+        description=(
+            "Use the envelope-theorem closed-form Jacobian inside the "
+            "outer L-BFGS-B sweep. The analytical Jacobian is exact "
+            "(verified against finite differences to ~1e-7) and yields "
+            "a 5-10x speedup, but the clean gradient lets L-BFGS-B "
+            "settle at the first critical point near the cold init "
+            "on the non-convex L1-penalized V-objective; the FD path's "
+            "implicit gradient noise tends to find better local optima "
+            "at non-zero lambda. Off by default for correctness; opt in "
+            "when running large placebo sweeps where exact local optimum "
+            "matters less than throughput."
+        ),
+    )
+    warm_start: bool = Field(
+        default=False,
+        description=(
+            "Reuse the previous lambda's V-solution as the initialiser "
+            "for the next lambda in the sweep. Warm-starting can save "
+            "outer iterations, but on rank-deficient designs it can "
+            "also push v into a poorly-conditioned region that breaks "
+            "the inner Clarabel solve and can cause L-BFGS-B to settle "
+            "in a different local optimum than the canonical "
+            "MATLAB-style cold init. Off by default."
+        ),
     )
 
 
@@ -1867,6 +1898,57 @@ class RESCMConfig(BaseEstimatorConfig):
 
     class Config:
         extra = "forbid"  # Unknown fields will raise a validation error
+
+
+class EICPConfig(BaseEstimatorConfig):
+    """Configuration for the Entrywise Inference for Causal Panels (EICP) estimator.
+
+    Implements the SVD-based imputation and entrywise Gaussian
+    confidence intervals of Yan and Wainwright (2024,
+    arXiv:2401.13665) for causal panel data under staggered adoption.
+
+    Parameters
+    ----------
+    rank : int or None, default None
+        Truncation rank ``r`` for the SVD steps. If ``None``, selected
+        automatically via the Donoho-Gavish optimal singular-value
+        threshold (Gavish and Donoho, 2014).
+    alpha : float, default 0.05
+        Two-sided significance level for the entrywise confidence
+        intervals (coverage = ``1 - alpha``).
+    estimate_treated_potential_outcomes : bool, default False
+        Whether to also impute the treated potential outcomes
+        ``N^*_{i,t}`` for untreated cells by applying the algorithm to
+        the 180-degree-rotated panel. Identifiability requires at least
+        one "always-treated" cohort; if absent, this flag has no effect
+        and the observed outcomes are used as the only estimate of
+        ``N^*`` on treated cells.
+    display_graph : bool, default False
+        Whether to render a cohort-mean diagnostic plot via
+        :func:`mlsynth.utils.eicp_helpers.plotter.plot_eicp_results`.
+    """
+
+    rank: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="SVD truncation rank. If None, selected by the "
+        "Donoho-Gavish optimal SVHT rule.",
+    )
+    alpha: float = Field(
+        default=0.05,
+        gt=0.0,
+        lt=1.0,
+        description="Two-sided significance level for entrywise CIs.",
+    )
+    estimate_treated_potential_outcomes: bool = Field(
+        default=False,
+        description="Whether to estimate N^* via the rotated panel.",
+    )
+    display_graph: bool = Field(
+        default=False,
+        description="Whether to plot cohort-mean observed vs. counterfactual series.",
+    )
+
 
 # --- Pydantic Models for Standardized Estimator Results ---
 
