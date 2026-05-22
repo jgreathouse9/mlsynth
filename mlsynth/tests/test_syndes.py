@@ -17,14 +17,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mlsynth import SYNDES, SCDI, power_analysis
+from mlsynth import SYNDES, power_analysis
 from mlsynth.config_models import SYNDESConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError
 from mlsynth.estimators.syndes import _MODE_FROM_INTERNAL, _MODE_TO_INTERNAL
-from mlsynth.utils.scdi_helpers.inference import _build_contrast_vector
-from mlsynth.utils.scdi_helpers.optimization import solve_synthetic_design
-from mlsynth.utils.scdi_helpers.power import SYNDESPower
-from mlsynth.utils.scdi_helpers.structures import SCDIResults
+from mlsynth.utils.syndes_helpers.inference import _build_contrast_vector
+from mlsynth.utils.syndes_helpers.optimization import solve_synthetic_design
+from mlsynth.utils.syndes_helpers.power import SYNDESPower
+from mlsynth.utils.syndes_helpers.structures import SYNDESResults
 
 
 # ----------------------------------------------------------------------
@@ -128,7 +128,7 @@ class TestEstimator:
             "K": 2, "mode": mode, "post_col": "post",
             "run_inference": False,
         }).fit()
-        assert isinstance(res, SCDIResults)
+        assert isinstance(res, SYNDESResults)
         # design.mode is the paper-aligned label.
         assert res.design.mode == mode
         assert res.design.selected_unit_indices.size == 2
@@ -174,22 +174,13 @@ class TestPublicAPI:
         from mlsynth import SYNDES as _SYNDES
         assert _SYNDES is SYNDES
 
-    def test_scdi_alias_still_works(self, panel):
-        # Legacy SCDI must keep working with its old mode names.
-        res = SCDI({
-            "df": panel, "outcome": "y", "unitid": "unit", "time": "time",
-            "K": 2, "mode": "global_2way", "post_col": "post",
-            "run_inference": False,
-        }).fit()
-        assert res.design.mode == "global_2way"
-
     def test_dict_config_accepted(self, panel):
         res = SYNDES({
             "df": panel, "outcome": "y", "unitid": "unit", "time": "time",
             "K": 2, "mode": "two_way_global", "post_col": "post",
             "run_inference": False,
         }).fit()
-        assert isinstance(res, SCDIResults)
+        assert isinstance(res, SYNDESResults)
 
 
 # ----------------------------------------------------------------------
