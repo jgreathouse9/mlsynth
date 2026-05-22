@@ -223,28 +223,36 @@ def test_stablesc_config_valid(base_config_data: Dict[str, Any]):
     StableSCConfig(**base_config_data) # Should not raise
 
 def test_nsc_config_valid(base_config_data: Dict[str, Any]):
-    """Test valid instantiation of NSCConfig."""
-    NSCConfig(**base_config_data) # Should not raise
+    """Test valid instantiation of the modernized NSCConfig (Tian 2023)."""
+    # Defaults: a / b = None triggers CV; cv_target = "controls"; etc.
+    cfg = NSCConfig(**base_config_data)
+    assert cfg.a is None and cfg.b is None
+    assert cfg.cv_target == "controls"
+    assert cfg.cv_grid_size == 0.1
+    assert cfg.alpha == 0.05
+    assert cfg.run_inference is True
 
-    # Test cases for NSCConfig validator
-    invalid_a_space_type = {**base_config_data, "a_search_space": ["not_a_float", 0.5]}
-    # Pydantic's own type validation for List[float] will catch this first.
-    with pytest.raises(ValidationError): # Expect Pydantic's ValidationError for type mismatches
-        NSCConfig(**invalid_a_space_type)
+    # Explicit (a, b) inside the dimensionless [0, 1] range.
+    cfg2 = NSCConfig(**base_config_data, a=0.3, b=0.2)
+    assert cfg2.a == 0.3 and cfg2.b == 0.2
 
-    invalid_b_space_type = {**base_config_data, "b_search_space": [0.1, "not_a_float"]}
-    # Pydantic's own type validation for List[float] will catch this first.
-    with pytest.raises(ValidationError): # Expect Pydantic's ValidationError for type mismatches
-        NSCConfig(**invalid_b_space_type)
+    # a outside [0, 1] is rejected by Pydantic.
+    with pytest.raises(ValidationError):
+        NSCConfig(**base_config_data, a=1.5)
 
-    # These custom MlsynthConfigError checks are for valid types but invalid content (e.g. empty list)
-    empty_a_space = {**base_config_data, "a_search_space": []}
-    with pytest.raises(MlsynthConfigError, match="a_search_space cannot be an empty list if provided."):
-        NSCConfig(**empty_a_space)
+    # Unknown CV target is rejected.
+    with pytest.raises(ValidationError):
+        NSCConfig(**base_config_data, cv_target="bogus")
 
-    empty_b_space = {**base_config_data, "b_search_space": []}
-    with pytest.raises(MlsynthConfigError, match="b_search_space cannot be an empty list if provided."):
-        NSCConfig(**empty_b_space)
+    # cv_grid_size outside (0, 0.5] is rejected.
+    with pytest.raises(ValidationError):
+        NSCConfig(**base_config_data, cv_grid_size=0.0)
+    with pytest.raises(ValidationError):
+        NSCConfig(**base_config_data, cv_grid_size=0.6)
+
+    # Unknown covariate column raises MlsynthConfigError via validator.
+    with pytest.raises(MlsynthConfigError):
+        NSCConfig(**base_config_data, covariates=["not_a_column"])
 
 def test_sdid_config_valid(base_config_data: Dict[str, Any]):
     """Test valid instantiation of SDIDConfig."""
