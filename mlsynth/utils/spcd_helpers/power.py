@@ -47,7 +47,7 @@ import numpy as np
 from scipy.stats import norm
 
 from ...exceptions import MlsynthEstimationError
-from .inference import _build_contrast_vector
+from ..syndes_helpers.inference import _build_contrast_vector
 from .structures import SYNDESResults
 
 
