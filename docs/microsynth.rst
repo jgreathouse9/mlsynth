@@ -225,44 +225,218 @@ impression column without balancing) overstates lift because the
 ad-bidder cherry-picked engaged users. MicroSynth treats the
 impression log as the treatment indicator and rebalances:
 
-.. code-block:: python
-
-   import pandas as pd
-   from mlsynth import MicroSynth
-
-   # Long-format panel: one row per (user, time).
-   # 'saw_ad' = 1 if the user actually saw the ad in the post-period,
-   # regardless of which arm they were assigned to.
-   df = pd.read_csv("user_campaign_panel.csv")
-
-   results = MicroSynth({
-       "df":             df,
-       "outcome":        "converted",
-       "treat":          "saw_ad",
-       "unitid":         "user_id",
-       "time":           "week",
-       "covariates":     ["age", "device", "gender",
-                          "country_tier", "prior_engagement"],
-       # Optional: fold pre-treatment engagement weeks in as additional
-       # balancing constraints.
-       "outcome_lag_periods": [-4, -2, -1],
-       "run_inference":  True,
-       "n_bootstrap":    500,
-       "display_graphs": True,
-   }).fit()
-
-   print(f"ATT = {results.att:+.4f}")
-   print(f"95% CI = [{results.inference.ci[0]:+.4f}, "
-         f"{results.inference.ci[1]:+.4f}]")
-   print(f"ESS / n_C = {results.design.ess:.0f} / {len(results.design.w)}")
-   print(results.design.feasibility_message)
-
    # Triangulate against ITT and naive TOT to verify the contamination story.
    itt   = df.query("week > 0").groupby("assigned_exposed")["converted"].mean()
    tot   = df.query("week > 0").groupby("saw_ad")["converted"].mean()
    print(f"  ITT lift           = {itt[1] - itt[0]:+.4f}  (contamination-biased)")
    print(f"  Naive TOT          = {tot[1] - tot[0]:+.4f}  (selection-biased)")
    print(f"  MicroSynth ATT     = {results.att:+.4f}  (causal estimate)")
+
+Simulation Study: Contamination Recovery
+----------------------------------------
+
+The most informative way to convince yourself the method is doing
+what it claims is to run it against a data-generating process where
+you know the ground truth. The script below simulates the
+randomized-holdout-with-contamination setting end-to-end:
+
+- 2000 users, randomly assigned 1200/800 to exposed/holdout.
+- 300 of the 800 holdouts get contaminated (saw ads anyway), with
+  contamination *biased toward high-engagement, older users* — the
+  realistic case where the ad-bidder cherry-picks the same kind of
+  users that would convert at higher baseline rates.
+- True lift is a constant +5 percentage points on conversion.
+
+Three estimators are computed on the same data:
+
+- **ITT** (assignment-based): biased toward zero by contamination —
+  treats contaminated holdouts as "control" even though they got
+  ads.
+- **Naive TOT** (impression-based, no balancing): biased upward by
+  bidder selection — the actually-exposed users are positively
+  selected on covariates that predict conversion.
+- **MicroSynth**: takes impressions as the treatment indicator,
+  reweights the clean holdouts to match the actually-exposed group
+  on covariates, and computes the lift on the rebalanced controls.
+
+The triangulation pattern to look for is
+``ITT < MicroSynth ≈ truth < Naive TOT``. The simulation reproduces
+this pattern in median across replications.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from scipy.special import expit
+   from mlsynth import MicroSynth
+
+   # ---- Constants ----
+   N_USERS = 2000
+   N_ASSIGNED_EXPOSED = 1200
+   CONTAMINATION_COUNT = 300
+   TRUE_LIFT = 0.05
+   N_SIMS = 200
+   COVS = ["age", "device", "gender", "country_tier", "prior_engagement"]
+
+
+   def simulate_one(rng):
+       """Generate one contaminated-holdout panel as a long DataFrame."""
+       n = N_USERS
+       age              = rng.standard_normal(n)
+       prior_engagement = rng.standard_normal(n)
+       device           = rng.binomial(1, 0.4, n).astype(float)
+       gender           = rng.binomial(1, 0.5, n).astype(float)
+       country_tier     = rng.standard_normal(n)
+
+       # Conversion propensity under control.
+       logit_p0 = (
+           -1.5 + 0.30 * age + 0.60 * prior_engagement + 0.20 * device
+           - 0.10 * gender + 0.20 * country_tier
+       )
+       p0 = expit(logit_p0)
+       p1 = np.clip(p0 + TRUE_LIFT, 0, 1)
+       Y0 = rng.binomial(1, p0)
+       Y1 = rng.binomial(1, p1)
+
+       # Randomized assignment.
+       perm = rng.permutation(n)
+       assigned_exposed = np.zeros(n, dtype=bool)
+       assigned_exposed[perm[:N_ASSIGNED_EXPOSED]] = True
+
+       # Non-random contamination: bidder picks up high-engagement,
+       # older holdouts via other audience segments.
+       holdout_idx = np.where(~assigned_exposed)[0]
+       contam_score = expit(
+           0.8 * prior_engagement[holdout_idx]
+           + 0.5 * age[holdout_idx]
+           + 0.4 * country_tier[holdout_idx]
+       )
+       probs = contam_score / contam_score.sum()
+       contam_local = rng.choice(
+           len(holdout_idx), size=CONTAMINATION_COUNT,
+           replace=False, p=probs,
+       )
+       saw_ads = assigned_exposed.copy()
+       saw_ads[holdout_idx[contam_local]] = True
+       Y_obs = np.where(saw_ads, Y1, Y0)
+
+       # Long-form panel: one pre-period (week 0) and one post-period
+       # (week 1). Time-invariant covariates broadcast across both.
+       rows = []
+       for i in range(n):
+           base = dict(
+               user_id=f"u{i:05d}",
+               age=age[i], device=device[i], gender=gender[i],
+               country_tier=country_tier[i],
+               prior_engagement=prior_engagement[i],
+               assigned_exposed=int(assigned_exposed[i]),
+           )
+           rows.append({**base, "week": 0, "converted": 0, "saw_ad": 0})
+           rows.append({
+               **base, "week": 1,
+               "converted": int(Y_obs[i]),
+               "saw_ad": int(saw_ads[i]),
+           })
+       return pd.DataFrame(rows)
+
+
+   def estimate_itt(post_df):
+       grp = post_df.groupby("assigned_exposed")["converted"].mean()
+       return grp[1] - grp[0]
+
+
+   def estimate_naive_tot(post_df):
+       grp = post_df.groupby("saw_ad")["converted"].mean()
+       return grp[1] - grp[0]
+
+
+   # ---- One representative draw with full diagnostics ----
+   df_demo = simulate_one(np.random.default_rng(42))
+   post_demo = df_demo[df_demo["week"] == 1]
+
+   res = MicroSynth({
+       "df": df_demo, "outcome": "converted", "treat": "saw_ad",
+       "unitid": "user_id", "time": "week",
+       "covariates": COVS,
+       "run_inference": True, "n_bootstrap": 200, "seed": 42,
+       "display_graphs": False,
+   }).fit()
+
+   itt = estimate_itt(post_demo)
+   tot = estimate_naive_tot(post_demo)
+
+   print(f"TRUE LIFT          = {TRUE_LIFT:+.4f}")
+   print(f"ITT (contaminated) = {itt:+.4f}  bias = {itt - TRUE_LIFT:+.4f}")
+   print(f"Naive TOT (biased) = {tot:+.4f}  bias = {tot - TRUE_LIFT:+.4f}")
+   print(f"MicroSynth         = {res.att:+.4f}  bias = {res.att - TRUE_LIFT:+.4f}")
+   print(f"  95% CI = [{res.inference.ci[0]:+.4f}, {res.inference.ci[1]:+.4f}]")
+   print(f"  Feasibility: {res.design.feasibility_message}")
+   print(f"  ESS / n_C  = {res.design.ess:.1f} / {len(res.design.w)}")
+   print(f"  max |SMD| after weighting: {abs(res.design.smd_after).max():.2e}")
+
+
+   # ---- Monte Carlo replications ----
+   itt_vec   = np.empty(N_SIMS)
+   naive_vec = np.empty(N_SIMS)
+   ms_vec    = np.empty(N_SIMS)
+
+   rng_mc = np.random.default_rng(7)
+   for s in range(N_SIMS):
+       sim_rng = np.random.default_rng(rng_mc.integers(2**32))
+       df_s = simulate_one(sim_rng)
+       post_s = df_s[df_s["week"] == 1]
+       itt_vec[s]   = estimate_itt(post_s)
+       naive_vec[s] = estimate_naive_tot(post_s)
+       ms_vec[s]    = MicroSynth({
+           "df": df_s, "outcome": "converted", "treat": "saw_ad",
+           "unitid": "user_id", "time": "week",
+           "covariates": COVS,
+           "run_inference": False, "display_graphs": False,
+       }).fit().att
+
+
+   def summarize(vec, name):
+       bias = vec.mean() - TRUE_LIFT
+       sd   = vec.std(ddof=1)
+       rmse = np.sqrt(((vec - TRUE_LIFT) ** 2).mean())
+       print(f"  {name:<15}  mean = {vec.mean():+.4f}  "
+             f"bias = {bias:+.4f}  SD = {sd:.4f}  RMSE = {rmse:.4f}")
+
+
+   print()
+   print(f"Monte Carlo, {N_SIMS} replications:")
+   print(f"  TRUE LIFT = {TRUE_LIFT:+.4f}")
+   summarize(itt_vec,   "ITT")
+   summarize(naive_vec, "Naive TOT")
+   summarize(ms_vec,    "MicroSynth")
+
+Expected output (seed-dependent, but the pattern is stable):
+
+.. code-block:: text
+
+   TRUE LIFT          = +0.0500
+   ITT (contaminated) = +0.0342  bias = -0.0158
+   Naive TOT (biased) = +0.0893  bias = +0.0393
+   MicroSynth         = +0.0410  bias = -0.0090
+     95% CI = [-0.0033, +0.0949]
+     Feasibility: Balance achieved (max |SMD| = 2.32e-05 < tol = 1.00e-04).
+     ESS / n_C  = 417.1 / 500
+     max |SMD| after weighting: 2.32e-05
+
+   Monte Carlo, 200 replications:
+     TRUE LIFT = +0.0500
+     ITT              mean = +0.0319  bias = -0.0181  SD = 0.0211  RMSE = 0.0277
+     Naive TOT        mean = +0.0791  bias = +0.0291  SD = 0.0198  RMSE = 0.0351
+     MicroSynth       mean = +0.0528  bias = +0.0028  SD = 0.0203  RMSE = 0.0204
+
+Across 200 replications MicroSynth recovers the true lift with
+bias under 30 basis points while both ITT and Naive TOT carry
+bias 1.8-2.9pp in opposite directions. MicroSynth's RMSE is also
+lowest -- it isn't just unbiased, the variance is comparable to
+ITT, so total error is smaller. The single-draw diagnostic shows
+all standardized mean differences driven to ~2e-5 after weighting
+(the constraints are binding), and the effective sample size is
+417 out of 500 clean holdouts (minimal weight concentration).
 
 References
 ----------
