@@ -1,15 +1,27 @@
-"""Data preparation helpers for the SIV estimator.
+"""Frozen dataclasses for the Synthetic IV (SIV) estimator.
 
-The Synthetic IV procedure of Gulek and Vives-i-Bastida (2024)
-requires a balanced ``(unit, time)`` panel with three series per
-cell: the outcome ``Y``, the treatment intensity ``R``, and the
-instrument ``Z``. The estimator targets shift-share-style designs
-where ``R`` and ``Z`` are zero in the pre-period (e.g., the Syrian
-refugee example), but the pipeline also handles cases where one or
-both have pre-treatment variation.
+The SIV pipeline of Gulek and Vives-i-Bastida (2024) ("Synthetic IV
+Estimation in Panels", arXiv:2412.???) is a two-step procedure:
+
+  1. For each unit ``i``, fit a synthetic control on the pre-period
+     using stacked outcome/treatment/instrument predictors and form
+     debiased series ``(\\tilde Y_i, \\tilde R_i, \\tilde Z_i)`` over
+     the post-period.
+  2. Run 2SLS of ``\\tilde Y`` on ``\\tilde R`` with instrument
+     ``\\tilde Z`` (or one of the variants that selectively debiases
+     only ``Z`` or runs an instrument-space projection first).
+
+The five layers below — inputs, per-unit weights, debiased series,
+estimates, inference — keep that pipeline pluggable.
+
+References
+----------
+Gulek, A. and Vives-i-Bastida, J. (2024). "Synthetic IV Estimation
+in Panels."
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -18,160 +30,169 @@ import numpy as np
 from ..fast_scm_helpers.structure import IndexSet
 
 
-def prepare_siv_inputs(
-    df: pd.DataFrame,
-    outcome: str,
-    treat: str,
-    instrument: str,
-    unitid: str,
-    time: str,
-    T0: Optional[int] = None,
-    post_col: Optional[str] = None,
-    T0_train: Optional[int] = None,
-) -> SIVInputs:
-    """Pivot a long balanced panel into the ``(J, T)`` SIV layout.
+@dataclass(frozen=True)
+class SIVInputs:
+    """Preprocessed (unit x time) panel for SIV.
 
     Parameters
     ----------
-    df : pd.DataFrame
-        Long balanced panel.
-    outcome, treat, instrument, unitid, time : str
-        Column names.
-    T0 : Optional[int]
-        Number of pre-treatment periods. If ``None``, ``post_col``
-        must be supplied.
-    post_col : Optional[str]
-        Optional 0/1 column identifying post-treatment periods. Used
-        only if ``T0`` is None.
+    Y, R, Z : np.ndarray
+        Shape ``(J, T)``. Outcome, treatment intensity, instrument.
+    unit_index : IndexSet
+        Sorted unit labels in row order of ``Y / R / Z``.
+    time_index : IndexSet
+        Time labels in column order.
+    T0 : int
+        Last pre-treatment period (inclusive); intervention starts at
+        column ``T0`` (0-indexed), so pre-period is ``[0, T0)`` and
+        post-period is ``[T0, T)``.
     T0_train : Optional[int]
-        Optional end of the training block inside the pre-period
-        (exclusive). The remaining pre-periods become the "blank"
-        block used by the conformal inference and the ensemble CV.
-        Defaults to ``floor(0.75 * T0)``.
-
-    Raises
-    ------
-    MlsynthDataError
-        If the panel is not balanced or has missing entries in the
-        required columns.
-    MlsynthConfigError
-        If T0 / post_col are missing or inconsistent.
+        Optional train/blank split inside the pre-period used by the
+        ensemble CV and the split-conformal inference. ``None`` falls
+        back to a sensible default (``floor(0.75 * T0)``).
+    has_pre_treatment : bool
+        True iff the treatment ``R`` has any non-zero pre-period value.
+        In shift-share designs (like the paper's Syrian application)
+        ``R == 0`` for all ``t < T0`` and only outcome columns enter
+        the SC design matrix.
+    has_pre_instrument : bool
+        True iff ``Z`` has any non-zero pre-period value.
     """
 
-    required = [outcome, treat, instrument, unitid, time]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise MlsynthDataError(
-            f"Missing required columns: {missing}"
-        )
+    Y: np.ndarray
+    R: np.ndarray
+    Z: np.ndarray
+    unit_index: IndexSet
+    time_index: IndexSet
+    T0: int
+    T0_train: Optional[int] = None
+    has_pre_treatment: bool = False
+    has_pre_instrument: bool = False
 
-    ordered = df.sort_values([unitid, time]).copy()
-    Y_wide = ordered.pivot(index=time, columns=unitid, values=outcome).sort_index()
-    R_wide = ordered.pivot(index=time, columns=unitid, values=treat).sort_index()
-    Z_wide = ordered.pivot(index=time, columns=unitid, values=instrument).sort_index()
+    @property
+    def J(self) -> int:
+        """Number of units."""
+        return int(self.Y.shape[0])
 
-    for name, wide in [("outcome", Y_wide), ("treat", R_wide), ("instrument", Z_wide)]:
-        if wide.isna().any().any():
-            raise MlsynthDataError(
-                f"SIV requires a complete balanced panel; missing values "
-                f"in {name} column after pivoting."
-            )
+    @property
+    def T(self) -> int:
+        """Total number of periods."""
+        return int(self.Y.shape[1])
 
-    Y = Y_wide.to_numpy(dtype=float).T   # (J, T)
-    R = R_wide.to_numpy(dtype=float).T
-    Z = Z_wide.to_numpy(dtype=float).T
-    J, T = Y.shape
+    @property
+    def T1(self) -> int:
+        """Number of post-treatment periods."""
+        return self.T - self.T0
 
-    if J < 3:
-        raise MlsynthDataError(
-            f"SIV requires at least 3 units; panel has {J}."
-        )
 
-    # Resolve T0 from either argument.
-    if post_col is not None:
-        if post_col not in df.columns:
-            raise MlsynthConfigError(f"post_col '{post_col}' is not in df.")
-        post_by_time = (
-            ordered[[time, post_col]]
-            .drop_duplicates(subset=[time])
-            .set_index(time)
-            .reindex(Y_wide.index)[post_col]
-            .astype(bool)
-            .to_numpy()
-        )
-        if post_by_time.all() or not post_by_time.any():
-            raise MlsynthConfigError(
-                "post_col must mark both pre and post periods."
-            )
-        T0_resolved = int(np.argmax(post_by_time))
-    elif T0 is not None:
-        if not (1 <= T0 < T):
-            raise MlsynthConfigError(
-                f"T0 must be in [1, {T - 1}]; got {T0}."
-            )
-        T0_resolved = int(T0)
-    else:
-        raise MlsynthConfigError(
-            "Either T0 or post_col must be supplied to SIVConfig."
-        )
+@dataclass(frozen=True)
+class SIVWeights:
+    """Per-unit synthetic control weights and debiased series.
 
-    if T0_train is None:
-        T0_train_resolved: Optional[int] = max(2, int(0.75 * T0_resolved))
-    else:
-        if not (1 < T0_train < T0_resolved):
-            raise MlsynthConfigError(
-                f"T0_train must lie strictly inside (1, T0={T0_resolved}); "
-                f"got {T0_train}."
-            )
-        T0_train_resolved = int(T0_train)
+    For each unit ``i``, ``W[i]`` is a length-``J`` vector with
+    ``W[i, i] == 0`` and the remaining entries summing to 1 (under
+    the simplex constraint) or having ``l1``-norm <= C (under the
+    L1-ball constraint). Debiased series are computed for the full
+    panel, with the pre-period serving as the in-sample residual
+    series used by inference.
 
-    has_pre_treatment = bool(np.any(R[:, :T0_resolved] != 0))
-    has_pre_instrument = bool(np.any(Z[:, :T0_resolved] != 0))
+    Parameters
+    ----------
+    W : np.ndarray
+        Shape ``(J, J)`` weight matrix.
+    Y_sc, R_sc, Z_sc : np.ndarray
+        Shape ``(J, T)``. The synthetic-control imputation of each
+        series at every period.
+    Y_tilde, R_tilde, Z_tilde : np.ndarray
+        Shape ``(J, T)``. The debiased series ``X - X_sc``.
+    constraint : str
+        Either ``"simplex"`` or ``"l1_ball"``; mirrors the
+        ``SIVConfig.weight_constraint`` setting that produced the fit.
+    """
 
-    return SIVInputs(
-        Y=Y,
-        R=R,
-        Z=Z,
-        unit_index=IndexSet.from_labels(Y_wide.columns.to_list()),
-        time_index=IndexSet.from_labels(Y_wide.index.to_list()),
-        T0=T0_resolved,
-        T0_train=T0_train_resolved,
-        has_pre_treatment=has_pre_treatment,
-        has_pre_instrument=has_pre_instrument,
+    W: np.ndarray
+    Y_sc: np.ndarray
+    R_sc: np.ndarray
+    Z_sc: np.ndarray
+    Y_tilde: np.ndarray
+    R_tilde: np.ndarray
+    Z_tilde: np.ndarray
+    constraint: str
+
+
+@dataclass(frozen=True)
+class SIVEstimate:
+    """A single 2SLS estimate (point + standard error).
+
+    The variant tag identifies which set of debiased series produced
+    the estimate so a downstream consumer can tell ``SIV`` from
+    ``SIV_Z`` from ``Projected`` apart in a results dict.
+    """
+
+    variant: str
+    theta_hat: float
+    se: float
+    pi_hat: float                # reduced-form coefficient
+    beta_first_stage: float      # first-stage coefficient
+    f_stat: float                # first-stage F statistic
+    n_post_obs: int
+
+
+@dataclass(frozen=True)
+class SIVInference:
+    """Inferential output: asymptotic Gaussian CI and split-conformal CI.
+
+    Parameters
+    ----------
+    method : str
+        ``"asymptotic"``, ``"conformal"``, or ``"none"``.
+    alpha : float
+        Two-sided significance level used for the CI.
+    theta_hat : float
+        Selected estimate (the variant the user asked the orchestrator
+        to score; the *other* variants are also retained inside
+        :class:`SIVResults`).
+    ci_lower, ci_upper : float
+        ``(1 - alpha)`` confidence interval.
+    p_value : float
+        Two-sided test of ``H_0 : theta = 0``.
+    event_study_coefs : np.ndarray
+        Per-period reduced-form event-study coefficients used by the
+        split-conformal test (empty array for ``method != "conformal"``).
+    permutation_pvalue : float
+        Conformal permutation p-value (NaN for non-conformal methods).
+    """
+
+    method: str
+    alpha: float
+    theta_hat: float
+    ci_lower: float = float("nan")
+    ci_upper: float = float("nan")
+    p_value: float = float("nan")
+    event_study_coefs: np.ndarray = field(
+        default_factory=lambda: np.asarray([], dtype=float)
     )
+    permutation_pvalue: float = float("nan")
 
 
-def build_design_matrix(
-    inputs: SIVInputs,
-    series: str = "default",
-) -> np.ndarray:
-    """Construct the (J, p) pre-period predictor matrix used by SC.
+@dataclass(frozen=True)
+class SIVResults:
+    """Top-level container returned by :meth:`mlsynth.SIV.fit`.
 
-    For each unit ``i``, the SC weights solve
-    ``min_w ||D_i - D_{-i}' w||_2^2`` with ``D_i`` the ``i``-th row of
-    the returned matrix. ``series`` controls which pre-period series
-    enter the design:
-
-    * ``"default"`` — stack whichever of ``[Y_pre; R_pre; Z_pre]`` have
-      non-zero variation in the pre-period. This is the paper's
-      "Step 1" design matrix.
-    * ``"outcome_only"`` — outcome lags only (``Y_pre``). Useful for
-      the projected variant after the instrument-space projection has
-      replaced ``Y`` with its instrument-space projection.
+    Holds preprocessed inputs, the SC weights and debiased series for
+    both the canonical and projected pipelines, every variant of the
+    2SLS estimator, and the inferential output.
     """
 
-    T0 = inputs.T0
-    blocks: list[np.ndarray] = [inputs.Y[:, :T0]]
+    inputs: SIVInputs
+    weights: SIVWeights
+    weights_projected: Optional[SIVWeights]
+    estimates: Dict[str, SIVEstimate]
+    selected_variant: str
+    inference: SIVInference
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
-    if series == "default":
-        if inputs.has_pre_treatment:
-            blocks.append(inputs.R[:, :T0])
-        if inputs.has_pre_instrument:
-            blocks.append(inputs.Z[:, :T0])
-    elif series != "outcome_only":
-        raise MlsynthConfigError(
-            f"Unknown design-matrix series mode {series!r}; expected "
-            f"'default' or 'outcome_only'."
-        )
-
-    return np.concatenate(blocks, axis=1)
+    @property
+    def theta_hat(self) -> float:
+        """Point estimate of theta for the selected variant."""
+        return self.estimates[self.selected_variant].theta_hat
