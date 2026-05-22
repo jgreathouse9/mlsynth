@@ -271,4 +271,12 @@ standardized outputs over custom formats
 composable pipelines over monolithic procedures
 continuation of repository conventions over novel architecture
 
-Agents should study existing estimators before implementing new abstractions (the best examples are the FDID, SCDI, LEXSCM, and SPCD modules, as templates).
+Agents should study existing estimators before implementing new abstractions (the best examples are the FDID, SCDI, LEXSCM, SparseSC, SBC, and SPCD modules, as templates).
+
+
+**Example sections must include a self-contained one-draw Monte Carlo.**
+Every estimator docs page's *Example* block has to be copy-paste runnable
+from a fresh interpreter — no external data files, no missing imports.
+Simulate one panel from the estimator's intended DGP, fit the estimator,
+print the headline output. Users should be able to read the page top-to-
+bottom, paste the block, and see the estimator work in seconds. Alternatively, if we do indeed have the emprirical data, ask which dataset should be used first/if we have data fro the docs example.
