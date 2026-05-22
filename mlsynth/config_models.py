@@ -1305,7 +1305,35 @@ class SparseSCConfig(BaseEstimatorConfig):
     )
     run_inference: bool = Field(
         default=True,
-        description="Whether to run the Abadie placebo permutation test.",
+        description="Whether to run the post-estimation inference procedure.",
+    )
+    inference_method: Literal["conformal", "placebo", "none"] = Field(
+        default="conformal",
+        description=(
+            "Which inference procedure to run when ``run_inference`` "
+            "is True. ``conformal`` (default) builds a moving-block "
+            "conformal CI for the ATT in the spirit of Chernozhukov, "
+            "Wuethrich and Zhu (2021), calibrated on the validation "
+            "residuals; ``placebo`` runs the Abadie-style placebo "
+            "permutation; ``none`` skips inference entirely (equivalent "
+            "to ``run_inference=False``)."
+        ),
+    )
+    conformal_window: Literal["validation", "pre"] = Field(
+        default="validation",
+        description=(
+            "Residual block used to calibrate the conformal CI. "
+            "``validation`` uses only the held-out validation periods "
+            "[T0_train, T0_total); ``pre`` uses the full pre-treatment "
+            "block [0, T0_total). Validation is smaller but truly "
+            "out-of-sample under the chosen V."
+        ),
+    )
+    alpha: float = Field(
+        default=0.05,
+        gt=0.0,
+        lt=1.0,
+        description="Two-sided significance level for the ATT CI.",
     )
     n_placebo: Optional[int] = Field(
         default=None,
