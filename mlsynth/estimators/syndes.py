@@ -1,15 +1,12 @@
 """Synthetic Design (SYNDES) estimator.
 
-This is the paper-aligned interface to Doudchenko, Khosravi,
-Pouget-Abadie, Lahaie, Lubin, Mirrokni, Spiess, and Imbens (2021),
-*"Synthetic Design: An Optimization Approach to Experimental Design
-with Synthetic Controls"* (arXiv:2112.00278). SYNDES jointly selects
-treated units and synthetic-control weights via mixed-integer
-programming.
-
-This estimator is the public entry point. ``mlsynth.SCDI`` is kept
-as a deprecated alias for backwards compatibility (same MIP
-formulations, older mode names).
+Implements the three mixed-integer programming formulations of
+Doudchenko, Khosravi, Pouget-Abadie, Lahaie, Lubin, Mirrokni, Spiess,
+and Imbens (2021), *"Synthetic Design: An Optimization Approach to
+Experimental Design with Synthetic Controls"* (arXiv:2112.00278).
+SYNDES jointly selects treated units and synthetic-control weights
+by solving a single MIP that minimises the post-period mean squared
+error of the resulting ATT estimator.
 
 The three formulations exposed via the ``mode`` field correspond
 directly to Section 3 of the paper:
@@ -29,7 +26,19 @@ directly to Section 3 of the paper:
 Inference defaults to the moving-block permutation test of
 Chernozhukov, Wuethrich, and Zhu (2021), applied uniformly to all
 three modes via the shared contrast-vector dispatch in
-``mlsynth.utils.scdi_helpers.inference``.
+``mlsynth.utils.syndes_helpers.inference``.
+
+Two additional MIP features round out the estimator:
+
+* **Budget constraint** (paper section 1): supply ``costs`` (length
+  ``N``) and ``budget`` to add ``sum_i c_i D_i <= B`` to the MIP.
+* **Annealed relaxation** (``mode="two_way_global_annealed"``):
+  simulated-annealing alternative to the MIP for the symmetric
+  two-way formulation. Useful when a commercial MIP solver is
+  unavailable or the problem size makes the MIP impractical.
+
+Post-fit, see :func:`mlsynth.power_analysis` for per-horizon
+minimum-detectable-effect tables.
 """
 
 from __future__ import annotations
@@ -48,16 +57,22 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.datautils import balance
-from ..utils.scdi_helpers.inference import permutation_test_global
-from ..utils.scdi_helpers.optimization import solve_synthetic_design
-from ..utils.scdi_helpers.plotter import plot_scdi_design
-from ..utils.scdi_helpers.setup import prepare_scdi_inputs
-from ..utils.scdi_helpers.structures import SCDIResults
+from ..utils.syndes_helpers.inference import (
+    permutation_test_global,
+    permutation_test_relaxed_global,
+)
+from ..utils.syndes_helpers.optimization import solve_synthetic_design
+from ..utils.syndes_helpers.plotter import plot_syndes_design
+from ..utils.syndes_helpers.relaxed_solver import solve_two_way_relaxed
+from ..utils.syndes_helpers.relaxed_structures import RelaxedSolverResults
+from ..utils.syndes_helpers.setup import prepare_syndes_inputs
+from ..utils.syndes_helpers.structures import SYNDESResults
 
 
-# Paper-aligned -> internal SCDI mode mapping. The internal helpers
-# pre-date the SYNDES public interface and use the older mlsynth
-# naming; we translate at the orchestrator boundary so the design
+# Paper-aligned -> internal optimization mode mapping. The optimization
+# layer uses the paper's "global_2way / global_equal_weights / per_unit"
+# vocabulary internally; the public SYNDES API exposes the paper-title
+# names. Mapping happens at the orchestrator boundary so the design
 # object the user sees carries the paper-aligned label.
 _MODE_TO_INTERNAL = {
     "per_unit": "per_unit",
@@ -74,6 +89,15 @@ class SYNDES:
     ----------
     config : SYNDESConfig or dict
         Configuration object. See :class:`mlsynth.config_models.SYNDESConfig`.
+
+    Returns
+    -------
+    SYNDESResults or RelaxedSolverResults
+        For the three MIP modes, a :class:`SYNDESResults` container
+        with the optimised design and optional permutation inference.
+        For ``mode="two_way_global_annealed"`` the relaxed solver
+        returns a :class:`RelaxedSolverResults` container with
+        ``design``, ``trace``, ``inputs``, and optional ``inference``.
     """
 
     def __init__(self, config: Union[SYNDESConfig, dict]) -> None:
@@ -92,28 +116,29 @@ class SYNDES:
         self.time: str = config.time
         self.K: Optional[int] = config.K
         self.mode_public: str = config.mode
-        self.mode_internal: str = _MODE_TO_INTERNAL[config.mode]
         self.lam: Optional[float] = config.lam
         self.T0: Optional[int] = config.T0
         self.post_col: Optional[str] = config.post_col
         self.alpha: float = config.alpha
         self.run_inference: bool = config.run_inference
         self.solver: Any = config.solver
+        self.relaxed_max_iter: int = config.relaxed_max_iter
+        self.relaxed_decay: float = config.relaxed_decay
         self.display_graph: bool = config.display_graph
         self.verbose: bool = config.verbose
         self.costs = config.costs
         self.budget = config.budget
 
-    def fit(self) -> SCDIResults:
-        """Solve the MIP, run optional inference, return :class:`SCDIResults`.
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
-        The returned ``design.mode`` carries the paper-aligned name
-        (``per_unit`` / ``two_way_global`` / ``one_way_global``).
-        """
+    def fit(self) -> Union[SYNDESResults, RelaxedSolverResults]:
+        """Solve the MIP (or relaxation), run optional inference, return results."""
 
         try:
             balance(self.df, self.unitid, self.time)
-            inputs = prepare_scdi_inputs(
+            inputs = prepare_syndes_inputs(
                 df=self.df,
                 outcome=self.outcome,
                 unitid=self.unitid,
@@ -122,44 +147,9 @@ class SYNDES:
                 post_col=self.post_col,
             )
 
-            design = solve_synthetic_design(
-                Y=inputs.Y_pre,
-                K=self.K,
-                mode=self.mode_internal,
-                lam=self.lam,
-                solver=self.solver,
-                verbose=self.verbose,
-                unit_index=inputs.unit_index,
-                costs=self.costs,
-                budget=self.budget,
-            )
-
-            # Re-tag the design with the paper-aligned mode name so
-            # downstream consumers see the SYNDES vocabulary.
-            design = replace(design, mode=self.mode_public)
-
-            inference = None
-            if self.run_inference and inputs.Y_post is not None:
-                inference = permutation_test_global(
-                    Y_pre=inputs.Y_pre,
-                    Y_post=inputs.Y_post,
-                    design=design,
-                    alpha=self.alpha,
-                )
-
-            results = SCDIResults(
-                design=design, inputs=inputs, inference=inference
-            )
-
-            if self.display_graph:
-                try:
-                    plot_scdi_design(results)
-                except Exception as exc:
-                    raise MlsynthPlottingError(
-                        f"SYNDES plotting failed: {exc}"
-                    ) from exc
-
-            return results
+            if self.mode_public == "two_way_global_annealed":
+                return self._fit_relaxed(inputs)
+            return self._fit_mip(inputs)
 
         except (
             MlsynthConfigError,
@@ -172,3 +162,79 @@ class SYNDES:
             raise MlsynthEstimationError(
                 f"SYNDES estimation failed: {exc}"
             ) from exc
+
+    # ------------------------------------------------------------------
+    # MIP path
+    # ------------------------------------------------------------------
+
+    def _fit_mip(self, inputs) -> SYNDESResults:
+        mode_internal = _MODE_TO_INTERNAL[self.mode_public]
+
+        design = solve_synthetic_design(
+            Y=inputs.Y_pre,
+            K=self.K,
+            mode=mode_internal,
+            lam=self.lam,
+            solver=self.solver,
+            verbose=self.verbose,
+            unit_index=inputs.unit_index,
+            costs=self.costs,
+            budget=self.budget,
+        )
+
+        # Re-tag with the paper-aligned mode label so the design surface
+        # the user sees uses SYNDES vocabulary.
+        design = replace(design, mode=self.mode_public)
+
+        inference = None
+        if self.run_inference and inputs.Y_post is not None:
+            inference = permutation_test_global(
+                Y_pre=inputs.Y_pre,
+                Y_post=inputs.Y_post,
+                design=design,
+                alpha=self.alpha,
+            )
+
+        results = SYNDESResults(
+            design=design, inputs=inputs, inference=inference
+        )
+
+        if self.display_graph:
+            try:
+                plot_syndes_design(results)
+            except Exception as exc:
+                raise MlsynthPlottingError(
+                    f"SYNDES plotting failed: {exc}"
+                ) from exc
+
+        return results
+
+    # ------------------------------------------------------------------
+    # Annealed relaxation path
+    # ------------------------------------------------------------------
+
+    def _fit_relaxed(self, inputs) -> RelaxedSolverResults:
+        if self.K is None:
+            raise MlsynthConfigError(
+                "Annealed relaxation requires an explicit K."
+            )
+
+        relaxed = solve_two_way_relaxed(
+            Y=inputs.Y_pre,
+            K=self.K,
+            lam=self.lam,
+            max_iter=self.relaxed_max_iter,
+            decay=self.relaxed_decay,
+            verbose=self.verbose,
+        )
+
+        inference = None
+        if self.run_inference and inputs.Y_post is not None:
+            inference = permutation_test_relaxed_global(
+                Y_pre=inputs.Y_pre,
+                Y_post=inputs.Y_post,
+                design=relaxed.design,
+                alpha=self.alpha,
+            )
+
+        return replace(relaxed, inputs=inputs, inference=inference)
