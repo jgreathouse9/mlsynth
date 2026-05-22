@@ -120,6 +120,46 @@ def _solve_l1ball_sc(D_i: np.ndarray, D_others: np.ndarray, C: float) -> np.ndar
     return np.asarray(w.value, dtype=float)
 
 
+def fit_synthetic_controls_asymmetric(
+    target_design: np.ndarray,
+    donor_design: np.ndarray,
+    constraint: str = "simplex",
+    l1_C: float = 1.0,
+) -> np.ndarray:
+    """Fit SC weights where target rows differ from donor rows.
+
+    Used by the projected pipeline: the focal unit is matched against
+    its **raw** pre-period series (``target_design[i]``) but the donor
+    combinations use the **projected** series (``donor_design[-i]``),
+    matching eq. (5.1.2) of Gulek and Vives-i-Bastida (2024).
+
+    Both matrices must be ``(J, p)``.
+    """
+    if target_design.shape != donor_design.shape:
+        raise MlsynthEstimationError(
+            f"target_design {target_design.shape} != donor_design "
+            f"{donor_design.shape}."
+        )
+    if constraint not in {"simplex", "l1_ball"}:
+        raise MlsynthEstimationError(
+            f"Unknown weight constraint {constraint!r}."
+        )
+
+    J = target_design.shape[0]
+    W = np.zeros((J, J), dtype=float)
+    for i in range(J):
+        target_i = target_design[i]
+        donor_mask = np.ones(J, dtype=bool)
+        donor_mask[i] = False
+        donors_i = donor_design[donor_mask]
+        if constraint == "simplex":
+            w_donors = _solve_simplex_sc(target_i, donors_i)
+        else:
+            w_donors = _solve_l1ball_sc(target_i, donors_i, l1_C)
+        W[i, donor_mask] = w_donors
+    return W
+
+
 def fit_synthetic_controls(
     design: np.ndarray,
     constraint: str = "simplex",
