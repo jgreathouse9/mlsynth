@@ -1,485 +1,327 @@
-import pytest
-import pandas as pd
-import numpy as np
-from typing import Dict, Any
-from unittest.mock import patch
-from pydantic import ValidationError
+"""Tests for the modernized FMA estimator (Li & Sonnier 2023).
 
-from mlsynth.estimators.fma import FMA
-from mlsynth.config_models import (
-    FMAConfig,
-    BaseEstimatorResults,
-    EffectsResults,
-    FitDiagnosticsResults,
-    TimeSeriesResults,
-    InferenceResults
+Layered along agents_tests.md:
+
+* Layer 1 (numerical helpers): factor extraction, loading projection,
+  asymptotic / bootstrap / placebo inference subroutines.
+* Layer 2 (data utilities): prepare_fma_inputs pivot, validation paths.
+* Layer 3 (estimator integration): FMA.fit on a factor DGP, ATT
+  recovery, all three inference modes, validator paths.
+* Layer 4 (public API contracts): top-level import, frozen
+  dataclasses, FMAResults shape.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from mlsynth import FMA
+from mlsynth.config_models import FMAConfig
+from mlsynth.exceptions import (
+    MlsynthConfigError,
+    MlsynthDataError,
+    MlsynthEstimationError,
 )
-from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError, MlsynthConfigError
-from mlsynth.utils.datautils import balance, dataprep # For potential error sources
-from mlsynth.utils.resultutils import plot_estimates # For mocking
+from mlsynth.utils.fma_helpers.factors import extract_factors
+from mlsynth.utils.fma_helpers.fit import estimate_loading_and_counterfactual
+from mlsynth.utils.fma_helpers.inference import (
+    asymptotic_inference,
+    bootstrap_inference,
+    placebo_inference,
+)
+from mlsynth.utils.fma_helpers.setup import prepare_fma_inputs
+from mlsynth.utils.fma_helpers.structures import (
+    FMADesign,
+    FMAInference,
+    FMAInputs,
+    FMAResults,
+)
+
+
+# ----------------------------------------------------------------------
+# Shared factor-model panel fixture
+# ----------------------------------------------------------------------
+
+def _factor_panel(
+    J: int = 20, T_pre: int = 30, T_post: int = 10, r_true: int = 2,
+    tau_true: float = 1.0, seed: int = 0, non_stationary: bool = True,
+) -> tuple[pd.DataFrame, float, int]:
+    """Standard factor-model DGP. Unit 0 is the treated unit."""
+    rng = np.random.default_rng(seed)
+    T = T_pre + T_post
+    if non_stationary:
+        F = rng.standard_normal((T, r_true)).cumsum(axis=0)
+    else:
+        F = rng.standard_normal((T, r_true))
+    lam = rng.standard_normal((J + 1, r_true))
+    eps = rng.standard_normal((T, J + 1)) * 0.5
+    Y0 = F @ lam.T + eps
+    Y = Y0.copy()
+    Y[T_pre:, 0] += tau_true
+    rows = [
+        {"unit": j, "time": t, "y": float(Y[t, j]),
+         "D": int(j == 0 and t >= T_pre)}
+        for j in range(J + 1)
+        for t in range(T)
+    ]
+    return pd.DataFrame(rows), tau_true, T_pre
+
 
 @pytest.fixture
-def sample_fma_data() -> pd.DataFrame:
-    """Creates a sample DataFrame for FMA tests with more time periods."""
-    n_units = 16
-    n_periods = 40
-    treatment_start_period = 20
-
-    units = np.repeat(np.arange(1, n_units + 1), n_periods)
-    times = np.tile(np.arange(1, n_periods + 1), n_units)
-    
-    # Create some varied outcome data
-    np.random.seed(42) # for reproducibility
-    outcomes = []
-    for i in range(n_units):
-        base_trend = np.linspace(start=10 + i*2, stop=25 + i*2, num=n_periods)
-        noise = np.random.normal(0, 1, n_periods)
-        outcomes.extend(base_trend + noise)
-
-    data = {
-        "Unit": units,
-        "Time": times,
-        "Outcome": outcomes,
-        "Treated": np.zeros(n_units * n_periods, dtype=int),
-    }
-    df = pd.DataFrame(data)
-
-    # Unit 1 treated from treatment_start_period
-    # Pre-periods: 1 to treatment_start_period-1. Post-periods: treatment_start_period to n_periods.
-    # If treatment_start_period = 13, pre_periods = 12.
-    df.loc[(df['Unit'] == 1) & (df['Time'] >= treatment_start_period), 'Treated'] = 1
-    
-    return df
-
-def test_fma_creation(sample_fma_data: pd.DataFrame) -> None:
-    """Test FMA estimator creation."""
-    config_dict: Dict[str, Any] = {
-        "df": sample_fma_data,
-        "treat": "Treated",
-        "time": "Time",
-        "outcome": "Outcome",
-        "unitid": "Unit",
-        "display_graphs": False,
-    }
-    try:
-        config_obj = FMAConfig(**config_dict)
-        estimator = FMA(config_obj)
-        assert estimator is not None
-        assert estimator.df.equals(sample_fma_data)
-        assert estimator.treat == "Treated"
-        assert estimator.time == "Time"
-        assert estimator.outcome == "Outcome"
-        assert estimator.unitid == "Unit"
-        assert not estimator.display_graphs
-    except Exception as e:
-        pytest.fail(f"FMA creation failed: {e}")
-
-def test_fma_fit_smoke(sample_fma_data: pd.DataFrame) -> None:
-    """Smoke test for FMA fit method."""
-    config_dict: Dict[str, Any] = {
-        "df": sample_fma_data,
-        "treat": "Treated",
-        "time": "Time",
-        "outcome": "Outcome",
-        "unitid": "Unit",
-        "display_graphs": False,
-        "criti": 11, # Default, nonstationary
-        "DEMEAN": 1, # Default, demean
-    }
-    config_obj = FMAConfig(**config_dict)
-    estimator = FMA(config_obj)
-    try:
-        results = estimator.fit()
-        assert isinstance(results, BaseEstimatorResults)
-        assert results.effects is not None
-        assert results.fit_diagnostics is not None
-        assert results.time_series is not None
-        assert results.inference is not None
-
-        # Check sub-model types
-        assert isinstance(results.effects, EffectsResults)
-        assert isinstance(results.fit_diagnostics, FitDiagnosticsResults)
-        assert isinstance(results.time_series, TimeSeriesResults)
-        assert isinstance(results.inference, InferenceResults)
-
-    except Exception as e:
-        pytest.fail(f"FMA fit failed: {e}")
-
-# --- Input Validation Tests ---
-
-def test_fma_creation_missing_config_keys(sample_fma_data: pd.DataFrame):
-    """Test FMA instantiation with missing essential keys in config."""
-    base_config_dict: Dict[str, Any] = {
-        "df": sample_fma_data,
-        "treat": "Treated",
-        "time": "Time",
-        "outcome": "Outcome",
-        "unitid": "Unit",
-    }
-    # Pydantic models define required fields in their schema.
-    # We test by removing keys and expecting ValidationError.
-    required_keys = ["df", "outcome", "treat", "unitid", "time"] 
-    
-    for key_to_remove in required_keys:
-        test_config_dict = base_config_dict.copy()
-        test_config_dict.pop(key_to_remove, None)
-        
-        with pytest.raises(ValidationError):
-            FMAConfig(**test_config_dict)
-
-def test_fma_creation_df_not_dataframe():
-    """Test FMA instantiation if 'df' in config is not a pandas DataFrame."""
-    test_config_dict: Dict[str, Any] = {
-        "df": "not_a_dataframe", # Invalid type
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-    }
-    with pytest.raises(ValidationError):
-        FMAConfig(**test_config_dict)
-
-def test_fma_creation_df_missing_columns(sample_fma_data: pd.DataFrame):
-    """Test FMA instantiation if df is missing essential columns.
-    This validation typically occurs during fit(), not Pydantic model creation,
-    Validation now occurs at config instantiation due to BaseEstimatorConfig.
-    """
-    base_config_dict: Dict[str, Any] = {
-        # "df" will be set in the loop
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-    }
-    essential_cols_map = { # map key to actual column name in config
-        "outcome": base_config_dict["outcome"],
-        "treat": base_config_dict["treat"],
-        "unitid": base_config_dict["unitid"],
-        "time": base_config_dict["time"],
-    }
-    
-    for col_key_in_map, actual_col_name_to_drop in essential_cols_map.items():
-        df_missing_col = sample_fma_data.copy()
-        if actual_col_name_to_drop in df_missing_col.columns:
-             df_missing_col = df_missing_col.drop(columns=[actual_col_name_to_drop])
-        else:
-            # This should not happen if base_config_dict keys match sample_fma_data columns
-            pytest.skip(f"Column '{actual_col_name_to_drop}' not found in fixture to drop.")
-            continue
-        
-        current_config_dict = base_config_dict.copy()
-        current_config_dict["df"] = df_missing_col
-        
-        expected_message = f"Missing required columns in DataFrame 'df': {actual_col_name_to_drop}"
-        with pytest.raises(MlsynthDataError, match=expected_message):
-            FMAConfig(**current_config_dict)
-
-def test_fma_creation_invalid_config_values(sample_fma_data: pd.DataFrame):
-    """Test FMA instantiation with invalid types or values for 'criti' and 'DEMEAN'."""
-    base_config_dict: Dict[str, Any] = {
-        "df": sample_fma_data,
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-    }
-
-    # Invalid types for Pydantic validation
-    config_invalid_type_criti_dict = base_config_dict.copy()
-    config_invalid_type_criti_dict["criti"] = "not_an_int"
-    with pytest.raises(ValidationError):
-        FMAConfig(**config_invalid_type_criti_dict)
-    
-    config_invalid_type_demean_dict = base_config_dict.copy()
-    config_invalid_type_demean_dict["DEMEAN"] = "not_an_int"
-    with pytest.raises(ValidationError):
-        FMAConfig(**config_invalid_type_demean_dict)
-
-    # Semantically invalid values (type is correct, but value might be out of expected range)
-    # FMAConfig might not validate these ranges unless explicitly defined (e.g. Literal[1,2] for DEMEAN)
-    # The original test checked fit behavior. We'll keep that part.
-
-    # Invalid criti (e.g., 99, if FMAConfig allows any int but FMA handles specific values)
-    # FMA defaults to nfactor_xu_val if criti is not 10 or 11.
-    config_sem_invalid_criti_dict = base_config_dict.copy()
-    config_sem_invalid_criti_dict["criti"] = 99
-    # FMAConfig should raise ValidationError for criti=99 due to ge=10, le=11 constraint
-    with pytest.raises(ValidationError, match="Input should be less than or equal to 11"):
-        FMAConfig(**config_sem_invalid_criti_dict)
-    # The following lines testing fit() with criti=99 are unreachable if FMAConfig validation is active.
-    # If FMAConfig were to allow criti=99, then the fit() behavior would be tested.
-    # try:
-    #     # This part assumes FMAConfig allows criti=99, which it doesn't by default.
-    #     # To test fit's internal handling of criti not in [10, 11], one might need to
-    #     # bypass or temporarily alter FMAConfig validation for the test.
-    #     # config_obj_criti = FMAConfig(**config_sem_invalid_criti_dict) 
-    #     # estimator_criti = FMA(config=config_obj_criti)
-    #     # estimator_criti.fit() # Should run with default factor selection
-    #     pass # Test for fit() with invalid criti (if config allowed it) would go here
-    # except Exception as e:
-    #     pytest.fail(f"FMA fit failed unexpectedly with criti=99: {e}")
-
-
-    # Invalid DEMEAN (e.g., 3, if FMAConfig allows any int but FMA/denoiseutils handles 1 or 2)
-    config_sem_invalid_demean_dict = base_config_dict.copy()
-    config_sem_invalid_demean_dict["DEMEAN"] = 3
-    # FMAConfig should raise ValidationError for DEMEAN=3 due to ge=1, le=2 constraint
-    with pytest.raises(ValidationError, match="Input should be less than or equal to 2"):
-        FMAConfig(**config_sem_invalid_demean_dict)
-    # The following lines testing fit() with DEMEAN=3 are unreachable if FMAConfig validation is active.
-    # try:
-    #     # config_obj_demean = FMAConfig(**config_sem_invalid_demean_dict) # This would fail
-    #     # estimator_demean = FMA(config=config_obj_demean)
-    #     # estimator_demean.fit()
-    #     pass # Test for fit() with invalid DEMEAN (if config allowed it) would go here
-    # except Exception as e:
-    #     pytest.fail(f"FMA fit failed unexpectedly with DEMEAN=3: {e}")
-
-
-# --- Edge Case Tests ---
-
-@patch('mlsynth.estimators.fma.plot_estimates')
-def test_fma_fit_insufficient_pre_periods(mock_plot_estimates, sample_fma_data: pd.DataFrame):
-    """Test FMA fit with insufficient pre-treatment periods."""
-    config_dict: Dict[str, Any] = {
-        "df": sample_fma_data.copy(),
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-        "display_graphs": False, "criti": 11, "DEMEAN": 1,
-    }
-    # Modify data to have very few pre-periods. Original has 12 pre-periods.
-    # FMA's LOO CV needs t1_pre_periods > 0. Factor estimation needs enough rows.
-    # Let's set treatment start to period 2, so 1 pre-period.
-    df_mod = config_dict["df"] # type: ignore
-    treatment_start_period = 2 
-    df_mod.loc[(df_mod['Unit'] == 1) & (df_mod['Time'] >= treatment_start_period), 'Treated'] = 1
-    df_mod.loc[(df_mod['Unit'] == 1) & (df_mod['Time'] < treatment_start_period), 'Treated'] = 0
-    # Ensure other units are not treated for this test
-    df_mod.loc[df_mod['Unit'] != 1, 'Treated'] = 0
-
-    config_obj = FMAConfig(**config_dict)
-    estimator = FMA(config=config_obj)
-    # Expecting failure during LOO CV (e.g., np.delete on array of size 1) or matrix inversion
-    # or in nbpiid if t1_pre_periods is too small for its internal logic.
-    
-    with pytest.raises((ValueError, IndexError, np.linalg.LinAlgError, MlsynthEstimationError)):
-        estimator.fit()
-
-    mock_plot_estimates.assert_not_called()
-
-
-@patch('mlsynth.estimators.fma.plot_estimates')
-def test_fma_fit_insufficient_donors(mock_plot_estimates, sample_fma_data):
-    """Test FMA fit behavior when there are insufficient donor units."""
-    base_config_dict: Dict[str, Any] = {
-        "treat": "Treated",
-        "time": "Time",
-        "outcome": "Outcome",
-        "unitid": "Unit",
-        "display_graphs": False,
-        "criti": 11,
-        "DEMEAN": 1,
-    }
-
-    # --- Case 1: No donor units ---
-    df_no_donors = sample_fma_data[sample_fma_data["Unit"] == 1].copy()
-    config_no_donors_dict = {**base_config_dict, "df": df_no_donors}
-    estimator_no_donors = FMA(FMAConfig(**config_no_donors_dict))
-
-    # Expect a specific failure due to no donor units
-    with pytest.raises(MlsynthDataError, match="No donor units found"):
-        estimator_no_donors.fit()
-
-    # --- Case 2: Only one donor unit ---
-    df_one_donor = sample_fma_data[sample_fma_data["Unit"].isin([1, 2])].copy()
-    config_one_donor_dict = {**base_config_dict, "df": df_one_donor}
-    estimator_one_donor = FMA(FMAConfig(**config_one_donor_dict))
-
-    try:
-        results = estimator_one_donor.fit()
-        assert isinstance(results, BaseEstimatorResults), "Fit should return a BaseEstimatorResults object."
-    except (ValueError, IndexError, np.linalg.LinAlgError, MlsynthDataError, MlsynthConfigError) as e:
-        # Expected for degenerate cases like singular matrix or low donor count
-        print(f"Caught expected error with one donor: {e}")
-        pass
-    except Exception as e:
-        pytest.fail(f"FMA fit with one donor failed unexpectedly: {e}")
-
-    # Ensure plotting is not triggered during smoke tests
-    mock_plot_estimates.assert_not_called()
-
-
-@patch('mlsynth.estimators.fma.plot_estimates')
-def test_fma_fit_no_post_periods(mock_plot_estimates, sample_fma_data: pd.DataFrame):
-    """Test FMA fit with no post-treatment periods."""
-    config_dict: Dict[str, Any] = {
-        "df": sample_fma_data.copy(),
-        "treat": "Treated",
-        "time": "Time",
-        "outcome": "Outcome",
-        "unitid": "Unit",
-        "display_graphs": False,
-        "criti": 11,
-        "DEMEAN": 1,
-    }
-
-    df_mod = config_dict["df"]  # type: ignore
-    last_period = df_mod["Time"].max()
-
-    # Force treated unit to be treated *after* all observed periods → no post-treatment data
-    df_mod.loc[(df_mod["Unit"] == 1) & (df_mod["Time"] >= last_period + 1), "Treated"] = 1
-    df_mod.loc[(df_mod["Unit"] == 1) & (df_mod["Time"] <= last_period), "Treated"] = 0
-    df_mod.loc[df_mod["Unit"] != 1, "Treated"] = 0
-
-    config_obj = FMAConfig(**config_dict)
-    estimator = FMA(config=config_obj)
-
-    # Expect specific MlsynthDataError due to no treated obs
-    with pytest.raises(MlsynthDataError, match="No treated units found"):
-        estimator.fit()
-
-    mock_plot_estimates.assert_not_called()
-
-
-
-@patch('mlsynth.estimators.fma.plot_estimates')
-def test_fma_fit_nan_in_outcome(mock_plot_estimates, sample_fma_data):
-    """Test FMA fit raises MlsynthEstimationError when outcome variable contains NaN values."""
-
-    base_config_dict = {
-        "treat": "Treated",
-        "time": "Time",
-        "outcome": "Outcome",
-        "unitid": "Unit",
-        "display_graphs": False,
-        "criti": 11,
-        "DEMEAN": 1,
-    }
-
-    # Case 1: NaN in treated unit's pre-period outcome
-    df_nan_treated = sample_fma_data.copy()
-    df_nan_treated.loc[(df_nan_treated['Unit'] == 1) & (df_nan_treated['Time'] == 5), 'Outcome'] = np.nan
-    config_treated_nan = FMAConfig(**{**base_config_dict, "df": df_nan_treated})
-    estimator_treated_nan = FMA(config=config_treated_nan)
-
-    with pytest.raises(MlsynthEstimationError, match="missing values"):
-        estimator_treated_nan.fit()
-
-    mock_plot_estimates.reset_mock()
-
-    # Case 2: NaN in a control unit's pre-period outcome
-    df_nan_control = sample_fma_data.copy()
-    df_nan_control.loc[(df_nan_control['Unit'] == 2) & (df_nan_control['Time'] == 5), 'Outcome'] = np.nan
-    config_control_nan = FMAConfig(**{**base_config_dict, "df": df_nan_control})
-    estimator_control_nan = FMA(config=config_control_nan)
-
-    with pytest.raises(MlsynthEstimationError, match="missing values"):
-        estimator_control_nan.fit()
-
-    mock_plot_estimates.reset_mock()
-
-
-
-
-# --- Detailed Results Validation ---
-
-def test_fma_fit_results_structure_detailed(sample_fma_data: pd.DataFrame):
-    """Test the detailed structure of the results dictionary from FMA fit."""
-    config_dict: Dict[str, Any] = {
-        "df": sample_fma_data,
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-        "display_graphs": False, "criti": 11, "DEMEAN": 1,
-    }
-    config_obj = FMAConfig(**config_dict)
-    estimator = FMA(config=config_obj)
-    results: BaseEstimatorResults = estimator.fit()
-
-    assert results.effects is not None
-    effects_res = results.effects
-    assert effects_res.att is not None and isinstance(effects_res.att, (float, np.floating))
-    # ATT_Time was in additional_effects in the mapping
-    assert effects_res.additional_effects is not None
-    assert "ATT_Time" in effects_res.additional_effects and isinstance(effects_res.additional_effects["ATT_Time"], np.ndarray)
-    
-    assert results.fit_diagnostics is not None
-    fit_diag_res = results.fit_diagnostics
-    assert fit_diag_res.pre_treatment_rmse is not None and isinstance(fit_diag_res.pre_treatment_rmse, (float, np.floating))
-    assert fit_diag_res.pre_treatment_r_squared is not None and isinstance(fit_diag_res.pre_treatment_r_squared, (float, np.floating))
-
-    assert results.time_series is not None
-    ts_res = results.time_series
-    assert ts_res.observed_outcome is not None and isinstance(ts_res.observed_outcome, np.ndarray)
-    assert ts_res.counterfactual_outcome is not None and isinstance(ts_res.counterfactual_outcome, np.ndarray)
-    assert ts_res.estimated_gap is not None and isinstance(ts_res.estimated_gap, np.ndarray)
-    assert len(ts_res.observed_outcome) == len(ts_res.counterfactual_outcome) == len(ts_res.estimated_gap)
-    
-    unique_time_periods = config_dict["df"]["Time"].nunique() # type: ignore
-    assert len(ts_res.observed_outcome) == unique_time_periods
-    assert ts_res.time_periods is not None and len(ts_res.time_periods) == unique_time_periods
-
-
-    assert results.inference is not None
-    inf_res = results.inference
-    assert inf_res.standard_error is not None and isinstance(inf_res.standard_error, (float, np.floating))
-    assert inf_res.details is not None and "t_statistic" in inf_res.details and isinstance(inf_res.details["t_statistic"], (float, np.floating))
-    assert inf_res.ci_lower_bound is not None and inf_res.ci_upper_bound is not None
-    assert isinstance(inf_res.ci_lower_bound, (float, np.floating))
-    assert isinstance(inf_res.ci_upper_bound, (float, np.floating))
-    assert inf_res.p_value is not None and isinstance(inf_res.p_value, (float, np.floating))
-
-
-# --- Configuration Variations ---
-
-@patch('mlsynth.estimators.fma.plot_estimates')
-def test_fma_fit_config_variations(mock_plot_estimates, sample_fma_data: pd.DataFrame):
-    """Test FMA fit with different 'criti' and 'DEMEAN' configurations."""
-    base_config_dict: Dict[str, Any] = {
-        "df": sample_fma_data,
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-        "display_graphs": False,
-    }
-
-    configs_to_test_params = [
-        {"criti": 10, "DEMEAN": 1}, # Stationary, demean
-        {"criti": 11, "DEMEAN": 2}, # Nonstationary, standardize
-        {"criti": 10, "DEMEAN": 2}, # Stationary, standardize
-    ]
-
-    for var_params in configs_to_test_params:
-        current_config_dict = {**base_config_dict, **var_params}
-        config_obj = FMAConfig(**current_config_dict)
-        estimator = FMA(config=config_obj)
-        try:
-            results = estimator.fit()
-            assert isinstance(results, BaseEstimatorResults)
-            assert results.effects is not None and results.effects.att is not None
-        except Exception as e:
-            pytest.fail(f"FMA fit failed for config {var_params}: {e}") # Corrected var_config to var_params
-    mock_plot_estimates.assert_not_called() # display_graphs is False
-
-
-
-# --- Plotting Behavior ---
-
-@patch('mlsynth.estimators.fma.plot_estimates')
-def test_fma_plotting_behavior_display_true(mock_plot_func, sample_fma_data: pd.DataFrame):
-    """Test that plot_estimates is called when display_graphs is True."""
-    config_dict: Dict[str, Any] = {
-        "df": sample_fma_data,
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-        "display_graphs": True, "criti": 11, "DEMEAN": 1,
-    }
-    config_obj = FMAConfig(**config_dict)
-    estimator = FMA(config=config_obj)
-    estimator.fit()
-    mock_plot_func.assert_called_once()
-    # Check some key args passed to plot_estimates
-    args, kwargs = mock_plot_func.call_args
-    assert "processed_data_dict" in kwargs  # matches 'processed_data_dict=prepared_data' in fit()
-    assert "observed_outcome_series" in kwargs  # matches observed_outcome_series=treated_outcome_all_periods
-    assert "counterfactual_series_list" in kwargs and isinstance(kwargs["counterfactual_series_list"], list) and len(kwargs["counterfactual_series_list"]) == 1
-    assert "estimation_method_name" in kwargs and kwargs["estimation_method_name"] == "FMA"
-
-
-@patch('mlsynth.estimators.fma.plot_estimates')
-def test_fma_plotting_behavior_display_false(mock_plot_func, sample_fma_data: pd.DataFrame):
-    """Test that plot_estimates is NOT called when display_graphs is False."""
-    config_dict: Dict[str, Any] = {
-        "df": sample_fma_data,
-        "treat": "Treated", "time": "Time", "outcome": "Outcome", "unitid": "Unit",
-        "display_graphs": False, "criti": 11, "DEMEAN": 1,
-    }
-    config_obj = FMAConfig(**config_dict)
-    estimator = FMA(config=config_obj)
-    estimator.fit()
-    mock_plot_func.assert_not_called()
+def panel():
+    df, tau, T0 = _factor_panel()
+    return df, tau, T0
+
+
+# ----------------------------------------------------------------------
+# Layer 1: numerical helpers
+# ----------------------------------------------------------------------
+
+class TestFactorExtraction:
+    def test_recover_true_factor_count_nonstationary(self):
+        rng = np.random.default_rng(0)
+        T, N, r = 50, 30, 2
+        F = rng.standard_normal((T, r)).cumsum(axis=0)
+        lam = rng.standard_normal((N, r))
+        Y = F @ lam.T + 0.3 * rng.standard_normal((T, N))
+        n, _, F_hat, source = extract_factors(
+            Y, stationarity="nonstationary", preprocessing="demean",
+        )
+        assert n == r
+        assert source == "IPC1"
+        assert F_hat.shape == (T, r)
+
+    def test_user_override_n_factors(self):
+        rng = np.random.default_rng(0)
+        Y = rng.standard_normal((40, 20))
+        n, _, F_hat, source = extract_factors(
+            Y, stationarity="nonstationary", preprocessing="demean",
+            n_factors=3,
+        )
+        assert n == 3
+        assert source == "user"
+        assert F_hat.shape == (40, 3)
+
+    def test_invalid_n_factors_rejected(self):
+        rng = np.random.default_rng(0)
+        Y = rng.standard_normal((10, 5))
+        with pytest.raises(MlsynthConfigError):
+            extract_factors(Y, n_factors=99)
+
+
+class TestLoadingFit:
+    def test_perfect_fit_recovers_loading(self):
+        rng = np.random.default_rng(0)
+        T = 40
+        T0 = 30
+        F = rng.standard_normal((T, 2))
+        lam_true = np.array([1.0, 2.0, -0.5])
+        y = (np.column_stack([np.ones(T), F]) @ lam_true)
+        lam_hat, cf, F_aug, var_e = estimate_loading_and_counterfactual(
+            treated_outcome=y, factors=F, T0=T0,
+        )
+        assert np.allclose(lam_hat, lam_true, atol=1e-8)
+        assert var_e < 1e-12
+        assert np.allclose(cf, y, atol=1e-8)
+
+
+class TestAsymptoticInference:
+    def test_returns_finite_values(self):
+        rng = np.random.default_rng(0)
+        T, T0 = 40, 30
+        F = rng.standard_normal((T, 2))
+        y = F @ rng.standard_normal(2) + 0.5 * rng.standard_normal(T)
+        _, cf, F_aug, var_e = estimate_loading_and_counterfactual(y, F, T0)
+        se, lo, hi, p = asymptotic_inference(y, cf, F_aug, var_e, T0)
+        assert np.isfinite(se) and se > 0
+        assert lo <= hi
+        assert 0.0 <= p <= 1.0
+
+
+class TestBootstrapInference:
+    def test_bootstrap_returns_correct_shapes(self):
+        rng = np.random.default_rng(0)
+        T, T0 = 40, 30
+        F = rng.standard_normal((T, 2))
+        y = F @ rng.standard_normal(2) + 0.5 * rng.standard_normal(T)
+        _, cf, _, _ = estimate_loading_and_counterfactual(y, F, T0)
+        out = bootstrap_inference(
+            treated_outcome=y, factors=F, counterfactual=cf,
+            T0=T0, n_replicates=100, seed=0,
+        )
+        assert out["lower"].shape == (T - T0,)
+        assert out["upper"].shape == (T - T0,)
+        assert out["replicates"].shape == (100, T - T0)
+        assert (out["upper"] >= out["lower"]).all()
+        assert out["n_replicates"] == 100
+
+
+class TestPlaceboInference:
+    def test_placebo_curves_shape(self):
+        rng = np.random.default_rng(0)
+        T, N_co, T0 = 30, 8, 22
+        F = rng.standard_normal((T, 2))
+        controls = F @ rng.standard_normal((2, N_co)) + 0.5 * rng.standard_normal((T, N_co))
+        treated = F @ rng.standard_normal(2) + 0.5 * rng.standard_normal(T)
+        out = placebo_inference(
+            control_outcomes=controls, treated_outcome=treated, T0=T0,
+            n_factors=2, stationarity="nonstationary", preprocessing="demean",
+        )
+        assert out["curves"].shape == (N_co + 1, T)
+        assert out["q_lower"].shape == (T,)
+        assert out["q_upper"].shape == (T,)
+
+
+# ----------------------------------------------------------------------
+# Layer 2: data utilities
+# ----------------------------------------------------------------------
+
+class TestSetup:
+    def test_pivot_assembles_inputs(self, panel):
+        df, _, T0 = panel
+        inputs = prepare_fma_inputs(
+            df, outcome="y", treat="D",
+            unitid="unit", time="time",
+        )
+        assert isinstance(inputs, FMAInputs)
+        assert inputs.T == 40 and inputs.T0 == T0
+        assert inputs.N_co == 20
+        assert inputs.preprocessing == "demean"
+        assert inputs.stationarity == "nonstationary"
+
+    def test_invalid_preprocessing_rejected(self, panel):
+        df, _, _ = panel
+        with pytest.raises(MlsynthConfigError):
+            prepare_fma_inputs(
+                df, outcome="y", treat="D",
+                unitid="unit", time="time",
+                preprocessing="bogus",
+            )
+
+    def test_missing_values_rejected(self, panel):
+        df, _, _ = panel
+        df.loc[5, "y"] = np.nan
+        with pytest.raises(MlsynthDataError):
+            prepare_fma_inputs(
+                df, outcome="y", treat="D",
+                unitid="unit", time="time",
+            )
+
+
+# ----------------------------------------------------------------------
+# Layer 3: estimator integration
+# ----------------------------------------------------------------------
+
+class TestEstimator:
+    def test_default_fit_recovers_att(self, panel):
+        df, tau_true, _ = panel
+        res = FMA({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+        }).fit()
+        assert isinstance(res, FMAResults)
+        assert res.design.n_factors >= 1
+        assert abs(res.att - tau_true) < 0.5
+        # Default inference is asymptotic only.
+        assert "asymptotic" in res.metadata["inference_methods"]
+        assert np.isfinite(res.inference.asymptotic_att_se)
+        assert np.isfinite(res.inference.asymptotic_att_lower)
+
+    def test_user_n_factors_override(self, panel):
+        df, _, _ = panel
+        res = FMA({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+            "n_factors": 3,
+        }).fit()
+        assert res.design.n_factors == 3
+        assert res.design.n_factors_source == "user"
+
+    def test_bootstrap_inference(self, panel):
+        df, _, _ = panel
+        res = FMA({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+            "inference_methods": ["asymptotic", "bootstrap"],
+            "n_bootstrap": 200,
+        }).fit()
+        assert res.inference.bootstrap_n_replicates == 200
+        assert res.inference.bootstrap_att_t_lower.size == res.inputs.n_post
+        assert (
+            res.inference.bootstrap_att_t_upper
+            >= res.inference.bootstrap_att_t_lower
+        ).all()
+
+    def test_placebo_inference(self, panel):
+        df, _, _ = panel
+        res = FMA({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+            "inference_methods": ["placebo"],
+            "n_factors": 2,
+        }).fit()
+        assert res.inference.placebo_att_curves.shape[0] == res.inputs.N_co + 1
+        assert res.inference.placebo_att_curves.shape[1] == res.inputs.T
+
+    def test_all_three_inference_modes(self, panel):
+        df, _, _ = panel
+        res = FMA({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+            "inference_methods": ["asymptotic", "bootstrap", "placebo"],
+            "n_bootstrap": 100,
+            "n_factors": 2,
+        }).fit()
+        assert np.isfinite(res.inference.asymptotic_att_se)
+        assert res.inference.bootstrap_replicates.shape[0] == 100
+        assert res.inference.placebo_att_curves.size > 0
+
+    def test_no_inference(self, panel):
+        df, _, _ = panel
+        res = FMA({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+            "inference_methods": [],
+        }).fit()
+        assert res.inference.method == "none"
+
+    def test_invalid_inference_method_rejected(self, panel):
+        df, _, _ = panel
+        with pytest.raises(MlsynthConfigError):
+            FMA({
+                "df": df, "outcome": "y", "treat": "D",
+                "unitid": "unit", "time": "time",
+                "inference_methods": ["bogus"],
+            })
+
+
+# ----------------------------------------------------------------------
+# Layer 4: public API contracts
+# ----------------------------------------------------------------------
+
+class TestPublicAPI:
+    def test_top_level_import(self):
+        from mlsynth import FMA as _FMA
+        assert _FMA is FMA
+
+    def test_results_dataclasses_frozen(self, panel):
+        df, _, _ = panel
+        res = FMA({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+        }).fit()
+        with pytest.raises(Exception):
+            res.att = 0.0
+        with pytest.raises(Exception):
+            res.design.lambda_hat = np.zeros_like(res.design.lambda_hat)
+
+    def test_pre_rmse_finite(self, panel):
+        df, _, _ = panel
+        res = FMA({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+        }).fit()
+        assert np.isfinite(res.pre_rmse)
+        assert res.pre_rmse >= 0.0

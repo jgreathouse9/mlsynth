@@ -133,10 +133,35 @@ def test_tssc_config_valid(base_config_data: Dict[str, Any]):
     assert config_custom.ci == 0.9
 
 def test_fma_config_valid(base_config_data: Dict[str, Any]):
-    """Test valid instantiation of FMAConfig."""
+    """Test valid instantiation of the modernized FMAConfig (Li & Sonnier 2023)."""
     config = FMAConfig(**base_config_data)
-    assert config.criti == 11
-    assert config.DEMEAN == 1
+    # Paper-aligned defaults
+    assert config.stationarity == "nonstationary"
+    assert config.preprocessing == "demean"
+    assert config.n_factors is None
+    assert config.max_factors == 10
+    assert config.alpha == 0.05
+    assert config.inference_methods == ["asymptotic"]
+    assert config.n_bootstrap == 1000
+
+    # Explicit overrides
+    cfg2 = FMAConfig(
+        **base_config_data,
+        stationarity="stationary", preprocessing="standardize",
+        n_factors=3, inference_methods=["asymptotic", "bootstrap"],
+    )
+    assert cfg2.stationarity == "stationary"
+    assert cfg2.preprocessing == "standardize"
+    assert cfg2.n_factors == 3
+    assert "bootstrap" in cfg2.inference_methods
+
+    # Invalid inference method rejected
+    with pytest.raises(MlsynthConfigError):
+        FMAConfig(**base_config_data, inference_methods=["nope"])
+
+    # Invalid stationarity rejected
+    with pytest.raises(ValidationError):
+        FMAConfig(**base_config_data, stationarity="bogus")
 
 def test_pda_config_valid(base_config_data: Dict[str, Any]):
     """Test valid instantiation of PDAConfig and method validation."""
