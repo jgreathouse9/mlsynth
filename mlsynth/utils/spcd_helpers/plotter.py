@@ -13,7 +13,7 @@ def plot_spcd_design(results: SPCDResults) -> None:
     """Plot synthetic treated and synthetic control trajectories for SPCD.
 
     Mirrors the layout of ``plot_relaxed_design`` in
-    ``scdi_helpers.plotter`` so SPCD and SCDI plots feel consistent.
+    ``syndes_helpers.plotter`` so SPCD and SYNDES plots feel consistent.
 
     Parameters
     ----------

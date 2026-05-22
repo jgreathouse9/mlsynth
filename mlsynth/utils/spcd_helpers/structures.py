@@ -32,7 +32,7 @@ class SPCDInputs:
     Y_pre : np.ndarray
         Pre-treatment outcome matrix of shape ``(T_pre, N)``. Note that
         rows are time periods and columns are units, matching the
-        convention used by ``prepare_scdi_inputs``. The paper's
+        convention used by ``prepare_syndes_inputs``. The paper's
         equations use ``Y in R^{N x T}``, so when implementing
         Eq. (2) of the paper, the iteration matrix is built as
         ``Y_pre.T @ Y_pre + alpha I + lambda 1 1.T``.
@@ -164,7 +164,7 @@ class SPCDResults:
     Notes
     -----
     ``mode`` always reports ``"spcd"`` so plotting and dispatch code can
-    branch on it uniformly with :class:`SCDIResults`.
+    branch on it uniformly with :class:`SYNDESResults`.
 
     Convenience properties (``att``, ``rmse_pre``, ``rmse_post``,
     ``donor_weights``) forward to the corresponding fields of

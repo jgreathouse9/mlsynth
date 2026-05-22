@@ -93,7 +93,7 @@ def build_weight_groups(
     Returns
     -------
     selected_mask : np.ndarray
-        0/1 indicator of treated units (parity with the SCDI design
+        0/1 indicator of treated units (parity with the SYNDES design
         container's ``assignment`` field).
     treated_weights : np.ndarray
         Length-N weights restricted to the treated group; zero
