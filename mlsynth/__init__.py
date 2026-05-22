@@ -25,7 +25,6 @@ from .estimators.seq_sdid import SequentialSDID
 from .estimators.ppscm import PPSCM
 from .estimators.sparse_sc import SparseSC
 from .estimators.microsynth import MicroSynth
-from .estimators.eicp import EICP
 from .estimators.siv import SIV
 
 __all__ = [
@@ -53,7 +52,6 @@ __all__ = [
     "PPSCM",
     "SparseSC",
     "MicroSynth",
-    "EICP",
     "SIV",
     "SYNDES",
     "SYNDESPower",
