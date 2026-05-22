@@ -179,12 +179,51 @@ def test_gsc_config_valid(base_config_data: Dict[str, Any]):
     GSCConfig(**base_config_data) # Should not raise
 
 def test_clustersc_config_valid(base_config_data: Dict[str, Any]):
-    """Test valid instantiation of CLUSTERSCConfig."""
-    config = CLUSTERSCConfig(**base_config_data, method="RPCA", ROB="HQF")
-    assert config.method == "RPCA"
-    assert config.ROB == "HQF"
+    """Test valid instantiation of CLUSTERSCConfig.
+
+    Covers (a) modern field names, (b) legacy-field accommodation
+    via the `_normalise_legacy_fields` validator (objective, cluster,
+    Frequentist, ROB, uppercase method tags), and (c) Literal rejection.
+    """
+    # Modern field names
+    config = CLUSTERSCConfig(
+        **base_config_data,
+        method="rpca",
+        rpca_method="HQF",
+        pcr_objective="OLS",
+        estimator="frequentist",
+    )
+    assert config.method == "rpca"
+    assert config.rpca_method == "HQF"
+    assert config.pcr_objective == "OLS"
+    assert config.estimator == "frequentist"
+
+    # Legacy field names should be accepted and normalised
+    legacy = CLUSTERSCConfig(
+        **base_config_data,
+        method="BOTH",
+        objective="SIMPLEX",
+        cluster=False,
+        Frequentist=False,
+        ROB="PCP",
+    )
+    assert legacy.method == "both"
+    assert legacy.pcr_objective == "SIMPLEX"
+    assert legacy.clustering is False
+    assert legacy.estimator == "bayesian"
+    assert legacy.rpca_method == "PCP"
+
+    # Invalid method rejected
     with pytest.raises(ValidationError):
-        CLUSTERSCConfig(**base_config_data, objective="INVALID_OBJECTIVE")
+        CLUSTERSCConfig(**base_config_data, method="bogus")
+
+    # Invalid pcr_objective rejected
+    with pytest.raises(ValidationError):
+        CLUSTERSCConfig(**base_config_data, pcr_objective="INVALID")
+
+    # Invalid rpca_method rejected
+    with pytest.raises(ValidationError):
+        CLUSTERSCConfig(**base_config_data, rpca_method="INVALID")
 
 def test_proximal_config_valid(base_config_data: Dict[str, Any], sample_df: pd.DataFrame):
     """Test valid instantiation of PROXIMALConfig."""
