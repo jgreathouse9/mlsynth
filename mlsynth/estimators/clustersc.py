@@ -92,6 +92,16 @@ class CLUSTERSC:
         self.k_max: int = config.k_max
         self.n_bayes_samples: int = config.n_bayes_samples
         self.random_state: int = config.random_state
+        self.fpca_cumvar: float = config.fpca_cumvar
+        self.pcp_lambda = config.pcp_lambda
+        self.pcp_mu = config.pcp_mu
+        self.pcp_max_iter: int = config.pcp_max_iter
+        self.pcp_tol: float = config.pcp_tol
+        self.hqf_rank = config.hqf_rank
+        self.hqf_cumvar: float = config.hqf_cumvar
+        self.hqf_lambda = config.hqf_lambda
+        self.hqf_ip: float = config.hqf_ip
+        self.hqf_max_iter: int = config.hqf_max_iter
         self.display_graphs: bool = config.display_graphs
 
     def fit(self) -> CLUSTERSCResults:
@@ -146,13 +156,24 @@ class CLUSTERSC:
 
             if self.method in {"rpca", "both"}:
                 rpca_fit = run_rpca(
-                    df=self.df,
-                    outcome=self.outcome,
-                    treat=self.treat,
-                    unitid=self.unitid,
-                    time=self.time,
-                    inputs=inputs,
+                    treated_outcome=inputs.treated_outcome,
+                    donor_outcomes=inputs.donor_outcomes,
+                    donor_names=inputs.donor_names,
+                    T0=inputs.T0,
                     rpca_method=self.rpca_method,
+                    fpca_cumvar=self.fpca_cumvar,
+                    k_clusters=self.k_clusters,
+                    k_max=self.k_max,
+                    pcp_lambda=self.pcp_lambda,
+                    pcp_mu=self.pcp_mu,
+                    pcp_max_iter=self.pcp_max_iter,
+                    pcp_tol=self.pcp_tol,
+                    hqf_rank=self.hqf_rank,
+                    hqf_cumvar=self.hqf_cumvar,
+                    hqf_lambda=self.hqf_lambda,
+                    hqf_ip=self.hqf_ip,
+                    hqf_max_iter=self.hqf_max_iter,
+                    random_state=self.random_state,
                 )
 
             # Select primary fit. If the user picked "pcr" / "rpca" only,
