@@ -71,7 +71,7 @@ def panel():
 # ----------------------------------------------------------------------
 
 class TestPCRHelper:
-    def test_run_pcr_frequentist_recovers_att(self, panel):
+    def test_run_pcr_ols_recovers_att(self, panel):
         df, tau = panel
         inputs = prepare_clustersc_inputs(
             df, outcome="y", treat="D", unitid="unit", time="time",
@@ -84,11 +84,34 @@ class TestPCRHelper:
             estimator="frequentist",
         )
         assert isinstance(fit, MethodFit)
-        assert fit.name == "pcr_frequentist"
+        assert fit.name == "pcr_ols"
         assert credible is None
         assert abs(fit.att - tau) < 0.5
+        # Paper-aligned metadata: rank, rank_method, clustering must be set.
+        assert "rank" in fit.metadata and fit.metadata["rank"] >= 1
+        assert fit.metadata["rank_method"] == "cumvar"
+        assert fit.metadata["clustering"] is True
 
-    def test_run_pcr_bayesian_returns_credible(self, panel):
+    def test_run_pcr_simplex_returns_simplex_weights(self, panel):
+        df, _ = panel
+        inputs = prepare_clustersc_inputs(
+            df, outcome="y", treat="D", unitid="unit", time="time",
+        )
+        fit, credible = run_pcr(
+            treated_outcome=inputs.treated_outcome,
+            donor_outcomes=inputs.donor_outcomes,
+            donor_names=inputs.donor_names,
+            T0=inputs.T0, objective="SIMPLEX", clustering=False,
+            estimator="frequentist",
+        )
+        assert fit.name == "pcr_simplex"
+        assert credible is None
+        weights = np.array(list(fit.donor_weights.values()))
+        # Simplex weights must be non-negative and sum to 1.
+        assert np.all(weights >= -1e-6)
+        assert abs(float(weights.sum()) - 1.0) < 1e-4
+
+    def test_run_pcr_bayesian_returns_per_period_bands(self, panel):
         df, _ = panel
         inputs = prepare_clustersc_inputs(
             df, outcome="y", treat="D", unitid="unit", time="time",
@@ -98,13 +121,16 @@ class TestPCRHelper:
             donor_outcomes=inputs.donor_outcomes,
             donor_names=inputs.donor_names,
             T0=inputs.T0, objective="OLS", clustering=True,
-            estimator="bayesian",
+            estimator="bayesian", alpha=0.10,
         )
         assert fit.name == "pcr_bayesian"
         assert credible is not None
-        lo, hi = credible
-        assert lo <= hi
-        assert np.isfinite(lo) and np.isfinite(hi)
+        cf_lo, cf_hi = credible
+        # Paper Algorithm 4 Step 5: bands are per-period, shape (T,).
+        assert cf_lo.shape == (inputs.T,)
+        assert cf_hi.shape == (inputs.T,)
+        assert np.all(cf_lo <= cf_hi + 1e-9)
+        assert np.all(np.isfinite(cf_lo)) and np.all(np.isfinite(cf_hi))
 
     def test_invalid_estimator_rejected(self, panel):
         df, _ = panel
