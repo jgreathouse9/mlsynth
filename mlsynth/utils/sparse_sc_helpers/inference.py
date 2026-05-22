@@ -1,15 +1,22 @@
-"""Abadie-style placebo permutation inference for SparseSC.
+"""Inference procedures for SparseSC.
 
-For each donor ``j`` we treat that donor as the placebo treated unit,
-swap it into the treated slot, refit SparseSC at the *already-selected*
-lambda (to keep the placebo loop tractable), and record the post-period
-placebo ATT. The two-sided placebo p-value compares ``|observed|``
-against the distribution of ``|placebo|``.
+Two methods are implemented:
 
-Refitting the full lambda sweep for every placebo would multiply the
-runtime by ~50x with little inferential gain, so by default we reuse
-the lambda picked on the actual treated unit. Set ``resweep=True`` to
-re-run the full lambda selection inside each placebo.
+* ``run_placebo`` -- the Abadie-style placebo permutation. For each
+  donor we treat that donor as the placebo treated unit, refit
+  SparseSC at the already-selected lambda, and compare the observed
+  ATT against the distribution of placebo ATTs.
+
+* ``conformal_inference`` -- a moving-block conformal CI in the
+  spirit of Chernozhukov, Wuethrich and Zhu (2021), adapted to the
+  SparseSC pre / validation / post panel layout. Calibration
+  residuals come from either the validation block (default --
+  smallest sample but truly out-of-sample under V) or the entire
+  pre-treatment block (larger sample, but training residuals are
+  in-sample under V). The ATT CI is obtained by inverting a moving-
+  block test of the form ``mean(|e_post - theta|) <= q_{1-alpha}``
+  of the calibration distribution; pointwise per-period bands use
+  the same ``q_{1-alpha}`` quantile directly.
 """
 
 from __future__ import annotations
@@ -21,6 +28,183 @@ import numpy as np
 from .objective import outer_loss
 from .optimization import default_v20, recover_w, sweep_lambda
 from scipy.optimize import minimize
+
+
+def _moving_block_means(
+    residuals: np.ndarray,
+    block_size: int,
+    include_circular: bool = True,
+) -> np.ndarray:
+    """Return mean-absolute-residual over every moving block of ``block_size``.
+
+    With ``include_circular``, also produces wrap-around blocks so the
+    score distribution stays informative when ``len(residuals)`` is
+    small (the SparseSC validation block is typically only a handful
+    of periods). Block size is clipped to at most ``len(residuals)``.
+    """
+    e = np.abs(np.asarray(residuals, dtype=float).flatten())
+    n = e.size
+    if n == 0:
+        return np.asarray([], dtype=float)
+    bs = max(1, min(int(block_size), n))
+
+    scores = []
+    for i in range(n - bs + 1):
+        scores.append(float(np.mean(e[i:i + bs])))
+
+    if include_circular and n >= bs and bs > 1:
+        for i in range(1, bs):
+            tail = e[n - i:]
+            head = e[: bs - i]
+            scores.append(float(np.mean(np.concatenate([tail, head]))))
+
+    return np.asarray(scores, dtype=float)
+
+
+def conformal_inference(
+    gap: np.ndarray,
+    T0_train: int,
+    T0_total: int,
+    T: int,
+    conformal_window: str = "validation",
+    alpha: float = 0.05,
+    block_size: int | None = None,
+    grid_size: int = 401,
+    grid_half_width_se: float = 6.0,
+) -> dict:
+    """Conformal ATT confidence interval from in-sample residuals.
+
+    Parameters
+    ----------
+    gap : np.ndarray
+        Full-period residual ``Y1 - Y0 @ w``, shape ``(T,)``. The pre-
+        treatment portion (``gap[:T0_total]``) is interpreted as noise
+        under the no-treatment null; ``gap[T0_total:]`` is the post-
+        treatment effect-plus-noise sequence.
+    T0_train, T0_total, T : int
+        Training-block end / pre-block end / full length. Pre = ``[0,
+        T0_total)``, validation = ``[T0_train, T0_total)``, post =
+        ``[T0_total, T)``.
+    conformal_window : {"validation", "pre"}
+        Which residual block to use for calibration. ``"validation"``
+        uses only ``gap[T0_train:T0_total]`` (truly out-of-sample under
+        the chosen V); ``"pre"`` uses the entire ``gap[:T0_total]``.
+    alpha : float
+        Two-sided significance level.
+    block_size : int, optional
+        Moving-block size for the conformity score. Defaults to
+        ``max(3, sqrt(n_post))``, matching LEXSCM.
+    grid_size : int
+        Number of theta candidates in the grid search for the ATT CI.
+    grid_half_width_se : float
+        The grid spans ``[ATT_hat +/- grid_half_width_se * SE]`` where
+        SE is a plug-in standard error from the calibration residuals.
+
+    Returns
+    -------
+    dict
+        Keys: ``method``, ``att_observed``, ``ci_lower``, ``ci_upper``,
+        ``p_value``, ``calibration_residuals``, ``pointwise_lower``,
+        ``pointwise_upper``, ``alpha``.
+    """
+    gap = np.asarray(gap, dtype=float).flatten()
+
+    if conformal_window not in {"validation", "pre"}:
+        raise ValueError(
+            "conformal_window must be 'validation' or 'pre', "
+            f"got {conformal_window!r}."
+        )
+
+    if conformal_window == "validation":
+        e_calib = gap[T0_train:T0_total]
+        method_tag = "conformal_validation"
+    else:
+        e_calib = gap[:T0_total]
+        method_tag = "conformal_pre"
+
+    e_post = gap[T0_total:T]
+    n_post = int(e_post.size)
+    n_calib = int(e_calib.size)
+
+    if n_post == 0:
+        return {
+            "method": method_tag,
+            "att_observed": float("nan"),
+            "ci_lower": float("nan"),
+            "ci_upper": float("nan"),
+            "p_value": float("nan"),
+            "calibration_residuals": e_calib,
+            "pointwise_lower": np.asarray([], dtype=float),
+            "pointwise_upper": np.asarray([], dtype=float),
+            "alpha": float(alpha),
+        }
+
+    if n_calib < 2:
+        # Not enough calibration data to produce a non-degenerate CI.
+        att = float(np.mean(e_post))
+        return {
+            "method": method_tag,
+            "att_observed": att,
+            "ci_lower": float("nan"),
+            "ci_upper": float("nan"),
+            "p_value": float("nan"),
+            "calibration_residuals": e_calib,
+            "pointwise_lower": np.full(n_post, np.nan),
+            "pointwise_upper": np.full(n_post, np.nan),
+            "alpha": float(alpha),
+        }
+
+    if block_size is None:
+        block_size = max(3, int(np.sqrt(n_post)))
+    block_size = min(block_size, n_calib)
+
+    att = float(np.mean(e_post))
+    conformity = _moving_block_means(e_calib, block_size, include_circular=True)
+    if conformity.size == 0:
+        conformity = np.abs(e_calib)
+
+    # P-value for H0: ATT = 0
+    observed_score = float(np.mean(np.abs(e_post)))
+    p_value = float(np.mean(conformity >= observed_score))
+
+    # Grid search for the ATT CI: invert the conformal test.
+    se_proxy = float(np.std(e_calib, ddof=1)) / np.sqrt(max(n_post, 1)) if n_calib > 1 else 1.0
+    half_width = max(grid_half_width_se * se_proxy, 1e-6)
+    grid = np.linspace(att - half_width, att + half_width, int(grid_size))
+
+    accepted = []
+    for theta in grid:
+        score = float(np.mean(np.abs(e_post - theta)))
+        if np.mean(conformity >= score) > alpha:
+            accepted.append(float(theta))
+
+    if accepted:
+        ci_lower = min(accepted)
+        ci_upper = max(accepted)
+    else:
+        # No grid point accepted: fall back to a SE-scaled interval
+        # to avoid returning NaN bounds for a non-degenerate fit.
+        fallback = 4.0 * se_proxy
+        ci_lower = att - fallback
+        ci_upper = att + fallback
+
+    # Pointwise per-period bands from the (1 - alpha) quantile of
+    # the calibration conformity scores.
+    q = float(np.quantile(conformity, 1.0 - alpha))
+    pointwise_lower = e_post - q
+    pointwise_upper = e_post + q
+
+    return {
+        "method": method_tag,
+        "att_observed": att,
+        "ci_lower": ci_lower,
+        "ci_upper": ci_upper,
+        "p_value": p_value,
+        "calibration_residuals": e_calib,
+        "pointwise_lower": pointwise_lower,
+        "pointwise_upper": pointwise_upper,
+        "alpha": float(alpha),
+    }
 
 
 def _refit_at_lambda(

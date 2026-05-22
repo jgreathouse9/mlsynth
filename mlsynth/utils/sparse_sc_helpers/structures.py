@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
@@ -104,12 +104,61 @@ class SparseSCDesign:
 
 @dataclass(frozen=True)
 class SparseSCInference:
-    """Abadie-style placebo permutation inference."""
+    """Inference results for SparseSC.
 
-    method: str                  # "abadie_placebo_permutation" or "none"
-    placebo_atts: np.ndarray
+    Either the Abadie-style placebo permutation or the validation-block
+    conformal inference of Chernozhukov, Wuethrich and Zhu (2021)
+    adapted to the SparseSC pre/post layout. The ``method`` tag
+    identifies which fields are populated.
+
+    Parameters
+    ----------
+    method : str
+        ``"abadie_placebo_permutation"``, ``"conformal_validation"``,
+        ``"conformal_pre"``, or ``"none"``.
+    p_value : float
+        Two-sided p-value for ``H_0: ATT = 0``. NaN when no inference
+        was run.
+    att_observed : float
+        Point estimate of ATT, copied here for convenience.
+    ci_lower, ci_upper : float
+        Lower/upper bounds of the (1 - alpha) confidence interval for
+        the ATT. NaN for ``method="none"``.
+    alpha : float
+        Two-sided significance level used to build ``ci_*``.
+    placebo_atts : np.ndarray
+        Placebo ATTs, populated only when ``method`` is the placebo
+        permutation. Empty array otherwise.
+    n_placebo : int
+        Number of placebo runs (placebo method only; 0 otherwise).
+    calibration_residuals : np.ndarray
+        Residuals used to build the conformity scores (conformal
+        method only). Empty for the placebo method.
+    pointwise_lower, pointwise_upper : np.ndarray
+        Per-period pointwise band around each post-period gap from
+        the (1 - alpha)-quantile of the conformity scores. Empty for
+        non-conformal methods.
+    """
+
+    method: str
     p_value: float
-    n_placebo: int
+    att_observed: float = float("nan")
+    ci_lower: float = float("nan")
+    ci_upper: float = float("nan")
+    alpha: float = float("nan")
+    placebo_atts: np.ndarray = field(
+        default_factory=lambda: np.asarray([], dtype=float)
+    )
+    n_placebo: int = 0
+    calibration_residuals: np.ndarray = field(
+        default_factory=lambda: np.asarray([], dtype=float)
+    )
+    pointwise_lower: np.ndarray = field(
+        default_factory=lambda: np.asarray([], dtype=float)
+    )
+    pointwise_upper: np.ndarray = field(
+        default_factory=lambda: np.asarray([], dtype=float)
+    )
 
 
 @dataclass(frozen=True)
