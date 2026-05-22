@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Union
 
+import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
@@ -84,6 +85,13 @@ class CLUSTERSC:
         self.p = config.p
         self.q = config.q
         self.alpha: float = config.alpha
+        self.rank = config.rank
+        self.rank_method: str = config.rank_method
+        self.cumvar_threshold: float = config.cumvar_threshold
+        self.k_clusters = config.k_clusters
+        self.k_max: int = config.k_max
+        self.n_bayes_samples: int = config.n_bayes_samples
+        self.random_state: int = config.random_state
         self.display_graphs: bool = config.display_graphs
 
     def fit(self) -> CLUSTERSCResults:
@@ -104,7 +112,7 @@ class CLUSTERSC:
             credible = None
 
             if self.method in {"pcr", "both"}:
-                pcr_fit, credible = run_pcr(
+                pcr_fit, credible_band = run_pcr(
                     treated_outcome=inputs.treated_outcome,
                     donor_outcomes=inputs.donor_outcomes,
                     donor_names=inputs.donor_names,
@@ -112,10 +120,29 @@ class CLUSTERSC:
                     objective=self.pcr_objective,
                     clustering=self.clustering,
                     estimator=self.estimator,
+                    rank=self.rank,
+                    rank_method=self.rank_method,
+                    cumvar_threshold=self.cumvar_threshold,
+                    k_clusters=self.k_clusters,
+                    k_max=self.k_max,
+                    alpha=self.alpha,
+                    n_bayes_samples=self.n_bayes_samples,
                     lambda_penalty=self.lambda_penalty,
                     p=self.p,
                     q=self.q,
+                    random_state=self.random_state,
                 )
+                # Convert per-period credible band to an ATT-level interval:
+                # tau_t = y_t - cf_t, so a (1-alpha) CI for ATT is
+                # (y_post_mean - cf_upper_post_mean, y_post_mean - cf_lower_post_mean).
+                credible = None
+                if credible_band is not None and inputs.T > inputs.T0:
+                    cf_lo, cf_hi = credible_band
+                    y_post_mean = float(np.mean(inputs.treated_outcome[inputs.T0:]))
+                    credible = (
+                        y_post_mean - float(np.mean(cf_hi[inputs.T0:])),
+                        y_post_mean - float(np.mean(cf_lo[inputs.T0:])),
+                    )
 
             if self.method in {"rpca", "both"}:
                 rpca_fit = run_rpca(
