@@ -398,64 +398,117 @@ class GSCConfig(BaseEstimatorConfig):
 
 
 class CLUSTERSCConfig(BaseEstimatorConfig):
-    """Configuration for the Cluster-based Synthetic Control (CLUSTERSC) estimator."""
+    """Configuration for the Cluster-based Synthetic Control (CLUSTERSC) estimator.
 
-    objective: str = Field(
+    CLUSTERSC packages two robust synthetic-control families behind a
+    single interface:
+
+    * **PCR-RSC** -- SVD-based donor clustering plus Principal Component
+      Regression weight estimation (Amjad, Shah, Shen 2018; Agarwal,
+      Shah, Shen, Song 2021). Frequentist QP via :mod:`cvxpy` or
+      Bayesian posterior (Bayani 2022, CUNY dissertation Ch. 1).
+    * **RPCA-SC** -- robust low-rank donor denoising (PCP -- Candes,
+      Li, Ma, Wright 2011; or HQF -- Wang, Li, So, Liu 2023) followed
+      by simplex SCM weights.
+
+    Parameters
+    ----------
+    method : {"pcr", "rpca", "both"}
+        Estimation family to run. ``"both"`` runs PCR and RPCA in
+        parallel; ``primary`` selects which one exposes ``att`` /
+        ``counterfactual`` / ``gap`` on the result object.
+    primary : {"pcr", "rpca"}
+        Which fit drives the result aliases when ``method = "both"``.
+    pcr_objective : {"OLS", "SIMPLEX"}
+        Inner SCM weight objective for the PCR family.
+    clustering : bool
+        Whether to apply SVD-based donor clustering before the PCR fit.
+    estimator : {"frequentist", "bayesian"}
+        Frequentist QP versus Bayesian posterior for the PCR family.
+    rpca_method : {"PCP", "HQF"}
+        Robust-PCA decomposition for the RPCA family.
+    lambda_penalty, p, q : float or None
+        Elastic-net-style regularization knobs forwarded to the
+        PCR inner solver.
+    alpha : float
+        Two-sided level for the Bayesian credible interval (PCR
+        estimator = "bayesian" only).
+    """
+
+    method: Literal["pcr", "rpca", "both"] = Field(
+        default="pcr",
+        description="Family to run: pcr, rpca, or both.",
+    )
+    primary: Literal["pcr", "rpca"] = Field(
+        default="pcr",
+        description="Which fit drives the result aliases when method='both'.",
+    )
+    pcr_objective: Literal["OLS", "SIMPLEX"] = Field(
         default="OLS",
-        description="Constraint for PCR ('OLS', 'SIMPLEX').",
-        pattern="^(OLS|SIMPLEX|)$"
+        description="Inner SCM weight objective for the PCR family.",
     )
-    cluster: bool = Field(
+    clustering: bool = Field(
         default=True,
-        description="Whether to apply clustering for PCR."
+        description="Whether to apply SVD-based donor clustering before the PCR fit.",
     )
-    Frequentist: bool = Field(
-        default=True,
-        description="If True, use Frequentist Robust SCM; False for Bayesian (for PCR method)."
+    estimator: Literal["frequentist", "bayesian"] = Field(
+        default="frequentist",
+        description="Frequentist QP or Bayesian posterior for the PCR family.",
     )
-    ROB: str = Field(
+    rpca_method: Literal["PCP", "HQF"] = Field(
         default="PCP",
-        description="Robust method for RPCA ('PCP' or 'HQF').",
-        pattern="^(PCP|HQF)$"
-    )  # Parameter name is ROB in code
-    method: str = Field(
-        default="PCR",
-        description="Estimation method: 'PCR', 'RPCA', or 'BOTH'.",
-        pattern="^(PCR|RPCA|BOTH)$"
+        description="Robust-PCA decomposition for the RPCA family.",
     )
-    Robust: Optional[str] = Field(
-        default=None,
-        exclude=True,
-        description="Temporary field to catch phantom 'Robust' param from pytest issue."
-    )
-
-    # --- 🧩 NEW Regularization and Norm Parameters ---
     lambda_penalty: Optional[float] = Field(
-        default=None,
-        ge=0.0,
-        description="Regularization strength (λ) applied to the SCM optimization problem. "
-                    "Higher values impose stronger shrinkage on donor weights."
+        default=None, ge=0.0,
+        description="Elastic-net regularization strength (lambda).",
     )
     p: Optional[float] = Field(
-        default=None,
-        ge=0.0,
-        description="Norm parameter p for the regularization term. Common values: 1 (L1), 2 (L2)."
+        default=None, ge=0.0,
+        description="Norm parameter p for the elastic-net penalty.",
     )
     q: Optional[float] = Field(
-        default=None,
-        ge=0.0,
-        description="Optional secondary norm parameter q, e.g. for mixed-norm penalties."
+        default=None, ge=0.0,
+        description="Secondary norm parameter q (mixed-norm).",
+    )
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided credible-interval level (Bayesian PCR only).",
     )
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
-    def _handle_legacy_robust_param(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if 'Robust' in data:
-                robust_value = data.pop('Robust')
-                # Allow phantom 'Robust' param to map to 'ROB' if appropriate
-                if 'ROB' not in data or data.get('ROB') == cls.model_fields['ROB'].default:
-                    data['ROB'] = robust_value
+    def _normalise_legacy_fields(cls, data: Any) -> Any:
+        """Accept the legacy field names and uppercase method strings."""
+        if not isinstance(data, dict):
+            return data
+        # objective -> pcr_objective
+        if "objective" in data and "pcr_objective" not in data:
+            data["pcr_objective"] = data.pop("objective")
+        else:
+            data.pop("objective", None)
+        # cluster -> clustering
+        if "cluster" in data and "clustering" not in data:
+            data["clustering"] = data.pop("cluster")
+        else:
+            data.pop("cluster", None)
+        # Frequentist -> estimator
+        if "Frequentist" in data and "estimator" not in data:
+            data["estimator"] = (
+                "frequentist" if data.pop("Frequentist") else "bayesian"
+            )
+        else:
+            data.pop("Frequentist", None)
+        # ROB / Robust -> rpca_method
+        for k in ("ROB", "Robust"):
+            if k in data and "rpca_method" not in data:
+                data["rpca_method"] = data.pop(k)
+            else:
+                data.pop(k, None)
+        # Uppercase method tags
+        if "method" in data and isinstance(data["method"], str):
+            mapping = {"PCR": "pcr", "RPCA": "rpca", "BOTH": "both"}
+            data["method"] = mapping.get(data["method"], data["method"])
         return data
 
 
@@ -2491,6 +2544,7 @@ class MAREXResults(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         extra = "forbid"
+
 
 
 
