@@ -1,281 +1,223 @@
-"""Structured containers for the SPCD synthetic design pipeline.
+"""Pre-experiment power analysis for SPCD.
 
-Implements the data containers used throughout the SPCD estimator,
-which itself implements:
+Adapts the Monte Carlo MDE machinery from
+``mlsynth.utils.fast_scm_helpers.power_helpers`` to operate directly on
+the SPCD holdout residuals ``r_B``. The MDE is the smallest treatment
+effect tau such that the mean-absolute-effect statistic rejects the
+null with probability at least ``power_target`` at significance
+``alpha``.
 
-    Lu, Y., Li, J., Ying, L., & Blanchet, J. (2022).
-    Synthetic Principal Component Design: Fast Covariate Balancing
-    with Synthetic Controls. arXiv:2211.15241v1.
+Because SPCD's post-period estimator is a fixed linear functional
+``tau_hat_t = sum_i contrast_weights[i] * Y[i, t]``, the noise
+distribution of ``tau_hat_t`` under H0 is fully characterized by the
+distribution of ``r_B`` -- no further model-fitting is needed at the
+power stage.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 
-from ..fast_scm_helpers.structure import IndexSet
-
-if TYPE_CHECKING:
-    from ...config_models import BaseEstimatorResults
-    from .inference import SPCDConformalResult
-    from .power import SPCDPowerAnalysis
-
 
 @dataclass(frozen=True)
-class SPCDInputs:
-    """Preprocessed panel data for SPCD estimation.
+class SPCDPowerAnalysis:
+    """Container for MDE and detectability outputs.
+
+    Attributes
+    ----------
+    mde_tau : float
+        Smallest absolute effect detectable at ``power_target``.
+        ``np.nan`` when no point on the grid reaches the target.
+    mde_pct : float
+        ``mde_tau`` expressed as a percentage of the holdout baseline.
+    baseline : float
+        Baseline level used for the percentage scaling
+        (mean of the synthetic-treated trajectory over the holdout
+        window).
+    critical_stat : float
+        ``(1 - alpha)``-quantile of the null distribution of the test
+        statistic at horizon ``n_post``.
+    feasible : bool
+        ``True`` if a non-``nan`` MDE was identified.
+    n_post : int
+        Post-treatment horizon for which the MDE was computed.
+    alpha : float
+        Significance level used.
+    power_target : float
+        Power target used.
+    detectability : dict[int, float] or None
+        Optional ``horizon -> MDE`` mapping if a horizon grid was
+        supplied; ``None`` otherwise.
+    """
+
+    mde_tau: float
+    mde_pct: float
+    baseline: float
+    critical_stat: float
+    feasible: bool
+    n_post: int
+    alpha: float
+    power_target: float
+    detectability: Optional[Dict[int, float]] = None
+
+
+def _null_distribution(
+    residuals: np.ndarray, n_post: int, n_sims: int, rng: np.random.Generator
+) -> np.ndarray:
+    """Sample the null distribution of mean(|sample|) at horizon n_post.
+
+    Pads the residual pool with Gaussian draws so that resampling of
+    size ``n_post`` is always feasible even when ``n_post > len(residuals)``.
+    """
+
+    sigma = float(np.std(residuals)) + 1e-12
+    pool = np.concatenate([residuals, rng.normal(0.0, sigma, max(n_post, 1))])
+    stats = np.empty(n_sims)
+    for i in range(n_sims):
+        idx = rng.choice(len(pool), size=n_post, replace=False)
+        stats[i] = float(np.mean(np.abs(pool[idx])))
+    stats.sort()
+    return stats
+
+
+def compute_mde(
+    residuals_B: np.ndarray,
+    baseline: float,
+    n_post: int,
+    alpha: float = 0.05,
+    power_target: float = 0.8,
+    tau_grid: Optional[np.ndarray] = None,
+    n_sims: int = 5000,
+    n_trials: int = 400,
+    seed: int = 1400,
+) -> SPCDPowerAnalysis:
+    """Compute the minimum detectable effect via Monte Carlo.
+
+    Procedure follows ``power_helpers._analytical_mde`` in
+    ``fast_scm_helpers``:
+
+    1. Build the null distribution of the test statistic at horizon
+       ``n_post`` by resampling ``residuals_B`` (padded with Gaussian
+       draws to handle horizon overflow).
+    2. Compute the critical value
+       ``c_alpha = quantile(null_stats, 1 - alpha)``.
+    3. For each candidate ``tau`` on the grid, draw ``n_trials``
+       post-period vectors of the form ``tau + Gaussian noise`` and
+       record the fraction of trials whose statistic exceeds
+       ``c_alpha``. The smallest ``tau`` with empirical power at or
+       above ``power_target`` is the MDE.
 
     Parameters
     ----------
-    Y_pre : np.ndarray
-        Pre-treatment outcome matrix of shape ``(T_pre, N)``. Note that
-        rows are time periods and columns are units, matching the
-        convention used by ``prepare_syndes_inputs``. The paper's
-        equations use ``Y in R^{N x T}``, so when implementing
-        Eq. (2) of the paper, the iteration matrix is built as
-        ``Y_pre.T @ Y_pre + alpha I + lambda 1 1.T``.
-    Y_post : np.ndarray or None
-        Post-treatment outcome matrix of shape ``(T_post, N)``.
-    unit_index : IndexSet
-        Mapping from unit labels to integer indices.
-    time_index : IndexSet
-        Mapping from time labels to integer indices.
-    pre_time_index : IndexSet
-        Index set for pre-treatment periods.
-    post_time_index : IndexSet or None
-        Index set for post-treatment periods.
-    outcome : str
-        Name of outcome variable.
+    residuals_B : np.ndarray
+        Out-of-sample residuals on the holdout window.
+    baseline : float
+        Baseline level used to express the MDE as a percentage.
+        Typically the mean of the synthetic-treated trajectory over the
+        holdout window.
+    n_post : int
+        Post-treatment horizon for the MDE.
+    alpha, power_target : float
+        Significance and power.
+    tau_grid : np.ndarray, optional
+        Grid of candidate effect sizes (in absolute units). Defaults
+        to ``linspace(0, 5 * std(residuals_B), 60)``.
+    n_sims, n_trials, seed : int
+        Monte Carlo control.
+
+    Returns
+    -------
+    SPCDPowerAnalysis
     """
 
-    Y_pre: np.ndarray
-    Y_post: Optional[np.ndarray]
-    unit_index: IndexSet
-    time_index: IndexSet
-    pre_time_index: IndexSet
-    post_time_index: Optional[IndexSet]
-    outcome: str
+    residuals_B = np.asarray(residuals_B, dtype=float).ravel()
+    rng = np.random.default_rng(seed)
+
+    sigma = float(np.std(residuals_B)) + 1e-12
+
+    if tau_grid is None:
+        tau_grid = np.linspace(1e-6, 5.0 * sigma, 60)
+
+    null_stats = _null_distribution(residuals_B, n_post, n_sims, rng)
+    c_alpha = float(np.quantile(null_stats, 1.0 - alpha))
+
+    safe_baseline = abs(baseline) if abs(baseline) > 1e-12 else 1.0
+
+    mde_tau = float("nan")
+    feasible = False
+    for tau in tau_grid:
+        hits = 0
+        for _ in range(n_trials):
+            noise = rng.normal(0.0, sigma, n_post)
+            stat = float(np.mean(np.abs(tau + noise)))
+            if stat >= c_alpha:
+                hits += 1
+        if hits / n_trials >= power_target:
+            mde_tau = float(tau)
+            feasible = True
+            break
+
+    mde_pct = (mde_tau / safe_baseline * 100.0) if feasible else float("nan")
+
+    return SPCDPowerAnalysis(
+        mde_tau=mde_tau,
+        mde_pct=mde_pct,
+        baseline=float(baseline),
+        critical_stat=c_alpha,
+        feasible=feasible,
+        n_post=int(n_post),
+        alpha=float(alpha),
+        power_target=float(power_target),
+        detectability=None,
+    )
 
 
-@dataclass(frozen=True)
-class SPCDDesign:
-    """Optimized SPCD design solution.
+def compute_detectability_curve(
+    residuals_B: np.ndarray,
+    baseline: float,
+    horizon_grid: List[int],
+    alpha: float = 0.05,
+    power_target: float = 0.8,
+    n_sims: int = 5000,
+    n_trials: int = 400,
+    seed: int = 1400,
+) -> Dict[int, float]:
+    """Compute MDE as a function of post-treatment horizon length.
 
-    The "assignment" is represented in two equivalent forms:
-
-    * ``assignment_pm1`` — the paper's internal ``{-1, +1}`` sign vector
-      ``y* in {-1, +1}^N`` (see Algorithm 1, page 7).
-    * ``selected_mask`` — a ``{0, 1}`` indicator marking the minority
-      group that is treated, following the rule "Treat Unit i if
-      ``gamma(i) = -sgn(sum_j gamma(j))``" at the bottom of Algorithm 1.
+    Useful for answering "how long does the experiment need to run to
+    detect a target effect?" before committing to a treatment window.
 
     Parameters
     ----------
-    variant : str
-        Iteration variant used: ``"spcd"`` (Eq. (4)/(7)) or
-        ``"norm_spcd"`` (Eq. (5)/(8)).
-    weights_mode : str
-        Final weight step used: ``"empirical"`` (Eq. (9), Algorithm 2) or
-        ``"exact"`` (Eq. (6), Algorithm 1).
-    assignment_pm1 : np.ndarray
-        Final sign vector ``y* in {-1, +1}^N`` produced by the
-        iteration. See Algorithm 1, page 7.
-    selected_mask : np.ndarray
-        Binary ``{0, 1}`` indicator of treated units, following the
-        minority-group convention from the bottom of Algorithm 1.
-    raw_weights : np.ndarray
-        Signed weights ``w in R^N`` computed by the final weight step
-        (Eq. (9) for ``weights="empirical"`` or Eq. (6) for
-        ``weights="exact"``).
-    treated_weights : np.ndarray
-        Weights restricted to the treated group, normalized to sum to 1.
-    control_weights : np.ndarray
-        Weights restricted to the control group, normalized to sum to 1.
-    contrast_weights : np.ndarray
-        Signed contrast weights forming ``treated_weights - control_weights``
-        (with appropriate signs), used to construct the synthetic gap.
-    synthetic_treated : np.ndarray
-        Synthetic treated trajectory ``Y @ treated_weights`` of length
-        ``T_pre + T_post``.
-    synthetic_control : np.ndarray
-        Synthetic control trajectory ``Y @ control_weights`` of length
-        ``T_pre + T_post``.
-    synthetic_gap : np.ndarray
-        Pointwise difference ``synthetic_treated - synthetic_control``.
-    selected_unit_indices : np.ndarray
-        Integer indices of treated units.
-    selected_unit_labels : np.ndarray
-        Original labels of treated units.
-    n_treated : int
-        Number of treated units.
-    n_iterations : int
-        Number of iterations executed by Algorithm 1's while loop.
-    converged : bool
-        True if the sign vector stabilized before ``max_iter``.
-    alpha_ridge : float
-        Value of ``alpha`` used in Eq. (2) (ridge on ``Y Y^T``).
-    lam_balance : float
-        Value of ``lambda`` used in Eq. (2) (penalty on ``(1^T W)^2``).
-    beta : float
-        Value of ``beta`` used in the iteration update.
+    residuals_B : np.ndarray
+        Out-of-sample holdout residuals.
+    baseline : float
+        Baseline level for percentage scaling.
+    horizon_grid : list of int
+        Horizons (number of post periods) at which to evaluate the MDE.
+    alpha, power_target, n_sims, n_trials, seed : see :func:`compute_mde`.
+
+    Returns
+    -------
+    dict
+        Mapping ``horizon -> MDE in percent``. Infeasible entries are
+        recorded as ``nan``.
     """
 
-    variant: str
-    weights_mode: str
-    assignment_pm1: np.ndarray
-    selected_mask: np.ndarray
-    raw_weights: np.ndarray
-    treated_weights: np.ndarray
-    control_weights: np.ndarray
-    contrast_weights: np.ndarray
-    synthetic_treated: np.ndarray
-    synthetic_control: np.ndarray
-    synthetic_gap: np.ndarray
-    selected_unit_indices: np.ndarray
-    selected_unit_labels: np.ndarray
-    n_treated: int
-    n_iterations: int
-    converged: bool
-    alpha_ridge: float
-    lam_balance: float
-    beta: float
-
-@dataclass(frozen=True)
-class SPCDResults:
-    """User-facing output of the SPCD estimator.
-
-    Parameters
-    ----------
-    design : SPCDDesign
-        Optimization solution.
-    inputs : SPCDInputs, optional
-        Preprocessed data used in estimation. Attached by the
-        :class:`mlsynth.estimators.SPCD` orchestrator so the result is
-        self-contained for plotting.
-    summary : BaseEstimatorResults, optional
-        Standardized result bundle containing ATT, pre/post fit RMSEs,
-        synthetic-paths time series, per-unit signed weights, and method
-        diagnostics. Attached by the SPCD orchestrator so users get a
-        single object whose shape matches the rest of the mlsynth
-        estimator suite.
-
-    Notes
-    -----
-    ``mode`` always reports ``"spcd"`` so plotting and dispatch code can
-    branch on it uniformly with :class:`SYNDESResults`.
-
-    Convenience properties (``att``, ``rmse_pre``, ``rmse_post``,
-    ``donor_weights``) forward to the corresponding fields of
-    ``summary`` when it is attached.
-    """
-
-    design: SPCDDesign
-    inputs: Optional[SPCDInputs] = None
-    summary: Optional["BaseEstimatorResults"] = None
-    conformal: Optional["SPCDConformalResult"] = None
-    power: Optional["SPCDPowerAnalysis"] = None
-
-    @property
-    def mode(self) -> str:
-        """Solver mode reported to downstream consumers."""
-        return "spcd"
-
-    @property
-    def assignment(self) -> np.ndarray:
-        """Alias for ``design.selected_mask`` (0/1 indicator of treated units)."""
-        return self.design.selected_mask
-
-    @property
-    def selected_unit_indices(self) -> np.ndarray:
-        """Integer indices of units selected into treatment."""
-        return self.design.selected_unit_indices
-
-    @property
-    def selected_unit_labels(self) -> np.ndarray:
-        """Labels of units selected into treatment."""
-        if self.inputs is None:
-            return self.design.selected_unit_indices
-        return self.inputs.unit_index.get_labels(self.design.selected_unit_indices)
-
-    @property
-    def att(self) -> Optional[float]:
-        """Average treatment effect on the treated, or ``None`` if no summary."""
-        if self.summary is None or self.summary.effects is None:
-            return None
-        return self.summary.effects.att
-
-    @property
-    def rmse_pre(self) -> Optional[float]:
-        """Pre-treatment RMSE of the synthetic gap."""
-        if self.summary is None or self.summary.fit_diagnostics is None:
-            return None
-        return self.summary.fit_diagnostics.rmse_pre
-
-    @property
-    def rmse_post(self) -> Optional[float]:
-        """Post-treatment RMSE of the synthetic gap, if a post period exists."""
-        if self.summary is None or self.summary.fit_diagnostics is None:
-            return None
-        return self.summary.fit_diagnostics.rmse_post
-
-    @property
-    def donor_weights(self) -> Optional[dict]:
-        """Per-unit signed contrast weights as a label-to-float dict."""
-        """Control-side weights as ``{label: weight}`` (non-negative, sum to 1).
-
-        Synthetic-control literature calls control units "donors", so
-        ``donor_weights`` is the dict of control-unit labels mapped to
-        their positive weights. Use :py:meth:`treated_weights_by_unit`
-        for the treated-side equivalent.
-        """
-        if self.summary is None or self.summary.weights is None:
-            return None
-        return self.summary.weights.donor_weights
-
-    @property
-    def treated_weights_by_unit(self) -> Optional[dict]:
-        """Treated-side weights as ``{label: weight}`` (non-negative, sum to 1)."""
-        if self.summary is None or self.summary.weights is None:
-            return None
-        return getattr(self.summary.weights, "treated_weights_by_unit", None)
-
-    @property
-    def control_weights_by_unit(self) -> Optional[dict]:
-        """Control-side weights as ``{label: weight}`` (non-negative, sum to 1).
-
-        Alias of :py:meth:`donor_weights` for users who prefer the
-        explicit treated/control naming over the SC-literature
-        "donor" terminology.
-        """
-        if self.summary is None or self.summary.weights is None:
-            return None
-        return getattr(self.summary.weights, "control_weights_by_unit", None)
-
-
-
-    @property
-    def p_value(self) -> Optional[float]:
-        """Conformal p-value vs. H0: tau = 0, if computed."""
-        return self.conformal.p_value if self.conformal is not None else None
-
-    @property
-    def ci_lower(self) -> Optional[float]:
-        """Conformal lower bound of the ATT CI, if computed."""
-        return self.conformal.ci_lower if self.conformal is not None else None
-
-    @property
-    def ci_upper(self) -> Optional[float]:
-        """Conformal upper bound of the ATT CI, if computed."""
-        return self.conformal.ci_upper if self.conformal is not None else None
-
-    @property
-    def mde(self) -> Optional[float]:
-        """Minimum detectable effect on the absolute scale, if computed."""
-        return self.power.mde_tau if self.power is not None else None
-
-    @property
-    def mde_pct(self) -> Optional[float]:
-        """Minimum detectable effect as a percentage of the holdout baseline."""
-        return self.power.mde_pct if self.power is not None else None
+    curve: Dict[int, float] = {}
+    for h in horizon_grid:
+        result = compute_mde(
+            residuals_B=residuals_B,
+            baseline=baseline,
+            n_post=int(h),
+            alpha=alpha,
+            power_target=power_target,
+            n_sims=n_sims,
+            n_trials=n_trials,
+            seed=seed,
+        )
+        curve[int(h)] = result.mde_pct
+    return curve
