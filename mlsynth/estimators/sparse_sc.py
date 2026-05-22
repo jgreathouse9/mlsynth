@@ -40,7 +40,7 @@ from ..exceptions import (
     MlsynthEstimationError,
     MlsynthPlottingError,
 )
-from ..utils.sparse_sc_helpers.inference import run_placebo
+from ..utils.sparse_sc_helpers.inference import conformal_inference, run_placebo
 from ..utils.sparse_sc_helpers.optimization import recover_w, sweep_lambda
 from ..utils.sparse_sc_helpers.plotter import plot_sparse_sc
 from ..utils.sparse_sc_helpers.setup import prepare_sparse_sc_inputs
@@ -123,6 +123,9 @@ class SparseSC:
         self.use_analytical_grad: bool = config.use_analytical_grad
         self.warm_start: bool = config.warm_start
         self.run_inference: bool = config.run_inference
+        self.inference_method: str = config.inference_method
+        self.conformal_window: str = config.conformal_window
+        self.alpha: float = config.alpha
         self.n_placebo = config.n_placebo
         self.placebo_resweep: bool = config.placebo_resweep
         self.seed: int = config.seed
@@ -172,7 +175,14 @@ class SparseSC:
                 v_path=v_path,
             )
 
-            if self.run_inference:
+            if not self.run_inference or self.inference_method == "none":
+                inference = SparseSCInference(
+                    method="none",
+                    p_value=float("nan"),
+                    att_observed=att,
+                    alpha=float(self.alpha),
+                )
+            elif self.inference_method == "placebo":
                 placebo_atts, p_val, n_done = run_placebo(
                     Y0=inputs.Y0, Y1=inputs.Y1,
                     X0=inputs.X0, X1=inputs.X1,
@@ -188,16 +198,36 @@ class SparseSC:
                 )
                 inference = SparseSCInference(
                     method="abadie_placebo_permutation",
-                    placebo_atts=placebo_atts,
                     p_value=p_val,
+                    att_observed=att,
+                    alpha=float(self.alpha),
+                    placebo_atts=placebo_atts,
                     n_placebo=n_done,
                 )
-            else:
+            elif self.inference_method == "conformal":
+                conf = conformal_inference(
+                    gap=gap,
+                    T0_train=inputs.T0_train,
+                    T0_total=inputs.T0_total,
+                    T=inputs.T,
+                    conformal_window=self.conformal_window,
+                    alpha=self.alpha,
+                )
                 inference = SparseSCInference(
-                    method="none",
-                    placebo_atts=np.asarray([]),
-                    p_value=float("nan"),
-                    n_placebo=0,
+                    method=conf["method"],
+                    p_value=conf["p_value"],
+                    att_observed=conf["att_observed"],
+                    ci_lower=conf["ci_lower"],
+                    ci_upper=conf["ci_upper"],
+                    alpha=conf["alpha"],
+                    calibration_residuals=conf["calibration_residuals"],
+                    pointwise_lower=conf["pointwise_lower"],
+                    pointwise_upper=conf["pointwise_upper"],
+                )
+            else:
+                raise MlsynthConfigError(
+                    f"Unknown inference_method={self.inference_method!r}; "
+                    "expected 'conformal', 'placebo', or 'none'."
                 )
 
             donor_weights: Dict[Any, float] = {
