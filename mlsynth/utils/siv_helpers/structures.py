@@ -10,15 +10,12 @@ both have pre-treatment variation.
 """
 
 from __future__ import annotations
-
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-import pandas as pd
 
-from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..fast_scm_helpers.structure import IndexSet
-from .structures import SIVInputs
 
 
 def prepare_siv_inputs(
