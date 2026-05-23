@@ -828,6 +828,55 @@ class CSCConfig(BaseEstimatorConfig):
     )
 
 
+class MCNNMConfig(BaseEstimatorConfig):
+    """Configuration for the MC-NNM estimator.
+
+    Athey, Bayati, Doudchenko, Imbens & Khosravi (2021), *"Matrix
+    Completion Methods for Causal Panel Data Models"* (JASA). Imputes the
+    treated cells of the outcome matrix via nuclear-norm-regularised
+    low-rank matrix completion with unregularised two-way fixed effects
+    (SOFT-IMPUTE, threshold chosen by cross-validation). Inherits the
+    standard ``df`` / ``outcome`` / ``treat`` / ``unitid`` / ``time``
+    interface.
+
+    Parameters
+    ----------
+    estimate_unit_fe : bool
+        Estimate (unregularised) unit fixed effects. Default True.
+    estimate_time_fe : bool
+        Estimate (unregularised) time fixed effects. Default True.
+    n_lambda : int
+        Number of candidate singular-value thresholds in the CV grid.
+    n_folds : int
+        Cross-validation folds over the observed cells.
+    inference : bool
+        Run a leave-one-control jackknife for the ATT SE / CI. Default
+        False (it refits the model once per control unit).
+    alpha : float
+        Two-sided level for the jackknife confidence interval.
+    random_state : int
+        Seed for the CV fold assignment.
+    """
+
+    estimate_unit_fe: bool = Field(
+        default=True, description="Estimate unregularised unit fixed effects.")
+    estimate_time_fe: bool = Field(
+        default=True, description="Estimate unregularised time fixed effects.")
+    n_lambda: int = Field(
+        default=40, ge=2,
+        description="Number of candidate thresholds in the CV grid.")
+    n_folds: int = Field(
+        default=5, ge=2, description="Cross-validation folds over observed cells.")
+    inference: bool = Field(
+        default=False,
+        description="Run a leave-one-control jackknife for the ATT SE/CI.")
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for the jackknife confidence interval.")
+    random_state: int = Field(
+        default=0, description="Seed for the CV fold assignment.")
+
+
 class SNNConfig(BaseEstimatorConfig):
     """Configuration for the Synthetic Nearest Neighbors (SNN) estimator.
 
@@ -907,6 +956,12 @@ class CTSCConfig(BaseEstimatorConfig):
     slopes and synthetic controls for all units. (The paper calls it "GSC";
     mlsynth uses CTSC to avoid collision with Xu (2017)'s GSC.)
 
+    Notes
+    -----
+    The base ``treat`` field is unused by CTSC; provide the continuous /
+    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
+    existing column name for ``treat`` to satisfy the base config.
+
     Parameters
     ----------
     treatment_vars : list of str
@@ -924,12 +979,6 @@ class CTSCConfig(BaseEstimatorConfig):
         Rademacher draws for the randomization test.
     random_state : int
         Seed for the randomization-test RNG.
-
-    Notes
-    -----
-    The base ``treat`` field is unused by CTSC; provide the continuous /
-    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
-    existing column name for ``treat`` to satisfy the base config.
     """
 
     treatment_vars: List[str] = Field(
@@ -1015,6 +1064,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
     Parameters
     ----------
     outcomes : list of str
@@ -1030,12 +1085,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
