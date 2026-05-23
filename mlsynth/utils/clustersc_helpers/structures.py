@@ -112,26 +112,44 @@ class MethodFit:
 
 @dataclass(frozen=True)
 class CLUSTERSCInference:
-    """Optional inferential output (currently Bayesian PCR only).
+    """Optional inferential output.
+
+    Two inference families are supported on the PCR-SC fit:
+
+    * **Bayesian credible band** -- populated when ``estimator =
+      "bayesian"``. Reports a posterior credible interval for the
+      ATT (Bayani 2022 Ch. 1).
+    * **Shen-Ding-Sekhon-Yu (2023) frequentist CIs** -- populated
+      for the frequentist OLS PCR path. Reports per-period and ATT
+      CIs under three sources of randomness (HZ / VT / DR) and one
+      of three variance estimators (homoskedastic / jackknife /
+      HRK).
 
     Parameters
     ----------
     method : str
-        ``"bayesian_credible"`` or ``"none"``.
+        ``"bayesian_credible"`` for the Bayesian path,
+        ``"shen_<variance>"`` (e.g. ``"shen_homoskedastic"``) for the
+        Shen et al. path, or ``"none"`` if no inference was run.
     alpha : float
-        Two-sided significance level (e.g. 0.05 -> 95% credible
-        interval).
+        Two-sided significance level (e.g. 0.05 -> 95% interval).
     att : float
-        Mean post-treatment gap for the method the user selected.
+        Mean post-treatment gap for the primary variant.
     credible_interval : tuple of float
         ``(lower, upper)`` posterior credible interval for the ATT
-        (Bayesian PCR only; ``(nan, nan)`` otherwise).
+        (Bayesian path only; ``(nan, nan)`` otherwise).
+    shen : object, optional
+        Full :class:`mlsynth.utils.clustersc_helpers.pcr.inference.ShenInference`
+        object when the Shen et al. CIs were computed (frequentist
+        OLS PCR only). Carries per-period and ATT CIs under each
+        source-of-randomness assumption.
     """
 
     method: str
     alpha: float
     att: float = float("nan")
     credible_interval: Tuple[float, float] = (float("nan"), float("nan"))
+    shen: Optional[Any] = None
 
 
 @dataclass(frozen=True)
