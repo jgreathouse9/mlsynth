@@ -81,6 +81,19 @@ class MCNNMResults:
         Cross-validation-selected singular-value threshold.
     rank : int
         Numerical rank of ``L`` (singular values > 1e-6 of the max).
+    unit_factors : np.ndarray
+        Unit loadings :math:`U \\Sigma^{1/2}` from the SVD of ``L``, shape
+        ``(N, rank)`` -- MC-NNM's "under the hood": each unit's position in
+        the latent factor space.
+    time_factors : np.ndarray
+        Time factors :math:`V \\Sigma^{1/2}`, shape ``(T, rank)``.
+    singular_values : np.ndarray
+        Singular values of ``L`` (the nuclear-norm spectrum).
+    weights : WeightsResults, optional
+        *Implied* per-treated-unit donor weights, obtained by projecting
+        the treated unit's low-rank row onto the control rows. MC-NNM is a
+        factorisation (not a weighting) estimator, so these are a derived,
+        **non-unique** diagnostic -- flagged as such in ``summary_stats``.
     inference : object, optional
         :class:`MCNNMInference` when ``inference=True``; else ``None``.
     metadata : dict
@@ -96,6 +109,10 @@ class MCNNMResults:
     delta: np.ndarray
     best_lambda: float
     rank: int
+    unit_factors: Optional[np.ndarray] = None
+    time_factors: Optional[np.ndarray] = None
+    singular_values: Optional[np.ndarray] = None
+    weights: Optional[Any] = None
     inference: Optional["MCNNMInference"] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 

@@ -45,8 +45,7 @@ def _two_way_fe(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Unit (Gamma) and time (Delta) effects fitting residual ``R`` over the
     observed entries (``mask == 1``), via alternating means (paper: FE from
-    the first-order conditions of the squared-error term).
-    """
+    the first-order conditions of the squared-error term)."""
     N, T = R.shape
     gamma = np.zeros(N)
     delta = np.zeros(T)
@@ -122,8 +121,7 @@ def mcnnm_fit(
 
 def _lambda_grid(Y: np.ndarray, mask: np.ndarray, n_lam: int) -> np.ndarray:
     """Geometric grid of SVD thresholds from ~spectral-norm down to a small
-    fraction (Mazumder et al. warm-start grid).
-    """
+    fraction (Mazumder et al. warm-start grid)."""
     Yobs = mask * Y
     # Demean by observed grand mean for a sensible spectral scale.
     if mask.sum() > 0:

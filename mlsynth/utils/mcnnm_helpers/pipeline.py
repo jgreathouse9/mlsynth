@@ -6,10 +6,60 @@ from typing import Optional
 
 import numpy as np
 
+from ...config_models import WeightsResults
 from .completion import mcnnm_cv, mcnnm_fit
 from .structures import MCNNMInference, MCNNMInputs, MCNNMResults
 
 _EPS = 1e-12
+
+
+def _factors_and_weights(inputs: MCNNMInputs, L: np.ndarray):
+    """SVD factor decomposition of L plus implied (non-unique) donor weights.
+
+    Returns (unit_factors, time_factors, singular_values, WeightsResults).
+    Implied weights project each treated unit's low-rank row onto the
+    control units' low-rank rows by least squares.
+    """
+    U, s, Vt = np.linalg.svd(L, full_matrices=False)
+    r = int((s > 1e-6 * (s[0] if s.size else 1.0)).sum())
+    r = max(r, 1)
+    sqrt_s = np.sqrt(s[:r])
+    unit_factors = U[:, :r] * sqrt_s
+    time_factors = Vt[:r].T * sqrt_s
+
+    names = inputs.unit_names
+    control_idx = np.array([i for i in range(inputs.N)
+                            if i not in set(inputs.treated_idx.tolist())])
+    Lc = L[control_idx]                      # (n_control, T)
+    per_unit = {}
+    for i in inputs.treated_idx:
+        # min_w || L[i] - sum_j w_j L[j] ||  over control rows j
+        w, *_ = np.linalg.lstsq(Lc.T, L[i], rcond=None)
+        per_unit[str(names[i])] = {str(names[control_idx[k]]): float(w[k])
+                                   for k in range(control_idx.size)}
+    if len(per_unit) == 1:
+        donor_weights = next(iter(per_unit.values()))
+    else:
+        donor_weights = {}
+        for d in {dn for u in per_unit.values() for dn in u}:
+            donor_weights[d] = float(np.mean([u.get(d, 0.0)
+                                              for u in per_unit.values()]))
+    w_arr = np.array(list(donor_weights.values())) if donor_weights else np.array([])
+    summary = {
+        "weights_are": "implied_non_unique",
+        "note": ("MC-NNM is a factorisation estimator; these donor weights "
+                 "are derived by projecting the treated unit's low-rank row "
+                 "onto the control rows and are not unique. The estimator's "
+                 "actual object is the factor decomposition (unit_factors, "
+                 "time_factors)."),
+        "rank": r,
+        "n_donors": int(w_arr.size),
+        "sum_of_weights": float(w_arr.sum()) if w_arr.size else 0.0,
+    }
+    if len(per_unit) > 1:
+        summary["per_unit_donor_weights"] = per_unit
+    weights = WeightsResults(donor_weights=donor_weights, summary_stats=summary)
+    return unit_factors, time_factors, s[:r], weights
 
 
 def _att_from_fit(Y, D, completed, T0, time_labels):
@@ -64,6 +114,9 @@ def run_mcnnm(
     )
     s = np.linalg.svd(fit["L"], compute_uv=False)
     rank = int((s > 1e-6 * (s[0] if s.size else 1.0)).sum())
+    unit_factors, time_factors, singular_values, weights = _factors_and_weights(
+        inputs, fit["L"]
+    )
 
     inf = None
     if inference:
@@ -81,6 +134,8 @@ def run_mcnnm(
         inputs=inputs, att=att, counterfactual=completed, effects=effects,
         att_by_period=att_by_period, L=fit["L"], gamma=fit["gamma"],
         delta=fit["delta"], best_lambda=float(fit["best_lambda"]), rank=rank,
+        unit_factors=unit_factors, time_factors=time_factors,
+        singular_values=singular_values, weights=weights,
         inference=inf, metadata=metadata,
     )
 
