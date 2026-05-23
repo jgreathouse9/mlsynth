@@ -131,4 +131,5 @@ class DSCResults:
     average_qte: np.ndarray
     att: float
     pre_period_wasserstein: np.ndarray
+    weights: Optional[Any] = None
     metadata: Dict[str, Any] = field(default_factory=dict)

@@ -30,6 +30,7 @@ from typing import Literal, Optional, Sequence
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
+from ..results_helpers import make_weights_results
 from .aggregation import aggregate_period_weights, build_lambda_weights
 from .quantiles import (
     build_pseudo_sample_matrix,
@@ -201,6 +202,11 @@ def run_dsc(
         "n_qte_points": int(q_grid.size),
     }
 
+    weights_res = make_weights_results(
+        donor_weights, constraint="simplex (non-negative, sum to 1)",
+        extra={"aggregation": "w_hat = sum_t lambda_t w_t over pre-periods"},
+    )
+
     return DSCResults(
         inputs=inputs,
         donor_weights=donor_weights,
@@ -210,5 +216,6 @@ def run_dsc(
         average_qte=avg_qte,
         att=att,
         pre_period_wasserstein=period_loss,
+        weights=weights_res,
         metadata=metadata,
     )
