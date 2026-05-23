@@ -52,6 +52,7 @@ MLSYNTH
    ctsc
    snn
    mcnnm
+   pangeo
    ppscm
    sparse_sc
    microsynth
