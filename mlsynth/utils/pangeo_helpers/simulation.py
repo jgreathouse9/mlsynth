@@ -33,6 +33,9 @@ def make_seasonal_sales_panel(
     seed: int = 0,
     covariates: bool = False,
     n_post: int = 0,
+    factor: str = "rw",
+    season_amp: float = 1.0,
+    trend_sd: float = 0.01,
 ) -> pd.DataFrame:
     """Simulate a seasonal, multi-arm, sales-like pre-treatment panel.
 
@@ -63,6 +66,14 @@ def make_seasonal_sales_panel(
         1 = post); the DGP continues unchanged (no treatment effect -- the
         effect is injected by the caller after the design is fixed, which is
         how PANGEO's ATT recovery is validated).
+    factor : {"rw", "iid", "ar1"}
+        Process for the unobserved common factors that drive the supergeo
+        gap. ``"rw"`` (default) is an integrated random walk -- a stress test
+        whose non-exchangeable loadings violate the conformal-inference
+        assumption (Abadie & Zhao 2026, Thm 2) and demand the
+        increment-bootstrap. ``"iid"`` and ``"ar1"`` are stationary
+        (exchangeable) factors under which the blank-window conformal CI is
+        exact.
 
     Returns
     -------
@@ -76,8 +87,19 @@ def make_seasonal_sales_panel(
     t = np.arange(total_T)
 
     # Common low-rank factor structure (shared across all units).
-    F = np.cumsum(rng.standard_normal((total_T, n_factors)) * 0.3, axis=0)
-    F += np.linspace(0.0, 1.0, total_T)[:, None]      # mild common drift
+    if factor == "rw":               # integrated (non-exchangeable) factor
+        F = np.cumsum(rng.standard_normal((total_T, n_factors)) * 0.3, axis=0)
+        F += np.linspace(0.0, 1.0, total_T)[:, None]  # mild common drift
+    elif factor == "iid":            # stationary, exchangeable loadings
+        F = rng.standard_normal((total_T, n_factors)) * 1.5
+    elif factor == "ar1":            # stationary AR(1) factor
+        F = np.empty((total_T, n_factors))
+        e = rng.standard_normal((total_T, n_factors)) * 0.6
+        F[0] = e[0]
+        for ti in range(1, total_T):
+            F[ti] = 0.6 * F[ti - 1] + e[ti]
+    else:
+        raise ValueError(f"unknown factor process {factor!r}")
 
     rows = []
     for arm in arms:
@@ -90,8 +112,8 @@ def make_seasonal_sales_panel(
         for u in range(units_per_arm):
             mu = rng.standard_normal(n_factors)        # unit factor loadings
             level = 10.0 + rng.standard_normal() * 2.0  # baseline sales level
-            trend = rng.standard_normal() * 0.01        # gentle unit trend
-            amp = 1.0 + rng.uniform(0, 1.0)             # seasonal amplitude
+            trend = rng.standard_normal() * trend_sd     # gentle unit trend
+            amp = season_amp * (1.0 + rng.uniform(0, 1.0))  # seasonal amplitude
             phase = arm_phase + rng.normal(0, 0.15)     # near-shared phase
             signal = (
                 F @ mu

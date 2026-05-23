@@ -4,89 +4,116 @@ PANGEO is a *design* method: with only pre-treatment history it returns the
 supergeo pairs and the treatment/control assignment. If the experiment has
 since run -- i.e. the panel carries a ``post_col`` marking post-treatment
 periods -- the **same design** (built on the pre-period alone) is scored
-against the realized post outcomes here.
+against the realized post outcomes here, with inference following the
+**Augmented Difference-in-Differences** estimator of Li & Van den Bulte
+(2022, *Marketing Science* 42(4):746-767).
 
-Under the pre-period balance the design enforces (parallel treatment and
-control supergeo trajectories), the within-pair estimator is the textbook
-difference-in-differences. For a pair with population-weighted supergeo
-means :math:`\\bar Y^T_t, \\bar Y^C_t` and gap
-:math:`g_t = \\bar Y^T_t - \\bar Y^C_t`,
+The estimator and its inference
+-------------------------------
+
+For a treated supergeo aggregate :math:`y^{T}_t` and a control supergeo
+aggregate :math:`y^{C}_t`, the counterfactual is the regression projection
 
 .. math::
 
-   \\hat\\tau_p
-   = \\underbrace{\\overline{g}_{\\text{post}}}_{\\text{post gap}}
-   - \\underbrace{\\delta_p}_{\\text{pre gap (counterfactual)}},
-   \\qquad \\delta_p = \\overline{g}_{\\text{pre}} .
+   y^{T}_t = \\delta_1 + \\delta_2\\, y^{C}_t + \\gamma\\, t + e_t ,
+   \\qquad t = 1,\\dots,T_1 ,
 
-where the counterfactual level :math:`\\delta_p` is the gap mean over the
-**held-out blank window** (the recent pre periods the split was *not*
-optimised on) -- a local anchor, so per-geo level differences and slow
-drift are removed rather than compared against a stale level. The arm and
-**program** ATTs are population-weighted averages of the pair effects
-(treated-supergeo weights); the program number is the headline.
+fit by least squares on the **pre-period** (the *augmented* DiD: the scale
+:math:`\\delta_2` is free rather than forced to 1, and a linear time trend
+:math:`\\gamma t` is included). Writing :math:`x_t = (1, y^{C}_t, t)'` and
+:math:`\\hat\\delta` for the OLS estimate, the per-period treatment effect is
+:math:`\\hat u_t = y^{T}_t - x_t'\\hat\\delta` and the ATT is
+:math:`\\hat\\Delta = T_2^{-1}\\sum_{t=T_1+1}^{T}\\hat u_t`.
 
-Inference is by **moving-block bootstrap of the held-out gap increments**
--- the integrated-series analogue of moving-block conformal inference
-(Chernozhukov, Wuthrich & Zhu 2021). The supergeo gap is typically
-near-integrated: the residual factor loading that survives imperfect
-balancing rides the latent random walk, so the gap *drifts* over the post
-horizon and the dominant uncertainty is that future drift -- which the
-*levels* of a short pre/blank window cannot reveal, but their (stationary)
-**first differences** can. The blank-window increments are moving-block
-resampled and cumulated into synthetic ``n_level + n_post`` segments; the
-null statistic ``mean(post) - mean(trailing level)`` is read off each
-segment, so both the level-estimation noise and the forward drift come from
-one coherent path. The 95% interval and p-value follow at the **arm** and
-**program** levels. (A stationary residual reservoir, by contrast,
-under-covers badly here because it is blind to the random-walk drift.)
+Li & Van den Bulte show (Propositions 3.1-3.3; Web Appendix C) that
+:math:`\\sqrt{T_2}(\\hat\\Delta-\\Delta)\\to N(0,\\Sigma_1+\\Sigma_2)`, which
+gives the **prediction-variance** standard error (their C.13)
+
+.. math::
+
+   \\widehat{\\operatorname{Var}}(\\hat\\Delta)
+   = \\hat\\omega^2\\Big[\\,\\bar x_{\\text{post}}'
+       \\big(\\textstyle\\sum_{t=1}^{T_1} x_t x_t'\\big)^{-1}
+       \\bar x_{\\text{post}} \\;+\\; \\tfrac{1}{T_2}\\,\\Big] ,
+
+where :math:`\\bar x_{\\text{post}}` is the post-period mean of :math:`x_t`
+and :math:`\\hat\\omega^2` is the residual variance, estimated over the long
+pre-period (a Newey-West/Bartlett long-run variance with lag
+:math:`\\lfloor T_1^{1/4}\\rfloor` to allow serial correlation; lag 0 is the
+i.i.d. case :math:`\\hat\\sigma^2_e=\\hat e'\\hat e/(T_1-k)`). The two terms
+are the coefficient-estimation variance (Σ₁) and the post-period averaging
+variance (Σ₂). The CI is :math:`\\hat\\Delta\\pm z_{1-\\alpha/2}\\,\\text{SE}`.
+
+Why this estimator suits the supergeo gap
+-----------------------------------------
+
+The theory explicitly admits **trend and unit-root (integrated) common
+factors** (Li & Van den Bulte Assumptions C2/C3, Prop 3.3). The
+augmentation :math:`\\delta_2` makes treated-on-control a *cointegrating*
+regression, scaling out a shared integrated factor; the trend term absorbs
+deterministic drift; and the prediction-variance term automatically inflates
+when the post-period control drifts outside its pre-period range, pricing
+the extrapolation uncertainty. The validity condition is that the
+**residual** :math:`e_t` be (weakly dependent) stationary -- which the
+augmentation + trend deliver. The arm and **program** ATTs apply this
+single-treated-unit estimator to the treated-size-weighted supergeo
+aggregate at each level; the program number is the headline.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 from .parallelism import _wavg
 
 
 @dataclass(frozen=True)
 class AttEstimate:
-    """A difference-in-differences ATT (with bootstrap CI) at one level.
+    """An augmented-DiD ATT (Li & Van den Bulte 2022) at one level.
 
     Attributes
     ----------
     level : str
         ``"program"`` or an arm label.
     att : float
-        DiD ATT on the (population-weighted) outcome scale.
+        Augmented-DiD ATT on the (population-weighted) outcome scale.
     att_pct : float
         ATT as a percentage of the pre-period treated baseline level.
     baseline : float
         Pre-period treated-group level used for ``att_pct``.
+    se : float
+        Prediction-variance standard error (Li & Van den Bulte C.13).
     ci_lower, ci_upper : float
-        Moving-block-bootstrap confidence interval for the absolute ATT.
+        Confidence interval for the absolute ATT.
     ci_lower_pct, ci_upper_pct : float
-        The same interval expressed as a percentage of baseline.
+        The same interval as a percentage of baseline.
     p_value : float
-        Bootstrap p-value for the null of no effect.
+        Two-sided normal p-value for the null of no effect.
     n_post : int
         Number of post-treatment periods averaged.
+    scale : float
+        Fitted augmentation coefficient :math:`\\hat\\delta_2` (1.0 if the
+        augmentation is disabled, i.e. plain DiD).
     """
 
     level: str
     att: float
     att_pct: float
     baseline: float
+    se: float
     ci_lower: float
     ci_upper: float
     ci_lower_pct: float
     ci_upper_pct: float
     p_value: float
     n_post: int
+    scale: float
 
 
 @dataclass(frozen=True)
@@ -106,7 +133,7 @@ class PangeoEffects:
     weighted : bool
         Whether a population weight was used in the aggregation.
     alpha : float
-        Significance level for the conformal intervals.
+        Significance level for the intervals.
     """
 
     program: AttEstimate
@@ -126,105 +153,133 @@ class PangeoEffects:
 
 def _att_row(e: AttEstimate) -> Dict[str, Any]:
     return {
-        "level": e.level, "att": e.att, "att_pct": e.att_pct,
+        "level": e.level, "att": e.att, "att_pct": e.att_pct, "se": e.se,
         "ci_lower": e.ci_lower, "ci_upper": e.ci_upper,
         "ci_lower_pct": e.ci_lower_pct, "ci_upper_pct": e.ci_upper_pct,
-        "p_value": e.p_value, "n_post": e.n_post,
+        "p_value": e.p_value, "scale": e.scale, "n_post": e.n_post,
     }
 
 
-def _rw_null(
-    G_pre: np.ndarray, n_post: int, n_level: int, block: int, n_rep: int,
-    rng: np.random.Generator,
-) -> "tuple[np.ndarray, float]":
-    """Null distribution of the level-adjusted ATT under a near-integrated gap.
+def _hac_lag(n: int) -> int:
+    """Newey-West truncation lag, Li & Van den Bulte's ``O(T^{1/4})`` rule."""
+    return max(0, int(np.floor(n ** 0.25)))
 
-    The supergeo gap is typically near-integrated (the residual factor
-    loading rides the latent random walk), so the dominant uncertainty is the
-    *future drift* over the post horizon -- which a short pre or blank window
-    cannot reveal directly, but the (stationary) gap **increments** can. This
-    moving-block bootstraps the held-out blank-window first differences,
-    cumulates them into synthetic ``n_post``-step forward paths, and adds the
-    deviation of the last pre value from the counterfactual level. Returns
-    ``(null_draws, delta)``.
+
+def _lr_variance(resid: np.ndarray, k: int) -> float:
+    """Newey-West/Bartlett long-run variance of the (mean-zero) residuals.
+
+    Lag 0 reduces to the degrees-of-freedom-corrected residual variance
+    ``e'e/(T-k)`` -- the i.i.d. case in Li & Van den Bulte C.13.
     """
-    T0 = G_pre.size
-    delta = float(G_pre[T0 - n_level:].mean())
-    diffs = np.diff(G_pre[T0 - n_level:])      # held-out increments (honest)
-    if diffs.size < block + 1:                 # too few: use full-pre diffs
-        diffs = np.diff(G_pre)
-    nb = diffs.size
-    starts = nb - block + 1
-    span = n_level + n_post
-    null = np.empty(n_rep)
-    for r in range(n_rep):
-        seq = []
-        while len(seq) < span:
-            i = int(rng.integers(0, starts))
-            seq.extend(diffs[i:i + block])
-        # One coherent random-walk segment: trailing level window + post
-        # window, so both the level-estimation noise and the forward drift
-        # are drawn from the same path.
-        path = np.cumsum(np.asarray(seq[:span]))
-        null[r] = path[n_level:].mean() - path[:n_level].mean()
-    return null, delta
+    n = resid.size
+    g0 = float(resid @ resid) / max(n - k, 1)
+    lag = _hac_lag(n)
+    if lag == 0 or n <= k + 1:
+        return g0
+    omega = g0
+    for j in range(1, lag + 1):
+        w = 1.0 - j / (lag + 1)
+        gj = float(resid[j:] @ resid[:-j]) / max(n - k, 1)
+        omega += 2.0 * w * gj
+    return max(omega, 1e-18)
+
+
+def _adid(
+    YT: np.ndarray, YC: np.ndarray, n_pre: int, n_post: int,
+    augment: bool, trend: bool, alpha: float,
+) -> Dict[str, float]:
+    """Li & Van den Bulte augmented-DiD ATT + prediction-variance CI.
+
+    Regress the treated aggregate on a constant, the (optionally augmented)
+    control aggregate and a (optional) linear trend over the pre-period;
+    project the counterfactual onto the post-period; return the ATT, SE, CI
+    and p-value.
+    """
+    t = np.arange(n_pre + n_post, dtype=float)
+    if augment:
+        cols = [np.ones_like(t), YC]
+        y = YT.astype(float)
+    else:                                   # plain DiD: regress the gap
+        cols = [np.ones_like(t)]
+        y = (YT - YC).astype(float)
+    if trend:
+        cols.append(t)
+    X = np.column_stack(cols)
+    k = X.shape[1]
+
+    Xpre, ypre = X[:n_pre], y[:n_pre]
+    Xpost, ypost = X[n_pre:], y[n_pre:]
+    beta, *_ = np.linalg.lstsq(Xpre, ypre, rcond=None)
+    e = ypre - Xpre @ beta                  # pre-period residuals
+    u = ypost - Xpost @ beta                # per-period post effects
+    att = float(u.mean())
+
+    omega2 = _lr_variance(e, k)             # pre-period (long-run) residual var
+    S_pre = Xpre.T @ Xpre
+    xbar = Xpost.mean(axis=0)
+    pred_term = float(xbar @ np.linalg.solve(S_pre, xbar))   # Σ₁ contribution
+    var = omega2 * (pred_term + 1.0 / n_post)                # + Σ₂ contribution
+    se = float(np.sqrt(max(var, 0.0)))
+
+    z = norm.ppf(1.0 - alpha / 2.0)
+    if se > 0:
+        p_value = float(2.0 * (1.0 - norm.cdf(abs(att) / se)))
+    else:
+        p_value = 0.0 if att != 0 else 1.0
+    scale = float(beta[1]) if augment else 1.0
+    return {"att": att, "se": se, "ci_lower": att - z * se,
+            "ci_upper": att + z * se, "p_value": p_value, "scale": scale}
 
 
 def _pair_records(arm_design, pos, Y_post, weights):
-    """Per-pair full-pre gap, post gap, baseline and treated weight."""
+    """Per-pair full-pre treated/control aggregates, post values and weight."""
     recs = []
     for p in arm_design.pairs:
         t_idx = [pos[u] for u in p.treatment]
         c_idx = [pos[u] for u in p.control]
-        gap_pre = np.asarray(p.treatment_mean) - np.asarray(p.control_mean)
-        gap_post = _wavg(Y_post, t_idx, weights) - _wavg(Y_post, c_idx, weights)
-        baseline = float(np.asarray(p.treatment_mean).mean())
-        w = float(weights[t_idx].sum()) if weights is not None else len(t_idx)
-        recs.append({"gap_pre": gap_pre, "gap_post": gap_post,
-                     "baseline": baseline, "weight": w})
+        recs.append({
+            "YT_pre": np.asarray(p.treatment_mean, dtype=float),
+            "YC_pre": np.asarray(p.control_mean, dtype=float),
+            "YT_post": _wavg(Y_post, t_idx, weights),
+            "YC_post": _wavg(Y_post, c_idx, weights),
+            "weight": (float(weights[t_idx].sum()) if weights is not None
+                       else len(t_idx)),
+        })
     return recs
 
 
-def _aggregate(level, recs, alpha, n_level, n_rep, seed) -> AttEstimate:
+def _aggregate(level, recs, alpha, augment, trend) -> AttEstimate:
     w = np.array([r["weight"] for r in recs], dtype=float)
     if w.sum() <= 0:
         w = np.ones_like(w)
     w = w / w.sum()
-    G_pre = np.sum([w[i] * recs[i]["gap_pre"] for i in range(len(recs))],
-                   axis=0)
-    G_post = np.sum([w[i] * recs[i]["gap_post"] for i in range(len(recs))],
-                    axis=0)
-    baseline = float(w @ np.array([r["baseline"] for r in recs]))
-    n_post = len(G_post)
-    T0 = G_pre.size
-    n_level = n_level if 2 <= n_level <= T0 else T0
-    block = max(2, int(round(np.sqrt(n_post))))
+    YT = np.concatenate([
+        np.sum([w[i] * recs[i]["YT_pre"] for i in range(len(recs))], axis=0),
+        np.sum([w[i] * recs[i]["YT_post"] for i in range(len(recs))], axis=0)])
+    YC = np.concatenate([
+        np.sum([w[i] * recs[i]["YC_pre"] for i in range(len(recs))], axis=0),
+        np.sum([w[i] * recs[i]["YC_post"] for i in range(len(recs))], axis=0)])
+    n_pre = recs[0]["YT_pre"].size
+    n_post = recs[0]["YT_post"].size
+    baseline = float(YT[:n_pre].mean())
 
-    rng = np.random.default_rng(seed)
-    null, delta = _rw_null(G_pre, n_post, n_level, block, n_rep, rng)
-    att = float(G_post.mean()) - delta
-    med = float(np.median(null))
-    dev = np.abs(null - med)
-    q = float(np.quantile(dev, 1.0 - alpha))
-    p_value = float((np.sum(dev >= abs(att - med)) + 1) / (null.size + 1))
-    ci_lo, ci_hi = att - q, att + q
-
+    r = _adid(YT, YC, n_pre, n_post, augment, trend, alpha)
     pct = (lambda x: x / baseline * 100.0) if abs(baseline) > 1e-12 \
         else (lambda x: float("nan"))
     return AttEstimate(
-        level=level, att=att, att_pct=pct(att), baseline=baseline,
-        ci_lower=ci_lo, ci_upper=ci_hi,
-        ci_lower_pct=pct(ci_lo), ci_upper_pct=pct(ci_hi),
-        p_value=p_value, n_post=int(n_post),
+        level=level, att=r["att"], att_pct=pct(r["att"]), baseline=baseline,
+        se=r["se"], ci_lower=r["ci_lower"], ci_upper=r["ci_upper"],
+        ci_lower_pct=pct(r["ci_lower"]), ci_upper_pct=pct(r["ci_upper"]),
+        p_value=r["p_value"], n_post=int(n_post), scale=r["scale"],
     )
 
 
 def compute_pangeo_effects(
     results, inputs, Y_post: np.ndarray, *, alpha: float = 0.05,
-    n_boot: int = 2000, seed: int = 0,
+    augment: bool = True, trend: bool = True,
 ) -> PangeoEffects:
-    """Difference-in-differences ATT (with conformal CIs) for a design scored
-    on post outcomes.
+    """Augmented-DiD ATT (Li & Van den Bulte 2022) for a design scored on
+    post outcomes, at the program and arm levels.
 
     Parameters
     ----------
@@ -236,13 +291,16 @@ def compute_pangeo_effects(
         Post-period outcomes, shape ``(N, T_post)``, rows aligned with
         ``inputs.unit_names``.
     alpha : float
-        Significance level for the conformal CIs / p-values.
+        Significance level for the CIs / p-values.
+    augment : bool
+        Free augmentation coefficient ``delta_2`` on the control aggregate
+        (the *augmented* DiD). ``False`` forces ``delta_2 = 1`` (plain DiD).
+    trend : bool
+        Include a linear time-trend regressor.
     """
     pos = {u: i for i, u in enumerate(inputs.unit_names)}
     weights = inputs.weights
     n_post = int(Y_post.shape[1])
-    # Local counterfactual-level window = the held-out blank window.
-    n_level = int(results.metadata.get("n_holdout", 0)) or None
 
     all_recs: List[dict] = []
     by_arm: Dict[Any, List[dict]] = {}
@@ -251,24 +309,26 @@ def compute_pangeo_effects(
         recs = _pair_records(d, pos, Y_post, weights)
         by_arm[arm] = recs
         all_recs.extend(recs)
-        # per-pair point ATT (local level over the blank window)
+        pair_att[arm] = []
         for r in recs:
-            gp = r["gap_pre"]
-            nl = n_level if (n_level and 2 <= n_level <= gp.size) else gp.size
-            pair_att.setdefault(arm, []).append(
-                float(r["gap_post"].mean()) - float(gp[gp.size - nl:].mean()))
+            YT = np.concatenate([r["YT_pre"], r["YT_post"]])
+            YC = np.concatenate([r["YC_pre"], r["YC_post"]])
+            pair_att[arm].append(
+                _adid(YT, YC, r["YT_pre"].size, n_post, augment, trend,
+                      alpha)["att"])
 
-    nl = n_level if n_level else 0
-    program = _aggregate("program", all_recs, alpha, nl, n_boot, seed)
-    arms = {arm: _aggregate(str(arm), recs, alpha, nl, n_boot, seed + 1)
+    program = _aggregate("program", all_recs, alpha, augment, trend)
+    arms = {arm: _aggregate(str(arm), recs, alpha, augment, trend)
             for arm, recs in by_arm.items()}
 
     return PangeoEffects(
         program=program, arms=arms, pair_att=pair_att, n_post=n_post,
         weighted=weights is not None, alpha=alpha,
-        metadata={"estimator": "population-weighted DiD; program = "
-                               "treated-weighted average of pair ATTs",
-                  "inference": "moving-block bootstrap of held-out gap "
-                               "increments (near-integrated gap), per arm "
-                               "and program"},
+        metadata={
+            "estimator": "Augmented DiD (Li & Van den Bulte 2022); "
+                         "treated-size-weighted supergeo aggregate per level",
+            "inference": "prediction-variance SE (C.13) with Newey-West "
+                         "long-run residual variance",
+            "augment": augment, "trend": trend,
+        },
     )
