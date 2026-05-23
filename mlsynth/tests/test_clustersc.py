@@ -96,7 +96,8 @@ class TestPCRHelper:
         """On a panel with non-trivial intercepts, standardising the
         donor matrix before the cumvar comparison must pick a higher
         rank than the raw rule (because the leading singular value no
-        longer absorbs the level information)."""
+        longer absorbs the level information).
+        """
         df, _ = panel
         # Add a unit-specific intercept to the donor outcomes so the
         # uncentered SVD is dominated by a single direction.
@@ -131,7 +132,8 @@ class TestPCRHelper:
         """`project_denoised` is a genuine knob (not a no-op): with
         HSVT applied to the pre-period only, projecting through raw
         vs denoised post-period donors gives different counterfactuals.
-        Just verify both paths run and metadata records the choice."""
+        Just verify both paths run and metadata records the choice.
+        """
         df, _ = panel
         inputs = prepare_clustersc_inputs(
             df, outcome="y", treat="D", unitid="unit", time="time",
@@ -159,7 +161,8 @@ class TestPCRHelper:
 
     def test_explicit_rank_overrides_default(self, panel):
         """Passing `rank=k` must produce a rank-k truncation regardless
-        of the default `rank_method='cumvar'`."""
+        of the default `rank_method='cumvar'`.
+        """
         df, _ = panel
         inputs = prepare_clustersc_inputs(
             df, outcome="y", treat="D", unitid="unit", time="time",
