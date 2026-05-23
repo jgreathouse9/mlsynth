@@ -92,6 +92,88 @@ class TestPCRHelper:
         assert fit.metadata["rank_method"] == "cumvar"
         assert fit.metadata["clustering"] is True
 
+    def test_standardize_for_rank_changes_cumvar_pick(self, panel):
+        """On a panel with non-trivial intercepts, standardising the
+        donor matrix before the cumvar comparison must pick a higher
+        rank than the raw rule (because the leading singular value no
+        longer absorbs the level information)."""
+        df, _ = panel
+        # Add a unit-specific intercept to the donor outcomes so the
+        # uncentered SVD is dominated by a single direction.
+        df = df.copy()
+        df["y"] = df["y"] + df["unit"].astype(float) * 100.0
+        inputs = prepare_clustersc_inputs(
+            df, outcome="y", treat="D", unitid="unit", time="time",
+        )
+        fit_std, _ = run_pcr(
+            treated_outcome=inputs.treated_outcome,
+            donor_outcomes=inputs.donor_outcomes,
+            donor_names=inputs.donor_names,
+            T0=inputs.T0, objective="OLS", clustering=False,
+            estimator="frequentist",
+            rank_method="cumvar", cumvar_threshold=0.95,
+            standardize_for_rank=True,
+        )
+        fit_raw, _ = run_pcr(
+            treated_outcome=inputs.treated_outcome,
+            donor_outcomes=inputs.donor_outcomes,
+            donor_names=inputs.donor_names,
+            T0=inputs.T0, objective="OLS", clustering=False,
+            estimator="frequentist",
+            rank_method="cumvar", cumvar_threshold=0.95,
+            standardize_for_rank=False,
+        )
+        # The standardised path should pick a strictly higher rank
+        # than the raw path on this artificial-intercept panel.
+        assert fit_std.metadata["rank"] > fit_raw.metadata["rank"]
+
+    def test_project_denoised_flag_recorded(self, panel):
+        """`project_denoised` is a genuine knob (not a no-op): with
+        HSVT applied to the pre-period only, projecting through raw
+        vs denoised post-period donors gives different counterfactuals.
+        Just verify both paths run and metadata records the choice."""
+        df, _ = panel
+        inputs = prepare_clustersc_inputs(
+            df, outcome="y", treat="D", unitid="unit", time="time",
+        )
+        fit_raw, _ = run_pcr(
+            treated_outcome=inputs.treated_outcome,
+            donor_outcomes=inputs.donor_outcomes,
+            donor_names=inputs.donor_names,
+            T0=inputs.T0, objective="OLS", clustering=False,
+            estimator="frequentist", rank=3, project_denoised=False,
+        )
+        fit_den, _ = run_pcr(
+            treated_outcome=inputs.treated_outcome,
+            donor_outcomes=inputs.donor_outcomes,
+            donor_names=inputs.donor_names,
+            T0=inputs.T0, objective="OLS", clustering=False,
+            estimator="frequentist", rank=3, project_denoised=True,
+        )
+        assert fit_raw.metadata["project_denoised"] is False
+        assert fit_den.metadata["project_denoised"] is True
+        # Both produce a finite counterfactual of the right shape.
+        assert fit_raw.counterfactual.shape == fit_den.counterfactual.shape
+        assert np.all(np.isfinite(fit_raw.counterfactual))
+        assert np.all(np.isfinite(fit_den.counterfactual))
+
+    def test_explicit_rank_overrides_default(self, panel):
+        """Passing `rank=k` must produce a rank-k truncation regardless
+        of the default `rank_method='cumvar'`."""
+        df, _ = panel
+        inputs = prepare_clustersc_inputs(
+            df, outcome="y", treat="D", unitid="unit", time="time",
+        )
+        fit, _ = run_pcr(
+            treated_outcome=inputs.treated_outcome,
+            donor_outcomes=inputs.donor_outcomes,
+            donor_names=inputs.donor_names,
+            T0=inputs.T0, objective="OLS", clustering=False,
+            estimator="frequentist", rank=3,
+        )
+        assert fit.metadata["rank"] == 3
+        assert fit.metadata["rank_method"] == "cumvar"  # original method preserved
+
     def test_run_pcr_simplex_returns_simplex_weights(self, panel):
         df, _ = panel
         inputs = prepare_clustersc_inputs(
@@ -154,13 +236,25 @@ class TestRPCAHelper:
             df, outcome="y", treat="D", unitid="unit", time="time",
         )
         fit = run_rpca(
-            df=df, outcome="y", treat="D", unitid="unit", time="time",
-            inputs=inputs, rpca_method=rpca_method,
+            treated_outcome=inputs.treated_outcome,
+            donor_outcomes=inputs.donor_outcomes,
+            donor_names=inputs.donor_names,
+            T0=inputs.T0,
+            rpca_method=rpca_method,
+            k_clusters=1,  # No cluster structure in the test panel.
         )
         assert isinstance(fit, MethodFit)
-        assert fit.name == "rpca"
+        # Paper-aligned name carries the solver variant.
+        assert fit.name == f"rpca_{rpca_method.lower()}"
         assert fit.counterfactual.shape == (inputs.T,)
         assert fit.metadata["rpca_method"] == rpca_method
+        # Algorithm 4 metadata: FPCA rank + treated cluster id + RPCA solver knobs.
+        assert "fpca_rank" in fit.metadata
+        assert "treated_cluster" in fit.metadata
+        assert "k_clusters" in fit.metadata
+        # Bayani's NNLS is non-negative.
+        weights = np.array(list(fit.donor_weights.values()))
+        assert np.all(weights >= -1e-9)
 
     def test_unknown_rpca_method_rejected(self, panel):
         df, _ = panel
@@ -169,8 +263,10 @@ class TestRPCAHelper:
         )
         with pytest.raises(MlsynthEstimationError):
             run_rpca(
-                df=df, outcome="y", treat="D", unitid="unit", time="time",
-                inputs=inputs, rpca_method="BOGUS",
+                treated_outcome=inputs.treated_outcome,
+                donor_outcomes=inputs.donor_outcomes,
+                donor_names=inputs.donor_names,
+                T0=inputs.T0, rpca_method="BOGUS",
             )
 
 
@@ -220,7 +316,7 @@ class TestEstimator:
         res = CLUSTERSC({
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
-            "method": "rpca",
+            "method": "rpca", "k_clusters": 1,
         }).fit()
         assert res.rpca is not None
         assert res.pcr is None
@@ -232,6 +328,7 @@ class TestEstimator:
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
             "method": "both", "primary": "pcr",
+            "k_clusters": 1,
         }).fit()
         assert res.pcr is not None and res.rpca is not None
         assert res.selected_variant == "pcr"
@@ -244,6 +341,7 @@ class TestEstimator:
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
             "method": "both", "primary": "rpca",
+            "k_clusters": 1,
         }).fit()
         assert res.selected_variant == "rpca"
         assert res.att == res.rpca.att
@@ -285,8 +383,42 @@ class TestEstimator:
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
             "method": "rpca", "rpca_method": rpca_method,
+            "k_clusters": 1,
         }).fit()
         assert res.rpca.metadata["rpca_method"] == rpca_method
+
+    def test_rpca_clustering_picks_treated_cohort(self):
+        """Algorithm 4 Step 2: treated unit's cluster drives donor pool."""
+        # Two-cluster panel: cluster A = the treated unit and donors 0-5 share
+        # one factor; cluster B = donors 6-11 share another. Bayani's clustering
+        # should isolate cluster A as the donor pool.
+        rng = np.random.default_rng(42)
+        J, T_pre, T_post = 12, 14, 6
+        T = T_pre + T_post
+        t = np.arange(T)
+        clust_a = np.sin(t * 0.4)
+        clust_b = np.cos(t * 0.4) * 5.0  # very different signature
+        rows = []
+        for j in range(J + 1):
+            base = clust_a if j <= 6 else clust_b
+            y = base + 0.05 * rng.standard_normal(T)
+            if j == 0:
+                y[T_pre:] += 1.0  # planted ATT on the treated unit
+            for ti in range(T):
+                rows.append({
+                    "unit": j, "time": ti, "y": float(y[ti]),
+                    "D": int(j == 0 and ti >= T_pre),
+                })
+        df = pd.DataFrame(rows)
+        res = CLUSTERSC({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+            "method": "rpca", "rpca_method": "PCP",
+        }).fit()
+        # All selected donors should come from cluster A (indices 1-6).
+        selected = res.rpca.selected_donors.tolist()
+        assert all(int(d) <= 6 for d in selected), selected
+        assert res.rpca.metadata["k_clusters"] >= 2
 
 
 # ----------------------------------------------------------------------
