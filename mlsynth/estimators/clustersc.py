@@ -88,6 +88,8 @@ class CLUSTERSC:
         self.rank = config.rank
         self.rank_method: str = config.rank_method
         self.cumvar_threshold: float = config.cumvar_threshold
+        self.standardize_for_rank: bool = config.standardize_for_rank
+        self.project_denoised: bool = config.project_denoised
         self.k_clusters = config.k_clusters
         self.k_max: int = config.k_max
         self.n_bayes_samples: int = config.n_bayes_samples
@@ -102,6 +104,8 @@ class CLUSTERSC:
         self.hqf_lambda = config.hqf_lambda
         self.hqf_ip: float = config.hqf_ip
         self.hqf_max_iter: int = config.hqf_max_iter
+        self.compute_shen_ci: bool = config.compute_shen_ci
+        self.shen_variance: str = config.shen_variance
         self.display_graphs: bool = config.display_graphs
 
     def fit(self) -> CLUSTERSCResults:
@@ -133,6 +137,8 @@ class CLUSTERSC:
                     rank=self.rank,
                     rank_method=self.rank_method,
                     cumvar_threshold=self.cumvar_threshold,
+                    standardize_for_rank=self.standardize_for_rank,
+                    project_denoised=self.project_denoised,
                     k_clusters=self.k_clusters,
                     k_max=self.k_max,
                     alpha=self.alpha,
@@ -140,6 +146,8 @@ class CLUSTERSC:
                     lambda_penalty=self.lambda_penalty,
                     p=self.p,
                     q=self.q,
+                    compute_shen_ci=self.compute_shen_ci,
+                    shen_variance=self.shen_variance,
                     random_state=self.random_state,
                 )
                 # Convert per-period credible band to an ATT-level interval:
@@ -199,11 +207,25 @@ class CLUSTERSC:
                     credible_interval=credible,
                 )
             else:
-                inference = CLUSTERSCInference(
-                    method="none",
-                    alpha=float(self.alpha),
-                    att=primary_att,
+                # If frequentist OLS PCR ran, surface its Shen et al. CIs.
+                shen_obj = (
+                    pcr_fit.metadata.get("shen_inference")
+                    if pcr_fit is not None
+                    else None
                 )
+                if shen_obj is not None and selected == "pcr":
+                    inference = CLUSTERSCInference(
+                        method=shen_obj.method,
+                        alpha=float(self.alpha),
+                        att=primary_att,
+                        shen=shen_obj,
+                    )
+                else:
+                    inference = CLUSTERSCInference(
+                        method="none",
+                        alpha=float(self.alpha),
+                        att=primary_att,
+                    )
 
             results = CLUSTERSCResults(
                 inputs=inputs,
