@@ -128,6 +128,7 @@ class SpSyDiDResults:
     unit_weights: Dict[Any, float]
     time_weights: np.ndarray
     zeta: float
+    weights: Optional[Any] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property

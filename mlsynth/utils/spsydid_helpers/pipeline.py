@@ -35,6 +35,7 @@ from __future__ import annotations
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
+from ..results_helpers import make_weights_results
 from .structures import SpSyDiDInputs, SpSyDiDResults
 from .weights import (
     compute_regularization,
@@ -168,6 +169,20 @@ def run_spsydid(inputs: SpSyDiDInputs) -> SpSyDiDResults:
         "sdid_lambda_intercept": float(intercept_lambda) if intercept_lambda is not None else None,
     }
 
+    # Donor weights = the pure-control SDID unit weights (omega); the
+    # directly/indirectly treated rows carry the 1/N aggregation weights.
+    pure_names = [inputs.unit_names[i] for i in inputs.pure_control_indices]
+    donor_weights = {n: float(unit_weights[n]) for n in pure_names}
+    weights_res = make_weights_results(
+        donor_weights,
+        constraint="SDID unit weights over pure controls (>= 0, sum to 1)",
+        extra={
+            "time_weights": [float(x) for x in lambda_pre],
+            "omega_intercept": metadata.get("sdid_omega_intercept"),
+            "lambda_intercept": metadata.get("sdid_lambda_intercept"),
+        },
+    )
+
     return SpSyDiDResults(
         inputs=inputs,
         att=tau,
@@ -176,5 +191,6 @@ def run_spsydid(inputs: SpSyDiDInputs) -> SpSyDiDResults:
         unit_weights=unit_weights,
         time_weights=lambda_pre,
         zeta=float(zeta),
+        weights=weights_res,
         metadata=metadata,
     )
