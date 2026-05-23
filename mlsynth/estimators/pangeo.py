@@ -85,6 +85,8 @@ class PANGEO:
         self.power_target: float = config.power_target
         self.power_alpha: float = config.power_alpha
         self.power_post_periods = config.power_post_periods
+        self.att_augment: bool = config.att_augment
+        self.att_trend: bool = config.att_trend
         self.display_graphs: bool = config.display_graphs
         self.save = config.save
 
@@ -132,7 +134,8 @@ class PANGEO:
                 Y_post, _ = build_post_matrix(
                     post_df, inputs, self.outcome, self.unitid, self.time)
                 effects = compute_pangeo_effects(
-                    results, inputs, Y_post, alpha=self.power_alpha)
+                    results, inputs, Y_post, alpha=self.power_alpha,
+                    augment=self.att_augment, trend=self.att_trend)
                 results = dataclasses.replace(results, effects=effects)
 
             if self.display_graphs:
