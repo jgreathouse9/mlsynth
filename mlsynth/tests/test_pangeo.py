@@ -462,6 +462,46 @@ class TestADIDInference:
         assert aug.program.scale != 1.0            # free augmentation
         assert aug.metadata["augment"] is True
 
+    def test_counterfactual_series_recorded(self):
+        """Effects carry the observed treated series and the ADID
+        counterfactual; their post-period gap equals the ATT."""
+        d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                      T=104, seed=0, n_post=8)
+        des = PANGEO({"df": d, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "post_col": "post_col",
+                      "max_supergeo_size": 3, "compute_power": False,
+                      "display_graphs": False}).fit()
+        treated = [u for u, a in des.assignment.items() if a == "treatment"]
+        d.loc[(d.post_col == 1) & (d.unit.isin(treated)), "sales"] += 2.0
+        eff = PANGEO({"df": d, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "post_col": "post_col",
+                      "max_supergeo_size": 3, "compute_power": False,
+                      "display_graphs": False}).fit().effects
+        est = eff.program
+        assert est.observed.size == est.counterfactual.size == 104 + 8
+        gap = (est.observed[-est.n_post:]
+               - est.counterfactual[-est.n_post:]).mean()
+        assert gap == pytest.approx(est.att, abs=1e-9)
+
+    def test_plotter_runs_both_modes(self, tmp_path):
+        import matplotlib
+        matplotlib.use("Agg")
+        d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                      T=104, seed=0, n_post=8)
+        # design-only (no post_col)
+        PANGEO({"df": d[d.post_col == 0].drop(columns="post_col"),
+                "outcome": "sales", "arm": "arm", "unitid": "unit",
+                "time": "time", "max_supergeo_size": 3, "compute_power": False,
+                "display_graphs": True,
+                "save": str(tmp_path / "design.png")}).fit()
+        # evaluation (post_col present)
+        PANGEO({"df": d, "outcome": "sales", "arm": "arm", "unitid": "unit",
+                "time": "time", "post_col": "post_col", "max_supergeo_size": 3,
+                "compute_power": False, "display_graphs": True,
+                "save": str(tmp_path / "eval.png")}).fit()
+        assert (tmp_path / "design.png").exists()
+        assert (tmp_path / "eval.png").exists()
+
     def test_trend_toggle_runs(self):
         d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
                                       T=104, seed=2, n_post=8)
@@ -474,8 +514,7 @@ class TestADIDInference:
     @pytest.mark.slow
     def test_nominal_coverage_on_stationary_gap(self):
         """Paper-faithful DGP (stationary factor, no trend/season): the
-        prediction-variance CI is ~nominal and the point ATT unbiased.
-        """
+        prediction-variance CI is ~nominal and the point ATT unbiased."""
         TAU = 0.6
         cover, type1, atts = [], [], []
         for s in range(60):
@@ -489,9 +528,8 @@ class TestADIDInference:
         assert np.mean(type1) < 0.20               # ~0.07 expected
 
     def test_pure_did_power_and_effects_coherent(self):
-        """Att_augment=False gives plain DiD end to end: scale fixed at 1,
-        finite SE, and a power MDE built from the plain-DiD residual.
-        """
+        """att_augment=False gives plain DiD end to end: scale fixed at 1,
+        finite SE, and a power MDE built from the plain-DiD residual."""
         d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
                                       T=104, seed=0, n_post=8)
         res = PANGEO({"df": d, "outcome": "sales", "arm": "arm",
@@ -506,8 +544,7 @@ class TestADIDInference:
     @pytest.mark.slow
     def test_planning_mde_calibrated_to_realized_se(self):
         """The held-out power residual matches the evaluation model, so the
-        planning MDE tracks the realised SE on a stationary gap.
-        """
+        planning MDE tracks the realised SE on a stationary gap."""
         TAU = 0.6
         MULT = 2.8016                              # z_.975 + z_.80
         plan, real = [], []
@@ -547,7 +584,7 @@ def test_objective_options_run_and_cover(panel, objective):
 class TestHelperEdgeCases:
     def test_gap_variance_single_point_is_zero(self):
         # A length-1 trajectory has no shape: the level-removed gap is 0.
-        assert gap_variance(np.array([5.0]), np.array([2.0])) ==\
+        assert gap_variance(np.array([5.0]), np.array([2.0])) == \
             pytest.approx(0.0)
 
     def test_parallelism_r2_nan_for_constant_treatment(self):
