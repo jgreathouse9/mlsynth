@@ -127,7 +127,8 @@ class TestEstimator:
 
     def test_donor_weights_exposed_and_reconstruct(self):
         """SNN exposes per-treated-unit PCR donor weights that rebuild the
-        counterfactual as a linear combination of the donors."""
+        counterfactual as a linear combination of the donors.
+        """
         df, effect, A, D = _low_rank_panel()
         res = SNN({"df": df, "outcome": "y", "treat": "D",
                    "unitid": "unit", "time": "time", "max_rank": 3,

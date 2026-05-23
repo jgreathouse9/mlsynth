@@ -24,7 +24,8 @@ def _build_weights(
     random_state,
 ) -> WeightsResults:
     """Assemble a standardized WeightsResults from the per-treated-unit
-    PCR donor weights."""
+    PCR donor weights.
+    """
     X = inputs.Y.copy()
     X[inputs.D > 0] = np.nan
     names = inputs.unit_names

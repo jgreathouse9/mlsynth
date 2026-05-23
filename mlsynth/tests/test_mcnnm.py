@@ -141,7 +141,8 @@ class TestEstimator:
 
     def test_exposes_factors_and_implied_weights(self):
         """MC-NNM exposes its factor decomposition and implied (non-unique)
-        donor weights flagged as such."""
+        donor weights flagged as such.
+        """
         df, _ = _low_rank_panel()
         res = MCNNM({"df": df, "outcome": "y", "treat": "D",
                      "unitid": "unit", "time": "time",
