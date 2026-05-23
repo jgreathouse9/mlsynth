@@ -17,13 +17,20 @@ import pandas as pd
 import pytest
 
 from mlsynth import PANGEO
-from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.config_models import PANGEOConfig
+from mlsynth.exceptions import (
+    MlsynthConfigError,
+    MlsynthDataError,
+    MlsynthEstimationError,
+)
 from mlsynth.utils.pangeo_helpers import (
     PangeoPower,
     PangeoResults,
+    covariate_imbalance,
     enumerate_candidate_pairs,
     gap_variance,
     make_seasonal_sales_panel,
+    parallelism_r2,
     prepare_pangeo_inputs,
     run_pangeo,
 )
@@ -467,8 +474,7 @@ class TestADIDInference:
     @pytest.mark.slow
     def test_nominal_coverage_on_stationary_gap(self):
         """Paper-faithful DGP (stationary factor, no trend/season): the
-        prediction-variance CI is ~nominal and the point ATT unbiased.
-        """
+        prediction-variance CI is ~nominal and the point ATT unbiased."""
         TAU = 0.6
         cover, type1, atts = [], [], []
         for s in range(60):
@@ -481,6 +487,43 @@ class TestADIDInference:
         assert np.mean(cover) > 0.85               # ~0.93 expected
         assert np.mean(type1) < 0.20               # ~0.07 expected
 
+    def test_pure_did_power_and_effects_coherent(self):
+        """att_augment=False gives plain DiD end to end: scale fixed at 1,
+        finite SE, and a power MDE built from the plain-DiD residual."""
+        d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                      T=104, seed=0, n_post=8)
+        res = PANGEO({"df": d, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "post_col": "post_col",
+                      "max_supergeo_size": 3, "att_augment": False,
+                      "att_trend": False, "display_graphs": False}).fit()
+        assert res.effects.program.scale == 1.0
+        assert np.isfinite(res.effects.program.se) and res.effects.program.se > 0
+        assert all(np.isfinite(pt.mde_pct) and pt.mde_pct > 0
+                   for pt in res.power.program.points)
+
+    @pytest.mark.slow
+    def test_planning_mde_calibrated_to_realized_se(self):
+        """The held-out power residual matches the evaluation model, so the
+        planning MDE tracks the realised SE on a stationary gap."""
+        TAU = 0.6
+        MULT = 2.8016                              # z_.975 + z_.80
+        plan, real = [], []
+        for s in range(40):
+            d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                          T=104, seed=s, n_post=8, factor="iid",
+                                          season_amp=0.0, trend_sd=0.0)
+            cfg = dict(outcome="sales", arm="arm", unitid="unit", time="time",
+                       max_supergeo_size=3, display_graphs=False)
+            des = PANGEO({"df": d[d.post_col == 0].drop(columns="post_col"),
+                          **cfg}).fit()
+            plan.append([pt.mde_pct for pt in des.power.program.points
+                         if pt.post_periods == 8][0])
+            e = PANGEO({"df": d, "post_col": "post_col", "compute_power": False,
+                        **cfg}).fit().effects.program
+            real.append(100 * MULT * e.se / e.baseline)
+        ratio = np.mean(plan) / np.mean(real)
+        assert 0.6 <= ratio <= 1.5                 # ~0.93 expected
+
 
 @pytest.mark.parametrize("objective", ["ss_res", "r2", "weighted"])
 def test_objective_options_run_and_cover(panel, objective):
@@ -492,3 +535,257 @@ def test_objective_options_run_and_cover(panel, objective):
     for arm, d in res.arm_designs.items():
         covered = [u for p in d.pairs for u in (p.treatment + p.control)]
         assert len(covered) == len(set(covered)) == d.n_units
+
+
+# ----------------------------------------------------------------------
+# Layer 1 (cont.): numerical-helper edge cases
+# ----------------------------------------------------------------------
+
+class TestHelperEdgeCases:
+    def test_gap_variance_single_point_is_zero(self):
+        # A length-1 trajectory has no shape: the level-removed gap is 0.
+        assert gap_variance(np.array([5.0]), np.array([2.0])) == \
+            pytest.approx(0.0)
+
+    def test_parallelism_r2_nan_for_constant_treatment(self):
+        # No variation to explain -> R^2 undefined (NaN), not a crash.
+        const = np.full(10, 3.0)
+        assert np.isnan(parallelism_r2(const, np.arange(10.0)))
+
+    def test_covariate_imbalance_known_value(self):
+        # Standardised squared mean-difference: ((2-0)/1)^2 + ((4-1)/3)^2 = 5.
+        a = np.array([2.0, 4.0]); b = np.array([0.0, 1.0])
+        scales = np.array([1.0, 3.0]); weights = np.array([1.0, 1.0])
+        assert covariate_imbalance(a, b, scales, weights) == pytest.approx(5.0)
+
+    def test_enumerate_two_unit_arm_single_pair(self):
+        # An arm of exactly two geos admits exactly one (1 vs 1) pair.
+        Y = np.array([[1.0, 2.0, 3.0], [1.5, 2.4, 3.1]])
+        pairs = enumerate_candidate_pairs(np.array([0, 1]), Y, max_size=3)
+        assert len(pairs) == 1
+        assert len(pairs[0]["side_a"]) == 1 and len(pairs[0]["side_b"]) == 1
+
+
+# ----------------------------------------------------------------------
+# Error paths: data ingestion (prepare_pangeo_inputs)
+# ----------------------------------------------------------------------
+
+class TestSetupErrors:
+    @pytest.mark.parametrize("col", ["sales", "arm", "unit", "time"])
+    def test_missing_required_column(self, panel, col):
+        renamed = panel.rename(columns={col: f"{col}_x"})
+        with pytest.raises(MlsynthDataError):
+            prepare_pangeo_inputs(renamed, "sales", "arm", "unit", "time")
+
+    def test_nan_outcome_rejected(self, panel):
+        df = panel.copy(); df.loc[0, "sales"] = np.nan
+        with pytest.raises(MlsynthDataError):
+            prepare_pangeo_inputs(df, "sales", "arm", "unit", "time")
+
+    def test_unbalanced_panel_rejected(self, panel):
+        df = panel.drop(panel.index[5])      # remove one unit-time cell
+        with pytest.raises(MlsynthDataError):
+            prepare_pangeo_inputs(df, "sales", "arm", "unit", "time")
+
+    def test_arm_varying_within_unit_rejected(self, panel):
+        df = panel.copy()
+        n = int((df.unit == "A0").sum())
+        df.loc[df.unit == "A0", "arm"] = (["A", "B"] * (n // 2 + 1))[:n]
+        with pytest.raises(MlsynthDataError):
+            prepare_pangeo_inputs(df, "sales", "arm", "unit", "time")
+
+    def test_fewer_than_two_units_rejected(self):
+        df = make_seasonal_sales_panel(units_per_arm=1, arms=("A",),
+                                       T=20, seed=0)
+        with pytest.raises(MlsynthDataError):
+            prepare_pangeo_inputs(df, "sales", "arm", "unit", "time")
+
+    def test_missing_weight_column_rejected(self, panel):
+        with pytest.raises(MlsynthDataError):
+            prepare_pangeo_inputs(panel, "sales", "arm", "unit", "time",
+                                  weight_col="nope")
+
+    def test_nan_weight_rejected(self, panel):
+        df = panel.copy(); df["pop"] = 1.0; df.loc[0, "pop"] = np.nan
+        with pytest.raises(MlsynthDataError):
+            prepare_pangeo_inputs(df, "sales", "arm", "unit", "time",
+                                  weight_col="pop")
+
+    def test_nonpositive_weight_rejected(self, panel):
+        df = panel.copy(); df["pop"] = 1.0
+        df.loc[df.unit == "A0", "pop"] = -1.0
+        with pytest.raises(MlsynthConfigError):
+            prepare_pangeo_inputs(df, "sales", "arm", "unit", "time",
+                                  weight_col="pop")
+
+    def test_nan_covariate_rejected(self, panel):
+        df = panel.copy(); df["z"] = 1.0; df.loc[0, "z"] = np.nan
+        with pytest.raises(MlsynthDataError):
+            prepare_pangeo_inputs(df, "sales", "arm", "unit", "time",
+                                  covariates=["z"])
+
+
+# ----------------------------------------------------------------------
+# Error paths: configuration validation (loud, typed rejection)
+# ----------------------------------------------------------------------
+
+class TestConfigValidation:
+    @pytest.mark.parametrize("override", [
+        {"max_supergeo_size": 0},
+        {"max_supergeo_size": -2},
+        {"objective": "bogus"},
+        {"min_pairs": 0},
+        {"power_target": 0.0},
+        {"power_target": 1.5},
+        {"power_alpha": 0.0},
+        {"power_alpha": 2.0},
+        {"frac_E": 0.0},
+        {"frac_E": 1.0},
+        {"recency_decay": 0.0},
+        {"recency_decay": 1.5},
+    ])
+    def test_invalid_config_value_rejected(self, panel, override):
+        cfg = {"df": panel, "outcome": "sales", "arm": "arm", "unitid": "unit",
+               "time": "time", "display_graphs": False, **override}
+        with pytest.raises(MlsynthConfigError):
+            PANGEO(cfg)
+
+    @pytest.mark.parametrize("drop", ["outcome", "arm", "unitid", "time", "df"])
+    def test_missing_required_field_rejected(self, panel, drop):
+        cfg = {"df": panel, "outcome": "sales", "arm": "arm", "unitid": "unit",
+               "time": "time", "display_graphs": False}
+        cfg.pop(drop)
+        with pytest.raises(MlsynthConfigError):
+            PANGEO(cfg)
+
+
+# ----------------------------------------------------------------------
+# Error paths: estimation / infeasibility (raised, not silently empty)
+# ----------------------------------------------------------------------
+
+class TestEstimatorErrors:
+    def test_infeasible_explicit_Q_raises(self):
+        # Q=1 on an odd-sized arm has no 1-vs-1 exact cover.
+        df = make_seasonal_sales_panel(units_per_arm=5, arms=("A", "B"),
+                                       T=30, seed=0)
+        with pytest.raises(MlsynthEstimationError):
+            PANGEO({"df": df, "outcome": "sales", "arm": "arm",
+                    "unitid": "unit", "time": "time", "max_supergeo_size": 1,
+                    "display_graphs": False}).fit()
+
+    def test_min_pairs_infeasible_raises(self, panel):
+        # An arm of 6 with Q=3 yields at most 3 pairs; demanding 5 is infeasible.
+        with pytest.raises(MlsynthEstimationError):
+            PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                    "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                    "min_pairs": 5, "display_graphs": False}).fit()
+
+    def test_no_pre_rows_raises(self, panel):
+        df = panel.copy(); df["post_col"] = 1     # everything flagged post
+        with pytest.raises(MlsynthDataError):
+            PANGEO({"df": df, "outcome": "sales", "arm": "arm",
+                    "unitid": "unit", "time": "time", "post_col": "post_col",
+                    "display_graphs": False}).fit()
+
+    def test_post_missing_design_unit_raises(self):
+        df = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                       T=40, seed=0, n_post=6)
+        df = df[~((df.post_col == 1) & (df.unit == "A0"))]   # drop a unit post
+        with pytest.raises(MlsynthDataError):
+            PANGEO({"df": df, "outcome": "sales", "arm": "arm",
+                    "unitid": "unit", "time": "time", "post_col": "post_col",
+                    "max_supergeo_size": 3, "compute_power": False,
+                    "display_graphs": False}).fit()
+
+    def test_run_pangeo_rejects_nonpositive_q(self, panel):
+        inp = prepare_pangeo_inputs(panel, "sales", "arm", "unit", "time")
+        with pytest.raises(MlsynthConfigError):
+            run_pangeo(inp, max_supergeo_size=0)
+
+
+# ----------------------------------------------------------------------
+# Edge cases: unusual-but-valid inputs behave as expected
+# ----------------------------------------------------------------------
+
+class TestEdgeCases:
+    def test_integer_unit_and_time_ids(self, panel):
+        df = panel.copy()
+        df["unit"] = df["unit"].astype("category").cat.codes
+        df["time"] = df["time"].astype(int)
+        res = PANGEO({"df": df, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                      "compute_power": False, "display_graphs": False}).fit()
+        covered = [u for d in res.arm_designs.values()
+                   for p in d.pairs for u in (p.treatment + p.control)]
+        assert len(covered) == len(set(covered)) == df.unit.nunique()
+
+    def test_single_arm(self):
+        df = make_seasonal_sales_panel(units_per_arm=6, arms=("A",),
+                                       T=40, seed=0)
+        res = PANGEO({"df": df, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                      "compute_power": False, "display_graphs": False}).fit()
+        assert set(res.arm_designs) == {"A"}
+
+    def test_odd_sized_arm_exact_cover(self):
+        df = make_seasonal_sales_panel(units_per_arm=5, arms=("A", "B"),
+                                       T=40, seed=0)
+        res = PANGEO({"df": df, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                      "compute_power": False, "display_graphs": False}).fit()
+        for d in res.arm_designs.values():
+            covered = [u for p in d.pairs for u in (p.treatment + p.control)]
+            assert len(covered) == len(set(covered)) == d.n_units == 5
+
+    def test_q_larger_than_arm_is_clamped(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 99,
+                      "compute_power": False, "display_graphs": False}).fit()
+        for d in res.arm_designs.values():
+            for p in d.pairs:                      # halves can't exceed the arm
+                assert len(p.treatment) <= d.n_units
+                assert len(p.control) <= d.n_units
+
+    def test_single_post_period_effects(self):
+        df = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                       T=40, seed=0, n_post=1)
+        res = PANGEO({"df": df, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "post_col": "post_col",
+                      "max_supergeo_size": 3, "compute_power": False,
+                      "display_graphs": False}).fit()
+        assert res.effects.n_post == 1
+        assert np.isfinite(res.effects.program.se)
+
+    def test_deterministic(self, panel):
+        cfg = {"df": panel, "outcome": "sales", "arm": "arm", "unitid": "unit",
+               "time": "time", "max_supergeo_size": 3, "compute_power": False,
+               "display_graphs": False}
+        r1 = PANGEO(cfg).fit(); r2 = PANGEO(cfg).fit()
+        assert r1.assignment == r2.assignment
+
+    def test_config_object_accepted(self, panel):
+        cfg = PANGEOConfig(df=panel, outcome="sales", arm="arm", unitid="unit",
+                           time="time", max_supergeo_size=3,
+                           compute_power=False, display_graphs=False)
+        res = PANGEO(cfg).fit()
+        assert isinstance(res, PangeoResults)
+
+    def test_auto_q_skips_infeasible(self):
+        # Odd arms: Q=1 is infeasible (no 1-vs-1 cover) and must be skipped,
+        # not crash; a feasible Q is selected.
+        df = make_seasonal_sales_panel(units_per_arm=5, arms=("A", "B"),
+                                       T=40, seed=0)
+        res = PANGEO({"df": df, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time",
+                      "display_graphs": False}).fit()
+        sweep = {s["q"]: s["feasible"] for s in res.metadata["q_sweep"]}
+        assert sweep.get(1) is False           # Q=1 infeasible for odd arms
+        assert res.metadata["q_selected"] >= 2
+
+    def test_min_pairs_respected(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                      "min_pairs": 2, "compute_power": False,
+                      "display_graphs": False}).fit()
+        for d in res.arm_designs.values():
+            assert len(d.pairs) >= 2
