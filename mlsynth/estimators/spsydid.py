@@ -42,9 +42,10 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.spsydid_helpers.pipeline import run_spsydid
+from ..utils.spsydid_helpers.plotter import plot_spsydid
 from ..utils.spsydid_helpers.setup import prepare_spsydid_inputs
 from ..utils.spsydid_helpers.structures import SpSyDiDResults
-from ..utils.spsydid_helpers.plotter import plot_spsydid
+
 
 class SpSyDiD:
     """Spatial Synthetic Difference-in-Differences estimator.
@@ -91,7 +92,19 @@ class SpSyDiD:
                 unit_order=self.unit_order,
                 row_standardize_spatial=self.row_standardize_spatial,
             )
-            return run_spsydid(inputs)
+            results = run_spsydid(inputs)
+            if self.display_graphs:
+                plot_spsydid(
+                    results,
+                    treated_color=self.treated_color,
+                    counterfactual_color=self.counterfactual_color,
+                    save=self.save,
+                    time_axis_label=self.time,
+                    treatment_label=self.treat,
+                    unit_label=self.unitid,
+                    outcome_label=self.outcome,
+                )
+            return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
         except Exception as exc:
