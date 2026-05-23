@@ -74,6 +74,24 @@ Setting ``max_supergeo_size = 1`` (``Q = 1``) recovers the classic
 matched-pairs design; ``Q > 1`` allows composite supergeos when no single
 geo matches another well -- without trimming.
 
+Automatic Q
+^^^^^^^^^^^
+
+``Q`` is a granularity knob with an *interior* optimum: too small and no
+parallel matches exist (singletons are too noisy), too large and you get
+fewer, coarser pairs. Crucially the program-level MDE is **not** monotone
+in ``Q`` and is **not** tracked by parallelism :math:`R^2` (which is
+scale-free and keeps rising with ``Q``) -- only by the absolute residual
+variance that drives power. So if ``max_supergeo_size`` is left unset,
+PANGEO selects it automatically: it designs every feasible ``Q`` in
+``1 .. min(ceil(smallest_arm / 2), 6)`` and returns the one with the
+smallest mean program MDE. The full sweep -- each ``Q``'s program-pair
+count, mean program MDE, and the ``2/2**pairs`` randomization-inference
+p-value floor -- is stored in ``results.metadata["q_sweep"]`` (and the
+choice in ``results.metadata["q_selected"]``), so the decision is auditable
+and a user who prizes design-based inference can override with an explicit
+``Q``.
+
 Choice of objective
 ^^^^^^^^^^^^^^^^^^^
 
