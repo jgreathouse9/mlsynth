@@ -491,6 +491,21 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         description="Cumulative-variance target when rank_method='cumvar'. "
                     "Paper Section 6.1 uses 0.95.",
     )
+    standardize_for_rank: bool = Field(
+        default=True,
+        description="If True (default), the cumvar / USVT rank rules operate on the "
+                    "column-standardised donor matrix so the spectral comparison "
+                    "is not dominated by uncentered level information. The HSVT "
+                    "step itself still consumes the raw matrix.",
+    )
+    project_denoised: bool = Field(
+        default=False,
+        description="If True, project f_hat through the HSVT-denoised donor matrix "
+                    "in both pre and post periods (Rho et al. 2025 Algorithm 4 "
+                    "Step 5, paper-strict). Default False uses the raw donor "
+                    "outcomes for the counterfactual, matching the practical "
+                    "behaviour of Amjad-Shah-Shen (2018) and legacy mlsynth.",
+    )
     k_clusters: Optional[int] = Field(
         default=None, ge=1,
         description="Number of clusters for Algorithm 3. If unset, the silhouette "
@@ -507,6 +522,19 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
     random_state: int = Field(
         default=0,
         description="Seed forwarded to k-means and the Bayesian sampler.",
+    )
+    compute_shen_ci: bool = Field(
+        default=True,
+        description="When True (default) and the frequentist OLS PCR path is used, "
+                    "compute Shen-Ding-Sekhon-Yu (2023) per-period and ATT confidence "
+                    "intervals under three sources of randomness (HZ / VT / DR).",
+    )
+    shen_variance: Literal["homoskedastic", "jackknife", "hrk"] = Field(
+        default="homoskedastic",
+        description="Variance estimator for the Shen et al. (2023) CIs. "
+                    "'homoskedastic' (paper eq 19, default), 'jackknife', or 'hrk' "
+                    "(Hartley-Rao-Kish; only valid when max(1 - diag(H_perp)) < 1/2 "
+                    "for both projections).",
     )
     fpca_cumvar: float = Field(
         default=0.95, gt=0.0, le=1.0,
