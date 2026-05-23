@@ -226,45 +226,92 @@ configure this, and ``compute_power=False`` skips it.
    # Or invert: power to detect a specific effect.
    print(pw.power_for_effect(effect_pct=5.0, post_periods=8))
 
-Estimating the realized ATT (with post-period data)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Estimating the realized ATT (Augmented DiD)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 PANGEO is a *design* method, but once the experiment has run you can score
 the **same design** against the realized outcomes by passing a ``post_col``
 (a 0/1 indicator of post-treatment periods, as in LEXSCM). The design is
 built on the pre rows alone -- so it is byte-for-byte identical to the
-design-only result -- and ``results.effects`` carries the realized
-difference-in-differences ATT at the **arm** and **program** levels (the
-program ATT is the headline). An optional ``weight_col`` (e.g. population)
-makes both the design and the ATT population-weighted.
+design-only result -- and ``results.effects`` carries the realized ATT at
+the **arm** and **program** levels (the program ATT is the headline). An
+optional ``weight_col`` (e.g. population) makes both the design and the ATT
+population-weighted.
 
-Under the pre-period balance the design enforces, the per-pair estimator is
-the textbook DiD -- post-period gap minus a pre-period counterfactual
-level. Two subtleties make this honest rather than naive:
+Theory
+""""""
 
-* **Estimate / blank split.** As in LEXSCM and SPCD, the split is optimised
-  on the first ``frac_E`` of the pre-period (default 0.7); the held-out tail
-  (the *blank* window) is never seen by the optimiser, so its residuals are
-  an honest, out-of-sample estimate of the parallel-trends noise. The same
-  blank window also de-biases the MDE. The counterfactual level is anchored
-  to this recent blank window, removing per-geo level differences and slow
-  drift rather than comparing against a stale early level.
-* **Near-integrated gap.** The supergeo gap is typically near-integrated
-  (the residual factor loading that survives imperfect balancing rides the
-  latent random walk), so the dominant uncertainty is *future drift* over
-  the post horizon -- which the levels of a short window cannot reveal but
-  their stationary first differences can. Inference is therefore a
-  **moving-block bootstrap of the held-out gap increments** (the
-  integrated-series analogue of moving-block conformal inference): the
-  increments are resampled and cumulated into synthetic
-  ``n_level + n_post`` segments, and the statistic ``mean(post) -
-  mean(level)`` is read off each. A stationary residual reservoir
-  under-covers badly here because it is blind to the drift.
+The realized ATT uses the **Augmented Difference-in-Differences** estimator
+and inference of Li & Van den Bulte (2022). For a treated supergeo
+aggregate :math:`y^{T}_t` and the control supergeo aggregate :math:`y^{C}_t`
+at a level (arm or program), the counterfactual is the pre-period regression
+projection
 
-On the bundled simulator a Monte Carlo confirms the program ATT is
-unbiased and the 95% interval covers at roughly its nominal rate
-(~0.91-0.92) with conservative type-I error -- whereas a naive same-period
-or stationary-residual SE under-covers (~0.4-0.6).
+.. math::
+
+   y^{T}_t = \delta_1 + \delta_2\, y^{C}_t + \gamma\, t + e_t ,
+   \qquad t = 1,\dots,T_1 ,
+
+fit by OLS. This *augments* plain DiD in two ways: the control scale
+:math:`\delta_2` is free (rather than forced to 1) and a linear time trend
+:math:`\gamma t` is included. With :math:`x_t=(1,y^{C}_t,t)'` and
+:math:`\hat\delta` the OLS fit, the per-period effect is
+:math:`\hat u_t = y^{T}_t - x_t'\hat\delta` and
+:math:`\hat\Delta = T_2^{-1}\sum_{t>T_1}\hat u_t`.
+
+Li & Van den Bulte show (Prop. 3.1-3.3) that
+:math:`\sqrt{T_2}(\hat\Delta-\Delta)\to N(0,\Sigma_1+\Sigma_2)`, giving the
+**prediction-variance** standard error (their Web Appendix C.13)
+
+.. math::
+
+   \widehat{\operatorname{Var}}(\hat\Delta)
+   = \hat\omega^2\Big[\,\bar x_{\text{post}}'
+       \big(\textstyle\sum_{t=1}^{T_1} x_t x_t'\big)^{-1}
+       \bar x_{\text{post}} + \tfrac{1}{T_2}\Big] ,
+
+where :math:`\bar x_{\text{post}}` is the post-period mean of :math:`x_t`,
+the first term is the coefficient-estimation variance :math:`\Sigma_1` and
+:math:`1/T_2` is the post-averaging variance :math:`\Sigma_2`.
+:math:`\hat\omega^2` is the residual variance estimated over the long
+**pre**-period -- a Newey-West/Bartlett long-run variance with lag
+:math:`\lfloor T_1^{1/4}\rfloor` to admit serial correlation (lag 0 is the
+i.i.d. case :math:`\hat e'\hat e/(T_1-k)`). The CI is
+:math:`\hat\Delta \pm z_{1-\alpha/2}\,\mathrm{SE}` and the p-value is the
+two-sided normal test of :math:`\Delta=0`.
+
+Why this estimator fits the supergeo gap. Li & Van den Bulte's assumptions
+(C2/C3) explicitly admit **trend and unit-root (integrated) common
+factors** -- the regimes that break naive, conformal and permutation
+inference. The augmentation :math:`\delta_2` makes treated-on-control a
+*cointegrating* regression that scales out a shared integrated factor; the
+trend term absorbs deterministic drift; and the prediction-variance term
+:math:`\bar x_{\text{post}}'(\sum x_t x_t')^{-1}\bar x_{\text{post}}`
+**inflates automatically when the post-period control drifts outside its
+pre-period range**, pricing the extrapolation uncertainty. The validity
+condition is simply that the *residual* :math:`e_t` be (weakly dependent)
+stationary -- which the augmentation and trend deliver. The design's
+parallelism is retained; it minimises the residual variance, which directly
+tightens this SE (and thus the MDE in the power analysis, which is left
+untouched and continues to use the design's pre-period gap variance).
+
+Smoke tests / validity envelope
+"""""""""""""""""""""""""""""""
+
+A Monte Carlo over the bundled simulator (which can place the unobserved
+common factor on an i.i.d., AR(1) or random-walk process via ``factor`` and
+toggle ``season_amp``/``trend_sd``) confirms the diagnosis that *validity
+hinges on residual stationarity*, not on the interval recipe. With
+``factor="iid", season_amp=0, trend_sd=0`` -- a stationary gap matching the
+paper's factor-model DGP -- the program ATT is unbiased and the 95%
+interval attains **~0.93 coverage** with **~0.07 type-I** error. Adding a
+linear trend and seasonality (which the augmentation + trend regressor
+partly absorb) gives ~0.87 coverage; the adversarial random-walk-plus-
+seasonality gap, where two integrated factors and amplitude-heterogeneous
+seasonality exceed what a single :math:`\delta_2` can cointegrate, drops to
+~0.6 -- the honest assumption boundary. The point estimate is unbiased
+throughout. These experiments live in ``mlsynth/tests/test_pangeo.py``
+(``TestADIDInference``).
 
 .. code-block:: python
 
@@ -273,13 +320,15 @@ or stationary-residual SE under-covers (~0.4-0.6).
    res = PANGEO({
        "df": df, "outcome": "sales", "arm": "arm",
        "unitid": "unit", "time": "time", "post_col": "post_col",
-       "weight_col": None, "max_supergeo_size": 3,
+       "max_supergeo_size": 3,
+       "att_augment": True, "att_trend": True,   # Augmented DiD (defaults)
    }).fit()
 
-   print(res.effects.summary())           # program + per-arm ATT, CI, p
+   print(res.effects.summary())           # program + per-arm ATT, SE, CI, p
    pe = res.effects.program
    print(f"program ATT = {pe.att_pct:.1f}% "
-         f"[{pe.ci_lower_pct:.1f}, {pe.ci_upper_pct:.1f}], p={pe.p_value:.3f}")
+         f"[{pe.ci_lower_pct:.1f}, {pe.ci_upper_pct:.1f}], "
+         f"p={pe.p_value:.3f}, scale delta_2={pe.scale:.2f}")
 
 Core API
 --------
@@ -380,6 +429,9 @@ Geographic Marketing Experiments." arXiv:2506.20499.
 
 Li, K. T. (2023). "Frontiers: A Simple Forward Difference-in-Differences
 Method." *Marketing Science* 43(2):267-279.
+
+Li, K. T., & Van den Bulte, C. (2022). "Augmented Difference-in-Differences."
+*Marketing Science* 42(4):746-767.
 
 Abadie, A., Diamond, A., & Hainmueller, J. (2010). "Synthetic Control
 Methods for Comparative Case Studies." *Journal of the American
