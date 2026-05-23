@@ -33,6 +33,39 @@ non-parallelism therefore simultaneously minimises the MDE and tightens the
 confidence interval. Optimising parallelism *is* optimising inferential
 precision.
 
+What is a supergeo?
+^^^^^^^^^^^^^^^^^^^
+
+Geo experiments differ from ordinary A/B tests in one decisive way: the
+experimental units are a *small* number of *large, heterogeneous* aggregates
+--- markets, regions, DMAs --- rather than many exchangeable individuals.
+Randomising treatment across a handful of dissimilar markets routinely
+produces treatment and control groups with very different baseline
+characteristics, and the resulting post-randomisation bias does not average
+away over the single assignment a practitioner actually runs (Abadie & Zhao
+2026). Classic matched-pair designs help, but with heterogeneous geos there
+may be *no* good one-to-one match for a given market.
+
+A **supergeo** resolves this by relaxing the unit of matching. Rather than
+insisting that single geos match, geos are pooled into composite aggregates:
+a supergeo is simply a bundle of geos treated as one unit, with outcome equal
+to their (population-weighted) mean. Composite units can be made comparable
+even when their constituents are not --- a small, noisy market combined with
+a complementary one can, in aggregate, track another composite closely. The
+design then pairs *supergeos*, randomises treatment within each pair, and ---
+unlike trimming-based approaches --- assigns **every** geo to some supergeo,
+so the experiment spans the entire market with nothing discarded (Chen,
+Doudchenko, Jiang, Stein & Ying 2023).
+
+PANGEO keeps this structure but changes *what* the supergeos are matched on.
+Supergeo Design and OSD match on a scalar summary (the summed response, or a
+few covariate totals), which collapses the time dimension; PANGEO matches on
+the full pre-treatment **trajectory**, choosing pairs whose aggregate paths
+run as parallel as possible. The reason is that the downstream
+difference-in-differences analysis differences trajectories: two markets with
+identical totals but different seasonal shapes are not interchangeable for
+it, even though scalar matching treats them as equivalent.
+
 Setup and notation
 ------------------
 
@@ -261,22 +294,24 @@ validity (below).
 Power and the minimum detectable effect
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Because power and the design objective are the same quantity,
-:meth:`mlsynth.PANGEO.fit` returns a power analysis
-(``results.power``). For pair :math:`p` the no-effect gap fluctuates around
-its parallel-trends line with per-period variance estimated on the
-**held-out blank window** (out of sample with respect to the optimisation,
-hence honest),
+Because power and the design objective are governed by the same supergeo
+gap residual, :meth:`mlsynth.PANGEO.fit` returns a power analysis
+(``results.power``). For pair :math:`p` the per-period noise is estimated
+honestly on the **held-out blank window** :math:`\mathcal B` (out of sample
+with respect to the optimisation) as the residual of the *same counterfactual
+model used at evaluation* (:eq:`adid`) --- fit on the estimation window
+:math:`\mathcal E`, evaluated on :math:`\mathcal B`:
 
 .. math::
 
    \hat\sigma_p^2
-     = \frac{1}{|\mathcal B|-1}\sum_{t\in\mathcal B}
-       \big(g_{p,t}-\bar g_p^{\,\mathcal B}\big)^2 .
+     = \frac{1}{|\mathcal B|-1}\sum_{t\in\mathcal B} \hat e_{p,t}^2 .
 
-The :math:`X`-period DiD effect for the pair,
-:math:`\hat\tau_p = \overline{g}_{p,\mathrm{post}} - \bar g_p`, has variance
-:math:`\hat\sigma_p^2\,[f(X,\rho)+f(T_0,\rho)]`, where
+Using the evaluation model here (the augmented-DiD residual by default,
+or the plain level-removed gap when ``att_augment=False``) rather than a
+fixed recipe keeps the projected MDE and the realised standard error
+(:eq:`adidvar`) coherent. The :math:`X`-period effect for the pair then has
+variance :math:`\hat\sigma_p^2\,[f(X,\rho)+f(T_0,\rho)]`, where
 
 .. math::
 
@@ -422,8 +457,21 @@ reduces to a single requirement --- that the regression **residual**
 :math:`e_t` be (weakly dependent) stationary --- which the augmentation and
 trend deliver. The design's parallelism is retained throughout; it minimises
 the residual variance, which by :eq:`adidvar` directly tightens the standard
-error (and the MDE, whose power analysis is independent and continues to use
-the pre-period gap variance).
+error --- and, because the power analysis reads the *same* held-out residual,
+the planning MDE as well.
+
+Plain DiD as an option. Setting ``att_augment=False`` (and optionally
+``att_trend=False``) recovers Li & Van den Bulte's ordinary
+difference-in-differences --- ``y^{T}_t - y^{C}_t = \delta_1 [+ \gamma t] +
+e_t`` with the control coefficient fixed at one --- and the power analysis
+follows suit, so the two stages stay coherent. A head-to-head Monte-Carlo
+comparison (R\ :sup:`2` design + plain DiD versus the augmented defaults)
+found augmented DiD both **more precise** (lower realised MDE) and
+**better-covering** across the stationary, trend-plus-seasonal and
+integrated-factor regimes, because plain DiD has no mechanism to absorb a
+control-scale mismatch or a trend and leaves that structure in its residual.
+The augmented estimator is therefore the default; plain DiD remains available
+for settings where its textbook simplicity is preferred.
 
 Validity envelope (smoke tests)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -461,8 +509,14 @@ single :math:`\delta_2` can cointegrate, marks the honest assumption
 boundary. In practice the fitted :math:`\hat\delta_2` (reported as
 ``AttEstimate.scale``) and the residual diagnose whether the assumption
 holds; if a single scale cannot flatten the gap, add covariate or seasonal
-regressors before trusting the interval. These experiments live in
-``mlsynth/tests/test_pangeo.py`` (``TestADIDInference``).
+regressors before trusting the interval.
+
+Because the power analysis now uses the evaluation model's held-out
+residual, the **planning MDE is calibrated to the realised standard error**:
+on the stationary gap the projected MDE matches the realised value to within
+roughly 7% (ratio :math:`\approx 0.93`), and on integrated gaps it is
+conservative (over-states the MDE), the safe direction. These experiments
+live in ``mlsynth/tests/test_pangeo.py`` (``TestADIDInference``).
 
 .. code-block:: python
 
