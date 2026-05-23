@@ -595,6 +595,26 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
                     "Sweeps integer ranks in [1, min(J, T0-1)] and picks the rank "
                     "with lowest held-out NNLS MSE.",
     )
+    compute_cft_pi: bool = Field(
+        default=False,
+        description="Cattaneo-Feng-Titiunik (2021) prediction intervals for the "
+                    "RPCA-SC fit. Two-component (in-sample bootstrap + out-of-sample "
+                    "Hoeffding bound). Default False because it requires `cft_sims` "
+                    "full refits of the pipeline (~0.5s each).",
+    )
+    cft_sims: int = Field(
+        default=200, ge=10,
+        description="Number of bootstrap draws for the CFT in-sample component.",
+    )
+    cft_alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for the CFT prediction intervals.",
+    )
+    cft_e_method: Literal["gaussian"] = Field(
+        default="gaussian",
+        description="Out-of-sample method for the CFT component. Currently "
+                    "only 'gaussian' (Hoeffding sub-Gaussian bound) is supported.",
+    )
 
     @model_validator(mode="before")
     @classmethod
