@@ -956,6 +956,12 @@ class CTSCConfig(BaseEstimatorConfig):
     slopes and synthetic controls for all units. (The paper calls it "GSC";
     mlsynth uses CTSC to avoid collision with Xu (2017)'s GSC.)
 
+    Notes
+    -----
+    The base ``treat`` field is unused by CTSC; provide the continuous /
+    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
+    existing column name for ``treat`` to satisfy the base config.
+
     Parameters
     ----------
     treatment_vars : list of str
@@ -973,12 +979,6 @@ class CTSCConfig(BaseEstimatorConfig):
         Rademacher draws for the randomization test.
     random_state : int
         Seed for the randomization-test RNG.
-
-    Notes
-    -----
-    The base ``treat`` field is unused by CTSC; provide the continuous /
-    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
-    existing column name for ``treat`` to satisfy the base config.
     """
 
     treatment_vars: List[str] = Field(
@@ -1064,6 +1064,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
     Parameters
     ----------
     outcomes : list of str
@@ -1079,12 +1085,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
@@ -1109,6 +1109,59 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         default=None, ge=2,
         description="Cap on the number of control units used as placebos.",
     )
+
+
+class PANGEOConfig(BaseModel):
+    """Configuration for the PANGEO experimental-design estimator.
+
+    Parallel-trends supergeo design (in the Supergeo / Chen et al. 2023
+    lineage): partitions each treatment arm's geos into supergeo pairs
+    whose treatment/control halves are maximally parallel over the
+    pre-period, via a cvxpy/HiGHS set-partitioning MIP. A prospective
+    *design* method -- it returns supergeo pairs + a treatment/control
+    assignment, not a treatment effect -- so it takes a single categorical
+    ``arm`` column rather than a binary ``treat`` indicator.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Historical (pre-treatment) balanced long panel.
+    outcome : str
+        Historical outcome column (e.g. sales).
+    arm : str
+        Single categorical column naming each geo's eligible treatment arm
+        (e.g. values ``A``/``B``/``C``). Arms occupy non-overlapping geos;
+        the design runs independently within each arm.
+    unitid : str
+        Unit (geo) identifier column.
+    time : str
+        Time-period column.
+    max_supergeo_size : int
+        Q -- the maximum size of either supergeo within a pair. Set ``1``
+        to recover classic matched pairs.
+    min_pairs : int
+        Minimum number of supergeo pairs per arm.
+    """
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    df: pd.DataFrame = Field(..., description="Historical pre-treatment panel.")
+    outcome: str = Field(..., description="Historical outcome column (e.g. sales).")
+    arm: str = Field(..., description="Categorical column of each geo's arm.")
+    unitid: str = Field(..., description="Unit (geo) identifier column.")
+    time: str = Field(..., description="Time-period column.")
+    max_supergeo_size: int = Field(
+        default=3, ge=1,
+        description="Q: max size of either supergeo within a pair.")
+    min_pairs: int = Field(
+        default=1, ge=1,
+        description="Minimum number of supergeo pairs per arm.")
+    display_graphs: bool = Field(
+        default=True,
+        description="Plot treatment vs control aggregate trajectories per arm.")
+    save: Union[bool, str] = Field(
+        default=False, description="Save the plot (True or a filename base).")
 
 
 class PROXIMALConfig(BaseEstimatorConfig):
