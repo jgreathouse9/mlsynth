@@ -417,6 +417,70 @@ class TestEffects:
                     "display_graphs": False}).fit()
 
 
+# ----------------------------------------------------------------------
+# Augmented-DiD inference (Li & Van den Bulte 2022)
+# ----------------------------------------------------------------------
+
+class TestADIDInference:
+    def _design_and_score(self, seed, tau, **sim):
+        d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                      T=104, seed=seed, n_post=8, **sim)
+        cfg = dict(outcome="sales", arm="arm", unitid="unit", time="time",
+                   post_col="post_col", max_supergeo_size=3,
+                   compute_power=False, display_graphs=False)
+        des = PANGEO({"df": d, **cfg}).fit()
+        treated = [u for u, a in des.assignment.items() if a == "treatment"]
+        d2 = d.copy()
+        m = (d2.post_col == 1) & (d2.unit.isin(treated))
+        d2.loc[m, "sales"] += tau
+        return PANGEO({"df": d2, **cfg}).fit().effects, des.effects
+
+    def test_se_scale_and_pvalue_present(self):
+        eff, _ = self._design_and_score(0, 0.6)
+        for est in [eff.program] + list(eff.arms.values()):
+            assert est.se > 0
+            assert est.ci_lower <= est.att <= est.ci_upper
+            assert 0.0 <= est.p_value <= 1.0
+        assert "scale" in eff.summary().columns
+
+    def test_augment_toggle_sets_scale(self):
+        d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                      T=104, seed=1, n_post=8)
+        cfg = dict(outcome="sales", arm="arm", unitid="unit", time="time",
+                   post_col="post_col", max_supergeo_size=3,
+                   compute_power=False, display_graphs=False)
+        aug = PANGEO({"df": d, "att_augment": True, **cfg}).fit().effects
+        plain = PANGEO({"df": d, "att_augment": False, **cfg}).fit().effects
+        assert plain.program.scale == 1.0          # delta_2 forced to 1
+        assert aug.program.scale != 1.0            # free augmentation
+        assert aug.metadata["augment"] is True
+
+    def test_trend_toggle_runs(self):
+        d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                      T=104, seed=2, n_post=8)
+        res = PANGEO({"df": d, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "post_col": "post_col",
+                      "att_trend": False, "max_supergeo_size": 3,
+                      "compute_power": False, "display_graphs": False}).fit()
+        assert res.effects.metadata["trend"] is False
+
+    @pytest.mark.slow
+    def test_nominal_coverage_on_stationary_gap(self):
+        """Paper-faithful DGP (stationary factor, no trend/season): the
+        prediction-variance CI is ~nominal and the point ATT unbiased."""
+        TAU = 0.6
+        cover, type1, atts = [], [], []
+        for s in range(60):
+            eff, null = self._design_and_score(
+                s, TAU, factor="iid", season_amp=0.0, trend_sd=0.0)
+            cover.append(eff.program.ci_lower <= TAU <= eff.program.ci_upper)
+            atts.append(eff.program.att)
+            type1.append(null.program.p_value < 0.05)
+        assert abs(np.mean(atts) - TAU) < 0.1      # unbiased
+        assert np.mean(cover) > 0.85               # ~0.93 expected
+        assert np.mean(type1) < 0.20               # ~0.07 expected
+
+
 @pytest.mark.parametrize("objective", ["ss_res", "r2", "weighted"])
 def test_objective_options_run_and_cover(panel, objective):
     """Every score objective yields a valid exact-cover design."""
