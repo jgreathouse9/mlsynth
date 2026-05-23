@@ -143,6 +143,12 @@ class CLUSTERSCInference:
         object when the Shen et al. CIs were computed (frequentist
         OLS PCR only). Carries per-period and ATT CIs under each
         source-of-randomness assumption.
+    cft : object, optional
+        Full :class:`mlsynth.utils.clustersc_helpers.rpca.inference.CFTInference`
+        object when Cattaneo-Feng-Titiunik (2021) prediction
+        intervals were computed (RPCA-SC only, opt-in via
+        ``CLUSTERSCConfig.compute_cft_pi``). Carries per-period and
+        ATT prediction intervals.
     """
 
     method: str
@@ -150,6 +156,7 @@ class CLUSTERSCInference:
     att: float = float("nan")
     credible_interval: Tuple[float, float] = (float("nan"), float("nan"))
     shen: Optional[Any] = None
+    cft: Optional[Any] = None
 
 
 @dataclass(frozen=True)
