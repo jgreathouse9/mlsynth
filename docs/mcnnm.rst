@@ -74,6 +74,28 @@ the treatment effect as observed minus imputed:
 :math:`\widehat\tau_{it} = Y_{it} - \widehat Y_{it}(0)`, aggregated to the
 ATT over the treated cells.
 
+Staggered adoption
+^^^^^^^^^^^^^^^^^^
+
+MC-NNM handles **staggered adoption** natively -- units adopting at
+different (irreversible) times produce a "staircase" of missing cells,
+which the mask-based imputation fills directly (paper Section 3.1.2; this
+is MC-NNM's main advantage over fixed-rank interactive-fixed-effects
+methods). Adoption times are detected with
+:func:`mlsynth.utils.datautils.dataprep`, and the result exposes two
+staggered-aware aggregations beyond the overall ATT:
+
+* ``cohort_att`` -- ``{adoption_time: ATT}`` for each adoption cohort.
+* ``event_study`` -- ``{relative_time: average effect}``, with effects
+  re-centred on each unit's own adoption date (negative keys are
+  pre-adoption placebo / fit-quality checks, ~0; non-negative keys are the
+  dynamic treatment effects).
+
+With multiple adoption times, ``display_graphs=True`` draws an
+**event-study** plot (effect vs time relative to adoption) rather than the
+single-treatment-line trajectory, so cohorts at different event times are
+not blended on a calendar axis.
+
 Core API
 --------
 
