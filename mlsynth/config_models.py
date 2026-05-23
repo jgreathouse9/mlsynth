@@ -1151,9 +1151,12 @@ class PANGEOConfig(BaseModel):
     arm: str = Field(..., description="Categorical column of each geo's arm.")
     unitid: str = Field(..., description="Unit (geo) identifier column.")
     time: str = Field(..., description="Time-period column.")
-    max_supergeo_size: int = Field(
-        default=3, ge=1,
-        description="Q: max size of either supergeo within a pair.")
+    max_supergeo_size: Optional[int] = Field(
+        default=None, ge=1,
+        description="Q: max size of either supergeo within a pair. If None "
+                    "(default), Q is selected automatically by minimising the "
+                    "program-level MDE over feasible Q (see metadata "
+                    "'q_sweep').")
     min_pairs: int = Field(
         default=1, ge=1,
         description="Minimum number of supergeo pairs per arm.")
