@@ -849,6 +849,8 @@ class SNNConfig(BaseEstimatorConfig):
         (used when ``max_rank`` is None and ``universal_rank`` is False).
     universal_rank : bool
         Use the Donoho-Gavish (2014) universal hard-threshold rank.
+        Default True -- well-calibrated for small low-rank panels (e.g.
+        Prop 99); set False to use the spectral-energy threshold.
     clip : bool
         Clip imputations to the observed value range.
     inference : bool
@@ -872,8 +874,10 @@ class SNNConfig(BaseEstimatorConfig):
         description="Singular-value energy threshold for rank selection.",
     )
     universal_rank: bool = Field(
-        default=False,
-        description="Use the Donoho-Gavish universal hard-threshold rank.",
+        default=True,
+        description="Use the Donoho-Gavish universal hard-threshold rank "
+                    "(default; well-calibrated for small low-rank panels). "
+                    "Set False to use the spectral-energy threshold instead.",
     )
     clip: bool = Field(
         default=True,
@@ -903,6 +907,12 @@ class CTSCConfig(BaseEstimatorConfig):
     slopes and synthetic controls for all units. (The paper calls it "GSC";
     mlsynth uses CTSC to avoid collision with Xu (2017)'s GSC.)
 
+    Notes
+    -----
+    The base ``treat`` field is unused by CTSC; provide the continuous /
+    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
+    existing column name for ``treat`` to satisfy the base config.
+
     Parameters
     ----------
     treatment_vars : list of str
@@ -920,12 +930,6 @@ class CTSCConfig(BaseEstimatorConfig):
         Rademacher draws for the randomization test.
     random_state : int
         Seed for the randomization-test RNG.
-
-    Notes
-    -----
-    The base ``treat`` field is unused by CTSC; provide the continuous /
-    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
-    existing column name for ``treat`` to satisfy the base config.
     """
 
     treatment_vars: List[str] = Field(
@@ -1011,6 +1015,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
     Parameters
     ----------
     outcomes : list of str
@@ -1026,12 +1036,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
