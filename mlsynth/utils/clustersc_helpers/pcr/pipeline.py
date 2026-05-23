@@ -49,6 +49,9 @@ def run_pcr(
     rank: Optional[int] = None,
     rank_method: str = "cumvar",
     cumvar_threshold: float = 0.95,
+    standardize_for_rank: bool = True,
+    # projection knob
+    project_denoised: bool = False,
     # clustering knobs
     k_clusters: Optional[int] = None,
     k_max: int = 8,
@@ -164,23 +167,37 @@ def run_pcr(
         target_cluster = cluster_id
 
     # ------------------------------------------------------------------
-    # Algorithm 2 Step 1-2: HSVT-denoise the selected donor matrix.
-    # The paper denoises rank-r in the pre-period; we denoise the FULL
-    # matrix at the same rank so that post-period projection (Step 5)
-    # uses M̂^+ as well.
+    # Algorithm 2 Step 1-2 (Amjad, Shah, Shen 2018 convention):
+    # HSVT-denoise the *pre-period* donor matrix only. Using the full
+    # (T, J) matrix for the denoising step leaks post-period donor
+    # information into the rank-r reconstruction, which can wash out
+    # the very post-period deviations the synthetic control is meant
+    # to detect (we observed this on the California Proposition 99
+    # panel: HSVT-on-full collapsed the ATT from ~-19 to ~-7 at r=4).
     # If the caller passes an explicit `rank`, promote to fixed-rank
     # truncation regardless of the default `rank_method`.
     # ------------------------------------------------------------------
+    pre_donors = selected_full[:T0]
     effective_rank_method = "fixed" if rank is not None else rank_method
     r = select_rank(
-        selected_full[:T0],
+        pre_donors,
         method=effective_rank_method,
         cumvar_threshold=cumvar_threshold,
         r=rank,
+        standardize=standardize_for_rank,
     )
-
-    denoised_full, _, _, _ = hsvt(selected_full, rank=r)
-    denoised_pre = denoised_full[:T0]
+    denoised_pre, _, _, _ = hsvt(pre_donors, rank=r)
+    # Optional post-period denoising for the projection step. Default
+    # `project_denoised=False` keeps the post-period donor outcomes raw
+    # (Amjad-Shah-Shen 2018 / canonical SCM). When True, we apply HSVT
+    # to the full (T, J) matrix at the same rank so the counterfactual
+    # is projected through M̂ in both periods (Rho et al. 2025
+    # Algorithm 4 Step 5, paper-strict).
+    if project_denoised:
+        denoised_full, _, _, _ = hsvt(selected_full, rank=r)
+        projection_full = denoised_full
+    else:
+        projection_full = selected_full
 
     # ------------------------------------------------------------------
     # Algorithm 2 Step 3 (paper) / mlsynth extensions: solve for f̂.
@@ -203,16 +220,18 @@ def run_pcr(
                 target_pre=pre_target,
                 donor_names=selected_names,
             )
-        counterfactual = denoised_full @ f_hat
+        counterfactual = projection_full @ f_hat
         method_tag = f"pcr_{'simplex' if objective == 'SIMPLEX' else 'ols'}"
     else:
         # Bayesian: replace inner OLS with Gaussian posterior; project
-        # through denoised donors in both pre and post.
+        # through `projection_full` (raw by default, denoised when
+        # `project_denoised=True`) so the band shares the projection
+        # convention of the frequentist path.
         rng = np.random.default_rng(random_state)
         f_hat, counterfactual, cf_lo, cf_hi = solve_bayesian(
             denoised_donor_pre=denoised_pre,
             target_pre=pre_target,
-            denoised_donor_full=denoised_full,
+            denoised_donor_full=projection_full,
             alpha=alpha,
             n_samples=n_bayes_samples,
             alpha_prior=alpha_prior,
@@ -237,6 +256,8 @@ def run_pcr(
         "rank": int(r),
         "rank_method": rank_method,
         "cumvar_threshold": float(cumvar_threshold),
+        "standardize_for_rank": bool(standardize_for_rank),
+        "project_denoised": bool(project_denoised),
         "lambda_penalty": lambda_penalty,
         "p": p,
         "q": q,
@@ -274,6 +295,7 @@ def _rank_for_clustering(
     weight step will see (transposed if needed), so clustering and HSVT
     share their rank by default.
     """
+    effective = "fixed" if rank is not None else rank_method
     return select_rank(
-        X, method=rank_method, cumvar_threshold=cumvar_threshold, r=rank,
+        X, method=effective, cumvar_threshold=cumvar_threshold, r=rank,
     )
