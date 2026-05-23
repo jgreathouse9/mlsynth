@@ -828,6 +828,71 @@ class CSCConfig(BaseEstimatorConfig):
     )
 
 
+class SNNConfig(BaseEstimatorConfig):
+    """Configuration for the Synthetic Nearest Neighbors (SNN) estimator.
+
+    Agarwal, Dahleh, Shah & Shen (2021), *"Causal Matrix Completion"*
+    (arXiv:2109.15154). Imputes treated units' untreated potential
+    outcomes by MNAR matrix completion (anchor submatrix + principal
+    component regression), generalising the Synthetic Interventions /
+    synthetic-control approach. Inherits the standard ``df`` / ``outcome``
+    / ``treat`` / ``unitid`` / ``time`` interface.
+
+    Parameters
+    ----------
+    n_neighbors : int
+        Number of synthetic neighbours (anchor-row groups) to average.
+    max_rank : int, optional
+        Fixed PCR truncation rank; overrides the spectral/universal rule.
+    spectral_energy : float
+        Singular-value energy threshold for spectral rank selection
+        (used when ``max_rank`` is None and ``universal_rank`` is False).
+    universal_rank : bool
+        Use the Donoho-Gavish (2014) universal hard-threshold rank.
+    clip : bool
+        Clip imputations to the observed value range.
+    inference : bool
+        Run a leave-one-control jackknife for the ATT SE / CI.
+    alpha : float
+        Two-sided level for the jackknife confidence interval.
+    random_state : int
+        Seed for anchor-row splitting.
+    """
+
+    n_neighbors: int = Field(
+        default=1, ge=1,
+        description="Number of synthetic neighbours (anchor-row groups).",
+    )
+    max_rank: Optional[int] = Field(
+        default=None, ge=1,
+        description="Fixed PCR truncation rank (overrides spectral rule).",
+    )
+    spectral_energy: float = Field(
+        default=0.95, gt=0.0, le=1.0,
+        description="Singular-value energy threshold for rank selection.",
+    )
+    universal_rank: bool = Field(
+        default=False,
+        description="Use the Donoho-Gavish universal hard-threshold rank.",
+    )
+    clip: bool = Field(
+        default=True,
+        description="Clip imputations to the observed value range.",
+    )
+    inference: bool = Field(
+        default=False,
+        description="Run a leave-one-control jackknife for the ATT SE/CI.",
+    )
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for the jackknife confidence interval.",
+    )
+    random_state: int = Field(
+        default=0,
+        description="Seed for anchor-row splitting.",
+    )
+
+
 class CTSCConfig(BaseEstimatorConfig):
     """Configuration for the Continuous-Treatment Synthetic Control (CTSC).
 
@@ -837,6 +902,12 @@ class CTSCConfig(BaseEstimatorConfig):
     treated/never-treated split; jointly estimates unit-specific treatment
     slopes and synthetic controls for all units. (The paper calls it "GSC";
     mlsynth uses CTSC to avoid collision with Xu (2017)'s GSC.)
+
+    Notes
+    -----
+    The base ``treat`` field is unused by CTSC; provide the continuous /
+    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
+    existing column name for ``treat`` to satisfy the base config.
 
     Parameters
     ----------
@@ -855,12 +926,6 @@ class CTSCConfig(BaseEstimatorConfig):
         Rademacher draws for the randomization test.
     random_state : int
         Seed for the randomization-test RNG.
-
-    Notes
-    -----
-    The base ``treat`` field is unused by CTSC; provide the continuous /
-    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
-    existing column name for ``treat`` to satisfy the base config.
     """
 
     treatment_vars: List[str] = Field(
@@ -946,6 +1011,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
     Parameters
     ----------
     outcomes : list of str
@@ -961,12 +1032,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
