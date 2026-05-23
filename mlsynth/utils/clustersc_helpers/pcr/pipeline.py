@@ -168,13 +168,17 @@ def run_pcr(
     # The paper denoises rank-r in the pre-period; we denoise the FULL
     # matrix at the same rank so that post-period projection (Step 5)
     # uses M̂^+ as well.
+    # If the caller passes an explicit `rank`, promote to fixed-rank
+    # truncation regardless of the default `rank_method`.
     # ------------------------------------------------------------------
+    effective_rank_method = "fixed" if rank is not None else rank_method
     r = select_rank(
         selected_full[:T0],
-        method=rank_method,
+        method=effective_rank_method,
         cumvar_threshold=cumvar_threshold,
         r=rank,
     )
+
     denoised_full, _, _, _ = hsvt(selected_full, rank=r)
     denoised_pre = denoised_full[:T0]
 
