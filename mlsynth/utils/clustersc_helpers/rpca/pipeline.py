@@ -29,6 +29,8 @@ from .clustering import FPCACluster, assign_clusters
 from .fpca import FPCAFeatures, compute_fpca_features
 from .hqf import HQFResult, hqf_decompose
 from .pcp import PCPResult, pcp_decompose
+from .tuning import cv_hqf_rank as _cv_hqf_rank
+from .tuning import cv_pcp_lambda
 from .weights import solve_nnls
 
 _MIN_PRE = 2
@@ -57,6 +59,11 @@ def run_rpca(
     hqf_lambda: Optional[float] = None,
     hqf_ip: float = 1.0,
     hqf_max_iter: int = 1000,
+    # CV knobs
+    cv_lambda: bool = False,
+    cv_hqf_rank: bool = False,
+    cv_lambda_multipliers: Sequence[float] = (0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0),
+    cv_hqf_rank_grid: Optional[Sequence[int]] = None,
     random_state: int = 0,
 ) -> MethodFit:
     """Run the five-step RPCA-SC pipeline and assemble a :class:`MethodFit`.
@@ -141,6 +148,45 @@ def run_rpca(
     selected_names = [donor_names[i] for i in donor_col_idx]
 
     # ------------------------------------------------------------------
+    # Optional: leave-one-time-out CV for the dominant solver knob
+    # (PCP lambda or HQF rank). Tunes the prediction-oriented value
+    # rather than the L/S identifiability default from Candes 2011.
+    # See `tuning.py` for the algorithm.
+    # ------------------------------------------------------------------
+    cv_metadata: dict = {}
+    if cv_lambda and rpca_method == "PCP":
+        cv_res = cv_pcp_lambda(
+            donor_pre=selected_donor_full[:T0],
+            treated_pre=treated_outcome[:T0],
+            multipliers=cv_lambda_multipliers,
+            pcp_mu=pcp_mu,
+            pcp_max_iter=pcp_max_iter,
+            pcp_tol=pcp_tol,
+        )
+        pcp_lambda = cv_res.best
+        cv_metadata = {
+            "cv_lambda_grid": cv_res.grid.tolist(),
+            "cv_lambda_mse": cv_res.cv_mse.tolist(),
+            "cv_lambda_best": cv_res.best,
+        }
+    if cv_hqf_rank and rpca_method == "HQF":
+        cv_res = _cv_hqf_rank(
+            donor_pre=selected_donor_full[:T0],
+            treated_pre=treated_outcome[:T0],
+            grid=cv_hqf_rank_grid,
+            hqf_lambda=hqf_lambda,
+            hqf_ip=hqf_ip,
+            hqf_max_iter=hqf_max_iter,
+            random_state=random_state,
+        )
+        hqf_rank = int(cv_res.best)
+        cv_metadata = {
+            "cv_hqf_rank_grid": cv_res.grid.tolist(),
+            "cv_hqf_rank_mse": cv_res.cv_mse.tolist(),
+            "cv_hqf_rank_best": int(cv_res.best),
+        }
+
+    # ------------------------------------------------------------------
     # Step 3: Robust PCA on the selected donor matrix (rows = donors).
     # ------------------------------------------------------------------
     donor_matrix = selected_donor_full.T  # shape (n_donors, T)
@@ -202,6 +248,7 @@ def run_rpca(
         "treated_cluster": int(cluster.treated_cluster),
         "cluster_labels": cluster.labels.tolist(),
         **solver_metadata,
+        **cv_metadata,
     }
 
     return MethodFit(
