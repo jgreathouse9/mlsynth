@@ -71,8 +71,19 @@ denoising of the donor matrix, an optional donor-clustering
 pre-step, and a weight solver. Algorithm 2 of the paper sets out
 the basic pipeline; Algorithm 4 wraps it with the clustering step.
 
-**HSVT denoising.** Let :math:`Y_0^- = U \Sigma V^\top` be the SVD
-of the pre-period donor matrix. The rank-:math:`r` hard truncation
+**HSVT denoising.** mlsynth follows the Amjad-Shah-Shen (2018)
+convention and applies HSVT to the *pre-period* donor matrix only.
+The full-matrix variant proposed in Rho et al. (2025) Algorithm 2
+(SVD on the entire :math:`(T, J)` panel, then slice the pre-period
+rows) leaks post-period donor information into the rank-:math:`r`
+reconstruction, which can wash out the very post-period deviations
+the synthetic control is meant to detect. The user can opt into
+the full-matrix variant via :py:attr:`CLUSTERSCConfig.project_denoised`,
+in which case HSVT is also applied to :math:`(Y_0)` for the
+projection step.
+
+Let :math:`Y_0^- = U \Sigma V^\top` be the SVD of the pre-period
+donor matrix. The rank-:math:`r` hard truncation
 
 .. math::
 
@@ -91,6 +102,20 @@ be chosen three ways:
 * **USVT** (Chatterjee 2015; Donoho-Gavish 2014). Universal
   threshold; preserved for back-compatibility with Amjad et al.
   2018.
+
+For the data-driven rules (``"cumvar"`` and ``"usvt"``), the
+spectral comparison is computed on the column-centred donor
+matrix by default (``standardize_for_rank=True``). Each donor is
+demeaned over time; the variance scale is left untouched.
+Otherwise the leading singular value of an uncentered panel
+(e.g. cigarette sales in absolute units) absorbs the overall
+scale and dwarfs the remaining components, leaving
+``cumvar_threshold`` unable to discriminate. Full z-scoring
+(also dividing by the donor standard deviations) is avoided
+because it equalises donor variances and artificially inflates
+the rank that a cumvar threshold picks. Centring is *only* used
+for rank picking -- the HSVT step itself still consumes the raw
+matrix so the counterfactual is returned in original units.
 
 The same rank is applied to the full :math:`Y_0` so that the
 post-period projection (Algorithm 4 Step 5) consumes the denoised
@@ -118,16 +143,25 @@ of canonical synthetic control and solve
 with :math:`(\widetilde M^-)^{+}` the Moore-Penrose pseudo-inverse.
 Appendix E of the paper compares this OLS path to ridge / lasso
 variants; mlsynth exposes optional elastic-net knobs
-(``lambda_penalty``, ``p``, ``q``) for the same purpose. The
-counterfactual and ATT come from projecting through the *denoised*
-donor matrix in both periods,
+(``lambda_penalty``, ``p``, ``q``) for the same purpose.
+
+The counterfactual is
 
 .. math::
 
-   \widehat y^0_1 = \widetilde M\, \widehat f,
+   \widehat y^0_1 = Y_0\, \widehat f,
    \qquad
    \widehat{ATT} = \frac{1}{T - T_0} \sum_{t > T_0}
-                   \bigl(y_{1, t} - (\widetilde M\, \widehat f)_t\bigr).
+                   \bigl(y_{1, t} - (Y_0\, \widehat f)_t\bigr).
+
+Algorithm 4 Step 5 of Rho et al. (2025) writes the projection
+through the *denoised* matrix :math:`\widetilde M`. For the OLS
+solver the two are mathematically identical -- :math:`\widehat f`
+lies in the column space of :math:`V_r`, so the discarded
+high-order components annihilate. They differ for the Bayesian and
+SIMPLEX solvers below, where :math:`\widehat f` is not constrained
+to the rank-:math:`r` subspace. Set ``project_denoised=True`` to
+recover the paper-strict projection.
 
 mlsynth extensions
 ^^^^^^^^^^^^^^^^^^
