@@ -30,6 +30,7 @@ MLSYNTH
    gsc
    fma
    pda
+   dsc
    tssc
    lexscm
    bvss
