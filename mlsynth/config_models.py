@@ -956,6 +956,12 @@ class CTSCConfig(BaseEstimatorConfig):
     slopes and synthetic controls for all units. (The paper calls it "GSC";
     mlsynth uses CTSC to avoid collision with Xu (2017)'s GSC.)
 
+    Notes
+    -----
+    The base ``treat`` field is unused by CTSC; provide the continuous /
+    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
+    existing column name for ``treat`` to satisfy the base config.
+
     Parameters
     ----------
     treatment_vars : list of str
@@ -973,12 +979,6 @@ class CTSCConfig(BaseEstimatorConfig):
         Rademacher draws for the randomization test.
     random_state : int
         Seed for the randomization-test RNG.
-
-    Notes
-    -----
-    The base ``treat`` field is unused by CTSC; provide the continuous /
-    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
-    existing column name for ``treat`` to satisfy the base config.
     """
 
     treatment_vars: List[str] = Field(
@@ -1064,6 +1064,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
     Parameters
     ----------
     outcomes : list of str
@@ -1079,12 +1085,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
@@ -1157,6 +1157,33 @@ class PANGEOConfig(BaseModel):
     min_pairs: int = Field(
         default=1, ge=1,
         description="Minimum number of supergeo pairs per arm.")
+    objective: Literal["ss_res", "r2", "weighted"] = Field(
+        default="ss_res",
+        description="Per-pair parallelism cost: 'ss_res' (absolute DiD "
+                    "residual SS; scale-dependent), 'r2' (1-R^2; scale-free), "
+                    "or 'weighted' (recency-weighted residual SS).")
+    recency_decay: float = Field(
+        default=0.97, gt=0.0, le=1.0,
+        description="Geometric recency-weight decay for objective='weighted' "
+                    "(period t weight = recency_decay**(T0-1-t)).")
+    covariates: Optional[List[str]] = Field(
+        default=None,
+        description="Optional baseline (time-invariant) covariate columns to "
+                    "balance across each supergeo pair, in addition to "
+                    "pre-period parallelism. Each unit's covariate value is "
+                    "its mean over the panel; the per-pair cost gains a "
+                    "standardized SMD^2 imbalance term "
+                    "sum_m w_m ((cbar_A - cbar_B)/s_m)^2, keeping the outer "
+                    "selection a linear MILP.")
+    covariate_weights: Optional[Dict[str, float]] = Field(
+        default=None,
+        description="Per-covariate weight on the standardized SMD^2 imbalance "
+                    "penalty (default 1.0 each). Larger up-weights balancing "
+                    "that covariate relative to raw parallelism.")
+    standardize_covariates: bool = Field(
+        default=True,
+        description="Standardize each covariate by its cross-unit std before "
+                    "the SMD^2 imbalance (puts covariates on a common scale).")
     display_graphs: bool = Field(
         default=True,
         description="Plot treatment vs control aggregate trajectories per arm.")
