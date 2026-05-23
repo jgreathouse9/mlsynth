@@ -56,6 +56,7 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.dsc_helpers.pipeline import run_dsc
+from ..utils.dsc_helpers.plotter import plot_dsc
 from ..utils.dsc_helpers.setup import prepare_dsc_inputs
 from ..utils.dsc_helpers.structures import DSCResults
 
@@ -92,6 +93,10 @@ class DSC:
         self.qte_quantiles = config.qte_quantiles
         self.n_qte_points: int = config.n_qte_points
         self.random_state: int = config.random_state
+        self.display_graphs: bool = config.display_graphs
+        self.save = config.save
+        self.counterfactual_color = config.counterfactual_color
+        self.treated_color: str = config.treated_color
 
     def fit(self) -> DSCResults:
         """Run Algorithm 1 of Zhang et al. (2026) and return :class:`DSCResults`."""
@@ -103,7 +108,7 @@ class DSC:
                 unitid=self.unitid,
                 time=self.time,
             )
-            return run_dsc(
+            results = run_dsc(
                 inputs=inputs,
                 M=self.M,
                 grid_method=self.grid_method,
@@ -114,6 +119,18 @@ class DSC:
                 n_qte_points=self.n_qte_points,
                 random_state=self.random_state,
             )
+            if self.display_graphs:
+                cf_color = self.counterfactual_color
+                if isinstance(cf_color, (list, tuple)):
+                    cf_color = cf_color[0] if cf_color else "red"
+                plot_dsc(
+                    results,
+                    treated_color=self.treated_color,
+                    counterfactual_color=cf_color,
+                    save=self.save,
+                    outcome_label=self.outcome,
+                )
+            return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
         except Exception as exc:
