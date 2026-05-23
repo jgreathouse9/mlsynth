@@ -266,7 +266,7 @@ across quantiles). We expect the DSC QTE to be roughly flat around
    T_pre = 8
    T_post = 4
    T = T_pre + T_post
-   n_per_cell = 200          # individuals per (unit, time) cell
+   n_per_cell = 200          # individuals per (unit, time) cells
    delta_post = 1.5          # planted location-shift treatment effect
 
    unit_loc = rng.standard_normal(J + 1) * 0.5
