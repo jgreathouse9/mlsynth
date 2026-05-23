@@ -139,6 +139,19 @@ class TestEstimator:
             (res.inputs.Y[ca, :T0] - res.counterfactual[ca, :T0]) ** 2)))
         assert pre_rmse < 3.0
 
+    def test_exposes_factors_and_implied_weights(self):
+        """MC-NNM exposes its factor decomposition and implied (non-unique)
+        donor weights flagged as such."""
+        df, _ = _low_rank_panel()
+        res = MCNNM({"df": df, "outcome": "y", "treat": "D",
+                     "unitid": "unit", "time": "time",
+                     "display_graphs": False}).fit()
+        assert res.unit_factors.shape[0] == res.inputs.N
+        assert res.time_factors.shape[0] == res.inputs.T
+        assert res.unit_factors.shape[1] == res.time_factors.shape[1]
+        assert res.weights is not None
+        assert res.weights.summary_stats["weights_are"] == "implied_non_unique"
+
     def test_jackknife_inference(self):
         df, _ = _low_rank_panel(n_co=12)
         res = MCNNM({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
