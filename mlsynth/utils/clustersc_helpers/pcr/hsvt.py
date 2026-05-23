@@ -24,11 +24,29 @@ import numpy as np
 from ....exceptions import MlsynthConfigError, MlsynthEstimationError
 
 
+def _standardise(X: np.ndarray) -> np.ndarray:
+    """Per-column z-score with zero-variance columns left at zero.
+
+    Used inside :func:`select_rank` for data-driven rules
+    (``"cumvar"``, ``"usvt"``) so the spectral-energy comparison is
+    not dominated by uncentered level information. The standardised
+    matrix is *only* used for rank picking -- the HSVT step itself
+    still consumes the raw matrix.
+    """
+    means = X.mean(axis=0)
+    stds = X.std(axis=0)
+    safe = np.where(stds == 0, 1.0, stds)
+    out = (X - means) / safe
+    out[:, stds == 0] = 0.0
+    return out
+
+
 def select_rank(
     X: np.ndarray,
     method: str = "cumvar",
     cumvar_threshold: float = 0.95,
     r: Optional[int] = None,
+    standardize: bool = True,
 ) -> int:
     """Pick a truncation rank for ``X`` under the chosen rule.
 
@@ -42,6 +60,14 @@ def select_rank(
         Cumulative-variance target in ``(0, 1]`` for ``method="cumvar"``.
     r : int, optional
         Explicit rank for ``method="fixed"``.
+    standardize : bool
+        When True (default), the data-driven rules (``"cumvar"`` /
+        ``"usvt"``) operate on the column-standardised version of
+        ``X``. This prevents the leading singular value from being
+        dominated by uncentered level information (e.g. cigarette
+        sales numbers, GDP per capita) so that ``cumvar_threshold``
+        actually discriminates over the panel's *factor structure*
+        rather than the overall scale. Ignored for ``method="fixed"``.
 
     Returns
     -------
@@ -60,12 +86,14 @@ def select_rank(
             )
         return int(min(r, rank_cap))
 
+    X_for_rank = _standardise(X) if standardize else X
+
     if method == "cumvar":
         if not (0.0 < cumvar_threshold <= 1.0):
             raise MlsynthConfigError(
                 "cumvar_threshold must lie in (0, 1]."
             )
-        s = np.linalg.svd(X, compute_uv=False)
+        s = np.linalg.svd(X_for_rank, compute_uv=False)
         energy = s ** 2
         total = float(energy.sum())
         if total <= 0.0:
@@ -79,7 +107,7 @@ def select_rank(
         # Universal SVT threshold (Chatterjee 2015; Donoho-Gavish 2014):
         # keep singular values exceeding 2.858 * median when the matrix
         # is square-ish, with the well-known (m/n)-dependent constant.
-        s = np.linalg.svd(X, compute_uv=False)
+        s = np.linalg.svd(X_for_rank, compute_uv=False)
         beta = min(m, n) / max(m, n)
         omega = 0.56 * beta ** 3 - 0.95 * beta ** 2 + 1.43 + 1.82 * beta
         threshold = omega * np.median(s)
@@ -89,6 +117,7 @@ def select_rank(
     raise MlsynthConfigError(
         f"Unknown rank_method {method!r}; expected 'cumvar', 'fixed', or 'usvt'."
     )
+
 
 
 def hsvt(
