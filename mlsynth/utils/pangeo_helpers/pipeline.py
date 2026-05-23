@@ -244,6 +244,8 @@ def run_pangeo(
         "frac_E": frac_E,
         "n_estimation": int(e_idx.size),
         "n_holdout": int(b_idx.size) if holdout else 0,
+        "att_augment": att_augment,
+        "att_trend": att_trend,
     }
 
     power = None
@@ -265,8 +267,7 @@ def run_pangeo(
 
 def _mean_program_mde(result: PangeoResults) -> float:
     """Mean program-level MDE (% of baseline) across horizons; ``inf`` if
-    unavailable. The selection score for automatic Q (lower is better).
-    """
+    unavailable. The selection score for automatic Q (lower is better)."""
     if result.power is None:
         return float("inf")
     vals = [pt.mde_pct for pt in result.power.program.points

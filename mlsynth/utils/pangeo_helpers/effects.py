@@ -101,6 +101,11 @@ class AttEstimate:
     scale : float
         Fitted augmentation coefficient :math:`\\hat\\delta_2` (1.0 if the
         augmentation is disabled, i.e. plain DiD).
+    observed : np.ndarray
+        Observed treated supergeo aggregate over pre + post periods.
+    counterfactual : np.ndarray
+        Augmented-DiD counterfactual prediction of the treated aggregate over
+        the same periods; the gap in the post window is the per-period effect.
     """
 
     level: str
@@ -115,6 +120,8 @@ class AttEstimate:
     p_value: float
     n_post: int
     scale: float
+    observed: np.ndarray = field(default_factory=lambda: np.empty(0))
+    counterfactual: np.ndarray = field(default_factory=lambda: np.empty(0))
 
 
 @dataclass(frozen=True)
@@ -185,6 +192,32 @@ def _lr_variance(resid: np.ndarray, k: int) -> float:
     return max(omega, 1e-18)
 
 
+def adid_counterfactual(
+    YT: np.ndarray, YC: np.ndarray, n_pre: int,
+    augment: bool = True, trend: bool = True,
+) -> np.ndarray:
+    """Treated-series counterfactual from the (augmented) DiD fit.
+
+    Fit ``yT = d1 [+ d2*yC] [+ g*t]`` on the first ``n_pre`` periods and
+    return the predicted *treated* trajectory over all periods -- the line
+    PANGEO plots against the observed treated aggregate. For plain DiD the
+    counterfactual is ``yC + (d1 [+ g*t])``; for augmented DiD it is the
+    projection ``d1 + d2*yC [+ g*t]`` directly.
+    """
+    n = YT.size
+    t = np.arange(n, dtype=float)
+    cols = [np.ones(n)] + ([YC] if augment else []) + ([t] if trend else [])
+    X = np.column_stack(cols)
+    y = YT if augment else YT - YC
+    XE = X[:n_pre]
+    try:
+        beta = np.linalg.solve(XE.T @ XE, XE.T @ y[:n_pre])
+    except np.linalg.LinAlgError:
+        beta = np.linalg.lstsq(XE, y[:n_pre], rcond=None)[0]
+    yhat = X @ beta
+    return yhat if augment else YC + yhat
+
+
 def _adid(
     YT: np.ndarray, YC: np.ndarray, n_pre: int, n_post: int,
     augment: bool, trend: bool, alpha: float,
@@ -232,9 +265,10 @@ def _adid(
     # (cf. mlsynth.utils.resultutils.effects.calculate): the counterfactual
     # treated series is y^T_t - u_t, so its post mean is mean(y^T_post) - att.
     baseline = float(YT[n_pre:].mean() - att)
+    cf = X @ beta if augment else (YC + X @ beta)   # treated counterfactual
     return {"att": att, "se": se, "ci_lower": att - z * se,
             "ci_upper": att + z * se, "p_value": p_value, "scale": scale,
-            "baseline": baseline}
+            "baseline": baseline, "counterfactual": cf}
 
 
 def _pair_records(arm_design, pos, Y_post, weights):
@@ -318,6 +352,7 @@ def _aggregate(level, recs, alpha, augment, trend) -> AttEstimate:
         se=r["se"], ci_lower=r["ci_lower"], ci_upper=r["ci_upper"],
         ci_lower_pct=pct(r["ci_lower"]), ci_upper_pct=pct(r["ci_upper"]),
         p_value=r["p_value"], n_post=int(n_post), scale=r["scale"],
+        observed=YT, counterfactual=r["counterfactual"],
     )
 
 

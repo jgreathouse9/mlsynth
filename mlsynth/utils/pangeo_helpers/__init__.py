@@ -21,7 +21,12 @@ Module layout:
 
 from __future__ import annotations
 
-from .effects import AttEstimate, PangeoEffects, compute_pangeo_effects
+from .effects import (
+    AttEstimate,
+    PangeoEffects,
+    adid_counterfactual,
+    compute_pangeo_effects,
+)
 from .parallelism import (
     covariate_imbalance,
     enumerate_candidate_pairs,
@@ -50,6 +55,7 @@ __all__ = [
     "PowerCurve",
     "SupergeoPair",
     "build_post_matrix",
+    "adid_counterfactual",
     "compute_pangeo_effects",
     "compute_pangeo_power",
     "covariate_imbalance",
