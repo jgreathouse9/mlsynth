@@ -956,6 +956,12 @@ class CTSCConfig(BaseEstimatorConfig):
     slopes and synthetic controls for all units. (The paper calls it "GSC";
     mlsynth uses CTSC to avoid collision with Xu (2017)'s GSC.)
 
+    Notes
+    -----
+    The base ``treat`` field is unused by CTSC; provide the continuous /
+    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
+    existing column name for ``treat`` to satisfy the base config.
+
     Parameters
     ----------
     treatment_vars : list of str
@@ -973,12 +979,6 @@ class CTSCConfig(BaseEstimatorConfig):
         Rademacher draws for the randomization test.
     random_state : int
         Seed for the randomization-test RNG.
-
-    Notes
-    -----
-    The base ``treat`` field is unused by CTSC; provide the continuous /
-    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
-    existing column name for ``treat`` to satisfy the base config.
     """
 
     treatment_vars: List[str] = Field(
@@ -1064,6 +1064,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
     Parameters
     ----------
     outcomes : list of str
@@ -1079,12 +1085,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
@@ -1136,6 +1136,14 @@ class PANGEOConfig(BaseModel):
         Unit (geo) identifier column.
     time : str
         Time-period column.
+    post_col : str, optional
+        0/1 indicator column marking post-treatment periods (0 = pre). When
+        given, the design is built on the pre rows alone -- identical to the
+        design-only result -- and the realized difference-in-differences ATT
+        is additionally computed on the post rows (``results.effects``).
+    weight_col : str, optional
+        Per-unit aggregation weight (e.g. population), constant within a
+        unit. Makes both the supergeo design and the ATT population-weighted.
     max_supergeo_size : int
         Q -- the maximum size of either supergeo within a pair. Set ``1``
         to recover classic matched pairs.
@@ -1151,6 +1159,15 @@ class PANGEOConfig(BaseModel):
     arm: str = Field(..., description="Categorical column of each geo's arm.")
     unitid: str = Field(..., description="Unit (geo) identifier column.")
     time: str = Field(..., description="Time-period column.")
+    post_col: Optional[str] = Field(
+        default=None,
+        description="0/1 indicator of post-treatment periods. If given, the "
+                    "design uses pre rows only and a realized DiD ATT is "
+                    "computed on the post rows (results.effects).")
+    weight_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit aggregation weight column (e.g. population); "
+                    "makes the design and ATT population-weighted.")
     max_supergeo_size: Optional[int] = Field(
         default=None, ge=1,
         description="Q: max size of either supergeo within a pair. If None "
@@ -1169,6 +1186,13 @@ class PANGEOConfig(BaseModel):
         default=0.97, gt=0.0, le=1.0,
         description="Geometric recency-weight decay for objective='weighted' "
                     "(period t weight = recency_decay**(T0-1-t)).")
+    frac_E: float = Field(
+        default=0.7, gt=0.0, lt=1.0,
+        description="Fraction of the pre-period used as the estimation window "
+                    "the split is optimised over; the remaining tail is held "
+                    "out as a blank window whose residuals give honest, "
+                    "out-of-sample variance for the MDE and conformal CIs "
+                    "(mirrors LEXSCM / SPCD).")
     covariates: Optional[List[str]] = Field(
         default=None,
         description="Optional baseline (time-invariant) covariate columns to "
