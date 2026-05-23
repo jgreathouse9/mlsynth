@@ -45,6 +45,7 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.iscm_helpers.pipeline import run_iscm
+from ..utils.iscm_helpers.plotter import plot_iscm
 from ..utils.iscm_helpers.setup import prepare_iscm_inputs
 from ..utils.iscm_helpers.structures import ISCMResults
 
@@ -78,6 +79,10 @@ class ISCM:
         self.alpha: float = config.alpha
         self.n_draws: int = config.n_draws
         self.random_state: int = config.random_state
+        self.display_graphs: bool = config.display_graphs
+        self.save = config.save
+        self.counterfactual_color = config.counterfactual_color
+        self.treated_color: str = config.treated_color
 
     def fit(self) -> ISCMResults:
         """Run ISCM and return :class:`ISCMResults`."""
@@ -89,7 +94,7 @@ class ISCM:
                 unitid=self.unitid,
                 time=self.time,
             )
-            return run_iscm(
+            results = run_iscm(
                 inputs=inputs,
                 inference=self.inference,
                 null_value=self.null_value,
@@ -97,6 +102,19 @@ class ISCM:
                 n_draws=self.n_draws,
                 random_state=self.random_state,
             )
+            if self.display_graphs:
+                cf_color = self.counterfactual_color
+                if isinstance(cf_color, (list, tuple)):
+                    cf_color = cf_color[0] if cf_color else "red"
+                plot_iscm(
+                    results,
+                    treated_color=self.treated_color,
+                    counterfactual_color=cf_color,
+                    save=self.save,
+                    unit_label=self.unitid,
+                    effect_label=f"Treatment effect on {self.outcome}",
+                )
+            return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
         except Exception as exc:
