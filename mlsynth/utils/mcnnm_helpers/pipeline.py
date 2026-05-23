@@ -75,6 +75,56 @@ def _att_from_fit(Y, D, completed, T0, time_labels):
     return att, effects, att_by_period
 
 
+def _adoption_indices(inputs: MCNNMInputs, adoption_times) -> np.ndarray:
+    """Per-unit adoption period index (-1 for never-treated).
+
+    ``adoption_times`` (from ``datautils.dataprep``) maps unit name -> the
+    time *label* of first treatment; this resolves it to a column index.
+    Falls back to argmax of the treatment matrix if a unit is absent.
+    """
+    label_to_idx = {lab: t for t, lab in enumerate(inputs.time_labels)}
+    name_to_row = {n: i for i, n in enumerate(inputs.unit_names)}
+    adopt = np.full(inputs.N, -1, dtype=int)
+    if adoption_times:
+        for name, lab in adoption_times.items():
+            i = name_to_row.get(name)
+            if i is not None and lab in label_to_idx:
+                adopt[i] = label_to_idx[lab]
+    # Fallback for any treated unit not covered.
+    for i in inputs.treated_idx:
+        if adopt[i] < 0:
+            adopt[i] = int(np.argmax(inputs.D[i] == 1))
+    return adopt
+
+
+def _staggered_aggregations(inputs, completed, adoption_times):
+    """Cohort ATTs and an event-study curve from the per-cell gaps."""
+    Y, D = inputs.Y, inputs.D
+    adopt = _adoption_indices(inputs, adoption_times)
+    gap = Y - completed                       # full gap matrix
+
+    # Cohort ATTs: group treated units by adoption index; average post cells.
+    cohort_att = {}
+    cohorts = {}
+    for i in inputs.treated_idx:
+        cohorts.setdefault(adopt[i], []).append(i)
+    for a, members in sorted(cohorts.items()):
+        post = D[members, a:] > 0
+        vals = gap[members, a:][post]
+        if vals.size:
+            cohort_att[inputs.time_labels[a]] = float(np.mean(vals))
+
+    # Event study: average gap by relative time e = t - adoption (all t).
+    by_e = {}
+    for i in inputs.treated_idx:
+        a = adopt[i]
+        for t in range(inputs.T):
+            e = t - a
+            by_e.setdefault(e, []).append(gap[i, t])
+    event_study = {int(e): float(np.mean(v)) for e, v in sorted(by_e.items())}
+    return cohort_att, event_study
+
+
 def run_mcnnm(
     inputs: MCNNMInputs,
     *,
@@ -87,6 +137,7 @@ def run_mcnnm(
     inference: bool = False,
     alpha_level: float = 0.05,
     random_state: int = 0,
+    adoption_times: Optional[dict] = None,
 ) -> MCNNMResults:
     """Run MC-NNM (CV over the threshold) and assemble :class:`MCNNMResults`.
 
@@ -112,6 +163,9 @@ def run_mcnnm(
     att, effects, att_by_period = _att_from_fit(
         Y, D, completed, T0, inputs.time_labels
     )
+    cohort_att, event_study = _staggered_aggregations(
+        inputs, completed, adoption_times
+    )
     s = np.linalg.svd(fit["L"], compute_uv=False)
     rank = int((s > 1e-6 * (s[0] if s.size else 1.0)).sum())
     unit_factors, time_factors, singular_values, weights = _factors_and_weights(
@@ -132,7 +186,8 @@ def run_mcnnm(
     }
     return MCNNMResults(
         inputs=inputs, att=att, counterfactual=completed, effects=effects,
-        att_by_period=att_by_period, L=fit["L"], gamma=fit["gamma"],
+        att_by_period=att_by_period, cohort_att=cohort_att,
+        event_study=event_study, L=fit["L"], gamma=fit["gamma"],
         delta=fit["delta"], best_lambda=float(fit["best_lambda"]), rank=rank,
         unit_factors=unit_factors, time_factors=time_factors,
         singular_values=singular_values, weights=weights,

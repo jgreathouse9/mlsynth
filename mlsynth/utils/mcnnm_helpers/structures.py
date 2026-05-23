@@ -70,7 +70,16 @@ class MCNNMResults:
         Per-cell effects (observed minus imputed) on treated cells; ``NaN``
         elsewhere, shape ``(N, T)``.
     att_by_period : dict
-        ``{period_label: mean effect across treated units}`` post-treatment.
+        ``{period_label: mean effect across treated units}`` post-treatment
+        (calendar time -- pools cohorts at each period).
+    cohort_att : dict
+        ``{adoption_time_label: mean ATT for that adoption cohort}`` -- the
+        cohort-specific effects under staggered adoption.
+    event_study : dict
+        ``{relative_time: mean effect across treated cells at that event
+        time}`` where relative time is ``period - adoption period`` for each
+        treated unit. Negative keys are pre-adoption (a placebo / fit-quality
+        check, ~0); non-negative keys are the dynamic treatment effects.
     L : np.ndarray
         Estimated low-rank matrix, shape ``(N, T)``.
     gamma : np.ndarray
@@ -104,6 +113,8 @@ class MCNNMResults:
     counterfactual: np.ndarray
     effects: np.ndarray
     att_by_period: Dict[Any, float]
+    cohort_att: Dict[Any, float]
+    event_study: Dict[int, float]
     L: np.ndarray
     gamma: np.ndarray
     delta: np.ndarray
