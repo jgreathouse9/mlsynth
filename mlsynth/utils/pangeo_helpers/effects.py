@@ -254,19 +254,60 @@ def _pair_records(arm_design, pos, Y_post, weights):
     return recs
 
 
-def _aggregate(level, recs, alpha, augment, trend) -> AttEstimate:
+def _stack(recs):
+    """Stack a level's pairs into ``(P, .)`` matrices and normalised weights."""
     w = np.array([r["weight"] for r in recs], dtype=float)
-    if w.sum() <= 0:
-        w = np.ones_like(w)
-    w = w / w.sum()
-    YT = np.concatenate([
-        np.sum([w[i] * recs[i]["YT_pre"] for i in range(len(recs))], axis=0),
-        np.sum([w[i] * recs[i]["YT_post"] for i in range(len(recs))], axis=0)])
-    YC = np.concatenate([
-        np.sum([w[i] * recs[i]["YC_pre"] for i in range(len(recs))], axis=0),
-        np.sum([w[i] * recs[i]["YC_post"] for i in range(len(recs))], axis=0)])
+    w = w / w.sum() if w.sum() > 0 else np.full(len(recs), 1.0 / len(recs))
+    YT = np.hstack([np.vstack([r["YT_pre"] for r in recs]),
+                    np.vstack([r["YT_post"] for r in recs])])
+    YC = np.hstack([np.vstack([r["YC_pre"] for r in recs]),
+                    np.vstack([r["YC_post"] for r in recs])])
+    return w, YT, YC
+
+
+def _design_matrix(YC: np.ndarray, n_total: int, augment: bool, trend: bool):
+    """Stack the ADID regressors ``[1, (y^C), (t)]`` for one or many series.
+
+    ``YC`` is ``(n_total,)`` for a single series or ``(P, n_total)`` for a
+    batch; returns ``X`` of shape ``(..., n_total, k)`` and the response
+    transform (``y = y^T`` when augmenting, else the gap ``y^T - y^C``).
+    """
+    t = np.arange(n_total, dtype=float)
+    if YC.ndim == 1:
+        cols = [np.ones(n_total)] + ([YC] if augment else []) \
+            + ([t] if trend else [])
+        return np.column_stack(cols)
+    P = YC.shape[0]
+    ones = np.ones((P, n_total))
+    tt = np.broadcast_to(t, (P, n_total))
+    cols = [ones] + ([YC] if augment else []) + ([tt] if trend else [])
+    return np.stack(cols, axis=2)
+
+
+def _adid_att_batch(YT, YC, n_pre, augment, trend) -> np.ndarray:
+    """Vectorised ATT point estimate for a batch of ``(P, T)`` pairs.
+
+    A single batched OLS (``einsum`` Gram matrices + one ``solve``) -- no
+    Python loop over pairs. Matches :func:`_adid` up to the equivalence of
+    ``lstsq`` and ``solve`` for full-rank designs.
+    """
+    X = _design_matrix(YC, YT.shape[1], augment, trend)     # (P, T, k)
+    y = YT if augment else YT - YC                          # (P, T)
+    Xpre, ypre = X[:, :n_pre, :], y[:, :n_pre]
+    Xpost, ypost = X[:, n_pre:, :], y[:, n_pre:]
+    XtX = np.einsum("ptk,ptj->pkj", Xpre, Xpre)
+    Xty = np.einsum("ptk,pt->pk", Xpre, ypre)
+    beta = np.linalg.solve(XtX, Xty[..., None])[..., 0]     # (P, k)
+    u = ypost - np.einsum("ptk,pk->pt", Xpost, beta)
+    return u.mean(axis=1)
+
+
+def _aggregate(level, recs, alpha, augment, trend) -> AttEstimate:
+    w, MT, MC = _stack(recs)
     n_pre = recs[0]["YT_pre"].size
     n_post = recs[0]["YT_post"].size
+    YT = w @ MT                              # treated-size-weighted aggregates
+    YC = w @ MC
 
     r = _adid(YT, YC, n_pre, n_post, augment, trend, alpha)
     baseline = r["baseline"]                 # mean post-period counterfactual
@@ -308,20 +349,15 @@ def compute_pangeo_effects(
     weights = inputs.weights
     n_post = int(Y_post.shape[1])
 
-    all_recs: List[dict] = []
-    by_arm: Dict[Any, List[dict]] = {}
+    by_arm = {arm: _pair_records(d, pos, Y_post, weights)
+              for arm, d in results.arm_designs.items()}
+    all_recs = [r for recs in by_arm.values() for r in recs]
+
     pair_att: Dict[Any, List[float]] = {}
-    for arm, d in results.arm_designs.items():
-        recs = _pair_records(d, pos, Y_post, weights)
-        by_arm[arm] = recs
-        all_recs.extend(recs)
-        pair_att[arm] = []
-        for r in recs:
-            YT = np.concatenate([r["YT_pre"], r["YT_post"]])
-            YC = np.concatenate([r["YC_pre"], r["YC_post"]])
-            pair_att[arm].append(
-                _adid(YT, YC, r["YT_pre"].size, n_post, augment, trend,
-                      alpha)["att"])
+    for arm, recs in by_arm.items():
+        _, MT, MC = _stack(recs)
+        pair_att[arm] = _adid_att_batch(
+            MT, MC, recs[0]["YT_pre"].size, augment, trend).tolist()
 
     program = _aggregate("program", all_recs, alpha, augment, trend)
     arms = {arm: _aggregate(str(arm), recs, alpha, augment, trend)
