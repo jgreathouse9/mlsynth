@@ -69,7 +69,7 @@ class PANGEO:
         self.arm: str = config.arm
         self.unitid: str = config.unitid
         self.time: str = config.time
-        self.max_supergeo_size: int = config.max_supergeo_size
+        self.max_supergeo_size = config.max_supergeo_size
         self.min_pairs: int = config.min_pairs
         self.objective: str = config.objective
         self.recency_decay: float = config.recency_decay
