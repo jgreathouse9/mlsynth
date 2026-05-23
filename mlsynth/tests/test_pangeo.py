@@ -19,6 +19,7 @@ import pytest
 from mlsynth import PANGEO
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.pangeo_helpers import (
+    PangeoPower,
     PangeoResults,
     enumerate_candidate_pairs,
     gap_variance,
@@ -238,6 +239,81 @@ class TestCovariates:
                                                  "income": 25.0},
                            "display_graphs": False}).fit()
         assert mean_abs_smd(balanced) <= mean_abs_smd(plain)
+
+
+# ----------------------------------------------------------------------
+# Power / MDE analysis
+# ----------------------------------------------------------------------
+
+class TestPower:
+    def test_power_attached_by_default(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                      "display_graphs": False}).fit()
+        assert isinstance(res.power, PangeoPower)
+        assert res.power.power_target == 0.80
+        assert -1.0 <= res.power.serial_correlation <= 1.0
+
+    def test_can_disable_power(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time",
+                      "compute_power": False, "display_graphs": False}).fit()
+        assert res.power is None
+
+    def test_default_horizons_2_to_12(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time",
+                      "display_graphs": False}).fit()
+        xs = [pt.post_periods for pt in res.power.program.points]
+        assert xs == list(range(2, 13))
+
+    def test_mde_positive_and_shrinks_with_horizon(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time",
+                      "display_graphs": False}).fit()
+        pts = res.power.program.points
+        assert all(np.isfinite(p.mde_pct) and p.mde_pct > 0 for p in pts)
+        mdes = [p.mde_absolute for p in pts]
+        # More post periods can only sharpen (or hold) the MDE.
+        assert all(b <= a + 1e-9 for a, b in zip(mdes, mdes[1:]))
+
+    def test_program_pooling_beats_arms(self, panel):
+        """Pooling all arms detects no worse than the least-powerful arm."""
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                      "display_graphs": False}).fit()
+        pw = res.power
+        assert set(pw.arms) == set(res.arm_designs)
+        prog2 = pw.program.points[0].mde_pct
+        worst_arm = max(c.points[0].mde_pct for c in pw.arms.values())
+        assert prog2 <= worst_arm + 1e-9
+
+    def test_custom_horizons_and_target(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time",
+                      "power_target": 0.90, "power_post_periods": [4, 8],
+                      "display_graphs": False}).fit()
+        assert [pt.post_periods for pt in res.power.program.points] == [4, 8]
+        assert res.power.power_target == 0.90
+
+    def test_power_for_effect_in_unit_interval(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time",
+                      "display_graphs": False}).fit()
+        pw = res.power
+        small = pw.power_for_effect(1.0, 8)
+        large = pw.power_for_effect(50.0, 8)
+        assert 0.0 <= small <= large <= 1.0
+        # A big effect should be near-certain to detect.
+        assert large > 0.95
+
+    def test_summary_table(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time",
+                      "display_graphs": False}).fit()
+        tab = res.power.summary()
+        assert "program_mde_pct" in tab.columns
+        assert len(tab) == 11
 
 
 @pytest.mark.parametrize("objective", ["ss_res", "r2", "weighted"])
