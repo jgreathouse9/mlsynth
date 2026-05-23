@@ -78,14 +78,20 @@ class CTSCResults:
         (paper eq. 7).
     unit_effects : np.ndarray
         Unit-specific treatment slopes :math:`\\alpha_i`, shape ``(n, K)``.
-    weights : np.ndarray
+    unit_weight_matrix : np.ndarray
         All-units synthetic-control weight matrix, shape ``(n, n)``;
-        ``weights[i, i] = 0``, each row non-negative and summing to one.
+        ``[i, i] = 0``, each row non-negative and summing to one. CTSC
+        builds a synthetic control for *every* unit, so there is no single
+        treated-unit donor vector -- row ``i`` is unit ``i``'s weights.
     fit_metric : np.ndarray
         Per-unit fit weights :math:`\\Omega_i`, shape ``(n,)`` (smaller =
         better synthetic control; paper eq. 6).
     objective : float
         Minimised objective value.
+    weights : WeightsResults, optional
+        Standardized weights. Since CTSC has no single treated unit,
+        ``donor_weights`` holds the cross-unit average weight each donor
+        receives; the full per-unit matrix is ``unit_weight_matrix``.
     inference : object, optional
         :class:`CTSCInference` when inference is run; ``None`` otherwise.
     metadata : dict
@@ -95,9 +101,10 @@ class CTSCResults:
     inputs: CTSCInputs
     average_effect: np.ndarray
     unit_effects: np.ndarray
-    weights: np.ndarray
+    unit_weight_matrix: np.ndarray
     fit_metric: np.ndarray
     objective: float
+    weights: Optional[Any] = None
     inference: Optional["CTSCInference"] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 

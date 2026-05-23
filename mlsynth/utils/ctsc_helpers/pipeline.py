@@ -8,6 +8,7 @@ import numpy as np
 
 from .estimate import fit_ctsc
 from .inference import sign_flip_wald_inference
+from ..results_helpers import make_weights_results
 from .structures import CTSCInputs, CTSCResults
 
 
@@ -58,13 +59,26 @@ def run_ctsc(
         "treatment_names": list(inputs.treatment_names),
         "used_fit_weights": use_fit_weights,
     }
+    # CTSC builds a synthetic control per unit (no single treated unit);
+    # expose the cross-unit average donor weight, with the full matrix in
+    # unit_weight_matrix.
+    W = fit["weights"]
+    names = inputs.unit_names
+    avg_w = W.mean(axis=0)
+    donor_weights = {str(names[j]): float(avg_w[j]) for j in range(inputs.n)}
+    weights_res = make_weights_results(
+        donor_weights,
+        constraint="per-unit synthetic controls (rows of unit_weight_matrix "
+                   "on the simplex); shown value is the cross-unit average",
+    )
     return CTSCResults(
         inputs=inputs,
         average_effect=fit["average_effect"],
         unit_effects=fit["alpha"],
-        weights=fit["weights"],
+        unit_weight_matrix=W,
         fit_metric=fit["omega"],
         objective=fit["objective"],
+        weights=weights_res,
         inference=inf,
         metadata=metadata,
     )
