@@ -252,13 +252,18 @@ def compute_pangeo_power(
     for arm, d in arm_designs.items():
         rows: List[dict] = []
         for p in d.pairs:
-            gap = np.asarray(p.treatment_mean) - np.asarray(p.control_mean)
-            resid = gap - gap.mean()
+            T0 = int(np.asarray(p.treatment_mean).size)
+            # Held-out blank-window residuals (honest, out-of-sample). Fall
+            # back to the full-pre residuals only if no blank was reserved.
+            resid = np.asarray(p.holdout_resid, dtype=float)
+            if resid.size < 2:
+                gap = np.asarray(p.treatment_mean) - np.asarray(p.control_mean)
+                resid = gap - gap.mean()
             residual_series.append(resid)
-            T0 = gap.size
+            sigma2 = float(resid @ resid) / max(resid.size - 1, 1)
             rows.append({
                 "arm": arm,
-                "sigma2": float(p.gap_variance) / max(T0 - 1, 1),
+                "sigma2": sigma2,
                 "n_t": len(p.treatment),
                 "baseline": float(np.asarray(p.treatment_mean).mean()),
                 "T0": T0,

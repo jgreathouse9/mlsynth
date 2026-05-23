@@ -27,10 +27,18 @@ import numpy as np
 _EPS = 1e-12
 
 
+def _wavg(matrix: np.ndarray, idx, weights: Optional[np.ndarray]) -> np.ndarray:
+    """Weighted column-mean of ``matrix[idx]`` (plain mean if ``weights`` is
+    None). The supergeo aggregate -- weighting by e.g. population makes the
+    design and the downstream ATT population-weighted and consistent."""
+    if weights is None:
+        return matrix[idx].mean(axis=0)
+    return np.average(matrix[idx], axis=0, weights=weights[idx])
+
+
 def gap_variance(mean_a: np.ndarray, mean_b: np.ndarray) -> float:
     """Variance of the level-removed gap between two trajectories (the DiD
-    pre-period residual sum of squares).
-    """
+    pre-period residual sum of squares)."""
     gap = mean_a - mean_b
     resid = gap - gap.mean()
     return float(resid @ resid)
@@ -117,6 +125,7 @@ def best_split(
     cov: Optional[np.ndarray] = None,
     cov_scales: Optional[np.ndarray] = None,
     cov_weights: Optional[np.ndarray] = None,
+    unit_weights: Optional[np.ndarray] = None,
 ) -> Tuple[float, List[int], List[int]]:
     """Best treatment/control split of a candidate supergeo pair.
 
@@ -140,6 +149,9 @@ def best_split(
         Length-``M`` standardization scales for the covariates.
     cov_weights : np.ndarray, optional
         Length-``M`` per-covariate penalty weights (default 1 each).
+    unit_weights : np.ndarray, optional
+        Length-``n_units`` per-unit aggregation weights (e.g. population);
+        the supergeo mean trajectory is the weighted average of its members.
 
     Returns
     -------
@@ -164,12 +176,13 @@ def best_split(
             side_a = [first] + list(combo)
             set_a = set(side_a)
             side_b = [u for u in members if u not in set_a]
-            mean_a = Ypre[side_a].mean(axis=0)
-            mean_b = Ypre[side_b].mean(axis=0)
+            mean_a = _wavg(Ypre, side_a, unit_weights)
+            mean_b = _wavg(Ypre, side_b, unit_weights)
             s = split_cost(mean_a, mean_b, objective=objective, weights=weights)
             if cov is not None:
                 s += covariate_imbalance(
-                    cov[side_a].mean(axis=0), cov[side_b].mean(axis=0),
+                    _wavg(cov, side_a, unit_weights),
+                    _wavg(cov, side_b, unit_weights),
                     cov_scales, cov_weights,
                 )
             if s < best[0]:
@@ -183,6 +196,7 @@ def enumerate_candidate_pairs(
     cov: Optional[np.ndarray] = None,
     cov_scales: Optional[np.ndarray] = None,
     cov_weights: Optional[np.ndarray] = None,
+    unit_weights: Optional[np.ndarray] = None,
 ) -> List[dict]:
     """All admissible supergeo pairs over ``unit_indices`` with their scores.
 
@@ -200,7 +214,8 @@ def enumerate_candidate_pairs(
             members = np.array([unit_indices[c] for c in combo])
             score, side_a, side_b = best_split(
                 members, Ypre, max_size, objective=objective, weights=weights,
-                cov=cov, cov_scales=cov_scales, cov_weights=cov_weights)
+                cov=cov, cov_scales=cov_scales, cov_weights=cov_weights,
+                unit_weights=unit_weights)
             if np.isfinite(score):
                 pairs.append({
                     "members": members,

@@ -32,6 +32,7 @@ def make_seasonal_sales_panel(
     noise: float = 0.05,
     seed: int = 0,
     covariates: bool = False,
+    n_post: int = 0,
 ) -> pd.DataFrame:
     """Simulate a seasonal, multi-arm, sales-like pre-treatment panel.
 
@@ -56,19 +57,27 @@ def make_seasonal_sales_panel(
         If ``True``, also emit time-invariant baseline ``population`` and
         ``income`` columns (correlated with the unit's level and factor
         loadings) for PANGEO's covariate-balancing option.
+    n_post : int
+        Number of post-treatment periods to append after the ``T`` pre
+        periods. When ``> 0`` the panel gains a ``post_col`` (0 = pre,
+        1 = post); the DGP continues unchanged (no treatment effect -- the
+        effect is injected by the caller after the design is fixed, which is
+        how PANGEO's ATT recovery is validated).
 
     Returns
     -------
     pd.DataFrame
         Long panel with columns ``unit``, ``time``, ``sales``, ``arm``
-        (plus ``population`` and ``income`` when ``covariates=True``).
+        (plus ``population``/``income`` when ``covariates=True`` and
+        ``post_col`` when ``n_post > 0``).
     """
     rng = np.random.default_rng(seed)
-    t = np.arange(T)
+    total_T = T + max(0, n_post)
+    t = np.arange(total_T)
 
     # Common low-rank factor structure (shared across all units).
-    F = np.cumsum(rng.standard_normal((T, n_factors)) * 0.3, axis=0)
-    F += np.linspace(0.0, 1.0, T)[:, None]            # mild common drift
+    F = np.cumsum(rng.standard_normal((total_T, n_factors)) * 0.3, axis=0)
+    F += np.linspace(0.0, 1.0, total_T)[:, None]      # mild common drift
 
     rows = []
     for arm in arms:
@@ -90,7 +99,7 @@ def make_seasonal_sales_panel(
                 + level
                 + trend * t
             )
-            y = signal + rng.standard_normal(T) * noise * np.std(signal)
+            y = signal + rng.standard_normal(total_T) * noise * np.std(signal)
             name = f"{arm}{u}"
             extra = {}
             if covariates:
@@ -100,7 +109,10 @@ def make_seasonal_sales_panel(
                     50_000 + 8_000 * level + 5_000 * rng.standard_normal())
                 extra["income"] = float(
                     40_000 + 6_000 * mu[0] + 3_000 * rng.standard_normal())
-            for ti in range(T):
-                rows.append({"unit": name, "time": int(ti),
-                             "sales": float(y[ti]), "arm": arm, **extra})
+            for ti in range(total_T):
+                row = {"unit": name, "time": int(ti),
+                       "sales": float(y[ti]), "arm": arm, **extra}
+                if n_post > 0:
+                    row["post_col"] = int(ti >= T)
+                rows.append(row)
     return pd.DataFrame(rows)

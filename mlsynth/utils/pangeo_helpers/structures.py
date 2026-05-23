@@ -39,6 +39,14 @@ class SupergeoPair:
     covariate_smd : dict
         ``{covariate_name: standardized mean difference}`` between the
         treatment and control halves (empty if no covariates were used).
+    gap_level : float
+        DiD counterfactual gap level :math:`\\delta` -- the mean gap over the
+        *estimation* window E (the periods the split was optimised on).
+    holdout_resid : np.ndarray
+        Gap residuals on the held-out blank window B (``gap[B] - gap_level``).
+        B is excluded from the optimisation, so these residuals are an honest
+        out-of-sample estimate of the parallel-trends noise -- the reservoir
+        for conformal inference and the variance behind the MDE.
     """
 
     treatment: List[Any]
@@ -48,6 +56,8 @@ class SupergeoPair:
     treatment_mean: np.ndarray
     control_mean: np.ndarray
     covariate_smd: Dict[str, float] = field(default_factory=dict)
+    gap_level: float = 0.0
+    holdout_resid: np.ndarray = field(default_factory=lambda: np.empty(0))
 
 
 @dataclass(frozen=True)
@@ -105,3 +115,4 @@ class PangeoResults:
     time_labels: np.ndarray
     metadata: Dict[str, Any] = field(default_factory=dict)
     power: Optional[Any] = None  # PangeoPower (see pangeo_helpers.power)
+    effects: Optional[Any] = None  # PangeoEffects when post-period data given

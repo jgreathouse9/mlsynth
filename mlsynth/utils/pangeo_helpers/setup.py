@@ -42,6 +42,12 @@ class PangeoInputs:
     covariate_scales : np.ndarray or None
         Length-``M`` cross-unit standard deviations used to standardize the
         covariate imbalance (``None`` if no covariates).
+    weights : np.ndarray or None
+        Length-``N`` per-unit aggregation weights (e.g. population) aligned
+        with ``unit_names`` (``None`` = equal weights). Used for both the
+        supergeo mean trajectory in the design and the downstream ATT.
+    weight_name : str or None
+        Name of the weight column (``None`` if equal weights).
     """
 
     Y: np.ndarray
@@ -52,6 +58,8 @@ class PangeoInputs:
     covariates: Optional[np.ndarray] = None
     covariate_names: List[str] = field(default_factory=list)
     covariate_scales: Optional[np.ndarray] = None
+    weights: Optional[np.ndarray] = None
+    weight_name: Optional[str] = None
 
 
 def prepare_pangeo_inputs(
@@ -63,6 +71,7 @@ def prepare_pangeo_inputs(
     min_units_per_arm: int = 2,
     covariates: Optional[List[str]] = None,
     standardize_covariates: bool = True,
+    weight_col: Optional[str] = None,
 ) -> PangeoInputs:
     """Pivot a historical panel into :class:`PangeoInputs`.
 
@@ -86,10 +95,16 @@ def prepare_pangeo_inputs(
     standardize_covariates : bool
         Divide each covariate's imbalance by its cross-unit std (default).
         With ``False`` the raw scale is used (``scales = 1``).
+    weight_col : str, optional
+        Per-unit aggregation weight column (e.g. population), constant within
+        a unit. Makes the supergeo aggregate a weighted average; ``None``
+        (default) gives equal weights.
     """
     for col in (outcome, arm, unitid, time):
         if col not in df.columns:
             raise MlsynthDataError(f"Required column {col!r} missing.")
+    if weight_col is not None and weight_col not in df.columns:
+        raise MlsynthDataError(f"Weight column {weight_col!r} missing.")
     if df[outcome].isna().any():
         raise MlsynthDataError("Outcome column contains NaN values.")
     for col in covariates or []:
@@ -139,8 +154,43 @@ def prepare_pangeo_inputs(
         else:
             cov_scales = np.ones(cov.shape[1])
 
+    weights = None
+    if weight_col is not None:
+        if df[weight_col].isna().any():
+            raise MlsynthDataError("Weight column contains NaN values.")
+        wser = df.groupby(unitid)[weight_col].mean().loc[unit_names]
+        weights = wser.to_numpy(dtype=float)
+        if np.any(weights <= 0):
+            raise MlsynthConfigError("Weight column must be strictly positive.")
+
     return PangeoInputs(
         Y=Y, unit_names=list(unit_names), time_labels=time_labels,
         arm_of=arm_of, arm_units=arm_units,
         covariates=cov, covariate_names=cov_names, covariate_scales=cov_scales,
+        weights=weights, weight_name=weight_col,
     )
+
+
+def build_post_matrix(
+    post_df: pd.DataFrame, inputs: PangeoInputs, outcome: str,
+    unitid: str, time: str,
+) -> "tuple[np.ndarray, np.ndarray]":
+    """Pivot the post-treatment rows into a ``(N, T_post)`` outcome matrix
+    aligned with ``inputs.unit_names``.
+
+    Returns ``(Y_post, post_time_labels)``. Every design unit must appear in
+    the post period with no missing cells (a balanced post panel).
+    """
+    if outcome not in post_df.columns:
+        raise MlsynthDataError(f"Required column {outcome!r} missing in post.")
+    post_times = np.array(sorted(post_df[time].unique()))
+    wide = post_df.pivot(index=unitid, columns=time, values=outcome)
+    missing = [u for u in inputs.unit_names if u not in wide.index]
+    if missing:
+        raise MlsynthDataError(
+            f"{len(missing)} design unit(s) absent from the post period."
+        )
+    wide = wide.loc[inputs.unit_names, post_times]
+    if wide.isna().any().any():
+        raise MlsynthDataError("Post panel is unbalanced (missing cells).")
+    return wide.to_numpy(dtype=float), post_times

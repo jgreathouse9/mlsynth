@@ -16,6 +16,7 @@ import numpy as np
 
 from .mip import solve_partition
 from .parallelism import (
+    _wavg,
     enumerate_candidate_pairs,
     gap_variance,
     parallelism_r2,
@@ -32,23 +33,37 @@ _AUTO_Q_CAP = 6
 def _build_pair(
     pair: dict, Y: np.ndarray, unit_names, T0: int,
     cov: Optional[np.ndarray] = None, cov_scales: Optional[np.ndarray] = None,
-    cov_names=None,
+    cov_names=None, unit_weights: Optional[np.ndarray] = None,
+    e_idx: Optional[np.ndarray] = None, b_idx: Optional[np.ndarray] = None,
 ) -> SupergeoPair:
     side_a, side_b = pair["side_a"], pair["side_b"]
-    mean_a = Y[side_a, :T0].mean(axis=0)
-    mean_b = Y[side_b, :T0].mean(axis=0)
+    mean_a = _wavg(Y[:, :T0], side_a, unit_weights)   # full pre (for plotting)
+    mean_b = _wavg(Y[:, :T0], side_b, unit_weights)
+    gap = mean_a - mean_b
+    # Design metrics are read off the estimation window E (what the split was
+    # optimised on). The counterfactual gap level and the residual reservoir
+    # come from the held-out blank window B -- it is excluded from the
+    # optimisation (so the residuals are honest) and is the pre window closest
+    # to the post period (so the level is not contaminated by gap drift).
+    e_idx = np.arange(T0) if e_idx is None else e_idx
+    b_idx = np.arange(T0) if b_idx is None else b_idx
+    gap_level = float(gap[b_idx].mean())
+    holdout_resid = gap[b_idx] - gap_level
     covariate_smd: Dict[str, float] = {}
     if cov is not None:
-        smd = (cov[side_a].mean(axis=0) - cov[side_b].mean(axis=0)) / cov_scales
+        smd = (_wavg(cov, side_a, unit_weights)
+               - _wavg(cov, side_b, unit_weights)) / cov_scales
         covariate_smd = {name: float(v) for name, v in zip(cov_names, smd)}
     return SupergeoPair(
         treatment=[unit_names[i] for i in side_a],
         control=[unit_names[i] for i in side_b],
-        gap_variance=float(gap_variance(mean_a, mean_b)),
-        parallelism_r2=float(parallelism_r2(mean_a, mean_b)),
+        gap_variance=float(gap_variance(mean_a[e_idx], mean_b[e_idx])),
+        parallelism_r2=float(parallelism_r2(mean_a[e_idx], mean_b[e_idx])),
         treatment_mean=mean_a,
         control_mean=mean_b,
         covariate_smd=covariate_smd,
+        gap_level=gap_level,
+        holdout_resid=holdout_resid,
     )
 
 
@@ -59,6 +74,7 @@ def run_pangeo(
     min_pairs: int = 1,
     objective: str = "ss_res",
     recency_decay: float = 0.97,
+    frac_E: float = 0.7,
     covariate_weights: Optional[Dict[str, float]] = None,
     compute_power: bool = True,
     power_target: float = 0.80,
@@ -87,6 +103,13 @@ def run_pangeo(
         Geometric recency-weight decay for ``objective="weighted"``:
         period ``t`` gets weight ``recency_decay**(T0-1-t)`` (recent
         periods up-weighted), normalised to sum to ``T0``.
+    frac_E : float
+        Fraction of the pre-period used as the **estimation window** E that
+        the split is optimised over; the remaining tail is the **blank**
+        window B, held out so its gap residuals are an honest, out-of-sample
+        estimate of the parallel-trends noise (powering the MDE and the
+        conformal CIs). Mirrors LEXSCM / SPCD. Falls back to the full pre
+        when the panel is too short to leave a usable B.
     covariate_weights : dict, optional
         ``{covariate_name: weight}`` on the standardized SMD^2 imbalance
         penalty (default 1.0 each). Only used when ``inputs.covariates`` is
@@ -104,7 +127,8 @@ def run_pangeo(
     if max_supergeo_size is None:
         return _auto_select_q(
             inputs, min_pairs=min_pairs, objective=objective,
-            recency_decay=recency_decay, covariate_weights=covariate_weights,
+            recency_decay=recency_decay, frac_E=frac_E,
+            covariate_weights=covariate_weights,
             compute_power=compute_power, power_target=power_target,
             power_alpha=power_alpha, power_post_periods=power_post_periods,
         )
@@ -116,14 +140,25 @@ def run_pangeo(
     T0 = Y.shape[1]                     # all observed periods are pre-period
     unit_names = inputs.unit_names
 
+    # Estimation window E (optimise the split) vs held-out blank window B.
+    n_E = int(round(frac_E * T0))
+    if n_E < 2 or (T0 - n_E) < 2:       # too short to hold out: use full pre
+        e_idx, b_idx = np.arange(T0), np.arange(T0)
+        holdout = False
+    else:
+        e_idx, b_idx = np.arange(n_E), np.arange(n_E, T0)
+        holdout = True
+
     weights = None
     if objective == "weighted":
-        raw = recency_decay ** (T0 - 1 - np.arange(T0))
-        weights = raw / raw.sum() * T0  # normalise to ~uniform scale
+        nE = e_idx.size
+        raw = recency_decay ** (nE - 1 - np.arange(nE))
+        weights = raw / raw.sum() * nE  # normalise to ~uniform scale
 
     cov = inputs.covariates
     cov_scales = inputs.covariate_scales
     cov_names = inputs.covariate_names
+    uw = inputs.weights
     cov_w = None
     if cov is not None:
         cw = covariate_weights or {}
@@ -133,12 +168,15 @@ def run_pangeo(
     assignment = {}
     for arm, idx in inputs.arm_units.items():
         candidates = enumerate_candidate_pairs(
-            idx, Y[:, :T0], max_supergeo_size,
+            idx, Y[:, e_idx], max_supergeo_size,
             objective=objective, weights=weights,
             cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
+            unit_weights=uw,
         )
         chosen = solve_partition(candidates, idx, min_pairs=min_pairs)
-        pairs = [_build_pair(p, Y, unit_names, T0, cov, cov_scales, cov_names)
+        pairs = [_build_pair(p, Y, unit_names, T0, cov, cov_scales, cov_names,
+                             e_idx=e_idx, b_idx=b_idx,
+                             unit_weights=uw)
                  for p in chosen]
         # Sort pairs by quality (most parallel first) for readability.
         pairs.sort(key=lambda p: p.gap_variance)
@@ -172,6 +210,9 @@ def run_pangeo(
         "objective": objective,
         "recency_decay": recency_decay if objective == "weighted" else None,
         "covariates": list(cov_names) if cov is not None else None,
+        "frac_E": frac_E,
+        "n_estimation": int(e_idx.size),
+        "n_holdout": int(b_idx.size) if holdout else 0,
     }
 
     power = None
@@ -193,8 +234,7 @@ def run_pangeo(
 
 def _mean_program_mde(result: PangeoResults) -> float:
     """Mean program-level MDE (% of baseline) across horizons; ``inf`` if
-    unavailable. The selection score for automatic Q (lower is better).
-    """
+    unavailable. The selection score for automatic Q (lower is better)."""
     if result.power is None:
         return float("inf")
     vals = [pt.mde_pct for pt in result.power.program.points
@@ -208,6 +248,7 @@ def _auto_select_q(
     min_pairs: int,
     objective: str,
     recency_decay: float,
+    frac_E: float,
     covariate_weights: Optional[Dict[str, float]],
     compute_power: bool,
     power_target: float,
@@ -238,6 +279,7 @@ def _auto_select_q(
             cand = run_pangeo(
                 inputs, max_supergeo_size=q, min_pairs=min_pairs,
                 objective=objective, recency_decay=recency_decay,
+                frac_E=frac_E,
                 covariate_weights=covariate_weights, compute_power=True,
                 power_target=power_target, power_alpha=power_alpha,
                 power_post_periods=power_post_periods,

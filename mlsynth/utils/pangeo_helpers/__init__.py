@@ -21,6 +21,7 @@ Module layout:
 
 from __future__ import annotations
 
+from .effects import AttEstimate, PangeoEffects, compute_pangeo_effects
 from .parallelism import (
     covariate_imbalance,
     enumerate_candidate_pairs,
@@ -34,18 +35,22 @@ from .power import (
     PowerCurve,
     compute_pangeo_power,
 )
-from .setup import PangeoInputs, prepare_pangeo_inputs
+from .setup import PangeoInputs, build_post_matrix, prepare_pangeo_inputs
 from .simulation import make_seasonal_sales_panel
 from .structures import ArmDesign, PangeoResults, SupergeoPair
 
 __all__ = [
     "ArmDesign",
+    "AttEstimate",
     "MDEPoint",
+    "PangeoEffects",
     "PangeoInputs",
     "PangeoPower",
     "PangeoResults",
     "PowerCurve",
     "SupergeoPair",
+    "build_post_matrix",
+    "compute_pangeo_effects",
     "compute_pangeo_power",
     "covariate_imbalance",
     "enumerate_candidate_pairs",
