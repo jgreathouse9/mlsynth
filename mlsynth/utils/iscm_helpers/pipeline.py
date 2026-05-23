@@ -16,6 +16,7 @@ import numpy as np
 
 from .estimate import fit_metric, residuals_and_exposure, weighted_att
 from .inference import ibragimov_muller_inference
+from ..results_helpers import make_weights_results
 from .structures import ISCMInputs, ISCMResults
 from .weights import all_units_weights
 
@@ -71,15 +72,40 @@ def run_iscm(
         "treated_fit_metric": [float(a[i]) for i in inputs.treated_idx],
     }
 
+    # Donor weights for the treated unit(s): their synthetic-control rows.
+    names = inputs.unit_names
+    per_unit = {}
+    for i in inputs.treated_idx:
+        per_unit[str(names[i])] = {str(names[j]): float(W[i, j])
+                                   for j in range(inputs.N)
+                                   if j != i and abs(W[i, j]) > 1e-10}
+    if len(per_unit) == 1:
+        donor_weights = next(iter(per_unit.values()))
+    else:
+        donor_weights = {}
+        for d in {dn for u in per_unit.values() for dn in u}:
+            donor_weights[d] = float(np.mean([u.get(d, 0.0)
+                                              for u in per_unit.values()]))
+    extra = {"note": ("ISCM builds a synthetic control for every unit; these "
+                      "are the treated unit's SC weights. The effect is "
+                      "identified across all contributing units (see "
+                      "contribution / fit_metric).")}
+    if len(per_unit) > 1:
+        extra["per_unit_donor_weights"] = per_unit
+    weights_res = make_weights_results(
+        donor_weights, constraint="simplex (non-negative, sum to 1)", extra=extra,
+    )
+
     return ISCMResults(
         inputs=inputs,
         att=att,
-        weights=W,
+        unit_weight_matrix=W,
         fit_metric=a,
         unit_att=unit_att,
         contribution=contribution,
         residuals=R,
         exposure=E,
+        weights=weights_res,
         inference=inf,
         metadata=metadata,
     )

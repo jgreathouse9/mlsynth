@@ -85,9 +85,9 @@ class ISCMResults:
     att : float
         Average treatment effect on the treated, aggregated over the
         post-treatment period (paper eq. 15).
-    weights : np.ndarray
+    unit_weight_matrix : np.ndarray
         All-units synthetic-control weight matrix, shape ``(N, N)``. Row
-        ``i`` is the synthetic control for unit ``i`` (``weights[i, i] =
+        ``i`` is the synthetic control for unit ``i`` (``[i, i] =
         0``, each row non-negative and summing to one).
     fit_metric : np.ndarray
         Per-unit fit weights :math:`a_i \\in (0, 1]`, shape ``(N,)``;
@@ -106,6 +106,11 @@ class ISCMResults:
     exposure : np.ndarray
         Treatment exposure :math:`D_{it} - \\sum_j w_{ij} D_{jt}`, shape
         ``(N, T)`` -- the regressor in the WLS effect estimate.
+    weights : WeightsResults, optional
+        Standardized donor weights for the treated unit(s) -- the treated
+        unit's row of ``unit_weight_matrix`` (a convex synthetic control
+        over the other units). For multiple treated units, the cross-unit
+        average; per-unit rows live in ``summary_stats``.
     inference : object, optional
         :class:`ISCMInference` when ``inference=True``; ``None`` otherwise.
     metadata : dict
@@ -114,12 +119,13 @@ class ISCMResults:
 
     inputs: ISCMInputs
     att: float
-    weights: np.ndarray
+    unit_weight_matrix: np.ndarray
     fit_metric: np.ndarray
     unit_att: np.ndarray
     contribution: np.ndarray
     residuals: np.ndarray
     exposure: np.ndarray
+    weights: Optional[Any] = None
     inference: Optional["ISCMInference"] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
