@@ -304,25 +304,179 @@ denoised donor matrix,
                     \sum_{t > T_0}
                     \bigl(y_{1, t} - (L^\top \widehat \beta)_t\bigr).
 
+RPCA-SC tuning via leave-one-time-out cross-validation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Bayani (2021) takes the Candes-Li-Ma-Wright (2011) optimal-recovery
+value :math:`\lambda^\star = 1/\sqrt{\max(|\mathcal D|, T)}` for
+PCP, and chooses the HQF factorisation rank by an explained-variance
+threshold. Both defaults are conservative for *L/S decomposition
+identifiability* but can be poor for *counterfactual prediction*.
+On the California Proposition 99 panel the Candes default leaves
+PCP under-regularised by roughly 2x and HQF stops at a rank that
+loses ATT magnitude.
+
+mlsynth therefore exposes two opt-in cross-validation tuners
+(:py:attr:`CLUSTERSCConfig.cv_lambda` for PCP,
+:py:attr:`CLUSTERSCConfig.cv_hqf_rank` for HQF). The same
+algorithm drives both:
+
+Let :math:`L \in \mathbb{R}^{|\mathcal D| \times T}` be the low-rank
+component returned by the robust PCA solver at candidate
+hyperparameter :math:`\theta`. The pre-period slice
+:math:`L^- \in \mathbb{R}^{|\mathcal D| \times T_0}` is the design
+matrix for the NNLS weight step. Define the leave-one-time-period-out
+mean squared error
+
+.. math::
+
+   \mathrm{CV}(\theta) = \frac{1}{T_0} \sum_{t = 1}^{T_0}
+                         \biggl( y_{1, t}
+                                 - (L^-_{:, -t})^\top \widehat \beta^{(-t)}
+                         \biggr)^2,
+   \quad
+   \widehat \beta^{(-t)} = \arg\min_{\beta \ge 0}
+                           \bigl\| y_{1, -t}^-
+                                  - (L^-_{:, -t})^\top \beta \bigr\|_2^2,
+
+where the :math:`-t` subscript drops the :math:`t`-th pre-period
+column. The donor matrix :math:`Y_{-1}` is fully observed at every
+period so the RPCA decomposition is run once per :math:`\theta`,
+not :math:`T_0` times. The chosen :math:`\widehat \theta` minimises
+:math:`\mathrm{CV}(\theta)` over a grid:
+
+* For PCP, the grid is ``cv_lambda_multipliers`` :math:`\times
+  \lambda^\star` with default multipliers
+  :math:`(0.5, 1, 2, 3, 5, 8, 12)`.
+* For HQF, the grid is the integer ranks
+  :math:`\{1, 2, \dots, \min(|\mathcal D|, T_0 - 1)\}`.
+
+On the Proposition 99 panel, ``cv_lambda=True`` picks
+:math:`\widehat \lambda = 2 \lambda^\star` and cuts pre-period RMSE
+in half (2.11 → 1.08, ATT moving from −15.5 to −17.7);
+``cv_hqf_rank=True`` picks :math:`\widehat r = 8` (vs. cumvar
+default of 4) with ATT moving from −12.8 to −16.6. Both ATTs land
+in the canonical SCM / RSC range of −19 to −24.
+
 Inference
 ^^^^^^^^^
 
-Frequentist PCR (the paper's Algorithm 2) ships no built-in
-inference -- the per-period prediction error decomposition in
-Lemma B.10 of Rho et al. (2025) makes shrinkage to zero impossible
-without additional assumptions, so mlsynth refrains from quoting a
-spurious CI. :py:attr:`CLUSTERSCInference.method` records
-``"none"`` in that case.
+Three inference families are wired into :py:class:`CLUSTERSCInference`:
 
-For Bayesian PCR (``estimator="bayesian"``), mlsynth returns a
-:math:`(1 - \alpha)` posterior credible interval for the ATT,
-derived from the per-period draws of the counterfactual against
-which the treated post-period mean is differenced.
+* **Frequentist PCR -- Shen-Ding-Sekhon-Yu (2023) closed-form CIs.**
+  Default on for ``estimator="frequentist"`` and
+  ``pcr_objective="OLS"``. See the next subsection.
+* **Bayesian PCR -- posterior credible interval.** Computed when
+  ``estimator="bayesian"`` from posterior draws of the counterfactual
+  (Bayani 2022 Ch. 1).
+* **RPCA-SC -- placebo-test machinery is recommended by Bayani
+  (2021, Section 3); conformal prediction intervals are in
+  development.** For now only the point estimate is returned for
+  the RPCA family.
 
-For RPCA-SC, only the point estimate is returned. The original
-paper relies on permutation-based placebo tests for inference
-(Bayani 2021, Section 3); these can be assembled outside the
-estimator from the returned counterfactual.
+Shen-Ding-Sekhon-Yu (2023) frequentist CIs for OLS PCR
+""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+For the symmetric estimator class -- OLS minimum :math:`\ell_2`-norm,
+PCR, and ridge -- Theorem 1 of Shen et al. (2023) shows that the
+horizontal (HZ) and vertical (VT) regression formulations give
+algebraically identical point estimates. The two formulations
+nevertheless quantify uncertainty against *different* generative
+models:
+
+* **HZ model** (Assumption 1). Each donor's post-period outcome is a
+  noisy linear combination of its own pre-period values:
+
+  .. math::
+
+     Y_{i, T} = \sum_{t \le T_0} \alpha^*_t Y_{i, t} + \varepsilon_{i, T},
+     \quad i = 1, \dots, N_0.
+
+  The randomness lives in the **cross-sectional** dimension.
+
+* **VT model** (Assumption 2). The treated unit's pre-period outcome
+  is a noisy linear combination of the donors' pre-period values:
+
+  .. math::
+
+     Y_{N, t} = \sum_{i \le N_0} \beta^*_i Y_{i, t} + \varepsilon_{N, t},
+     \quad t = 1, \dots, T_0.
+
+  The randomness lives in the **time-series** dimension.
+
+* **DR model** (Assumption 3). Both sources of randomness are present.
+
+Each model yields a distinct estimand and a distinct asymptotic
+variance for the same point estimate
+:math:`\widehat Y_{N, T}(0)` (Theorem 3). With rank-:math:`k` HSVT
+projections :math:`H^u_\perp = I - U_k U_k^\top` (donor-space) and
+:math:`H^v_\perp = I - V_k^\top V_k` (time-space), and the
+homoskedastic variance plug-ins (paper eq 19):
+
+.. math::
+
+   \widehat \sigma^2_{\mathrm{hz}} =
+       \frac{\| H^u_\perp y_T \|_2^2}{N_0 - R},
+   \qquad
+   \widehat \sigma^2_{\mathrm{vt}} =
+       \frac{\| H^v_\perp y_N \|_2^2}{T_0 - R},
+
+(where :math:`R = \mathrm{rank}(Y_0)` after truncation), the per-period
+variance estimators are
+
+.. math::
+
+   \widehat v_{\mathrm{hz}} = \widehat \sigma^2_{\mathrm{hz}}\,
+                              \| \widehat \beta \|_2^2,
+   \quad
+   \widehat v_{\mathrm{vt}} = \widehat \sigma^2_{\mathrm{vt}}\,
+                              \| \widehat \alpha \|_2^2,
+   \quad
+   \widehat v_{\mathrm{dr}} = \max\!\bigl(0,\,
+                              \widehat v_{\mathrm{hz}}
+                            + \widehat v_{\mathrm{vt}}
+                            - \mathrm{tr}\widehat A\bigr),
+
+with :math:`\widehat A = \widehat \sigma^2_{\mathrm{hz}}
+\widehat \sigma^2_{\mathrm{vt}}\, Y_0^{+} (Y_0^\top)^{+}` the
+interaction term. The :math:`(1 - \alpha)` CI under source
+:math:`s \in \{\mathrm{hz}, \mathrm{vt}, \mathrm{dr}\}` is
+
+.. math::
+
+   \widehat Y_{N, T}(0) \pm z_{\alpha/2}\, \sqrt{\widehat v_s}.
+
+mlsynth also ports the **jackknife** and **HRK (Hartley-Rao-Kish)**
+variance estimators from var.py in the authors' reference repository.
+The HRK estimator is only valid when
+:math:`\max_i (1 - (H_\perp)_{ii}) < 1/2` for both projections;
+mlsynth checks this and raises if violated.
+
+For multi-period extrapolation the procedure runs per post-period:
+at each :math:`t > T_0` the donor outcomes :math:`y_t` change but
+the projections, weights, and per-period variances are recomputed
+from the same fitted weight pair. The ATT is the mean of per-period
+gaps :math:`\widehat{ATT} = (T - T_0)^{-1} \sum_{t > T_0} \widehat \tau_t`,
+and its variance is aggregated assuming independence across
+post-periods:
+
+.. math::
+
+   \widehat v_s(\widehat{ATT}) =
+       \frac{1}{T_1} \cdot
+       \frac{1}{T_1} \sum_{t > T_0} \widehat v_s(t),
+   \qquad
+   T_1 = T - T_0.
+
+The independence assumption is the standard first-pass; serially
+correlated shocks would inflate the true variance.
+
+Config knobs: :py:attr:`CLUSTERSCConfig.compute_shen_ci` (default
+True) toggles the inference; :py:attr:`CLUSTERSCConfig.shen_variance`
+chooses ``"homoskedastic"`` (default), ``"jackknife"``, or
+``"hrk"``. The output :py:class:`CLUSTERSCInference.shen` carries
+per-period gaps, per-period CIs under each source, and the
+aggregated ATT CIs.
 
 Core API
 --------
@@ -365,6 +519,10 @@ PCR-SC pipeline
    :members:
    :undoc-members:
 
+.. automodule:: mlsynth.utils.clustersc_helpers.pcr.inference
+   :members:
+   :undoc-members:
+
 .. automodule:: mlsynth.utils.clustersc_helpers.pcr.pipeline
    :members:
    :undoc-members:
@@ -389,6 +547,10 @@ RPCA-SC pipeline
    :undoc-members:
 
 .. automodule:: mlsynth.utils.clustersc_helpers.rpca.weights
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.clustersc_helpers.rpca.tuning
    :members:
    :undoc-members:
 
@@ -504,8 +666,9 @@ Empirical example: California Proposition 99
 
 The PCR-SC family also runs without clustering, in which case it
 reduces to Amjad-Shah-Shen (2018) Robust Synthetic Control on the
-full donor pool. The example below fits California Proposition 99
-cigarette-sales data with HSVT truncated to rank :math:`r = 4`.
+full donor pool. Below: PCR with explicit rank :math:`r = 4`, then
+inspect the Shen-Ding-Sekhon-Yu (2023) frequentist CIs that the
+default ``compute_shen_ci=True`` produces.
 
 .. code-block:: python
 
@@ -529,6 +692,36 @@ cigarette-sales data with HSVT truncated to rank :math:`r = 4`.
        "rank": 4,                 # explicit HSVT rank
        "display_graphs": True,
    }).fit()
+
+   print(f"ATT             = {res.att:+.3f}")
+   shen = res.inference.shen
+   print(f"95% CI (VT src) = [{shen.att_ci_vt[0]:+.2f}, {shen.att_ci_vt[1]:+.2f}]")
+   print(f"95% CI (HZ src) = [{shen.att_ci_hz[0]:+.2f}, {shen.att_ci_hz[1]:+.2f}]")
+
+Same panel, RPCA-SC with cross-validated PCP :math:`\lambda`. The
+``cv_lambda=True`` flag triggers leave-one-time-out CV over
+``cv_lambda_multipliers`` :math:`\times \lambda^\star` to pick the
+prediction-optimal sparsity penalty.
+
+.. code-block:: python
+
+   res = CLUSTERSC({
+       "df": df,
+       "outcome": "cigsale",
+       "treat": "Proposition 99",
+       "unitid": "state",
+       "time": "year",
+       "method": "rpca",
+       "rpca_method": "PCP",
+       "cv_lambda": True,
+       "k_clusters": 1,            # weak cluster structure on this panel
+   }).fit()
+
+   md = res.rpca.metadata
+   print(f"PCP lambda chosen by CV = {md['pcp_lambda']:.4f} "
+         f"(best of grid {[round(x,3) for x in md['cv_lambda_grid']]})")
+   print(f"pre-RMSE  = {res.rpca.pre_rmse:.3f}")
+   print(f"ATT       = {res.rpca.att:+.3f}")
 
 References
 ----------
@@ -580,6 +773,11 @@ arXiv:2503.21629.
 Rousseeuw, P. J. (1987). "Silhouettes: A Graphical Aid to the
 Interpretation and Validation of Cluster Analysis." *Journal of
 Computational and Applied Mathematics* 20:53-65.
+
+Shen, D., Ding, P., Sekhon, J., & Yu, B. (2023). "Same Root
+Different Leaves: Time Series and Cross-Sectional Methods in Panel
+Data." *Econometrica* 91(6):2125-2154. Reference implementation:
+https://github.com/deshen24/panel-data-regressions.
 
 Wang, Z., Li, X. P., So, H. C., & Liu, Z. (2023). "Robust PCA via
 Non-convex Half-quadratic Regularization." *Signal Processing*
