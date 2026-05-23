@@ -76,6 +76,10 @@ class PANGEO:
         self.covariates = config.covariates
         self.covariate_weights = config.covariate_weights
         self.standardize_covariates: bool = config.standardize_covariates
+        self.compute_power: bool = config.compute_power
+        self.power_target: float = config.power_target
+        self.power_alpha: float = config.power_alpha
+        self.power_post_periods = config.power_post_periods
         self.display_graphs: bool = config.display_graphs
         self.save = config.save
 
@@ -95,6 +99,10 @@ class PANGEO:
                 objective=self.objective,
                 recency_decay=self.recency_decay,
                 covariate_weights=self.covariate_weights,
+                compute_power=self.compute_power,
+                power_target=self.power_target,
+                power_alpha=self.power_alpha,
+                power_post_periods=self.power_post_periods,
             )
             if self.display_graphs:
                 plot_pangeo(results, save=self.save, outcome_label=self.outcome)
