@@ -30,11 +30,34 @@ from .structures import ArmDesign, PangeoResults, SupergeoPair
 _AUTO_Q_CAP = 6
 
 
+def _holdout_resid(yT, yC, e_idx, b_idx, augment, trend):
+    """Held-out (DiD or augmented-DiD) residual on the blank window B.
+
+    Fit the same counterfactual model the realised effect uses -- plain DiD
+    (``yT - yC = d1 [+ g*t]``) or augmented DiD (``yT = d1 + d2*yC [+ g*t]``)
+    -- on the estimation window E, then return the residual on B. Keeping the
+    power model identical to the evaluation model makes the planning MDE and
+    the realised SE use the same noise.
+    """
+    n = yT.size
+    t = np.arange(n, dtype=float)
+    cols = [np.ones(n)] + ([yC] if augment else []) + ([t] if trend else [])
+    X = np.column_stack(cols)
+    y = yT if augment else yT - yC
+    XE = X[e_idx]
+    try:
+        beta = np.linalg.solve(XE.T @ XE, XE.T @ y[e_idx])
+    except np.linalg.LinAlgError:
+        beta = np.linalg.lstsq(XE, y[e_idx], rcond=None)[0]
+    return y[b_idx] - X[b_idx] @ beta
+
+
 def _build_pair(
     pair: dict, Y: np.ndarray, unit_names, T0: int,
     cov: Optional[np.ndarray] = None, cov_scales: Optional[np.ndarray] = None,
     cov_names=None, unit_weights: Optional[np.ndarray] = None,
     e_idx: Optional[np.ndarray] = None, b_idx: Optional[np.ndarray] = None,
+    att_augment: bool = True, att_trend: bool = True,
 ) -> SupergeoPair:
     side_a, side_b = pair["side_a"], pair["side_b"]
     mean_a = _wavg(Y[:, :T0], side_a, unit_weights)   # full pre (for plotting)
@@ -48,7 +71,12 @@ def _build_pair(
     e_idx = np.arange(T0) if e_idx is None else e_idx
     b_idx = np.arange(T0) if b_idx is None else b_idx
     gap_level = float(gap[b_idx].mean())
-    holdout_resid = gap[b_idx] - gap_level
+    # Held-out reservoir for the power analysis: the residual of the *same*
+    # counterfactual model the realised effect uses (plain DiD or augmented
+    # DiD), fit on E and evaluated on the blank window B -- so the planning
+    # MDE and the realised SE are built from the same noise.
+    holdout_resid = _holdout_resid(mean_a, mean_b, e_idx, b_idx,
+                                   att_augment, att_trend)
     covariate_smd: Dict[str, float] = {}
     if cov is not None:
         smd = (_wavg(cov, side_a, unit_weights)
@@ -80,6 +108,8 @@ def run_pangeo(
     power_target: float = 0.80,
     power_alpha: float = 0.05,
     power_post_periods: Optional[Sequence[int]] = None,
+    att_augment: bool = True,
+    att_trend: bool = True,
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
 
@@ -131,6 +161,7 @@ def run_pangeo(
             covariate_weights=covariate_weights,
             compute_power=compute_power, power_target=power_target,
             power_alpha=power_alpha, power_post_periods=power_post_periods,
+            att_augment=att_augment, att_trend=att_trend,
         )
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -175,8 +206,8 @@ def run_pangeo(
         )
         chosen = solve_partition(candidates, idx, min_pairs=min_pairs)
         pairs = [_build_pair(p, Y, unit_names, T0, cov, cov_scales, cov_names,
-                             e_idx=e_idx, b_idx=b_idx,
-                             unit_weights=uw)
+                             e_idx=e_idx, b_idx=b_idx, unit_weights=uw,
+                             att_augment=att_augment, att_trend=att_trend)
                  for p in chosen]
         # Sort pairs by quality (most parallel first) for readability.
         pairs.sort(key=lambda p: p.gap_variance)
@@ -234,8 +265,7 @@ def run_pangeo(
 
 def _mean_program_mde(result: PangeoResults) -> float:
     """Mean program-level MDE (% of baseline) across horizons; ``inf`` if
-    unavailable. The selection score for automatic Q (lower is better).
-    """
+    unavailable. The selection score for automatic Q (lower is better)."""
     if result.power is None:
         return float("inf")
     vals = [pt.mde_pct for pt in result.power.program.points
@@ -255,6 +285,8 @@ def _auto_select_q(
     power_target: float,
     power_alpha: float,
     power_post_periods: Optional[Sequence[int]],
+    att_augment: bool = True,
+    att_trend: bool = True,
 ) -> PangeoResults:
     """Choose Q by minimising the program-level MDE.
 
@@ -284,6 +316,7 @@ def _auto_select_q(
                 covariate_weights=covariate_weights, compute_power=True,
                 power_target=power_target, power_alpha=power_alpha,
                 power_post_periods=power_post_periods,
+                att_augment=att_augment, att_trend=att_trend,
             )
         except MlsynthEstimationError:
             sweep.append({"q": q, "feasible": False, "n_program_pairs": 0,
