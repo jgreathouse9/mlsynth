@@ -63,7 +63,6 @@ __all__ = [
     "power_analysis",
     "DSC",
     "SpSyDiD",
-    "COMPSYNTH",
     "ISCM",
     "CTSC",
 ]
