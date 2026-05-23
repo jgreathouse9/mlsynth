@@ -84,9 +84,10 @@ class AttEstimate:
     att : float
         Augmented-DiD ATT on the (population-weighted) outcome scale.
     att_pct : float
-        ATT as a percentage of the pre-period treated baseline level.
+        ATT as a percentage of the post-period counterfactual level.
     baseline : float
-        Pre-period treated-group level used for ``att_pct``.
+        Mean post-period counterfactual outcome used for ``att_pct``
+        (the predicted treated series absent treatment).
     se : float
         Prediction-variance standard error (Li & Van den Bulte C.13).
     ci_lower, ci_upper : float
@@ -227,8 +228,13 @@ def _adid(
     else:
         p_value = 0.0 if att != 0 else 1.0
     scale = float(beta[1]) if augment else 1.0
+    # Percent ATT is relative to the post-period counterfactual prediction
+    # (cf. mlsynth.utils.resultutils.effects.calculate): the counterfactual
+    # treated series is y^T_t - u_t, so its post mean is mean(y^T_post) - att.
+    baseline = float(YT[n_pre:].mean() - att)
     return {"att": att, "se": se, "ci_lower": att - z * se,
-            "ci_upper": att + z * se, "p_value": p_value, "scale": scale}
+            "ci_upper": att + z * se, "p_value": p_value, "scale": scale,
+            "baseline": baseline}
 
 
 def _pair_records(arm_design, pos, Y_post, weights):
@@ -261,9 +267,9 @@ def _aggregate(level, recs, alpha, augment, trend) -> AttEstimate:
         np.sum([w[i] * recs[i]["YC_post"] for i in range(len(recs))], axis=0)])
     n_pre = recs[0]["YT_pre"].size
     n_post = recs[0]["YT_post"].size
-    baseline = float(YT[:n_pre].mean())
 
     r = _adid(YT, YC, n_pre, n_post, augment, trend, alpha)
+    baseline = r["baseline"]                 # mean post-period counterfactual
     pct = (lambda x: x / baseline * 100.0) if abs(baseline) > 1e-12 \
         else (lambda x: float("nan"))
     return AttEstimate(
