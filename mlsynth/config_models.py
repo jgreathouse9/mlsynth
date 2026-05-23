@@ -818,12 +818,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
-
     Parameters
     ----------
     outcomes : list of str
@@ -839,6 +833,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
+
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
