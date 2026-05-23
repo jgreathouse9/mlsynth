@@ -316,6 +316,36 @@ class TestPower:
         assert len(tab) == 11
 
 
+# ----------------------------------------------------------------------
+# Automatic Q selection
+# ----------------------------------------------------------------------
+
+class TestAutoQ:
+    def test_auto_q_when_unspecified(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time",
+                      "display_graphs": False}).fit()
+        assert res.metadata.get("q_auto_selected") is True
+        assert res.metadata["q_selected"] == res.max_supergeo_size
+        sweep = res.metadata["q_sweep"]
+        assert len(sweep) >= 1
+        # The chosen Q minimises mean program MDE over the feasible sweep.
+        feasible = [s for s in sweep if s["feasible"]]
+        best = min(feasible, key=lambda s: s["mean_program_mde_pct"])
+        assert best["q"] == res.metadata["q_selected"]
+        # Still a valid exact-cover design.
+        for arm, d in res.arm_designs.items():
+            covered = [u for p in d.pairs for u in (p.treatment + p.control)]
+            assert len(covered) == len(set(covered)) == d.n_units
+
+    def test_explicit_q_skips_auto(self, panel):
+        res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 2,
+                      "display_graphs": False}).fit()
+        assert res.max_supergeo_size == 2
+        assert "q_auto_selected" not in res.metadata
+
+
 @pytest.mark.parametrize("objective", ["ss_res", "r2", "weighted"])
 def test_objective_options_run_and_cover(panel, objective):
     """Every score objective yields a valid exact-cover design."""
