@@ -805,6 +805,70 @@ class PROXIMALConfig(BaseEstimatorConfig):
         return values
 
 
+
+
+
+
+class COMPSYNTHConfig(BaseEstimatorConfig):
+    """Configuration for the COMPSYNTH estimator.
+
+    Bogatyrev, K. & Stoetzer, L. F. (2026). *"Estimating Treatment Effects
+    on Proportions with Synthetic Controls,"* Political Analysis (R package
+    ``propsdid``). Common-weights synthetic controls for compositional
+    (proportional) outcomes -- one donor (and time) weighting shared across
+    all ``K`` proportions, so the per-outcome ATTs sum to zero.
+
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
+    Parameters
+    ----------
+    outcomes : list of str
+        The ``K >= 2`` compositional outcome columns. Each row's values
+        across these columns must be non-negative and sum to one.
+    method : {"sdid", "sc"}
+        ``"sdid"`` -- synthetic difference-in-differences with common unit
+        and time weights (default). ``"sc"`` -- classic synthetic control
+        with common unit weights, no time weights, no intercept shift.
+    inference : bool
+        Run placebo inference for per-outcome SEs/CIs. Default True.
+    alpha : float
+        Two-sided level for the placebo confidence intervals.
+    max_placebo : int, optional
+        Cap on the number of control units used as placebos.
+    """
+
+    outcomes: List[str] = Field(
+        ...,
+        description="The K >= 2 compositional outcome columns (sum to 1 "
+                    "per unit-time).",
+    )
+    method: Literal["sdid", "sc"] = Field(
+        default="sdid",
+        description="'sdid' (common unit+time weights) or 'sc' (common unit "
+                    "weights only).",
+    )
+    inference: bool = Field(
+        default=True,
+        description="Run placebo inference for per-outcome standard errors.",
+    )
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for placebo confidence intervals.",
+    )
+    max_placebo: Optional[int] = Field(
+        default=None, ge=2,
+        description="Cap on the number of control units used as placebos.",
+    )
+
+
+
+
+
+
 class FSCMConfig(BaseEstimatorConfig):
     """
     Configuration for the Forward Selected Synthetic Control Method (FSCM) estimator.
