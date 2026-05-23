@@ -48,6 +48,7 @@ MLSYNTH
    seq_sdid
    spsydid
    compsynth
+   iscm
    ppscm
    sparse_sc
    microsynth
