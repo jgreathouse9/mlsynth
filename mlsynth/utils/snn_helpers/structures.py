@@ -77,6 +77,12 @@ class SNNResults:
         post-treatment periods.
     feasible : np.ndarray
         Boolean mask of cells SNN could impute, shape ``(N, T)``.
+    weights : WeightsResults, optional
+        Per-treated-unit donor weights (the PCR coefficients that build the
+        counterfactual as a linear combination of the donor units). For a
+        single treated unit, ``donor_weights`` maps donor name -> weight;
+        with multiple treated units it holds the cross-unit average and the
+        per-unit weights live in ``summary_stats['per_unit_donor_weights']``.
     inference : object, optional
         :class:`SNNInference` when ``inference=True``; ``None`` otherwise.
     metadata : dict
@@ -89,6 +95,7 @@ class SNNResults:
     effects: np.ndarray
     att_by_period: Dict[Any, float]
     feasible: np.ndarray
+    weights: Optional[Any] = None
     inference: Optional["SNNInference"] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 

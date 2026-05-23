@@ -165,6 +165,48 @@ def snn_predict(
     return float(np.mean(preds)), True
 
 
+def snn_donor_weights(
+    X: np.ndarray, mask: np.ndarray, i: int,
+    *, n_neighbors: int = 1, max_rank: Optional[int] = None,
+    spectral_energy: float = 0.95, universal: bool = False,
+    random_state: int = 0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Effective PCR donor weights for treated unit ``i``.
+
+    For a treated unit, every missing (post-treatment) cell shares the same
+    anchor rows (the donor units) and anchor columns (the pre-periods), so
+    a single weight vector :math:`\\beta` over the donors reproduces the
+    imputed counterfactual: :math:`\\widehat Y_{it}(0) = \\sum_j \\beta_j
+    Y_{jt}`. Returns ``(donor_indices, weights)``; the weights are the
+    (unconstrained) PCR coefficients -- they need not be non-negative nor
+    sum to one. Returns empty arrays if no anchor block exists.
+    """
+    # Find anchors using any missing column of row i (all share the same AR/AC).
+    missing_cols = np.where(mask[i] == 0)[0]
+    if missing_cols.size == 0:
+        return np.array([], dtype=int), np.array([])
+    AR, AC = _find_anchors(mask, i, int(missing_cols[0]))
+    if AR.size == 0 or AC.size == 0:
+        return np.array([], dtype=int), np.array([])
+
+    rng = np.random.default_rng(random_state)
+    order = rng.permutation(AR.size)
+    n_groups = max(1, min(n_neighbors, AR.size))
+    groups = np.array_split(order, n_groups)
+
+    weights = np.zeros(AR.size)
+    q = X[i, AC]
+    for g in groups:
+        if g.size == 0:
+            continue
+        ar = AR[g]
+        S = X[np.ix_(ar, AC)]
+        _, beta, _ = _pcr(S, q, X[ar, missing_cols[0]], max_rank=max_rank,
+                          spectral_energy=spectral_energy, universal=universal)
+        weights[g] = beta / n_groups   # averaged across neighbour groups
+    return AR, weights
+
+
 def snn_complete(
     X: np.ndarray,
     *,

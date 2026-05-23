@@ -12,10 +12,55 @@ from typing import Optional
 
 import numpy as np
 
-from .completion import snn_complete
+from ...config_models import WeightsResults
+from .completion import snn_complete, snn_donor_weights
 from .structures import SNNInference, SNNInputs, SNNResults
 
 _EPS = 1e-12
+
+
+def _build_weights(
+    inputs: SNNInputs, *, n_neighbors, max_rank, spectral_energy, universal,
+    random_state,
+) -> WeightsResults:
+    """Assemble a standardized WeightsResults from the per-treated-unit
+    PCR donor weights."""
+    X = inputs.Y.copy()
+    X[inputs.D > 0] = np.nan
+    names = inputs.unit_names
+    per_unit = {}
+    for i in inputs.treated_idx:
+        AR, w = snn_donor_weights(
+            X, inputs.mask if hasattr(inputs, "mask") else (inputs.D == 0).astype(float),
+            int(i), n_neighbors=n_neighbors, max_rank=max_rank,
+            spectral_energy=spectral_energy, universal=universal,
+            random_state=random_state,
+        )
+        if AR.size:
+            per_unit[str(names[i])] = {str(names[AR[k]]): float(w[k])
+                                       for k in range(AR.size)}
+    if not per_unit:
+        return WeightsResults(donor_weights={}, summary_stats={"note": "no anchors"})
+
+    if len(per_unit) == 1:
+        donor_weights = next(iter(per_unit.values()))
+    else:
+        # Cross-treated average weight per donor.
+        donor_weights = {}
+        for d in {dn for u in per_unit.values() for dn in u}:
+            vals = [u.get(d, 0.0) for u in per_unit.values()]
+            donor_weights[d] = float(np.mean(vals))
+    w_arr = np.array(list(donor_weights.values()))
+    summary = {
+        "sum_of_weights": float(w_arr.sum()),
+        "n_donors": int(w_arr.size),
+        "n_negative": int((w_arr < 0).sum()),
+        "max_abs_weight": float(np.abs(w_arr).max()) if w_arr.size else 0.0,
+        "constraint": "unconstrained PCR weights (need not sum to 1 or be >= 0)",
+    }
+    if len(per_unit) > 1:
+        summary["per_unit_donor_weights"] = per_unit
+    return WeightsResults(donor_weights=donor_weights, summary_stats=summary)
 
 
 def _impute_counterfactual(
@@ -99,6 +144,12 @@ def run_snn(
         Y, D, counterfactual, feasible, T0, inputs.time_labels,
     )
 
+    weights = _build_weights(
+        inputs, n_neighbors=n_neighbors, max_rank=max_rank,
+        spectral_energy=spectral_energy, universal=universal,
+        random_state=random_state,
+    )
+
     inf = None
     if inference:
         inf = _jackknife_inference(
@@ -118,8 +169,8 @@ def run_snn(
     }
     return SNNResults(
         inputs=inputs, att=att, counterfactual=counterfactual, effects=effects,
-        att_by_period=att_by_period, feasible=feasible, inference=inf,
-        metadata=metadata,
+        att_by_period=att_by_period, feasible=feasible, weights=weights,
+        inference=inf, metadata=metadata,
     )
 
 
