@@ -777,36 +777,102 @@ class SpSyDiDConfig(BaseEstimatorConfig):
     )
 
 
-class PROXIMALConfig(BaseEstimatorConfig):
-    """Configuration for the Proximal Inference (PROXIMAL) estimator."""
-    # Override counterfactual_color from Base to match PROXIMAL's default and usage
-    counterfactual_color: Union[str, List[str]] = Field(default_factory=lambda: ["grey", "red", "blue"], description="Color(s) for counterfactual lines in plots. Can be a single color string or a list of color strings for multiple counterfactuals.")
+class CSCConfig(BaseEstimatorConfig):
+    """Configuration for the Correlated Synthetic Controls (CSC) estimator.
 
-    donors: List[Union[str, int]] = Field(..., min_length=1, description="List of donor unit identifiers. Must not be empty.")
-    surrogates: List[Union[str, int]] = Field(default_factory=list, description="List of surrogate unit identifiers.")
-    vars: Dict[str, List[str]] = Field(default_factory=dict, description='Dictionary specifying proxy variables. Requires "donorproxies". If surrogates are used, also requires "surrogatevars".')
+    Moev, T. (2025). *"Correlated Synthetic Controls,"* arXiv:2507.08918.
+    Builds per-treated-unit synthetic controls whose donor weights vary
+    with the treated unit's categorical covariates, for the
+    many-treated-units / short-pre-period regime.
 
-    @model_validator(mode='after')
-    def check_vars_structure(cls, values: Any) -> Any: # Changed to 'values: Any' for Pydantic v2 compatibility if 'self' is not used
-        # In Pydantic v2, for model_validator(mode='after'), the first argument is the model instance (often named 'self' or 'v')
-        # However, to be safe and more aligned with examples, using 'values' as a dict if direct attribute access isn't needed.
-        # If direct attribute access like `self.vars` is preferred, the first arg should be `self`.
-        # Let's assume `values` is the model instance here for direct attribute access.
+    Parameters
+    ----------
+    covariates : list of str
+        Categorical covariate columns on the treated units
+        (time-invariant). These drive the weight heterogeneity. CSC
+        supports categorical covariates only -- bin any continuous
+        covariate (e.g. into quantile brackets) before passing it.
+    cluster_bootstrap : bool
+        If True, run a stratified cluster bootstrap over the treated
+        units to obtain CIs for the ATT, per-segment averages, and
+        per-unit effects. Default False (point estimates only).
+    n_boot : int
+        Number of bootstrap resamples when ``cluster_bootstrap=True``.
+    alpha : float
+        Two-sided level for the bootstrap CIs (e.g. 0.05 -> 95% CI).
+    random_state : int
+        Seed for the bootstrap RNG.
+    """
 
-        # Re-accessing from the model instance 'values' (which is 'self' effectively)
-        vars_dict = values.vars
-        surrogates_list = values.surrogates
+    covariates: List[str] = Field(
+        ...,
+        description="Categorical covariate columns driving the weight "
+                    "heterogeneity (time-invariant, categorical only).",
+    )
+    cluster_bootstrap: bool = Field(
+        default=False,
+        description="Run a stratified cluster bootstrap over treated units "
+                    "for confidence intervals.",
+    )
+    n_boot: int = Field(
+        default=500, ge=10,
+        description="Number of bootstrap resamples when cluster_bootstrap=True.",
+    )
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for the bootstrap confidence intervals.",
+    )
+    random_state: int = Field(
+        default=0,
+        description="Seed for the bootstrap RNG.",
+    )
 
-        if not vars_dict.get("donorproxies") or not isinstance(vars_dict.get("donorproxies"), list) or not vars_dict["donorproxies"]:
-            raise MlsynthConfigError("Config 'vars' must contain a non-empty list for 'donorproxies'.")
 
-        if surrogates_list and (not vars_dict.get("surrogatevars") or not isinstance(vars_dict.get("surrogatevars"), list) or not vars_dict["surrogatevars"]):
-            raise MlsynthConfigError("Config 'vars' must contain a non-empty list for 'surrogatevars' when surrogates are provided.")
-        return values
+class ISCMConfig(BaseEstimatorConfig):
+    """Configuration for the Imperfect Synthetic Controls (ISCM) estimator.
 
+    Powell, D. (2026). *"Imperfect Synthetic Controls,"* Journal of Applied
+    Econometrics. Builds synthetic controls for every unit, identifies the
+    treatment effect even when the treated unit is outside the convex hull,
+    weights units by a data-driven fit metric, and uses Ibragimov-Muller
+    inference valid for small donor pools. Inherits the standard ``df`` /
+    ``outcome`` / ``treat`` / ``unitid`` / ``time`` interface.
 
+    Parameters
+    ----------
+    inference : bool
+        Run Ibragimov-Muller inference over the per-unit estimates.
+        Default True.
+    null_value : float
+        Null effect ``alpha_0`` for the randomization test. Default 0.
+    alpha : float
+        Two-sided level for the confidence interval.
+    n_draws : int
+        Number of Rademacher sign-flip draws for the p-value.
+    random_state : int
+        Seed for the randomization-test RNG.
+    """
 
-
+    inference: bool = Field(
+        default=True,
+        description="Run Ibragimov-Muller inference over per-unit estimates.",
+    )
+    null_value: float = Field(
+        default=0.0,
+        description="Null effect alpha_0 for the randomization test.",
+    )
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for the confidence interval.",
+    )
+    n_draws: int = Field(
+        default=10000, ge=100,
+        description="Number of Rademacher sign-flip draws for the p-value.",
+    )
+    random_state: int = Field(
+        default=0,
+        description="Seed for the randomization-test RNG.",
+    )
 
 
 class COMPSYNTHConfig(BaseEstimatorConfig):
@@ -817,6 +883,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     ``propsdid``). Common-weights synthetic controls for compositional
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
+
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
 
     Parameters
     ----------
@@ -833,12 +905,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
@@ -865,8 +931,31 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     )
 
 
+class PROXIMALConfig(BaseEstimatorConfig):
+    """Configuration for the Proximal Inference (PROXIMAL) estimator."""    # Override counterfactual_color from Base to match PROXIMAL's default and usage
+    counterfactual_color: Union[str, List[str]] = Field(default_factory=lambda: ["grey", "red", "blue"], description="Color(s) for counterfactual lines in plots. Can be a single color string or a list of color strings for multiple counterfactuals.")
 
+    donors: List[Union[str, int]] = Field(..., min_length=1, description="List of donor unit identifiers. Must not be empty.")
+    surrogates: List[Union[str, int]] = Field(default_factory=list, description="List of surrogate unit identifiers.")
+    vars: Dict[str, List[str]] = Field(default_factory=dict, description='Dictionary specifying proxy variables. Requires "donorproxies". If surrogates are used, also requires "surrogatevars".')
 
+    @model_validator(mode='after')
+    def check_vars_structure(cls, values: Any) -> Any: # Changed to 'values: Any' for Pydantic v2 compatibility if 'self' is not used
+        # In Pydantic v2, for model_validator(mode='after'), the first argument is the model instance (often named 'self' or 'v')
+        # However, to be safe and more aligned with examples, using 'values' as a dict if direct attribute access isn't needed.
+        # If direct attribute access like `self.vars` is preferred, the first arg should be `self`.
+        # Let's assume `values` is the model instance here for direct attribute access.
+
+        # Re-accessing from the model instance 'values' (which is 'self' effectively)
+        vars_dict = values.vars
+        surrogates_list = values.surrogates
+
+        if not vars_dict.get("donorproxies") or not isinstance(vars_dict.get("donorproxies"), list) or not vars_dict["donorproxies"]:
+            raise MlsynthConfigError("Config 'vars' must contain a non-empty list for 'donorproxies'.")
+
+        if surrogates_list and (not vars_dict.get("surrogatevars") or not isinstance(vars_dict.get("surrogatevars"), list) or not vars_dict["surrogatevars"]):
+            raise MlsynthConfigError("Config 'vars' must contain a non-empty list for 'surrogatevars' when surrogates are provided.")
+        return values
 
 
 class FSCMConfig(BaseEstimatorConfig):
