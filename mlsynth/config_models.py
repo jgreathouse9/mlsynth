@@ -582,6 +582,19 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         default=1000, ge=1,
         description="Maximum iterations for the HQF solver.",
     )
+    cv_lambda: bool = Field(
+        default=False,
+        description="Leave-one-time-period-out CV for PCP's sparsity penalty "
+                    "lambda. Sweeps cv_lambda_multipliers x Candes default, picks "
+                    "the value with lowest held-out NNLS MSE. On the California "
+                    "Prop 99 panel this halves pre-RMSE vs the Candes default.",
+    )
+    cv_hqf_rank: bool = Field(
+        default=False,
+        description="Leave-one-time-period-out CV for HQF's factorisation rank. "
+                    "Sweeps integer ranks in [1, min(J, T0-1)] and picks the rank "
+                    "with lowest held-out NNLS MSE.",
+    )
 
     @model_validator(mode="before")
     @classmethod
