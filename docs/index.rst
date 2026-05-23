@@ -27,10 +27,10 @@ MLSYNTH
    opthelpers
    fdid
    clustersc
-   gsc
    fma
    pda
    dsc
+   csc
    tssc
    lexscm
    bvss
@@ -46,6 +46,8 @@ MLSYNTH
    mlsc
    sdid
    seq_sdid
+   spsydid
+   compsynth
    ppscm
    sparse_sc
    microsynth
@@ -67,5 +69,3 @@ MLSYNTH
 
    #auto_examples/exampleplot
    #auto_examples/Water
-
-
