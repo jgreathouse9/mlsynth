@@ -41,6 +41,7 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.snn_helpers.pipeline import run_snn
+from ..utils.snn_helpers.plotter import plot_snn
 from ..utils.snn_helpers.setup import prepare_snn_inputs
 from ..utils.snn_helpers.structures import SNNResults
 
@@ -76,6 +77,10 @@ class SNN:
         self.inference: bool = config.inference
         self.alpha: float = config.alpha
         self.random_state: int = config.random_state
+        self.display_graphs: bool = config.display_graphs
+        self.save = config.save
+        self.counterfactual_color = config.counterfactual_color
+        self.treated_color: str = config.treated_color
 
     def fit(self) -> SNNResults:
         """Run SNN and return :class:`SNNResults`."""
@@ -84,7 +89,7 @@ class SNN:
                 df=self.df, outcome=self.outcome, treat=self.treat,
                 unitid=self.unitid, time=self.time,
             )
-            return run_snn(
+            results = run_snn(
                 inputs=inputs,
                 n_neighbors=self.n_neighbors,
                 max_rank=self.max_rank,
@@ -95,6 +100,18 @@ class SNN:
                 alpha_level=self.alpha,
                 random_state=self.random_state,
             )
+            if self.display_graphs:
+                plot_snn(
+                    results,
+                    treated_color=self.treated_color,
+                    counterfactual_color=self.counterfactual_color,
+                    save=self.save,
+                    time_axis_label=self.time,
+                    treatment_label=self.treat,
+                    unit_label=self.unitid,
+                    outcome_label=self.outcome,
+                )
+            return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
         except Exception as exc:
