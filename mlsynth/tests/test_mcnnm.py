@@ -141,8 +141,7 @@ class TestEstimator:
 
     def test_exposes_factors_and_implied_weights(self):
         """MC-NNM exposes its factor decomposition and implied (non-unique)
-        donor weights flagged as such.
-        """
+        donor weights flagged as such."""
         df, _ = _low_rank_panel()
         res = MCNNM({"df": df, "outcome": "y", "treat": "D",
                      "unitid": "unit", "time": "time",
@@ -152,6 +151,37 @@ class TestEstimator:
         assert res.unit_factors.shape[1] == res.time_factors.shape[1]
         assert res.weights is not None
         assert res.weights.summary_stats["weights_are"] == "implied_non_unique"
+
+    def test_staggered_adoption_cohort_and_event_study(self):
+        """Three-cohort staggered design: overall ATT, per-cohort ATTs, and
+        the event-study curve all recover the constant true effect; the
+        pre-adoption event times are ~0 (no pre-trend)."""
+        rng = np.random.default_rng(0)
+        N, T, r, effect = 30, 40, 3, 2.0
+        Y0 = (rng.standard_normal((N, r)) @ rng.standard_normal((r, T))
+              + rng.standard_normal(N)[:, None] * 0.5
+              + np.linspace(0, 1, T)[None, :]
+              + rng.standard_normal((N, T)) * 0.05)
+        D = np.zeros((N, T))
+        adopt = {**{i: 20 for i in range(5)}, **{i: 28 for i in range(5, 10)},
+                 **{i: 34 for i in range(10, 15)}}
+        for i, t0 in adopt.items():
+            D[i, t0:] = 1
+        Y = Y0 + effect * D
+        df = pd.DataFrame([{"unit": f"u{i}", "time": t, "y": Y[i, t],
+                            "D": int(D[i, t])}
+                           for i in range(N) for t in range(T)])
+        res = MCNNM({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
+                     "time": "time", "display_graphs": False}).fit()
+        assert res.att == pytest.approx(effect, abs=0.2)
+        # Three cohorts, each recovered.
+        assert len(res.cohort_att) == 3
+        for v in res.cohort_att.values():
+            assert abs(v - effect) < 0.25
+        # Event study: post effects ~ effect, pre effects ~ 0.
+        assert abs(res.event_study[0] - effect) < 0.3
+        assert abs(res.event_study[5] - effect) < 0.3
+        assert abs(res.event_study[-3]) < 0.2
 
     def test_jackknife_inference(self):
         df, _ = _low_rank_panel(n_co=12)
