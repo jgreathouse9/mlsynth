@@ -30,7 +30,8 @@ _EPS = 1e-12
 def _wavg(matrix: np.ndarray, idx, weights: Optional[np.ndarray]) -> np.ndarray:
     """Weighted column-mean of ``matrix[idx]`` (plain mean if ``weights`` is
     None). The supergeo aggregate -- weighting by e.g. population makes the
-    design and the downstream ATT population-weighted and consistent."""
+    design and the downstream ATT population-weighted and consistent.
+    """
     if weights is None:
         return matrix[idx].mean(axis=0)
     return np.average(matrix[idx], axis=0, weights=weights[idx])
@@ -38,7 +39,8 @@ def _wavg(matrix: np.ndarray, idx, weights: Optional[np.ndarray]) -> np.ndarray:
 
 def gap_variance(mean_a: np.ndarray, mean_b: np.ndarray) -> float:
     """Variance of the level-removed gap between two trajectories (the DiD
-    pre-period residual sum of squares)."""
+    pre-period residual sum of squares).
+    """
     gap = mean_a - mean_b
     resid = gap - gap.mean()
     return float(resid @ resid)
