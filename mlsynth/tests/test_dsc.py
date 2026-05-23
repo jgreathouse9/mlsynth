@@ -49,7 +49,8 @@ def _micro_panel(
     seed: int = 0,
 ) -> tuple[pd.DataFrame, float]:
     """A balanced micro-panel where unit 0 has a *location shift* of
-    ``delta_post`` in the post-period."""
+    ``delta_post`` in the post-period.
+    """
     rng = np.random.default_rng(seed)
     T = T_pre + T_post
     # Unit-specific location, time-specific shift; donors all share the
