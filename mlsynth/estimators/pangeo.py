@@ -28,6 +28,7 @@ not a treatment effect.
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Union
 
 import pandas as pd
@@ -39,9 +40,10 @@ from ..exceptions import (
     MlsynthDataError,
     MlsynthEstimationError,
 )
+from ..utils.pangeo_helpers.effects import compute_pangeo_effects
 from ..utils.pangeo_helpers.pipeline import run_pangeo
 from ..utils.pangeo_helpers.plotter import plot_pangeo
-from ..utils.pangeo_helpers.setup import prepare_pangeo_inputs
+from ..utils.pangeo_helpers.setup import build_post_matrix, prepare_pangeo_inputs
 from ..utils.pangeo_helpers.structures import PangeoResults
 
 
@@ -69,10 +71,13 @@ class PANGEO:
         self.arm: str = config.arm
         self.unitid: str = config.unitid
         self.time: str = config.time
+        self.post_col = config.post_col
+        self.weight_col = config.weight_col
         self.max_supergeo_size = config.max_supergeo_size
         self.min_pairs: int = config.min_pairs
         self.objective: str = config.objective
         self.recency_decay: float = config.recency_decay
+        self.frac_E: float = config.frac_E
         self.covariates = config.covariates
         self.covariate_weights = config.covariate_weights
         self.standardize_covariates: bool = config.standardize_covariates
@@ -84,13 +89,30 @@ class PANGEO:
         self.save = config.save
 
     def fit(self) -> PangeoResults:
-        """Design the parallel supergeo pairs and return :class:`PangeoResults`."""
+        """Design the parallel supergeo pairs and return :class:`PangeoResults`.
+
+        With a ``post_col``, the design is built on the pre rows only (so it
+        is identical to the design-only result) and the realized DiD ATT on
+        the post rows is attached as ``results.effects``.
+        """
         try:
+            if self.post_col is not None:
+                if self.post_col not in self.df.columns:
+                    raise MlsynthDataError(
+                        f"post_col {self.post_col!r} missing.")
+                pre_df = self.df[self.df[self.post_col] == 0].copy()
+                post_df = self.df[self.df[self.post_col] != 0].copy()
+                if pre_df.empty:
+                    raise MlsynthDataError("No pre-period rows (post_col).")
+            else:
+                pre_df, post_df = self.df, None
+
             inputs = prepare_pangeo_inputs(
-                df=self.df, outcome=self.outcome, arm=self.arm,
+                df=pre_df, outcome=self.outcome, arm=self.arm,
                 unitid=self.unitid, time=self.time,
                 covariates=self.covariates,
                 standardize_covariates=self.standardize_covariates,
+                weight_col=self.weight_col,
             )
             results = run_pangeo(
                 inputs=inputs,
@@ -98,12 +120,21 @@ class PANGEO:
                 min_pairs=self.min_pairs,
                 objective=self.objective,
                 recency_decay=self.recency_decay,
+                frac_E=self.frac_E,
                 covariate_weights=self.covariate_weights,
                 compute_power=self.compute_power,
                 power_target=self.power_target,
                 power_alpha=self.power_alpha,
                 power_post_periods=self.power_post_periods,
             )
+
+            if post_df is not None and not post_df.empty:
+                Y_post, _ = build_post_matrix(
+                    post_df, inputs, self.outcome, self.unitid, self.time)
+                effects = compute_pangeo_effects(
+                    results, inputs, Y_post, alpha=self.power_alpha)
+                results = dataclasses.replace(results, effects=effects)
+
             if self.display_graphs:
                 plot_pangeo(results, save=self.save, outcome_label=self.outcome)
             return results
