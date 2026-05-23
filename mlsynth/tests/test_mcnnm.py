@@ -141,7 +141,8 @@ class TestEstimator:
 
     def test_exposes_factors_and_implied_weights(self):
         """MC-NNM exposes its factor decomposition and implied (non-unique)
-        donor weights flagged as such."""
+        donor weights flagged as such.
+        """
         df, _ = _low_rank_panel()
         res = MCNNM({"df": df, "outcome": "y", "treat": "D",
                      "unitid": "unit", "time": "time",
@@ -155,7 +156,8 @@ class TestEstimator:
     def test_staggered_adoption_cohort_and_event_study(self):
         """Three-cohort staggered design: overall ATT, per-cohort ATTs, and
         the event-study curve all recover the constant true effect; the
-        pre-adoption event times are ~0 (no pre-trend)."""
+        pre-adoption event times are ~0 (no pre-trend).
+        """
         rng = np.random.default_rng(0)
         N, T, r, effect = 30, 40, 3, 2.0
         Y0 = (rng.standard_normal((N, r)) @ rng.standard_normal((r, T))
