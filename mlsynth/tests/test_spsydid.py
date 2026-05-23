@@ -186,6 +186,7 @@ class TestEstimator:
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
             "spatial_matrix": W,
+            "display_graphs": False,
         }).fit()
         assert isinstance(res, SpSyDiDResults)
         # ATT should recover the planted direct effect within tolerance.
@@ -202,6 +203,7 @@ class TestEstimator:
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
             "spatial_matrix": W_zero,
+            "display_graphs": False,
         }).fit()
         # With W=0, (WD)=0 so tau_s is identified at zero loading; the
         # regression should still recover tau.
@@ -215,6 +217,7 @@ class TestEstimator:
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
             "spatial_matrix": W,
+            "display_graphs": False,
         }).fit()
         # Pure-control weights sum to ~1 (SDID simplex constraint).
         pure_idx = res.inputs.pure_control_indices
@@ -246,6 +249,7 @@ class TestPublicAPI:
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
             "spatial_matrix": W,
+            "display_graphs": False,
         }).fit()
         with pytest.raises(Exception):
             res.att = 0.0
@@ -258,6 +262,7 @@ class TestPublicAPI:
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
             "spatial_matrix": W,
+            "display_graphs": False,
         }).fit()
         assert res.tau == res.att
         assert res.tau_s == res.aite
@@ -270,4 +275,5 @@ class TestPublicAPI:
                 "df": df, "outcome": "y", "treat": "D",
                 "unitid": "unit", "time": "time",
                 "spatial_matrix": bad_W,
-            }).fit()
+            "display_graphs": False,
+        }).fit()
