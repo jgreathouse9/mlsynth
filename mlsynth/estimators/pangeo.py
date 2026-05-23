@@ -128,6 +128,8 @@ class PANGEO:
                 power_target=self.power_target,
                 power_alpha=self.power_alpha,
                 power_post_periods=self.power_post_periods,
+                att_augment=self.att_augment,
+                att_trend=self.att_trend,
             )
 
             if post_df is not None and not post_df.empty:
