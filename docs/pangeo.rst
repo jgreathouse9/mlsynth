@@ -144,6 +144,70 @@ some pre-period parallelism; the achieved per-pair SMDs are reported in
        for p in design.pairs:
            print(p.treatment, p.control, p.parallelism_r2, p.covariate_smd)
 
+Power and minimum detectable effect
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A design is only useful if it can *detect* the effects a program cares
+about, so :meth:`mlsynth.PANGEO.fit` also returns a power / MDE analysis
+(``results.power``, a :class:`mlsynth.utils.pangeo_helpers.power.PangeoPower`).
+The key observation is that **power is the design objective**: for a
+supergeo pair the no-effect gap :math:`g_t = \bar Y^T_t - \bar Y^C_t` sits
+on its parallel-trends line :math:`\delta_p`, and its per-period residual
+variance is exactly the score the MILP minimised,
+
+.. math::
+
+   \sigma_p^2 = \text{ss\_res}_p / (T_0 - 1) .
+
+The ``X``-period difference-in-differences ATT
+:math:`\hat\tau_p = \bar g_{\text{post}} - \delta_p` then has variance
+:math:`\sigma_p^2\,[f(X,\rho) + f(T_0,\rho)]`, where
+:math:`f(n,\rho)` is the variance-inflation factor of the mean of ``n``
+serially-correlated periods. **Serial correlation is decisive and is the
+trap a naive i.i.d. power calculation falls into**: weekly sales are highly
+autocorrelated, so ``X`` post weeks are worth far fewer than ``X``
+independent observations, and adding post periods yields sharply
+diminishing returns. :math:`\rho` is estimated as the pooled lag-1 (AR(1))
+autocorrelation of the chosen pairs' pre-period gap residuals.
+
+The minimum detectable effect at power :math:`1-\beta` and two-sided level
+:math:`\alpha` is :math:`\text{MDE} = (z_{1-\alpha/2}+z_{1-\beta})\,
+\operatorname{SE}(\hat\tau)`, reported both in outcome units and as a
+percentage of the treated-group baseline level.
+
+**Program level is the headline.** Small arms are individually
+under-powered -- with only a handful of supergeo pairs, a pure
+within-pair *randomisation* test has a hard p-value floor of
+:math:`2/2^{P}` (one pair can never reject; you need :math:`\ge 6` pairs
+to even reach :math:`p<0.05`). PANGEO therefore reports a model-based MDE
+whose precision comes from the long pre-period, and **pools across arms**:
+the program ATT is the treated-size-weighted average of the pair ATTs, so
+its effective sample size is the *total* number of pairs. Pooling routinely
+detects effects several points smaller than any one arm could, which is the
+number a program owner should take to leadership. Per-arm curves are stored
+too (``results.power.arms``), and pairs are treated as independent across
+the program (cross-pair common shocks within an arm are ignored -- a mild
+optimism).
+
+By default the MDE is computed at **80% power** for post-period horizons
+**2..12**; ``power_target``, ``power_alpha`` and ``power_post_periods``
+configure this, and ``compute_power=False`` skips it.
+
+.. code-block:: python
+
+   res = PANGEO({
+       "df": df, "outcome": "sales", "arm": "arm",
+       "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+   }).fit()
+
+   pw = res.power
+   print(f"serial correlation rho = {pw.serial_correlation:.2f}")
+   print(pw.summary())                       # MDE % by horizon: program + arms
+   # "With this design we can detect a {x}% lift after 8 weeks at 80% power."
+   print(pw.program.mde_pct_by_horizon()[8])
+   # Or invert: power to detect a specific effect.
+   print(pw.power_for_effect(effect_pct=5.0, post_periods=8))
+
 Core API
 --------
 
@@ -175,6 +239,10 @@ Helper Modules
    :undoc-members:
 
 .. automodule:: mlsynth.utils.pangeo_helpers.pipeline
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.pangeo_helpers.power
    :members:
    :undoc-members:
 
