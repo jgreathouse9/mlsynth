@@ -96,8 +96,7 @@ class TestPCRHelper:
         """On a panel with non-trivial intercepts, standardising the
         donor matrix before the cumvar comparison must pick a higher
         rank than the raw rule (because the leading singular value no
-        longer absorbs the level information).
-        """
+        longer absorbs the level information)."""
         df, _ = panel
         # Add a unit-specific intercept to the donor outcomes so the
         # uncentered SVD is dominated by a single direction.
@@ -132,8 +131,7 @@ class TestPCRHelper:
         """`project_denoised` is a genuine knob (not a no-op): with
         HSVT applied to the pre-period only, projecting through raw
         vs denoised post-period donors gives different counterfactuals.
-        Just verify both paths run and metadata records the choice.
-        """
+        Just verify both paths run and metadata records the choice."""
         df, _ = panel
         inputs = prepare_clustersc_inputs(
             df, outcome="y", treat="D", unitid="unit", time="time",
@@ -161,8 +159,7 @@ class TestPCRHelper:
 
     def test_explicit_rank_overrides_default(self, panel):
         """Passing `rank=k` must produce a rank-k truncation regardless
-        of the default `rank_method='cumvar'`.
-        """
+        of the default `rank_method='cumvar'`."""
         df, _ = panel
         inputs = prepare_clustersc_inputs(
             df, outcome="y", treat="D", unitid="unit", time="time",
@@ -360,14 +357,37 @@ class TestEstimator:
         lo, hi = res.inference.credible_interval
         assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
 
-    def test_no_inference_for_frequentist_pcr(self, panel):
+    def test_shen_ci_for_frequentist_ols_pcr(self, panel):
+        """Frequentist OLS PCR returns Shen-Ding-Sekhon-Yu (2023) CIs by default."""
         df, _ = panel
         res = CLUSTERSC({
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
             "method": "pcr", "estimator": "frequentist",
         }).fit()
+        assert res.inference.method == "shen_homoskedastic"
+        shen = res.inference.shen
+        assert shen is not None
+        # Per-period structure: one CI per post-period.
+        n_post = res.inputs.T - res.inputs.T0
+        assert shen.per_period_gap.shape == (n_post,)
+        assert shen.per_period_ci_vt.shape == (n_post, 2)
+        # ATT CIs are finite and ordered.
+        for ci in (shen.att_ci_hz, shen.att_ci_vt, shen.att_ci_dr):
+            lo, hi = ci
+            assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
+
+    def test_shen_ci_disabled(self, panel):
+        """`compute_shen_ci=False` falls back to method='none'."""
+        df, _ = panel
+        res = CLUSTERSC({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+            "method": "pcr", "estimator": "frequentist",
+            "compute_shen_ci": False,
+        }).fit()
         assert res.inference.method == "none"
+        assert res.inference.shen is None
 
     @pytest.mark.parametrize("objective", ["OLS", "SIMPLEX"])
     def test_pcr_objectives(self, panel, objective):
