@@ -29,7 +29,8 @@ _EPS = 1e-12
 
 def gap_variance(mean_a: np.ndarray, mean_b: np.ndarray) -> float:
     """Variance of the level-removed gap between two trajectories (the DiD
-    pre-period residual sum of squares)."""
+    pre-period residual sum of squares).
+    """
     gap = mean_a - mean_b
     resid = gap - gap.mean()
     return float(resid @ resid)
