@@ -104,6 +104,8 @@ class CLUSTERSC:
         self.hqf_lambda = config.hqf_lambda
         self.hqf_ip: float = config.hqf_ip
         self.hqf_max_iter: int = config.hqf_max_iter
+        self.cv_lambda: bool = config.cv_lambda
+        self.cv_hqf_rank: bool = config.cv_hqf_rank
         self.compute_shen_ci: bool = config.compute_shen_ci
         self.shen_variance: str = config.shen_variance
         self.display_graphs: bool = config.display_graphs
@@ -181,6 +183,8 @@ class CLUSTERSC:
                     hqf_lambda=self.hqf_lambda,
                     hqf_ip=self.hqf_ip,
                     hqf_max_iter=self.hqf_max_iter,
+                    cv_lambda=self.cv_lambda,
+                    cv_hqf_rank=self.cv_hqf_rank,
                     random_state=self.random_state,
                 )
 
