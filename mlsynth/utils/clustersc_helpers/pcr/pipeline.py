@@ -31,6 +31,7 @@ from .clustering import ClusterPartition, assign_target, cluster_donors
 from .convex import solve_simplex
 from .frequentist import solve_ols
 from .hsvt import hsvt, select_rank
+from .inference import shen_inference
 
 _MIN_PRE_PERIODS = 2
 _MIN_CLUSTER_DONORS = 2
@@ -63,6 +64,9 @@ def run_pcr(
     lambda_penalty: Optional[float] = None,
     p: Optional[float] = None,
     q: Optional[float] = None,
+    # frequentist OLS inference (Shen et al. 2023)
+    shen_variance: str = "homoskedastic",
+    compute_shen_ci: bool = True,
     random_state: int = 0,
 ) -> Tuple[MethodFit, Optional[Tuple[np.ndarray, np.ndarray]]]:
     """Run the paper-aligned PCR-SC pipeline.
@@ -249,6 +253,28 @@ def run_pcr(
 
     donor_weights = {name: float(w) for name, w in zip(selected_names, f_hat)}
 
+    # Shen et al. (2023) frequentist CIs for the OLS path.
+    shen_obj = None
+    if (
+        compute_shen_ci
+        and estimator == "frequentist"
+        and objective == "OLS"
+        and T > T0
+    ):
+        try:
+            shen_obj = shen_inference(
+                treated_outcome=treated_outcome,
+                donor_outcomes=selected_full,
+                T0=T0,
+                rank=r,
+                variance=shen_variance,
+                alpha=alpha,
+            )
+        except MlsynthEstimationError:
+            # Best-effort: e.g. HRK validity check fails on a panel.
+            # Leave shen_obj = None and let the orchestrator fall back.
+            shen_obj = None
+
     metadata: dict = {
         "objective": objective,
         "estimator": estimator,
@@ -262,6 +288,8 @@ def run_pcr(
         "p": p,
         "q": q,
     }
+    if shen_obj is not None:
+        metadata["shen_inference"] = shen_obj
     if cluster_info is not None:
         metadata.update({
             "k_clusters": int(cluster_info.k),
