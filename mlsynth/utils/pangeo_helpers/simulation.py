@@ -31,6 +31,7 @@ def make_seasonal_sales_panel(
     season_period: int = 52,
     noise: float = 0.05,
     seed: int = 0,
+    covariates: bool = False,
 ) -> pd.DataFrame:
     """Simulate a seasonal, multi-arm, sales-like pre-treatment panel.
 
@@ -51,11 +52,16 @@ def make_seasonal_sales_panel(
         Idiosyncratic noise scale, relative to the signal.
     seed : int
         RNG seed.
+    covariates : bool
+        If ``True``, also emit time-invariant baseline ``population`` and
+        ``income`` columns (correlated with the unit's level and factor
+        loadings) for PANGEO's covariate-balancing option.
 
     Returns
     -------
     pd.DataFrame
-        Long panel with columns ``unit``, ``time``, ``sales``, ``arm``.
+        Long panel with columns ``unit``, ``time``, ``sales``, ``arm``
+        (plus ``population`` and ``income`` when ``covariates=True``).
     """
     rng = np.random.default_rng(seed)
     t = np.arange(T)
@@ -86,7 +92,15 @@ def make_seasonal_sales_panel(
             )
             y = signal + rng.standard_normal(T) * noise * np.std(signal)
             name = f"{arm}{u}"
+            extra = {}
+            if covariates:
+                # Baseline characteristics correlated with the unit's latent
+                # level / loadings, so balancing them is non-trivial.
+                extra["population"] = float(
+                    50_000 + 8_000 * level + 5_000 * rng.standard_normal())
+                extra["income"] = float(
+                    40_000 + 6_000 * mu[0] + 3_000 * rng.standard_normal())
             for ti in range(T):
                 rows.append({"unit": name, "time": int(ti),
-                             "sales": float(y[ti]), "arm": arm})
+                             "sales": float(y[ti]), "arm": arm, **extra})
     return pd.DataFrame(rows)

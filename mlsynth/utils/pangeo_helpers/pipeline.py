@@ -9,6 +9,8 @@ halves.
 
 from __future__ import annotations
 
+from typing import Dict, Optional
+
 import numpy as np
 
 from .mip import solve_partition
@@ -21,10 +23,18 @@ from .setup import PangeoInputs
 from .structures import ArmDesign, PangeoResults, SupergeoPair
 
 
-def _build_pair(pair: dict, Y: np.ndarray, unit_names, T0: int) -> SupergeoPair:
+def _build_pair(
+    pair: dict, Y: np.ndarray, unit_names, T0: int,
+    cov: Optional[np.ndarray] = None, cov_scales: Optional[np.ndarray] = None,
+    cov_names=None,
+) -> SupergeoPair:
     side_a, side_b = pair["side_a"], pair["side_b"]
     mean_a = Y[side_a, :T0].mean(axis=0)
     mean_b = Y[side_b, :T0].mean(axis=0)
+    covariate_smd: Dict[str, float] = {}
+    if cov is not None:
+        smd = (cov[side_a].mean(axis=0) - cov[side_b].mean(axis=0)) / cov_scales
+        covariate_smd = {name: float(v) for name, v in zip(cov_names, smd)}
     return SupergeoPair(
         treatment=[unit_names[i] for i in side_a],
         control=[unit_names[i] for i in side_b],
@@ -32,6 +42,7 @@ def _build_pair(pair: dict, Y: np.ndarray, unit_names, T0: int) -> SupergeoPair:
         parallelism_r2=float(parallelism_r2(mean_a, mean_b)),
         treatment_mean=mean_a,
         control_mean=mean_b,
+        covariate_smd=covariate_smd,
     )
 
 
@@ -40,6 +51,9 @@ def run_pangeo(
     *,
     max_supergeo_size: int = 3,
     min_pairs: int = 1,
+    objective: str = "ss_res",
+    recency_decay: float = 0.97,
+    covariate_weights: Optional[Dict[str, float]] = None,
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
 
@@ -51,6 +65,17 @@ def run_pangeo(
         Q -- the maximum size of either supergeo within a pair.
     min_pairs : int
         Minimum number of supergeo pairs per arm.
+    objective : {"ss_res", "r2", "weighted"}
+        Per-pair parallelism cost minimised by the MIP (see
+        :func:`mlsynth.utils.pangeo_helpers.parallelism.split_cost`).
+    recency_decay : float
+        Geometric recency-weight decay for ``objective="weighted"``:
+        period ``t`` gets weight ``recency_decay**(T0-1-t)`` (recent
+        periods up-weighted), normalised to sum to ``T0``.
+    covariate_weights : dict, optional
+        ``{covariate_name: weight}`` on the standardized SMD^2 imbalance
+        penalty (default 1.0 each). Only used when ``inputs.covariates`` is
+        present.
     """
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -60,12 +85,30 @@ def run_pangeo(
     T0 = Y.shape[1]                     # all observed periods are pre-period
     unit_names = inputs.unit_names
 
+    weights = None
+    if objective == "weighted":
+        raw = recency_decay ** (T0 - 1 - np.arange(T0))
+        weights = raw / raw.sum() * T0  # normalise to ~uniform scale
+
+    cov = inputs.covariates
+    cov_scales = inputs.covariate_scales
+    cov_names = inputs.covariate_names
+    cov_w = None
+    if cov is not None:
+        cw = covariate_weights or {}
+        cov_w = np.array([float(cw.get(name, 1.0)) for name in cov_names])
+
     arm_designs = {}
     assignment = {}
     for arm, idx in inputs.arm_units.items():
-        candidates = enumerate_candidate_pairs(idx, Y[:, :T0], max_supergeo_size)
+        candidates = enumerate_candidate_pairs(
+            idx, Y[:, :T0], max_supergeo_size,
+            objective=objective, weights=weights,
+            cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
+        )
         chosen = solve_partition(candidates, idx, min_pairs=min_pairs)
-        pairs = [_build_pair(p, Y, unit_names, T0) for p in chosen]
+        pairs = [_build_pair(p, Y, unit_names, T0, cov, cov_scales, cov_names)
+                 for p in chosen]
         # Sort pairs by quality (most parallel first) for readability.
         pairs.sort(key=lambda p: p.gap_variance)
 
@@ -95,7 +138,9 @@ def run_pangeo(
         "max_supergeo_size": max_supergeo_size,
         "T_pre": T0,
         "solver": "cvxpy/HiGHS set-partitioning MIP",
-        "objective": "pre-period DiD parallelism (level-removed gap variance)",
+        "objective": objective,
+        "recency_decay": recency_decay if objective == "weighted" else None,
+        "covariates": list(cov_names) if cov is not None else None,
     }
     return PangeoResults(
         arm_designs=arm_designs,

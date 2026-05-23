@@ -36,6 +36,9 @@ class SupergeoPair:
         Pre-period mean trajectory of the treatment half.
     control_mean : np.ndarray
         Pre-period mean trajectory of the control half.
+    covariate_smd : dict
+        ``{covariate_name: standardized mean difference}`` between the
+        treatment and control halves (empty if no covariates were used).
     """
 
     treatment: List[Any]
@@ -44,6 +47,7 @@ class SupergeoPair:
     parallelism_r2: float
     treatment_mean: np.ndarray
     control_mean: np.ndarray
+    covariate_smd: Dict[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

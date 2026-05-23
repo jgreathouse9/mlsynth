@@ -22,6 +22,7 @@ Module layout:
 from __future__ import annotations
 
 from .parallelism import (
+    covariate_imbalance,
     enumerate_candidate_pairs,
     gap_variance,
     parallelism_r2,
@@ -36,6 +37,7 @@ __all__ = [
     "PangeoInputs",
     "PangeoResults",
     "SupergeoPair",
+    "covariate_imbalance",
     "enumerate_candidate_pairs",
     "gap_variance",
     "make_seasonal_sales_panel",

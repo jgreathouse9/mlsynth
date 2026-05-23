@@ -8,8 +8,8 @@ eligibility from a single categorical ``arm`` column (values ``A``, ``B``,
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -34,6 +34,14 @@ class PangeoInputs:
         ``{unit_name: arm_label}``.
     arm_units : dict
         ``{arm_label: np.ndarray of row indices}`` (the arm's geo pool).
+    covariates : np.ndarray or None
+        Baseline covariate matrix, shape ``(N, M)`` aligned with
+        ``unit_names`` rows (``None`` if no covariates requested).
+    covariate_names : list
+        Length-``M`` covariate column names (empty if none).
+    covariate_scales : np.ndarray or None
+        Length-``M`` cross-unit standard deviations used to standardize the
+        covariate imbalance (``None`` if no covariates).
     """
 
     Y: np.ndarray
@@ -41,6 +49,9 @@ class PangeoInputs:
     time_labels: np.ndarray
     arm_of: Dict[Any, Any]
     arm_units: Dict[Any, np.ndarray]
+    covariates: Optional[np.ndarray] = None
+    covariate_names: List[str] = field(default_factory=list)
+    covariate_scales: Optional[np.ndarray] = None
 
 
 def prepare_pangeo_inputs(
@@ -50,6 +61,8 @@ def prepare_pangeo_inputs(
     unitid: str,
     time: str,
     min_units_per_arm: int = 2,
+    covariates: Optional[List[str]] = None,
+    standardize_covariates: bool = True,
 ) -> PangeoInputs:
     """Pivot a historical panel into :class:`PangeoInputs`.
 
@@ -66,12 +79,22 @@ def prepare_pangeo_inputs(
         Unit-id and time column names.
     min_units_per_arm : int
         Minimum geos required per arm to form at least one supergeo pair.
+    covariates : list of str, optional
+        Baseline covariate columns to balance across supergeo halves. Each
+        unit's covariate value is its mean over the panel (so a column that
+        varies over time is reduced to a per-unit baseline level).
+    standardize_covariates : bool
+        Divide each covariate's imbalance by its cross-unit std (default).
+        With ``False`` the raw scale is used (``scales = 1``).
     """
     for col in (outcome, arm, unitid, time):
         if col not in df.columns:
             raise MlsynthDataError(f"Required column {col!r} missing.")
     if df[outcome].isna().any():
         raise MlsynthDataError("Outcome column contains NaN values.")
+    for col in covariates or []:
+        if col not in df.columns:
+            raise MlsynthDataError(f"Covariate column {col!r} missing.")
 
     time_labels = np.array(sorted(df[time].unique()))
     unit_names = sorted(df[unitid].unique())
@@ -101,7 +124,23 @@ def prepare_pangeo_inputs(
             "cannot form a supergeo pair."
         )
 
+    cov = None
+    cov_names: List[str] = []
+    cov_scales = None
+    if covariates:
+        if df[covariates].isna().any().any():
+            raise MlsynthDataError("Covariate column(s) contain NaN values.")
+        cov_names = list(covariates)
+        baseline = df.groupby(unitid)[cov_names].mean()
+        cov = baseline.loc[unit_names].to_numpy(dtype=float)  # (N, M)
+        if standardize_covariates:
+            scales = cov.std(axis=0, ddof=0)
+            cov_scales = np.where(scales > 1e-12, scales, 1.0)
+        else:
+            cov_scales = np.ones(cov.shape[1])
+
     return PangeoInputs(
         Y=Y, unit_names=list(unit_names), time_labels=time_labels,
         arm_of=arm_of, arm_units=arm_units,
+        covariates=cov, covariate_names=cov_names, covariate_scales=cov_scales,
     )
