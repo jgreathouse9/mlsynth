@@ -96,8 +96,7 @@ class TestPCRHelper:
         """On a panel with non-trivial intercepts, standardising the
         donor matrix before the cumvar comparison must pick a higher
         rank than the raw rule (because the leading singular value no
-        longer absorbs the level information).
-        """
+        longer absorbs the level information)."""
         df, _ = panel
         # Add a unit-specific intercept to the donor outcomes so the
         # uncentered SVD is dominated by a single direction.
@@ -132,8 +131,7 @@ class TestPCRHelper:
         """`project_denoised` is a genuine knob (not a no-op): with
         HSVT applied to the pre-period only, projecting through raw
         vs denoised post-period donors gives different counterfactuals.
-        Just verify both paths run and metadata records the choice.
-        """
+        Just verify both paths run and metadata records the choice."""
         df, _ = panel
         inputs = prepare_clustersc_inputs(
             df, outcome="y", treat="D", unitid="unit", time="time",
@@ -161,8 +159,7 @@ class TestPCRHelper:
 
     def test_explicit_rank_overrides_default(self, panel):
         """Passing `rank=k` must produce a rank-k truncation regardless
-        of the default `rank_method='cumvar'`.
-        """
+        of the default `rank_method='cumvar'`."""
         df, _ = panel
         inputs = prepare_clustersc_inputs(
             df, outcome="y", treat="D", unitid="unit", time="time",
@@ -379,6 +376,28 @@ class TestEstimator:
         for ci in (shen.att_ci_hz, shen.att_ci_vt, shen.att_ci_dr):
             lo, hi = ci
             assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
+
+    def test_cft_pi_for_rpca(self, panel):
+        """`compute_cft_pi=True` returns CFT prediction intervals for RPCA-SC."""
+        df, _ = panel
+        res = CLUSTERSC({
+            "df": df, "outcome": "y", "treat": "D",
+            "unitid": "unit", "time": "time",
+            "method": "rpca", "rpca_method": "PCP", "k_clusters": 1,
+            "compute_cft_pi": True, "cft_sims": 30,
+        }).fit()
+        assert res.inference.method == "cft_gaussian"
+        cft = res.inference.cft
+        assert cft is not None
+        n_post = res.inputs.T - res.inputs.T0
+        assert cft.per_period_gap.shape == (n_post,)
+        assert cft.per_period_pi.shape == (n_post, 2)
+        # PI bounds are ordered (lower <= upper).
+        assert np.all(cft.per_period_pi[:, 0] <= cft.per_period_pi[:, 1] + 1e-9)
+        att_lo, att_hi = cft.att_pi
+        assert np.isfinite(att_lo) and np.isfinite(att_hi) and att_lo <= att_hi
+        assert cft.sims == 30
+        assert cft.sigma_e > 0
 
     def test_shen_ci_disabled(self, panel):
         """`compute_shen_ci=False` falls back to method='none'."""
