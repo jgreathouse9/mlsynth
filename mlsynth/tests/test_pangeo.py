@@ -173,3 +173,80 @@ class TestPublicAPI:
         with pytest.raises(MlsynthConfigError):
             PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
                     "unitid": "unit", "time": "time", "max_supergeo_size": 0, "display_graphs": False})
+
+
+# ----------------------------------------------------------------------
+# Covariate-augmented design
+# ----------------------------------------------------------------------
+
+@pytest.fixture
+def panel_cov():
+    return make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                     T=104, seed=0, covariates=True)
+
+
+class TestCovariates:
+    def test_inputs_carry_covariates(self, panel_cov):
+        inp = prepare_pangeo_inputs(
+            panel_cov, "sales", "arm", "unit", "time",
+            covariates=["population", "income"])
+        assert inp.covariates.shape == (18, 2)
+        assert inp.covariate_names == ["population", "income"]
+        assert inp.covariate_scales.shape == (2,)
+        assert np.all(inp.covariate_scales > 0)
+
+    def test_missing_covariate_rejected(self, panel_cov):
+        with pytest.raises(MlsynthDataError):
+            prepare_pangeo_inputs(panel_cov, "sales", "arm", "unit", "time",
+                                  covariates=["nope"])
+
+    def test_smd_recorded_and_cover_preserved(self, panel_cov):
+        res = PANGEO({"df": panel_cov, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                      "covariates": ["population", "income"],
+                      "display_graphs": False}).fit()
+        assert res.metadata["covariates"] == ["population", "income"]
+        for arm, d in res.arm_designs.items():
+            covered = [u for p in d.pairs for u in (p.treatment + p.control)]
+            assert len(covered) == len(set(covered)) == d.n_units
+            for p in d.pairs:
+                assert set(p.covariate_smd) == {"population", "income"}
+
+    def test_weighting_improves_covariate_balance(self, panel_cov):
+        """Up-weighting covariates trades parallelism for better SMD balance."""
+        base_cov = panel_cov.groupby("unit")[["population", "income"]].mean()
+        scales = base_cov.std(ddof=0)
+
+        def mean_abs_smd(res):
+            vals = []
+            for d in res.arm_designs.values():
+                for p in d.pairs:
+                    ca = base_cov.loc[p.treatment].mean()
+                    cb = base_cov.loc[p.control].mean()
+                    vals.append(np.abs((ca - cb) / scales).mean())
+            return float(np.mean(vals))
+
+        plain = PANGEO({"df": panel_cov, "outcome": "sales", "arm": "arm",
+                        "unitid": "unit", "time": "time",
+                        "max_supergeo_size": 3,
+                        "display_graphs": False}).fit()
+        balanced = PANGEO({"df": panel_cov, "outcome": "sales", "arm": "arm",
+                           "unitid": "unit", "time": "time",
+                           "max_supergeo_size": 3,
+                           "covariates": ["population", "income"],
+                           "covariate_weights": {"population": 25.0,
+                                                 "income": 25.0},
+                           "display_graphs": False}).fit()
+        assert mean_abs_smd(balanced) <= mean_abs_smd(plain)
+
+
+@pytest.mark.parametrize("objective", ["ss_res", "r2", "weighted"])
+def test_objective_options_run_and_cover(panel, objective):
+    """Every score objective yields a valid exact-cover design."""
+    res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                  "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                  "objective": objective, "display_graphs": False}).fit()
+    assert res.metadata["objective"] == objective
+    for arm, d in res.arm_designs.items():
+        covered = [u for p in d.pairs for u in (p.treatment + p.control)]
+        assert len(covered) == len(set(covered)) == d.n_units
