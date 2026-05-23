@@ -369,10 +369,9 @@ Three inference families are wired into :py:class:`CLUSTERSCInference`:
 * **Bayesian PCR -- posterior credible interval.** Computed when
   ``estimator="bayesian"`` from posterior draws of the counterfactual
   (Bayani 2022 Ch. 1).
-* **RPCA-SC -- placebo-test machinery is recommended by Bayani
-  (2021, Section 3); conformal prediction intervals are in
-  development.** For now only the point estimate is returned for
-  the RPCA family.
+* **RPCA-SC -- Cattaneo-Feng-Titiunik (2021) prediction
+  intervals.** Opt-in via ``CLUSTERSCConfig.compute_cft_pi``. See
+  the dedicated subsection below.
 
 Shen-Ding-Sekhon-Yu (2023) frequentist CIs for OLS PCR
 """"""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -478,6 +477,98 @@ chooses ``"homoskedastic"`` (default), ``"jackknife"``, or
 per-period gaps, per-period CIs under each source, and the
 aggregated ATT CIs.
 
+Cattaneo-Feng-Titiunik (2021) prediction intervals for RPCA-SC
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Bayani (2021) leaves inference unaddressed and the Shen et al. (2023)
+closed-form CIs do not apply to the asymmetric NNLS weights of
+RPCA-SC. For uncertainty quantification mlsynth ships a focused port
+of *Cattaneo, M. D., Feng, Y., & Titiunik, R. (2021), "Prediction
+Intervals for Synthetic Control Methods"* (JASA 116(536):1865-1880),
+opt-in via :py:attr:`CLUSTERSCConfig.compute_cft_pi`.
+
+The CFT prediction error at post-period :math:`t > T_0` decomposes as
+
+.. math::
+
+   y_t - \widehat y^0_t
+       = \underbrace{\bigl\langle p_t, w^* - \widehat w \bigr\rangle}_{
+              \text{in-sample } u_t}
+       + \underbrace{e_t}_{\text{out-of-sample shock}},
+
+where :math:`p_t` is the loading at :math:`t` (for RPCA-SC the
+denoised donor row :math:`L_t`), :math:`w^*` is the population
+weight, and :math:`\widehat w` is the NNLS estimate. The two
+components are quantified separately:
+
+* **In-sample component** :math:`M_w(t, \alpha/2)`. The paper's
+  reference implementation solves a constrained
+  :math:`\sup / \inf` over the "compatible set" of weights via an
+  ECOS LP at each post-period. mlsynth replaces that with an
+  HC1-scaled parametric bootstrap of the pre-period residuals: at
+  each of ``cft_sims`` draws,
+
+  .. math::
+
+     \widehat u^*_t = \sqrt{\tfrac{T_0}{T_0 - 1}} \cdot
+                     \widehat u^-_{\sigma(t)},
+     \quad \sigma \sim \mathrm{Unif}\{1, \dots, T_0\},
+
+  we perturb the treated pre-period outcome
+  :math:`y^*_t = \widehat y^0_t + \widehat u^*_t`, refit the full
+  RPCA-SC pipeline, and collect the resulting counterfactual
+  :math:`\widehat y^{0, *}` at every period. The asymmetric
+  :math:`(\alpha/2, 1 - \alpha/2)` empirical quantiles of
+  :math:`\widehat y^{0, *}_t - \widehat y^0_t` form the in-sample
+  band per post-period. This is equivalent to the ECOS-based bound
+  under regularity conditions and avoids pulling in ``ecos`` /
+  ``dask`` / ``plotnine`` as hard dependencies.
+
+* **Out-of-sample component** :math:`M_e(t, \alpha/2)`. Under
+  sub-Gaussian post-period shocks with scale parameter
+  :math:`\sigma_e`, Hoeffding's inequality gives the tail bound
+
+  .. math::
+
+     M_e(t, \alpha/2) = \sqrt{-2 \log \alpha} \; \widehat \sigma_e,
+     \qquad
+     \widehat \sigma_e = \mathrm{sd}\!\bigl(\widehat u^-\bigr).
+
+  This is the ``gaussian`` variant of the paper's three
+  out-of-sample options (``gaussian`` / ``ls`` / ``qreg``); the
+  other two are deferred.
+
+The combined :math:`(1 - \alpha)` PI on the counterfactual at
+:math:`t` is
+
+.. math::
+
+   \widehat y^0_t \pm \bigl[ M_w(t, \alpha/2) + M_e(t, \alpha/2) \bigr],
+
+which inverts to the PI on the per-period treatment effect
+:math:`\widehat \tau_t = y_t - \widehat y^0_t`.
+
+For the ATT, the in-sample component aggregates by storing the
+*post-period mean of the counterfactual* at each bootstrap draw and
+taking quantiles. The out-of-sample component shrinks by
+:math:`\sqrt{T_1}` under post-period shock independence:
+
+.. math::
+
+   M_e^{\mathrm{ATT}}(\alpha/2)
+       = \frac{\sqrt{-2 \log \alpha} \; \widehat \sigma_e}{\sqrt{T_1}}.
+
+Config knobs: :py:attr:`CLUSTERSCConfig.compute_cft_pi` (default
+False -- the bootstrap costs ``cft_sims`` full pipeline refits,
+roughly 0.3-0.5 s each on a moderate panel),
+:py:attr:`CLUSTERSCConfig.cft_sims` (default 200),
+:py:attr:`CLUSTERSCConfig.cft_alpha` (default 0.05), and
+:py:attr:`CLUSTERSCConfig.cft_e_method` (currently only
+``"gaussian"``). The output
+:py:class:`CLUSTERSCInference.cft` carries the per-period gaps,
+per-period PIs, in-sample bootstrap bands, the Hoeffding constant,
+and the aggregated ATT PI.
+
 Core API
 --------
 
@@ -551,6 +642,10 @@ RPCA-SC pipeline
    :undoc-members:
 
 .. automodule:: mlsynth.utils.clustersc_helpers.rpca.tuning
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.clustersc_helpers.rpca.inference
    :members:
    :undoc-members:
 
@@ -723,6 +818,38 @@ prediction-optimal sparsity penalty.
    print(f"pre-RMSE  = {res.rpca.pre_rmse:.3f}")
    print(f"ATT       = {res.rpca.att:+.3f}")
 
+Same fit with Cattaneo-Feng-Titiunik (2021) prediction intervals
+(opt-in via ``compute_cft_pi=True``; the bootstrap reruns the full
+pipeline ``cft_sims`` times, so this takes ~30s on Prop 99 with
+the default ``cft_sims=200``).
+
+.. code-block:: python
+
+   res = CLUSTERSC({
+       "df": df,
+       "outcome": "cigsale",
+       "treat": "Proposition 99",
+       "unitid": "state",
+       "time": "year",
+       "method": "rpca",
+       "rpca_method": "PCP",
+       "cv_lambda": True,
+       "k_clusters": 1,
+       "compute_cft_pi": True,
+       "cft_sims": 200,
+       "cft_alpha": 0.05,
+   }).fit()
+
+   cft = res.inference.cft
+   print(f"ATT                = {res.att:+.3f}")
+   print(f"95% CFT PI on ATT  = [{cft.att_pi[0]:+.2f}, {cft.att_pi[1]:+.2f}]")
+   print(f"sigma_e (pre-RMSE) = {cft.sigma_e:.3f}")
+   print(f"out-of-sample eps  = {cft.out_of_sample_eps:.3f}")
+   for ti in range(len(cft.per_period_gap)):
+       lo, hi = cft.per_period_pi[ti]
+       print(f"  t={res.inputs.T0+ti}:  tau_t={cft.per_period_gap[ti]:+.2f}  "
+             f"PI=[{lo:+.2f}, {hi:+.2f}]")
+
 References
 ----------
 
@@ -755,6 +882,11 @@ Economics." Chapter 1, CUNY Academic Works.
 
 Candes, E. J., Li, X., Ma, Y., & Wright, J. (2011). "Robust
 Principal Component Analysis?" *Journal of the ACM* 58(3):11.
+
+Cattaneo, M. D., Feng, Y., & Titiunik, R. (2021). "Prediction
+Intervals for Synthetic Control Methods." *Journal of the American
+Statistical Association* 116(536):1865-1880. Reference
+implementation: https://github.com/nppackages/scpi.
 
 Chatterjee, S. (2015). "Matrix Estimation by Universal Singular
 Value Thresholding." *Annals of Statistics* 43(1):177-214.
