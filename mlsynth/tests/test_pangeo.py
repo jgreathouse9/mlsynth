@@ -467,7 +467,8 @@ class TestADIDInference:
     @pytest.mark.slow
     def test_nominal_coverage_on_stationary_gap(self):
         """Paper-faithful DGP (stationary factor, no trend/season): the
-        prediction-variance CI is ~nominal and the point ATT unbiased."""
+        prediction-variance CI is ~nominal and the point ATT unbiased.
+        """
         TAU = 0.6
         cover, type1, atts = [], [], []
         for s in range(60):
