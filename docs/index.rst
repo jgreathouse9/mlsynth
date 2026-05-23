@@ -51,6 +51,7 @@ MLSYNTH
    iscm
    ctsc
    snn
+   mcnnm
    ppscm
    sparse_sc
    microsynth
