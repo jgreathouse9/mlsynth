@@ -47,7 +47,7 @@ Most estimators follow this high-level pipeline:
 5. Run optional inference procedures
 6. Assemble typed result objects
 7. Optionally render diagnostics or plots
-8. Return structured results
+8. Return structured results, including visuals. All estimators need some form of visual.
 
 This orchestration pattern should remain recognizable across estimators.
 
