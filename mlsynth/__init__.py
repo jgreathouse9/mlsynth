@@ -28,6 +28,7 @@ from .estimators.microsynth import MicroSynth
 from .estimators.siv import SIV
 from .estimators.dsc import DSC
 from .estimators.spsydid import SpSyDiD
+from .estimators.iscm import ISCM
 
 __all__ = [
     "TSSC",
@@ -59,5 +60,5 @@ __all__ = [
     "SYNDESPower",
     "power_analysis",
     "DSC",
-    "SpSyDiD",
+    "SpSyDiD", "ISCM"
 ]
