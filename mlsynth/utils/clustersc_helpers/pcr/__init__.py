@@ -27,15 +27,18 @@ from .clustering import ClusterPartition, assign_target, cluster_donors
 from .convex import solve_simplex
 from .frequentist import solve_ols
 from .hsvt import hsvt, select_rank
+from .inference import ShenInference, shen_inference
 from .pipeline import run_pcr
 
 __all__ = [
     "ClusterPartition",
+    "ShenInference",
     "assign_target",
     "cluster_donors",
     "hsvt",
     "run_pcr",
     "select_rank",
+    "shen_inference",
     "solve_bayesian",
     "solve_ols",
     "solve_simplex",
