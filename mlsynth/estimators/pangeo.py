@@ -71,6 +71,11 @@ class PANGEO:
         self.time: str = config.time
         self.max_supergeo_size: int = config.max_supergeo_size
         self.min_pairs: int = config.min_pairs
+        self.objective: str = config.objective
+        self.recency_decay: float = config.recency_decay
+        self.covariates = config.covariates
+        self.covariate_weights = config.covariate_weights
+        self.standardize_covariates: bool = config.standardize_covariates
         self.display_graphs: bool = config.display_graphs
         self.save = config.save
 
@@ -80,11 +85,16 @@ class PANGEO:
             inputs = prepare_pangeo_inputs(
                 df=self.df, outcome=self.outcome, arm=self.arm,
                 unitid=self.unitid, time=self.time,
+                covariates=self.covariates,
+                standardize_covariates=self.standardize_covariates,
             )
             results = run_pangeo(
                 inputs=inputs,
                 max_supergeo_size=self.max_supergeo_size,
                 min_pairs=self.min_pairs,
+                objective=self.objective,
+                recency_decay=self.recency_decay,
+                covariate_weights=self.covariate_weights,
             )
             if self.display_graphs:
                 plot_pangeo(results, save=self.save, outcome_label=self.outcome)
