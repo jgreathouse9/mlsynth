@@ -116,46 +116,59 @@ Helper Modules
 Example
 -------
 
-Causal use on a low-rank panel with a planted treatment effect, and
-direct matrix completion on a NaN matrix.
+Proposition 99 -- California's 1988 tobacco-control program, the canonical
+synthetic-control case study. SNN treats California's post-1988
+per-capita cigarette sales as the missing entries, imputes the
+counterfactual by matrix completion, and reports the ATT. With
+``display_graphs=True`` it draws the observed-vs-counterfactual chart.
+
+.. code-block:: python
+
+   import pandas as pd
+
+   from mlsynth import SNN
+
+   # ------------------------------------------------------------------
+   # Load the Prop 99 panel (39 states, 1970-2000; California treated 1989)
+   # ------------------------------------------------------------------
+   file = (
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/smoking_data.csv"
+   )
+   df = pd.read_csv(file)
+
+   res = SNN({
+       "df": df,
+       "outcome": "cigsale",
+       "treat": "Proposition 99",      # boolean treatment column
+       "unitid": "state",
+       "time": "year",
+       "inference": True,              # leave-one-control jackknife
+       "display_graphs": True,         # observed vs SNN counterfactual
+   }).fit()
+
+   print(f"ATT (avg 1989-2000) = {res.att:+.2f} packs/capita")
+   lo, hi = res.inference.ci
+   print(f"jackknife 95% CI    = [{lo:+.2f}, {hi:+.2f}]")
+   print(f"gap by 2000         = {res.att_by_period[2000]:+.2f}")
+
+The default ``universal_rank=True`` (Donoho-Gavish hard threshold) keeps
+the rank well-calibrated for this small (39 x 31) low-rank panel; it
+returns an average ATT of about ``-19`` packs/capita, widening to roughly
+``-31`` by 2000 -- consistent with Abadie, Diamond & Hainmueller (2010).
+
+The same SNN engine performs general (non-causal) matrix completion on
+any matrix with ``NaN`` for the missing entries:
 
 .. code-block:: python
 
    import numpy as np
-   import pandas as pd
-
-   from mlsynth import SNN
    from mlsynth.utils.snn_helpers import snn_complete
 
-   # ------------------------------------------------------------------
-   # Causal use: impute treated Y(0), recover the ATT
-   # ------------------------------------------------------------------
-   rng = np.random.default_rng(1)
-   n_co, n_tr, T, T0, r = 25, 5, 40, 30, 3
-   N = n_co + n_tr
-   A = rng.standard_normal((N, r)) @ rng.standard_normal((r, T))
-   Y = A + rng.standard_normal((N, T)) * 0.05
-   D = np.zeros((N, T))
-   D[n_co:, T0:] = 1
-   Y[n_co:, T0:] += 2.0                     # planted effect
-
-   rows = [{"unit": f"u{i}", "time": t, "y": Y[i, t], "D": int(D[i, t])}
-           for i in range(N) for t in range(T)]
-   df = pd.DataFrame(rows)
-
-   res = SNN({"df": df, "outcome": "y", "treat": "D",
-              "unitid": "unit", "time": "time",
-              "max_rank": 3, "inference": True}).fit()
-   print(f"ATT = {res.att:+.3f}  (true 2.0)")
-   print(f"jackknife 95% CI = ({res.inference.ci[0]:+.3f}, "
-         f"{res.inference.ci[1]:+.3f})")
-
-   # ------------------------------------------------------------------
-   # General matrix completion: NaN = missing
-   # ------------------------------------------------------------------
-   X = Y.copy()
-   X[n_co:, T0:] = np.nan
-   completed, feasible = snn_complete(X, max_rank=3)
+   X = np.array([[1.0, 2.0, np.nan],
+                 [2.0, 4.0, 6.0],
+                 [3.0, np.nan, 9.0]])
+   completed, feasible = snn_complete(X)
 
 References
 ----------
