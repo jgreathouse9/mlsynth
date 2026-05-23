@@ -103,8 +103,7 @@ class TestSetup:
 class TestCalibration:
     def test_model1_ctsc_near_zero_bias_beats_fe(self):
         """Paper Table 1, Model 1: CTSC mean bias ~0 (paper 0.011), while
-        two-way FE is badly biased (paper 0.85). True average effect = 0.
-        """
+        two-way FE is badly biased (paper 0.85). True average effect = 0."""
         summ = run_simulation(model=1, n_sims=40, seed=0)
         assert abs(summ.ctsc_mean_bias) < 0.10        # CTSC ~ unbiased
         assert summ.ctsc_mad < 0.10
@@ -170,3 +169,14 @@ class TestPublicAPI:
         with pytest.raises(MlsynthConfigError):
             CTSC({"df": df, "outcome": "emp", "treat": "minwage",
                   "unitid": "state", "time": "qtr", "display_graphs": False})
+
+
+def test_weights_results_exposed():
+    """CTSC exposes WeightsResults (cross-unit average) + the per-unit matrix."""
+    from mlsynth.config_models import WeightsResults
+    df, _ = _panel_from_model(1)
+    res = CTSC({"df": df, "outcome": "emp", "treat": "minwage",
+                "treatment_vars": ["minwage"], "unitid": "state", "time": "qtr",
+                "display_graphs": False, "inference": False}).fit()
+    assert isinstance(res.weights, WeightsResults)
+    assert res.unit_weight_matrix.shape == (res.inputs.n, res.inputs.n)

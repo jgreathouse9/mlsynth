@@ -277,3 +277,14 @@ class TestPublicAPI:
                 "spatial_matrix": bad_W,
             "display_graphs": False,
         }).fit()
+
+
+def test_weights_results_exposed(grid_panel):
+    """SpSyDiD exposes pure-control SDID weights + time weights via WeightsResults."""
+    from mlsynth.config_models import WeightsResults
+    df, W, _, _ = grid_panel
+    res = SpSyDiD({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
+                   "time": "time", "spatial_matrix": W,
+                   "display_graphs": False}).fit()
+    assert isinstance(res.weights, WeightsResults)
+    assert "time_weights" in res.weights.summary_stats

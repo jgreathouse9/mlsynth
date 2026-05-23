@@ -49,8 +49,7 @@ def _micro_panel(
     seed: int = 0,
 ) -> tuple[pd.DataFrame, float]:
     """A balanced micro-panel where unit 0 has a *location shift* of
-    ``delta_post`` in the post-period.
-    """
+    ``delta_post`` in the post-period."""
     rng = np.random.default_rng(seed)
     T = T_pre + T_post
     # Unit-specific location, time-specific shift; donors all share the
@@ -184,6 +183,7 @@ class TestEstimator:
         res = DSC({
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
+            "display_graphs": False,
             "M": 400,
         }).fit()
         assert isinstance(res, DSCResults)
@@ -202,6 +202,7 @@ class TestEstimator:
         res = DSC({
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
+            "display_graphs": False,
         }).fit()
         assert len(res.qte_curves) == 4  # T - T0 = 12 - 8
         for curve in res.qte_curves:
@@ -218,6 +219,7 @@ class TestEstimator:
         res = DSC({
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
+            "display_graphs": False,
             "lambda_weights": custom,
         }).fit()
         np.testing.assert_allclose(res.lambda_weights, custom)
@@ -228,6 +230,7 @@ class TestEstimator:
             DSC({
                 "df": df, "outcome": "y", "treat": "D",
                 "unitid": "unit", "time": "time",
+            "display_graphs": False,
                 "lambda_weights": [0.5, 0.5],  # length != T0
             }).fit()
 
@@ -246,6 +249,7 @@ class TestPublicAPI:
         res = DSC({
             "df": df, "outcome": "y", "treat": "D",
             "unitid": "unit", "time": "time",
+            "display_graphs": False,
             "M": 200,
         }).fit()
         with pytest.raises(Exception):
@@ -259,5 +263,16 @@ class TestPublicAPI:
             DSC({
                 "df": df, "outcome": "y", "treat": "D",
                 "unitid": "unit", "time": "time",
+            "display_graphs": False,
                 "grid_method": "bogus",
             })
+
+
+def test_weights_results_exposed(micro_panel):
+    """DSC exposes its simplex donor weights via WeightsResults."""
+    from mlsynth.config_models import WeightsResults
+    df, _ = micro_panel
+    res = DSC({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
+               "time": "time", "M": 300, "display_graphs": False}).fit()
+    assert isinstance(res.weights, WeightsResults)
+    assert "simplex" in res.weights.summary_stats["constraint"]

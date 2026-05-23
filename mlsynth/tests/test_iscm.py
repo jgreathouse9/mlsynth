@@ -35,8 +35,7 @@ def _factor_panel(
 ):
     """One-factor panel; unit 0 (treated) has the MAX loading, so it lies
     OUTSIDE the convex hull of the controls but is used as a donor by the
-    next-highest controls -- ISCM's identifying mechanism.
-    """
+    next-highest controls -- ISCM's identifying mechanism."""
     rng = np.random.default_rng(seed)
     loadings = np.linspace(2.0, -1.5, N)        # unit 0 = max loading
     f = np.cumsum(rng.standard_normal(T)) * 0.3 + np.linspace(0, 2, T)
@@ -126,27 +125,25 @@ class TestSetup:
 class TestEstimator:
     def test_treated_outside_hull_excluded(self, panel):
         """Treated unit (max loading) is outside the hull -> tiny fit metric,
-        negligible contribution to the aggregate.
-        """
+        negligible contribution to the aggregate."""
         df, _ = panel
         res = ISCM({"df": df, "outcome": "y", "treat": "D",
-                    "unitid": "unit", "time": "time", "inference": False}).fit()
+                    "unitid": "unit", "time": "time", "display_graphs": False, "inference": False}).fit()
         assert res.fit_metric[0] < 0.05
         assert res.contribution[0] < 0.05
 
     def test_identification_outside_hull(self, panel):
         """The effect is identified via control units that use the treated
-        unit as a donor, despite the treated unit being outside the hull.
-        """
+        unit as a donor, despite the treated unit being outside the hull."""
         df, true_alpha = panel
         res = ISCM({"df": df, "outcome": "y", "treat": "D",
-                    "unitid": "unit", "time": "time", "inference": False}).fit()
+                    "unitid": "unit", "time": "time", "display_graphs": False, "inference": False}).fit()
         assert res.att == pytest.approx(true_alpha, abs=0.4)
 
     def test_converges_to_truth_low_noise(self):
         df, true_alpha = _factor_panel(noise=0.01, T0=100, T=120)
         res = ISCM({"df": df, "outcome": "y", "treat": "D",
-                    "unitid": "unit", "time": "time", "inference": False}).fit()
+                    "unitid": "unit", "time": "time", "display_graphs": False, "inference": False}).fit()
         assert res.att == pytest.approx(true_alpha, abs=0.05)
 
     def test_beats_plain_scm(self, panel):
@@ -155,7 +152,7 @@ class TestEstimator:
         df, true_alpha = panel
         inp = prepare_iscm_inputs(df, "y", "D", "unit", "time")
         res = ISCM({"df": df, "outcome": "y", "treat": "D",
-                    "unitid": "unit", "time": "time", "inference": False}).fit()
+                    "unitid": "unit", "time": "time", "display_graphs": False, "inference": False}).fit()
         others = list(range(1, inp.N))
         w = _one_unit_weights(inp.Y[others][:, :inp.T0].T, inp.Y[0, :inp.T0])
         scm_att = float((inp.Y[0, inp.T0:] - (w @ inp.Y[others])[inp.T0:]).mean())
@@ -164,7 +161,7 @@ class TestEstimator:
     def test_inference_present(self, panel):
         df, _ = panel
         res = ISCM({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
-                    "time": "time", "inference": True, "n_draws": 2000}).fit()
+                    "time": "time", "display_graphs": False, "inference": True, "n_draws": 2000}).fit()
         assert res.inference is not None
         inf = res.inference
         assert inf.method == "ibragimov_muller"
@@ -185,7 +182,7 @@ class TestPublicAPI:
     def test_results_frozen(self, panel):
         df, _ = panel
         res = ISCM({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
-                    "time": "time", "inference": False}).fit()
+                    "time": "time", "display_graphs": False, "inference": False}).fit()
         with pytest.raises(Exception):
             res.att = 0.0
 
@@ -193,4 +190,15 @@ class TestPublicAPI:
         df, _ = panel
         with pytest.raises(MlsynthConfigError):
             ISCM({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
-                  "time": "time", "alpha": 1.5})   # alpha out of (0,1)
+                  "time": "time", "display_graphs": False, "alpha": 1.5})   # alpha out of (0,1)
+
+
+def test_weights_results_exposed(panel):
+    """ISCM exposes standardized WeightsResults (treated SC weights) plus the
+    full all-units weight matrix."""
+    from mlsynth.config_models import WeightsResults
+    df, _ = panel
+    res = ISCM({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
+                "time": "time", "display_graphs": False, "inference": False}).fit()
+    assert isinstance(res.weights, WeightsResults)
+    assert res.unit_weight_matrix.shape == (res.inputs.N, res.inputs.N)
