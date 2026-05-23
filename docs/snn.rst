@@ -179,7 +179,7 @@ Statistical Association* 105(490):493-505.
 
 Agarwal, A., Shah, D., Shen, D., & Song, D. (2021b). "On Robustness of
 Principal Component Regression." *Journal of the American Statistical
-Association* (Synthetic Interventions).
+Association*.
 
 Agarwal, A., Dahleh, M., Shah, D., & Shen, D. (2021). "Causal Matrix
 Completion." arXiv:2109.15154.
