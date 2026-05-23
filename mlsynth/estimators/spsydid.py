@@ -44,7 +44,7 @@ from ..exceptions import (
 from ..utils.spsydid_helpers.pipeline import run_spsydid
 from ..utils.spsydid_helpers.setup import prepare_spsydid_inputs
 from ..utils.spsydid_helpers.structures import SpSyDiDResults
-
+from ..utils.spsydid_helpers.plotter import plot_spsydid
 
 class SpSyDiD:
     """Spatial Synthetic Difference-in-Differences estimator.
@@ -73,6 +73,10 @@ class SpSyDiD:
         self.spatial_matrix = config.spatial_matrix
         self.unit_order = config.unit_order
         self.row_standardize_spatial: bool = config.row_standardize_spatial
+        self.display_graphs: bool = config.display_graphs
+        self.save = config.save
+        self.counterfactual_color = config.counterfactual_color
+        self.treated_color: str = config.treated_color
 
     def fit(self) -> SpSyDiDResults:
         """Run Algorithm 1 of Serenini & Masek (2024)."""
