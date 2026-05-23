@@ -24,17 +24,24 @@ from __future__ import annotations
 from .clustering import FPCACluster, assign_clusters
 from .fpca import FPCAFeatures, compute_fpca_features
 from .hqf import HQFResult, hqf_decompose
+from .inference import CFTInference, cft_prediction_intervals
 from .pcp import PCPResult, pcp_decompose
 from .pipeline import run_rpca
+from .tuning import CVResult, cv_hqf_rank, cv_pcp_lambda
 from .weights import solve_nnls
 
 __all__ = [
+    "CFTInference",
+    "CVResult",
     "FPCACluster",
     "FPCAFeatures",
     "HQFResult",
     "PCPResult",
     "assign_clusters",
+    "cft_prediction_intervals",
     "compute_fpca_features",
+    "cv_hqf_rank",
+    "cv_pcp_lambda",
     "hqf_decompose",
     "pcp_decompose",
     "run_rpca",

@@ -29,6 +29,7 @@ from .clustering import FPCACluster, assign_clusters
 from .fpca import FPCAFeatures, compute_fpca_features
 from .hqf import HQFResult, hqf_decompose
 from .pcp import PCPResult, pcp_decompose
+from .inference import cft_prediction_intervals
 from .tuning import cv_hqf_rank as _cv_hqf_rank
 from .tuning import cv_pcp_lambda
 from .weights import solve_nnls
@@ -64,6 +65,11 @@ def run_rpca(
     cv_hqf_rank: bool = False,
     cv_lambda_multipliers: Sequence[float] = (0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0),
     cv_hqf_rank_grid: Optional[Sequence[int]] = None,
+    # CFT prediction-interval knobs
+    compute_cft_pi: bool = False,
+    cft_alpha: float = 0.05,
+    cft_sims: int = 200,
+    cft_e_method: str = "gaussian",
     random_state: int = 0,
 ) -> MethodFit:
     """Run the five-step RPCA-SC pipeline and assemble a :class:`MethodFit`.
@@ -250,6 +256,51 @@ def run_rpca(
         **solver_metadata,
         **cv_metadata,
     }
+
+    # Optional CFT (Cattaneo-Feng-Titiunik) prediction intervals.
+    # Build a closure that refits the full pipeline at the same
+    # hyperparameters but with a perturbed treated outcome.
+    if compute_cft_pi and T > T0:
+        def _refit(y_star: np.ndarray) -> np.ndarray:
+            star_fit = run_rpca(
+                treated_outcome=y_star,
+                donor_outcomes=donor_outcomes,
+                donor_names=donor_names,
+                T0=T0,
+                rpca_method=rpca_method,
+                fpca_cumvar=fpca_cumvar,
+                k_clusters=k_clusters,
+                k_max=k_max,
+                pcp_lambda=pcp_lambda,
+                pcp_mu=pcp_mu,
+                pcp_max_iter=pcp_max_iter,
+                pcp_tol=pcp_tol,
+                hqf_rank=hqf_rank,
+                hqf_cumvar=hqf_cumvar,
+                hqf_lambda=hqf_lambda,
+                hqf_ip=hqf_ip,
+                hqf_max_iter=hqf_max_iter,
+                # No CV inside the bootstrap (CV picks the
+                # hyperparameter once on the actual data; bootstrap
+                # refits use that fixed value).
+                cv_lambda=False,
+                cv_hqf_rank=False,
+                compute_cft_pi=False,
+                random_state=random_state,
+            )
+            return star_fit.counterfactual
+
+        cft_obj = cft_prediction_intervals(
+            treated_outcome=treated_outcome,
+            counterfactual=counterfactual,
+            T0=T0,
+            refit_fn=_refit,
+            e_method=cft_e_method,
+            alpha=cft_alpha,
+            sims=cft_sims,
+            random_state=random_state,
+        )
+        metadata["cft_inference"] = cft_obj
 
     return MethodFit(
         name=f"rpca_{rpca_method.lower()}",
