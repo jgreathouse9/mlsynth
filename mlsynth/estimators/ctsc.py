@@ -53,6 +53,7 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.ctsc_helpers.pipeline import run_ctsc
+from ..utils.ctsc_helpers.plotter import plot_ctsc
 from ..utils.ctsc_helpers.setup import prepare_ctsc_inputs
 from ..utils.ctsc_helpers.structures import CTSCResults
 
@@ -86,6 +87,10 @@ class CTSC:
         self.inference: bool = config.inference
         self.n_draws: int = config.n_draws
         self.random_state: int = config.random_state
+        self.display_graphs: bool = config.display_graphs
+        self.save = config.save
+        self.counterfactual_color = config.counterfactual_color
+        self.treated_color: str = config.treated_color
 
     def fit(self) -> CTSCResults:
         """Run CTSC and return :class:`CTSCResults`."""
@@ -98,13 +103,25 @@ class CTSC:
                 time=self.time,
                 population_col=self.population_col,
             )
-            return run_ctsc(
+            results = run_ctsc(
                 inputs=inputs,
                 use_fit_weights=self.use_fit_weights,
                 inference=self.inference,
                 n_draws=self.n_draws,
                 random_state=self.random_state,
             )
+            if self.display_graphs:
+                cf_color = self.counterfactual_color
+                if isinstance(cf_color, (list, tuple)):
+                    cf_color = cf_color[0] if cf_color else "red"
+                plot_ctsc(
+                    results,
+                    treated_color=self.treated_color,
+                    counterfactual_color=cf_color,
+                    save=self.save,
+                    effect_label=f"Effect on {self.outcome}",
+                )
+            return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
         except Exception as exc:
