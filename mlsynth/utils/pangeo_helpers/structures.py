@@ -12,7 +12,7 @@ not a treatment effect.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -104,3 +104,4 @@ class PangeoResults:
     assignment: Dict[Any, str]
     time_labels: np.ndarray
     metadata: Dict[str, Any] = field(default_factory=dict)
+    power: Optional[Any] = None  # PangeoPower (see pangeo_helpers.power)

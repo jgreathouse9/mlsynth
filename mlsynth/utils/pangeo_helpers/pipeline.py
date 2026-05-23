@@ -9,7 +9,7 @@ halves.
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 
 import numpy as np
 
@@ -19,6 +19,7 @@ from .parallelism import (
     gap_variance,
     parallelism_r2,
 )
+from .power import compute_pangeo_power
 from .setup import PangeoInputs
 from .structures import ArmDesign, PangeoResults, SupergeoPair
 
@@ -54,6 +55,10 @@ def run_pangeo(
     objective: str = "ss_res",
     recency_decay: float = 0.97,
     covariate_weights: Optional[Dict[str, float]] = None,
+    compute_power: bool = True,
+    power_target: float = 0.80,
+    power_alpha: float = 0.05,
+    power_post_periods: Optional[Sequence[int]] = None,
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
 
@@ -76,6 +81,15 @@ def run_pangeo(
         ``{covariate_name: weight}`` on the standardized SMD^2 imbalance
         penalty (default 1.0 each). Only used when ``inputs.covariates`` is
         present.
+    compute_power : bool
+        Attach a program- and arm-level MDE / power analysis to the result
+        (see :mod:`mlsynth.utils.pangeo_helpers.power`).
+    power_target : float
+        Target power for the stored MDE (default 0.80).
+    power_alpha : float
+        Two-sided significance level for the MDE (default 0.05).
+    power_post_periods : sequence of int, optional
+        Post-period horizons to evaluate (default ``range(2, 13)`` = 2..12).
     """
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -142,10 +156,19 @@ def run_pangeo(
         "recency_decay": recency_decay if objective == "weighted" else None,
         "covariates": list(cov_names) if cov is not None else None,
     }
+
+    power = None
+    if compute_power:
+        power = compute_pangeo_power(
+            arm_designs, post_periods=power_post_periods,
+            alpha=power_alpha, power_target=power_target,
+        )
+
     return PangeoResults(
         arm_designs=arm_designs,
         max_supergeo_size=max_supergeo_size,
         assignment=assignment,
         time_labels=inputs.time_labels,
         metadata=metadata,
+        power=power,
     )

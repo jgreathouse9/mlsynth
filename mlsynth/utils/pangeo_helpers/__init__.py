@@ -28,15 +28,25 @@ from .parallelism import (
     parallelism_r2,
 )
 from .pipeline import run_pangeo
+from .power import (
+    MDEPoint,
+    PangeoPower,
+    PowerCurve,
+    compute_pangeo_power,
+)
 from .setup import PangeoInputs, prepare_pangeo_inputs
 from .simulation import make_seasonal_sales_panel
 from .structures import ArmDesign, PangeoResults, SupergeoPair
 
 __all__ = [
     "ArmDesign",
+    "MDEPoint",
     "PangeoInputs",
+    "PangeoPower",
     "PangeoResults",
+    "PowerCurve",
     "SupergeoPair",
+    "compute_pangeo_power",
     "covariate_imbalance",
     "enumerate_candidate_pairs",
     "gap_variance",
