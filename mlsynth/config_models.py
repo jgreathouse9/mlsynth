@@ -956,6 +956,12 @@ class CTSCConfig(BaseEstimatorConfig):
     slopes and synthetic controls for all units. (The paper calls it "GSC";
     mlsynth uses CTSC to avoid collision with Xu (2017)'s GSC.)
 
+    Notes
+    -----
+    The base ``treat`` field is unused by CTSC; provide the continuous /
+    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
+    existing column name for ``treat`` to satisfy the base config.
+
     Parameters
     ----------
     treatment_vars : list of str
@@ -973,12 +979,6 @@ class CTSCConfig(BaseEstimatorConfig):
         Rademacher draws for the randomization test.
     random_state : int
         Seed for the randomization-test RNG.
-
-    Notes
-    -----
-    The base ``treat`` field is unused by CTSC; provide the continuous /
-    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
-    existing column name for ``treat`` to satisfy the base config.
     """
 
     treatment_vars: List[str] = Field(
@@ -1064,6 +1064,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
     Parameters
     ----------
     outcomes : list of str
@@ -1079,12 +1085,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
@@ -1184,6 +1184,21 @@ class PANGEOConfig(BaseModel):
         default=True,
         description="Standardize each covariate by its cross-unit std before "
                     "the SMD^2 imbalance (puts covariates on a common scale).")
+    compute_power: bool = Field(
+        default=True,
+        description="Attach a program- and arm-level MDE / power analysis to "
+                    "the result (AR(1) serial-correlation-corrected DiD; the "
+                    "program-level MDE is the headline metric).")
+    power_target: float = Field(
+        default=0.80, gt=0.0, lt=1.0,
+        description="Target power the stored MDEs are computed at.")
+    power_alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided significance level for the MDE.")
+    power_post_periods: List[int] = Field(
+        default_factory=lambda: list(range(2, 13)),
+        description="Post-period horizons (X) to evaluate the MDE at "
+                    "(default 2..12).")
     display_graphs: bool = Field(
         default=True,
         description="Plot treatment vs control aggregate trajectories per arm.")
