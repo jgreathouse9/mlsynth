@@ -35,7 +35,8 @@ def _factor_panel(
 ):
     """One-factor panel; unit 0 (treated) has the MAX loading, so it lies
     OUTSIDE the convex hull of the controls but is used as a donor by the
-    next-highest controls -- ISCM's identifying mechanism."""
+    next-highest controls -- ISCM's identifying mechanism.
+    """
     rng = np.random.default_rng(seed)
     loadings = np.linspace(2.0, -1.5, N)        # unit 0 = max loading
     f = np.cumsum(rng.standard_normal(T)) * 0.3 + np.linspace(0, 2, T)
@@ -125,7 +126,8 @@ class TestSetup:
 class TestEstimator:
     def test_treated_outside_hull_excluded(self, panel):
         """Treated unit (max loading) is outside the hull -> tiny fit metric,
-        negligible contribution to the aggregate."""
+        negligible contribution to the aggregate.
+        """
         df, _ = panel
         res = ISCM({"df": df, "outcome": "y", "treat": "D",
                     "unitid": "unit", "time": "time", "inference": False}).fit()
@@ -134,7 +136,8 @@ class TestEstimator:
 
     def test_identification_outside_hull(self, panel):
         """The effect is identified via control units that use the treated
-        unit as a donor, despite the treated unit being outside the hull."""
+        unit as a donor, despite the treated unit being outside the hull.
+        """
         df, true_alpha = panel
         res = ISCM({"df": df, "outcome": "y", "treat": "D",
                     "unitid": "unit", "time": "time", "inference": False}).fit()
