@@ -193,7 +193,8 @@ def run_pangeo(
 
 def _mean_program_mde(result: PangeoResults) -> float:
     """Mean program-level MDE (% of baseline) across horizons; ``inf`` if
-    unavailable. The selection score for automatic Q (lower is better)."""
+    unavailable. The selection score for automatic Q (lower is better).
+    """
     if result.power is None:
         return float("inf")
     vals = [pt.mde_pct for pt in result.power.program.points
