@@ -589,8 +589,12 @@ Example
 -------
 
 A seasonal, multi-arm sales panel (the bundled simulator), designed into
-parallel supergeo pairs. With ``display_graphs=True`` PANGEO plots each
-arm's treatment vs control aggregate pre-period trajectories.
+parallel supergeo pairs. With ``display_graphs=True`` PANGEO plots, per arm,
+the observed treated supergeo aggregate against the augmented-DiD
+counterfactual prediction (:func:`mlsynth.utils.pangeo_helpers.effects.adid_counterfactual`):
+the in-sample pre-period fit when designing, and -- once ``post_col`` data
+are supplied -- the counterfactual extended past the treatment date, so the
+post-window gap is the estimated effect.
 
 .. code-block:: python
 
