@@ -9,6 +9,7 @@ halves.
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Dict, Optional, Sequence
 
 import numpy as np
@@ -22,6 +23,10 @@ from .parallelism import (
 from .power import compute_pangeo_power
 from .setup import PangeoInputs
 from .structures import ArmDesign, PangeoResults, SupergeoPair
+
+# Upper bound on Q for automatic selection (bounds the candidate-pair
+# enumeration when no Q is supplied; pass Q explicitly for large arms).
+_AUTO_Q_CAP = 6
 
 
 def _build_pair(
@@ -50,7 +55,7 @@ def _build_pair(
 def run_pangeo(
     inputs: PangeoInputs,
     *,
-    max_supergeo_size: int = 3,
+    max_supergeo_size: Optional[int] = None,
     min_pairs: int = 1,
     objective: str = "ss_res",
     recency_decay: float = 0.97,
@@ -66,8 +71,13 @@ def run_pangeo(
     ----------
     inputs : PangeoInputs
         Preprocessed pre-treatment panel.
-    max_supergeo_size : int
-        Q -- the maximum size of either supergeo within a pair.
+    max_supergeo_size : int, optional
+        Q -- the maximum size of either supergeo within a pair. If ``None``
+        (the default), Q is **selected automatically**: every feasible Q in
+        ``1..min(ceil(smallest_arm/2), 6)`` is designed and the one
+        minimising the program-level MDE is returned (see
+        :func:`_auto_select_q`). The sweep is recorded in
+        ``results.metadata["q_sweep"]``.
     min_pairs : int
         Minimum number of supergeo pairs per arm.
     objective : {"ss_res", "r2", "weighted"}
@@ -91,6 +101,13 @@ def run_pangeo(
     power_post_periods : sequence of int, optional
         Post-period horizons to evaluate (default ``range(2, 13)`` = 2..12).
     """
+    if max_supergeo_size is None:
+        return _auto_select_q(
+            inputs, min_pairs=min_pairs, objective=objective,
+            recency_decay=recency_decay, covariate_weights=covariate_weights,
+            compute_power=compute_power, power_target=power_target,
+            power_alpha=power_alpha, power_post_periods=power_post_periods,
+        )
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
         raise MlsynthConfigError("max_supergeo_size (Q) must be >= 1.")
@@ -172,3 +189,79 @@ def run_pangeo(
         metadata=metadata,
         power=power,
     )
+
+
+def _mean_program_mde(result: PangeoResults) -> float:
+    """Mean program-level MDE (% of baseline) across horizons; ``inf`` if
+    unavailable. The selection score for automatic Q (lower is better)."""
+    if result.power is None:
+        return float("inf")
+    vals = [pt.mde_pct for pt in result.power.program.points
+            if np.isfinite(pt.mde_pct)]
+    return float(np.mean(vals)) if vals else float("inf")
+
+
+def _auto_select_q(
+    inputs: PangeoInputs,
+    *,
+    min_pairs: int,
+    objective: str,
+    recency_decay: float,
+    covariate_weights: Optional[Dict[str, float]],
+    compute_power: bool,
+    power_target: float,
+    power_alpha: float,
+    power_post_periods: Optional[Sequence[int]],
+) -> PangeoResults:
+    """Choose Q by minimising the program-level MDE.
+
+    Designs every feasible ``Q`` in ``1..min(ceil(smallest_arm/2), 6)`` --
+    the range over which Q meaningfully trades off matching granularity (and
+    hence absolute residual variance) against pair count -- and returns the
+    design with the smallest mean program MDE. Infeasible Q (no exact cover,
+    e.g. ``Q=1`` for an odd-sized arm) are skipped. The full sweep is stored
+    in ``metadata["q_sweep"]`` (with each Q's program-pair count and the
+    ``2/2**pairs`` randomization-inference p-value floor) so the choice is
+    auditable and a user who prizes design-based inference can override.
+    """
+    from ...exceptions import MlsynthEstimationError
+
+    min_arm = min(int(idx.size) for idx in inputs.arm_units.values())
+    q_upper = max(1, min((min_arm + 1) // 2, _AUTO_Q_CAP))
+
+    best: Optional[PangeoResults] = None
+    best_score = float("inf")
+    sweep = []
+    for q in range(1, q_upper + 1):
+        try:
+            cand = run_pangeo(
+                inputs, max_supergeo_size=q, min_pairs=min_pairs,
+                objective=objective, recency_decay=recency_decay,
+                covariate_weights=covariate_weights, compute_power=True,
+                power_target=power_target, power_alpha=power_alpha,
+                power_post_periods=power_post_periods,
+            )
+        except MlsynthEstimationError:
+            sweep.append({"q": q, "feasible": False, "n_program_pairs": 0,
+                          "mean_program_mde_pct": None, "rand_floor": None})
+            continue
+        score = _mean_program_mde(cand)
+        n_pairs = cand.power.program.n_pairs if cand.power else 0
+        sweep.append({
+            "q": q, "feasible": True, "n_program_pairs": n_pairs,
+            "mean_program_mde_pct": score,
+            "rand_floor": 2.0 / 2 ** n_pairs if n_pairs else None,
+        })
+        if score < best_score:
+            best, best_score = cand, score
+
+    if best is None:
+        raise MlsynthEstimationError(
+            "PANGEO: no feasible Q found for automatic selection; pass "
+            "max_supergeo_size explicitly."
+        )
+
+    metadata = {**best.metadata, "q_auto_selected": True,
+                "q_selected": best.max_supergeo_size, "q_sweep": sweep}
+    power = best.power if compute_power else None
+    return dataclasses.replace(best, metadata=metadata, power=power)
