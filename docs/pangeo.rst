@@ -74,6 +74,76 @@ Setting ``max_supergeo_size = 1`` (``Q = 1``) recovers the classic
 matched-pairs design; ``Q > 1`` allows composite supergeos when no single
 geo matches another well -- without trimming.
 
+Choice of objective
+^^^^^^^^^^^^^^^^^^^
+
+Because each pair's score is precomputed, the outer problem is a *linear*
+MILP regardless of how the per-pair cost is defined. PANGEO exposes three
+costs via ``objective`` (all leave the solver a MILP):
+
+* ``"ss_res"`` (default) -- the absolute DiD residual sum of squares
+  :math:`\sum_t (g_t-\bar g)^2`. Scale-dependent: high-amplitude pairs
+  weigh more, so the design prioritises getting large markets parallel.
+* ``"r2"`` -- ``1 - R^2 = ss_res / ss_tot``. Scale-free: every pair counts
+  equally (this is FDID's R^2 criterion, but optimised *exactly* by the
+  MILP rather than greedily).
+* ``"weighted"`` -- a recency-weighted residual SS
+  :math:`\sum_t w_t (g_t-\bar g_w)^2` with the level removed at the
+  *weighted* mean, and weights ``w_t = recency_decay**(T0-1-t)`` so recent
+  pre-period parallelism (closest to the upcoming experiment) matters
+  most.
+
+The reported ``gap_variance`` and ``parallelism_r2`` per pair are always
+the unweighted DiD quantities, so designs from different objectives are
+comparable on a common yardstick.
+
+Balancing baseline covariates
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Parallelism is **level-blind**: the DiD level shift :math:`\delta` absorbs
+any constant gap between two supergeos, so a time-invariant characteristic
+(population, income) that merely shifts a market's *level* is differenced
+out and never enters the trajectory score. That is exactly right for
+parallel-trends DiD, but it means raw parallelism says nothing about
+whether treatment and control are balanced on such baseline
+characteristics -- the gap OSD's scalar covariate matching was built to
+close.
+
+PANGEO closes it the same way OSD does -- with a standardized
+**mean-difference** penalty -- but adds it to the per-pair score so the
+outer problem stays a linear MILP. Pass ``covariates=[...]`` (baseline
+columns; each unit's value is its mean over the panel) and the cost of a
+split gains
+
+.. math::
+
+   \sum_m w_m \Big(\frac{\bar c_{A,m} - \bar c_{B,m}}{s_m}\Big)^2 ,
+
+the weighted squared standardized mean difference (SMD) between the
+treatment and control halves' covariate means, with :math:`s_m` the
+cross-unit standard deviation (``standardize_covariates=True``, default)
+and :math:`w_m` a per-covariate weight from ``covariate_weights`` (default
+``1`` each). Larger weights buy tighter covariate balance at the cost of
+some pre-period parallelism; the achieved per-pair SMDs are reported in
+``SupergeoPair.covariate_smd`` so the tradeoff is visible. With no
+``covariates`` the design is unchanged.
+
+.. code-block:: python
+
+   df = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                  T=104, seed=0, covariates=True)
+
+   res = PANGEO({
+       "df": df, "outcome": "sales", "arm": "arm",
+       "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+       "covariates": ["population", "income"],
+       "covariate_weights": {"population": 5.0, "income": 5.0},
+   }).fit()
+
+   for arm, design in res.arm_designs.items():
+       for p in design.pairs:
+           print(p.treatment, p.control, p.parallelism_r2, p.covariate_smd)
+
 Core API
 --------
 
