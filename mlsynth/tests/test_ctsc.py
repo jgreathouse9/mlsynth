@@ -103,7 +103,8 @@ class TestSetup:
 class TestCalibration:
     def test_model1_ctsc_near_zero_bias_beats_fe(self):
         """Paper Table 1, Model 1: CTSC mean bias ~0 (paper 0.011), while
-        two-way FE is badly biased (paper 0.85). True average effect = 0."""
+        two-way FE is badly biased (paper 0.85). True average effect = 0.
+        """
         summ = run_simulation(model=1, n_sims=40, seed=0)
         assert abs(summ.ctsc_mean_bias) < 0.10        # CTSC ~ unbiased
         assert summ.ctsc_mad < 0.10

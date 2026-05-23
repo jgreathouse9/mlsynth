@@ -71,7 +71,8 @@ def _simplex_ls(target: np.ndarray, donors: np.ndarray) -> np.ndarray:
 
 def _phi_step(Y: np.ndarray, D: np.ndarray, b: np.ndarray) -> np.ndarray:
     """Given slopes ``b`` (n, K), refit each unit's weights on untreated
-    outcomes. Returns ``Phi`` (n, n) with zero diagonal, rows on the simplex."""
+    outcomes. Returns ``Phi`` (n, n) with zero diagonal, rows on the simplex.
+    """
     n, T = Y.shape
     U = Y - np.einsum("itk,ik->it", D, b)        # untreated outcomes (n, T)
     Phi = np.zeros((n, n))
