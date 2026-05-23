@@ -88,8 +88,7 @@ def generate_model(model: int, rng: np.random.Generator) -> Tuple[np.ndarray, np
 
 def twoway_fe_effect(Y: np.ndarray, D: np.ndarray) -> float:
     """Two-way (unit + time) fixed-effects slope on the treatment -- the
-    biased baseline the paper compares against.
-    """
+    biased baseline the paper compares against."""
     d = D[:, :, 0]
     Yw = Y - Y.mean(1, keepdims=True) - Y.mean(0, keepdims=True) + Y.mean()
     Dw = d - d.mean(1, keepdims=True) - d.mean(0, keepdims=True) + d.mean()
