@@ -346,6 +346,77 @@ class TestAutoQ:
         assert "q_auto_selected" not in res.metadata
 
 
+# ----------------------------------------------------------------------
+# Realized ATT (post_col) + inference
+# ----------------------------------------------------------------------
+
+class TestEffects:
+    def _panel(self, seed=0, n_post=8, covariates=False):
+        return make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                         T=104, seed=seed, n_post=n_post,
+                                         covariates=covariates)
+
+    def test_design_identical_with_post(self):
+        d = self._panel()
+        pre = d[d.post_col == 0].drop(columns="post_col")
+        cfg = dict(outcome="sales", arm="arm", unitid="unit", time="time",
+                   max_supergeo_size=3, compute_power=False,
+                   display_graphs=False)
+        with_post = PANGEO({"df": d, "post_col": "post_col", **cfg}).fit()
+        pre_only = PANGEO({"df": pre, **cfg}).fit()
+        assert with_post.assignment == pre_only.assignment
+        assert with_post.effects is not None
+        assert pre_only.effects is None
+
+    def test_effect_fields_and_summary(self):
+        d = self._panel()
+        res = PANGEO({"df": d, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "post_col": "post_col",
+                      "max_supergeo_size": 3, "compute_power": False,
+                      "display_graphs": False}).fit()
+        e = res.effects
+        assert set(e.arms) == set(res.arm_designs)
+        for est in [e.program] + list(e.arms.values()):
+            assert est.ci_lower <= est.att <= est.ci_upper
+            assert 0.0 <= est.p_value <= 1.0
+            assert est.n_post == 8
+        tab = e.summary()
+        assert "program" in tab.index and "att" in tab.columns
+
+    def test_recovers_injected_effect(self):
+        """A large constant additive effect is recovered and is significant."""
+        d = self._panel(seed=3)
+        des = PANGEO({"df": d, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "post_col": "post_col",
+                      "max_supergeo_size": 3, "compute_power": False,
+                      "display_graphs": False}).fit()
+        treated = [u for u, a in des.assignment.items() if a == "treatment"]
+        TAU = 5.0
+        d2 = d.copy()
+        mask = (d2.post_col == 1) & (d2.unit.isin(treated))
+        d2.loc[mask, "sales"] += TAU
+        e = PANGEO({"df": d2, "outcome": "sales", "arm": "arm",
+                    "unitid": "unit", "time": "time", "post_col": "post_col",
+                    "max_supergeo_size": 3, "compute_power": False,
+                    "display_graphs": False}).fit().effects
+        assert abs(e.program.att - TAU) < 1.5          # recovered (noisy)
+        assert e.program.p_value < 0.05                # detected
+
+    def test_population_weighted(self):
+        d = self._panel(covariates=True)
+        res = PANGEO({"df": d, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "post_col": "post_col",
+                      "weight_col": "population", "max_supergeo_size": 3,
+                      "compute_power": False, "display_graphs": False}).fit()
+        assert res.effects.weighted is True
+
+    def test_missing_post_col_rejected(self, panel):
+        with pytest.raises(MlsynthDataError):
+            PANGEO({"df": panel, "outcome": "sales", "arm": "arm",
+                    "unitid": "unit", "time": "time", "post_col": "nope",
+                    "display_graphs": False}).fit()
+
+
 @pytest.mark.parametrize("objective", ["ss_res", "r2", "weighted"])
 def test_objective_options_run_and_cover(panel, objective):
     """Every score objective yields a valid exact-cover design."""
