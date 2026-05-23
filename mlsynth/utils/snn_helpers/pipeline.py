@@ -58,7 +58,7 @@ def run_snn(
     n_neighbors: int = 1,
     max_rank: Optional[int] = None,
     spectral_energy: float = 0.95,
-    universal: bool = False,
+    universal: bool = True,
     clip: bool = True,
     inference: bool = False,
     alpha_level: float = 0.05,
@@ -77,7 +77,8 @@ def run_snn(
     spectral_energy : float
         Energy threshold for spectral rank selection.
     universal : bool
-        Use the Donoho-Gavish universal hard threshold for the rank.
+        Use the Donoho-Gavish universal hard threshold for the rank
+        (default True; well-calibrated for small low-rank panels).
     clip : bool
         Clip imputations to the observed value range.
     inference : bool
