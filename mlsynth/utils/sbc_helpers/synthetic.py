@@ -70,16 +70,24 @@ def solve_sbc_weights(
 
     if weights_mode == "simplex":
         w = cp.Variable(n_donors, nonneg=True)
-        objective = cp.Minimize(
-            cp.sum_squares(cycles_treated - cycles_donors @ w)
+        problem = cp.Problem(
+            cp.Minimize(cp.sum_squares(cycles_treated - cycles_donors @ w)),
+            [cp.sum(w) == 1],
         )
-        constraints = [cp.sum(w) == 1]
-        cp.Problem(objective, constraints).solve(solver=cp.OSQP, verbose=False)
-        if w.value is None:
-            raise MlsynthEstimationError(
-                "Simplex SCM on cycles failed to converge."
-            )
-        return np.asarray(w.value, dtype=float), None
+        # OSQP first (fast, and the historical default); fall back to more
+        # robust conic solvers when it stalls on large-magnitude cycles.
+        for solver in (cp.OSQP, cp.CLARABEL, cp.ECOS, cp.SCS):
+            try:
+                problem.solve(solver=solver, verbose=False)
+            except (cp.error.SolverError, Exception):
+                continue
+            if w.value is not None and problem.status in (
+                "optimal", "optimal_inaccurate"
+            ):
+                return np.asarray(w.value, dtype=float), None
+        raise MlsynthEstimationError(
+            "Simplex SCM on cycles failed to converge with all solvers."
+        )
 
     # Unrestricted: closed-form OLS with intercept.
     X = np.column_stack([np.ones(T_eff), cycles_donors])

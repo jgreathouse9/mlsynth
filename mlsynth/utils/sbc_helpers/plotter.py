@@ -23,14 +23,17 @@ def plot_sbc(results: SBCResults, title: str | None = None) -> None:
     fig, ax = plt.subplots(figsize=(11, 5))
     ax.plot(time, inputs.y_target, lw=2.5, color="black",
             label=f"Observed: {inputs.treated_unit_name}")
-    if design.counterfactual_post.size > 0:
+    hz = design.counterfactual_post.size
+    if hz > 0:
+        # The counterfactual spans only the h-step forecast horizon.
+        post_time = time[T0:T0 + hz]
         ax.plot(
-            time[T0:], design.counterfactual_post,
+            post_time, design.counterfactual_post,
             lw=2, color="tab:red", linestyle="--", label="SBC counterfactual"
         )
         # Also overlay the trend forecast separately for interpretability.
         ax.plot(
-            time[T0:], design.trend_forecast,
+            post_time, design.trend_forecast,
             lw=1.2, color="tab:blue", linestyle=":", alpha=0.8,
             label="Forecast trend (treated AR)",
         )

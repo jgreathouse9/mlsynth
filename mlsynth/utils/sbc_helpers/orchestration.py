@@ -17,7 +17,7 @@ from typing import Optional
 
 import numpy as np
 
-from .hamilton import cycle_matrix_pre
+from .hamilton import fit_hamilton_filter
 from .structures import SBCDesign, SBCInputs
 from .synthetic import solve_sbc_weights
 from .trend_forecast import forecast_treated_trend
@@ -49,28 +49,38 @@ def solve_sbc(
     Y_full = inputs.Y_full
     T = inputs.T
     T0 = inputs.T0
-    horizon = T - T0
+    N = Y_full.shape[1]
+    # The Hamilton projection is an h-step forecast, so the counterfactual
+    # is only well-defined for the first h post-treatment periods (paper
+    # Step 4; the authors' code uses Fh = h). Cap the horizon accordingly.
+    horizon = min(h, T - T0)
 
-    # --- Step 1: trend / cycle decomposition over the pre window ---------
-    fits, cycles_pre = cycle_matrix_pre(Y_full, T0=T0, h=h, p=p)
-    treated_fit = fits[0]
-    donor_fits = fits[1:]
+    # --- Step 1: trend / cycle decomposition -----------------------------
+    # Treated unit: detrend on the PRE window only (its post outcomes are
+    # contaminated by treatment). Donors: detrend on the FULL series, since
+    # the donor cycles are needed in the post window and donors are
+    # untreated. This mirrors the authors' replication code.
+    treated_fit = fit_hamilton_filter(Y_full[:T0, 0], h=h, p=p)
+    donor_fits = [
+        fit_hamilton_filter(Y_full[:, j], h=h, p=p) for j in range(1, N)
+    ]
+    # Donor cycles over the full sample, (T, N-1); NaN in the first h+p-1 rows.
+    donor_cycles_full = np.column_stack([f.cycle_pre for f in donor_fits])
 
-    # Restrict to the rows where the Hamilton filter produced a cycle.
-    valid_mask = ~np.isnan(cycles_pre[:, 0])
-    cycles_pre_valid = cycles_pre[valid_mask]
-    if cycles_pre_valid.shape[0] < 2:
+    # Pre-treatment rows where the treated Hamilton filter produced a cycle.
+    valid_pre = ~np.isnan(treated_fit.cycle_pre)   # length T0
+    pre_idx = np.where(valid_pre)[0]
+    if pre_idx.size < 2:
         from ...exceptions import MlsynthEstimationError
         raise MlsynthEstimationError(
             "SBC needs at least 2 effective pre-period observations after "
-            "applying the Hamilton filter; got "
-            f"{cycles_pre_valid.shape[0]}."
+            f"applying the Hamilton filter; got {pre_idx.size}."
         )
 
-    cycles_treated = cycles_pre_valid[:, 0]
-    cycles_donors = cycles_pre_valid[:, 1:]
+    cycles_treated = treated_fit.cycle_pre[pre_idx]          # (n_pre,)
+    cycles_donors = donor_cycles_full[pre_idx]               # (n_pre, N-1)
 
-    # --- Step 3: SCM weights on cycles -----------------------------------
+    # --- Step 3: SCM weights on the pre-treatment cycles -----------------
     weights, intercept = solve_sbc_weights(
         cycles_treated=cycles_treated,
         cycles_donors=cycles_donors,
@@ -83,7 +93,7 @@ def solve_sbc(
         pred_pre = pred_pre + intercept
     pre_cycle_rmse = float(np.sqrt(np.mean((cycles_treated - pred_pre) ** 2)))
 
-    # --- Step 2: extrapolate treated trend over the post window ----------
+    # --- Step 2: extrapolate treated trend over the (capped) horizon -----
     if horizon > 0:
         trend_forecast = forecast_treated_trend(
             y_target=inputs.y_target,
@@ -92,25 +102,13 @@ def solve_sbc(
             horizon=horizon,
         )
 
-        # --- Step 3 (cont'd): synthetic cycle over the post window ------
-        # Apply each donor's Hamilton filter to its post-treatment history
-        # by recomputing the in-sample lagged design at post times.
-        cycle_forecast = np.zeros(horizon, dtype=float)
-        for step in range(horizon):
-            t = T0 + step  # zero-indexed
-            donor_cycles_t = np.empty(len(donor_fits), dtype=float)
-            for j, fit in enumerate(donor_fits):
-                slope = fit.coefficients[1:]
-                idx = np.array(
-                    [t - fit.h - k for k in range(fit.p)], dtype=int
-                )
-                trend_jt = float(
-                    fit.coefficients[0] + slope @ Y_full[idx, j + 1]
-                )
-                donor_cycles_t[j] = Y_full[t, j + 1] - trend_jt
-            cycle_forecast[step] = float(donor_cycles_t @ weights)
-            if intercept is not None:
-                cycle_forecast[step] += intercept
+        # --- Step 3 (cont'd): synthetic cycle over the horizon ----------
+        # Post synthetic cycle = full-sample donor cycles at the post rows,
+        # combined with the pre-fitted weights.
+        post_idx = np.arange(T0, T0 + horizon)
+        cycle_forecast = donor_cycles_full[post_idx] @ weights
+        if intercept is not None:
+            cycle_forecast = cycle_forecast + intercept
 
         counterfactual_post = trend_forecast + cycle_forecast
     else:
@@ -151,11 +149,15 @@ def summarize_effects(
     """
 
     T0 = inputs.T0
-    T = inputs.T
-    counterfactual_full = inputs.y_target.copy()
-    if T > T0:
-        counterfactual_full[T0:] = design.counterfactual_post
-        att = float(np.mean(inputs.y_target[T0:] - design.counterfactual_post))
+    hz = int(design.counterfactual_post.shape[0])   # capped at h
+    counterfactual_full = inputs.y_target.astype(float).copy()
+    if hz > 0:
+        counterfactual_full[T0:T0 + hz] = design.counterfactual_post
+        # Beyond the h-step horizon the counterfactual is not estimated.
+        counterfactual_full[T0 + hz:] = np.nan
+        att = float(np.mean(
+            inputs.y_target[T0:T0 + hz] - design.counterfactual_post
+        ))
     else:
         att = float("nan")
 

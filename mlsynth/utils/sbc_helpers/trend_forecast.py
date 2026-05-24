@@ -2,13 +2,16 @@
 
 From Shi, Xi, Xie (2025), Section 3.1:
 
-    tau_hat_{1, t} = alpha_hat_{1, 1} Y_{1, t - h}
+    tau_hat_{1, t} = alpha_hat_{1, 0} + alpha_hat_{1, 1} Y_{1, t - h}
                    + ... + alpha_hat_{1, p} Y_{1, t - h - p + 1},
                    T_0 + 1 <= t <= T_0 + h.
 
-The intercept ``alpha_0`` from the pre-treatment fit is NOT applied here:
-the extrapolation uses only the slope coefficients on the treated unit's
-own lags. This matches the paper's display equation.
+The intercept ``alpha_0`` IS applied: the forecast extrapolates the full
+estimated trend, intercept included. The paper's display equation omits
+``alpha_0``, but the authors' replication code includes it (and it is the
+correct extrapolation of the estimated trend); dropping it systematically
+biases the counterfactual for series whose fitted AR slopes do not sum to
+one, which flips the sign of the estimated effect.
 """
 
 from __future__ import annotations
@@ -57,7 +60,8 @@ def forecast_treated_trend(
             f"expected p+1={p + 1}."
         )
 
-    slope = coefs[1:]   # alpha_1 .. alpha_p
+    intercept = coefs[0]   # alpha_0
+    slope = coefs[1:]      # alpha_1 .. alpha_p
 
     out = np.empty(horizon, dtype=float)
     for step in range(horizon):
@@ -69,5 +73,5 @@ def forecast_treated_trend(
                 "Trend forecast requires y_target indices that fall before "
                 "the start of the panel; reduce h or extend the pre-window."
             )
-        out[step] = float(slope @ y_target[idx])
+        out[step] = float(intercept + slope @ y_target[idx])
     return out
