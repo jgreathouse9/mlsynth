@@ -159,6 +159,10 @@ def build_summary(
             time_periods=time_periods,
         ),
         weights=WeightsResults(
+            # Canonical "donor" weights are the normalized, non-negative
+            # control-side weights (sum to 1) -- not the signed contrast
+            # vector. treated_/control_weights_by_unit are kept alongside.
+            donor_weights=control_weights_by_unit,
             treated_weights_by_unit=treated_weights_by_unit,
             control_weights_by_unit=control_weights_by_unit,
             summary_stats={
