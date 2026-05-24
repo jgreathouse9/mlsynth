@@ -988,6 +988,12 @@ class CTSCConfig(BaseEstimatorConfig):
     slopes and synthetic controls for all units. (The paper calls it "GSC";
     mlsynth uses CTSC to avoid collision with Xu (2017)'s GSC.)
 
+    Notes
+    -----
+    The base ``treat`` field is unused by CTSC; provide the continuous /
+    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
+    existing column name for ``treat`` to satisfy the base config.
+
     Parameters
     ----------
     treatment_vars : list of str
@@ -1005,12 +1011,6 @@ class CTSCConfig(BaseEstimatorConfig):
         Rademacher draws for the randomization test.
     random_state : int
         Seed for the randomization-test RNG.
-
-    Notes
-    -----
-    The base ``treat`` field is unused by CTSC; provide the continuous /
-    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
-    existing column name for ``treat`` to satisfy the base config.
     """
 
     treatment_vars: List[str] = Field(
@@ -1096,6 +1096,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
     Parameters
     ----------
     outcomes : list of str
@@ -1111,12 +1117,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
@@ -1278,26 +1278,42 @@ class PROXIMALConfig(BaseEstimatorConfig):
     """Configuration for the Proximal Inference (PROXIMAL) estimator."""    # Override counterfactual_color from Base to match PROXIMAL's default and usage
     counterfactual_color: Union[str, List[str]] = Field(default_factory=lambda: ["grey", "red", "blue"], description="Color(s) for counterfactual lines in plots. Can be a single color string or a list of color strings for multiple counterfactuals.")
 
+    methods: List[str] = Field(..., min_length=1, description='Which estimators to run. Any of "PI", "PIS", "PIPost", "SPSC". The estimator runs exactly these, and each method\'s required inputs must be present.')
     donors: List[Union[str, int]] = Field(..., min_length=1, description="List of donor unit identifiers. Must not be empty.")
     surrogates: List[Union[str, int]] = Field(default_factory=list, description="List of surrogate unit identifiers.")
-    vars: Dict[str, List[str]] = Field(default_factory=dict, description='Dictionary specifying proxy variables. Requires "donorproxies". If surrogates are used, also requires "surrogatevars".')
+    vars: Dict[str, List[str]] = Field(default_factory=dict, description='Dictionary specifying proxy variables. Requires "donorproxies" when PI/PIS/PIPost is requested; requires "surrogatevars" when PIS/PIPost is requested. SPSC needs no proxies.')
+
+    spsc_detrend: bool = Field(default=True, description="Whether SPSC detrends the treated outcome against a B-spline time trend (SPSC-DT vs SPSC-NoDT).")
+    spsc_lambda: Optional[float] = Field(default=None, description="log10 ridge penalty for SPSC. If None, selected by leave-one-out cross-validation.")
+    spsc_spline_df: int = Field(default=5, ge=3, description="Degrees of freedom of the SPSC detrend B-spline basis.")
+    spsc_conformal: bool = Field(default=False, description="Whether to compute SPSC conformal prediction intervals for the per-period treatment effect.")
+    spsc_conformal_periods: Optional[List[int]] = Field(default=None, description="Absolute post-period indices to cover with SPSC conformal intervals. If None, every post-treatment period is covered.")
 
     @model_validator(mode='after')
-    def check_vars_structure(cls, values: Any) -> Any: # Changed to 'values: Any' for Pydantic v2 compatibility if 'self' is not used
-        # In Pydantic v2, for model_validator(mode='after'), the first argument is the model instance (often named 'self' or 'v')
-        # However, to be safe and more aligned with examples, using 'values' as a dict if direct attribute access isn't needed.
-        # If direct attribute access like `self.vars` is preferred, the first arg should be `self`.
-        # Let's assume `values` is the model instance here for direct attribute access.
+    def check_methods_and_vars(cls, values: Any) -> Any:
+        valid_methods = {"PI", "PIS", "PIPost", "SPSC"}
+        methods = list(values.methods)
+        unknown = [m for m in methods if m not in valid_methods]
+        if unknown:
+            raise MlsynthConfigError(
+                f"Unknown PROXIMAL method(s) {unknown}. Valid choices: 'PI', 'PIS', 'PIPost', 'SPSC'."
+            )
 
-        # Re-accessing from the model instance 'values' (which is 'self' effectively)
         vars_dict = values.vars
-        surrogates_list = values.surrogates
+        needs_donorproxies = any(m in methods for m in ("PI", "PIS", "PIPost"))
+        needs_surrogates = any(m in methods for m in ("PIS", "PIPost"))
 
-        if not vars_dict.get("donorproxies") or not isinstance(vars_dict.get("donorproxies"), list) or not vars_dict["donorproxies"]:
-            raise MlsynthConfigError("Config 'vars' must contain a non-empty list for 'donorproxies'.")
-
-        if surrogates_list and (not vars_dict.get("surrogatevars") or not isinstance(vars_dict.get("surrogatevars"), list) or not vars_dict["surrogatevars"]):
-            raise MlsynthConfigError("Config 'vars' must contain a non-empty list for 'surrogatevars' when surrogates are provided.")
+        if needs_donorproxies and not (isinstance(vars_dict.get("donorproxies"), list) and vars_dict.get("donorproxies")):
+            raise MlsynthConfigError(
+                "Config 'vars' must contain a non-empty list for 'donorproxies' when PI/PIS/PIPost is requested."
+            )
+        if needs_surrogates:
+            if not values.surrogates:
+                raise MlsynthConfigError("PIS/PIPost require a non-empty 'surrogates' list.")
+            if not (isinstance(vars_dict.get("surrogatevars"), list) and vars_dict.get("surrogatevars")):
+                raise MlsynthConfigError(
+                    "Config 'vars' must contain a non-empty list for 'surrogatevars' when PIS/PIPost is requested."
+                )
         return values
 
 
