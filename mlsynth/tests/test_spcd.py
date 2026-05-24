@@ -31,6 +31,7 @@ from mlsynth.exceptions import (
 from mlsynth.utils.spcd_helpers.structures import (
     SPCDDesign,
     SPCDInputs,
+    SPCDMultiArmResults,
     SPCDResults,
 )
 from mlsynth.utils.spcd_helpers.setup import prepare_spcd_inputs
@@ -127,6 +128,54 @@ def small_panel():
     """Smallest panel that still satisfies SPCD's basic requirements."""
     df, _ = _make_panel(n_units=4, T=8, T_post=2)
     return df
+
+
+@pytest.fixture
+def arm_panel():
+    """A panel with three arms of 8 units each (SPCD multi-arm)."""
+    df, _ = _make_panel(n_units=24, T=80, T_post=10)
+    code = df["unitid"].str[1:].astype(int)
+    df["arm"] = np.where(code < 8, "A", np.where(code < 16, "B", "C"))
+    return df
+
+
+class TestMultiArm:
+    _cfg = dict(outcome="y", unitid="unitid", time="time", post_col="post",
+                display_graph=False)
+
+    def test_arm_returns_multiarm_per_arm_designs(self, arm_panel):
+        res = SPCD({"df": arm_panel, "arm": "arm", **self._cfg}).fit()
+        assert isinstance(res, SPCDMultiArmResults)
+        assert res.arm == "arm"
+        assert sorted(res.arm_designs) == ["A", "B", "C"]
+        for a, r in res.arm_designs.items():
+            assert isinstance(r, SPCDResults)
+            # each arm is solved on its own 8 units only
+            assert list(r.inputs.unit_index.labels) == [
+                f"u{c:02d}" for c in range(*{"A": (0, 8), "B": (8, 16),
+                                             "C": (16, 24)}[a])]
+            assert 1 <= r.design.n_treated < 8
+
+    def test_arm_none_still_single_result(self, panel_df):
+        res = SPCD({"df": panel_df, **self._cfg}).fit()
+        assert isinstance(res, SPCDResults)
+
+    def test_att_by_arm_keys(self, arm_panel):
+        res = SPCD({"df": arm_panel, "arm": "arm", **self._cfg}).fit()
+        assert set(res.att_by_arm()) == {"A", "B", "C"}
+
+    def test_missing_arm_column_raises(self, panel_df):
+        with pytest.raises(MlsynthDataError):
+            SPCD({"df": panel_df, "arm": "nope", **self._cfg}).fit()
+
+    def test_arm_varying_within_unit_raises(self, arm_panel):
+        df = arm_panel.copy()
+        first = df["unitid"].iloc[0]
+        df.loc[df["unitid"] == first, "arm"] = (
+            ["A", "B"] * (int((df["unitid"] == first).sum()) // 2 + 1)
+        )[:int((df["unitid"] == first).sum())]
+        with pytest.raises(MlsynthDataError):
+            SPCD({"df": df, "arm": "arm", **self._cfg}).fit()
 
 
 @pytest.fixture
