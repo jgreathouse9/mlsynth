@@ -46,8 +46,10 @@ from ..utils.proximal_helpers.setup import prepare_proximal_inputs
 from ..utils.proximal_helpers.structures import (
     PI,
     PIPOST,
+    PIPW,
     PIS,
     SPSC,
+    DR,
     PROXIMALResults,
 )
 
@@ -126,6 +128,8 @@ class PROXIMAL:
                 pis=fits.get(PIS),
                 pipost=fits.get(PIPOST),
                 spsc=fits.get(SPSC),
+                dr=fits.get(DR),
+                pipw=fits.get(PIPW),
                 selected_variant=self.methods[0],
                 metadata={
                     "methods": list(self.methods),
