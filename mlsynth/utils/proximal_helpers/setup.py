@@ -79,7 +79,7 @@ def prepare_proximal_inputs(
         If no configured donors are present in the panel.
     """
 
-    needs_donor_proxies = any(m in methods for m in ("PI", "PIS", "PIPost"))
+    needs_donor_proxies = any(m in methods for m in ("PI", "PIS", "PIPost", "DR", "PIPW"))
     needs_surrogates = any(m in methods for m in ("PIS", "PIPost"))
 
     prepared = dataprep(df, unitid, time, outcome, treat)

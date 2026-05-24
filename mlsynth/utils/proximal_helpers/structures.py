@@ -37,6 +37,8 @@ PI = "PI"
 PIS = "PIS"
 PIPOST = "PIPost"
 SPSC = "SPSC"
+DR = "DR"
+PIPW = "PIPW"
 
 
 @dataclass(frozen=True)
@@ -204,6 +206,8 @@ class PROXIMALResults:
     pis: Optional[ProximalMethodFit]
     pipost: Optional[ProximalMethodFit]
     spsc: Optional[ProximalMethodFit] = None
+    dr: Optional[ProximalMethodFit] = None
+    pipw: Optional[ProximalMethodFit] = None
     selected_variant: str = PI
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -224,6 +228,10 @@ class PROXIMALResults:
             out[PIPOST] = self.pipost
         if self.spsc is not None:
             out[SPSC] = self.spsc
+        if self.dr is not None:
+            out[DR] = self.dr
+        if self.pipw is not None:
+            out[PIPW] = self.pipw
         return out
 
     @property

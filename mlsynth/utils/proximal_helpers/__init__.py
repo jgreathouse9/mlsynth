@@ -30,10 +30,13 @@ Shared infrastructure:
     plotter.py          : trajectories + gap overlay across methods
 """
 
+from .bridges import fit_outcome_bridge, fit_treatment_bridge, gmm_sandwich_se
+from .dr import estimate_dr
 from .inference import bartlett, hac
 from .orchestration import run_proximal
 from .pi import estimate_pi
 from .pipost import estimate_pi_surrogate_post
+from .pipw import estimate_pipw
 from .pis import estimate_pi_surrogate
 from .plotter import plot_proximal
 from .setup import prepare_proximal_inputs
@@ -41,8 +44,10 @@ from .spsc import conformal_intervals, estimate_spsc
 from .structures import (
     PI,
     PIPOST,
+    PIPW,
     PIS,
     SPSC,
+    DR,
     PROXIMALInputs,
     PROXIMALResults,
     ProximalMethodFit,
@@ -51,17 +56,24 @@ from .structures import (
 __all__ = [
     "PI",
     "PIPOST",
+    "PIPW",
     "PIS",
     "SPSC",
+    "DR",
     "PROXIMALInputs",
     "PROXIMALResults",
     "ProximalMethodFit",
     "bartlett",
     "conformal_intervals",
+    "estimate_dr",
     "estimate_pi",
     "estimate_pi_surrogate",
     "estimate_pi_surrogate_post",
+    "estimate_pipw",
     "estimate_spsc",
+    "fit_outcome_bridge",
+    "fit_treatment_bridge",
+    "gmm_sandwich_se",
     "hac",
     "plot_proximal",
     "prepare_proximal_inputs",

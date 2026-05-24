@@ -13,15 +13,19 @@ from typing import Dict
 
 import numpy as np
 
+from .dr import estimate_dr
 from .pi import estimate_pi
+from .pipw import estimate_pipw
 from .pis import estimate_pi_surrogate
 from .pipost import estimate_pi_surrogate_post
 from .spsc import conformal_intervals, estimate_spsc
 from .structures import (
     PI,
     PIPOST,
+    PIPW,
     PIS,
     SPSC,
+    DR,
     PROXIMALInputs,
     ProximalMethodFit,
 )
@@ -122,7 +126,51 @@ def _run_spsc(inputs: PROXIMALInputs) -> ProximalMethodFit:
     )
 
 
-_RUNNERS = {PI: _run_pi, PIS: _run_pis, PIPOST: _run_pipost, SPSC: _run_spsc}
+def _run_dr(inputs: PROXIMALInputs) -> ProximalMethodFit:
+    cf, alpha, beta, att, se = estimate_dr(
+        inputs.y, inputs.donor_outcomes, inputs.donor_proxies, inputs.T0, inputs.bandwidth,
+    )
+    gap = inputs.y - cf
+    return ProximalMethodFit(
+        name=DR,
+        counterfactual=cf,
+        gap=gap,
+        time_varying_effect=gap,
+        att=float(att),
+        att_se=None if se is None or not np.isfinite(se) else float(se),
+        pre_rmse=_rmse(gap[: inputs.T0]),
+        post_rmse=_rmse(gap[inputs.T0:]),
+        alpha_weights=alpha,
+        donor_weights={name: float(w) for name, w in zip(inputs.donor_names, alpha[1:])},
+        metadata={"intercept": float(alpha[0]), "treatment_bridge_beta": beta,
+                  "outcome_bridge_att": float(np.mean(gap[inputs.T0:]))},
+    )
+
+
+def _run_pipw(inputs: PROXIMALInputs) -> ProximalMethodFit:
+    beta, att, se = estimate_pipw(
+        inputs.y, inputs.donor_outcomes, inputs.donor_proxies, inputs.T0, inputs.bandwidth,
+    )
+    nan = np.full(inputs.T, np.nan)
+    return ProximalMethodFit(
+        name=PIPW,
+        counterfactual=nan,           # weighting estimator: no imputed trajectory
+        gap=nan,
+        time_varying_effect=nan,
+        att=float(att),
+        att_se=None if se is None or not np.isfinite(se) else float(se),
+        pre_rmse=float("nan"),
+        post_rmse=float("nan"),
+        alpha_weights=beta,
+        donor_weights={},
+        metadata={"treatment_bridge_beta": beta},
+    )
+
+
+_RUNNERS = {
+    PI: _run_pi, PIS: _run_pis, PIPOST: _run_pipost, SPSC: _run_spsc,
+    DR: _run_dr, PIPW: _run_pipw,
+}
 
 
 def run_proximal(inputs: PROXIMALInputs) -> Dict[str, ProximalMethodFit]:
