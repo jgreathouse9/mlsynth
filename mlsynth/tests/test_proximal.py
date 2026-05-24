@@ -135,7 +135,7 @@ def test_proximal_selected_variant_is_first_method(sample_proximal_data: pd.Data
 
 @pytest.mark.parametrize("detrend", [False, True])
 def test_proximal_spsc_no_proxies(sample_proximal_data: pd.DataFrame, detrend: bool) -> None:
-    """Methods=['SPSC'] runs with only donors -- no donorproxies/surrogates."""
+    """methods=['SPSC'] runs with only donors -- no donorproxies/surrogates."""
     results = PROXIMAL(PROXIMALConfig(**_base(
         sample_proximal_data, methods=["SPSC"], spsc_detrend=detrend))).fit()
     assert list(results.methods.keys()) == ["SPSC"]
@@ -156,6 +156,30 @@ def test_proximal_spsc_conformal(sample_proximal_data: pd.DataFrame) -> None:
     assert list(cf["periods"]) == [7, 8]
     assert cf["lower"].shape == (2,) and cf["upper"].shape == (2,)
     assert np.all(cf["upper"] >= cf["lower"])
+
+
+# --- DR + PIPW (doubly robust proximal) ---
+
+def test_proximal_dr_pipw_path(sample_proximal_data: pd.DataFrame) -> None:
+    """methods=['DR','PIPW'] run off donors + donorproxies (W, Z)."""
+    results = PROXIMAL(PROXIMALConfig(**_base(
+        sample_proximal_data, methods=["DR", "PIPW"],
+        vars={"donorproxies": ["DonorProxyVar1"]}))).fit()
+    assert list(results.methods.keys()) == ["DR", "PIPW"]
+    assert results.dr is not None and results.pipw is not None
+    n = sample_proximal_data["TimeIdx"].nunique()
+    assert isinstance(results.dr.att, float)
+    assert results.dr.counterfactual.shape == (n,) and np.all(np.isfinite(results.dr.counterfactual))
+    # PIPW is a weighting estimator: no imputed counterfactual trajectory.
+    assert np.all(np.isnan(results.pipw.counterfactual))
+    assert isinstance(results.pipw.att, float)
+
+
+def test_proximal_dr_requires_donorproxies(sample_proximal_data: pd.DataFrame) -> None:
+    with pytest.raises(MlsynthConfigError, match="donorproxies"):
+        PROXIMALConfig(**_base(sample_proximal_data, methods=["DR"], vars={}))
+    with pytest.raises(MlsynthConfigError, match="donorproxies"):
+        PROXIMALConfig(**_base(sample_proximal_data, methods=["PIPW"], vars={}))
 
 
 # --- Config validation (input consistency per requested method) ---
@@ -240,7 +264,7 @@ def test_proximal_insufficient_pre_periods(sample_proximal_data: pd.DataFrame) -
     indirect=["sample_proximal_data"],
 )
 def test_proximal_fit_with_nans(sample_proximal_data: pd.DataFrame, nan_column: str) -> None:
-    """Balance() imputes NaNs at the start of fit, so estimation proceeds."""
+    """balance() imputes NaNs at the start of fit, so estimation proceeds."""
     df_with_nans = sample_proximal_data.copy()
     idx_to_nan = df_with_nans[df_with_nans["UnitIdentifier"] == 2].index[0]
     df_with_nans.loc[idx_to_nan, nan_column] = np.nan
