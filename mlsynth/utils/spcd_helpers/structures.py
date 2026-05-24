@@ -11,7 +11,7 @@ which itself implements:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import numpy as np
 
@@ -279,3 +279,32 @@ class SPCDResults:
     def mde_pct(self) -> Optional[float]:
         """Minimum detectable effect as a percentage of the holdout baseline."""
         return self.power.mde_pct if self.power is not None else None
+
+
+@dataclass(frozen=True)
+class SPCDMultiArmResults:
+    """Per-arm SPCD designs.
+
+    Returned by :class:`mlsynth.estimators.SPCD` when an ``arm`` column is
+    configured: the SPCD design problem is solved **independently within each
+    arm's units**, and each arm's full :class:`SPCDResults` (design, inputs,
+    summary, conformal CI and power) is collected here.
+
+    Parameters
+    ----------
+    arm_designs : dict
+        ``{arm_label: SPCDResults}`` -- one independent SPCD solution per arm.
+    arm : str
+        Name of the arm column the units were partitioned on.
+    """
+
+    arm_designs: Dict[Any, SPCDResults]
+    arm: str
+
+    @property
+    def mode(self) -> str:
+        return "spcd_multiarm"
+
+    def att_by_arm(self) -> Dict[Any, Optional[float]]:
+        """``{arm_label: ATT}`` across arms (None where no summary)."""
+        return {a: r.att for a, r in self.arm_designs.items()}
