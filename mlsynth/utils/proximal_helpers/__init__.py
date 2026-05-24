@@ -10,37 +10,39 @@ Implements:
     Causal Inference for Synthetic Control with Surrogates."
     arXiv:2308.09527.
 
-PROXIMAL treats donor outcomes ``W`` as negative controls instrumented by
-donor proxies ``Z0``, and (optionally) surrogate outcomes ``X``
-instrumented by surrogate proxies ``Z1``. A pre-period IV fit imputes the
-counterfactual (PI); surrogate stages refine the time-varying effect
-(PIS, PIPost). Every method reports a GMM sandwich variance with a HAC
-(Bartlett) middle, validated value-for-value against the authors'
-reference code.
+    Park, C., & Tchetgen Tchetgen, E. J. (2025). "Single Proxy Synthetic
+    Control." Journal of Causal Inference 13(1), 20230079.
 
-Layout:
+Each estimator lives in its own subpackage so that new proximal methods
+can be added as additional subpackages:
+
+    pi/        : PI       -- donors-only two-proxy GMM (Shi et al.)
+    pis/       : PIS      -- full-sample two-stage with surrogates (Liu et al.)
+    pipost/    : PIPost   -- post-treatment-only surrogate variant (Liu et al.)
+    spsc/      : SPSC     -- single-proxy ridge-GMM + conformal (Park & Tchetgen)
+
+Shared infrastructure:
 
     structures.py       : PROXIMALInputs, ProximalMethodFit, PROXIMALResults
     setup.py            : prepare_proximal_inputs (dataprep + proxy prep + cleaning)
-    inference.py        : bartlett kernel + HAC long-run variance
-    estimation.py       : estimate_pi / estimate_pi_surrogate / estimate_pi_surrogate_post
-    orchestration.py    : run_proximal (drives the methods, builds fits)
+    inference.py        : bartlett kernel + HAC long-run variance (PI family)
+    orchestration.py    : run_proximal (dispatch over the requested methods)
     plotter.py          : trajectories + gap overlay across methods
 """
 
-from .estimation import (
-    estimate_pi,
-    estimate_pi_surrogate,
-    estimate_pi_surrogate_post,
-)
 from .inference import bartlett, hac
 from .orchestration import run_proximal
+from .pi import estimate_pi
+from .pipost import estimate_pi_surrogate_post
+from .pis import estimate_pi_surrogate
 from .plotter import plot_proximal
 from .setup import prepare_proximal_inputs
+from .spsc import conformal_intervals, estimate_spsc
 from .structures import (
     PI,
     PIPOST,
     PIS,
+    SPSC,
     PROXIMALInputs,
     PROXIMALResults,
     ProximalMethodFit,
@@ -50,13 +52,16 @@ __all__ = [
     "PI",
     "PIPOST",
     "PIS",
+    "SPSC",
     "PROXIMALInputs",
     "PROXIMALResults",
     "ProximalMethodFit",
     "bartlett",
+    "conformal_intervals",
     "estimate_pi",
     "estimate_pi_surrogate",
     "estimate_pi_surrogate_post",
+    "estimate_spsc",
     "hac",
     "plot_proximal",
     "prepare_proximal_inputs",

@@ -1,10 +1,10 @@
-"""Run the proximal methods and assemble per-method fits.
+"""Run the requested proximal estimators and assemble per-method fits.
 
-Drives the up-to-three proximal estimators on a prepared
-:class:`PROXIMALInputs` and packages each into a
-:class:`ProximalMethodFit` (counterfactual, gap, ATT, GMM/HAC standard
-error, pre/post RMSE, donor weights). PI always runs; PIS and PIPost run
-only when surrogate data is available.
+Dispatches over ``inputs.methods`` -- any of ``PI``, ``PIS``, ``PIPost``,
+``SPSC`` -- and packages each into a :class:`ProximalMethodFit`
+(counterfactual, gap, ATT, GMM/HAC standard error, pre/post RMSE, donor
+weights). Only the requested methods run; the config layer guarantees the
+inputs each method needs are present.
 """
 
 from __future__ import annotations
@@ -13,15 +13,15 @@ from typing import Dict
 
 import numpy as np
 
-from .estimation import (
-    estimate_pi,
-    estimate_pi_surrogate,
-    estimate_pi_surrogate_post,
-)
+from .pi import estimate_pi
+from .pis import estimate_pi_surrogate
+from .pipost import estimate_pi_surrogate_post
+from .spsc import conformal_intervals, estimate_spsc
 from .structures import (
     PI,
     PIPOST,
     PIS,
+    SPSC,
     PROXIMALInputs,
     ProximalMethodFit,
 )
@@ -60,8 +60,73 @@ def _build_fit(
     )
 
 
+def _run_pi(inputs: PROXIMALInputs) -> ProximalMethodFit:
+    cf, alpha, se = estimate_pi(
+        inputs.y, inputs.donor_outcomes, inputs.donor_proxies,
+        inputs.T0, inputs.n_post, inputs.T, inputs.bandwidth,
+    )
+    return _build_fit(PI, inputs, cf, inputs.y - cf, se, alpha)
+
+
+def _run_pis(inputs: PROXIMALInputs) -> ProximalMethodFit:
+    _, effect, alpha, se = estimate_pi_surrogate(
+        inputs.y, inputs.donor_outcomes, inputs.donor_proxies,
+        inputs.surrogate_proxies, inputs.surrogate_outcomes,
+        inputs.T0, inputs.n_post, inputs.T, inputs.bandwidth,
+    )
+    return _build_fit(PIS, inputs, inputs.y - effect, effect, se, alpha)
+
+
+def _run_pipost(inputs: PROXIMALInputs) -> ProximalMethodFit:
+    _, effect, alpha, se = estimate_pi_surrogate_post(
+        inputs.y, inputs.donor_outcomes, inputs.donor_proxies,
+        inputs.surrogate_proxies, inputs.surrogate_outcomes,
+        inputs.T0, inputs.n_post, inputs.bandwidth,
+    )
+    return _build_fit(PIPOST, inputs, inputs.y - effect, effect, se, alpha)
+
+
+def _run_spsc(inputs: PROXIMALInputs) -> ProximalMethodFit:
+    cf, gamma, att, se, trend, lam = estimate_spsc(
+        inputs.y, inputs.donor_outcomes, inputs.T0,
+        detrend=inputs.spsc_detrend,
+        spline_df=inputs.spsc_spline_df,
+        ridge_lambda=inputs.spsc_lambda,
+    )
+    gap = inputs.y - cf
+    metadata = {
+        "variant": "SPSC-DT" if inputs.spsc_detrend else "SPSC-NoDT",
+        "detrend": inputs.spsc_detrend,
+        "ridge_lambda": lam,
+        "trend": trend,
+    }
+    if inputs.spsc_conformal:
+        metadata["conformal"] = conformal_intervals(
+            inputs.y, inputs.donor_outcomes, inputs.T0,
+            gamma=gamma, ridge_lambda=lam,
+            detrend=inputs.spsc_detrend, spline_df=inputs.spsc_spline_df,
+            att_se=se, periods=inputs.spsc_conformal_periods,
+        )
+    return ProximalMethodFit(
+        name=SPSC,
+        counterfactual=cf,
+        gap=gap,
+        time_varying_effect=gap,
+        att=float(att),
+        att_se=None if se is None or not np.isfinite(se) else float(se),
+        pre_rmse=_rmse(gap[: inputs.T0]),
+        post_rmse=_rmse(gap[inputs.T0:]),
+        alpha_weights=gamma,
+        donor_weights=_donor_weights(inputs, gamma),
+        metadata=metadata,
+    )
+
+
+_RUNNERS = {PI: _run_pi, PIS: _run_pis, PIPOST: _run_pipost, SPSC: _run_spsc}
+
+
 def run_proximal(inputs: PROXIMALInputs) -> Dict[str, ProximalMethodFit]:
-    """Run every applicable proximal method on ``inputs``.
+    """Run each estimator named in ``inputs.methods`` and return the fits.
 
     Parameters
     ----------
@@ -71,58 +136,13 @@ def run_proximal(inputs: PROXIMALInputs) -> Dict[str, ProximalMethodFit]:
     Returns
     -------
     dict
-        ``{method_name: ProximalMethodFit}`` with ``"PI"`` always present
-        and ``"PIS"``/``"PIPost"`` present when surrogates are configured.
+        ``{method_name: ProximalMethodFit}`` for the requested methods, in
+        request order.
     """
 
     fits: Dict[str, ProximalMethodFit] = {}
-
-    # --- PI ---
-    pi_counterfactual, pi_alpha, pi_se = estimate_pi(
-        inputs.y,
-        inputs.donor_outcomes,
-        inputs.donor_proxies,
-        inputs.T0,
-        inputs.n_post,
-        inputs.T,
-        inputs.bandwidth,
-    )
-    fits[PI] = _build_fit(
-        PI, inputs, pi_counterfactual, inputs.y - pi_counterfactual, pi_se, pi_alpha
-    )
-
-    if not inputs.has_surrogates:
-        return fits
-
-    # --- PIS ---
-    _, pis_effect, pis_alpha, pis_se = estimate_pi_surrogate(
-        inputs.y,
-        inputs.donor_outcomes,
-        inputs.donor_proxies,
-        inputs.surrogate_proxies,
-        inputs.surrogate_outcomes,
-        inputs.T0,
-        inputs.n_post,
-        inputs.T,
-        inputs.bandwidth,
-    )
-    fits[PIS] = _build_fit(
-        PIS, inputs, inputs.y - pis_effect, pis_effect, pis_se, pis_alpha
-    )
-
-    # --- PIPost ---
-    _, pipost_effect, pipost_alpha, pipost_se = estimate_pi_surrogate_post(
-        inputs.y,
-        inputs.donor_outcomes,
-        inputs.donor_proxies,
-        inputs.surrogate_proxies,
-        inputs.surrogate_outcomes,
-        inputs.T0,
-        inputs.n_post,
-        inputs.bandwidth,
-    )
-    fits[PIPOST] = _build_fit(
-        PIPOST, inputs, inputs.y - pipost_effect, pipost_effect, pipost_se, pipost_alpha
-    )
-
+    for method in inputs.methods:
+        runner = _RUNNERS.get(method)
+        if runner is not None:
+            fits[method] = runner(inputs)
     return fits

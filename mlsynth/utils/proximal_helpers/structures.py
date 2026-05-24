@@ -36,6 +36,7 @@ import numpy as np
 PI = "PI"
 PIS = "PIS"
 PIPOST = "PIPost"
+SPSC = "SPSC"
 
 
 @dataclass(frozen=True)
@@ -70,11 +71,26 @@ class PROXIMALInputs:
     donor_names : Sequence
         Length-``n_donors`` donor labels (column order of
         ``donor_outcomes``).
+    methods : Sequence of str
+        Which estimators to run: any of ``"PI"``, ``"PIS"``, ``"PIPost"``,
+        ``"SPSC"``.
+    spsc_detrend : bool
+        Whether SPSC detrends the treated outcome against a B-spline time
+        trend (SPSC-DT vs SPSC-NoDT).
+    spsc_lambda : float or None
+        log10 ridge penalty for SPSC; ``None`` selects it by LOO-CV.
+    spsc_spline_df : int
+        Degrees of freedom of the SPSC detrend B-spline basis.
+    spsc_conformal : bool
+        Whether to compute SPSC conformal prediction intervals.
+    spsc_conformal_periods : Sequence of int or None
+        Absolute post-period indices to cover with conformal intervals;
+        ``None`` covers every post-treatment period.
     """
 
     y: np.ndarray
     donor_outcomes: np.ndarray
-    donor_proxies: np.ndarray
+    donor_proxies: Optional[np.ndarray]
     surrogate_outcomes: Optional[np.ndarray]
     surrogate_proxies: Optional[np.ndarray]
     T: int
@@ -83,6 +99,12 @@ class PROXIMALInputs:
     time_labels: np.ndarray
     treated_unit_name: Any
     donor_names: Sequence
+    methods: Sequence[str] = (PI,)
+    spsc_detrend: bool = True
+    spsc_lambda: Optional[float] = None
+    spsc_spline_df: int = 5
+    spsc_conformal: bool = False
+    spsc_conformal_periods: Optional[Sequence[int]] = None
 
     @property
     def has_surrogates(self) -> bool:
@@ -181,6 +203,7 @@ class PROXIMALResults:
     pi: Optional[ProximalMethodFit]
     pis: Optional[ProximalMethodFit]
     pipost: Optional[ProximalMethodFit]
+    spsc: Optional[ProximalMethodFit] = None
     selected_variant: str = PI
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -199,11 +222,16 @@ class PROXIMALResults:
             out[PIS] = self.pis
         if self.pipost is not None:
             out[PIPOST] = self.pipost
+        if self.spsc is not None:
+            out[SPSC] = self.spsc
         return out
 
     @property
     def _primary(self) -> Optional[ProximalMethodFit]:
-        return self.methods.get(self.selected_variant)
+        methods = self.methods
+        if not methods:
+            return None
+        return methods.get(self.selected_variant, next(iter(methods.values())))
 
     @property
     def att(self) -> float:
