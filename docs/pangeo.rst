@@ -3,35 +3,78 @@ Parallel-Trends Supergeo Design (PANGEO)
 
 .. currentmodule:: mlsynth
 
-Overview
---------
+When to Use This Estimator
+--------------------------
 
-PANGEO is a prospective **experimental-design** method for geographic
-("geo") experiments, in the lineage of *Supergeo Design* (Chen,
-Doudchenko, Jiang, Stein & Ying 2023) and its scalable successor
-*Optimized Supergeo Design* (Shaw 2025). It is organised as a **two-stage**
-procedure:
+PANGEO is a tool for **designing a geo experiment** — deciding, *before*
+you run it, which geographic markets to treat and which to hold out, so
+that the after-the-fact comparison is as clean as possible. Use it when:
 
-#. **Design** (pre-treatment data only). A set-partitioning mixed-integer
-   program groups each treatment arm's geos into composite *supergeos*,
-   forms balanced **pairs** with no geo trimmed, and -- the departure from
-   Supergeo and OSD -- selects the partition that maximises pre-period
-   **parallelism** rather than balance on a scalar aggregate. The design is
-   accompanied by a power analysis that reports the minimum detectable
-   effect (MDE) implied by the chosen supergeo size :math:`Q`.
+- you can **assign treatment at the geo level** (turn an ad campaign,
+  price, or feature on in some markets and not others);
+- you have a **panel of pre-period history** (weekly/monthly sales,
+  conversions, GMV…) for every candidate geo;
+- the number of geos is **modest** (tens, not thousands), as is typical
+  with DMAs/regions; and
+- you want the eventual treatment-effect estimate to be **precise** —
+  i.e. you want treated and control markets that already move together.
 
-#. **Evaluation** (after the experiment, when post-treatment data exist).
-   The *same* design is scored against the realised outcomes with the
-   **Augmented Difference-in-Differences** estimator and inference of
-   Li & Van den Bulte (2022), yielding the treatment effect (ATT), the
-   percent ATT and confidence intervals at the arm and program levels.
+**A worked geo-experiment.** A brand wants to measure the incremental
+sales from a new TV/CTV campaign. Ads are bought at the DMA level, so the
+experimental units are ~50–210 large, heterogeneous markets — not
+exchangeable shoppers. The plan: run the campaign in a *treatment* set of
+DMAs, withhold it in a *control* set, and read the post-launch sales gap
+as the lift. The whole experiment lives or dies on the split: if the
+treated DMAs were already trending differently from the controls, the
+post-launch gap mixes the campaign effect with that pre-existing
+divergence. PANGEO reads the DMAs' pre-period sales panel and chooses the
+treatment/control split (bundling DMAs into balanced *supergeos*) so the
+two sides' sales **trajectories run parallel beforehand** — turning the
+post-period gap into a clean read on the campaign.
 
-The two stages are linked by a single quantity. Both the design objective
-(Stage 1) and the standard error of the realised effect (Stage 2) are
-governed by the variance of the supergeo *gap* residual; minimising
-non-parallelism therefore simultaneously minimises the MDE and tightens the
-confidence interval. Optimising parallelism *is* optimising inferential
-precision.
+PANGEO is **two stages**:
+
+#. **Design** (pre-period data only). A set-partitioning mixed-integer
+   program groups each arm's geos into composite *supergeos*, forms
+   balanced **pairs** with no geo trimmed, and selects the partition that
+   maximises pre-period **parallelism**. A power analysis reports the
+   minimum detectable effect (MDE) implied by the chosen supergeo size
+   :math:`Q`.
+
+#. **Evaluation** (after the experiment). The *same* design is scored
+   against the realised outcomes with the **Augmented
+   Difference-in-Differences** estimator of Li & Van den Bulte (2022),
+   giving the ATT, percent ATT, and CIs at the arm and program levels.
+
+The two stages share one quantity: both the design objective and the
+standard error of the realised effect are governed by the variance of the
+supergeo *gap* residual. Minimising non-parallelism simultaneously
+minimises the MDE and tightens the CI — **optimising parallelism is
+optimising inferential precision.**
+
+**This is a principled deviation from Google's Supergeo Design.** Chen et
+al. (2023) and OSD (Shaw 2025) match supergeos on a **scalar** summary —
+the summed baseline response, or a few covariate totals — which collapses
+the time dimension. PANGEO matches on the full pre-period **trajectory**.
+That difference is not cosmetic: the downstream analysis is a
+difference-in-differences, which *differences trajectories over time*, so
+two markets with identical totals but different seasonal shapes are **not
+interchangeable** for it even though scalar matching scores them as a
+perfect match. In trending, seasonal data — which is essentially all
+geo-marketing data — matching on shape rather than on a single number is
+what makes the post-period comparison valid. (The simulation at the end
+of this page quantifies the gap: when geos share a baseline mean but
+differ in shape, PANGEO recovers the effect ~30× more precisely than a
+scalar match.)
+
+**When *not* to use it.** If the assignment is already fixed (an
+observational study, or a campaign that already ran in specific markets),
+there is no design to choose — use an estimation-stage method
+(:doc:`tssc`, :doc:`sbc`, :doc:`fdid`). If you have *hundreds* of geos the
+exact MIP may be intractable (see *When PANGEO Fails or Stalls* below) —
+the scalable OSD relaxation is the better fit there. And if the outcome is
+plausibly **stationary** with no trend or seasonality, scalar matching is
+already adequate and simpler.
 
 What is a supergeo?
 ^^^^^^^^^^^^^^^^^^^
@@ -65,6 +108,66 @@ run as parallel as possible. The reason is that the downstream
 difference-in-differences analysis differences trajectories: two markets with
 identical totals but different seasonal shapes are not interchangeable for
 it, even though scalar matching treats them as equivalent.
+
+Assumptions, and When PANGEO Fails or Stalls
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+PANGEO can make a good experiment *likely*, but it cannot manufacture one
+that the data do not support. Three assumptions underpin it, and each
+points at a way the method can fail or stall.
+
+**1. Parallel trends (the crux).** The design maximises parallelism in the
+**pre-period**; the validity of the Stage-2 effect estimate rests on that
+parallelism **persisting into the post-period absent treatment** — i.e.
+the treatment and control supergeos *would have continued to move
+together* had the campaign never launched. This is exactly the
+difference-in-differences parallel-trends assumption, and it is the
+assumption PANGEO is organised around. The crucial honesty: PANGEO
+*optimises* pre-period parallelism (making the assumption as plausible as
+the data allow) but it **cannot guarantee** the assumption holds
+out-of-sample. If a shock hits the treated markets, a competitor reacts
+only there, or the pre-period co-movement was coincidental, the
+post-period gap diverges on its own and the ATT is biased — the same
+Achilles' heel as any DiD. *Diagnostics that flag the risk:* the achieved
+parallelism :math:`R^2` (low values mean no balanced design exists — see
+below), the reported MDE, and a placebo / blank-window check on the
+held-out pre-period.
+
+**2. A linear factor structure** for the no-treatment outcomes
+(Eq. :eq:`factor`). The gap decomposition that makes "match on trajectory"
+equivalent to "balance the factor loadings" relies on this model. It is
+the standard synthetic-control / interactive-fixed-effects assumption and
+is mild for sales-like panels, but a wildly non-factor outcome (e.g. one
+driven by an idiosyncratic, unit-specific regime change) is not balanceable
+by any partition.
+
+**3. A modest, designable geo pool.** Each arm needs enough geos to form
+at least one supergeo pair, and the geos must be heterogeneous-but-
+matchable.
+
+The concrete failure / stall modes:
+
+- **Parallel trends breaks post-launch** — the dominant risk, above. No
+  design fixes it; only the diagnostics warn of it.
+- **No matchable structure.** If the geos are so heterogeneous that *no*
+  partition achieves high parallelism, PANGEO still returns the best
+  feasible design, but the parallelism :math:`R^2` stays low and the MDE
+  blows up — a signal that a geo experiment here is underpowered and the
+  read will be noisy regardless of split.
+- **The MIP stalls.** Set partitioning is NP-hard. With many geos and a
+  large supergeo size :math:`Q`, the exact mixed-integer program can be
+  slow or intractable. Mitigations: cap :math:`Q` (smaller supergeos),
+  use the automatic :math:`Q` selection, raise ``min_pairs``, or — for
+  hundreds of geos — fall back to the scalable OSD relaxation. The
+  examples on this page use a handful of geos, so the solve is instant.
+- **Too few geos / arms.** A pool that cannot form a balanced pair (e.g.
+  two wildly different markets) has no good design to find.
+
+In short: PANGEO improves the *plausibility* of parallel trends by
+construction and *quantifies the residual risk* (parallelism
+:math:`R^2`, MDE), but it inherits DiD's identifying assumption rather
+than removing it. Treat a low parallelism :math:`R^2` or a large MDE as
+the design telling you the experiment is fragile.
 
 Setup and notation
 ------------------
@@ -625,6 +728,93 @@ post-window gap is the estimated effect.
 On the simulated data this returns designs with parallel-trends :math:`R^2`
 around 0.90--0.98 --- roughly 10--35x more parallel than a random
 treatment/control split of the same geos.
+
+Simulation: Trajectory Matching vs. a Scalar Supergeo
+-----------------------------------------------------
+
+The supergeo design of Chen et al. (2023) matches (super)geos on a
+**scalar** summary of baseline response (its variance term is
+:math:`\sum_k (Z_{G_{k,+}} - Z_{G_{k,-}})^2`, a sum over scalar baseline
+differences). PANGEO carries this into the **panel** setting: it matches
+on the full pre-treatment *trajectory* (level-removed parallelism), so it
+can separate geos that look identical on a scalar yet move differently
+over time. The self-contained Monte Carlo below makes the gap concrete —
+adapting the paper's RMSE comparison (supergeo vs. matched pairs) to a
+panel where every geo has the **same pre-period mean** but a distinct
+trajectory shape, a setting in which scalar matching is by construction
+blind. Six geos keep the MIP instantaneous.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import PANGEO
+
+   def make_panel(rng, T_pre=20, S=6, level=100.0, noise=0.6):
+       """Six geos = three parallel pairs (up-trend, down-trend, cycle);
+       each shape is demeaned over the pre-period so all pre-means match."""
+       T = T_pre + S
+       t = np.arange(T)
+       up = (t - t.mean()) / t.std()
+       cyc = np.sin(2 * np.pi * t / 5.0)
+       shapes = [5 * up, 5 * up, -5 * up, -5 * up, 5 * cyc, 5 * cyc]
+       cols = []
+       for s in shapes:
+           s = s - s[:T_pre].mean()              # equal pre-means => scalar-blind
+           cols.append(level + s + rng.normal(0, noise, T))
+       return np.column_stack(cols), T_pre
+
+   def did(Y, T_pre, treated, control, tau):
+       Yo = Y.copy()
+       Yo[T_pre:, treated] += tau                # inject the true effect
+       t_eff = Yo[T_pre:, treated].mean() - Yo[:T_pre, treated].mean()
+       c_eff = Yo[T_pre:, control].mean() - Yo[:T_pre, control].mean()
+       return t_eff - c_eff
+
+   def pangeo_design(Y, T_pre):
+       df = pd.DataFrame(
+           {"geo": f"g{g}", "t": int(t), "y": Y[t, g], "arm": "A"}
+           for g in range(6) for t in range(T_pre)
+       )
+       a = PANGEO({"df": df, "outcome": "y", "unitid": "geo", "time": "t",
+                   "arm": "arm", "max_supergeo_size": 1,
+                   "compute_power": False, "display_graphs": False}).fit().assignment
+       T = [int(g[1:]) for g, v in a.items() if v == "treatment"]
+       C = [int(g[1:]) for g, v in a.items() if v == "control"]
+       return T, C
+
+   def scalar_match(Y, T_pre, rng):              # Google-style: pair on scalar mean
+       order = np.argsort(Y[:T_pre].mean(0))
+       T, C = [], []
+       for k in range(0, 6, 2):
+           a, b = order[k], order[k + 1]
+           if rng.random() < 0.5:
+               T.append(a); C.append(b)
+           else:
+               T.append(b); C.append(a)
+       return T, C
+
+   tau, R = 4.0, 60
+   rng = np.random.default_rng(1)
+   errs = {"PANGEO (trajectory)": [], "scalar matched-pairs": []}
+   for _ in range(R):
+       Y, T_pre = make_panel(rng)
+       Tp, Cp = pangeo_design(Y, T_pre)
+       errs["PANGEO (trajectory)"].append(did(Y, T_pre, Tp, Cp, tau) - tau)
+       Ts, Cs = scalar_match(Y, T_pre, rng)
+       errs["scalar matched-pairs"].append(did(Y, T_pre, Ts, Cs, tau) - tau)
+
+   for name, e in errs.items():
+       e = np.array(e)
+       print(f"{name:22s} RMSE = {np.sqrt((e ** 2).mean()):.2f}")
+
+Because all geos share a pre-period mean, the scalar match pairs them
+essentially at random, and the difference-in-differences estimate
+inherits the up/down/cycle shape mismatch (RMSE ≈ 6 against a true effect
+of 4). PANGEO reads the trajectory shape, recovers the three parallel
+pairs, and estimates the effect about **30× more precisely** (RMSE ≈ 0.2).
+That is the supergeo idea carried into the panel world: match on *how the
+series move*, not on a single number.
 
 References
 ----------
