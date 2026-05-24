@@ -135,7 +135,7 @@ def test_proximal_selected_variant_is_first_method(sample_proximal_data: pd.Data
 
 @pytest.mark.parametrize("detrend", [False, True])
 def test_proximal_spsc_no_proxies(sample_proximal_data: pd.DataFrame, detrend: bool) -> None:
-    """methods=['SPSC'] runs with only donors -- no donorproxies/surrogates."""
+    """Methods=['SPSC'] runs with only donors -- no donorproxies/surrogates."""
     results = PROXIMAL(PROXIMALConfig(**_base(
         sample_proximal_data, methods=["SPSC"], spsc_detrend=detrend))).fit()
     assert list(results.methods.keys()) == ["SPSC"]
@@ -161,7 +161,7 @@ def test_proximal_spsc_conformal(sample_proximal_data: pd.DataFrame) -> None:
 # --- DR + PIPW (doubly robust proximal) ---
 
 def test_proximal_dr_pipw_path(sample_proximal_data: pd.DataFrame) -> None:
-    """methods=['DR','PIPW'] run off donors + donorproxies (W, Z)."""
+    """Methods=['DR','PIPW'] run off donors + donorproxies (W, Z)."""
     results = PROXIMAL(PROXIMALConfig(**_base(
         sample_proximal_data, methods=["DR", "PIPW"],
         vars={"donorproxies": ["DonorProxyVar1"]}))).fit()
@@ -264,7 +264,7 @@ def test_proximal_insufficient_pre_periods(sample_proximal_data: pd.DataFrame) -
     indirect=["sample_proximal_data"],
 )
 def test_proximal_fit_with_nans(sample_proximal_data: pd.DataFrame, nan_column: str) -> None:
-    """balance() imputes NaNs at the start of fit, so estimation proceeds."""
+    """Balance() imputes NaNs at the start of fit, so estimation proceeds."""
     df_with_nans = sample_proximal_data.copy()
     idx_to_nan = df_with_nans[df_with_nans["UnitIdentifier"] == 2].index[0]
     df_with_nans.loc[idx_to_nan, nan_column] = np.nan
