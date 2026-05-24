@@ -4,11 +4,13 @@ import numpy as np
 import pytest
 
 from mlsynth.exceptions import MlsynthConfigError
-from mlsynth.utils.proximal_helpers.inference import bartlett, hac
-from mlsynth.utils.proximal_helpers.estimation import (
+from mlsynth.utils.proximal_helpers import (
+    bartlett,
+    hac,
     estimate_pi,
     estimate_pi_surrogate,
     estimate_pi_surrogate_post,
+    estimate_spsc,
 )
 
 
@@ -114,3 +116,48 @@ def test_estimate_pi_surrogate_dimension_mismatch():
     Y, W, Z0, Z1, X, T0, T = _surrogate_inputs()
     with pytest.raises(MlsynthConfigError):
         estimate_pi_surrogate(Y, W, Z0[:, :1], Z1, X, T0, T - T0, T, 3)
+
+
+# --- SPSC (single proxy synthetic control) ---
+
+def _spsc_panel(seed=0, T=120, T0=80, N=6):
+    """One factor-model panel: donors proxy the treated potential outcome."""
+    rng = np.random.default_rng(seed)
+    f = np.cumsum(rng.normal(size=T))                 # common factor
+    loads = rng.uniform(0.5, 1.5, size=N)
+    W = np.outer(f, loads) + rng.normal(scale=0.3, size=(T, N))
+    y = f * loads.mean() + rng.normal(scale=0.3, size=T)
+    y[T0:] += 2.0                                      # +2 effect post
+    return y, W, T0
+
+
+def test_estimate_spsc_smoke_nodt():
+    y, W, T0 = _spsc_panel()
+    cf, gamma, att, se, trend, lam = estimate_spsc(y, W, T0, detrend=False)
+    assert cf.shape == (len(y),)
+    assert gamma.shape == (W.shape[1],)
+    assert np.isfinite(att)
+    assert isinstance(se, float)
+    assert np.allclose(trend, 0.0)
+
+
+def test_estimate_spsc_smoke_dt():
+    y, W, T0 = _spsc_panel(seed=1)
+    cf, gamma, att, se, trend, lam = estimate_spsc(y, W, T0, detrend=True, spline_df=5)
+    assert cf.shape == (len(y),)
+    assert np.isfinite(att)
+    assert trend.shape == (len(y),)
+
+
+def test_estimate_spsc_deterministic():
+    """The CV ridge solve must be deterministic across repeated calls."""
+    y, W, T0 = _spsc_panel(seed=2)
+    a1 = estimate_spsc(y, W, T0, detrend=True)
+    a2 = estimate_spsc(y, W, T0, detrend=True)
+    assert a1[2] == a2[2] and a1[3] == a2[3] and a1[5] == a2[5]
+
+
+def test_estimate_spsc_fixed_lambda():
+    y, W, T0 = _spsc_panel(seed=3)
+    cf, gamma, att, se, trend, lam = estimate_spsc(y, W, T0, detrend=False, ridge_lambda=-1.0)
+    assert lam == -1.0

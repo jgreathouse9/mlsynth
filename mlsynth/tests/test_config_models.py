@@ -226,35 +226,43 @@ def test_clustersc_config_valid(base_config_data: Dict[str, Any]):
         CLUSTERSCConfig(**base_config_data, rpca_method="INVALID")
 
 def test_proximal_config_valid(base_config_data: Dict[str, Any], sample_df: pd.DataFrame):
-    """Test valid instantiation of PROXIMALConfig."""
-    # 'donors' and 'vars' with 'donorproxies' are required
+    """Test valid instantiation of PROXIMALConfig with the methods API."""
+    # 'methods', 'donors', and (for PI) 'vars' with 'donorproxies' are required.
     prox_data = {
         **base_config_data,
+        "methods": ["PI"],
         "donors": [1, 2],
         "vars": {"donorproxies": ["donor_proxy_1"]}
     }
     config = PROXIMALConfig(**prox_data)
+    assert config.methods == ["PI"]
     assert config.donors == [1, 2]
     assert config.surrogates == []  # Default
     assert config.vars == {"donorproxies": ["donor_proxy_1"]}
     assert config.counterfactual_color == ["grey", "red", "blue"]
 
-    # Test case for invalid 'vars' (missing 'donorproxies')
-    invalid_vars_data = {**base_config_data, "donors": [1, 2], "vars": {}}
-    with pytest.raises(MlsynthConfigError, match="Config 'vars' must contain a non-empty list for 'donorproxies'."):
+    # SPSC needs no proxies at all.
+    spsc_only = PROXIMALConfig(**{**base_config_data, "methods": ["SPSC"], "donors": [1, 2]})
+    assert spsc_only.methods == ["SPSC"]
+
+    # PI without 'donorproxies' is rejected.
+    invalid_vars_data = {**base_config_data, "methods": ["PI"], "donors": [1, 2], "vars": {}}
+    with pytest.raises(MlsynthConfigError, match="donorproxies"):
         PROXIMALConfig(**invalid_vars_data)
-    
-    # Test case for invalid 'vars' (missing 'surrogatevars' when surrogates are present)
+
+    # PIS without 'surrogatevars' is rejected.
     invalid_surrogate_vars_data = {
-        **base_config_data,
-        "donors": [1, 2],
-        "surrogates": [3], # Surrogates are present
-        "vars": {"donorproxies": ["donor_proxy_1"]} # Missing surrogatevars
+        **base_config_data, "methods": ["PI", "PIS"], "donors": [1, 2],
+        "surrogates": [3], "vars": {"donorproxies": ["donor_proxy_1"]},
     }
-    with pytest.raises(MlsynthConfigError, match="Config 'vars' must contain a non-empty list for 'surrogatevars' when surrogates are provided."):
+    with pytest.raises(MlsynthConfigError, match="surrogatevars"):
         PROXIMALConfig(**invalid_surrogate_vars_data)
 
-    with pytest.raises(ValidationError):  # Missing 'donors' (original test for ValidationError)
+    # Unknown method is rejected.
+    with pytest.raises(MlsynthConfigError, match="Unknown PROXIMAL method"):
+        PROXIMALConfig(**{**base_config_data, "methods": ["WRONG"], "donors": [1, 2]})
+
+    with pytest.raises(ValidationError):  # Missing 'methods' and 'donors'
         PROXIMALConfig(**base_config_data)
 
 def test_fscm_config_valid(base_config_data: Dict[str, Any]):
