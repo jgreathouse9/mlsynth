@@ -178,6 +178,14 @@ References
     DOI: https://doi.org/10.1515/jci-2023-0079
 
 
+.. [DRProx]
+
+    Qiu, Hongxiang, Xu Shi, Wang Miao, Edgar Dobriban, and Eric Tchetgen Tchetgen.
+    "Doubly Robust Proximal Synthetic Controls."
+    *Biometrics* 80, no. 2 (2024): ujae055.
+    DOI: https://doi.org/10.1093/biomtc/ujae055
+
+
 
 .. [ABADIE2003]
     Abadie, Alberto and Gardeazabal, Javier. 

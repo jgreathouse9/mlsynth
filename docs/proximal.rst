@@ -200,14 +200,14 @@ Where do real surrogates come from?
 The Methods
 -----------
 
-``PROXIMAL`` exposes **four** estimators. They are idiosyncratic -- each
+``PROXIMAL`` exposes **six** estimators. They are idiosyncratic -- each
 makes a different identification bet and needs different inputs -- so you
 **choose** the ones you want with the ``methods`` argument and the
 estimator runs *exactly* those (validating that your inputs support them):
 
 .. list-table::
    :header-rows: 1
-   :widths: 12 40 22
+   :widths: 12 42 22
 
    * - Method
      - What it uses
@@ -225,18 +225,28 @@ estimator runs *exactly* those (validating that your inputs support them):
      - Donors only -- a **single** proxy type, with the treated unit's
        own outcome as the instrument.
      - Park & Tchetgen Tchetgen [SPSC]_
+   * - **DR**
+     - Donors + donor proxies; **doubly robust** -- consistent if *either*
+       the outcome or the weighting model is right.
+     - Qiu et al. [DRProx]_
+   * - **PIPW**
+     - Donors + donor proxies; a **weighting-only** estimator (treatment
+       confounding bridge), no outcome model.
+     - Qiu et al. [DRProx]_
 
 .. code-block:: python
 
    PROXIMAL({..., "methods": ["SPSC"]})              # SPSC alone (no proxies needed)
    PROXIMAL({..., "methods": ["PI"]})                # classic proximal inference
-   PROXIMAL({..., "methods": ["PI", "PIS", "PIPost", "SPSC"]})  # all four, side by side
+   PROXIMAL({..., "methods": ["DR", "PIPW"]})        # doubly robust + weighting
+   PROXIMAL({..., "methods": ["PI", "PIS", "PIPost", "SPSC", "DR", "PIPW"]})  # all six
 
 ``methods`` is **required** -- there is no implicit default -- so a run
 only ever computes what you asked for. The config layer enforces input
-consistency: requesting ``"PI"``/``"PIS"``/``"PIPost"`` requires donor
-proxies (and, for the surrogate methods, surrogate units and proxies),
-whereas ``"SPSC"`` needs only the donor pool. Results are returned on a
+consistency: ``"PI"``/``"PIS"``/``"PIPost"``/``"DR"``/``"PIPW"`` require
+donor proxies (and, for the surrogate methods, surrogate units and
+proxies), whereas ``"SPSC"`` needs only the donor pool. Results are
+returned on a
 :class:`~mlsynth.utils.proximal_helpers.structures.PROXIMALResults`, with
 ``results.methods`` mapping each requested method to its fit.
 
@@ -282,6 +292,24 @@ counterfactual and uses the **flagship's own pre-period** as the
 instrument, returning a de-noised synthetic flagship plus conformal bands
 that stay valid even with a short post-window. It is the most practical
 proximal method when no natural second proxy group exists.
+
+**DR -- hedge against getting the model wrong.** *"I have both a synthetic
+control I trust *and* a weighting model I trust -- but I'm not sure which is
+right, and I don't want the answer to hinge on that."* DR combines an
+outcome model (the synthetic control) with a weighting model (how the
+confounding shifts at the intervention) so the ATT is consistent if
+**either one** is correctly specified -- you get one shot at being right
+across two tries. Useful in a vaccine roll-out study where you can build a
+synthetic-control of hospitalizations *and* model how disease pressure
+shifted, and want robustness to a misspecification of either.
+
+**PIPW -- weight, don't model the outcome.** *"I'd rather not commit to a
+model for the treated unit's counterfactual trajectory at all."* PIPW
+estimates the effect purely by **re-weighting** the pre-period to look like
+the post-period (a covariate-shift / inverse-probability-style weight built
+from the proxies), with no synthetic-control trajectory. It is the natural
+choice when the outcome is hard to model but the *shift* in the
+confounding is easier to capture.
 
 Notation
 --------
@@ -782,6 +810,95 @@ the paper's Figure 3 (≈ 0.07 for SPSC-DT). The inversion re-fits the
 weights on a grid of candidate effects per period, so it is opt-in for
 cost.
 
+Doubly Robust Proximal Synthetic Control (DR & PIPW)
+----------------------------------------------------
+
+PI, PIS, PIPost and SPSC all rest on getting **one** model right -- an
+outcome model (the synthetic control). Qiu, Shi, Miao, Dobriban and
+Tchetgen Tchetgen [DRProx]_ add a second, complementary nuisance and
+combine the two so you only need *one of them* to be correct.
+
+There are two bridges (each augmented with an intercept):
+
+* the **outcome bridge** :math:`h(\mathbf{W}_t) = (1, \mathbf{W}_t)^\top
+  \boldsymbol{\alpha}` -- a pre-period IV fit of the treated outcome on the
+  donors, instrumented by the proxies (the PI idea); and
+* the **treatment confounding bridge** :math:`q(\mathbf{Z}_t) =
+  \exp\{(1, \mathbf{Z}_t)^\top \boldsymbol{\beta}\}` -- a covariate-shift /
+  likelihood-ratio **weight** capturing how the unmeasured confounding
+  shifts at the intervention, solving
+  :math:`\mathbb{E}_{\text{pre}}[q(\mathbf{Z})(1,\mathbf{W})] =
+  \mathbb{E}_{\text{post}}[(1,\mathbf{W})]`.
+
+They give three estimands:
+
+.. math::
+
+   \text{outcome only:}\quad & \tau = \mathbb{E}_{\text{post}}[Y - h(\mathbf{W})], \\
+   \text{weighting only (PIPW):}\quad & \tau = \mathbb{E}_{\text{post}}[Y] - \mathbb{E}_{\text{pre}}[q(\mathbf{Z})\,Y], \\
+   \text{doubly robust (DR):}\quad & \tau = \mathbb{E}_{\text{post}}[Y - h(\mathbf{W})] - \mathbb{E}_{\text{pre}}[q(\mathbf{Z})\{Y - h(\mathbf{W})\}].
+
+The DR form is consistent if **either** :math:`h` **or** :math:`q` is
+correctly specified -- not necessarily both. ``PIPW`` exposes the
+weighting-only estimator (no outcome model at all); the outcome-only form
+is the existing ``PI``.
+
+**Estimation.** Each is a just-identified GMM (``alpha`` by IV, ``beta`` by
+a small nonlinear solve, the means in closed form), so the parameters solve
+the moment equations exactly and the ATT standard error is the GMM sandwich
+with a Bartlett-HAC middle. ``DR`` returns the outcome-bridge synthetic
+control as its counterfactual; ``PIPW``, being a pure weighting estimator,
+has no imputed trajectory (its ``counterfactual`` is ``NaN``).
+
+Both consume the same inputs as ``PI`` -- donors ``W`` and the donor
+proxies ``Z`` -- so just add them to ``methods``:
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from scipy.stats import norm
+   from mlsynth import PROXIMAL
+
+   # Qiu et al.'s DGP: AR(1) latent confounders with an exponential shift at T0.
+   rng = np.random.default_rng(7)
+   nU, T, T0 = 2, 1000, 500
+   U = np.empty((T, nU)); U[0] = rng.normal(size=nU)
+   for t in range(1, T):
+       U[t] = 0.1 * U[t-1] + 0.9 * rng.normal(size=nU)
+   U = norm.cdf(U); U[:T0] = -np.log1p(-U[:T0]); U[T0:] = -np.log1p(-U[T0:]) / 2.0
+   Y = rng.uniform(-1, 1, T) + 2 * U.sum(1) + 2.0 * (np.arange(1, T+1) > T0)  # true ATT = 2
+   W = np.column_stack([rng.uniform(2*U[:,j]-1, 2*U[:,j]+1) for j in range(nU)])
+   Z = np.column_stack([rng.uniform(2*U[:,j]-1, 2*U[:,j]+1) for j in range(nU)])
+
+   rows = []
+   for t in range(T):
+       rows.append({"unit": "treated", "time": t, "y": Y[t], "dp": 0.0, "treat": int(t >= T0)})
+       for j in range(nU):
+           rows.append({"unit": f"donor{j}", "time": t, "y": W[t, j], "dp": Z[t, j], "treat": 0})
+   df = pd.DataFrame(rows)
+
+   res = PROXIMAL({
+       "df": df, "outcome": "y", "treat": "treat", "unitid": "unit", "time": "time",
+       "methods": ["DR", "PIPW"],
+       "donors": [f"donor{j}" for j in range(nU)],
+       "vars": {"donorproxies": ["dp"]},
+       "display_graphs": False,
+   }).fit()
+   print({m: round(f.att, 3) for m, f in res.methods.items()})   # ~ {'DR': 2.0, 'PIPW': 2.0}
+
+.. admonition:: Over-identified / empirical use
+
+   The paper's real analyses (Brazil, Florida, Kansas) use a **separate,
+   larger set of proxy units** ``Z`` than donors ``W``, which makes the
+   GMM *over-identified*. mlsynth's DR/PIPW are the *just-identified* form
+   (``Z`` = the donor proxies, matched to ``W``). In the over-identified
+   regime with many near-collinear control-unit instruments, the GMM
+   minimizer is ill-conditioned and its value is sensitive to the
+   optimizer, so those published point estimates are not bit-reproducible
+   across languages. We therefore validate DR/PIPW **synthetically** (Path
+   B; see *Replication Status*) rather than against the empirical tables.
+
 Replication Status
 ------------------
 
@@ -817,6 +934,17 @@ Replication Status
    SC-with-surrogates lose all coverage (→ 0%) while PI/PIS/PIPost remain
    near nominal with low MSE; PIS attains the lowest MSE in most cells. See
    *Example* for a one-draw illustration.
+
+   **DR & PIPW (Path B).** Validated against the Monte Carlo of [DRProx]_
+   (true ATT = 2). Both recover the truth as ``T`` grows -- e.g. at
+   ``T = 1000``, ``DR`` and ``PIPW`` average ≈ 2.00 with ~95% Wald coverage
+   (matching the paper's Figure 2/3). The **double-robustness** headline
+   also reproduces: when the outcome bridge is misspecified (``Y``
+   nonlinear in the confounder), the outcome-only estimator collapses to
+   ≈ −0.65 while ``DR`` stays at ≈ 2.0, rescued by the correct treatment
+   bridge. The over-identified empirical analyses (Brazil/Florida/Kansas)
+   are not bit-reproducible cross-language (ill-conditioned GMM; see the
+   admonition above), so DR/PIPW rest on this synthetic validation.
 
    Per the project's replication contract
    (``agents/agents_estimators.md``), PROXIMAL is considered validated on
@@ -898,6 +1026,22 @@ standard error and conformal prediction intervals.
    :undoc-members:
 
 .. automodule:: mlsynth.utils.proximal_helpers.spsc.conformal
+   :members:
+   :undoc-members:
+
+The doubly-robust family: shared confounding-bridge fits and the GMM
+sandwich (``bridges``), the doubly-robust estimator (``dr``), and the
+treatment-bridge weighting estimator (``pipw``).
+
+.. automodule:: mlsynth.utils.proximal_helpers.bridges
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.proximal_helpers.dr.estimation
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.proximal_helpers.pipw.estimation
    :members:
    :undoc-members:
 
