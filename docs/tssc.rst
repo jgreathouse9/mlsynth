@@ -1,6 +1,8 @@
 Two-Step Synthetic Control
 ==========================
 
+.. currentmodule:: mlsynth
+
 When to Use This Estimator
 --------------------------
 
@@ -318,11 +320,71 @@ percentage ATTs are 1131.97 and 24.5%.
    :align: center
    :width: 600px
 
-API Reference
--------------
+Core API
+--------
 
-.. autoclass:: mlsynth.TSSC
-   :show-inheritance:
+.. automodule:: mlsynth.estimators.tssc
    :members:
    :undoc-members:
-   :special-members: __init__
+   :show-inheritance:
+
+Configuration
+-------------
+
+.. autoclass:: mlsynth.config_models.TSSCConfig
+   :members:
+   :undoc-members:
+
+Result Containers
+-----------------
+
+The four frozen dataclasses returned by the pipeline. ``TSSC.fit()``
+returns a :class:`~mlsynth.utils.tssc_helpers.structures.TSSCResults`,
+whose ``variants`` map holds one
+:class:`~mlsynth.utils.tssc_helpers.structures.TSSCVariantFit` per
+SC-class method and whose ``selection`` records the Step-1
+:class:`~mlsynth.utils.tssc_helpers.structures.TSSCRestrictionTest`
+outcomes inside a
+:class:`~mlsynth.utils.tssc_helpers.structures.TSSCSelection`.
+
+.. automodule:: mlsynth.utils.tssc_helpers.structures
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Helper Modules
+--------------
+
+Data preparation -- pivots the long panel into the typed
+:class:`~mlsynth.utils.tssc_helpers.structures.TSSCInputs`.
+
+.. automodule:: mlsynth.utils.tssc_helpers.setup
+   :members:
+   :undoc-members:
+
+Constrained-LS estimation of the four SC-class variants and the
+per-variant subsampling ATT confidence interval (Step 2).
+
+.. automodule:: mlsynth.utils.tssc_helpers.estimation
+   :members:
+   :undoc-members:
+
+The Step-1 subsampling test of the SC pre-trends assumption and the
+SC -> MSCa -> MSCb -> MSCc decision tree.
+
+.. automodule:: mlsynth.utils.tssc_helpers.selection
+   :members:
+   :undoc-members:
+
+Assembly of the standardized ``BaseEstimatorResults`` summary for the
+recommended variant.
+
+.. automodule:: mlsynth.utils.tssc_helpers.results_assembly
+   :members:
+   :undoc-members:
+
+The observed-vs-recommended-counterfactual plot.
+
+.. automodule:: mlsynth.utils.tssc_helpers.plotter
+   :members:
+   :undoc-members:
