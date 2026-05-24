@@ -16,6 +16,84 @@ The repository is designed around:
 
 New estimators should extend these conventions rather than reinvent them.
 
+
+New estimators should extend these conventions rather than reinvent them.
+
+---
+
+# Definition of Done (Replication Contract)
+
+**This is a hard gate. An estimator or module is NEVER considered "done"
+— not when it runs, not when tests pass, not when the numbers look
+plausible — until its results are validated against the source paper by
+ONE of the following two paths.**
+
+## Path A — Empirical replication (preferred)
+
+The estimator reproduces the paper's published **empirical** result(s) on
+the **same dataset**, to reasonable machine precision (small differences
+from solver tolerances, BLAS, or float order are acceptable; a different
+sign, a different donor selection, or a materially different magnitude is
+NOT).
+
+To claim Path A you must:
+- obtain the **exact data** the paper used, and
+- where it exists, obtain the authors' **reference code** and replicate
+  against it (not against the paper's prose or display equations — see
+  Lessons below), and
+- reduce the claim to a **concrete target number** (e.g. "ATT = −952.2,
+  weights Portugal 0.44 / Japan 0.37 / Italy 0.16") and show the
+  implementation hits it, and
+- capture the reproduction as a **runnable empirical example in the
+  docs**.
+
+## Path B — Monte Carlo replication (when data are inaccessible)
+
+If the paper's data are **proprietary or otherwise unavailable**, the
+estimator must **largely reproduce the paper's own Monte Carlo result**,
+and that reproduction must live **in the docs** as a self-contained,
+runnable example.
+
+"Largely reproduce" means the headline simulation finding holds — e.g.
+the estimator is approximately unbiased across draws when the paper
+claims unbiasedness, or it attains the paper's reported MSE-ratio /
+size / power pattern — using the paper's own data-generating process and
+parameter settings.
+
+## What does NOT count as done
+
+- "It runs without error."
+- "The output looks reasonable / has the expected shape."
+- "Tests pass." (Unit tests check code behavior, not statistical
+  correctness against the paper.)
+- Matching the paper's *prose* or *display equations* without checking
+  against the authors' reference code.
+
+## Lessons (why this gate exists)
+
+A real episode: an SBC implementation **ran, returned plausible donor
+weights, and produced a confident ATT — with the wrong sign.** Three
+independent defects were invisible without replication against the
+authors' exact code and data:
+
+1. The paper's printed Step-2 equation **dropped a term** that the
+   authors' reference code kept; the implementation faithfully copied the
+   *paper* and was therefore wrong.
+2. A detrending convention lived only in the **code**, not the text.
+3. The bundled **dataset had scrambled column labels** — invisible to any
+   amount of code review, caught only by a value-by-value diff against
+   the source data.
+
+The takeaway: "it runs and the number looks right" is the most dangerous
+failure mode, because it survives every check short of replication
+against ground truth. Replicate against the **exact code and exact
+data**, not the write-up.
+
+---
+
+# Core Philosophy
+
+
 ---
 
 # Core Philosophy
