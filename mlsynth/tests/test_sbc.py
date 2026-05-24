@@ -266,9 +266,10 @@ class TestTrendForecast:
         assert out.shape == (horizon,)
         assert np.all(np.isfinite(out))
 
-    def test_forecast_uses_slope_only_no_intercept(self):
-        # If we feed a fit with a huge intercept and slopes near zero,
-        # the extrapolation should be near zero (intercept ignored).
+    def test_forecast_includes_intercept(self):
+        # The forecast extrapolates the full estimated trend, intercept
+        # included (matching the authors' replication code). With slopes
+        # at zero and a large intercept, the forecast equals the intercept.
         fake_fit = HamiltonFit(
             coefficients=np.array([1000.0, 0.0, 0.0]),
             trend_pre=np.array([np.nan, np.nan, np.nan, 0.0]),
@@ -277,7 +278,20 @@ class TestTrendForecast:
         )
         y_target = np.zeros(10)
         out = forecast_treated_trend(y_target, fake_fit, T0=5, horizon=3)
-        np.testing.assert_allclose(out, 0.0, atol=1e-12)
+        np.testing.assert_allclose(out, 1000.0, atol=1e-9)
+
+    def test_forecast_intercept_plus_slopes(self):
+        # alpha0 + alpha1 * y[t-h] + alpha2 * y[t-h-1].
+        fake_fit = HamiltonFit(
+            coefficients=np.array([5.0, 0.5, 0.25]),
+            trend_pre=np.array([np.nan, np.nan, np.nan, 0.0]),
+            cycle_pre=np.array([np.nan, np.nan, np.nan, 0.0]),
+            h=2, p=2,
+        )
+        y_target = np.arange(10, dtype=float)  # y[t] = t
+        out = forecast_treated_trend(y_target, fake_fit, T0=5, horizon=1)
+        # step 0: t=5, lags y[3], y[2] -> 5 + 0.5*3 + 0.25*2 = 7.0
+        np.testing.assert_allclose(out, [7.0], atol=1e-9)
 
 
 # =========================================================================
@@ -333,9 +347,11 @@ class TestSolveSbc:
         design = solve_sbc(inputs, h=2, p=2, weights_mode="simplex")
         assert isinstance(design, SBCDesign)
         assert design.weights.shape == (inputs.N - 1,)
-        assert design.trend_forecast.shape == (inputs.T - inputs.T0,)
-        assert design.cycle_forecast.shape == (inputs.T - inputs.T0,)
-        assert design.counterfactual_post.shape == (inputs.T - inputs.T0,)
+        # Counterfactual is capped at the h-step forecast horizon.
+        hz = min(2, inputs.T - inputs.T0)
+        assert design.trend_forecast.shape == (hz,)
+        assert design.cycle_forecast.shape == (hz,)
+        assert design.counterfactual_post.shape == (hz,)
         assert design.pre_cycle_rmse >= 0
         # simplex => intercept is None
         assert design.intercept is None
