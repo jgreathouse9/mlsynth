@@ -6,6 +6,21 @@ Proximal Inference Synthetic Control (PROXIMAL)
 When to Use This Estimator
 --------------------------
 
+Proximal inference is, by design, a **different theory of identification**
+from everything else in the synthetic-control family -- the Bayesian
+(:doc:`bvss`), staggered-adoption (:doc:`seq_sdid`), matrix-completion
+(:doc:`mcnnm`), and forward-selection (:doc:`fdid`) variants alike. All of
+those identify the counterfactual by *matching*: they assume some
+combination of donors reproduces the treated unit's latent trajectory, and
+they treat a good pre-treatment fit as evidence that the assumption holds.
+PROXIMAL begins from the opposite admission -- that a time-varying
+confounder you cannot match away is present, and that a good-looking
+pre-fit can still be biased -- and identifies the effect by
+*instrumenting* that confounder instead of matching it. Because this is a
+genuinely different identification strategy, the sections below build it up
+from scratch: what a proxy is, what a surrogate is, and why this counts as
+its own theory. First, the regimes where it pays off.
+
 The synthetic control (SC) method of Abadie and co-authors [ABADIE2010]_
 is justified by a latent-factor model: each unit's outcome is driven by a
 common, time-varying confounder :math:`\boldsymbol{\lambda}_t` (the
@@ -45,18 +60,142 @@ Liu, Tchetgen Tchetgen and Varjão [LiuTchetgenVar]_ extend this to
 **surrogates**, time-varying correlates of the causal effect observed
 post-treatment.
 
-.. note::
+A Different Theory of Identification
+------------------------------------
 
-   PROXIMAL is the panel/synthetic-control instance of **proximal causal
-   inference**, whose theoretical roots are in the negative-control
-   literature -- in particular the double-negative-control identification
-   and multiply-robust estimation theory of Shi, Miao, Nelson and Tchetgen
-   Tchetgen [ShiNegControl]_. There, a *negative-control exposure* and a
-   *negative-control outcome* that share a confounding mechanism with an
-   unmeasured confounder identify a causal effect despite that confounding.
-   PROXIMAL repurposes the same logic: donor outcomes are negative-control
-   *outcomes* and the excluded controls are negative-control *exposures*
-   for the latent factor :math:`\boldsymbol{\lambda}_t`.
+Most of causal inference identifies effects by *removing* confounding.
+Either you condition on enough covariates that treatment is
+as-good-as-random -- the **no-unmeasured-confounding** (ignorability)
+assumption -- or, in synthetic control, you find donor weights that
+reproduce the treated unit so closely that whatever drove selection is
+matched away. Both routes assume the confounding can be *observed and
+neutralized*.
+
+Proximal causal inference makes a different bet. It **concedes** that an
+unmeasured confounder remains -- here, the latent factor
+:math:`\boldsymbol{\lambda}_t` that drives both the outcomes and the timing
+of treatment -- and that you will never observe it directly. Rather than
+assume it away, it asks for two observable *shadows* of that confounder and
+uses them to algebraically subtract the confounding from the estimate. This
+is exactly the logic epidemiologists use with **negative controls** to
+detect and correct hidden bias (Lipsitch et al.; Shi, Miao, Nelson and
+Tchetgen Tchetgen [ShiNegControl]_, who give the double-negative-control
+identification and multiply-robust estimation theory PROXIMAL descends
+from). The proximal SC papers import it into panel data:
+:math:`\boldsymbol{\lambda}_t` is the confounder, and the control units are
+its shadows.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 37 37
+
+   * -
+     - Matching / ignorability (classical SC, DiD, the rest of mlsynth)
+     - Proximal / negative control (PROXIMAL)
+   * - **Core assumption**
+     - The confounder is matched or conditioned away; pre-fit is good.
+     - A confounder remains; we observe valid proxies for it.
+   * - **What identifies the effect**
+     - A donor combination that reproduces the treated trajectory.
+     - Proxies that instrument the latent factor.
+   * - **Good pre-fit is...**
+     - necessary evidence the design is credible.
+     - neither necessary nor sufficient -- bias can hide behind it.
+   * - **Fails when**
+     - no convex/linear match exists, or the pre-period is short.
+     - no variable is a valid proxy (or proxies are irrelevant).
+
+The practical upshot: PROXIMAL is **not** a better way to fit the donors,
+nor a shrinkage/pooling trick like the Bayesian or staggered variants. It
+changes the *assumption you must defend* -- from "my synthetic control
+matches" to "I have valid proxies for the latent confounder."
+
+What Counts as a Proxy?
+-----------------------
+
+A **proxy** (synonymously, a *negative control*) is a variable that is
+
+1. **associated** with the latent confounder
+   :math:`\boldsymbol{\lambda}_t`, but
+2. has **no direct causal link** to the treated unit's outcome -- its only
+   connection to that outcome runs *through*
+   :math:`\boldsymbol{\lambda}_t`.
+
+Condition (1) is *relevance* (a proxy unrelated to the factor is useless,
+just like a weak instrument); condition (2) is *exclusion* (a proxy with
+its own path to the outcome would inject new bias). Proxies come in two
+roles, mirroring the negative-control pair:
+
+* A **negative-control outcome** is *not affected by the treatment* but is
+  driven by the same latent factor. In SC the **donor outcomes
+  themselves** play this role -- controls are, by the no-interference
+  assumption, unaffected by the treated unit's treatment -- and they build
+  the synthetic control.
+* A **negative-control exposure** is associated with the latent factor but
+  is *not a direct cause* of the outcome. In SC the outcomes of controls
+  **excluded** from the donor pool serve here: they proxy the factor but do
+  not enter the synthetic control. These are the :math:`\mathbf{Z}_0` in
+  the formulas below.
+
+Where do real proxies come from?
+
+* **Epidemiology (the origin).** To study whether the flu vaccine cuts flu
+  hospitalization -- confounded by unmeasured *health-seeking behavior* --
+  one uses a non-flu outcome such as injury/trauma hospitalization as a
+  negative-control outcome: the vaccine cannot plausibly affect it, yet it
+  shares the health-seeking confounder, so a non-zero "effect" on it
+  exposes the bias.
+* **Synthetic control.** Control units dropped from the donor pool because
+  they ran *similar* interventions or risk *spillover* are ideal proxies:
+  they track the common factor but violate no-interference if used as
+  donors. (In Abadie's tobacco study, 38 of 50 states were eligible but
+  only a handful received weight; the rest can be proxies.) So can
+  treatment-free **contemporaneous covariates** of the donors -- a sector
+  index, market trading volume, weather -- that move with
+  :math:`\boldsymbol{\lambda}_t` but are not caused by the treatment.
+* **Marketing / geo experiments.** In a regional campaign, a category-
+  demand or search-volume index in *untreated* regions, or foot-traffic in
+  markets the campaign never reached: associated with the macro demand
+  factor, but with no direct line to the treated region's sales.
+
+What Counts as a Surrogate?
+---------------------------
+
+A **surrogate** is a *post-treatment* variable driven by the same latent
+factors as the **causal effect itself** -- not the confounder of the
+untreated outcome. It is predictive of how big the effect is, period by
+period. The defining contrast with a proxy:
+
+* a **proxy** carries information about :math:`\boldsymbol{\lambda}_t`, the
+  confounder of the *untreated* outcome, and is used in the **pre-period**
+  to recover the donor weights;
+* a **surrogate** carries information about :math:`\boldsymbol{\rho}_t`, the
+  factors of the *treatment effect*, and is used in the **post-period** to
+  sharpen or extend the estimate.
+
+Loosely: a proxy cleans up the *denominator* (confounding); a surrogate
+informs the *numerator* (the effect). Crucially, a surrogate **may itself
+be affected by the treatment** -- that is fine, because it is removed from
+the donor pool and used only to learn the effect's trajectory, never to
+build the counterfactual.
+
+Where do real surrogates come from?
+
+* **Panic of 1907 (the paper's example).** The bid prices of the two
+  *other* trusts that also suffered bank runs are useless as donors (the
+  crisis hit them too), but their post-crisis movements track the very
+  shock driving Knickerbocker's effect -- making them strong surrogates.
+  Even Knickerbocker's own bid price is used this way.
+* **Marketing.** After a price cut, fast downstream signals -- app opens,
+  add-to-cart rate, repeat-visit rate -- respond to the same demand shock
+  as revenue. They predict the revenue effect and arrive quickly, which is
+  valuable when the post-launch revenue series is short or noisy.
+* **Spillovers / partial treatment.** Geographies that are partially
+  treated or absorb spillover should not be donors, but they carry the
+  treatment-effect signal and so make good surrogates.
+* **Long-run effects.** An early leading indicator of a long-horizon
+  outcome (a classic "surrogate endpoint" in clinical trials) lets you
+  estimate a long-run effect from a short post-treatment window.
 
 The Three Methods
 -----------------
@@ -434,15 +573,9 @@ price.
 
     import pandas as pd
     import numpy as np
-    import matplotlib.pyplot as plt
     from mlsynth import PROXIMAL
-    import matplotlib
-    import os
-    from theme import jared_theme
 
-    matplotlib.rcParams.update(jared_theme)
-
-    file_path = os.path.join(os.path.dirname(__file__), '..', 'basedata', 'trust.dta')
+    file_path = "https://github.com/jgreathouse9/mlsynth/raw/refs/heads/main/basedata/trust.dta"
     df = pd.read_stata(file_path)
     df = df[df["ID"] != 1]  # Drop the unbalanced unit
 
@@ -473,10 +606,13 @@ price.
 
     print(res_surr.att_by_method())
 
-.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/PROXIMAL/PanicProx.png
-   :alt: Proximal Synthetic Control Estimation
-   :align: center
-   :width: 600px
+This pulls the data straight from the repository (48 pure-control donors, 3
+affected trusts as surrogates) and prints the ATT for each method::
+
+    {'PI': -1.148, 'PIS': -1.148, 'PIPost': -1.220}
+
+which reproduces the paper's full-window Table 3 estimates (PI -1.138,
+PI-S -1.134, PI-P -1.220) to within rounding.
 
 Using the bid price as a proxy, the synthetic control fits the
 pre-intervention series well. The affected trusts -- which would be
@@ -484,31 +620,8 @@ pre-intervention series well. The affected trusts -- which would be
 no-interference assumption -- are instead repurposed as surrogates: they do
 not enter the donor pool, but their post-intervention movements help pin
 down the latent effect factors. The asking price of those trusts is their
-surrogate proxy.
-
-.. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/examples/PROXIMAL/PanicSurrogates.png
-   :alt: Surrogate Synthetic Control Estimation
-   :align: center
-   :width: 600px
-
-Even using only post-intervention data (PIPost), the estimate largely
-agrees with the donors-only proximal inference.
-
-Empirical Illustration: 1990 German Reunification
--------------------------------------------------
-
-The headline application of [ProxSCM]_ is the classic German reunification
-study: West Germany is the treated unit and 16 OECD countries are controls,
-on annual per-capita GDP, 1960--2003. Six countries that receive non-zero
-weight in a constrained SC (Austria, Italy, Japan, the Netherlands,
-Switzerland, the USA) form the **donor pool**; the other ten are used as
-**proxies**. The paper's average post-reunification effect is about
-**-1709 USD** for PI (and -1719 USD, 90% CI -3669 to -610, for the
-simplex-constrained variant), with a GMM 90% confidence interval of about
--2806 to -616 USD for PI -- a negative impact on West Germany's GDP. In the
-1975 placebo (falsification) test, the proximal methods produce a much
-smaller pre-treatment prediction error than unconstrained OLS (mean
-absolute error ≈ 1115 for PI vs. ≈ 3316 for OLS).
+surrogate proxy. Even using only post-intervention data (PIPost), the
+estimate largely agrees with the donors-only proximal inference.
 
 Replication Status
 ------------------
@@ -524,6 +637,11 @@ Replication Status
    coverage (PI), identical to the reference -- restored from a 63.8%
    undercoverage caused by an earlier Jacobian-scaling bug in the GMM
    sandwich.
+
+   **Empirical (Path A, Panic of 1907).** Running ``mlsynth`` on the trust
+   panel (see *Empirical Illustration: Panic of 1907*) reproduces the
+   full-window Table 3 of [LiuTchetgenVar]_ to within rounding: PI -1.148
+   vs. -1.138, PI-S -1.148 vs. -1.134, PI-P -1.220 vs. -1.220.
 
    **Simulation (Path B).** The robustness claim of [LiuTchetgenVar]_ Sec.
    4.1 reproduces: under a trending latent factor
