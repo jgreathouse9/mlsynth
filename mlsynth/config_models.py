@@ -260,12 +260,44 @@ class BaseEstimatorConfig(BaseModel):
         return values
 
 class TSSCConfig(BaseEstimatorConfig):
-    """Configuration for the Two-Step Synthetic Control (TSSC) estimator."""
-    draws: int = Field(default=500, description="Number of draws for inference.", ge=0) # Changed ge=1 to ge=0
-    ci: float = Field(default=0.95, description="Confidence interval level.", ge=0, le=1)
-    parallel: bool = Field(default=False, description="Whether to use parallel processing for draws.")
-    cores: Optional[int] = Field(default=None, description="Number of cores for parallel processing. Defaults to all available if None and parallel is True.", ge=1)
-    scm_weights_args: Optional[Dict[str, Any]] = Field(default=None, description="Additional arguments for SCM weight optimization.")
+    """Configuration for the Two-Step Synthetic Control (TSSC) estimator.
+
+    Implements:
+
+        Li, K. T., & Shankar, V. (2023). "A Two-Step Synthetic Control
+        Approach for Estimating Causal Effects of Marketing Events."
+        Management Science. https://doi.org/10.1287/mnsc.2023.4878
+
+    Parameters
+    ----------
+    alpha : float
+        Two-sided significance level for the Step-1 restriction tests
+        (the SC-pretrends test and the two single-restriction tests).
+        Default 0.05.
+    subsample_size : int or None
+        Subsample size ``m`` for the Step-1 subsampling procedure. When
+        ``None`` (default) it is set to ``T_1`` (the bootstrap special
+        case the paper's simulations validate). For genuine subsampling,
+        the paper's rule of thumb is ``m`` between ``T_1/2`` and ``T_1``
+        for moderate ``T_1`` (and smaller for large ``T_1``).
+    draws : int
+        Number of subsampling replications ``B`` for the Step-1 tests and
+        bootstrap replications for the per-variant ATT confidence
+        intervals. Default 500.
+    ci : float
+        Confidence level for the per-variant ATT confidence interval.
+        Default 0.95.
+    seed : int or None
+        Seed for the subsampling RNG (reproducibility). Default None.
+    """
+
+    alpha: float = Field(default=0.05, gt=0.0, lt=1.0,
+                         description="Significance level for Step-1 restriction tests.")
+    subsample_size: Optional[int] = Field(default=None, ge=2,
+                         description="Subsample size m; None uses T_1 (bootstrap).")
+    draws: int = Field(default=500, ge=1, description="Subsampling/bootstrap replications.")
+    ci: float = Field(default=0.95, gt=0.0, lt=1.0, description="ATT confidence level.")
+    seed: Optional[int] = Field(default=None, description="RNG seed for subsampling.")
 
 # Placeholder for other estimator configs - to be added sequentially
 
@@ -956,6 +988,12 @@ class CTSCConfig(BaseEstimatorConfig):
     slopes and synthetic controls for all units. (The paper calls it "GSC";
     mlsynth uses CTSC to avoid collision with Xu (2017)'s GSC.)
 
+    Notes
+    -----
+    The base ``treat`` field is unused by CTSC; provide the continuous /
+    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
+    existing column name for ``treat`` to satisfy the base config.
+
     Parameters
     ----------
     treatment_vars : list of str
@@ -973,12 +1011,6 @@ class CTSCConfig(BaseEstimatorConfig):
         Rademacher draws for the randomization test.
     random_state : int
         Seed for the randomization-test RNG.
-
-    Notes
-    -----
-    The base ``treat`` field is unused by CTSC; provide the continuous /
-    discrete treatment column(s) via ``treatment_vars`` instead. Pass any
-    existing column name for ``treat`` to satisfy the base config.
     """
 
     treatment_vars: List[str] = Field(
@@ -1064,6 +1096,12 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
     (proportional) outcomes -- one donor (and time) weighting shared across
     all ``K`` proportions, so the per-outcome ATTs sum to zero.
 
+    Notes
+    -----
+    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
+    proportion columns via ``outcomes`` instead. Pass any existing column
+    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
+
     Parameters
     ----------
     outcomes : list of str
@@ -1079,12 +1117,6 @@ class COMPSYNTHConfig(BaseEstimatorConfig):
         Two-sided level for the placebo confidence intervals.
     max_placebo : int, optional
         Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
     """
 
     outcomes: List[str] = Field(
@@ -1656,6 +1688,70 @@ class BVSSConfig(BaseEstimatorConfig):
     seed: Optional[int] = Field(default=None)
 
 
+class BASCConfig(BaseEstimatorConfig):
+    """Configuration for the Bayesian spike-and-slab synthetic control (BASC).
+
+    BASC builds donor weights from a Gamma "slab" magnitude times a
+    Bernoulli "spike" inclusion indicator, renormalized onto the simplex::
+
+        w_j   = (u_j * gamma_j) / sum_k (u_k * gamma_k),
+        u_j   ~ Gamma(a_u, b_u),
+        gamma_j ~ Bernoulli(pi),     pi ~ Beta(a_pi, b_pi).
+
+    With every ``gamma_j = 1`` the construction reduces to a Dirichlet
+    prior on the simplex (the "B-MV" model of Martinez &
+    Vives-i-Bastida, 2024), so the Bernoulli spike is the only addition
+    for sparse donor selection. The weights are fit on the
+    **pre-treatment window only**; the post-treatment counterfactual is
+    the donor projection (plus an optional GP trend), so post-treatment
+    treated outcomes never enter the weight likelihood.
+
+    Parameters
+    ----------
+    n_iter : int
+        Total MCMC iterations (including burn-in).
+    burn_in : int
+        Number of warm-up iterations discarded before reporting.
+    a_u, b_u : float
+        Gamma slab shape / rate. ``a_u`` doubles as the Dirichlet
+        concentration on the active simplex (``a_u = 1`` is uniform).
+    a_pi, b_pi : float
+        Beta hyperparameters for the prior inclusion probability ``pi``.
+        ``(1, 1)`` is uniform; raise ``b_pi`` to favor sparser designs.
+    sigma2_c0, sigma2_d0 : float
+        Inverse-Gamma shape / rate for the observation variance.
+    rw_conc : float
+        Concentration of the Dirichlet random-walk proposal for the
+        active weights (larger = smaller steps, higher acceptance).
+    use_gp : bool
+        Add a squared-exponential GP trend ``f_t`` to the pre-period fit.
+        Off by default: on the data we tested the GP was immaterial to
+        the effect estimate and is costly on long panels.
+    ci_alpha : float
+        Two-sided significance level for credible intervals (default
+        0.05 gives 95% bands).
+    display_graphs : bool
+        Display the observed-vs-counterfactual plot after the fit.
+    verbose : bool
+        Show a tqdm progress bar during MCMC.
+    seed : int, optional
+        Seed for the ``numpy.random.Generator`` used inside the sampler.
+    """
+
+    n_iter: int = Field(default=4000, ge=10)
+    burn_in: int = Field(default=2000, ge=0)
+    a_u: float = Field(default=1.0, gt=0)
+    b_u: float = Field(default=1.0, gt=0)
+    a_pi: float = Field(default=1.0, gt=0)
+    b_pi: float = Field(default=1.0, gt=0)
+    sigma2_c0: float = Field(default=0.01, gt=0)
+    sigma2_d0: float = Field(default=0.01, gt=0)
+    rw_conc: float = Field(default=50.0, gt=0)
+    use_gp: bool = Field(default=False)
+    ci_alpha: float = Field(default=0.05, gt=0.0, lt=1.0)
+    display_graphs: bool = Field(default=False)
+    verbose: bool = Field(default=False)
+    seed: Optional[int] = Field(default=None)
 
 
 
