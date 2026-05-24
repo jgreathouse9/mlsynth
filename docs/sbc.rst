@@ -6,91 +6,41 @@ Synthetic Business Cycle (SBC)
 When to Use This Estimator
 --------------------------
 
-Use SBC, due to Shi, Xi, and Xie (2025)
+Reach for SBC, due to Shi, Xi, and Xie (2025)
 `arXiv:2505.22388 <https://arxiv.org/abs/2505.22388>`_, when your outcome
-is a **trending (nonstationary) series** and you need a synthetic-control
-counterfactual you can defend.
+is a **nonstationary, trending series** and you want a synthetic-control
+counterfactual you can trust. Standard SCM (:doc:`fdid`, :doc:`tssc`,
+:doc:`clustersc`) implicitly assumes the untreated outcomes share a
+common low-rank factor structure across units. When the outcome is
+nonstationary, that assumption is fragile: a pre-treatment fit of the
+treated unit on the donors can look excellent *purely because both series
+are trending*, even when the underlying processes are independent. The
+authors call this the **spurious synthetic control problem**, and SBC is
+the first procedure that is robust to it **whether or not the series are
+cointegrated**.
 
-**A marketing scenario.** A consumer-goods company raises the shelf price
-of a flagship brand in one region and wants the causal effect on the
-brand's monthly **dollar sales**. The natural play is synthetic control:
-weight other regions (where the price did not change) to reproduce the
-treated region's pre-change sales, then read off the post-change gap. But
-regional sales **trend upward** for reasons unrelated to the price change
-— category growth, inflation, population. When every region is trending
-up, you can almost always find a donor mix that hugs the treated region's
-pre-period sales *tightly* — and that fit can be **coincidence, not
-structure**. Nothing guarantees a fit built on shared upward drift will
-hold once you extrapolate it; the "counterfactual" wanders off, and the
-estimated price effect is whatever that wandering happens to be. The
-authors call this the **spurious synthetic control problem**, and
-standard SCM's non-negativity / adding-up constraints do *not* fix it.
+Concretely, SBC is the right tool when a strong pre-period fit might be
+coincidental trending rather than genuine shared structure:
 
-SBC's wager is that the trend and the wiggle around it come from different
-places. The brand's **long-run trajectory** is driven by its own
-franchise — distribution, brand equity, category maturity — and is best
-predicted from its **own history**, not from other regions. The
-**short-run fluctuations** — promotions, seasonality, the broader
-business cycle — genuinely **comove across regions**, so *there* a
-synthetic control rests on solid ground. SBC therefore forecasts the
-treated unit's trend from itself and borrows only the cycle from donors.
-
-Other settings with the same risk:
-
-- **Marketing / business.** Brand or category **sales**, **market
-  share**, subscription **revenue** or **active users**, or **average
-  selling price** after a pricing change, a rebrand, a flagship campaign,
-  a competitor's entry, or a regulatory shift — all trend over time, so a
-  tight pre-event fit may be spurious.
+- **Marketing / business science.** Brand or category **sales**, **market
+  share**, or **price indices** after a major event — a rebrand, a pricing
+  policy, a regulatory change, a competitor's entry. These series trend
+  over time, so a tight pre-event synthetic fit may reflect common growth
+  rather than a shared demand structure that will persist post-event.
 - **Economics.** **GDP per capita** (the paper's German reunification and
-  Hong Kong studies), real **exchange rates**, **unemployment**.
-- **Policy.** A **carbon tax** on CO\ :sub:`2` emissions, a
-  **minimum-wage** change, or **fiscal rules** on government spending.
+  Hong Kong handover studies), real **exchange rates**, **unemployment** —
+  canonical nonstationary macro outcomes where spurious trend-matching is
+  a live risk.
+- **Policy evaluation.** A **carbon tax's** effect on CO\ :sub:`2`
+  emissions, a **minimum-wage** change, or **fiscal rules** on government
+  spending — drifting outcomes where conventional SCM can mistake parallel
+  trends for a shared causal structure.
 
-**When *not* to use it.** If your outcome is plausibly **stationary**
-already — a growth *rate*, a conversion *ratio*, an already-differenced
-series — the spurious-SC risk is muted, and a conventional SCM is simpler
-and at least as efficient. SBC buys robustness on *trending levels* at
-the cost of a trend-forecast step (and its finite-sample error).
-
-The Core Idea and What It Assumes
----------------------------------
-
-**Divide and conquer.** Split each unit's untreated outcome into a
-slow-moving **trend** :math:`\tau_{i,t}` and a stationary **cycle**
-:math:`c_{i,t}`, so :math:`Y_{i,t}(0) = \tau_{i,t} + c_{i,t}`. Then:
-
-1. **Trend** — forecast the treated unit's post-treatment trend from
-   *its own pre-treatment history* (no donors). Long-run trends are
-   persistent and unit-specific, so the unit's own past predicts them
-   well; keeping donors out is exactly what immunizes the trend against
-   spurious matching.
-2. **Cycle** — impute the treated unit's cycle with a *standard synthetic
-   control on the donors' cycles*. Short-run fluctuations are where the
-   common-factor justification of SCM is credible.
-3. **Recombine:** :math:`\hat Y_{1,t}(0) = \hat\tau_{1,t} + \hat c_{1,t}`.
-
-This deliberately breaks SCM's usual time/unit symmetry: the trend is
-predicted **through time** (the treated unit's own past), the cycle
-**across units** (the donor pool).
-
-**What you are assuming.** SBC trades a fragile assumption for a
-defensible one:
-
-- Standard SCM assumes the **levels** share a common factor structure
-  across units. For trending data that is the fragile part — it is what
-  spurious regression exploits.
-- SBC instead assumes only the **cycles** share a common factor structure
-  (*Assumption 1* below) — short-run business-cycle comovement, which is
-  well documented across regions, products, and economies — **and** that
-  the filter cleanly separates trend from cycle (*Assumption 2*). It
-  makes **no** assumption that the long-run trends are shared.
-
-Under these two assumptions the SBC counterfactual is asymptotically
-unbiased even when the units' trends are entirely independent unit-root
-processes, with or without cointegration (*Theorem 1*, stated formally
-below). That robustness — not a tighter pre-period fit — is the reason to
-reach for it.
+The flip side: if your outcome is plausibly **stationary** (a growth
+rate, a ratio, an already-differenced series), the spurious-SC concern is
+muted and a conventional SCM is simpler and at least as efficient. SBC
+buys robustness on *nonstationary levels* at the cost of a trend-forecast
+step.
 
 Notation
 --------
@@ -117,8 +67,8 @@ factor structure :math:`c_{i,t} = \lambda_i^\top f_t + \varepsilon_{i,t}`
 with :math:`L`-vector of stationary factors :math:`f_t`, loadings
 :math:`\lambda_i`, and idiosyncratic error :math:`\varepsilon_{i,t}`.
 
-Why Standard SCM Fails on Trending Data
----------------------------------------
+The Spurious Synthetic Control Problem
+--------------------------------------
 
 The factor-model justification for SCM is "similar units behave
 similarly": when all units load on the same latent factors, a weighted
