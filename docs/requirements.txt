@@ -13,4 +13,5 @@ scikit-learn
 cvxpy
 screenot
 statsmodels
+patsy
 git+https://github.com/jgreathouse9/mlsynth.git

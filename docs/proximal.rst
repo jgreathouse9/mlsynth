@@ -197,15 +197,17 @@ Where do real surrogates come from?
   outcome (a classic "surrogate endpoint" in clinical trials) lets you
   estimate a long-run effect from a short post-treatment window.
 
-The Three Methods
------------------
+The Methods
+-----------
 
-``PROXIMAL`` runs up to three estimators on the same panel, all reported
-side by side so they can be compared:
+``PROXIMAL`` exposes **four** estimators. They are idiosyncratic -- each
+makes a different identification bet and needs different inputs -- so you
+**choose** the ones you want with the ``methods`` argument and the
+estimator runs *exactly* those (validating that your inputs support them):
 
 .. list-table::
    :header-rows: 1
-   :widths: 14 40 28
+   :widths: 12 40 22
 
    * - Method
      - What it uses
@@ -219,12 +221,67 @@ side by side so they can be compared:
    * - **PIPost**
      - Surrogates, **post-treatment data only**.
      - Liu et al. [LiuTchetgenVar]_
+   * - **SPSC**
+     - Donors only -- a **single** proxy type, with the treated unit's
+       own outcome as the instrument.
+     - Park & Tchetgen Tchetgen [SPSC]_
 
-**PI** always runs. **PIS** and **PIPost** run only when surrogate units
-are configured. A striking result of [LiuTchetgenVar]_ is that PIPost can
-identify the effect from post-treatment data *alone*, because the treated
-outcome decomposes into a latent-factor component (matched by donors) and a
-surrogate-driven effect component.
+.. code-block:: python
+
+   PROXIMAL({..., "methods": ["SPSC"]})              # SPSC alone (no proxies needed)
+   PROXIMAL({..., "methods": ["PI"]})                # classic proximal inference
+   PROXIMAL({..., "methods": ["PI", "PIS", "PIPost", "SPSC"]})  # all four, side by side
+
+``methods`` is **required** -- there is no implicit default -- so a run
+only ever computes what you asked for. The config layer enforces input
+consistency: requesting ``"PI"``/``"PIS"``/``"PIPost"`` requires donor
+proxies (and, for the surrogate methods, surrogate units and proxies),
+whereas ``"SPSC"`` needs only the donor pool. Results are returned on a
+:class:`~mlsynth.utils.proximal_helpers.structures.PROXIMALResults`, with
+``results.methods`` mapping each requested method to its fit.
+
+What Each Method Does in Practice
+---------------------------------
+
+Beyond the econometrics, the four methods answer different practical
+questions. Classical SCM just asks "what weighted blend of controls tracks
+my treated unit?" -- these methods each go further in a distinct way.
+
+**PI -- de-noise the synthetic control.** *"Build a synthetic version of my
+treated unit from clean controls, but correct for the fact that the
+controls are noisy stand-ins for the thing that actually drives my
+outcome."* A retailer launches a loyalty program in one metro; nearby
+metros are controls, but their sales are noisy proxies of a shared regional
+demand cycle, so a plain SC blend is biased. PI uses a *second* set of
+metros -- ones kept out of the blend (say, because they ran their own
+promotions) -- as instruments to purge that noise, so the counterfactual
+isn't distorted by metro-specific blips.
+
+**PIS -- borrow fast signals when the outcome is slow or broken.** *"My
+post-period is long or has a structural break, and the outcome itself is
+noisy -- lean on quick-moving signals that respond to the same shock as the
+effect."* After a price change, monthly revenue is noisy and the clean
+post-window is short, but app engagement (sessions, add-to-cart, repeat
+visits) moves with the same demand shock as revenue. PIS folds those
+**surrogates** in -- using both pre- and post-launch data -- to sharpen the
+revenue-effect estimate.
+
+**PIPost -- estimate the effect from post-launch data alone.** *"I don't
+have a usable pre-period for the controls, but I do have surrogates after
+launch."* Maybe clean control logging only began at rollout, or the
+pre-period is contaminated. Because the treated outcome splits into a
+donor-matched piece and a surrogate-driven effect piece, PIPost recovers
+the effect from **post-treatment data only** -- at the cost of some
+efficiency.
+
+**SPSC -- the no-proxy fallback.** *"All I have is my treated series and a
+pool of other series -- no curated proxy or surrogate groups."* A flagship
+store's sales versus a pool of other stores, with nothing but the sales
+panel. SPSC treats the other stores as noisy proxies of the flagship's own
+counterfactual and uses the **flagship's own pre-period** as the
+instrument, returning a de-noised synthetic flagship plus conformal bands
+that stay valid even with a short post-window. It is the most practical
+proximal method when no natural second proxy group exists.
 
 Notation
 --------
@@ -532,6 +589,7 @@ and standard error for all three methods.
 
    res = PROXIMAL({
        "df": df, "outcome": "y", "treat": "treat", "unitid": "unit", "time": "time",
+       "methods": ["PI", "PIS", "PIPost"],
        "donors": [f"donor{j}" for j in range(F)],
        "surrogates": [f"surr{k}" for k in range(H)],
        "vars": {"donorproxies": ["dp"], "surrogatevars": ["sv"]},
@@ -592,6 +650,7 @@ price.
     # Donors-only proximal inference (PI)
     res_pi = PROXIMAL({
         "df": df, "treat": treat, "time": time, "outcome": outcome, "unitid": unitid,
+        "methods": ["PI"],
         "treated_color": "black", "counterfactual_color": ["blue"],
         "display_graphs": True, "vars": var_dict, "donors": donors,
     }).fit()
@@ -599,6 +658,7 @@ price.
     # Adding surrogates (PI, PIS, PIPost)
     res_surr = PROXIMAL({
         "df": df, "treat": treat, "time": time, "outcome": outcome, "unitid": unitid,
+        "methods": ["PI", "PIS", "PIPost"],
         "treated_color": "black", "counterfactual_color": ["blue", "red", "lime"],
         "display_graphs": True, "vars": var_dict, "donors": donors,
         "surrogates": surrogates,  # the affected trusts, repurposed as surrogates
@@ -623,6 +683,105 @@ down the latent effect factors. The asking price of those trusts is their
 surrogate proxy. Even using only post-intervention data (PIPost), the
 estimate largely agrees with the donors-only proximal inference.
 
+Single Proxy Synthetic Control (SPSC)
+-------------------------------------
+
+PI, PIS and PIPost all require **two** proxy types: outcome proxies (the
+donors) *and* a separate group of treatment/surrogate proxies
+(:math:`\mathbf{Z}_0`, :math:`\mathbf{Z}_1`) to instrument them. Park and
+Tchetgen Tchetgen [SPSC]_ show this can be reduced to a **single** proxy
+type -- the donor outcomes alone -- by a clever change of perspective.
+
+Instead of viewing the donors as proxies of a latent factor, SPSC views
+them as **error-prone proxies of the treated unit's own treatment-free
+potential outcome** :math:`y^0_{0t}`. It posits a *synthetic-control bridge
+function* :math:`h^\star` that is conditionally unbiased for that outcome,
+:math:`y^0_{0t} = \mathbb{E}[h^\star(\mathbf{W}_t) \mid y^0_{0t}]`. With a
+linear bridge :math:`h^\star(\mathbf{W}_t) = \mathbf{W}_t^\top
+\boldsymbol{\gamma}`, this is the "reverse" measurement-error regression
+
+.. math::
+
+   \mathbf{W}_t^\top \boldsymbol{\gamma} = y^0_{0t} + \bar{\varepsilon}_t,
+   \qquad \mathbb{E}[\bar{\varepsilon}_t \mid y^0_{0t}] = 0,
+
+so the **treated unit's own pre-treatment outcome is a valid instrument
+for the donors** -- no second proxy group is needed. The identifying
+moment (Theorem 3.1 of [SPSC]_) is
+:math:`\mathbb{E}[\,\phi(y_t)\,(y_t - \mathbf{W}_t^\top \boldsymbol{\gamma})\,]
+= 0` over :math:`t \in \mathcal{T}_1`, where :math:`\phi(\cdot)` is a basis
+of the treated outcome (the identity by default).
+
+*Why use it.* SPSC trades the need for a curated proxy/surrogate group for
+a single, always-available instrument -- the treated series itself -- which
+makes it the most practical proximal method when no natural second proxy
+group exists. It pairs naturally with a **conformal** prediction interval
+for the per-period effect (``spsc_conformal=True``), valid even with a
+short post-period.
+
+**Estimation.** Because there are typically far fewer instruments than
+donors, :math:`\boldsymbol{\gamma}` is estimated by a **ridge-regularized
+GMM** (penalty selected by leave-one-out cross-validation), and the ATT is
+the mean post-period gap with a GMM sandwich (HAC) standard error. Two
+variants handle trends: **SPSC-NoDT** uses the raw outcome as the
+instrument, while **SPSC-DT** first residualizes the treated outcome
+against a cubic B-spline time trend -- essential when the series is
+non-stationary (the analogue of the time-varying estimating function in
+:math:`\Psi_{\text{pre}}`).
+
+Select it with ``methods=["SPSC"]``. Unlike PI/PIS/PIPost it needs **no
+proxy variables at all** -- just the treated series and the donor pool:
+
+.. code-block:: python
+
+    import pandas as pd
+    import numpy as np
+    from mlsynth import PROXIMAL
+
+    raw = pd.read_stata("https://github.com/jgreathouse9/mlsynth/raw/refs/heads/main/basedata/trust.dta")
+    raw["prc_log"] = raw["prc_log"].astype(float)
+
+    # Park & Tchetgen Tchetgen's window: 1906-01-05 to 1908-12-30 (T0=217).
+    win = raw[(raw["date"] >= "1906-01-05") & (raw["date"] <= "1908-12-31")].copy()
+
+    # Treated unit = average log price of the two most-affected trusts.
+    treated = (win[win["type"].isin(["Knickerbocker", "Trust Co of Am"])]
+               .groupby(["date", "time"], as_index=False)
+               .agg(prc_log=("prc_log", "mean")))
+    treated["ID"] = "treated"
+
+    # Donors = the weakly-connected "normal" trusts (drop the one unbalanced unit).
+    donors_df = win[(win["type"] == "normal") & (win["ID"] != 1)][
+        ["ID", "date", "time", "prc_log"]].copy()
+    donors_df["ID"] = donors_df["ID"].astype(str)
+
+    df = pd.concat([treated[["ID", "date", "time", "prc_log"]], donors_df], ignore_index=True)
+    df["Panic"] = np.where((df["time"] >= 230) & (df["ID"] == "treated"), 1, 0)
+    donor_ids = sorted(donors_df["ID"].unique())
+
+    res = PROXIMAL({
+        "df": df, "treat": "Panic", "time": "date", "outcome": "prc_log", "unitid": "ID",
+        "methods": ["SPSC"],          # SPSC alone -- no proxies needed
+        "donors": donor_ids,
+        "spsc_detrend": True,         # SPSC-DT
+        "display_graphs": False,
+    }).fit()
+
+    print(res.spsc.att, res.spsc.att_se, res.spsc.metadata["variant"])
+
+This reproduces the paper's Table 3: **SPSC-DT ATT -0.815 (SE 0.067)** and,
+with ``spsc_detrend=False``, **SPSC-NoDT ATT -0.812 (SE 0.085)** -- against
+the paper's -0.816 / 0.066 and -0.813 / 0.084.
+
+**Conformal intervals.** Set ``spsc_conformal=True`` (optionally
+``spsc_conformal_periods=[...]`` to cover only some post-periods) to attach
+pointwise prediction intervals for the per-period effect, returned on
+``res.spsc.metadata["conformal"]`` as ``{"periods", "lower", "upper"}``.
+Over the Panic post-period these reproduce the average interval width of
+the paper's Figure 3 (≈ 0.07 for SPSC-DT). The inversion re-fits the
+weights on a grid of candidate effects per period, so it is opt-in for
+cost.
+
 Replication Status
 ------------------
 
@@ -642,6 +801,15 @@ Replication Status
    panel (see *Empirical Illustration: Panic of 1907*) reproduces the
    full-window Table 3 of [LiuTchetgenVar]_ to within rounding: PI -1.148
    vs. -1.138, PI-S -1.148 vs. -1.134, PI-P -1.220 vs. -1.220.
+
+   **SPSC (Path A, single proxy).** SPSC is a value-for-value port of the
+   authors' reference R package (``github.com/qkrcks0218/SPSC``) and
+   reproduces its Panic-of-1907 Table 3: SPSC-NoDT ATT -0.812 / SE 0.085
+   (paper -0.813 / 0.084) and SPSC-DT ATT -0.815 / SE 0.067 (paper -0.816 /
+   0.066). The tiny ATT gap is one donor (48 vs. 49: the reference keeps a
+   unit that is unbalanced in this build). The conformal prediction
+   intervals of [SPSC]_ are also ported and reproduce the average interval
+   width of the paper's Figure 3 (≈ 0.07 for SPSC-DT).
 
    **Simulation (Path B).** The robustness claim of [LiuTchetgenVar]_ Sec.
    4.1 reproduces: under a trending latent factor
@@ -698,20 +866,43 @@ everything into the typed
    :members:
    :undoc-members:
 
-The Bartlett kernel and HAC long-run variance used in the GMM sandwich.
+The Bartlett kernel and HAC long-run variance shared by the PI family.
 
 .. automodule:: mlsynth.utils.proximal_helpers.inference
    :members:
    :undoc-members:
 
-The three two-stage estimators (PI, PIS, PIPost), each closing with the
-GMM/HAC standard error for the ATT.
+Each estimator lives in its own subpackage so new proximal methods can be
+added as new subpackages. ``pi``, ``pis`` and ``pipost`` are the two-proxy
+GMM family; ``spsc`` is the single-proxy ridge-GMM plus conformal
+inference.
 
-.. automodule:: mlsynth.utils.proximal_helpers.estimation
+.. automodule:: mlsynth.utils.proximal_helpers.pi.estimation
    :members:
    :undoc-members:
 
-Drives the methods on a prepared panel and assembles the per-method fits.
+.. automodule:: mlsynth.utils.proximal_helpers.pis.estimation
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.proximal_helpers.pipost.estimation
+   :members:
+   :undoc-members:
+
+Single Proxy Synthetic Control: ridge-GMM with the treated unit's own
+(optionally detrended) outcome as the instrument, plus the GMM/HAC ATT
+standard error and conformal prediction intervals.
+
+.. automodule:: mlsynth.utils.proximal_helpers.spsc.estimation
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.proximal_helpers.spsc.conformal
+   :members:
+   :undoc-members:
+
+Drives the requested methods on a prepared panel and assembles the
+per-method fits.
 
 .. automodule:: mlsynth.utils.proximal_helpers.orchestration
    :members:

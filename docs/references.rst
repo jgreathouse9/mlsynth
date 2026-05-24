@@ -170,6 +170,13 @@ References
     DOI: https://doi.org/10.1111/rssb.12361
 
 
+.. [SPSC]
+
+    Park, Chan, and Eric J. Tchetgen Tchetgen.
+    "Single Proxy Synthetic Control."
+    *Journal of Causal Inference* 13, no. 1 (2025): 20230079.
+    DOI: https://doi.org/10.1515/jci-2023-0079
+
 
 
 .. [ABADIE2003]
