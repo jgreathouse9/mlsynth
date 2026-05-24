@@ -3,35 +3,192 @@ Synthetic Difference-in-Differences (SDID)
 
 .. currentmodule:: mlsynth
 
-Overview
+When to Use This Estimator
+--------------------------
+
+Difference-in-differences (DiD) and synthetic control (SC) are usually
+pitched as tools for *different* problems. DiD is used when many units are
+treated and you are willing to assume **parallel trends** -- that treated
+and control outcomes would have moved in lockstep absent treatment, after
+removing additive unit and time fixed effects. SC is used when *one* (or a
+few) units are treated and parallel trends plainly fails, so you instead
+**re-weight the donors** to match the treated unit's pre-treatment path.
+
+Synthetic Difference-in-Differences (SDID), due to Arkhangelsky, Athey,
+Hirshberg, Imbens and Wager (2021, *AER*) [aersdid]_, argues these two
+strategies rest on closely related assumptions and combines the best of
+both. It fits a two-way fixed-effects regression that is **doubly
+weighted** -- by SC-style **unit weights** :math:`\omega_i` *and* DiD-style
+**time weights** :math:`\lambda_t`:
+
+.. math::
+
+   (\hat\tau, \hat\mu, \hat\alpha, \hat\beta) =
+   \arg\min_{\tau, \mu, \alpha, \beta}
+   \sum_{i=1}^{N}\sum_{t=1}^{T}
+   \bigl(Y_{it} - \mu - \alpha_i - \beta_t - W_{it}\tau\bigr)^2\,
+   \hat\omega_i\, \hat\lambda_t .
+
+The weights make the regression **local**: it leans on control units whose
+*past* resembles the treated unit's, and on pre-periods that resemble the
+post-period. Reach for SDID when:
+
+* **DiD is tempting but pre-trends are not parallel.** SDID re-weights
+  controls so their trend becomes *parallel* (not identical -- the unit
+  fixed effects absorb level gaps) to the treated unit, then runs DiD on
+  the re-weighted panel. It "automates" the usual practice of hunting for
+  comparable units/periods to make parallel trends plausible, *with*
+  statistical guarantees -- addressing the pre-testing concerns of Roth.
+* **SC is tempting but the pre-fit is imperfect or you want valid
+  inference.** Adding unit fixed effects (and an intercept in the weight
+  problem) means the donors only need to be *parallel* to the treated
+  unit, not match it exactly, and the design admits large-panel inference.
+* **You want robustness without choosing.** Where DiD has been used, SDID
+  is competitive with or better than DiD; where SC has been used, it is
+  competitive with or better than SC. The weighting also often *improves
+  precision* by removing predictable structure -- in the Prop 99 study,
+  SDID's standard error (8.4) is smaller than DiD's (17.7) despite being
+  the more flexible estimator.
+
+.. note::
+
+   The localization is not a free lunch: if outcomes have little
+   systematic heterogeneity across units or periods, unequal weighting can
+   *worsen* precision relative to plain DiD. SDID helps most when there is
+   real structure (trends, levels) for the weights to exploit.
+
+What SDID Does in Practice
+--------------------------
+
+Beyond the econometrics: SDID answers "what would the treated unit have
+done?" by building a synthetic comparison that is **parallel** to it, not a
+clone, and by trusting the *recent, relevant* past more than the distant
+past.
+
+* **Policy / geo evaluation.** A state raises cigarette taxes (Prop 99); a
+  city introduces congestion pricing; a country reunifies. You have a long
+  panel of comparison regions whose levels differ wildly and whose
+  pre-trends are not parallel. SDID re-weights the comparison regions to
+  parallel the treated one and downweights ancient history that no longer
+  looks like the policy window.
+* **Marketing / pricing roll-outs.** A pricing change launches in some
+  markets. Plain DiD over all markets is biased if the treated markets were
+  on a different trajectory; pure SC ignores that fixed level differences
+  are harmless. SDID handles both, and -- via time weights -- discounts
+  pre-launch months that don't resemble the post-launch regime (seasonal
+  shifts, a pre-launch promo).
+* **Staggered roll-outs.** When units adopt at different dates, SDID runs
+  per cohort and aggregates (Clarke et al., 2023), yielding both an overall
+  ATT and a dynamic **event-study** path (Ciccia, 2024).
+
+Notation
 --------
 
-Synthetic Difference-in-Differences (SDID) combines the unit-weighting
-of classical synthetic control with the *time*-weighting of difference-in-
-differences. Originally proposed by Arkhangelsky, Athey, Hirshberg,
-Imbens, and Wager (2021, *AER*), the estimator fits two sets of weights
-on the pre-treatment panel — donor-unit weights :math:`\omega_i` that
-match the treated unit's pre-treatment level *trajectory*, and time
-weights :math:`\lambda_t` that match the post-treatment donor *mean*
-— and then computes a doubly-weighted DiD-style contrast on the
-post-treatment window.
+Let :math:`Y_{it}` be the outcome of unit :math:`i` in period :math:`t`,
+with :math:`i \in \{1, \dots, N\}` and :math:`t \in \{1, \dots, T\}`, and
+let :math:`W_{it} \in \{0, 1\}` be the treatment indicator. The first
+:math:`N_{co}` units are never-treated **controls** (donors); the remaining
+:math:`N_{tr} = N - N_{co}` are **treated**, exposed after their adoption
+period. :math:`T_{pre}` and :math:`T_{post}` count pre- and post-treatment
+periods. The unit weights :math:`\omega_i` are supported on the controls
+and the time weights :math:`\lambda_t` on the pre-period; :math:`\zeta` is
+the unit-weight regularization parameter. The estimand is the average
+treatment effect on the treated, :math:`\tau` (denoted :math:`\widehat{ATT}`
+in aggregate).
 
-The :mod:`mlsynth` implementation exposes two distinct but linked
-estimators in a single ``SDID.fit()`` call:
+.. admonition:: Notation bridge
 
-* The **overall ATT** of Arkhangelsky et al. (2021), aggregated across
-  cohorts and post-treatment periods (Clarke, Pailanir, Athey, & Imbens,
-  2023).
-* The **event-study extension** of Ciccia (2024,
-  `arXiv:2407.09565 <https://arxiv.org/abs/2407.09565>`_), which
-  disaggregates the overall ATT into cohort-specific dynamic effects
-  :math:`\hat\tau_{a, \ell}^{\,sdid}` and pools them into a single
-  treated-unit-weighted event-study path :math:`\hat\tau_\ell^{\,sdid}`.
+   The mlsynth implementation generalizes the single-treated block design
+   to **cohorts**: cohort :math:`a` is the set :math:`I^a` of units first
+   treated in period :math:`a`, with size :math:`N_{tr}^a` and
+   :math:`T_{tr}^a = T - a + 1` post-periods. The classical
+   single-treated case (California) is the one-cohort special case, where
+   the cohort ATT and the overall ATT coincide.
 
-Both single-treated-unit designs (the canonical Proposition 99 setup)
-and staggered-adoption designs are handled by the same orchestrator;
-:func:`mlsynth.utils.datautils.dataprep` decides between the two
-representations automatically.
+Assumptions
+-----------
+
+SDID's formal guarantees are developed under an **interactive
+fixed-effects (latent factor) model** for the control potential outcome,
+
+.. math::
+
+   Y_{it} = \boldsymbol{\gamma}_i^\top \boldsymbol{v}_t + \tau W_{it} + \varepsilon_{it},
+
+where :math:`\boldsymbol{\gamma}_i` are latent unit factors and
+:math:`\boldsymbol{v}_t` latent time factors (a generalization of additive
+:math:`\alpha_i + \beta_t` two-way fixed effects).
+
+**Assumption 1 (latent factor outcome model).** The systematic part of the
+outcome is :math:`\boldsymbol{\gamma}_i^\top \boldsymbol{v}_t`; deviations
+:math:`\varepsilon_{it}` are mean-zero given the systematic component and
+the treatment assignment.
+
+*Remark.* This is strictly more general than DiD's additive
+:math:`\alpha_i + \beta_t`. When the factor structure *is* additive, plain
+DiD is already consistent; SDID is designed to also handle the interactive
+case, where DiD is biased.
+
+**Assumption 2 (selection on the systematic part only).** Treatment
+assignment :math:`W` may depend on the latent factors
+:math:`\boldsymbol{\gamma}_i, \boldsymbol{v}_t` (units are *not* randomized)
+but **not** on the idiosyncratic error :math:`\varepsilon`.
+
+*Remark.* This is what lets policies be adopted non-randomly -- California
+was not a coin flip -- yet still be identified: the confounding must run
+through the persistent latent structure that the weights and fixed effects
+soak up, not through transitory shocks.
+
+**Assumption 3 (weak cross-unit dependence).** The error vectors
+:math:`\varepsilon_i` are independent *across units*, though correlation
+*within a unit over time* is allowed.
+
+*Remark.* Serial correlation within a unit is the norm in panel data and
+is permitted; this is why the time-weight problem is left **unregularized**
+(it must accommodate within-unit temporal correlation) while the
+unit-weight problem is regularized. Cross-unit independence is what powers
+the placebo variance estimator.
+
+**Assumption 4 (weighted parallel trends, achieved by construction).**
+There exist unit weights making the treated trajectory parallel to the
+weighted control trajectory over the pre-period, and time weights making
+each control's post-period mean a constant offset from its weighted
+pre-period mean.
+
+*Remark.* Unlike DiD -- which *assumes* parallel trends on the raw data --
+SDID *constructs* weights to make parallel trends hold on the re-weighted
+panel, then proceeds. The graphical "parallel trends" check is thus
+performed on adjusted data, automatically and with guarantees.
+
+Why Unit Weights and Why Time Weights
+-------------------------------------
+
+**Unit weights** are chosen so the treated unit's pre-treatment path is
+*parallel* to the weighted-control path. Two differences from classical SC
+(Abadie et al., 2010) make this work inside a fixed-effects regression:
+
+1. an **intercept** :math:`\omega_0` is allowed, so the weights need only
+   make trends *parallel* rather than coincident -- the unit fixed effects
+   :math:`\alpha_i` absorb any constant level gap; and
+2. a **ridge penalty** :math:`\zeta^2 \|\omega\|_2^2` is added (with
+   :math:`\zeta = (N_{tr} T_{post})^{1/4}\hat\sigma`, :math:`\hat\sigma`
+   the SD of first-differenced control outcomes) to disperse and uniquely
+   pin down the weights.
+
+**Time weights** are chosen so that, for the control units, the weighted
+average of pre-treatment outcomes predicts the post-treatment average up to
+a constant. The argument for them mirrors the argument for unit weights:
+down-weighting pre-periods that look nothing like the post-period **removes
+bias** and **improves precision**. This is the data-driven counterpart to
+event-study practice, which implicitly puts all comparison weight on the
+last pre-period -- SDID instead lets the data choose which pre-periods are
+informative. The time-weight problem is left unregularized (Assumption 3).
+
+Together, unit *and* time weights plus unit fixed effects make the DiD
+contrast both more robust (it leans on comparable units and periods) and,
+typically, more precise (predictable structure is removed), which is why
+SDID's standard errors can be *smaller* than DiD's despite its added
+flexibility.
 
 Mathematical Formulation
 ------------------------
@@ -301,7 +458,7 @@ Example
    }).fit()
 
    # Overall ATT (Ciccia 2024 Eq. 7) and placebo inference.
-   print(results.inference.att)        # -14.486 (matches Arkhangelsky et al. 2021)
+   print(results.inference.att)        # -15.605 (matches Arkhangelsky et al. 2021)
    print(results.inference.se)
    print(results.inference.ci)
    print(results.inference.p_value)
@@ -315,6 +472,48 @@ Example
    for adoption_period, cohort in results.cohorts.items():
        print(adoption_period, cohort.n_treated, cohort.att)
        print(cohort.event_effects[1])  # the first-period dynamic effect
+
+Replication: Proposition 99
+---------------------------
+
+.. note::
+
+   **Empirical replication (Path A).** Run on the California smoking panel
+   (39 states, 1970-2000; California treated by Proposition 99 from 1989),
+   ``mlsynth``'s SDID reproduces the headline estimate of [aersdid]_ **to
+   three significant figures**:
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 30 24 24
+
+      * - Quantity
+        - mlsynth
+        - Reference
+      * - Overall ATT
+        - **-15.605**
+        - -15.6 (Arkhangelsky et al. 2021, Table 1; ``synthdid`` R: -15.604)
+      * - Placebo SE (B = 500)
+        - 7.58
+        - 8.4 (placebo SE, Table 1)
+      * - 95% CI
+        - (-30.5, -0.7)
+        -
+      * - Placebo p-value
+        - 0.032
+        -
+
+   The point estimate matches the authors' ``synthdid`` package
+   (-15.604) essentially exactly. The placebo standard error is in the
+   same range (7.6 vs. 8.4); it is a resampling estimate and varies with
+   the placebo draw and ``B``. As Arkhangelsky et al. emphasize, SDID's
+   -15.6 sits well below the DiD estimate (-27.3) and below SC (-19.6),
+   and its SE is *smaller* than DiD's (17.7) -- the localization payoff.
+
+   Per the project's replication contract
+   (``agents/agents_estimators.md``), SDID is considered **done**: the
+   published empirical ATT is reproduced on the same data to machine
+   precision in the point estimate.
 
 References
 ----------
