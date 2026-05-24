@@ -47,6 +47,7 @@ from ..utils.proximal_helpers.structures import (
     PI,
     PIPOST,
     PIS,
+    SPSC,
     PROXIMALResults,
 )
 
@@ -87,6 +88,12 @@ class PROXIMAL:
         self.surrogates: List[Union[str, int]] = config.surrogates
         self.donors: List[Union[str, int]] = config.donors
         self.vars: Dict[str, List[str]] = config.vars
+        self.methods: List[str] = config.methods
+        self.spsc_detrend: bool = config.spsc_detrend
+        self.spsc_lambda = config.spsc_lambda
+        self.spsc_spline_df: int = config.spsc_spline_df
+        self.spsc_conformal: bool = config.spsc_conformal
+        self.spsc_conformal_periods = config.spsc_conformal_periods
 
     def fit(self) -> PROXIMALResults:
         """Run the proximal pipeline and return a :class:`PROXIMALResults`."""
@@ -103,6 +110,12 @@ class PROXIMAL:
                 donors=self.donors,
                 surrogates=self.surrogates,
                 vars=self.vars,
+                methods=self.methods,
+                spsc_detrend=self.spsc_detrend,
+                spsc_lambda=self.spsc_lambda,
+                spsc_spline_df=self.spsc_spline_df,
+                spsc_conformal=self.spsc_conformal,
+                spsc_conformal_periods=self.spsc_conformal_periods,
             )
 
             fits = run_proximal(inputs)
@@ -112,8 +125,10 @@ class PROXIMAL:
                 pi=fits.get(PI),
                 pis=fits.get(PIS),
                 pipost=fits.get(PIPOST),
-                selected_variant=PI,
+                spsc=fits.get(SPSC),
+                selected_variant=self.methods[0],
                 metadata={
+                    "methods": list(self.methods),
                     "has_surrogates": inputs.has_surrogates,
                     "bandwidth": inputs.bandwidth,
                     "n_donors": inputs.n_donors,
