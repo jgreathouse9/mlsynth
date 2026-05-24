@@ -157,9 +157,18 @@ References
 
 .. [ProxSCM]
 
-    Shi, Xu, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen. 
-    "Theory for Identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework." 
+    Shi, Xu, Kendrick Li, Wang Miao, Mengtong Hu, and Eric Tchetgen Tchetgen.
+    "Theory for Identification and Inference with Synthetic Controls: A Proximal Causal Inference Framework."
     2023. https://doi.org/10.48550/arXiv.2108.13935
+
+
+.. [ShiNegControl]
+
+    Shi, Xu, Wang Miao, Jennifer C. Nelson, and Eric J. Tchetgen Tchetgen.
+    "Multiply Robust Causal Inference with Double-Negative Control Adjustment for Categorical Unmeasured Confounding."
+    *Journal of the Royal Statistical Society: Series B (Statistical Methodology)* 82, no. 2 (2020): 521-540.
+    DOI: https://doi.org/10.1111/rssb.12361
+
 
 
 
