@@ -41,7 +41,7 @@ from ..utils.spcd_helpers.orchestration import solve_spcd_with_holdout
 from ..utils.spcd_helpers.results_assembly import build_summary
 from ..utils.spcd_helpers.plotter import plot_spcd_design
 from ..utils.spcd_helpers.setup import prepare_spcd_inputs
-from ..utils.spcd_helpers.structures import SPCDResults
+from ..utils.spcd_helpers.structures import SPCDMultiArmResults, SPCDResults
 
 
 class SPCD:
@@ -84,7 +84,7 @@ class SPCD:
     max_iter : int
         Maximum iterations for the SPCD/NormSPCD while loop.
     T0, post_col : optional
-        Pre/post split specification (mirrors SCDI's interface).
+        Pre/post split specification (mirrors SYNDES's interface).
     solver : optional
         Passed to cvxpy when ``weights="exact"``.
     display_graph : bool
@@ -124,6 +124,7 @@ class SPCD:
 
         self.T0: Optional[int] = config.T0
         self.post_col: Optional[str] = config.post_col
+        self.arm: Optional[str] = config.arm
 
         self.solver: Any = config.solver
         self.display_graph: bool = config.display_graph
@@ -140,63 +141,87 @@ class SPCD:
         self.inference_seed: int = config.inference_seed
         self.min_blank_size: int = config.min_blank_size
 
-    def fit(self) -> SPCDResults:
+    def _fit_single(self, df: pd.DataFrame) -> SPCDResults:
+        """Run the SPCD pipeline on one (sub-)panel and return its design."""
+        balance(df, self.unitid, self.time)
+        inputs = prepare_spcd_inputs(
+            df=df,
+            outcome=self.outcome,
+            unitid=self.unitid,
+            time=self.time,
+            T0=self.T0,
+            post_col=self.post_col,
+        )
+        design, conformal, power = solve_spcd_with_holdout(
+            inputs=inputs,
+            variant=self.variant,
+            weights=self.weights,
+            alpha=self.alpha_ridge,
+            lam=self.lam_balance,
+            beta=self.beta,
+            max_iter=self.max_iter,
+            solver=self.solver,
+            verbose=self.verbose,
+            enable_inference=self.enable_inference,
+            holdout_frac_E=self.holdout_frac_E,
+            inference_alpha=self.inference_alpha,
+            power_target=self.power_target,
+            mde_n_sims=self.mde_n_sims,
+            mde_n_trials=self.mde_n_trials,
+            mde_horizon_grid=self.mde_horizon_grid,
+            inference_seed=self.inference_seed,
+            min_blank_size=self.min_blank_size,
+        )
+        summary = build_summary(
+            design=design, inputs=inputs, conformal=conformal, power=power
+        )
+        return SPCDResults(
+            design=design, inputs=inputs, summary=summary,
+            conformal=conformal, power=power,
+        )
+
+    def fit(self) -> Union[SPCDResults, SPCDMultiArmResults]:
         """Run the SPCD pipeline and return the design.
 
         Returns
         -------
-        SPCDResults
-            Final design, attached inputs, and diagnostics.
+        SPCDResults or SPCDMultiArmResults
+            A single design when no ``arm`` column is configured; otherwise
+            one independent SPCD design per arm, keyed by arm label.
         """
 
         try:
-            balance(self.df, self.unitid, self.time)
-            inputs = prepare_spcd_inputs(
-                df=self.df,
-                outcome=self.outcome,
-                unitid=self.unitid,
-                time=self.time,
-                T0=self.T0,
-                post_col=self.post_col,
-            )
+            if self.arm is None:
+                results = self._fit_single(self.df)
+                if self.display_graph:
+                    try:
+                        plot_spcd_design(results)
+                    except Exception as exc:
+                        raise MlsynthPlottingError(
+                            f"SPCD plotting failed: {exc}") from exc
+                return results
 
-            design, conformal, power = solve_spcd_with_holdout(
-                inputs=inputs,
-                variant=self.variant,
-                weights=self.weights,
-                alpha=self.alpha_ridge,
-                lam=self.lam_balance,
-                beta=self.beta,
-                max_iter=self.max_iter,
-                solver=self.solver,
-                verbose=self.verbose,
-                enable_inference=self.enable_inference,
-                holdout_frac_E=self.holdout_frac_E,
-                inference_alpha=self.inference_alpha,
-                power_target=self.power_target,
-                mde_n_sims=self.mde_n_sims,
-                mde_n_trials=self.mde_n_trials,
-                mde_horizon_grid=self.mde_horizon_grid,
-                inference_seed=self.inference_seed,
-                min_blank_size=self.min_blank_size,
-            )
+            # Multi-arm: solve the SPCD design independently within each arm.
+            if self.arm not in self.df.columns:
+                raise MlsynthDataError(
+                    f"Arm column {self.arm!r} not found in the data.")
+            if self.df.groupby(self.unitid)[self.arm].nunique().max() > 1:
+                raise MlsynthDataError(
+                    "The arm column varies within a unit over time.")
 
-            summary = build_summary(
-                design=design, inputs=inputs, conformal=conformal, power=power
-            )
-            results = SPCDResults(
-                design=design,
-                inputs=inputs,
-                summary=summary,
-                conformal=conformal,
-                power=power,
-            )
+            arm_designs = {
+                arm_label: self._fit_single(sub.copy())
+                for arm_label, sub in self.df.groupby(self.arm, sort=True)
+            }
+            results = SPCDMultiArmResults(arm_designs=arm_designs, arm=self.arm)
 
             if self.display_graph:
-                try:
-                    plot_spcd_design(results)
-                except Exception as exc:
-                    raise MlsynthPlottingError(f"SPCD plotting failed: {exc}") from exc
+                for arm_result in arm_designs.values():
+                    try:
+                        plot_spcd_design(arm_result)
+                    except Exception as exc:
+                        raise MlsynthPlottingError(
+                            f"SPCD plotting failed: {exc}") from exc
 
             return results
 
