@@ -1,135 +1,328 @@
 Two-Step Synthetic Control
 ==========================
 
-.. autoclass:: mlsynth.TSSC
-   :show-inheritance:
-   :members:
-   :undoc-members:
-   :private-members:
-   :special-members: __init__
+When to Use This Estimator
+--------------------------
 
-Sometimes with synthetic control methods, treated units are a little too extreme relative to their donor pool. As a result, analysts may sometimes need to use intecepts or relax the nonnegativiety constraint, but it's unclear, a priori, in which situations this is necessary or beneficial. The Two Step SCM is actually the only method in ``mlsynth`` that does not rely on machine-learning methods; it does, however, allow analysts to choose between these different modifications to SCM where it may be warranted. This is the benefit of the two-step synthetic control method, as detailed by Li and Shankar [TSSC]_.
+The synthetic control (SC) method of Abadie and Gardeazabal rests on an
+identifying assumption that can only be *partially* checked: after
+treatment, the synthetic control should track the treated unit's
+untreated outcome. The testable part is the **SC pre-trends assumption**
+-- that the synthetic control tracks the treated unit *before*
+treatment. In practice this is usually verified by eyeballing a plot,
+which is informal and easy to get wrong; imposing SC's restrictions when
+they do not hold can bias the ATT, sometimes with the wrong sign.
 
-Here, we have :math:`\mathcal{N} \operatorname*{:=} \lbrace{1 \ldots N \rbrace}` units across :math:`t \in \left(1, T\right) \cap \mathbb{N}` time periods, where :math:`j=1` is our sole treated unit. This leaves us with :math:`\mathcal{N}_{0} \operatorname*{:=} \lbrace{2 \ldots N\rbrace}` control units, with the cardinality of this set being the number of controls. We have two sets of time series :math:`\mathcal{T} \operatorname*{:=} \mathcal{T}_{0} \cup \mathcal{T}_{1}`, where :math:`\mathcal{T}_{0} \operatorname*{:=}  \lbrace{1\ldots T_0 \rbrace}` is the pre-intervention period and :math:`\mathcal{T}_{1} \operatorname*{:=} \lbrace{T_0+1\ldots T \rbrace}` denotes the post-intervention period, each with their respective cardinalities. Let :math:`\mathbf{w} \operatorname*{:=} \lbrace{w_2 \ldots w_N  \rbrace}` be a generic weight vector we assign to untreated units. We observe
+Use TSSC, due to Li and Shankar [TSSC]_, when you have a **single treated
+unit** observed over a panel whose outcomes may follow **nonstationary,
+nonlinear trends** (sales, market share, macro series), and you want to
+decide -- *formally*, not visually -- whether SC's restrictions are
+appropriate or whether you should relax them. TSSC
 
-.. math::
-    y_{jt} = 
-    \begin{cases}
-        y^{0}_{jt} & \forall \: j\in \mathcal{N}_0\\
-        y^{0}_{1t} & \text{if } j = 1 \text{ and } t \in \mathcal{T}_0 \\
-        y^{1}_{1t} & \text{if } j = 1 \text{ and } t \in \mathcal{T}_1
-    \end{cases}
+1. runs a formal hypothesis test of the SC pre-trends assumption, and
+2. recommends the member of the SC class that best balances the dual
+   goal of **reducing bias** (relax restrictions that are violated) and
+   **increasing efficiency** (keep restrictions that hold, since each
+   correct restriction shrinks the estimator's variance).
 
-We have a single treated unit which, along with the donors, follows a certain data generating process for all time periods until :math:`T_0`. Afterwards, the control units follow the same process. The change of the outcomes :math:`j=1,  \forall t \in \mathcal{T}_1` is whatever that process was, plus some treatment effect. To this end, we are concerned with :math:`\hat{y}_{j1}`, or the values we would have observed absent treatment. The statistic we are concerned with is the average treatment effect on the treated
+If the SC restrictions hold, TSSC keeps the efficient SC estimator. If
+they are violated, TSSC backs off to the least-restrictive modified
+variant needed -- no more, no less.
 
-.. math::
-    ATT = \frac{1}{T_1 - T_0} \sum_{T_0 +1}^{T} (y_{1t} - \hat{y}_{1t})
+.. note::
 
-where :math:`(y_{1t} - \hat{y}_{1t})` is the treatment effect.
+   TSSC is the only estimator in ``mlsynth`` that does not rely on a
+   machine-learning step; it is a sequence of constrained least-squares
+   fits plus a subsampling test.
 
+Notation
+--------
 
-I presume the reader is familiar with the basic idea of syntethic control methods: a linear and most often convex combinaiton of controls should approximate the outcome trajectory of a treated unit in the pre=intervention period. Consider three modifications to this idea, though, call them Modified Synthetic Controls (MSC).
-
-MSCa
------
-.. math::
-
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_{j}, - \mathbf{\beta}||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}, \mathbf{\beta} \neq 0.
-
-Where :math:`\mathbb{I}` is the unit interval.  MSCa shifts the counterfactual within the convex hull using the :math:`T \times 1` vector of 1s with its corresponding coefficient being :math:`\mathbf{\beta}` (which is unconstrained). It is the intercept.
-
-MSCb
------
-.. math::
-
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_{j}||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
-
-MSCb gets rid of the intercept and forces the weights to only be positive.
-
-MSCc
------
-.. math::
-
-    \underset{w}{\text{argmin}} & \quad ||\mathbf{y}_{1} - \mathbf{Y}_{\mathcal{N}_{0}}w_{j}-\mathbf{\beta}]||_{2}^2 \\
-    \text{s.t.} \: & \mathbf{w}: w_{j} \in \mathbb{R}_{\geq 0}
-
-MSCc allows for both an intercept and unrestricted positive weights. We now are projecting the treated unit (as with MSCb) onto a convex cone, instead of the convex hull. We typically would want to use these latter estimators if the treated unit has a particularly higher slope or trend compared to the donor units. Given these different options, it makes sense for analysts to care about which set of restrictions are the most plausible. If a convex combination is enough, then we simply use SC as it was originally formulated. If not, we must select the proper set of constraints to use.
-
-Step 1: Testing the Relevant Hypotheses
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The point of TSSC is to first test the viability of the parallel pre-trends assumption for vanilla SCM, which chooses between the original model and the other three presented. Precisely, we make a null hypothesis
+We index units by :math:`j`, with :math:`j = 1` the sole **treated** unit
+and :math:`j = 2, \ldots, N` the **control** (donor) units. Time runs
+over :math:`t`, partitioned by the intervention into a pre-treatment
+window :math:`\mathcal{T}_1` of length :math:`T_1` and a post-treatment
+window :math:`\mathcal{T}_2` of length :math:`T_2`, with
+:math:`T = T_1 + T_2`. Let :math:`y_{jt}^0` and :math:`y_{jt}^1` denote
+potential outcomes without and with treatment; we observe
 
 .. math::
 
-    H_0 : w_{j} \in \mathbb{I}, \quad  {\| \mathbf{w} \|_{1} = 1}
+   y_{jt} =
+   \begin{cases}
+       y_{jt}^0 & j \in \{2, \ldots, N\}, \\
+       y_{1t}^0 & j = 1,\ t \in \mathcal{T}_1, \\
+       y_{1t}^1 & j = 1,\ t \in \mathcal{T}_2.
+   \end{cases}
 
-or, that we've violated the pre-intervention trend convex hull restriction. In order to test this null hypothesis, we use subsampling (see Kathy's original paper for details) to test the convex SCM's pre-intervention fit against MSCc's. The reason MSCc is the benchmark is because if the intercept is 0 (even though we've constrained it not to be) and the unit weights add up to 1 (even though they need not), MSCc reduces to vanilla SCM.
-
-We first test a joint null hypothesis. We may write our null hypothesis as :math:`H_0 : \mu = 0, \quad   {||\mathbf{w}||_{1} = 1}`, or, :math:`\mathbf R\beta_0 - \mathbf q=\mathbf{0}_{2}`, or in words, that the intercept is 0 and the unit weights should add to 1. :math:`\mathbf R` is a matrix where the first and second rows of the first column are 0 and 1 respectively with the latter columns being 1 and 0 respectively.
-
-.. math::
-
-    \left(
-    \begin{bmatrix}
-        0 & \mathbf{1}^{\top}_{N-1} \\
-        1 & \mathbf{0}^{\top}_{N-1}.
-    \end{bmatrix}
-    \right)
-
-:math:`\mathbf q` is a vector to be used in the joint null hypothesis test
-
-.. math::
-
-    \begin{bmatrix}
-        1 \\
-        0
-    \end{bmatrix}
-
-The top row of :math:`\mathbf{R}` corresponds to the summation to one constraint and the lower row of :math:`\mathbf{R}` corresponds to the zero intercept. We can use :math:`\mathbf{R}` and :math:`\mathbf{q}` to define a vector, :math:`\mathbf{d}`, to test the null hypothesis: :math:`\mathbf{d} = \mathbf{R} \mathbf{w} - \mathbf{q}`. :math:`\mathbf{d}` is a 2 by 1 vector, with the first element corresponding to the sum of the weights and the second element being the value of the intercept generated by MSCc. We then use :math:`\mathbf{d} T_0` to derive the test statistic
+The regression design vector is :math:`x_t = (1, y_{2t}, \ldots,
+y_{Nt})'`, so the coefficient vector :math:`\beta = (\beta_1, \beta_2,
+\ldots, \beta_N)'` has :math:`\beta_1` as the **intercept** and
+:math:`\beta_2, \ldots, \beta_N` as the **donor slopes**. We write
+:math:`\mathbf{1}_L` and :math:`\mathbf{0}_L` for the :math:`L`-vectors of
+ones and zeros, and :math:`\hat{\beta}_{\mathrm{MSC},T_1}` for the
+benchmark MSC(c) estimate on the pre-treatment sample. The estimand is the
+average treatment effect on the treated,
 
 .. math::
 
-    \tilde{S}_{T_1}= (\sqrt{T_0}\mathbf{d} )\hat{V}^{-1} (\sqrt{T_0}\mathbf{d})
+   \mathrm{ATT} = \frac{1}{T_2} \sum_{t \in \mathcal{T}_2}
+       \bigl(y_{1t} - \hat{y}_{1t}^0\bigr),
+   \qquad \hat{y}_{1t}^0 = x_t' \hat{\beta},
 
-where :math:`V` is the asymptotic variance of :math:`\sqrt{T_1}\mathbf{R}(\hat{\mathbf{w}}_{T_0}^{\text{MSC}}-\mathbf{w}_{T_0}^{\text{MSC}})`. The natural issue, then, is how to estimate the variance. To do this, we can use a subsampling routine. We begin by taking random draws of the pre-intervention period :math:`m=1 \ldots T_0` for both the treated and control units and estimate the synthetic control :math:`\hat{\mathbf{w}}_{T_0}^{\text{MSC}}`, checking its differences versus the original weights :math:`\mathbf{w}_{T_0}^{\text{MSC}}`. We repeat this process many times (10000 in this case). We can then get a consistent estimator of the variance
+where :math:`\hat{y}_{1t}^0` is the counterfactual untreated outcome.
+
+The Class of Synthetic Control Methods
+--------------------------------------
+
+Each method fits :math:`y_{1t} = x_t' \beta + e_{1t}` on the
+pre-treatment window by minimizing :math:`\sum_{t \in \mathcal{T}_1}
+(y_{1t} - x_t'\beta)^2` subject to a subset of three restrictions:
+**(1)** a zero intercept :math:`\beta_1 = 0`; **(2)** the donor weights
+sum to one :math:`\sum_{j=2}^N \beta_j = 1`; **(3)** the donor weights are
+non-negative :math:`\beta_j \ge 0`. The four members differ only in which
+restrictions they impose:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 50 18
+
+   * - Method
+     - Restrictions
+     - Intercept
+   * - **SC**
+     - (1), (2), (3) -- the canonical Abadie estimator
+     - none
+   * - **MSCa**
+     - (2), (3) -- weights sum to one
+     - free
+   * - **MSCb**
+     - (1), (3) -- no adding-up
+     - none
+   * - **MSCc**
+     - (3) only -- the most flexible benchmark
+     - free
+
+Geometrically, SC projects the treated unit onto the *convex hull* of the
+donors; MSCb and MSCc project onto a *convex cone* (non-negative weights
+that need not sum to one), with MSCc additionally allowing a vertical
+shift via the intercept. The flexible variants are appropriate when the
+treated unit sits on a steeper trend than its donors, but that flexibility
+costs efficiency -- which is precisely the trade-off Step 1 adjudicates.
+
+Assumptions
+-----------
+
+The theory is developed for a nonstationary, nonlinear-trend factor model
+:math:`y_{jt}^0 = c_j + d_j f_t + u_{jt}`, where :math:`f_t` is a common
+trend of unknown functional form, :math:`c_j` an intercept, :math:`d_j` a
+factor loading, and :math:`u_{jt}` an idiosyncratic error.
+
+**Assumption 1 (data-generating process).** The idiosyncratic errors
+:math:`u_{jt}` are zero-mean, serially uncorrelated, stationary with a
+finite fourth moment and uncorrelated with the common factor; the
+projection error :math:`e_{1t} = y_{1t}^0 - x_t'\beta_0` is a zero-mean,
+finite-variance stationary process obeying a central limit theorem; and
+:math:`T_2/T_1 \to \eta` for a finite :math:`\eta \ge 0`.
+
+*Remark.* This says the only nonstationarity in the panel comes through
+the shared trend :math:`f_t` -- the unit-specific noise is well behaved.
+It is what lets a linear combination of donors soak up the treated unit's
+trend and leave a stationary residual, which is exactly the parallel-
+trends condition the test targets.
+
+**Assumption 2 (trend and design regularity).** The common trend grows no
+faster than a leading term :math:`g(t)` (e.g. a polynomial or :math:`\log
+t`, but **not** :math:`e^t`), and the pre-treatment second-moment matrix
+of the donor outcomes converges to a positive-definite limit.
+
+*Remark.* The growth bound rules out trends so explosive that no fixed
+linear combination of donors can track them; the positive-definite Gram
+condition rules out perfectly collinear donors so the weights are
+well-defined. Both are mild for typical marketing and macro panels.
+
+**Parallel trends.** Two nonlinear series have *parallel trends* if their
+difference is a zero-mean stationary process. The SC pre-trends
+assumption is that :math:`y_{1t}` and :math:`x_t'\hat{\beta}_{\mathrm{SC}}`
+are parallel for :math:`t \in \mathcal{T}_1`.
+
+*Remark.* Under Assumptions 1-2, Li and Shankar show (Proposition 3.1)
+that the MSC(c) fitted curve is **almost always** parallel to the treated
+series, provided at least one donor's loading has the same sign as the
+treated unit's. MSC(c) is therefore the natural benchmark against which
+the SC restrictions are tested.
+
+Step 1: Testing the SC Pre-Trends Assumption
+--------------------------------------------
+
+The key equivalence (Proposition 3.1) is that, with MSC(c) as benchmark,
+**the SC pre-trends assumption holds if and only if the two SC
+restrictions hold** -- the donor weights sum to one *and* the intercept is
+zero. So testing pre-trends reduces to a joint linear restriction on
+:math:`\hat{\beta}_{\mathrm{MSC},T_1}`:
 
 .. math::
 
-    \hat{V} = \mathbf{R}\sigma^{\ast}(\sqrt{T_0}\hat{\mathbf{w}}_{T_0}^{\text{MSC}})\mathbf{R}^{\top}
+   H_0:\ R \beta_0 - q = \mathbf{0}_2,
+   \qquad
+   R = \begin{pmatrix} 0 & \mathbf{1}_{N-1}' \\ 1 & \mathbf{0}_{N-1}' \end{pmatrix},
+   \quad q = (1, 0)'.
 
-where :math:`\sigma^{\ast}(\sqrt{T_0}\hat{\mathbf{w}}_{T_0}^{\text{MSC}})` is
+The first row tests adding-up; the second tests the zero intercept. With
+:math:`\hat{d} = R\hat{\beta}_{\mathrm{MSC},T_1} - q`, the feasible
+statistic is the quadratic form
 
 .. math::
 
-    \frac{m}{B} \sum_{b=1}^{B}(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}})(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}})^{\top}
+   \hat{S}_{T_1} = \bigl(\sqrt{T_1}\,\hat{d}\bigr)' \hat{V}^{-1}
+       \bigl(\sqrt{T_1}\,\hat{d}\bigr).
 
-with :math:`b` being the number of draws. The sub-sampling statistic itself is
+Because the constrained estimator can sit on the boundary of its
+parameter space (a weight pinned at zero), its limit is the projection of
+a normal onto a convex cone -- non-standard, so the ordinary bootstrap
+fails. Li and Shankar instead use **subsampling**:
 
 .. math::
 
-    S^{\ast}_{m,b} = (\sqrt{m}(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}})^{\top})\mathbf{V}^{-1} (\sqrt{m}(\hat{\mathbf{w}}_{T_0}^{\text{MSC,m,b}}-\mathbf{w}_{T_0}^{\text{MSC}}))
+   \text{for } b = 1, \ldots, B:\quad
+   \text{draw } m \text{ obs with replacement from } \mathcal{T}_1,\
+   \text{refit MSC(c)} \Rightarrow \hat{\beta}^{*}_{\mathrm{MSC},m,b}.
 
-and, after sorting these in ascending order, the confidence interval is :math:`[\hat{S}_{m,(\alpha B/2)}, \hat{S}_{m,((1-\alpha/2)B)}]`. Should :math:`\tilde{S}_{T_1}` fall within the confidence interval, we reject the joint null hypothesis. If this fails, we then proceed to test the summing to 1 and intercept constraints individually. For each, we make null hypotheses using the row vectors of :math:`\mathbf{R}` above, with the respective nulls for summation and the zero intercept being :math:`H_{0_{a}} : \| \mathbf{w} \| = 1` and :math:`H_{0_{b}} : \mu = 0`. For each, we can write them as :math:`\mathbf{R}_{a} \mathbf{w}^{\text{MSC}} - \mathbf{q}_{a}` and :math:`\mathbf{R}_{b} \mathbf{w}^{\text{MSC}} - \mathbf{q}_{b}`. For summation and the intercept respectively, :math:`\mathbf{q}_a = 1` and :math:`\mathbf{q}_b = 0`, with :math:`\mathbf{R}_a = (0, \mathbf{1}_{N-1}^{\top})` and :math:`\mathbf{R}_b = (0, \mathbf{0}_{N-1}^{\top})`. For each null hypothesis, our test statistic is :math:`(\sqrt{T_0} \mathbf{d})^{2}`, where for nulls :math:`s = a, b` we compute :math:`\mathbf{d} = \mathbf{R}_s \hat{\mathbf{w}}_{T_0}^{\text{MSC}} - \mathbf{q}_s`. We also use the subsampling procedure I just described to calculate the subsampling statistics and confidence intervals. TSSC proceeds sequentially. If the joint null is violated, we then first test the summation constraint. If we fail to reject summation, we use MSCa and include the intercept. If we reject, we then test the intercept constraint. If we fail to reject, we use MSCb since it does not impose the summation constraint and does not use the intercept. If the intercept null is also invalid, we use MSCc, the most flexible SCM listed here as it uses both an intercept and unconstrained positive donor weights.
+The subsample fits give a consistent variance estimate
+:math:`\hat{V} = R\,\widehat{\mathrm{Var}}^{*}\!\bigl(\sqrt{T_1}
+\hat{\beta}_{\mathrm{MSC},T_1}\bigr) R'` with
 
-Step 2: Estimation
-~~~~~~~~~~~~~~~~~~
+.. math::
 
-After we choose the correct set of constraints, we then estimate the counterfactual. Below, I use TSSC in the provided empirical application. Suppose an online retailer opens a showroom in Brooklyn, and we have 10 donors to choose from. A plot for this is below (note that I don't know the names of the donors, but it doesn't matter what their names are). The black line is the sales trends for Brooklyn, and the blue lines are the donor trends. The red dashed line is the treatment point, or :math:`t = 76`.
+   \widehat{\mathrm{Var}}^{*} = \frac{m}{B} \sum_{b=1}^{B}
+       \bigl(\hat{\beta}^{*}_{\mathrm{MSC},m,b} - \hat{\beta}_{\mathrm{MSC},T_1}\bigr)
+       \bigl(\hat{\beta}^{*}_{\mathrm{MSC},m,b} - \hat{\beta}_{\mathrm{MSC},T_1}\bigr)',
+
+and the subsampling distribution :math:`S^{*}_{m,b} = \bigl(\sqrt{m}
+R(\hat{\beta}^{*}_{\mathrm{MSC},m,b} - \hat{\beta}_{\mathrm{MSC},T_1})
+\bigr)' \hat{V}^{-1} \bigl(\cdots\bigr)`. Sorting the :math:`S^{*}_{m,b}`
+gives the :math:`(1-\alpha)` acceptance region
+:math:`[S^{*}_{m,(\alpha B/2)},\, S^{*}_{m,((1-\alpha/2)B)}]`; we **reject
+:math:`H_0`** when :math:`\hat{S}_{T_1}` falls outside it.
+
+If the joint :math:`H_0` is rejected, the source of the violation is
+unclear, so we test the two restrictions singly. With :math:`R_a = (0,
+\mathbf{1}_{N-1}')`, :math:`q_a = 1` for adding-up and :math:`R_b = (1,
+\mathbf{0}_{N-1}')`, :math:`q_b = 0` for the intercept, the single
+statistic is simply the squared scaled deviation (here :math:`\hat{V}` is
+replaced by one),
+
+.. math::
+
+   \hat{S}_{T_1, s} = \bigl(\sqrt{T_1}\,\hat{d}_s\bigr)^2,
+   \qquad \hat{d}_s = R_s \hat{\beta}_{\mathrm{MSC},T_1} - q_s,
+   \quad s = a, b,
+
+with acceptance regions read off the corresponding subsampling
+distributions. TSSC then walks a decision tree: keep all SC restrictions
+if the joint test is **not** rejected (use **SC**); otherwise test
+adding-up -- not rejected gives **MSCa**; if rejected, test the zero
+intercept -- not rejected gives **MSCb**, rejected gives **MSCc**. In
+words, relax exactly the restriction(s) the data reject, stopping at the
+least-flexible variant consistent with the evidence.
+
+.. note::
+
+   The subsample size :math:`m` is a tuning parameter
+   (``subsample_size``). The paper's rule of thumb is :math:`m` between
+   :math:`T_1/2` and :math:`T_1` for moderate :math:`T_1`; the bootstrap
+   special case :math:`m = T_1` (the default here, used when
+   ``subsample_size`` is ``None``) performs well in their simulations. If
+   different :math:`m` give similar decisions, the test is reliable.
+
+Step 2: Estimating the ATT and Its Confidence Interval
+------------------------------------------------------
+
+With the variant chosen, the ATT is the mean post-period gap between the
+observed treated series and the recommended counterfactual. Each variant
+also carries its own confidence interval via the subsampling procedure of
+Li (2020): refit the variant on permuted size-:math:`m` pre-treatment
+subsamples (whose treated outcome is regenerated from the fitted weights
+plus pre-period noise) to capture donor-weight estimation error, and add
+post-period idiosyncratic prediction noise. The interval is
+:math:`[\mathrm{ATT} - q_{1-\alpha/2},\ \mathrm{ATT} - q_{\alpha/2}]`,
+with :math:`q` the quantiles of the normalized statistic.
+
+*Remark.* Because each correct restriction removes estimation variance,
+the recommended variant typically has a **tighter** interval than the
+fully flexible MSC(c) -- the efficiency half of TSSC's dual goal made
+visible. ``mlsynth`` reports the CI for **all four** variants
+(``att_ci_by_method()``) so this trade-off is inspectable.
+
+Example
+-------
+
+The block below is self-contained -- simulate one panel from a
+nonlinear-trend factor model, fit TSSC, and read off the recommendation,
+the ATT, and the per-method intervals.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import TSSC
+
+   rng = np.random.default_rng(0)
+   N, T, T1 = 6, 40, 30                       # 1 treated + 5 donors
+   trend = np.cumsum(rng.normal(size=T))      # common nonlinear trend f_t
+   loads = rng.uniform(0.5, 1.5, size=N)      # factor loadings d_j
+   Y = 10 + np.outer(trend, loads) + rng.normal(scale=0.5, size=(T, N))
+   Y[T1:, 0] += 3.0                           # +3 treatment effect on unit 0
+
+   df = pd.DataFrame(
+       {"unit": f"u{i}", "time": t, "y": Y[t, i],
+        "treat": int(i == 0 and t >= T1)}
+       for i in range(N) for t in range(T)
+   )
+
+   res = TSSC({
+       "df": df, "outcome": "y", "treat": "treat",
+       "unitid": "unit", "time": "time",
+       "draws": 300, "seed": 1, "display_graphs": False,
+   }).fit()
+
+   print("recommended:", res.recommended_method)
+   print("ATT = %.3f  95%% CI = [%.3f, %.3f]" % (res.att, *res.att_ci))
+   print("ATT by method:   ", {m: round(a, 3) for m, a in res.att_by_method().items()})
+   print("decision path:   ", res.selection.decision_path)
+
+``res`` is a :class:`~mlsynth.utils.tssc_helpers.structures.TSSCResults`:
+``res.variants`` holds all four ``TSSCVariantFit`` objects,
+``res.selection`` records every restriction test and the decision path,
+and ``res.summary`` is the standardized ``BaseEstimatorResults`` for the
+recommended variant.
+
+Empirical Illustration
+----------------------
+
+Suppose an online retailer opens a showroom in Brooklyn and we have ten
+donor markets. The treated series (black) and donors (blue) are below,
+with treatment at :math:`t = 76`.
 
 .. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/examples/TSSC/treatedvsdonors.png
    :alt: Brooklyn vs Donors
    :align: center
    :width: 600px
 
-Here, we can get a sense of how the quasi-experiment may be set up, where we have the sole treated unit as Brooklyn, and :math:`N_0 = 10`. In our case, MSC(b) is the counterfactual of interest as it was the one selected by the first step. Modified SCM(b) gets a pretreatment RMSE of 434.43. Its absolute and percentage ATTs are 1131.97 and 24.5.
-
+Here :math:`j = 1` is Brooklyn and there are ten donors. Step 1 selects
+MSC(b), whose pre-treatment RMSE is 434.43 and whose absolute and
+percentage ATTs are 1131.97 and 24.5%.
 
 .. image:: https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/examples/TSSC/Showroom.png
    :alt: TSSC Results
    :align: center
    :width: 600px
 
+API Reference
+-------------
 
+.. autoclass:: mlsynth.TSSC
+   :show-inheritance:
+   :members:
+   :undoc-members:
+   :special-members: __init__
