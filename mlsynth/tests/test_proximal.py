@@ -300,7 +300,7 @@ def test_proximal_insufficient_pre_periods_pi_only(sample_proximal_data: pd.Data
     indirect=["sample_proximal_data"],
 )
 def test_proximal_fit_with_nans(sample_proximal_data: pd.DataFrame, nan_column: str) -> None:
-    """balance() imputes NaNs at the start of fit, so estimation proceeds."""
+    """Balance() imputes NaNs at the start of fit, so estimation proceeds."""
     df_with_nans = sample_proximal_data.copy()
     idx_to_nan = df_with_nans[df_with_nans["UnitIdentifier"] == 2].index[0]
     df_with_nans.loc[idx_to_nan, nan_column] = np.nan
