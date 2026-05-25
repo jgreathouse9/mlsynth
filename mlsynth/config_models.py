@@ -390,11 +390,11 @@ class FMAConfig(BaseEstimatorConfig):
 
 class PDAConfig(BaseEstimatorConfig):
     """Configuration for the Panel Data Approach (PDA) estimator."""
-    method: str = Field(default="fs", description="Type of PDA to use: 'LASSO', 'l2', or 'fs'.", pattern="^(LASSO|l2|fs)$")
-    tau: Optional[float] = Field(default=None, description="User-specified treatment effect value (used as tau_l2 for 'l2' method).")
-    # Note: The original __init__ had validation for method.lower(). Pydantic's pattern handles case-sensitivity.
-    # If case-insensitivity is desired, the pattern would be different or a validator would be needed.
-    # For now, assuming exact match "LASSO", "l2", "fs".
+    method: str = Field(default="fs", description="PDA variant: 'LASSO' (Li-Bell), 'l2' (Shi-Wang L2-relaxation), or 'fs' (Shi-Huang forward selection). Used when `methods` is not given.", pattern="^(LASSO|l2|fs)$")
+    methods: Optional[List[str]] = Field(default=None, description="Run several PDA variants at once: any of 'l2','LASSO','fs'. If None, runs the single `method`.")
+    tau: Optional[float] = Field(default=None, description="Sup-norm relaxation parameter for the 'l2' method; if None it is chosen by out-of-sample validation.")
+    alpha: float = Field(default=0.05, description="Two-sided significance level for the ATE confidence interval (each variant uses its own paper's HAC inference).", gt=0, lt=1)
+
 
 class FDIDConfig(BaseEstimatorConfig):
     """
@@ -408,25 +408,6 @@ class FDIDConfig(BaseEstimatorConfig):
         Has no effect on FDID or ADID plots.
     """
     verbose: bool = Field(default=True, description="Whether to save intermediary Forward Selection Results.")
-
-
-
-class GSCConfig(BaseEstimatorConfig):
-    """Configuration for the Generalized Synthetic Control (GSC) estimator."""
-    denoising_method: str = Field(
-        default="non-convex",
-        description="Method for the denoising algorithm: 'auto', 'convex', or 'non-convex'.",
-        pattern="^(auto|convex|non-convex)$"
-    )
-    target_rank: Optional[int] = Field(
-        default=None,
-        description="Optional user-specified rank for the denoising algorithm. If None, rank is estimated internally.",
-        ge=1
-    )
-    # Note: The original GSC __init__ docstring mentioned 'save', but it was commented out
-    # in the implementation. If 'save' functionality specific to GSC is re-added,
-    # it might need to be defined here if different from BaseEstimatorConfig.save.
-
 
 
 class CLUSTERSCConfig(BaseEstimatorConfig):
