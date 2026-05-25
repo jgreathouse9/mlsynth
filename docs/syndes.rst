@@ -217,11 +217,28 @@ Example
 -------
 
 ``SYNDES`` takes a long balanced panel and a pre/post split (``post_col`` or
-``T0``). The same call shape serves all three designs:
+``T0``). The example below is self-contained -- it generates a small panel and
+runs end to end (``pyscipopt`` ships with ``mlsynth``, so the ``SCIP`` solver is
+available on install). The same call shape serves all three designs.
 
 .. code-block:: python
 
+   import numpy as np
+   import pandas as pd
    from mlsynth import SYNDES, power_analysis
+
+   # A small balanced panel: 8 units, 20 periods (last 6 are post-treatment).
+   rng = np.random.default_rng(0)
+   n_units, n_periods, n_post = 8, 20, 6
+   factors = rng.normal(size=(n_periods, 2))
+   loadings = rng.uniform(0.3, 1.0, size=(n_units, 2))
+   level = rng.uniform(8.0, 12.0, size=n_units)          # positive unit baselines
+   Y = level + factors @ loadings.T + rng.normal(scale=0.3, size=(n_periods, n_units))
+   df = pd.DataFrame(
+       [{"unit": j, "time": t, "Y": float(Y[t, j]),
+         "post": int(t >= n_periods - n_post)}
+        for j in range(n_units) for t in range(n_periods)]
+   )
 
    res = SYNDES({
        "df": df, "outcome": "Y", "unitid": "unit", "time": "time",
@@ -229,13 +246,13 @@ Example
        "run_inference": True, "alpha": 0.05, "solver": "SCIP",
    }).fit()
 
-   res.design.selected_unit_labels   # which units to treat
-   res.design.control_weights        # synthetic-control weights
-   res.design.pre_fit_rmse           # pre-period balance of the design
-   res.inference.atet, res.inference.p_value
+   print(res.design.selected_unit_labels)   # which units to treat
+   print(res.design.control_weights)        # synthetic-control weights
+   print(res.design.pre_fit_rmse)           # pre-period balance of the design
+   print(res.inference.atet, res.inference.p_value)
 
    mde = power_analysis(res, n_post_periods=[4, 8, 12], power=0.80)
-   mde.to_dataframe()                # minimum detectable effect by horizon
+   print(mde.to_dataframe())                # minimum detectable effect by horizon
 
 A budget constraint (``costs`` + ``budget``) adds
 :math:`\sum_i \text{cost}_i D_i \le B` to the MIP; ``mode="two_way_global"``
