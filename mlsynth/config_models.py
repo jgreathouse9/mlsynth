@@ -2416,6 +2416,8 @@ class MicroSynthConfig(BaseEstimatorConfig):
     )
 
 
+
+
 class PPSCMConfig(BaseEstimatorConfig):
     """Configuration for the Partially Pooled SCM (PPSCM) estimator.
 
@@ -2426,49 +2428,52 @@ class PPSCMConfig(BaseEstimatorConfig):
     parameter ``nu``.
     """
 
-    L: Optional[int] = Field(
-        default=None,
-        ge=1,
-        description=(
-            "Number of pre-treatment lags to use, common to every treated "
-            "unit. None (default) uses min_j (T_j - 1) so the earliest "
-            "cohort just fits in the pre-window."
-        ),
-    )
-    K: Optional[int] = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Maximum event-time horizon. None (default) uses "
-            "min_j (T - T_j) so every treated unit contributes at every "
-            "modelled horizon."
-        ),
-    )
     nu: Union[float, Literal["auto"]] = Field(
         default="auto",
         description=(
-            "Pooling parameter in [0, 1]. nu = 0 recovers separate SCM, "
-            "nu = 1 fully pooled SCM. 'auto' (default) selects nu by the "
-            "equal-imbalance heuristic: sweep a grid and pick the value "
-            "with q_tilde_sep ~ q_tilde_pool."
+            "Pooling parameter. Small nu approaches a separate SCM per treated "
+            "unit, large nu a fully pooled SCM (nu weights the pooled balance "
+            "term). 'auto' (default) uses the triangle-inequality ratio "
+            "global_l2 * sqrt(d) / avg_l2 of the separate fit, matching "
+            "augsynth's heuristic."
         ),
     )
-    nu_grid_size: int = Field(
-        default=21,
-        ge=3,
-        description="Grid resolution for the auto-nu sweep.",
+    fixedeff: bool = Field(
+        default=True,
+        description=(
+            "Include two-way fixed effects (time effect from never-treated "
+            "units + per-cohort unit pre-mean) and balance the residuals, as "
+            "in augsynth (force=3). False removes only the control time means."
+        ),
+    )
+    n_leads: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Number of post-treatment horizons (relative time) to estimate. "
+            "None defaults to the number of post-treatment periods of the last "
+            "treated unit."
+        ),
+    )
+    n_lags: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Number of pre-treatment periods to balance. None balances all "
+            "pre-treatment periods."
+        ),
+    )
+    time_cohort: bool = Field(
+        default=False,
+        description=(
+            "If True, collapse units sharing an adoption time into one "
+            "fully-pooled cohort (one synthetic control per cohort)."
+        ),
     )
     lam: float = Field(
         default=0.0,
         ge=0.0,
-        description="Frobenius-norm regularization on the weight matrix.",
-    )
-    demean: bool = Field(
-        default=False,
-        description=(
-            "If True, demean each unit by its pre-treatment mean before "
-            "fitting (the paper's 'intercept shift' extension)."
-        ),
+        description="L2 regularization on the donor weights.",
     )
     solver: Any = Field(
         default=None,
@@ -2477,7 +2482,8 @@ class PPSCMConfig(BaseEstimatorConfig):
     run_inference: bool = Field(
         default=True,
         description=(
-            "Whether to run leave-one-treated-unit-out jackknife inference."
+            "Whether to run the paper's delete-one jackknife inference "
+            "(refits the estimator dropping each unit; can be slow)."
         ),
     )
     alpha: float = Field(
