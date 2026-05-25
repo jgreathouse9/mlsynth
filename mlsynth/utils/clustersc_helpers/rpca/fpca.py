@@ -108,12 +108,16 @@ def compute_fpca_features(
             ) from exc
 
     try:
-        scores = PCA().fit_transform(smoothed)
-        sv = np.linalg.svd(smoothed, full_matrices=False, compute_uv=False)
+        pca = PCA()
+        scores = pca.fit_transform(smoothed)
     except (ValueError, np.linalg.LinAlgError) as exc:
         raise MlsynthEstimationError(f"PCA failed in FPCA: {exc}") from exc
 
-    rank = _spectral_rank(sv, cumvar_threshold)
+    # Select the rank from the *centered* spectrum that produced the scores.
+    # Using the raw (uncentered) SVD here would let the cross-sectional level
+    # swamp the leading component on level-dominated panels (e.g. GDP) and
+    # collapse the FPC expansion to rank 1.
+    rank = _spectral_rank(pca.singular_values_, cumvar_threshold)
     if rank == 0:
         return FPCAFeatures(
             scores=np.zeros((n_units, 0)),
