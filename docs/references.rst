@@ -262,6 +262,17 @@ References
 
 .. [Xu2017] Xu, Yiqing. “Generalized Synthetic Control Method: Causal Inference with Interactive Fixed Effects Models.” *Political Analysis* 25, no. 1 (2017): 57–76. https://doi.org/10.1017/pan.2016.2.
 
+.. [MCNNM]
+    Athey, Susan, Bayati, Mohsen, Doudchenko, Nikolay, Imbens, Guido, and Khosravi, Khashayar.
+    "Matrix Completion Methods for Causal Panel Data Models."
+    *Journal of the American Statistical Association*, 116(536): 1716-1730, 2021.
+    DOI: https://doi.org/10.1080/01621459.2021.1891924
+
+.. [Mazumder2010]
+    Mazumder, Rahul, Hastie, Trevor, and Tibshirani, Robert.
+    "Spectral Regularization Algorithms for Learning Large Incomplete Matrices."
+    *Journal of Machine Learning Research*, 11: 2287-2322, 2010.
+
 .. [SYNDES]
     Doudchenko, Nick, Khosravi, Khashayar, Pouget-Abadie, Jean, Lahaie, Sebastien,
     Lubin, Miles, Mirrokni, Vahab, Spiess, Jann, and Imbens, Guido.
