@@ -340,7 +340,8 @@ class TestPowerAnalysis:
 class TestOneWayGlobalObjective:
     def _matchable_panel(self):
         """Unit 2 == mean(units 0, 1); the one-way control synthetic should
-        concentrate on unit 2 (a diff-in-means design could not)."""
+        concentrate on unit 2 (a diff-in-means design could not).
+        """
         rng = np.random.default_rng(3)
         N, T, n_post = 8, 14, 3
         Y = rng.standard_normal((T, N)) * 0.3 + np.linspace(0, 1, T)[:, None]
