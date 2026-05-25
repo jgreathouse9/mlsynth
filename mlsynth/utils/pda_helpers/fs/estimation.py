@@ -2,67 +2,73 @@
 
 Greedy forward selection of control units: at each step add the donor whose
 inclusion maximizes the pre-treatment OLS ``R^2`` (equivalently minimizes the
-residual sum of squares). The number of selected units ``R`` is chosen by the
-modified BIC of Wang, Li & Tsai (2009),
+residual variance ``sigma^2 = mean(e^2)``). Selection **stops** as soon as the
+modified information criterion
 
-    R_hat = argmin_r  log( sigma_hat^2(U_r) ) + log(log N) * r * log(T1) / T1,
+    IC(r) = log( sigma^2(U_r) ) + B * r,   B = log(log N) * log(T1) / T1
 
-where ``sigma_hat^2(U_r)`` is the pre-period residual variance of OLS on the
-``r``-donor set. The counterfactual is the OLS extrapolation on ``U_{R_hat}``.
+stops decreasing (the stopping rule of Wang, Li & Tsai used in the authors'
+``fsPDA`` R package), starting from the intercept-only ``IC = log(var(y1))``.
+The counterfactual is the OLS extrapolation on the selected set. This is a
+direct port of ``est.fsPDA.R``.
 """
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 
 
-def _ols_ssr(y: np.ndarray, Z: np.ndarray) -> Tuple[np.ndarray, float]:
-    """OLS coefficients (incl. intercept col in Z) and residual sum of squares."""
+def _ols_sigma2(y: np.ndarray, Z: np.ndarray) -> float:
+    """OLS (pinv) residual variance ``mean(e^2)`` for design ``Z`` (incl. intercept)."""
     coef, *_ = np.linalg.lstsq(Z, y, rcond=None)
     resid = y - Z @ coef
-    return coef, float(resid @ resid)
+    return float(np.mean(resid ** 2))
 
 
 def forward_select(
-    y: np.ndarray, X: np.ndarray, T0: int, max_R: Optional[int] = None,
+    y: np.ndarray, X: np.ndarray, T0: int,
 ) -> Tuple[List[int], np.ndarray, float, np.ndarray]:
-    """Forward-select donors, choose ``R`` by modified BIC, refit OLS.
+    """Forward-select donors with the stop-on-increase IC rule, then refit OLS.
 
     Returns ``(selected_indices, beta_full, intercept, counterfactual)`` where
     ``beta_full`` is an ``N``-vector with zeros off the selected support.
     """
     y_pre, X_pre = y[:T0], X[:T0]
     N = X.shape[1]
-    cap = max_R if max_R is not None else min(N, max(1, T0 - 2))
+    B = np.log(np.log(max(N, 3))) * np.log(T0) / T0
+    IC = float(np.log(np.var(y_pre, ddof=1)))
 
     selected: List[int] = []
     remaining = list(range(N))
-    path_ssr: List[float] = []
-    while len(selected) < cap and remaining:
-        best_j, best_ssr = None, np.inf
+    for _ in range(T0):
+        if not remaining:
+            break
+        best_j, best_s2 = None, np.inf
         for j in remaining:
-            cols = [0] + [k + 1 for k in selected + [j]]   # intercept + chosen donors
-            Z = np.column_stack([np.ones(T0), X_pre[:, selected + [j]]])
-            _, ssr = _ols_ssr(y_pre, Z)
-            if ssr < best_ssr:
-                best_ssr, best_j = ssr, j
-        selected.append(best_j)
-        remaining.remove(best_j)
-        path_ssr.append(best_ssr)
+            cols = selected + [j]
+            Z = np.column_stack([np.ones(T0), X_pre[:, cols]])
+            s2 = _ols_sigma2(y_pre, Z)
+            if s2 < best_s2:
+                best_s2, best_j = s2, j
+        IC_new = np.log(best_s2) + B * (len(selected) + 1)
+        if IC_new < IC:                       # accept and continue
+            IC = IC_new
+            selected.append(best_j)
+            remaining.remove(best_j)
+        else:                                 # stop at first non-improvement
+            break
 
-    # modified BIC over the greedy path
-    log_logN = np.log(np.log(max(N, 3)))
-    bic = [np.log(path_ssr[r] / T0) + log_logN * (r + 1) * np.log(T0) / T0
-           for r in range(len(path_ssr))]
-    R_hat = int(np.argmin(bic)) + 1
-    chosen = selected[:R_hat]
+    if not selected:                          # degenerate: intercept only
+        intercept = float(np.mean(y_pre))
+        beta_full = np.zeros(N)
+        return [], beta_full, intercept, np.full(X.shape[0], intercept)
 
-    Z = np.column_stack([np.ones(T0), X_pre[:, chosen]])
-    coef, _ = _ols_ssr(y_pre, Z)
+    Z = np.column_stack([np.ones(T0), X_pre[:, selected]])
+    coef, *_ = np.linalg.lstsq(Z, y_pre, rcond=None)
     intercept = float(coef[0])
     beta_full = np.zeros(N)
-    beta_full[chosen] = coef[1:]
+    beta_full[selected] = coef[1:]
     counterfactual = X @ beta_full + intercept
-    return chosen, beta_full, intercept, counterfactual
+    return selected, beta_full, intercept, counterfactual
