@@ -236,57 +236,21 @@ References
     URL: https://doi.org/10.1177/1536867X221140960
 
 .. [ABADIE2010]
-    Abadie, Alberto, Diamond, Alexis, and Hainmueller, Jens. 
-    "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California’s Tobacco Control Program." 
-    *Journal of the American Statistical Association*, 105(490): 493-505, 2010. 
+    Abadie, Alberto, Diamond, Alexis, and Hainmueller, Jens.
+    "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California’s Tobacco Control Program."
+    *Journal of the American Statistical Association*, 105(490): 493-505, 2010.
     URL: https://doi.org/10.1198/jasa.2009.ap08746
 
-.. [TianLeePanchenko]
-    Tian, Wei, Lee, Seojeong, and Panchenko, Valentyn.
-    "Synthetic Controls with Multiple Outcomes."
-    *arXiv preprint* arXiv:2304.02272, 2024.
-    URL: https://arxiv.org/abs/2304.02272
-
-.. [SunBenMichaelFeller]
-    Sun, Liyang, Ben-Michael, Eli, and Feller, Avi.
-    "Using Multiple Outcomes to Improve the Synthetic Control Method."
-    *Review of Economics and Statistics* (forthcoming), 2025.
-    DOI: https://doi.org/10.1162/rest_a_01592
-
-.. [CWZ2021]
-    Chernozhukov, Victor, Wuethrich, Kaspar, and Zhu, Yinchu.
-    "An Exact and Robust Conformal Inference Method for Counterfactual and Synthetic Controls."
-    *Journal of the American Statistical Association*, 116(536): 1849-1864, 2021.
-    URL: https://doi.org/10.1080/01621459.2021.1920957
-
-.. [DoudchenkoImbens2017]
-    Doudchenko, Nikolay, and Imbens, Guido W.
-    "Balancing, Regression, Difference-in-Differences and Synthetic Control Methods: A Synthesis."
-    *NBER Working Paper* No. 22791, 2017.
-    URL: https://doi.org/10.3386/w22791
-
-.. [LinfSC]
-    Wang, Lin, Xing, Xin, and Ye, Yinyu.
-    "An L-infinity Norm Synthetic Control Approach."
-    *arXiv preprint* arXiv:2510.26053, 2025.
-    URL: https://arxiv.org/abs/2510.26053
-
-.. [RelaxSC]
-    Liao, Chen, Shi, Zhentao, and Zheng, Yapeng.
-    "A Relaxation Approach to Synthetic Control."
-    *arXiv preprint* arXiv:2508.01793, 2026.
-    URL: https://arxiv.org/abs/2508.01793
-
-.. [LiSCM2020]
-    Li, Kathleen T.
-    "Statistical Inference for Average Treatment Effects Estimated by Synthetic Control Methods."
-    *Journal of the American Statistical Association*, 115(532): 2068-2083, 2020.
-    URL: https://doi.org/10.1080/01621459.2019.1686986
+.. [FSCM]
+    Cerulli, Giovanni.
+    "Optimal initial donor selection for the synthetic control method."
+    *Economics Letters*, 244: 111976, 2024.
+    DOI: https://doi.org/10.1016/j.econlet.2024.111976
 
 .. [FECT2024]
-    Liu, Licheng, Wang, Ye, and Xu, Yiqing.
-    "A Practical Guide to Counterfactual Estimators for Causal Inference with Time-Series Cross-Sectional Data."
-    *American Journal of Political Science*, 68(1): 160-176, 2024.
+    Liu, Licheng, Wang, Ye, and Xu, Yiqing. 
+    "A Practical Guide to Counterfactual Estimators for Causal Inference with Time-Series Cross-Sectional Data." 
+    *American Journal of Political Science*, 68(1): 160-176, 2024. 
     URL: https://doi.org/10.1111/ajps.12723
 
 .. [SYNTH22023]
