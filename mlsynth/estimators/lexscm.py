@@ -22,12 +22,11 @@ from ..utils.fast_scm_helpers.fast_scm_setup import (
 )
 
 # Utilities - Search and Evaluation
-from ..utils.fast_scm_helpers.fast_scm_bb import branch_and_bound_topK
+from ..utils.fast_scm_helpers.lexsearch import select_treated_designs
 from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
 # Utilities - Power and Ranking
-from ..utils.fast_scm_helpers.power_helpers import (select_best_tuple,
-                                                    run_mde_analysis,
-                                                    )
+from ..utils.fast_scm_helpers.lexpower import detectability_curve
+from ..utils.fast_scm_helpers.lexselect import DesignMetrics, select_design
 
 from ..utils.fast_scm_helpers.inference import compute_moving_block_conformal_ci
 
@@ -208,6 +207,8 @@ class LEXSCM:
         self.test_statistic: str = config.test_statistic
         self.target_mde_horizon: Literal["early_mean", "early_min", "late"] = config.mde_horizon
         self.max_shortlist: int = config.max_shortlist
+        self.power_target: float = config.power_target
+        self.imbalance_tol: float = config.imbalance_tol
 
         self.display_graph: bool = config.display_graph
 
@@ -216,6 +217,29 @@ class LEXSCM:
         # =========================================================
         self.seed: int = config.seed
         self.verbose: bool = config.verbose
+
+    def _representative_mde(self, dc: dict):
+        """Collapse a detectability curve to one (mde_sd, mde_abs) per `mde_horizon`.
+
+        - "late"       : MDE at the longest horizon.
+        - "early_min"  : smallest MDE across horizons (most optimistic).
+        - "early_mean" : mean MDE across feasible horizons.
+        """
+        det = dc["details"]
+        horizons = sorted(det.keys())
+        triples = [(w, det[w]["mde_sd"], det[w]["mde_abs"]) for w in horizons]
+        finite = [(w, s, a) for w, s, a in triples if np.isfinite(s)]
+        if self.target_mde_horizon == "late":
+            _, s, a = triples[-1]
+            return s, a
+        if not finite:
+            return np.inf, np.inf
+        if self.target_mde_horizon == "early_min":
+            _, s, a = min(finite, key=lambda x: x[1])
+            return s, a
+        # early_mean
+        return (float(np.mean([s for _, s, _ in finite])),
+                float(np.mean([a for _, _, a in finite])))
 
     def fit(self, **kwargs) -> "LEXSCM":
         """
@@ -345,20 +369,23 @@ class LEXSCM:
         # If no budget is provided, set to infinity so no pruning occurs
         effective_budget = self.budget if self.budget is not None else np.inf
 
-        # --- Call the Solver ---
-        bbresults = branch_and_bound_topK(
+        # ---------- Stage 1: treated-tuple selection (lexsearch) ----------
+        search = select_treated_designs(
             G=G,
             candidate_idx=candidate_idx,
             m=self.m,
             top_K=self.top_K,
-            unit_index=unit_index,
             unit_costs=costs_aligned,
-            budget=effective_budget
+            budget=(None if np.isinf(effective_budget) else effective_budget),
+            unit_index=unit_index,
+            method="auto",
+            random_state=self.seed,
         )
+        bbresults = {"top_tuples": search["top_designs"], "stats": search["stats"]}
 
-        # ------------------- Stage 2: Evaluate candidates -------------------
+        # --------------- Stage 2: control fit (unchanged) -----------------
         candidate_results = evaluate_candidates(
-            candidates=bbresults['top_tuples'],
+            candidates=search["top_designs"],
             X=X,
             X_E=X_E,
             Y=self.Y,
@@ -368,19 +395,46 @@ class LEXSCM:
             lambda_penalty=self.lambda_penalty, index_set=unit_index
         )
 
-        candidate_mdes = run_mde_analysis(
-            candidates=candidate_results,
-            n_post_grid=self.n_post_grid,
-            n_sims=self.n_sims
-        )
+        # ----- Stage 3: power / MDE (moving-block placebo null) -----------
+        design_metrics = []
+        for c in candidate_results:
+            dc = detectability_curve(
+                np.asarray(c.predictions.residuals_B),
+                self.n_post_grid,
+                alpha=self.alpha,
+                power_target=self.power_target,
+                random_state=self.seed,
+            )
+            c.mde_results = dc
+            mde_sd, mde_abs = self._representative_mde(dc)
+            sol = c.identification.solution
+            design_metrics.append(DesignMetrics(
+                design_id=c.identification.tuple_id,
+                indices=list(c.identification.treated_idx),
+                labels=getattr(sol, "labels", []),
+                imbalance=float(np.sqrt(max(c.losses.loss_E, 0.0))),
+                mde_sd=mde_sd,
+                mde_abs=mde_abs,
+                mde_feasible=bool(np.isfinite(mde_sd)),
+                stability=float(c.losses.nmse_B),
+                total_cost=float(getattr(sol, "total_cost", 0.0)),
+            ))
 
         y_pop_mean_t = self.Y.mean(axis=1)
 
-        winner, shortlist = select_best_tuple(
-            candidate_mdes,
-            mde_horizon=self.target_mde_horizon,
-            max_shortlist=self.max_shortlist
+        # --------- Stage 4: final recommendation (lexicographic) ----------
+        recommendation = select_design(
+            design_metrics,
+            imbalance_tol=self.imbalance_tol,
+            max_shortlist=self.max_shortlist,
         )
+        shortlist = pd.DataFrame(recommendation.table)
+        bbresults["recommendation"] = {
+            "status": recommendation.status,
+            "winner": recommendation.winner.design_id if recommendation.winner else None,
+            "pareto_ids": recommendation.pareto_ids,
+            "explanation": recommendation.explanation,
+        }
 
         if self.post_col is not None and not self.post_df.empty:
             y_pop_mean_t, candidate_results = _run_post_intervention_updates(
@@ -401,9 +455,10 @@ class LEXSCM:
         # 6. Final Assembly
         # ==============================================================
         # Re-fetch the winner (now with updated post-intervention results)
+        winner_id = recommendation.winner.design_id if recommendation.winner else None
         best_candidate = next(
             (c for c in candidate_results
-             if c.identification.tuple_id == winner.identification.tuple_id),
+             if c.identification.tuple_id == winner_id),
             candidate_results[0]  # fallback
         )
 
