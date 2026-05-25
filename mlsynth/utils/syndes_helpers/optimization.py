@@ -146,11 +146,16 @@ def _extract_weights(mode, assignment, values):
     q = values.get("q")
 
     # ----------------------------
-    # Equal weights case (paper's "one-way global")
+    # One-way global: treated weights pinned to 1/K, control weights are the
+    # free synthetic-control vector c solved by the MIP.
     # ----------------------------
     if mode == "global_equal_weights":
         treated_weights = assignment / K
-        control_weights = (1 - assignment) / (N - K)
+        c = values.get("c")
+        if c is None:
+            control_weights = (1 - assignment) / (N - K)
+        else:
+            control_weights = np.clip(np.asarray(c, dtype=float).reshape(-1), 0.0, None)
         contrast_weights = treated_weights - control_weights
         return treated_weights, control_weights, contrast_weights
 
@@ -294,6 +299,17 @@ def solve_synthetic_design(
     # ----------------------------
     treated_w, control_w, contrast_w = _extract_weights(mode, assignment, values)
 
+    # Design "prediction": the pre-period treated-minus-synthetic contrast the
+    # design balances, and its RMSE. Defined uniformly across modes via the
+    # aggregate contrast vector.
+    contrast_series = None
+    pre_fit_rmse = None
+    if contrast_w is not None:
+        contrast_w_arr = np.asarray(contrast_w, dtype=float).reshape(-1)
+        if contrast_w_arr.shape[0] == N:
+            contrast_series = Y @ contrast_w_arr
+            pre_fit_rmse = float(np.sqrt(np.mean(contrast_series ** 2)))
+
     raw_results: Dict[str, Any] = {
         "status": problem.status,
         "solver": solver,
@@ -321,6 +337,8 @@ def solve_synthetic_design(
         treated_weights=treated_w,
         control_weights=control_w,
         contrast_weights=contrast_w,
+        contrast_series=contrast_series,
+        pre_fit_rmse=pre_fit_rmse,
 
         raw_results=raw_results,
     )

@@ -224,13 +224,14 @@ def build_global_equal_weights_variables(
     N: int,
 ) -> Dict[str, cp.Variable]:
     """
-    Create CVXPY variables for the equal-weight global formulation.
+    Create CVXPY variables for the one-way global formulation.
 
-    This is a restricted version of global two-way SYNDES where:
-        - treated weights are fixed to 1/K
-        - control weights are fixed to 1/(N-K)
-
-    Only the assignment vector D is optimized.
+    This is the paper's *one-way global* design (Doudchenko et al. 2021, eq.
+    "one-way global"): the treated weights are pinned to ``1/K`` (a simple
+    average of the treated units), while the **control** weights remain free
+    synthetic-control weights to be optimized. Only the control weights ``c``
+    and the residual ``z`` are decision variables here; the assignment ``D`` is
+    passed in separately.
 
     Parameters
     ----------
@@ -242,11 +243,13 @@ def build_global_equal_weights_variables(
     Returns
     -------
     dict
-        Contains only:
+        Contains:
+        - "c": free control-side synthetic weights (N,), nonneg
         - "z": residual vector over time (T,)
     """
 
     return {
+        "c": cp.Variable(N, nonneg=True),
         "z": cp.Variable(T),
     }
 
@@ -258,11 +261,16 @@ def build_global_equal_weights_constraints(
     variables: Dict[str, cp.Variable],
 ) -> List[cp.Constraint]:
     """
-    Build constraints for the equal-weight global SYNDES formulation.
+    Build constraints for the one-way global SYNDES formulation.
 
-    The model enforces a fixed weighting scheme:
-        treated units: 1/K
-        control units: 1/(N-K)
+    The treated side is a simple average (weight ``1/K`` on each treated unit);
+    the control side is a free synthetic control. With ``c`` the control
+    weights and ``D`` the assignment, the per-period contrast is
+
+        z_t = (1/K) * sum_i D_i Y_{it}  -  sum_i c_i Y_{it},
+
+    subject to ``sum_i D_i = K``, ``sum_i c_i = 1``, ``c_i >= 0`` and
+    ``c_i <= 1 - D_i`` (so treated units carry no control weight).
 
     Parameters
     ----------
@@ -271,40 +279,40 @@ def build_global_equal_weights_constraints(
     D : cp.Variable
         Binary assignment vector.
     K : int
-        Number of treated units.
+        Number of treated units (required for this mode).
     variables : dict
-        Contains residual variable "z".
+        Contains "c" and "z".
 
     Returns
     -------
     list of cp.Constraint
-        Feasibility constraints for assignment and residual definition.
+        Feasibility constraints for assignment, control simplex, and residual.
     """
 
     T, N = Y.shape
 
+    if K is None:
+        raise ValueError(
+            "global_equal_weights (one-way global) requires an explicit K: the "
+            "treated weight 1/K is undefined without it."
+        )
     if K >= N:
         raise ValueError(
             "global_equal_weights requires K to be less "
             "than the number of units."
         )
 
+    c = variables["c"]
     z = variables["z"]
-
-    treated_weight = 1.0 / K
-    control_weight = 1.0 / (N - K)
-
-    contrast = (
-        cp.multiply(D, treated_weight)
-        - cp.multiply(1 - D, control_weight)
-    )
 
     constraints: List[cp.Constraint] = [
         cp.sum(D) == K,
+        cp.sum(c) == 1,          # control weights on the simplex
+        c <= 1 - D,              # treated units carry no control weight
     ]
 
     residual_constraints = [
-        z[t] == Y[t, :] @ contrast
+        z[t] == (1.0 / K) * (D @ Y[t, :]) - c @ Y[t, :]
         for t in range(T)
     ]
 
@@ -320,14 +328,15 @@ def build_global_equal_weights_objective(
     variables: Dict[str, cp.Variable],
 ) -> cp.Expression:
     """
-    Construct objective for equal-weight global SYNDES.
+    Construct objective for the one-way global SYNDES formulation.
 
-    The objective is:
+    The objective is
 
-        (1/T) * sum_t z_t^2 + lam * (1/K + 1/(N-K))
+        (1/T) * sum_t z_t^2  +  lam * ( 1/K + ||c||_2^2 ),
 
-    The second term is constant with respect to D and only reflects
-    the fixed weighting scheme.
+    where ``1/K`` is the (constant) penalty contributed by the pinned treated
+    weights and ``||c||_2^2`` is the penalty on the free control weights, so the
+    bracket equals the paper's ``sum_i w_i^2`` evaluated at the one-way design.
 
     Parameters
     ----------
@@ -336,9 +345,9 @@ def build_global_equal_weights_objective(
     K : int
         Number of treated units.
     lam : float
-        Regularization parameter.
+        Regularization parameter (the paper's sigma^2).
     variables : dict
-        Contains residual variable "z".
+        Contains "c" and "z".
 
     Returns
     -------
@@ -348,32 +357,21 @@ def build_global_equal_weights_objective(
 
     T, N = Y.shape
 
-    if K >= N:
+    if K is None or K >= N:
         raise ValueError(
-            "global_equal_weights requires K to be less "
+            "global_equal_weights requires K to be a positive integer less "
             "than the number of units."
         )
 
+    c = variables["c"]
     z = variables["z"]
 
     residual_loss = cp.sum_squares(z) / T
+    # Penalty = lam * sum_i w_i^2 with treated weights pinned to 1/K
+    # (contributing K * (1/K)^2 = 1/K) and free control weights c.
+    weight_penalty = lam * ((1.0 / K) + cp.sum_squares(c))
 
-    # Since weights are fixed:
-    #
-    # treated contribution:
-    #   K * (1/K)^2 = 1/K
-    #
-    # control contribution:
-    #   (N-K) * (1/(N-K))^2 = 1/(N-K)
-
-    constant_weight_penalty = (
-        lam * (
-            (1.0 / K)
-            + (1.0 / (N - K))
-        )
-    )
-
-    return residual_loss + constant_weight_penalty
+    return residual_loss + weight_penalty
 
 
 def build_global_equal_weights_components(

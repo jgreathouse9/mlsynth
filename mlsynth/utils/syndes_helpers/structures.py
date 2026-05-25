@@ -84,9 +84,10 @@ class SYNDESInputs:
     Parameters
     ----------
     Y_pre : np.ndarray
-        Pre-treatment outcome matrix of shape (N, T_pre).
+        Pre-treatment outcome matrix of shape (T_pre, N) -- rows are time
+        periods, columns are units.
     Y_post : np.ndarray or None
-        Post-treatment outcome matrix of shape (N, T_post), if available.
+        Post-treatment outcome matrix of shape (T_post, N), if available.
     unit_index : IndexSet
         Mapping from unit labels to integer indices.
     time_index : IndexSet
@@ -152,6 +153,13 @@ class SYNDESDesign:
         Normalized weights over control units.
     contrast_weights : np.ndarray or None, optional
         Difference weights used in global estimators.
+    contrast_series : np.ndarray or None, optional
+        Pre-period fitted contrast ``Y_pre @ contrast_weights``, shape
+        ``(T_pre,)`` -- the per-period treated-minus-synthetic gap the design
+        balances. The design's "prediction" of the (zero) pre-period effect.
+    pre_fit_rmse : float or None, optional
+        Root mean squared pre-period contrast, ``sqrt(mean(contrast_series^2))``
+        -- how tightly the design balances treated and control before launch.
 
     Notes
     -----
@@ -173,6 +181,8 @@ class SYNDESDesign:
     treated_weights: Optional[np.ndarray] = None
     control_weights: Optional[np.ndarray] = None
     contrast_weights: Optional[np.ndarray] = None
+    contrast_series: Optional[np.ndarray] = None
+    pre_fit_rmse: Optional[float] = None
 
 
 @dataclass(frozen=True)

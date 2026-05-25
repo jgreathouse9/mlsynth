@@ -7,23 +7,26 @@ rejection rate. Repeating that procedure across a grid of effect
 sizes traces out the rejection probability as a function of the
 true effect.
 
-For a single fitted design we can short-circuit that loop by
-appealing to the asymptotic normality of the permutation test
-statistic under the null. With
+For a single fitted design we short-circuit that loop by appealing to the
+asymptotic normality of the permutation test statistic under the null. The
+moving-block permutation test compares the post-period **mean** contrast
+``mean_t (Y_t @ c)`` to the distribution of length-``n_post`` block means, so
+the relevant null standard error is the std of those block means. We estimate
+it on the pre-period contrast series ``per_period = Y_pre @ c``:
 
-    sigma_perm = std_t (Y_t @ c)
+    SE(n_post) = std_s ( mean_{u in block_s} per_period[u] ),
 
-— the std of the per-period contrast applied to the **pre-period**
-outcome panel (the empirical null distribution of the test
-statistic, the same one the moving-block permutation test
-samples) — the variance of the ATT estimator over ``n_post``
-post-treatment periods is ``sigma_perm^2 / n_post``. The MDE at
-significance level ``alpha`` (two-sided) and power ``1 - beta`` is
+the std over overlapping length-``n_post`` blocks. This captures any **serial
+correlation** in the outcomes (the same correlation the block permutation test
+is exposed to); under independence it reduces to ``sigma_perm / sqrt(n_post)``,
+the textbook MDE, and we fall back to that scaling when a horizon leaves too
+few blocks. The MDE at significance level ``alpha`` (two-sided) and power
+``1 - beta`` is
 
-    MDE_abs(n_post) = (z_{1 - alpha/2} + z_{1 - beta})
-                       * sigma_perm / sqrt(n_post),
+    MDE_abs(n_post) = (z_{1 - alpha/2} + z_{1 - beta}) * SE(n_post),
 
-which we report alongside its percentage version
+where ``sigma_perm = std_t (Y_t @ c)`` is reported as the per-period contrast
+std. We report the MDE alongside its percentage version
 
     MDE_pct(n_post) = 100 * MDE_abs(n_post) / baseline,
 
@@ -51,6 +54,31 @@ from .inference import _build_contrast_vector
 from .structures import SYNDESResults
 
 
+def _newey_west_sigma(x: np.ndarray) -> float:
+    """Bartlett-kernel HAC long-run std of a 1-D series.
+
+    Returns ``sqrt(gamma_0 + 2 * sum_k (1 - k/(L+1)) gamma_k)``, the
+    Newey-West long-run standard deviation, where ``gamma_k`` is the lag-``k``
+    autocovariance and ``L`` is the automatic bandwidth ``floor(4 (T/100)^(2/9))``.
+    Equals the ordinary std when the series is serially uncorrelated.
+    """
+    x = np.asarray(x, dtype=float)
+    T = x.size
+    xc = x - x.mean()
+    gamma0 = float(np.dot(xc, xc) / T)
+    if T < 3:
+        return float(np.sqrt(max(gamma0, 0.0)))
+    L = max(1, int(np.floor(4.0 * (T / 100.0) ** (2.0 / 9.0))))
+    L = min(L, T - 1)
+    lrv = gamma0
+    for k in range(1, L + 1):
+        weight = 1.0 - k / (L + 1.0)
+        gamma_k = float(np.dot(xc[k:], xc[:-k]) / T)
+        lrv += 2.0 * weight * gamma_k
+    # Bartlett weighting keeps the estimator non-negative; guard numerics.
+    return float(np.sqrt(max(lrv, 1e-12)))
+
+
 @dataclass(frozen=True)
 class SYNDESPower:
     """Per-horizon MDE table for a fitted SYNDES design.
@@ -64,8 +92,12 @@ class SYNDESPower:
     mde_percent : np.ndarray
         ``100 * MDE_abs / baseline``, shape ``(H,)``.
     sigma_perm : float
-        Std of the per-period contrast applied to the pre-period
-        outcomes -- the permutation-null std the MDE rests on.
+        Ordinary std of the per-period contrast applied to the pre-period
+        outcomes (the i.i.d. per-period scale).
+    long_run_sigma : float
+        Newey-West (Bartlett HAC) long-run std of the per-period contrast --
+        the serial-correlation-robust scale the MDE actually rests on. Equals
+        ``sigma_perm`` when the contrast series is serially uncorrelated.
     baseline : float
         Baseline outcome level used to convert ``mde_absolute`` into a
         percentage.
@@ -90,6 +122,7 @@ class SYNDESPower:
     alpha: float
     power: float
     contrast: np.ndarray = field(repr=False)
+    long_run_sigma: float = 0.0
 
     def to_dataframe(self):
         """Return a tidy ``(n_post, mde_abs, mde_pct)`` DataFrame."""
@@ -222,7 +255,16 @@ def power_analysis(
     if np.any(horizons <= 0):
         raise MlsynthEstimationError("n_post_periods entries must be >= 1.")
 
-    mde_abs = multiplier * sigma_perm / np.sqrt(horizons.astype(float))
+    # Serial-correlation-robust per-period std. The ATT estimator is the mean
+    # of the post-period contrast; under serial correlation the variance of a
+    # length-h mean is (long-run variance)/h, not sigma_perm^2 / h. We estimate
+    # the long-run variance with a Newey-West (Bartlett) HAC kernel on the
+    # pre-period contrast series, so the MDE accounts for the persistence the
+    # moving-block permutation test is exposed to. With no autocorrelation it
+    # collapses to sigma_perm, recovering the textbook (z)*sigma/sqrt(h) MDE.
+    long_run_sigma = _newey_west_sigma(per_period)
+
+    mde_abs = multiplier * long_run_sigma / np.sqrt(horizons.astype(float))
     mde_pct = 100.0 * mde_abs / baseline_val
 
     return SYNDESPower(
@@ -230,6 +272,7 @@ def power_analysis(
         mde_absolute=mde_abs,
         mde_percent=mde_pct,
         sigma_perm=sigma_perm,
+        long_run_sigma=long_run_sigma,
         baseline=baseline_val,
         baseline_kind=baseline_kind,
         alpha=float(alpha),
