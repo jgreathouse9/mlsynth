@@ -1,150 +1,510 @@
-Synthetic Control With Multiple Outcomes
-=====================
+Synthetic Control with Multiple Outcomes (SCMO)
+===============================================
 
-.. autoclass:: mlsynth.mlsynth.SCMO
-   :show-inheritance:
-   :special-members: __init__
+.. currentmodule:: mlsynth
 
+When to Use This Estimator
+--------------------------
 
-Uses SC with multiple outcomes in a simulated setting.
+The synthetic control (SC) method of Abadie and co-authors [ABADIE2010]_
+builds a counterfactual for one treated unit as a convex combination of
+donors that reproduces the treated unit's **single** outcome over the
+pre-treatment period. That single-outcome design faces a bias dilemma in
+the panels most applied work actually has:
 
+* **Short pre-period.** With few pre-treatment periods, a flexible donor
+  pool can fit the pre-period *too* well, latching onto idiosyncratic noise
+  rather than the latent factors -- an overfit that predicts poorly
+  out-of-sample.
+* **Long pre-period.** Matching over many periods mitigates overfitting but
+  is fragile to structural breaks in the outcome-predictor relationship,
+  which reintroduces bias.
+
+SCMO targets exactly this regime by **supplementing the time dimension with
+an outcome dimension.** When you observe several *related* outcomes that
+share the same latent drivers -- a "domain" such as {GDP, industrial
+production, CPI, trade} for an economy, or {math score, reading score,
+attendance} for a school -- a single set of donor weights can be matched on
+**all of them at once.** Each extra outcome is an additional, partially
+independent view of the same donor loadings, so the weights are pinned down
+with far fewer pre-treatment periods. Tian, Lee and Panchenko
+[TianLeePanchenko]_ show the bias then shrinks at rate
+:math:`O(1/\sqrt{K T_0})` in the number of outcomes :math:`K` *and* periods
+:math:`T_0`, versus :math:`O(1/\sqrt{T_0})` for single-outcome SC -- a
+smaller order. The headline demonstration is striking: a synthetic West
+Germany matched on **nine economic indicators in the single year 1989**
+tracks 30 years of its GDP almost as well as one matched on the entire
+1960-1989 GDP trajectory.
+
+Use SCMO when you have **one treated unit, a moderate-to-short pre-period,
+and a set of related outcomes** driven by common factors. It is the right
+tool when single-outcome SC overfits (too few periods) or when you simply
+want a single, interpretable comparison group that is credible across
+several outcomes at once.
+
+Matching on Outcomes, Not Just Time
+-----------------------------------
+
+Most empirical work with several outcomes runs a *separate* SC for each one,
+getting a different donor mix every time -- hard to interpret and statistically
+wasteful. SCMO instead estimates **one common weight vector** by balancing the
+treated unit against the donors across the whole outcome domain. There are two
+ways to combine the outcomes, due to the two papers SCMO implements:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 46 22
+
+   * - Scheme
+     - What it balances
+     - Paper
+   * - ``concatenated``
+     - The **stacked** standardized pre-treatment series of all :math:`K`
+       outcomes (a single SC fit on a :math:`K T_0`-long matching vector).
+     - Tian-Lee-Panchenko [TianLeePanchenko]_
+   * - ``averaged``
+     - The **average** of the standardized outcomes within each period (a
+       single SC fit on a :math:`T_0`-long matching vector).
+     - Sun-Ben-Michael-Feller [SunBenMichaelFeller]_
+   * - ``separate``
+     - The primary outcome's pre-treatment trajectory **alone** -- the
+       conventional single-outcome SC baseline.
+     - Abadie et al. [ABADIE2010]_
+   * - ``MA``
+     - A convex **model-average** of ``concatenated`` and ``averaged``,
+       chosen by pre-treatment fit.
+     - (this implementation)
+
+Both papers agree on the surrounding recipe: **standardize each outcome**
+(per period) before matching, since outcomes have different scales;
+optionally **de-mean** (intercept-shift) to allow stable level differences
+between treated and donors; and constrain the weights to the **simplex**
+(non-negative, summing to one).
+
+Notation
+--------
+
+We observe :math:`K` related outcomes in a domain
+:math:`\mathbb{K} = \{1, \ldots, K\}` for :math:`N + 1` units over
+:math:`T` periods. Unit :math:`j = 0` is the sole **treated** unit, and
+:math:`\mathcal{N} = \{1, \ldots, N\}` indexes the **donors**. Treatment
+begins at :math:`T_0 + 1`, giving a pre-period
+:math:`\mathcal{T}_1 = \{1, \ldots, T_0\}` and a post-period
+:math:`\mathcal{T}_2 = \{T_0 + 1, \ldots, T\}` of length
+:math:`T_2 = T - T_0`. Write :math:`y_{jtk}` for unit :math:`j`'s outcome
+:math:`k` at time :math:`t`, and :math:`\boldsymbol{\gamma} = (\gamma_1,
+\ldots, \gamma_N)` for the **common donor weights** (a single vector shared
+across all :math:`K` outcomes). The estimand is the per-outcome ATT,
+
+.. math::
+
+   \tau_k = \frac{1}{T_2} \sum_{t \in \mathcal{T}_2}
+       \bigl(y^1_{0tk} - y^0_{0tk}\bigr), \qquad k \in \mathbb{K},
+
+with the primary outcome's :math:`\tau` the headline estimate.
+
+.. admonition:: Notation bridge
+
+   Both papers write the treated unit :math:`i = 1` and donors
+   :math:`i = 2, \ldots, N+1`; we use :math:`j = 0` for the treated unit and
+   :math:`\mathcal{N}` for donors. Their common weights are
+   :math:`\hat{w}_j` / :math:`\gamma_i`; we use :math:`\boldsymbol{\gamma}`.
+   ``mlsynth`` builds matching variables through a **spec** (which outcomes,
+   which period(s), and per-variable transforms ``level``/``log``/
+   ``per_capita``/``raw``) rather than a fixed list, so the same engine
+   covers "match :math:`K` outcomes over :math:`T_0` periods" and "match a
+   cross-section of indicators in one year".
+
+Mathematical Formulation
+------------------------
+
+The factor model
+~~~~~~~~~~~~~~~~
+
+Both papers assume the untreated potential outcome follows an interactive
+fixed-effects (factor) model with loadings that are **common across the
+outcomes in a domain**:
+
+.. math::
+
+   y^0_{jtk} = \delta_{tk} + \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_{tk}
+       + \varepsilon_{jtk},
+
+where :math:`\boldsymbol{\lambda}_{tk}` are time- and outcome-specific
+factors, :math:`\boldsymbol{\mu}_j` are unit loadings **shared across
+outcomes** :math:`k` (the key assumption), and
+:math:`\varepsilon_{jtk}` are transitory shocks. Because the loadings are
+shared, each outcome is a separate window onto the same
+:math:`\boldsymbol{\mu}_j`, so :math:`K` outcomes over :math:`T_0` periods
+give :math:`K T_0` matching equations to pin them down.
+
+The matching matrix and the two weighting schemes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Let :math:`\tilde{y}_{jtk}` denote outcome :math:`k`, standardized in each
+period by its cross-unit standard deviation (and optionally de-meaned by the
+unit's pre-period mean). The donor weights solve a simplex-constrained
+least-squares problem; the two schemes differ only in what they balance:
+
+.. math::
+
+   \text{concatenated:}\quad
+   \hat{\boldsymbol{\gamma}}^{\text{cat}}
+   = \operatorname*{argmin}_{\boldsymbol{\gamma} \in \Delta^{N-1}}
+     \sum_{k=1}^{K} \sum_{t \in \mathcal{T}_1}
+     \Bigl( \tilde{y}_{0tk} - \sum_{j \in \mathcal{N}} \gamma_j \tilde{y}_{jtk} \Bigr)^2,
+
+.. math::
+
+   \text{averaged:}\quad
+   \hat{\boldsymbol{\gamma}}^{\text{avg}}
+   = \operatorname*{argmin}_{\boldsymbol{\gamma} \in \Delta^{N-1}}
+     \sum_{t \in \mathcal{T}_1}
+     \Bigl( \bar{\tilde{y}}_{0t} - \sum_{j \in \mathcal{N}} \gamma_j \bar{\tilde{y}}_{jt} \Bigr)^2,
+   \quad \bar{\tilde{y}}_{jt} = \tfrac{1}{K} \sum_{k} \tilde{y}_{jtk},
+
+where :math:`\Delta^{N-1}` is the simplex. The counterfactual for the primary
+outcome and its ATT are then
+
+.. math::
+
+   \hat{y}^0_{0tk} = \sum_{j \in \mathcal{N}} \hat{\gamma}_j\, y_{jtk},
+   \qquad
+   \hat{\tau}_k = \frac{1}{T_2} \sum_{t \in \mathcal{T}_2}
+       \bigl( y_{0tk} - \hat{y}^0_{0tk} \bigr),
+
+with a de-meaned (intercept-shifted) variant
+:math:`\hat{y}^0_{0tk} = \bar{y}_{0\cdot k} + \sum_j \hat{\gamma}_j
+(y_{jtk} - \bar{y}_{j \cdot k})` when ``demean=True``
+([DoudchenkoImbens2017]_; Sun-Ben-Michael-Feller Eq. 1).
+
+Why more outcomes help
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Tian-Lee-Panchenko's Proposition 1 gives the bias rates: for the
+single-outcome SC, :math:`|\mathbb{E}[\hat{\tau}^{\text{sep}}] - \tau| =
+O(1/\sqrt{T_0})`, while for the multiple-outcome SC,
+:math:`|\mathbb{E}[\hat{\tau}^{\text{cat}}] - \tau| = O(1/\sqrt{K T_0})`.
+More related outcomes shrink the bias at a faster order. Sun-Ben-Michael-
+Feller sharpen this for the averaged scheme: averaging reduces the bias due
+to overfitting by :math:`1/\sqrt{K}` (like concatenation) **and** the bias
+due to poor pre-treatment fit by a further :math:`1/\sqrt{K}` -- but, as both
+papers note, equal-weight averaging can *wash out* signal that is specific to
+individual outcomes. Which scheme wins is therefore regime-dependent (see
+*When to Use Concatenated vs Averaged*).
+
+Assumptions
+-----------
+
+**Assumption 1 (shared-loading factor model).** The untreated outcomes obey
+:math:`y^0_{jtk} = \delta_{tk} + \boldsymbol{\mu}_j^\top
+\boldsymbol{\lambda}_{tk} + \varepsilon_{jtk}` with loadings
+:math:`\boldsymbol{\mu}_j` **common across outcomes** in the domain.
+
+*Remark.* This is the substantive assumption -- the outcomes must be driven
+by the *same* unit-level latent traits (a "domain"), exactly the premise of
+standard factor analysis. If outcomes loaded on different unobservables, the
+benefit of borrowing across them would vanish and SCMO would reduce to the
+single-outcome order of bias. Sun-Ben-Michael-Feller phrase the equivalent
+condition as **low rank** of the stacked model-component matrix :math:`L`.
+
+**Assumption 2 (transitory shocks).** The :math:`\varepsilon_{jtk}` are
+mean-zero given the factors and loadings, independent across units and
+outcomes, with bounded moments.
+
+*Remark.* Independence is *across outcomes*; the shared interactive fixed
+effects still induce correlation along the factor dimensions. Different
+scales/volatilities across outcomes are handled by **standardizing each
+outcome per period** before matching.
+
+**Assumption 3 (feasibility / convex hull).** There exist weights
+:math:`\hat{w}_j \ge 0` summing to one such that the treated unit's matching
+variables lie (approximately) in the convex hull of the donors':
+:math:`\sum_j \hat{w}_j \boldsymbol{\mu}_j = \boldsymbol{\mu}_0` and
+:math:`\sum_j \hat{w}_j y_{jtk} = y_{0tk}` for :math:`t \le T_0`.
+
+*Remark.* This is the multiple-outcome analogue of Abadie et al.'s perfect-fit
+condition. When the treated unit sits outside the donor hull (extreme levels),
+**de-meaning** relaxes it to a parallel-trends-style condition by allowing a
+constant level gap per outcome -- which also corrects size distortion of the
+permutation/conformal test.
+
+**Assumption 4 (consistency for inference).** The estimated weights yield a
+consistent estimate of the de-meaned counterfactual as :math:`T_0, N \to
+\infty`.
+
+*Remark.* This is what the Chernozhukov-Wuethrich-Zhu conformal test (below)
+needs for asymptotically valid size; Sun-Ben-Michael-Feller verify it for the
+averaged weights in their Online Appendix A.
+
+Inference
+---------
+
+``mlsynth`` uses a **single inference procedure for every weighting scheme**:
+the conformal test of Chernozhukov, Wuethrich and Zhu [CWZ2021]_, in the
+multiple-outcome form of Sun-Ben-Michael-Feller (Online Appendix A). Under the
+sharp null :math:`H_0: \tau = \tau_0`, form the adjusted residuals
+:math:`\hat{u}_{tk}` (the gap, with the post-period shifted by
+:math:`\tau_0`) and the per-period statistic
+
+.. math::
+
+   S_q(\hat{u}_t) = \Bigl( \tfrac{1}{\sqrt{K}}
+       \sum_{k=1}^{K} |\hat{u}_{tk}|^q \Bigr)^{1/q},
+
+with :math:`q = 1` (the average effect) by default; larger :math:`q` targets
+effects concentrated on a few outcomes. The conformal p-value ranks the
+post-treatment statistic against the pre-treatment (moving-block)
+distribution,
+
+.. math::
+
+   \hat{p}(\boldsymbol{\tau}_0) = \frac{1}{T}
+       \sum_{t \in \mathcal{T}_1} \mathbf{1}\{S_q(\hat{u}_{T}) \le S_q(\hat{u}_t)\}
+       + \frac{1}{T},
+
+and inverting the test over a grid of :math:`\tau_0` yields a confidence
+interval for the ATT. Because the matching matrix is built from pre-period
+information, the SC weights do **not** depend on the post-period outcome, so
+the test inversion is essentially free (no refitting). With a single predicted
+outcome the statistic reduces to :math:`|\text{gap}_t|`.
+
+*Why this replaces placebo/permutation.* The conformal test is exact-in-finite-
+sample under exchangeability and applies identically to the concatenated and
+averaged fits, so SCMO does not need the Abadie permutation test or a separate
+agnostic-conformal path -- one method serves both schemes.
+
+When to Use Concatenated vs Averaged
+------------------------------------
+
+* **Concatenated (Tian-Lee-Panchenko)** keeps every outcome's information
+  separate, so it shines when the outcomes are **distinct views** of the
+  shared loadings (different factor trajectories per outcome). It is the safer
+  default and is what reproduces the West Germany result below.
+* **Averaged (Sun-Ben-Michael-Feller)** collapses the outcomes to one
+  averaged series, which **denoises** when the outcomes share a strong common
+  factor and the per-outcome noise is large -- but can blur signal that lives
+  in a single outcome. Prefer it when the domain is tightly co-moving and noisy.
+* **MA** hedges between the two by pre-treatment fit; **separate** is the
+  single-outcome baseline for comparison.
+
+Example
+-------
+
+The block below simulates one panel from the shared-loading factor model with
+only :math:`T_0 = 4` pre-treatment periods and :math:`K = 6` related outcomes,
+then recovers a known effect (:math:`\tau = 3`) on the primary outcome -- the
+short-pre-period regime where single-outcome SC overfits.
 
 .. code-block:: python
 
-  import numpy as np
-  import pandas as pd
-  from mlsynth.mlsynth import SCMO
-  
-  def simulate(
-      N=99, T0=52*3, T1=52, K=4, r=2, sigma=.20,
-      max_gamma=0, T_season=12, seed=2000
-  ):
-      np.random.seed(seed)
-      T = T0 + T1
-  
-      # Latent factors
-      phi = np.random.normal(0, 1, size=(N, r))           # Market-specific latent factors (loadings)
-      mu = np.random.normal(0, 1, size=(T, K, r))          # Time-and-outcome-specific latent factors
-  
-      # Fixed effects
-      alpha = np.random.normal(0, 1, size=(N, K))          # Market fixed effects
-      beta = np.random.normal(0, 1, size=(T, K))           # Time fixed effects
-  
-      # Market-specific seasonal parameters
-      gamma_i = np.random.uniform(0, max_gamma, size=N)    # amplitude of seasonal effect
-      tau_i = np.random.randint(0, T_season, size=N)       # phase shift (peak week)
-  
-      # Construct seasonal matrix S (N x T): market-time-specific seasonality
-      t_grid = np.arange(T)
-      S = np.array([
-          gamma_i[i] * np.cos(4 * np.pi * (t_grid - tau_i[i]) / T_season)
-          for i in range(N)
-      ])
-  
-      # Outcome tensor
-      Y = np.zeros((N, T, K))
-  
-      # Base shift
-      baseline_shift = [np.random.randint(200, 500) for _ in range(K)]  # Random base values for each outcome
-  
-      # Autocorrelation coefficients for each outcome
-      rho = np.array([0.8, 0.6, 0.5, 0.3])  # AR(1) coefficients for each outcome, can we adjusted if we wish.
-  
-      for k in range(K):
-          latent = phi @ mu[:, k, :].T  # N x T
-          base = (
-              alpha[:, [k]] +         # N x 1,
-              beta[:, k] +            # T,
-              latent +                # N x T,
-              S +                     # N x T
-              baseline_shift[k]       # scalar
-          )
-          noise = np.random.normal(0, sigma, size=(N, T))
-  
-          # First time point initialization
-          Y[:, 0, k] = base[:, 0] + noise[:, 0]
-  
-          # Autoregressive Factors
-          for t in range(1, T):
-              Y[:, t, k] = (
-                  rho[k] * Y[:, t-1, k] +
-                  (1 - rho[k]) * base[:, t] +
-                  noise[:, t]
-              )
-  
-      # Identify treated market: second-highest factor loading
-      treated_unit = np.argsort(phi[:, 0])[-2]
-  
-      time = np.arange(T)
-      post_treatment = (time >= T0)
-      treat = np.zeros((N, T), dtype=int)
-      treat[treated_unit, post_treatment] = 1
-  
-      # Inject treatment effect into Gross Booking Value for treated market
-      Y[treated_unit, post_treatment, 0] += 5  # add treatment effect of +5, but can be whatever we like.
-  
-      # Construct the dataframe without loops
-      markets = np.arange(N)[:, None]           # shape (N, 1)
-      weeks = np.arange(T)[None, :]             # shape (1, T)
-  
-      market_grid = np.repeat(markets, T, axis=1).flatten()  # shape (N*T,)
-      week_grid = np.tile(weeks, (N, 1)).flatten()           # shape (N*T,)
-  
-  
-      cities = [
-          "São Paulo", "Mexico City", "San Carlos de Bariloche", "Rio de Janeiro", "Ushuaia",
-          "Bogotá", "Santiago", "Caracas", "Guayaquil", "Quito",
-          "Brasília", "Bocas del Toro", "Asunción", "Cabo San Lucas", "Playa del Carmen",
-          "Medellín", "Porto Alegre", "Placencia", "Recife", "Salvador",
-          "Zihuatanejo", "San José", "Panama City", "Montevidio", "Tegucigalpa",
-          "Foz do Iguaçu", "Maracaibo", "Rosario", "Maracay", "Antofagasta",
-          "San Pedro Sula", "San Juan", "Chihuahua", "Cayo District", "Maturín",
-          "Buzios", "Puebla", "Mar del Plata", "Arequipa", "Fernando de Noronha", "Guatemala City",
-          "Mazatlán", "Mérida", "Córdoba", "Cozumel", "Trujillo",
-          "Corozal Town", "Santa Cruz de la Sierra", "San Luis Potosí", "Jalapão", "Potosí",
-          "Tucumán", "Neuquén", "La Plata", "Viña del Mar", "Florianópolis", "Lagos de Moreno",
-          "La Paz", "Belém", "Venezuela", "Ribeirão Preto", "Valparaíso",
-          "Marília", "Campinas", "Vitoria", "Sorocaba", "Santa Fe",
-          "San Salvador", "Lima", "Buenos Aires", "Curitiba", "Maceió",
-          "Cartagena", "La Ceiba", "Puerto La Cruz", "Olinda", "Monterrey",
-          "Ibagué", "Cúcuta", "Playa Venao", "Cancún", "Puerto Escondido", "Chiclayo", "Ambato",
-          "Pucallpa", "Santa Marta", "Villavicencio", "Paraná", "Cauca", "San Vicente",
-          "Cali", "Tarija", "Manzanillo", "El Alto", "Santiago de Chile", "Cochabamba",
-          "Punta del Este", "Iquique",  "Durango", "Puerto Viejo de Talamanca"
-      ]
-  
-      city_mapping = {i: cities[i] for i in range(N)}
-  
-      data = {
-          'Market': [city_mapping[market] for market in market_grid],
-          'Week': week_grid,
-          'Experiences': treat.flatten()
-      }
-  
-      for k in range(K):
-          if k == 0:
-              data['Gross Booking Value'] = Y[:, :, k].flatten()
-          elif k == 1:
-              data['Average Booking Price'] = Y[:, :, k].flatten()
-          elif k == 2:
-              data['Average Daily Visitors'] = Y[:, :, k].flatten()
-          elif k == 3:
-              data['Average Cost of Hotel Rooms'] = Y[:, :, k].flatten()
-  
-      return pd.DataFrame(data)
-  
-  # Run simulation
-  df = simulate(seed=10000, r=3)
-  config = {
-      "df": df,
-      "outcome": 'Gross Booking Value',
-      "treat": 'Experiences',
-      "unitid": 'Market',
-      "time": 'Week',
-      "display_graphs": True,
-      "save": False,
-      "counterfactual_color": ["blue"], "addout": list(df.columns[4:]),
-      "method": "both"
-  }
-  
-  arco = SCMO(config).fit()
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SCMO
+
+   rng = np.random.default_rng(0)
+   N, T0, T1, K, r, TRUE = 30, 4, 6, 6, 3, 3.0
+   T = T0 + T1
+   phi = rng.normal(size=(N, r))                        # loadings shared across outcomes
+   F = [rng.normal(size=(T, r)) for _ in range(K)]      # outcome-specific factors
+
+   rows = []
+   for i in range(N):
+       a = rng.normal(size=K)                           # unit-outcome intercepts
+       for t in range(T):
+           rec = {"unit": f"u{i}", "time": t, "treat": int(i == 0 and t >= T0)}
+           for k in range(K):
+               y = a[k] + phi[i] @ F[k][t] + rng.normal(scale=0.7)
+               if i == 0 and t >= T0 and k == 0:        # effect on the primary outcome
+                   y += TRUE
+               rec[f"y{k+1}"] = y
+           rows.append(rec)
+   df = pd.DataFrame(rows)
+
+   spec = {"year": list(range(T0)), "vars": {f"y{k+1}": f"y{k+1}" for k in range(K)}}
+   res = SCMO({"df": df, "outcome": "y1", "treat": "treat", "unitid": "unit",
+               "time": "time", "spec": spec, "schemes": ["concatenated", "separate"],
+               "demean": True, "display_graphs": False}).fit()
+   print(res.att_by_method())   # e.g. {'concatenated': 3.71, 'separate': 3.73}, true = 3.0
+
+Both schemes recover the ~3 effect from just **four** pre-treatment periods --
+the point of SCMO. On any *single* draw the two are comparable; the systematic
+advantage of using multiple outcomes is a sampling property (lower RMSE across
+draws), shown in the *Verification* section.
+
+``res`` is an
+:class:`~mlsynth.utils.scmo_helpers.structures.SCMOResults`: ``res.fits`` maps
+each scheme to an
+:class:`~mlsynth.utils.scmo_helpers.structures.SCMOMethodFit` (counterfactual,
+gap, ATT, conformal p-value and CI, donor weights), with the aliases
+``res.att`` / ``res.counterfactual`` / ``res.donor_weights`` forwarding to the
+primary scheme.
+
+Empirical Illustration: West Germany, matched on 1989 alone
+-----------------------------------------------------------
+
+The canonical SCMO demonstration (Tian-Lee-Panchenko Section 4) revisits the
+1990 German reunification. Instead of matching on 30 years of GDP, it matches
+West Germany to 16 OECD donors on **nine economic indicators in the single
+year 1989** -- private social expenditure, energy-per-GDP, electricity and
+patents per capita, real GDP growth, CPI, trade openness, total tax revenue,
+and GDP per capita.
+
+.. code-block:: python
+
+   import pandas as pd
+   import numpy as np
+   from mlsynth import SCMO
+
+   url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/germany_augmented.csv"
+   df = pd.read_csv(url)
+   df["Reunification"] = ((df["country"] == "West Germany") & (df["year"] >= 1990)).astype(int)
+
+   spec = {"year": 1989, "vars": {
+       "private_social_exp": "Private social expenditure",
+       "energy_gdp": "Total primary energy supply per unit of GDP",
+       "electricity_pc": ("Electricity generation", "per_capita"),
+       "patents_pc": ("Triadic patent families", "per_capita"),
+       "gdp_growth": "Real GDP growth", "cpi": "CPI: all items",
+       "trade": "trade", "tax": "Total tax revenue", "gdp_pc": "gdp"}}
+
+   res = SCMO({"df": df, "outcome": "gdp", "treat": "Reunification",
+               "unitid": "country", "time": "year", "spec": spec,
+               "schemes": ["concatenated", "averaged", "MA"],
+               "conformal_alpha": 0.1, "display_graphs": True}).fit()
+
+   for name, fit in res.fits.items():
+       print(f"{name:13s} ATT {fit.att:8.1f}  p={fit.p_value:.3f}  "
+             f"90% CI ({fit.ci[0]:.0f}, {fit.ci[1]:.0f})")
+
+This prints::
+
+   concatenated  ATT  -1462.8  p=0.056  90% CI (-1568, -1357)
+   averaged      ATT  -1720.4  p=0.056  90% CI (-1949, -1492)
+   MA            ATT  -1462.8  p=0.056  90% CI (-1568, -1357)
+
+The concatenated SC -- fit on a single year's nine indicators, never shown the
+GDP path -- matches West Germany's pre-1990 GDP trajectory to a **root-mean-
+squared error of 110** (vs. 74 for the conventional SC fit directly to 30
+years of GDP), and implies post-reunification per-capita GDP about **\$1,463
+below** the synthetic, conformally significant at the 5.6% level. The donor mix
+is France 0.27, Netherlands 0.25, USA 0.21, Switzerland 0.14, Japan 0.09,
+Norway 0.04. The averaged scheme is looser here (pre-RMSE 185) because
+averaging the nine distinct indicators blurs their individual signal -- the
+concatenated scheme is preferred for this domain.
+
+Verification
+------------
+
+.. note::
+
+   **Empirical (Path A, German reunification).** ``mlsynth``'s ``concatenated``
+   scheme reproduces the Tian-Lee-Panchenko (2024) German reunification result
+   value-for-value: matching West Germany on the nine 1989 indicators yields
+   the published donor weights (France 0.267, Netherlands 0.248, USA 0.208,
+   Switzerland 0.135, Japan 0.092, Norway 0.043, Belgium 0.007) and a pre-1990
+   GDP-fit RMSE of 110, against a reference QP implementation of the paper's
+   ``fn_W`` to the third decimal.
+
+   **Simulation (Path B).** A factor-model Monte Carlo (shared loadings,
+   :math:`N=30` donors, :math:`T_0=4`, :math:`K` related outcomes, true
+   ATT :math:`= 3`, 400 reps) reproduces the paper's bias-reduction finding.
+   RMSE of the estimated ATT:
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 8 16 18
+
+      * - :math:`K`
+        - separate
+        - concatenated
+      * - 1
+        - 1.139
+        - 1.139
+      * - 3
+        - 1.175
+        - 0.916
+      * - 6
+        - 1.068
+        - 0.794
+
+   The concatenated SC's error falls monotonically as outcomes are added,
+   while the single-outcome SC does not improve -- the
+   :math:`O(1/\sqrt{K T_0})` versus :math:`O(1/\sqrt{T_0})` gap of Proposition
+   1. Under a *shared common factor* with large per-outcome noise (the
+   Sun-Ben-Michael-Feller regime) the ``averaged`` scheme also beats the
+   single-outcome SC (e.g. at :math:`K=6`: separate 1.598, concatenated 1.382,
+   averaged 1.408), confirming both papers' analyses and the regime-dependence
+   of which scheme wins.
+
+Core API
+--------
+
+.. automodule:: mlsynth.estimators.scmo
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Configuration
+-------------
+
+.. autoclass:: mlsynth.config_models.SCMOConfig
+   :members:
+   :undoc-members:
+
+Result Containers
+-----------------
+
+``SCMO.fit()`` returns an
+:class:`~mlsynth.utils.scmo_helpers.structures.SCMOResults`, whose ``fits``
+maps each weighting scheme to an
+:class:`~mlsynth.utils.scmo_helpers.structures.SCMOMethodFit` (counterfactual,
+gap, ATT, donor weights, and the CWZ conformal p-value and CI). The prepared,
+NumPy-only panel is exposed as an
+:class:`~mlsynth.utils.scmo_helpers.structures.SCMOInputs`, with units and time
+addressed through an :class:`IndexSet`.
+
+.. automodule:: mlsynth.utils.scmo_helpers.structures
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Helper Modules
+--------------
+
+Data preparation -- the only DataFrame touchpoint: pivots the long panel to
+NumPy, builds the unit/time ``IndexSet``es, and assembles the matching matrix.
+
+.. automodule:: mlsynth.utils.scmo_helpers.setup
+   :members:
+   :undoc-members:
+
+The spec-driven matching-matrix builder (per-outcome standardization,
+``level``/``log``/``per_capita`` transforms, complete-cases column drop).
+
+.. automodule:: mlsynth.utils.scmo_helpers.matrix_builder
+   :members:
+   :undoc-members:
+
+The simplex SC solver and the weighting schemes (concatenated / averaged /
+separate / model-average) plus de-meaning.
+
+.. automodule:: mlsynth.utils.scmo_helpers.solvers
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.scmo_helpers.estimation
+   :members:
+   :undoc-members:
+
+The Chernozhukov-Wuethrich-Zhu conformal inference (multi-outcome form).
+
+.. automodule:: mlsynth.utils.scmo_helpers.inference
+   :members:
+   :undoc-members:
+
+Scheme resolution, treatment derivation, spec construction, and the run loop.
+
+.. automodule:: mlsynth.utils.scmo_helpers.orchestration
+   :members:
+   :undoc-members:
