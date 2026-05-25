@@ -13,10 +13,14 @@ The only DataFrame touchpoint is :func:`setup.prepare_pda_inputs`.
 from .structures import FS, L2, LASSO, PDAInputs, PDAMethodFit, PDAResults
 from .setup import derive_treatment, prepare_pda_inputs
 from .inference import hac_lrv, newey_west_lag, normal_test
+from .orchestration import resolve_methods, run_pda
+from .results_assembly import assemble_pda_results
+from .plotter import plot_pda
 
 __all__ = [
     "L2", "LASSO", "FS",
     "PDAInputs", "PDAMethodFit", "PDAResults",
     "derive_treatment", "prepare_pda_inputs",
     "hac_lrv", "newey_west_lag", "normal_test",
+    "resolve_methods", "run_pda", "assemble_pda_results", "plot_pda",
 ]
