@@ -269,7 +269,7 @@ mlsynth extensions
 
 Two paper-extensible weight solvers live alongside the OLS default:
 
-* **Bayesian PCR** (``estimator="bayesian"``, Bayani 2022 Ch. 1).
+* **Bayesian PCR** (``estimator="bayesian"``, Amjad 2018).
   Replace OLS with the Gaussian posterior
 
   .. math::
