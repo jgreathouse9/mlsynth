@@ -13,6 +13,12 @@ References
 
 .. [Agarwal2021] Agarwal, Anish, Devavrat Shah, Dennis Shen, and Dogyoon Song. *"On Robustness of Principal Component Regression."* Journal of the American Statistical Association, vol. 116, no. 536, 2021, pp. 1731–1745. doi:10.1080/01621459.2021.1928513.
 
+.. [ClusterSC]
+    Rho, Saeyoung, Tang, Andrew, Bergam, Noah, Cummings, Rachel, and Misra, Vishal.
+    "ClusterSC: Advancing Synthetic Control with Donor Selection."
+    *Proceedings of the 28th International Conference on Artificial Intelligence and Statistics (AISTATS)*,
+    PMLR 258, 2025. arXiv:2503.21629.
+
 .. [BaiNg2002] Bai, Jushan and Serena Ng (2002), “Determining the Number of Factors in Approximate Factor Models,” *Econometrica*, 70 (1), 191–222.
 
 

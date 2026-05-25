@@ -71,6 +71,107 @@ denoising of the donor matrix, an optional donor-clustering
 pre-step, and a weight solver. Algorithm 2 of the paper sets out
 the basic pipeline; Algorithm 4 wraps it with the clustering step.
 
+Why PCR: theory and assumptions
+"""""""""""""""""""""""""""""""
+
+**What PCR is, and why it is the right tool.** Principal component
+regression (project the donors onto their top-:math:`r` principal
+components, then regress) is, *without any change*, robust to the
+noise and missingness that pervade panel data [Agarwal2021]_. The key
+identity is that PCR is **equivalent to ordinary least squares after
+hard singular-value thresholding (HSVT)** of the covariate (donor)
+matrix (Agarwal et al. 2021, Prop. 2.1): retaining the top-:math:`r`
+PCs and regressing yields the *same* fitted response as
+:math:`\mathrm{HSVT}_r` followed by OLS. That HSVT step **implicitly
+de-noises** the donors by projecting them onto the rank-:math:`r`
+signal subspace, which is exactly why the synthetic control inherits
+robustness to the idiosyncratic shocks every donor series carries. In
+the synthetic-control language this estimator is **Robust Synthetic
+Control** (Amjad-Shah-Shen [Amjad2018]_); Agarwal et al. prove PCR and
+RSC are identical, so the HSVT+OLS path here carries RSC's guarantees.
+
+**Model (error-in-variables).** In the synthetic-control setting
+[ClusterSC]_ formalizes the donor panel as a noisy, partially observed
+view of a low-rank signal, :math:`Y_0 = M + E`, where :math:`E` collects
+mean-zero idiosyncratic shocks and (optionally) missing cells, and the
+treated series obeys an *approximate* linear synthetic control on the
+signal,
+
+.. math::
+
+   y_{1,t} = M_{\cdot,t}^\top f^\star + \varepsilon_t + \phi_t ,
+   \qquad \|f^\star\| \le \mu ,
+
+with response noise :math:`\varepsilon_t` (mean zero, variance
+:math:`\le \sigma^2`) and a deterministic model-mismatch term
+:math:`\phi_t`.
+
+**Assumptions.**
+
+*Assumption 1 (low-rank latent-factor signal).* The signal is generated
+by a latent variable model :math:`M_{i,t} = g(\theta_i, \rho_t)` with
+:math:`g` Lipschitz in finite-dimensional unit factors
+:math:`\theta_i` and time factors :math:`\rho_t`, and bounded entries
+(:math:`\|M\|_\infty \le 1`). This forces :math:`M` to be (approximately)
+low rank, :math:`\mathrm{rank}(M) = r = O(\log T) < T`. *Remark.* This is
+the assumption that lets PCR/HSVT work at all -- and it **earns** the
+synthetic control rather than assuming it: under this model an
+(approximate) linear SC :math:`f^\star` provably *exists* (Agarwal et al.
+2021, Prop. 4.1), so the existence of a synthetic combination need not be
+imposed as an axiom as in classical SC.
+
+*Assumption 2 (error-in-variables donors).* We observe
+:math:`Z_{jt} = M_{jt} + \eta_{jt}` with each cell present
+independently with probability :math:`\rho` (missing otherwise); the
+covariate noise :math:`\eta` has independent, mean-zero,
+:math:`\psi_\alpha` (sub-exponential-type) rows with bounded variance.
+*Remark.* SC is *inherently* an error-in-variables problem -- donor
+series are noisy proxies for their signal -- which is precisely the
+regime where regressing on the *raw* donors (or Lasso/Ridge) loses
+consistency; the HSVT pre-step is what restores it.
+
+*Assumption 3 (approximate linear SC).* The treated signal lies
+(approximately) in the span of the donor signals,
+:math:`y_1 = M^\top f^\star + \varepsilon + \phi`, with bounded
+:math:`\|f^\star\|` and deterministic mismatch :math:`\phi`. *Remark.*
+This relaxes the classical convex-hull (non-negative, sum-to-one)
+restriction: the natural solver is unconstrained OLS on the denoised
+donors (no simplex), which is the default below; the SIMPLEX option
+re-imposes the convex hull when interpretability is preferred.
+
+*Assumption 4 (independent noise sources).* The response noise
+:math:`\varepsilon`, covariate noise :math:`\eta`, and the missingness
+pattern are mutually independent (Agarwal et al. 2021, Rmk. 3.2).
+*Remark.* PCR is **noise-model-agnostic**: unlike the error-in-variables
+literature it needs no knowledge of the noise covariance, which is what
+makes it practical for panels with unknown shock structure.
+
+**Finite-sample guarantees.** Under Assumptions 1-4 the pre-period
+(training) error of the HSVT+OLS estimator decomposes into three
+interpretable pieces (Agarwal et al. 2021, Thm. 3.1):
+
+.. math::
+
+   \mathrm{MSE}_{\mathrm{pre}}(\widehat y_1)
+     \;\lesssim\;
+     \underbrace{\frac{\sigma^2 r}{T_0}}_{\text{regression}}
+     + \underbrace{\frac{\|f^\star\|^2}{T_0}\,
+        \mathbb{E}\bigl\|\mathrm{HSVT}_r(Z) - M\bigr\|_{2,\infty}^2}_{\text{donor corruption}}
+     + \underbrace{\frac{\|\phi\|^2}{T_0}}_{\text{mismatch}} ,
+
+where the donor-corruption term is controlled by a novel
+:math:`\ell_{2,\infty}`-norm bound on HSVT (Lemma 3.1, stronger than the
+usual Frobenius bound). With observation fraction :math:`\rho`, the
+overall pre-period rate is :math:`\rho^{-4} r / \min(T_0, J) +
+\|\phi\|^2/T_0` (Cor. 3.1) -- i.e. PCR matches, up to log factors, the
+minimax OLS rate one would get with *perfectly observed* donors, despite
+seeing only noisy, partially observed ones. The post-period (test) error
+is bounded by the training error plus a generalization penalty scaling as
+:math:`r^{5/2}/\sqrt{T_0}` (Thm. 3.2), which is exactly what justifies the
+**data-driven rank selection** (cumulative-variance / USVT rules) used
+below: choose :math:`r` to trade pre-period fit against this complexity
+penalty.
+
 **HSVT denoising.** mlsynth follows the Amjad-Shah-Shen (2018)
 convention and applies HSVT to the *pre-period* donor matrix only.
 The full-matrix variant proposed in Rho et al. (2025) Algorithm 2
