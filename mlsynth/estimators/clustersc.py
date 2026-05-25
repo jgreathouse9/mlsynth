@@ -5,8 +5,8 @@ orchestrator:
 
 * **PCR-RSC** -- SVD-based donor clustering (Amjad, Shah, Shen 2018)
   plus Principal Component Regression weight estimation (Agarwal,
-  Shah, Shen, Song 2021). Frequentist QP or Bayesian posterior
-  (Bayani 2022, CUNY dissertation Ch. 1) selected via ``estimator``.
+  Shah, Shen, Song 2021). Frequentist QP or Bayesian Robust Synthetic Control posterior
+  (Amjad, Shah, Shen 2018) selected via ``estimator``.
 * **RPCA-SC** -- robust low-rank donor denoising (PCP -- Candes, Li,
   Ma, Wright 2011; or HQF -- Wang, Li, So, Liu 2023) followed by
   simplex SCM weights.
@@ -108,6 +108,10 @@ class CLUSTERSC:
         self.cv_hqf_rank: bool = config.cv_hqf_rank
         self.compute_shen_ci: bool = config.compute_shen_ci
         self.shen_variance: str = config.shen_variance
+        self.compute_cft_pi: bool = config.compute_cft_pi
+        self.cft_sims: int = config.cft_sims
+        self.cft_alpha: float = config.cft_alpha
+        self.cft_e_method: str = config.cft_e_method
         self.display_graphs: bool = config.display_graphs
 
     def fit(self) -> CLUSTERSCResults:
@@ -185,6 +189,10 @@ class CLUSTERSC:
                     hqf_max_iter=self.hqf_max_iter,
                     cv_lambda=self.cv_lambda,
                     cv_hqf_rank=self.cv_hqf_rank,
+                    compute_cft_pi=self.compute_cft_pi,
+                    cft_alpha=self.cft_alpha,
+                    cft_sims=self.cft_sims,
+                    cft_e_method=self.cft_e_method,
                     random_state=self.random_state,
                 )
 
@@ -217,12 +225,25 @@ class CLUSTERSC:
                     if pcr_fit is not None
                     else None
                 )
+                # If RPCA-SC computed CFT prediction intervals, surface those.
+                cft_obj = (
+                    rpca_fit.metadata.get("cft_inference")
+                    if rpca_fit is not None
+                    else None
+                )
                 if shen_obj is not None and selected == "pcr":
                     inference = CLUSTERSCInference(
                         method=shen_obj.method,
                         alpha=float(self.alpha),
                         att=primary_att,
                         shen=shen_obj,
+                    )
+                elif cft_obj is not None and selected == "rpca":
+                    inference = CLUSTERSCInference(
+                        method=cft_obj.method,
+                        alpha=float(self.alpha),
+                        att=primary_att,
+                        cft=cft_obj,
                     )
                 else:
                     inference = CLUSTERSCInference(
