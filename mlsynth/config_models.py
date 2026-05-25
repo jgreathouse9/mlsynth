@@ -390,10 +390,11 @@ class FMAConfig(BaseEstimatorConfig):
 
 class PDAConfig(BaseEstimatorConfig):
     """Configuration for the Panel Data Approach (PDA) estimator."""
-    method: str = Field(default="fs", description="PDA variant: 'LASSO' (Li-Bell), 'l2' (Shi-Wang L2-relaxation), or 'fs' (Shi-Huang forward selection). Used when `methods` is not given.", pattern="^(LASSO|l2|fs)$")
-    methods: Optional[List[str]] = Field(default=None, description="Run several PDA variants at once: any of 'l2','LASSO','fs'. If None, runs the single `method`.")
-    tau: Optional[float] = Field(default=None, description="Sup-norm relaxation parameter for the 'l2' method; if None it is chosen by out-of-sample validation.")
-    alpha: float = Field(default=0.05, description="Two-sided significance level for the ATE confidence interval (each variant uses its own paper's HAC inference).", gt=0, lt=1)
+    method: str = Field(default="fs", description="Type of PDA to use: 'LASSO', 'l2', or 'fs'.", pattern="^(LASSO|l2|fs)$")
+    tau: Optional[float] = Field(default=None, description="User-specified treatment effect value (used as tau_l2 for 'l2' method).")
+    # Note: The original __init__ had validation for method.lower(). Pydantic's pattern handles case-sensitivity.
+    # If case-insensitivity is desired, the pattern would be different or a validator would be needed.
+    # For now, assuming exact match "LASSO", "l2", "fs".
 
 class FDIDConfig(BaseEstimatorConfig):
     """
@@ -1318,71 +1319,80 @@ class PROXIMALConfig(BaseEstimatorConfig):
 
 class FSCMConfig(BaseEstimatorConfig):
     """
-    Configuration for the Forward Selected Synthetic Control Method (FSCM) estimator.
-    This estimator supports sparse model selection using mBIC, with optional
-    full selection and affine refinement (augmented FSCM).
+    Configuration for the Forward-Selected Synthetic Control Method (FSCM).
+
+    FSCM grows a nested donor sequence by forward stepwise selection on the
+    training half of the pre-period (greedy on in-sample RMSPE), then chooses
+    the donor count by minimizing out-of-sample RMSPE on the held-out test
+    half (two-interval-time cross-validation). The final simplex weights are
+    refit on the full pre-period over the selected donors.
 
     References
     ----------
-    Shi, Zhentao, and Jingyi Huang. 2023.
-    "Forward-selected panel data approach for program evaluation."
-    Journal of Econometrics 234 (2): 512–535.
-    https://doi.org/10.1016/j.jeconom.2021.04.009
-
     Cerulli, Giovanni. 2024.
-    “Optimal initial donor selection for the synthetic control method.”
+    "Optimal initial donor selection for the synthetic control method."
     Economics Letters, 244: 111976.
     https://doi.org/10.1016/j.econlet.2024.111976
-
-    Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021.
-    "The Augmented Synthetic Control Method."
-    Journal of the American Statistical Association 116 (536): 1789–1803.
-    https://doi.org/10.1080/01621459.2021.1929245
     """
 
-    use_augmented: bool = Field(
-        default=False,
-        description=(
-            "If True, refine selected sparse weights using Affine Synthetic Control "
-            "(Augmented FSCM). Uses ridge regularization tuned via Bayesian optimization."
-        )
-    )
-
-    full_selection: bool = Field(
+    forward_selection: bool = Field(
         default=True,
         description=(
-            "If True, performs full forward selection through all possible models. "
-            "If False, stops early once mBIC no longer improves."
-        )
+            "If True, run Cerulli's forward stepwise donor selection with "
+            "rolling-origin out-of-sample validation (each candidate fit by "
+            "the bilevel solver). If False, take the full bilevel solve over "
+            "all donors with no selection."
+        ),
     )
 
-    selection_fraction: float = Field(
-        default=1.0,
-        ge=0.01,
-        le=1.0,
+    covariates: Optional[List[str]] = Field(
+        default=None,
         description=(
-            "Fraction (0 < fraction ≤ 1.0) of donor pool to consider during forward selection. "
-            "Reduces computation time by limiting candidate donor units. "
-            "Use values < 1.0 for high-dimensional donor settings."
-        )
+            "Optional covariate columns for predictor matching (Abadie's "
+            "specification). Each covariate is averaged over its window and "
+            "enters the bilevel lower-level objective; the predictor weights "
+            "V are optimized on the full pool and reused. Selection and "
+            "cross-validation scores are measured on the outcome."
+        ),
     )
 
-    bo_n_iter: int = Field(
-        default=25,
+    covariate_windows: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Per-covariate averaging window as an inclusive (start, end) range "
+            "of time labels, e.g. {'lnincome': (1980, 1988), 'beer': (1984, "
+            "1988)}. Covariates not listed are averaged over the full "
+            "pre-treatment period. Mirrors Abadie's Proposition 99 spec."
+        ),
+    )
+
+    match_periods: Optional[List[Any]] = Field(
+        default=None,
+        description=(
+            "Optional 'special predictor' periods: specific pre-treatment "
+            "time labels (e.g. [1975, 1980, 1988]) whose outcome value is "
+            "matched directly, as in Abadie's Proposition 99 specification."
+        ),
+    )
+
+    cv_split: float = Field(
+        default=0.5,
+        gt=0.0,
+        lt=1.0,
+        description=(
+            "Fraction of the pre-treatment period used as the training window; "
+            "the remaining tail is the test window for cross-validation. "
+            "0.5 reproduces Cerulli's equal split."
+        ),
+    )
+
+    max_donors: Optional[int] = Field(
+        default=None,
         ge=1,
         description=(
-            "Number of iterations for Bayesian optimization of the ridge penalty "
-            "used in affine refinement."
-        )
-    )
-
-    bo_initial_evals: int = Field(
-        default=5,
-        ge=1,
-        description=(
-            "Number of initial random evaluations before fitting the surrogate model "
-            "in Bayesian optimization."
-        )
+            "Cap on the number of forward-selection steps. Defaults to the "
+            "full donor pool; lower it to bound runtime in high dimensions."
+        ),
     )
 
 
@@ -2012,15 +2022,46 @@ class SRCConfig(BaseEstimatorConfig):
         description="Seed used for the placebo subsample when n_placebo truncates.",
     )
 
+
+
 class SCMOConfig(BaseEstimatorConfig):
     """Configuration for the Synthetic Control with Multiple Outcomes (SCMO) estimator."""
-    addout: Union[str, List[str]] = Field(default_factory=list, description="Auxiliary outcome variable(s) for outcome stacking. Used to build the matching spec when `spec` is not given.")
-    method: str = Field(default="TLP", description="Legacy method selector: 'TLP', 'SBMF', or 'BOTH'. Maps to schemes when `schemes` is not given.", pattern="^(TLP|SBMF|BOTH)$")
-    conformal_alpha: float = Field(default=0.1, description="Miscoverage rate for conformal prediction intervals (e.g., 0.1 for 90% CI).", gt=0, lt=1)
-    spec: Optional[Dict[str, Any]] = Field(default=None, description="Spec-driven matching matrix: {'year': int|list[int], 'vars': {name: column | (column, op)}}, op in {level,log,per_capita,raw}. If None, built from outcome+addout over the pre-period.")
-    schemes: Optional[List[str]] = Field(default=None, description="Weighting schemes to run: any of 'concatenated','averaged','separate','MA'. If None, derived from `method` (TLP->concatenated, SBMF->averaged, BOTH->[concatenated,averaged,MA]).")
-    demean: bool = Field(default=False, description="Intercept-shift the counterfactual (Doudchenko-Imbens / Sun-Ben-Michael-Feller level adjustment).")
-    conformal_q: float = Field(default=1.0, description="Norm exponent q of the CWZ conformal test statistic S_q (1 = average effect; larger targets sparse/large effects across outcomes).", gt=0)
+
+    addout: Union[str, List[str]] = Field(
+        default_factory=list,
+        description="Auxiliary outcome variable(s) for outcome stacking. Used to build the matching spec when `spec` is not given.",
+    )
+    method: str = Field(
+        default="TLP",
+        description="Legacy method selector: 'TLP', 'SBMF', or 'BOTH'. Maps to schemes when `schemes` is not given.",
+        pattern="^(TLP|SBMF|BOTH)$",
+    )
+    conformal_alpha: float = Field(
+        default=0.1,
+        description="Miscoverage rate for conformal prediction intervals (e.g., 0.1 for 90% CI).",
+        gt=0, lt=1,
+    )
+    spec: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Spec-driven matching matrix: {'year': int|list[int], 'vars': {name: column | (column, op)}}, op in {level,log,per_capita,raw}. If None, built from outcome+addout over the pre-period.",
+    )
+    schemes: Optional[List[str]] = Field(
+        default=None,
+        description="Weighting schemes to run: any of 'concatenated','averaged','separate','MA'. If None, derived from `method` (TLP->concatenated, SBMF->averaged, BOTH->[concatenated,averaged,MA]).",
+    )
+    demean: bool = Field(
+        default=False,
+        description="Intercept-shift the counterfactual (Doudchenko-Imbens / Sun-Ben-Michael-Feller level adjustment).",
+    )
+    conformal_q: float = Field(
+        default=1.0,
+        description="Norm exponent q of the CWZ conformal test statistic S_q (1 = average effect; larger targets sparse/large effects across outcomes).",
+        gt=0,
+    )
+
+
+
+
 
 class SIConfig(BaseEstimatorConfig):
     """Configuration for the Synthetic Interventions (SI) estimator."""
@@ -2746,62 +2787,114 @@ class MLSCConfig(BaseModel):
 
 
 class RESCMConfig(BaseEstimatorConfig):
-    """Configuration for the Relaxed/penalized SCM engine (RESCM).
+    """
+    Configuration for the Relaxed Balanced SCM (RESCM) estimator.
 
-    RESCM is a single convex synthetic-control program whose corner cases are a
-    whole family of estimators. Instead of a nested ``models_to_run`` dict, the
-    user simply picks estimators by *name* via ``methods``. Each name resolves
-    to the exact engine call (see
-    :data:`mlsynth.utils.laxscm_helpers.specs.METHOD_SPECS`):
+    Users can select which models to run via a nested dictionary:
+    - "RELAXED" → Relaxed SCM with selectable relaxation method: "l2", "entropy", or "el"
+    - "ELASTIC" → L1-INF / Elastic Net-ish SCM with selectable constraint type
+    Each value is a dict: {"run": bool, ...additional params per model}
 
-    Penalized branch
-        ``"SC"`` (classic Abadie simplex SCM), ``"LASSO"``, ``"RIDGE"``,
-        ``"ENET"``, ``"LINF"`` and ``"L1LINF"`` (the L-infinity-norm SCM of
-        Wang, Xing & Ye 2025).
-    Relaxation branch
-        ``"RELAX_L2"``, ``"RELAX_ENTROPY"``, ``"RELAX_EL"`` (the SCM-relaxation
-        of Liao, Shi & Zheng 2026).
-
-    Parameters
-    ----------
-    methods : list of str, default ``["SC", "LINF", "RELAX_L2"]``
-        Named corner-case estimators to fit. The first one drives the
-        convenience aliases on the returned results.
-    alpha : float, default 0.05
-        Two-sided significance level for the ATE confidence interval.
-    tau : float or None, default None
-        Relaxation tolerance for the relaxation branch. ``None`` selects it by
-        cross-validation.
-    n_splits : int or None, default None
-        Number of time-series CV folds. ``None`` lets the engine pick.
-    n_taus : int or None, default None
-        Size of the tau grid for the relaxation branch CV.
-    solver : str, default ``"CLARABEL"``
-        CVXPY solver name.
+    Example:
+        models_to_run = {
+            "RELAXED": {"run": True, "tau": 0.00257, "n_splits": 5, "n_taus": 100, "relaxation": "l2"},
+            "ELASTIC": {
+                "run": True,
+                "intercept": False,
+                "constraint_type": "simplex",
+                "enet_type": "L1_INF",
+                "alpha": 1.0,
+                "lambda": 0.01
+            }
+        }
     """
 
-    methods: List[str] = Field(
-        default_factory=lambda: ["SC", "LINF", "RELAX_L2"],
-        description="Named RESCM corner-case estimators to fit.",
+    models_to_run: Dict[Literal["RELAXED", "ELASTIC"], Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "RELAXED": {
+                "run": True,
+                "tau": None,
+                "n_splits": None,
+                "n_taus": None,
+                "relaxation": "l2"
+            },
+            "ELASTIC": {
+                "run": True,
+                "intercept": False,
+                "enet_type": "L1_INF",
+                "alpha": None,
+                "lambda": None,
+                "constraint_type": "simplex"
+            }
+        },
+        description=(
+            "Nested dictionary specifying which models to run and optional parameters per model. "
+            "RELAXED supports 'relaxation': 'l2', 'entropy', or 'el'. "
+            "ELASTIC supports 'enet_type', 'alpha', 'lambda', and 'constraint_type'."
+        )
     )
-    alpha: float = Field(default=0.05, gt=0.0, lt=1.0,
-                         description="Significance level for the ATE CI.")
-    tau: Optional[float] = Field(default=None, description="Relaxation tolerance (relaxation branch).")
-    n_splits: Optional[int] = Field(default=None, ge=2, description="CV folds.")
-    n_taus: Optional[int] = Field(default=None, ge=1, description="Tau grid size.")
-    solver: str = Field(default="CLARABEL", description="CVXPY solver name.")
 
     @model_validator(mode="after")
-    def validate_methods(cls, values):
-        from .utils.laxscm_helpers.specs import normalize_method
+    def validate_models(cls, values):
+        models = values.models_to_run
+        if not isinstance(models, dict):
+            raise MlsynthConfigError("'models_to_run' must be a dictionary.")
 
-        if not values.methods:
-            raise MlsynthConfigError("'methods' must list at least one estimator.")
-        try:
-            for m in values.methods:
-                normalize_method(m)
-        except ValueError as exc:
-            raise MlsynthConfigError(str(exc)) from exc
+        allowed_keys = {"RELAXED", "ELASTIC"}
+        allowed_enet_types = {"L1_INF", "L1_L2"}
+        allowed_relaxations = {"l2", "entropy", "el"}
+        allowed_constraints = {"simplex", "affine", "unit"}
+
+        # Allowed keys per model
+        allowed_model_keys = {
+            "RELAXED": {"run", "tau", "n_splits", "n_taus", "relaxation"},
+            "ELASTIC": {"run", "intercept", "enet_type", "alpha", "lambda", "constraint_type"}
+        }
+
+        for key, val in models.items():
+            if key not in allowed_keys:
+                raise MlsynthConfigError(
+                    f"Invalid key in 'models_to_run': {key}. Allowed keys: {allowed_keys}"
+                )
+
+            if not isinstance(val, dict):
+                raise MlsynthConfigError(f"Value for '{key}' must be a dictionary.")
+
+            if "run" not in val or not isinstance(val["run"], bool):
+                raise MlsynthConfigError(f"Each model dict must contain 'run': bool for '{key}'.")
+
+            # Check for unknown keys
+            extra_keys = set(val.keys()) - allowed_model_keys[key]
+            if extra_keys:
+                raise MlsynthConfigError(
+                    f"Unknown keys for '{key}' in 'models_to_run': {extra_keys}. "
+                    f"Allowed keys are {allowed_model_keys[key]}"
+                )
+
+            # RELAXED-specific validation
+            if key == "RELAXED":
+                if "tau" in val and val["tau"] is not None and not isinstance(val["tau"], (int, float)):
+                    raise MlsynthConfigError(f"'tau' for '{key}' must be a float or None.")
+                if "n_splits" in val and val["n_splits"] is not None and not isinstance(val["n_splits"], int):
+                    raise MlsynthConfigError(f"'n_splits' for '{key}' must be an int or None.")
+                if "n_taus" in val and val["n_taus"] is not None and not isinstance(val["n_taus"], int):
+                    raise MlsynthConfigError(f"'n_taus' for '{key}' must be an int or None.")
+                if "relaxation" in val and val["relaxation"] not in allowed_relaxations:
+                    raise MlsynthConfigError(f"'relaxation' for '{key}' must be one of {allowed_relaxations}.")
+
+            # ELASTIC-specific validation
+            if key == "ELASTIC":
+                if "intercept" in val and not isinstance(val["intercept"], bool):
+                    raise MlsynthConfigError(f"'intercept' for '{key}' must be a bool.")
+                if "enet_type" in val and val["enet_type"] not in allowed_enet_types:
+                    raise MlsynthConfigError(f"'enet_type' for '{key}' must be one of {allowed_enet_types}.")
+                if "alpha" in val and val["alpha"] is not None and not isinstance(val["alpha"], (int, float, list, np.ndarray)):
+                    raise MlsynthConfigError(f"'alpha' for '{key}' must be a scalar or list/array if provided.")
+                if "lambda" in val and val["lambda"] is not None and not isinstance(val["lambda"], (int, float, list, np.ndarray)):
+                    raise MlsynthConfigError(f"'lambda' for '{key}' must be a scalar or list/array if provided.")
+                if "constraint_type" in val and val["constraint_type"] not in allowed_constraints:
+                    raise MlsynthConfigError(f"'constraint_type' for '{key}' must be one of {allowed_constraints}.")
+
         return values
 
     class Config:
