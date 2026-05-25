@@ -20,7 +20,7 @@ from .matrix_builder import build_matching_matrix
 from .solvers import simplex_weights
 from .setup import prepare_scmo_inputs
 from .estimation import fit_scheme, model_average
-from .inference import placebo_test, conformal_intervals, rmspe_ratio
+from .inference import conformal_inference
 from .results_assembly import assemble_scmo_results
 from .orchestration import resolve_schemes, derive_treatment, build_spec, run_scmo
 from .plotter import plot_scmo
@@ -29,7 +29,7 @@ __all__ = [
     "CONCATENATED", "AVERAGED", "SEPARATE", "MA",
     "SCMOInputs", "SCMOMethodFit", "SCMOResults",
     "build_matching_matrix", "simplex_weights", "prepare_scmo_inputs",
-    "fit_scheme", "model_average", "placebo_test", "conformal_intervals", "rmspe_ratio",
+    "fit_scheme", "model_average", "conformal_inference",
     "assemble_scmo_results", "resolve_schemes", "derive_treatment", "build_spec",
     "run_scmo", "plot_scmo",
 ]

@@ -10,7 +10,7 @@ import pandas as pd
 
 from ...exceptions import MlsynthDataError
 from .estimation import fit_scheme, model_average
-from .inference import conformal_intervals, placebo_test
+from .inference import conformal_inference
 from .structures import AVERAGED, CONCATENATED, MA, SEPARATE, SCMOInputs, SCMOMethodFit
 
 _METHOD_TO_SCHEMES = {
@@ -63,10 +63,10 @@ def run_scmo(
     inputs: SCMOInputs,
     schemes: List[str],
     demean: bool,
-    inference: str,
     conformal_alpha: float,
+    conformal_q: float = 1.0,
 ) -> Dict[str, SCMOMethodFit]:
-    """Fit each requested scheme and attach the requested inference."""
+    """Fit each requested scheme and attach CWZ conformal inference to every fit."""
     base = [s for s in schemes if s != MA]
     fits: Dict[str, SCMOMethodFit] = {s: fit_scheme(inputs, s, demean) for s in base}
 
@@ -79,11 +79,9 @@ def run_scmo(
 
     for name in list(fits):
         fit = fits[name]
-        if inference == "permutation":
-            scheme_for_placebo = CONCATENATED if name == MA else name
-            p, _ = placebo_test(inputs, scheme_for_placebo, demean)
-            fits[name] = replace(fit, p_value=p)
-        elif inference == "conformal":
-            ci = conformal_intervals(inputs, fit.counterfactual, conformal_alpha)
-            fits[name] = replace(fit, metadata={**fit.metadata, "conformal": ci})
+        _, p_value, ci = conformal_inference(
+            inputs.y_treated, fit.counterfactual, inputs.T0,
+            alpha=conformal_alpha, q=conformal_q,
+        )
+        fits[name] = replace(fit, p_value=p_value, ci=ci)
     return fits
