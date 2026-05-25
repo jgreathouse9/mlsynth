@@ -323,3 +323,77 @@ class TestPowerAnalysis:
             power_analysis(fitted_results, n_post_periods=[])
         with pytest.raises(MlsynthEstimationError):
             power_analysis(fitted_results, n_post_periods=[0, 1, 2])
+
+    def test_long_run_sigma_reported(self, fitted_results):
+        p = power_analysis(fitted_results)
+        assert p.long_run_sigma > 0
+        # MDE rests on the long-run sigma: MDE(h) == (z_a+z_b)*long_run_sigma/sqrt(h).
+        from scipy.stats import norm
+        mult = norm.ppf(1 - p.alpha / 2) + norm.ppf(p.power)
+        expected = mult * p.long_run_sigma / np.sqrt(p.n_post_periods.astype(float))
+        np.testing.assert_allclose(p.mde_absolute, expected, rtol=1e-9)
+
+
+# ----------------------------------------------------------------------
+# Layer 3: one-way global objective (paper-correct: treated 1/K, control free)
+# ----------------------------------------------------------------------
+class TestOneWayGlobalObjective:
+    def _matchable_panel(self):
+        """Unit 2 == mean(units 0, 1); the one-way control synthetic should
+        concentrate on unit 2 (a diff-in-means design could not)."""
+        rng = np.random.default_rng(3)
+        N, T, n_post = 8, 14, 3
+        Y = rng.standard_normal((T, N)) * 0.3 + np.linspace(0, 1, T)[:, None]
+        Y[:, 2] = 0.5 * (Y[:, 0] + Y[:, 1])           # perfect control match
+        rows = [{"unit": j, "time": t, "y": float(Y[t, j]), "post": int(t >= T - n_post)}
+                for j in range(N) for t in range(T)]
+        return pd.DataFrame(rows)
+
+    def test_control_weights_are_free_and_concentrated(self):
+        res = SYNDES({
+            "df": self._matchable_panel(), "outcome": "y", "unitid": "unit",
+            "time": "time", "K": 2, "mode": "one_way_global", "post_col": "post",
+            "run_inference": False, "lam": 0.0,
+        }).fit()
+        d = res.design
+        cw = np.asarray(d.control_weights, dtype=float)
+        assert cw.shape == (8,)
+        assert cw.sum() == pytest.approx(1.0, abs=1e-5)
+        assert np.all(cw >= -1e-7)
+        # Treated units carry no control weight.
+        assert np.allclose(cw[d.selected_unit_indices], 0.0, atol=1e-6)
+        # The control synthetic is FREE: it concentrates on the matching unit
+        # rather than the uniform 1/(N-K) a difference-in-means would impose.
+        assert cw.max() > 0.9
+        assert not np.allclose(cw, (1 - d.assignment) / (8 - 2), atol=1e-3)
+
+    def test_treated_weights_pinned_to_one_over_K(self):
+        res = SYNDES({
+            "df": self._matchable_panel(), "outcome": "y", "unitid": "unit",
+            "time": "time", "K": 2, "mode": "one_way_global", "post_col": "post",
+            "run_inference": False, "lam": 0.0,
+        }).fit()
+        tw = np.asarray(res.design.treated_weights, dtype=float)
+        nz = tw[tw > 0]
+        assert nz.size == 2
+        np.testing.assert_allclose(nz, 0.5, atol=1e-6)
+
+
+# ----------------------------------------------------------------------
+# Design "prediction" fields (pre-period contrast series + RMSE)
+# ----------------------------------------------------------------------
+class TestDesignPredictions:
+    @pytest.mark.parametrize("mode", ["per_unit", "two_way_global", "one_way_global"])
+    def test_contrast_series_and_pre_rmse(self, panel, mode):
+        res = SYNDES({
+            "df": panel, "outcome": "y", "unitid": "unit", "time": "time",
+            "K": 2, "mode": mode, "post_col": "post", "run_inference": False,
+        }).fit()
+        d = res.design
+        T_pre = res.inputs.Y_pre.shape[0]
+        assert d.contrast_series is not None
+        assert d.contrast_series.shape == (T_pre,)
+        assert np.isfinite(d.pre_fit_rmse)
+        np.testing.assert_allclose(
+            d.pre_fit_rmse, np.sqrt(np.mean(d.contrast_series ** 2)), rtol=1e-9
+        )
