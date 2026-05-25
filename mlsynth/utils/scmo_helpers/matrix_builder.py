@@ -85,6 +85,9 @@ def build_matching_matrix(
     labels : list of str
         Length-``P`` predictor labels (``name`` or ``name@year`` when several
         periods are stacked).
+    col_period : np.ndarray
+        Length-``P`` period that each column belongs to (used by the
+        ``averaged`` scheme to average across outcomes within a period).
     """
     years = spec["year"]
     years = [years] if np.isscalar(years) else list(years)
@@ -93,20 +96,25 @@ def build_matching_matrix(
 
     cols: List[np.ndarray] = []
     labels: List[str] = []
+    periods: List[Any] = []
     for yr in years:
         df_year = df[df[time] == yr].set_index(unitid)
         for name, rule in var_rules.items():
             cols.append(_column_for_year(df_year, unit_index, rule, pop_col))
             labels.append(name if len(years) == 1 else f"{name}@{yr}")
+            periods.append(yr)
 
     Z_raw = np.column_stack(cols)                       # (N, P_raw)
+    col_period = np.asarray(periods)
 
     # complete.cases(t(Z)): drop columns with any non-finite entry across units
     keep = np.all(np.isfinite(Z_raw), axis=0)
-    Z_raw, labels = Z_raw[:, keep], [l for l, k in zip(labels, keep) if k]
+    Z_raw = Z_raw[:, keep]
+    labels = [l for l, k in zip(labels, keep) if k]
+    col_period = col_period[keep]
 
     # standardize each column by its cross-unit SD (no centering)
     sd = Z_raw.std(axis=0, ddof=1)
     sd[sd == 0] = 1.0
     Z = Z_raw / sd
-    return Z, labels
+    return Z, labels, col_period

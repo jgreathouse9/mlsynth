@@ -64,6 +64,7 @@ class SCMOInputs:
     T0: int
     Z: np.ndarray
     predictor_labels: Sequence
+    col_period: Optional[np.ndarray] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property

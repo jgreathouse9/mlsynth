@@ -61,7 +61,7 @@ def prepare_scmo_inputs(
     if T0 < 1:
         raise MlsynthDataError("No pre-treatment periods (check intervention_time).")
 
-    Z, predictor_labels = build_matching_matrix(
+    Z, predictor_labels, col_period = build_matching_matrix(
         df, unitid=unitid, time=time, spec=spec, unit_index=unit_index
     )
 
@@ -77,5 +77,6 @@ def prepare_scmo_inputs(
         T0=T0,
         Z=Z,
         predictor_labels=predictor_labels,
+        col_period=col_period,
         metadata={"spec": spec, "outcome": outcome, "intervention_time": intervention_time},
     )
