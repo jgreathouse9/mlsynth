@@ -102,8 +102,8 @@ class SCMO:
         fits = run_scmo(
             inputs, schemes,
             demean=self.config.demean,
-            inference=self.config.inference,
             conformal_alpha=self.config.conformal_alpha,
+            conformal_q=self.config.conformal_q,
         )
         results = assemble_scmo_results(
             inputs, fits, selected_variant=schemes[0] if schemes else CONCATENATED
