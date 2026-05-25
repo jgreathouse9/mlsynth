@@ -17,9 +17,10 @@ control behind a single estimator.
   against the denoised donor matrix. Builds on the Robust Synthetic
   Control proposal of Amjad, Shah & Shen (2018) and the PCR
   consistency results of Agarwal, Shah, Shen & Song (2021). mlsynth
-  exposes two extensions on top of Algorithm 2: a Bayesian posterior
-  over the weights (Bayani 2022) and a simplex-constrained variant
-  that retains Abadie-Diamond-Hainmueller weights.
+  exposes two alternative weight solvers on top of Algorithm 2: the
+  Bayesian Robust Synthetic Control posterior over the weights (Amjad,
+  Shah & Shen 2018) and a simplex-constrained variant that retains
+  Abadie-Diamond-Hainmueller weights.
 
 * **RPCA-SC.** Bayani (2021), *Robust PCA Synthetic Control*
   (arXiv:2108.12542; Chapter 1 of Bayani 2022). Functional PCA on
@@ -269,8 +270,12 @@ mlsynth extensions
 
 Two paper-extensible weight solvers live alongside the OLS default:
 
-* **Bayesian PCR** (``estimator="bayesian"``, Amjad 2018).
-  Replace OLS with the Gaussian posterior
+* **Bayesian PCR** (``estimator="bayesian"``). This is the Bayesian
+  Robust Synthetic Control of Amjad, Shah & Shen [Amjad2018]_: replace
+  the point-estimate OLS with a Gaussian posterior over the weights
+  (Bayesian linear regression on the HSVT-denoised donors), which
+  yields calibrated uncertainty directly rather than by resampling.
+  Concretely,
 
   .. math::
 
@@ -469,7 +474,8 @@ Three inference families are wired into :py:class:`CLUSTERSCInference`:
   ``pcr_objective="OLS"``. See the next subsection.
 * **Bayesian PCR -- posterior credible interval.** Computed when
   ``estimator="bayesian"`` from posterior draws of the counterfactual
-  (Bayani 2022 Ch. 1).
+  (the Bayesian Robust Synthetic Control of Amjad, Shah & Shen
+  [Amjad2018]_).
 * **RPCA-SC -- Cattaneo-Feng-Titiunik (2021) prediction
   intervals.** Opt-in via ``CLUSTERSCConfig.compute_cft_pi``. See
   the dedicated subsection below.
@@ -951,6 +957,261 @@ the default ``cft_sims=200``).
        print(f"  t={res.inputs.T0+ti}:  tau_t={cft.per_period_gap[ti]:+.2f}  "
              f"PI=[{lo:+.2f}, {hi:+.2f}]")
 
+Empirical validation: West German reunification (Bayani 2021)
+-------------------------------------------------------------
+
+Bayani (2021, Section 3) validates RPCA-SC on the German
+reunification panel of Abadie, Diamond & Hainmueller (2015): the
+1990 reunification is treated as an intervention on West German
+per-capita GDP, with 16 OECD economies as the candidate donor pool.
+It is the canonical empirical benchmark for the RPCA-SC family --
+the analogue of Proposition 99 for PCR-SC -- and mlsynth reproduces
+it from the bundled ``german_reunification.csv``. RPCA-SC uses only
+the outcome series (no auxiliary covariates), in contrast to the
+five predictors Abadie et al. (2015) used.
+
+.. code-block:: python
+
+   from mlsynth import CLUSTERSC
+   import pandas as pd
+
+   file = (
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/german_reunification.csv"
+   )
+   df = pd.read_csv(file)
+
+   res = CLUSTERSC({
+       "df": df,
+       "outcome": "gdp",
+       "treat": "Reunification",
+       "unitid": "country",
+       "time": "year",
+       "method": "rpca",
+       "rpca_method": "PCP",     # convex RPCA, as in Bayani (2021)
+       "compute_cft_pi": True,
+       "cft_sims": 200,
+       "cft_alpha": 0.05,
+       "display_graphs": True,
+   }).fit()
+
+   cft = res.inference.cft
+   gap = res.inputs.treated_outcome - res.rpca.counterfactual
+   weights = {k: round(v, 2) for k, v in res.rpca.donor_weights.items()
+              if abs(v) > 1e-3}
+   print(f"donor pool (clustered) = {len(res.rpca.donor_weights)}")
+   print(f"positive weights       = {weights}")
+   print(f"pre-RMSE (1960-1989)   = {res.rpca.pre_rmse:.1f}")
+   print(f"reunification ATT      = {res.rpca.att:+.0f}")
+   print(f"gap in 2003            = {gap[-1]:+.0f}")
+   print(f"95% CFT PI on ATT      = [{cft.att_pi[0]:+.0f}, {cft.att_pi[1]:+.0f}]")
+
+The FPCA + :math:`k`-means step (Steps 1-2) selects an 11-economy
+cluster for West Germany -- Australia, Austria, Belgium, Denmark,
+France, Italy, Japan, the Netherlands, New Zealand, Norway and the
+UK -- excluding the level outliers (the USA, Switzerland) and the
+lower-income periphery (Greece, Portugal, Spain), exactly the donor
+pool of Bayani's Table 2. PCP then reproduces that table's weights
+to two digits: Norway :math:`\approx 0.48`, France
+:math:`\approx 0.35`, New Zealand :math:`\approx 0.30` and Austria
+:math:`\approx 0.02`, with the remaining donors at zero. The average
+post-1990 gap is :math:`\approx -1500` per-capita units with a
+1960-1989 fit RMSE near :math:`90`, and the per-period gap widens to
+about :math:`-3730` by 2003 -- tracing the Robust PCA Synthetic
+Control trajectory in Bayani's Figure 4 (a small positive blip in
+1991-1992 followed by a steadily widening negative gap). The
+Cattaneo-Feng-Titiunik (2021) 95% prediction interval on the ATT is
+about :math:`[-1765, -1280]`, excluding zero (its width tracks
+``cft_sims`` and ``random_state``); the HQF decomposition lands near
+:math:`-1920`. The conclusion echoes Abadie et al. (2015):
+reunification depressed West German per-capita GDP relative to its
+synthetic counterpart.
+
+Simulation studies
+------------------
+
+The three families documented here were each validated by their
+authors on a purpose-built simulation. mlsynth ships these designs
+verbatim where reproducible so the estimators can be regression-
+tested against the originals.
+
+PCR-SC -- missing-data robustness (Agarwal et al. 2021)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Agarwal et al. (2021, Section 4.5) do not use a synthetic DGP;
+their validation is a *missing-data robustness study* on two
+canonical panels -- Basque terrorism (Abadie-Gardeazabal 2003) and
+California Proposition 99 (Abadie et al. 2010). For each panel they
+
+* take the widely accepted published counterfactual as ground truth;
+* confirm the donor matrix is near rank-one -- over :math:`99\%` of
+  the spectral energy sits in the top singular value, exactly the
+  low-rank regime in which the Theorem 3.1 / 3.2 error bounds bite;
+* randomly obfuscate :math:`5\%`-:math:`20\%` of the donor entries
+  and re-fit PCR (HSVT + OLS) on the **outcome series only**.
+
+The finding: PCR tracks the published baseline across all missing-
+data levels, whereas classical convex SC degrades sharply and plain
+OLS overfits the pre-period noise (it even flips the sign of the
+Basque effect). This is the empirical face of the HSVT denoising
+step -- PCR recovers the same conclusion with neither auxiliary
+covariates nor complete data. mlsynth reproduces the headline check
+on Proposition 99: the singular spectrum is near rank-one and a
+rank-1 HSVT PCR fit matches the canonical estimate.
+
+.. code-block:: python
+
+   import numpy as np, pandas as pd
+   from mlsynth import CLUSTERSC
+
+   file = (
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/smoking_data.csv"
+   )
+   df = pd.read_csv(file)
+
+   wide = df.pivot(index="year", columns="state", values="cigsale")
+   sv = np.linalg.svd(wide.values, compute_uv=False)
+   print(f"top-SV energy share = {sv[0]**2 / (sv**2).sum():.3f}")  # ~0.99
+
+   res = CLUSTERSC({
+       "df": df, "outcome": "cigsale", "treat": "Proposition 99",
+       "unitid": "state", "time": "year",
+       "method": "pcr", "clustering": False, "rank": 1,
+   }).fit()
+   print(f"rank-1 PCR ATT = {res.att:+.2f}")
+
+PCR-SC -- donor-selection gains (Rho et al. 2025, ClusterSC)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Rho et al. (2025, Section 6.1) build a synthetic panel with two
+latent subgroups to show that clustering the donor pool *before*
+fitting SC tightens the post-intervention error (their Theorems
+5.11 / 5.13). The DGP, sized after disaggregated SC applications,
+uses :math:`T = 10`, :math:`T_0 = 8`, :math:`n \in \{1000, 2000\}`
+donors split evenly into groups :math:`A` and :math:`B`. Each group
+is a sum of :math:`r_S` sinusoids
+
+.. math::
+
+   v_{i,t} = \alpha_i \sin(2\pi \omega_i t + \phi_i),
+   \qquad
+   S_{i,t} = \sum_{i=1}^{r_S} w_i\, v_{i,t},
+   \quad w_i \sim \mathrm{Unif}[0, 1],
+
+with group-specific frequency/magnitude laws --
+:math:`\alpha_i \sim \mathrm{Beta}(2, 2)`,
+:math:`\omega_i \sim \mathrm{Unif}(1, 3)` for :math:`A` versus
+:math:`\alpha_i \sim \mathrm{Beta}(2, 5)`,
+:math:`\omega_i \sim \mathrm{Unif}(3, 6)` for :math:`B`, and
+:math:`\phi_i \sim \mathcal N(0, 1)` for both -- then additive noise
+:math:`E_{i,t} \sim \mathcal N(0, s^2)` swept over
+:math:`s \in \{0.10, 0.15, \dots, 0.40\}`. Over 500 datasets, a
+leave-one-out placebo test on :math:`30\%` of group :math:`A`
+compares ClusterSC against full-pool SC via the per-target
+improvement :math:`I_i = \mathrm{MSE}_{\text{SC}} -
+\mathrm{MSE}_{\text{ClusterSC}}`. The median improvement is positive
+at every noise level and **grows with** :math:`s`: once noise blurs
+the latent structure, restricting to the treated unit's cluster pays
+off. mlsynth's ``clustering=True`` (the default) is exactly this
+donor-selection step ahead of the PCR weight solve.
+
+RPCA-SC -- two-process recovery under noise and missingness (Bayani 2021)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Bayani (2021, Section 4) generates :math:`N_1 = N_2 = 100` units
+from two deterministic processes plus i.i.d. Gaussian noise
+:math:`\epsilon_t \sim \mathcal N(0, \sigma^2)` over
+:math:`t \in [0, T]` with :math:`T = 250` and intervention at
+:math:`T_0 = 150`:
+
+.. math::
+
+   f_1(t) &= 0.3\,(t \bmod (T{+}1))
+             - (t \bmod 10)\sin(t/\pi)
+             + (t \bmod 10)\cos(t/\pi) + \epsilon_t, \\
+   f_2(t) &= \log(t) + 4\sin(t/\pi) + 4\cos(t/\pi) + \epsilon_t,
+
+with the noise variance swept over
+:math:`\sigma^2 \in \{1, 4, 9, 16, 25\}`. The study has two halves:
+
+* **Clustering recovery (Steps 1-2).** FPCA over the pre-period plus
+  :math:`k`-means recovers the two latent processes with :math:`100\%`
+  accuracy at every noise level; the first FPC score alone explains
+  over :math:`95\%` of the variation and the silhouette statistic
+  selects :math:`k = 2`.
+* **Counterfactual accuracy (Steps 3-5).** Treating the noiseless
+  mean of :math:`f_1` as the target and its 100 noisy realisations as
+  the donor pool, RPCA extracts the low-rank component and projects
+  the counterfactual. The estimation RMSPE stays low and pre-/post-
+  intervention errors stay close even at high noise:
+
+  .. list-table:: Bayani (2021) Table 3 -- RMSPE, fully observed
+     :header-rows: 1
+     :widths: 20 40 40
+
+     * - :math:`\sigma^2`
+       - Pre-intervention
+       - Post-intervention
+     * - 1
+       - 0.09
+       - 0.13
+     * - 4
+       - 0.19
+       - 0.25
+     * - 9
+       - 0.29
+       - 0.38
+     * - 16
+       - 0.39
+       - 0.51
+     * - 25
+       - 0.49
+       - 0.64
+
+  Repeating with :math:`30\%` of entries removed at random (Table 4)
+  inflates the errors -- the robust PCA step also imputes -- but the
+  counterfactual still tracks the true mean (e.g. post-intervention
+  RMSPE :math:`0.65` at :math:`\sigma^2 = 1`, rising to :math:`2.59`
+  at :math:`\sigma^2 = 25`). Bayani's design uses the convex (PCP)
+  decomposition; the HQF solver is a later mlsynth addition.
+
+A compact one-draw reproduction of the clustering half:
+
+.. code-block:: python
+
+   import numpy as np, pandas as pd
+   from mlsynth import CLUSTERSC
+
+   rng = np.random.default_rng(0)
+   T, T0, sigma2 = 250, 150, 9.0
+   t = np.arange(1, T + 1)
+
+   def f1(): return (0.3 * (t % (T + 1)) - (t % 10) * np.sin(t / np.pi)
+                     + (t % 10) * np.cos(t / np.pi))
+   def f2(): return np.log(t) + 4 * np.sin(t / np.pi) + 4 * np.cos(t / np.pi)
+
+   rows = []
+   for j in range(200):                       # 100 of each process
+       base = f1() if j < 100 else f2()
+       y = base + rng.normal(0, np.sqrt(sigma2), size=T)
+       treated = (j == 0)                      # one f1 unit is treated
+       if treated:
+           y[T0:] += 5.0
+       rows += [{"unit": j, "time": int(tt), "y": float(yi),
+                 "D": int(treated and tt > T0)}
+                for tt, yi in zip(t, y)]
+   df = pd.DataFrame(rows)
+
+   res = CLUSTERSC({
+       "df": df, "outcome": "y", "treat": "D",
+       "unitid": "unit", "time": "time",
+       "method": "rpca", "rpca_method": "PCP",
+   }).fit()
+   print(f"donor pool size = {len(res.rpca.donor_weights)}")  # treated unit's cluster (f1 subgroup)
+   print(f"pre-RMSE        = {res.rpca.pre_rmse:.2f}")
+   print(f"ATT (true 5.0)  = {res.rpca.att:+.2f}")
+
 References
 ----------
 
@@ -962,6 +1223,10 @@ Abadie, A., Diamond, A., & Hainmueller, J. (2010). "Synthetic
 Control Methods for Comparative Case Studies: Estimating the Effect
 of California's Tobacco Control Program." *Journal of the American
 Statistical Association* 105(490):493-505.
+
+Abadie, A., Diamond, A., & Hainmueller, J. (2015). "Comparative
+Politics and the Synthetic Control Method." *American Journal of
+Political Science* 59(2):495-510.
 
 Agarwal, A., Shah, D., Shen, D., & Song, D. (2021). "On Robustness
 of Principal Component Regression." *Journal of the American

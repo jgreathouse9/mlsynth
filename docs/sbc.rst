@@ -401,16 +401,17 @@ OECD donors and Hamilton horizon ``h=4``.
               "display_graphs": False}).fit()
 
    print(f"ATT: {res.att:.1f}")          # ~ -952 (negative; see below)
-   print(res.weights_by_donor)           # Portugal, Japan, Italy (paper Fig. 4)
+   print(res.weights_by_donor)           # Greece, Netherlands, Italy
 
-This reproduces the paper exactly: cycle weights concentrate on
-**Portugal (0.44), Japan (0.37), and Italy (0.16)** — whose short-run
-fluctuations track West Germany's business cycle (Figure 4) — and the
-ATT over 1991-1994 is **about -952**, with per-period effects
-:math:`[+369,\,-323,\,-1155,\,-2700]`: a brief one-year boost followed by
-a growing negative impact, the paper's headline finding. Classical SCM on
-the raw levels instead leans on the *trend*-matching donors (Australia
-and Belgium), because the trend dominates the cycle in magnitude.
+Following the paper's Section 5.1 specification, SBC concentrates the
+cycle weights on **Greece (0.44), the Netherlands (0.37), and Italy
+(0.16)** — donors whose short-run fluctuations track West Germany's
+business cycle — and the ATT over 1991-1994 is **about -952**, with
+per-period effects :math:`[+369,\,-323,\,-1155,\,-2700]`: a brief
+one-year boost followed by a growing negative impact, the paper's
+headline finding. Classical SCM on the raw levels instead leans on the
+*trend*-matching donors (**Austria** and the **USA**, the two largest
+level weights), because the trend dominates the cycle in magnitude.
 
 Empirical Illustration: Hong Kong Handover
 ------------------------------------------
@@ -456,15 +457,16 @@ out-of-sample even when the underlying trends are unrelated. SBC strips
 that spurious component out by forecasting California's trend from its
 own history and using donors only for the stationary cycle.
 
-The paper's German reunification study makes the mechanism vivid. The
-**trend** of West Germany is best reproduced by Australia and Belgium,
-whereas its **cycle** is best reproduced by Italy, Japan, and Portugal —
-two genuinely *different* donor subsets. Conventional SCM on the raw
-levels averages across both structures and, because the trend dominates
-the cycle in magnitude, leans heavily on the trend-matching donors. SBC
-separates the two, attributes a more substantial (and, in placebo tests,
-more robust) negative effect to reunification, and confines the
-post-reunification boom to roughly one year rather than three.
+The German reunification study makes the mechanism vivid. The
+**trend** of West Germany is best reproduced by Austria and the USA,
+whereas its **cycle** is best reproduced by Italy, the Netherlands, and
+Greece — two genuinely *different* donor subsets. Conventional SCM on the
+raw levels averages across both structures and, because the trend
+dominates the cycle in magnitude, leans heavily on the trend-matching
+donors. SBC separates the two, attributes a more substantial (and, in
+placebo tests, more robust) negative effect to reunification, and
+confines the post-reunification boom to roughly one year rather than
+three.
 
 In short: when SBC and classical SCM disagree on a nonstationary outcome,
 SBC is the more conservative answer about how much of the post-treatment
