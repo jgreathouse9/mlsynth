@@ -29,6 +29,7 @@ MLSYNTH
    clustersc
    fma
    pda
+   rescm
    dsc
    csc
    tssc
