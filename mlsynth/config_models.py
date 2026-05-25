@@ -2013,6 +2013,8 @@ class SRCConfig(BaseEstimatorConfig):
         description="Seed used for the placebo subsample when n_placebo truncates.",
     )
 
+
+
 class SCMOConfig(BaseEstimatorConfig):
     """Configuration for the Synthetic Control with Multiple Outcomes (SCMO) estimator."""
 
@@ -2032,28 +2034,25 @@ class SCMOConfig(BaseEstimatorConfig):
     )
     spec: Optional[Dict[str, Any]] = Field(
         default=None,
-        description=(
-            "Spec-driven matching matrix: {'year': int | list[int], "
-            "'vars': {name: column | (column, op)}}, op in {level, log, per_capita, raw}. "
-            "If None, built from outcome + addout over the pre-period."
-        ),
+        description="Spec-driven matching matrix: {'year': int|list[int], 'vars': {name: column | (column, op)}}, op in {level,log,per_capita,raw}. If None, built from outcome+addout over the pre-period.",
     )
     schemes: Optional[List[str]] = Field(
         default=None,
-        description=(
-            "Weighting schemes to run: any of 'concatenated', 'averaged', 'separate', 'MA'. "
-            "If None, derived from `method` (TLP->concatenated, SBMF->averaged, BOTH->[concatenated, averaged, MA])."
-        ),
+        description="Weighting schemes to run: any of 'concatenated','averaged','separate','MA'. If None, derived from `method` (TLP->concatenated, SBMF->averaged, BOTH->[concatenated,averaged,MA]).",
     )
     demean: bool = Field(
         default=False,
         description="Intercept-shift the counterfactual (Doudchenko-Imbens / Sun-Ben-Michael-Feller level adjustment).",
     )
-    inference: str = Field(
-        default="permutation",
-        description="Inference: 'permutation' (Abadie placebo, paper default), 'conformal', or 'none'.",
-        pattern="^(permutation|conformal|none)$",
+    conformal_q: float = Field(
+        default=1.0,
+        description="Norm exponent q of the CWZ conformal test statistic S_q (1 = average effect; larger targets sparse/large effects across outcomes).",
+        gt=0,
     )
+
+
+
+
 
 class SIConfig(BaseEstimatorConfig):
     """Configuration for the Synthetic Interventions (SI) estimator."""
