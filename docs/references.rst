@@ -261,3 +261,10 @@ References
 
 
 .. [Xu2017] Xu, Yiqing. “Generalized Synthetic Control Method: Causal Inference with Interactive Fixed Effects Models.” *Political Analysis* 25, no. 1 (2017): 57–76. https://doi.org/10.1017/pan.2016.2.
+
+.. [SYNDES]
+    Doudchenko, Nick, Khosravi, Khashayar, Pouget-Abadie, Jean, Lahaie, Sebastien,
+    Lubin, Miles, Mirrokni, Vahab, Spiess, Jann, and Imbens, Guido.
+    "Synthetic Design: An Optimization Approach to Experimental Design with Synthetic Controls."
+    *Advances in Neural Information Processing Systems (NeurIPS)*, 2021.
+    arXiv:2112.00278. URL: https://arxiv.org/abs/2112.00278
