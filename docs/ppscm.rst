@@ -3,163 +3,146 @@ Partially Pooled SCM (PPSCM)
 
 .. currentmodule:: mlsynth
 
-Overview
+When to Use This Estimator
+--------------------------
+
+``PPSCM`` is a faithful port of ``augsynth::multisynth`` -- the partially
+pooled synthetic control of Ben-Michael, Feller and Rothstein [PPSCM]_ for
+**staggered adoption**. Use it when several units are treated but at *different*
+times, with a pool of never-treated (or late-treated) comparison units, and you
+want a single estimate of the average treatment effect on the treated (ATT) over
+relative time (time-since-treatment), pooling information across cohorts.
+
+The central idea is a pooling dial :math:`\nu`. Fitting a *separate* synthetic
+control for each treated unit gives the best per-unit pre-treatment fit but high
+variance; a *fully pooled* control (one synthetic match for the average treated
+unit) is stable but may fit any individual unit poorly. PPSCM interpolates
+between the two, choosing :math:`\nu` to balance overall and unit-level
+imbalance. ``time_cohort=True`` collapses units sharing an adoption time into a
+single fully-pooled cohort (one synthetic control per cohort).
+
+Notation
 --------
 
-Partially Pooled SCM (PPSCM) extends classical synthetic control to
-the staggered-adoption setting following Ben-Michael, Feller &
-Rothstein (2022, *JRSS-B* 84(2):351-381). The estimator targets panels
-where each treated unit adopts at its own time :math:`T_j`, and the
-goal is to estimate the average treatment effect on the treated (ATT)
-across both treated units and post-treatment horizons.
+Units :math:`i = 1, \ldots, n` are observed over periods
+:math:`t = 1, \ldots, T`. Treated unit (or cohort) :math:`j` adopts at period
+:math:`T_j`; never-treated units have :math:`T_j = \infty` and form the donor
+pool. The panel is split at the **last** adoption time into a pre-period of
+length :math:`d` and the post-period. For cohort :math:`j`, donor weights
+:math:`\boldsymbol{\omega}_j` live on the simplex; the synthetic control matches
+the cohort's pre-treatment residuals.
 
-The key innovation is a single weight matrix :math:`\Gamma` of shape
-``(N, J)`` (donors by treated units, each column on the simplex) that
-trades off two pre-treatment imbalance measures:
+Method
+------
 
-* :math:`q_{\text{sep}}(\Gamma)^2` — the average per-treated-unit fit
-  error (what you'd get from running SCM separately for each treated
-  unit);
-* :math:`q_{\text{pool}}(\Gamma)^2` — the fit error for the *average*
-  treated unit (what you'd get from averaging the treated units first
-  and running one SCM on the average).
+PPSCM follows ``multisynth`` in three stages.
 
-PPSCM minimizes a convex combination, normalized by the
-``\nu = 0`` (separate-SCM) baseline:
+**1. Two-way fixed effects (``fixedeff=True``, the default).** A time effect is
+the never-treated units' per-period mean; a unit effect is each unit's mean over
+its own pre-adoption window. Both are removed and the synthetic control balances
+the **residuals** -- the "intercept-shifted" estimator of the paper.
 
-.. math::
-
-   \min_{\Gamma \in \Delta_{\text{scm}}^J}
-       \;\nu\, \tilde q_{\text{pool}}(\Gamma)^2
-       + (1 - \nu)\, \tilde q_{\text{sep}}(\Gamma)^2
-       + \lambda\, \|\Gamma\|_F^2.
-
-* :math:`\nu = 0` recovers separate SCM (one synthetic control per
-  treated unit, then averaged).
-* :math:`\nu = 1` recovers fully pooled SCM (average the treated units
-  first, then one SCM).
-* Intermediate :math:`\nu` moves smoothly along a convex frontier of
-  the two imbalances.
-
-This module implements the *outcome-only* version of the paper
-(Sections 3-4). The auxiliary-covariate extension of Section 5.2 is
-intentionally not included.
-
-Mathematical Formulation
-------------------------
-
-Setup
-^^^^^
-
-Let :math:`Y_{i, t}` denote unit :math:`i`'s outcome at period
-:math:`t`, for ``J`` treated units and ``N`` never-treated controls.
-Treated unit :math:`j` adopts at period :math:`T_j` (1-based), so its
-pre-treatment outcomes live at periods :math:`T_j - L, \dots, T_j - 1`
-for a common lag count :math:`L \le \min_j (T_j - 1)`. Stacking these
-pre-windows gives the ``(L, J)`` matrix ``Y_treated_pre`` and the
-``(L, N, J)`` tensor ``Y_donors_pre``. Post-treatment outcomes at
-event-time horizons :math:`k = 0, 1, \dots, K` with
-:math:`K = \min_j (T - T_j)` form ``Y_treated_post`` of shape
-``(K+1, J)``.
-
-Imbalance Measures (Eq. 5)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-For a weight matrix :math:`\Gamma`, define the per-treated residual
+**2. Partially pooled QP.** With per-cohort pre-treatment imbalance
+:math:`\mathbf{q}_j = \mathbf{x}_j - \mathbf{X}_{0,j}\boldsymbol{\omega}_j`
+(residuals; the pooled imbalance aligned by **relative time**), the weights
+solve
 
 .. math::
 
-   r_j(\ell) = Y_{j, T_j - \ell} - \sum_i \Gamma_{i, j} Y_{i, T_j - \ell},
-   \qquad \ell = 1, \dots, L.
+   \min_{\{\boldsymbol{\omega}_j \in \Delta\}} \;
+     \frac{\nu}{\text{norm}_{\text{pool}}\,J^2}
+       \Bigl\|\textstyle\sum_j \mathbf{q}_j\Bigr\|^2
+     + \frac{1-\nu}{\text{norm}_{\text{sep}}\,J}
+       \sum_j \frac{\|\mathbf{q}_j\|^2}{\text{ndim}_j}
+     + \lambda \sum_j \|\boldsymbol{\omega}_j\|^2 ,
 
-Then
+where :math:`\text{norm}_{\text{pool}}` and :math:`\text{norm}_{\text{sep}}` are
+the separate-fit (``nu=0``) global and individual imbalance norms. Small
+:math:`\nu` approaches a separate SCM per cohort; large :math:`\nu` a fully
+pooled SCM.
 
-.. math::
+**3. Choosing :math:`\nu`.** With ``nu="auto"`` (default) PPSCM uses augsynth's
+triangle-inequality ratio :math:`\nu = \text{global\_l2}\cdot\sqrt{d}/\text{avg\_l2}`
+from the separate fit; a float fixes it.
 
-   q_{\text{sep}}(\Gamma)^2
-   = \frac{1}{J} \sum_j \frac{1}{L} \|r_j\|^2,
-   \qquad
-   q_{\text{pool}}(\Gamma)^2
-   = \frac{1}{L} \left\| \frac{1}{J} \sum_j r_j \right\|^2.
+**Assumptions / Remarks.**
 
-Note that :math:`q_{\text{pool}} \le q_{\text{sep}}` always (the
-average of squared norms dominates the norm of the average), and the
-gap is typically large when treatment timing varies.
+*Assumption 1 (no anticipation, parallel residual trends).* After removing the
+two-way fixed effects, the treated cohorts' residual paths would have matched a
+convex combination of donor residual paths absent treatment. *Remark.* This is
+the staggered-adoption analogue of the SCM identifying assumption; the fixed
+effects absorb level and common-time shifts so the weights only need to match
+the residual dynamics.
 
-Normalization (Section 4)
-^^^^^^^^^^^^^^^^^^^^^^^^^
+*Assumption 2 (overlap / donor availability).* Each cohort has eligible donors
+-- never-treated units, or units treated more than ``n_leads`` periods later.
+*Remark.* Late-treated units can serve as "clean" controls for earlier cohorts
+until they themselves are treated, which the donor-eligibility rule enforces.
 
-The paper normalizes both imbalances by their values at the
-:math:`\nu = 0` (separate-SCM) solution :math:`\hat\Gamma_{\text{sep}}`:
+*Remark (pooling).* :math:`\nu` is a bias--variance dial, not an identification
+parameter: the estimand (the wATET over the treated cohorts) is the same;
+:math:`\nu` only trades per-cohort fit against stability of the pooled average.
 
-.. math::
+Inference
+---------
 
-   \tilde q_{\text{sep}}(\Gamma)
-   = \frac{q_{\text{sep}}(\Gamma)}{q_{\text{sep}}(\hat\Gamma_{\text{sep}})},
-   \qquad
-   \tilde q_{\text{pool}}(\Gamma)
-   = \frac{q_{\text{pool}}(\Gamma)}{q_{\text{pool}}(\hat\Gamma_{\text{sep}})}.
+``PPSCM`` reports the paper's **delete-one jackknife**: drop each unit, refit the
+full estimator (holding :math:`\nu` fixed), and form
+:math:`\widehat{\text{se}}^2 = \tfrac{n-1}{n}\sum_i(\hat\theta_i - \bar\theta)^2`
+for the overall ATT and each relative-time horizon, with Wald intervals.
 
-This puts both terms on the same scale regardless of the panel and
-makes :math:`\nu` interpretable across applications. :mod:`mlsynth`
-solves the separate-SCM problem first to fix these baselines, then
-runs the partially-pooled QP.
+Empirical Illustration: mandatory collective bargaining
+-------------------------------------------------------
 
-Auto-:math:`\nu` Selection
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+The ``multisynth`` vignette studies the effect of state mandatory
+collective-bargaining laws on log per-pupil education expenditure
+(Paglayan 2018), a staggered design. ``basedata/Teachingaugsynth.scv`` ships the
+panel; the analysis restricts to 1959--1997, drops DC and Wisconsin, and treats
+a state from the year it required bargaining.
 
-When the user does not supply :math:`\nu`, :mod:`mlsynth` selects it
-via the "balance frontier knee" heuristic: sweep :math:`\nu` over a
-grid (default size 21) on :math:`[0, 1]`, and pick the value that
-minimizes
+.. code-block:: python
 
-.. math::
+   import numpy as np
+   import pandas as pd
+   from mlsynth import PPSCM
 
-   \tilde q_{\text{sep}}(\Gamma_\nu) + \tilde q_{\text{pool}}(\Gamma_\nu).
+   url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/Teachingaugsynth.scv"
+   df = pd.read_csv(url)
+   df = df[~df["State"].isin(["DC", "WI"])]
+   df = df[(df["year"] >= 1959) & (df["year"] <= 1997)].copy()
+   df["cbr"] = (df["year"] >= df["YearCBrequired"].fillna(np.inf)).astype(int)
 
-At :math:`\nu = 0` both normalized imbalances equal 1 (sum = 2). At
-intermediate :math:`\nu` the pooled term shrinks below 1 while the
-separate term grows above 1; the minimum-sum point is the practical
-equal-marginal-improvement compromise the paper recommends when the
-error-bound parameters of Theorems 1 and 2 are unknown. The full
-frontier :math:`\{\nu \mapsto (q_{\text{sep}}, q_{\text{pool}})\}` is
-retained on :py:attr:`PPSCMDesign.frontier` for downstream inspection.
+   res = PPSCM({"df": df, "outcome": "lnppexpend", "treat": "cbr",
+                "unitid": "State", "time": "year", "display_graphs": True}).fit()
 
-Intercept Shift (Section 4)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   print(f"nu (auto)   : {res.design.nu_used:.4f}")
+   print(f"Average ATT : {res.att:.3f}  (SE {res.inference.se:.3f})")
 
-The paper recommends as a default subtracting each unit's
-pre-treatment mean before fitting -- equivalent to applying PPSCM to
-a weighted DiD on demeaned series. This is exposed via
-:py:attr:`PPSCMConfig.demean`; the default in :mod:`mlsynth` is
-``False`` (paper-faithful to Eq. 3) but the demeaned variant is one
-flag away.
+This prints::
 
-Treatment Effect (Eq. 5)
-^^^^^^^^^^^^^^^^^^^^^^^^
+   nu (auto)   : 0.2607
+   Average ATT : -0.011  (SE 0.020)
 
-With :math:`\hat\Gamma` in hand, the per-horizon ATT is
+reproducing the augsynth vignette (``nu = 0.2607``, Average ATT ``-0.011``).
+Setting ``time_cohort=True`` collapses to adoption-time cohorts and gives
+``nu = 0.3939``, Average ATT ``-0.017`` (augsynth: ``-0.018``).
 
-.. math::
+Verification
+------------
 
-   \widehat{\text{ATT}}_k
-   = \frac{1}{J} \sum_j
-       \left( Y_{j, T_j + k} - \sum_i \hat\Gamma_{i, j} Y_{i, T_j + k} \right),
-   \qquad k = 0, \dots, K.
+.. note::
 
-The overall ATT averages over horizons; both are exposed on
-:py:attr:`PPSCMResults.inference` (overall) and
-:py:attr:`PPSCMResults.event_study` (per-horizon).
-
-Jackknife Inference (Section 5)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-For each treated unit :math:`j`, drop it from the panel and refit
-PPSCM on the remaining :math:`J - 1` treated units. The leave-one-out
-ATT estimates yield a jackknife standard error and Wald confidence
-band on :py:attr:`PPSCMInference.se` /
-:py:attr:`PPSCMInference.ci`. When :math:`J < 2` the jackknife is
-undefined and :mod:`mlsynth` returns ``NaN`` SE/CI.
+   **Exact replication of augsynth.** On the Paglayan data PPSCM matches
+   ``augsynth::multisynth`` to high precision: the auto-:math:`\nu` agrees to
+   four decimals (0.2607 default, 0.3939 time-cohort), the Average ATT matches
+   (:math:`-0.011` default; :math:`-0.017` vs :math:`-0.018` time-cohort), and
+   the raw global/individual L2 imbalances agree (0.003 / 0.028). The full
+   relative-time event study matches the vignette's per-horizon averages to
+   3--4 decimals. The decisive fidelity detail is aligning the **pooled**
+   imbalance by relative time on top of two-way fixed effects. The jackknife SE
+   (0.020) is close to augsynth's default wild-bootstrap SE (0.022); they differ
+   only by inference procedure. This is locked in by
+   ``test_matches_augsynth_vignette`` in ``mlsynth/tests/test_ppscm.py``.
 
 Core API
 --------
@@ -176,77 +159,41 @@ Configuration
    :members:
    :undoc-members:
 
+Result Containers
+-----------------
+
+``PPSCM.fit()`` returns a
+:class:`~mlsynth.utils.ppscm_helpers.structures.PPSCMResults`: the
+:class:`~mlsynth.utils.ppscm_helpers.structures.PPSCMDesign` (pooling level and
+balance diagnostics), the relative-time
+:class:`~mlsynth.utils.ppscm_helpers.structures.PPSCMEventStudy`, the overall
+:class:`~mlsynth.utils.ppscm_helpers.structures.PPSCMInference`, and the
+per-cohort donor weights.
+
+.. automodule:: mlsynth.utils.ppscm_helpers.structures
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Helper Modules
 --------------
+
+Staggered long-to-wide formatting (the only DataFrame touchpoint): derive
+adoption times, split pre/post at the last adoption.
 
 .. automodule:: mlsynth.utils.ppscm_helpers.setup
    :members:
    :undoc-members:
 
-.. automodule:: mlsynth.utils.ppscm_helpers.imbalance
+The engine: two-way fixed effects (``fit_feff``), the partially-pooled QP,
+auto-:math:`\nu`, and the relative-time event study / ATT.
+
+.. automodule:: mlsynth.utils.ppscm_helpers.engine
    :members:
    :undoc-members:
 
-.. automodule:: mlsynth.utils.ppscm_helpers.optimization
-   :members:
-   :undoc-members:
+The paper's delete-one jackknife inference.
 
 .. automodule:: mlsynth.utils.ppscm_helpers.inference
    :members:
    :undoc-members:
-
-.. automodule:: mlsynth.utils.ppscm_helpers.plotter
-   :members:
-   :undoc-members:
-
-.. automodule:: mlsynth.utils.ppscm_helpers.structures
-   :members:
-   :undoc-members:
-
-Example
--------
-
-.. code-block:: python
-
-   import pandas as pd
-   from mlsynth import PPSCM
-
-   df = pd.read_csv("staggered_panel.csv")  # treat in {0, 1}, J >= 2 treated
-
-   results = PPSCM({
-       "df":             df,
-       "outcome":        "log_spending",
-       "treat":          "bargaining_law",
-       "unitid":         "state",
-       "time":           "year",
-       "nu":             "auto",      # default: knee of the balance frontier
-       "demean":         False,       # paper recommends True for staggered DiD-style
-       "lam":            1e-6,        # ridge for uniqueness; tiny by default
-       "run_inference":  True,        # leave-one-treated-unit-out jackknife
-       "display_graphs": True,
-   }).fit()
-
-   print(results.design.nu_used)
-   print(results.design.q_sep, results.design.q_pool)
-   print(results.inference.att, results.inference.ci)
-
-   # Per-horizon ATT trajectory.
-   for k, tau, se in zip(results.event_study.horizons,
-                         results.event_study.tau,
-                         results.event_study.se):
-       print(f"k = {k:>2}  ATT_k = {tau:+.3f}  se = {se:.3f}")
-
-   # Per-treated weight matrix (column j sums to 1).
-   results.design.Gamma                       # (N, J)
-   results.donor_weights["state_X"]           # {donor_name: gamma_ij}
-
-   # Balance frontier from the auto-nu sweep.
-   for nu, (q_sep, q_pool) in sorted(results.design.frontier.items()):
-       print(nu, q_sep, q_pool)
-
-References
-----------
-
-Ben-Michael, E., Feller, A., & Rothstein, J. (2022). "Synthetic
-Controls with Staggered Adoption." *Journal of the Royal Statistical
-Society: Series B* 84(2):351-381.

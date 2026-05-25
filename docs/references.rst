@@ -268,3 +268,9 @@ References
     "Synthetic Design: An Optimization Approach to Experimental Design with Synthetic Controls."
     *Advances in Neural Information Processing Systems (NeurIPS)*, 2021.
     arXiv:2112.00278. URL: https://arxiv.org/abs/2112.00278
+
+.. [PPSCM]
+    Ben-Michael, Eli, Feller, Avi, and Rothstein, Jesse.
+    "Synthetic Controls with Staggered Adoption."
+    *Journal of the Royal Statistical Society: Series B*, 84(2): 351-381, 2022.
+    DOI: https://doi.org/10.1111/rssb.12448
