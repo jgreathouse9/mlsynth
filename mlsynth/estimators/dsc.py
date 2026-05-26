@@ -92,6 +92,8 @@ class DSC:
         self.lambda_weights = config.lambda_weights
         self.qte_quantiles = config.qte_quantiles
         self.n_qte_points: int = config.n_qte_points
+        self.compute_inference: bool = config.compute_inference
+        self.inference_grid_points: int = config.inference_grid_points
         self.random_state: int = config.random_state
         self.display_graphs: bool = config.display_graphs
         self.save = config.save
@@ -117,6 +119,8 @@ class DSC:
                 lambda_weights=self.lambda_weights,
                 qte_quantiles=self.qte_quantiles,
                 n_qte_points=self.n_qte_points,
+                compute_inference=self.compute_inference,
+                inference_grid_points=self.inference_grid_points,
                 random_state=self.random_state,
             )
             if self.display_graphs:
