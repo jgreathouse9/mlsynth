@@ -260,3 +260,45 @@ class SYNDESResults:
     def selected_unit_labels(self) -> np.ndarray:
         """Return labels of selected treated units."""
         return self.design.selected_unit_labels
+
+
+@dataclass(frozen=True)
+class SYNDESMultiArmResults:
+    """Per-arm SYNDES designs.
+
+    Returned by :class:`mlsynth.estimators.SYNDES` when an ``arm`` column is
+    configured: the SYNDES design problem is solved **independently within
+    each arm's units**, and each arm's full result (a :class:`SYNDESResults`
+    for the MIP modes, or a ``RelaxedSolverResults`` for the annealed mode)
+    is collected here.
+
+    Parameters
+    ----------
+    arm_designs : dict
+        ``{arm_label: SYNDESResults}`` -- one independent SYNDES solution per
+        arm (or ``RelaxedSolverResults`` under ``mode="two_way_global_annealed"``).
+    arm : str
+        Name of the arm column the units were partitioned on.
+    """
+
+    arm_designs: Dict[Any, Any]
+    arm: str
+
+    @property
+    def mode(self) -> str:
+        return "syndes_multiarm"
+
+    def atet_by_arm(self) -> Dict[Any, Optional[float]]:
+        """``{arm_label: ATET}`` across arms (``None`` where no inference)."""
+        out: Dict[Any, Optional[float]] = {}
+        for label, result in self.arm_designs.items():
+            inference = getattr(result, "inference", None)
+            out[label] = inference.atet if inference is not None else None
+        return out
+
+    def selected_unit_labels_by_arm(self) -> Dict[Any, Any]:
+        """``{arm_label: selected_unit_labels}`` across arms."""
+        return {
+            label: getattr(result, "selected_unit_labels", None)
+            for label, result in self.arm_designs.items()
+        }
