@@ -765,23 +765,30 @@ several times smaller than any single arm's MDE.
    print(res.pooled_mde_pct)        # ... as % of the pooled baseline
    print({k: r.mde for k, r in res.arm_designs.items()})   # per-arm MDEs
 
-How Long to Run the Study (Detectability Curve)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Power Curves and the MDE at Each Time Point
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Passing ``mde_horizon_grid`` evaluates the MDE at each candidate
-post-treatment horizon, so you can read off **how many post periods are
-needed** to detect a target effect. The curve is produced both per arm
-(``arm_designs[label].power.detectability``) and for the **whole study**
-(``pooled_power.detectability``), each a ``{horizon -> MDE percent}`` map.
-The MDE shrinks as the horizon grows (more post periods → more power), and
-the pooled/whole-study curve sits below every per-arm curve.
+Every fitted design stores two diagnostic curves on its
+:class:`~mlsynth.utils.spcd_helpers.power.SPCDPowerAnalysis` — for each arm
+(``arm_designs[label].power``) **and** for the whole study
+(``pooled_power``):
+
+* **Power vs. effect size** — ``power.effect_grid_pct`` and
+  ``power.power_curve`` give the full power curve at the analysis horizon;
+  the MDE is the smallest effect whose power reaches ``power_target``.
+* **MDE vs. horizon** ("MDE at time point :math:`t`") —
+  ``power.detectability`` is a ``{horizon -> MDE percent}`` map. It is
+  computed **by default** over every horizon :math:`1, \dots, n_{\text{post}}`
+  (pass ``mde_horizon_grid`` to override the horizons), so you can read off
+  **how many post periods are needed** to detect a target effect, both per
+  arm and for the whole study. The MDE shrinks as the horizon grows, and the
+  pooled curve sits below every per-arm curve.
 
 .. code-block:: python
 
    res = SPCD({
        "df": df, "outcome": "sales", "unitid": "unit", "time": "time",
        "arm": "region", "post_col": "post",
-       "mde_horizon_grid": list(range(2, 13)),   # evaluate horizons 2..12
    }).fit()
 
    whole_study = res.pooled_power.detectability    # {horizon: MDE % of baseline}
@@ -791,6 +798,27 @@ the pooled/whole-study curve sits below every per-arm curve.
    target_pct = 1.0
    feasible = [h for h, m in sorted(whole_study.items()) if m <= target_pct]
    recommended_periods = min(feasible) if feasible else None
+
+Three built-in plot helpers turn these into slides-ready figures:
+
+.. code-block:: python
+
+   from mlsynth import plot_mde_bars, plot_power_curves, plot_detectability
+
+   plot_mde_bars(res)        # bar chart: per-arm MDE % with the pooled bar
+   plot_power_curves(res)    # power vs. effect size, per arm + pooled
+   plot_detectability(res)   # MDE vs. study length (time points), per arm + pooled
+
+Each returns a Matplotlib ``Figure`` (so it renders inline in a notebook and
+can be ``.savefig(...)``-ed), and works on a single :class:`SPCDResults` as
+well as a multi-arm :class:`SPCDMultiArmResults`.
+
+.. note::
+
+   Computing the per-horizon detectability for every arm and the pooled
+   contrast multiplies the Monte Carlo cost by :math:`n_{\text{post}}`. For
+   long post windows, pass a coarser ``mde_horizon_grid`` (e.g.
+   ``range(2, n_post + 1, 2)``) or lower ``mde_n_sims`` to keep fits fast.
 
 .. code-block:: python
 
