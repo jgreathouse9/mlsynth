@@ -3173,10 +3173,6 @@ class SYNDESConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "T0 cannot exceed the number of unique time periods in df."
             )
-        if values.T0 is None and values.post_col is None:
-            raise MlsynthConfigError(
-                "Either T0 or post_col must be supplied to SYNDESConfig."
-            )
 
         if (values.costs is None) != (values.budget is None):
             raise MlsynthConfigError(
