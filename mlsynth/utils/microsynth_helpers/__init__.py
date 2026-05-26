@@ -15,4 +15,11 @@ Module layout:
 * :mod:`inference` -- paired stratified bootstrap CI (default).
 * :mod:`plotter` -- love plot + lift trajectory.
 * :mod:`structures` -- typed dataclasses for ``MicroSynth.fit()``.
+* :mod:`simulation` -- ad-holdout DGP (ITT vs. as-treated vs. CACE).
 """
+
+from __future__ import annotations
+
+from .simulation import simulate_ad_holdout
+
+__all__ = ["simulate_ad_holdout"]
