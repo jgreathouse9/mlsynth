@@ -398,3 +398,82 @@ class TestDesignPredictions:
         np.testing.assert_allclose(
             d.pre_fit_rmse, np.sqrt(np.mean(d.contrast_series ** 2)), rtol=1e-9
         )
+
+
+# ----------------------------------------------------------------------
+# Multi-arm SYNDES
+# ----------------------------------------------------------------------
+
+def _arm_panel(arms=("A", "B", "C"), upa: int = 6, T: int = 16,
+               n_post: int = 4, seed: int = 1) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    rows = []
+    u = 0
+    for a in arms:
+        for _ in range(upa):
+            y = (rng.standard_normal(T) * 0.4
+                 + np.linspace(0, 1, T) + rng.standard_normal())
+            for t in range(T):
+                rows.append({"unit": u, "arm": a, "time": t,
+                             "y": float(y[t]), "post": int(t >= T - n_post)})
+            u += 1
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture
+def arm_panel():
+    return _arm_panel()
+
+
+class TestMultiArmSYNDES:
+    _cfg = dict(outcome="y", unitid="unit", time="time", post_col="post",
+                K=2, mode="two_way_global", solver="SCIP")
+
+    def test_arm_returns_multiarm_results(self, arm_panel):
+        from mlsynth.utils.syndes_helpers.structures import (
+            SYNDESMultiArmResults, SYNDESResults,
+        )
+        res = SYNDES({"df": arm_panel, "arm": "arm", **self._cfg}).fit()
+        assert isinstance(res, SYNDESMultiArmResults)
+        assert res.arm == "arm" and res.mode == "syndes_multiarm"
+        assert sorted(res.arm_designs) == ["A", "B", "C"]
+        for r in res.arm_designs.values():
+            assert isinstance(r, SYNDESResults)
+            assert len(r.inputs.unit_index.labels) == 6   # own units only
+            assert r.design.selected_unit_labels.size == 2  # K=2 per arm
+
+    def test_arm_none_returns_single_result(self, arm_panel):
+        from mlsynth.utils.syndes_helpers.structures import SYNDESResults
+        res = SYNDES({"df": arm_panel[arm_panel["arm"] == "A"],
+                      **self._cfg}).fit()
+        assert isinstance(res, SYNDESResults)
+
+    def test_accessors(self, arm_panel):
+        res = SYNDES({"df": arm_panel, "arm": "arm", "run_inference": True,
+                      "alpha": 0.1, **self._cfg}).fit()
+        assert set(res.atet_by_arm()) == {"A", "B", "C"}
+        assert set(res.selected_unit_labels_by_arm()) == {"A", "B", "C"}
+
+    def test_missing_arm_column_raises(self, arm_panel):
+        with pytest.raises(MlsynthDataError):
+            SYNDES({"df": arm_panel, "arm": "nope", **self._cfg}).fit()
+
+    def test_arm_varying_within_unit_raises(self, arm_panel):
+        df = arm_panel.copy()
+        first = df["unit"].iloc[0]
+        n = int((df["unit"] == first).sum())
+        df.loc[df["unit"] == first, "arm"] = (["A", "B"] * (n // 2 + 1))[:n]
+        with pytest.raises(MlsynthDataError):
+            SYNDES({"df": df, "arm": "arm", **self._cfg}).fit()
+
+    def test_costs_with_arm_rejected(self, arm_panel):
+        with pytest.raises(MlsynthConfigError):
+            SYNDESConfig(df=arm_panel, outcome="y", unitid="unit", time="time",
+                         K=2, mode="two_way_global", post_col="post",
+                         arm="arm", costs=[1.0] * 18, budget=5.0)
+
+    def test_K_too_big_for_arm_rejected(self, arm_panel):
+        # each arm has 6 units; K must be < 6
+        with pytest.raises(MlsynthConfigError):
+            SYNDESConfig(df=arm_panel, outcome="y", unitid="unit", time="time",
+                         K=6, mode="per_unit", post_col="post", arm="arm")
