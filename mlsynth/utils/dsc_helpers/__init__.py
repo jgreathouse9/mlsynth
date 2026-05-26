@@ -23,6 +23,7 @@ Module layout (one module per role):
 from __future__ import annotations
 
 from .aggregation import aggregate_period_weights, build_lambda_weights
+from .inference import DSCInference, placebo_permutation_test
 from .pipeline import run_dsc
 from .quantiles import (
     build_pseudo_sample_matrix,
@@ -34,6 +35,7 @@ from .structures import DSCInputs, DSCResults, QTECurve
 from .weights import solve_simplex_weights, wasserstein_loss_at_weights
 
 __all__ = [
+    "DSCInference",
     "DSCInputs",
     "DSCResults",
     "QTECurve",
@@ -41,6 +43,7 @@ __all__ = [
     "build_lambda_weights",
     "build_pseudo_sample_matrix",
     "empirical_quantile",
+    "placebo_permutation_test",
     "prepare_dsc_inputs",
     "run_dsc",
     "sample_quantile_grid",

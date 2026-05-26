@@ -132,4 +132,5 @@ class DSCResults:
     att: float
     pre_period_wasserstein: np.ndarray
     weights: Optional[Any] = None
+    inference: Optional[Any] = None
     metadata: Dict[str, Any] = field(default_factory=dict)

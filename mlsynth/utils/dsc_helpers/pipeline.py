@@ -51,6 +51,8 @@ def run_dsc(
     lambda_weights: Optional[Sequence[float]] = None,
     qte_quantiles: Optional[Sequence[float]] = None,
     n_qte_points: int = 99,
+    compute_inference: bool = False,
+    inference_grid_points: int = 200,
     random_state: int = 0,
 ) -> DSCResults:
     """Run Algorithm 1 of Zhang, Zhang & Zhang (2026) and assemble :class:`DSCResults`.
@@ -207,6 +209,27 @@ def run_dsc(
         extra={"aggregation": "w_hat = sum_t lambda_t w_t over pre-periods"},
     )
 
+    # ------------------------------------------------------------------
+    # Optional: placebo permutation inference (Gunsilius 2023, Alg. 1).
+    # ------------------------------------------------------------------
+    inference = None
+    if compute_inference:
+        from .inference import placebo_permutation_test
+
+        inference = placebo_permutation_test(
+            inputs,
+            M=M,
+            grid_method=grid_method,
+            lam=lam,
+            n_eval=inference_grid_points,
+            random_state=random_state,
+        )
+        metadata["inference"] = {
+            "test": "placebo_permutation",
+            "n_permutations": inference.n_permutations,
+            "p_values": inference.p_values,
+        }
+
     return DSCResults(
         inputs=inputs,
         donor_weights=donor_weights,
@@ -217,5 +240,6 @@ def run_dsc(
         att=att,
         pre_period_wasserstein=period_loss,
         weights=weights_res,
+        inference=inference,
         metadata=metadata,
     )

@@ -19,29 +19,67 @@ approximated by Monte Carlo / QMC).
 from __future__ import annotations
 
 import numpy as np
-from scipy.optimize import minimize
 
 from ...exceptions import MlsynthEstimationError
+
+
+def _project_to_simplex(v: np.ndarray) -> np.ndarray:
+    """Euclidean projection of ``v`` onto the probability simplex.
+
+    Implements the exact :math:`O(J \\log J)` algorithm of Duchi,
+    Shalev-Shwartz, Singer & Chandra (2008): sort, find the threshold
+    via the cumulative sum, and soft-threshold. Returns ``w >= 0`` with
+    ``sum(w) == 1``.
+    """
+    u = np.sort(v)[::-1]
+    css = np.cumsum(u) - 1.0
+    rho_idx = np.nonzero(u - css / np.arange(1, v.size + 1) > 0)[0]
+    rho = rho_idx[-1] if rho_idx.size else 0
+    theta = css[rho] / (rho + 1.0)
+    return np.maximum(v - theta, 0.0)
 
 
 def solve_simplex_weights(
     donor_matrix: np.ndarray,
     treated_vec: np.ndarray,
+    *,
+    max_iter: int = 5000,
+    tol: float = 1e-12,
 ) -> np.ndarray:
     """Return the simplex-constrained least-squares weight vector.
 
-    Uses sequential least-squares programming (SLSQP) -- the same
-    convex QP that the classical synthetic control of
-    Abadie-Diamond-Hainmueller (2010) solves. We avoid pulling in
-    cvxpy for this single helper since the problem is small and
-    SLSQP is shipped with SciPy.
+    Solves the convex program
+
+    .. math::
+
+       \\widehat w = \\arg\\min_{w \\in \\mathcal H}
+                     \\| \\widetilde Y_t\\, w - \\widehat Y_{1t} \\|_2^2,
+       \\qquad
+       \\mathcal H = \\{ w \\ge 0 : \\mathbf 1^\\top w = 1 \\},
+
+    by **accelerated projected gradient descent** (FISTA; Beck &
+    Teboulle 2009) with the exact simplex projection of Duchi et al.
+    (2008). This replaces an earlier SLSQP solver that failed
+    (``"Positive directional derivative for linesearch"``) once the
+    donor pool grew past a few dozen units -- precisely the regime of
+    Gunsilius (2023, Section 6.1), where the method is meant to use
+    tens to hundreds of donors. The reference DiSCo R package solves the
+    same program with a dedicated constrained least-squares routine
+    (``pracma::lsqlincon``); projected gradient is its dependency-free
+    analogue and returns the identical optimum (the objective is convex
+    with a unique minimum value over the simplex).
 
     Parameters
     ----------
     donor_matrix : np.ndarray
-        :math:`(M, J)` design matrix.
+        :math:`(M, J)` design matrix -- donor quantile functions
+        evaluated on the grid.
     treated_vec : np.ndarray
-        Length-``M`` target.
+        Length-``M`` target quantile function.
+    max_iter : int
+        Maximum FISTA iterations.
+    tol : float
+        Relative objective-change stopping tolerance.
 
     Returns
     -------
@@ -57,43 +95,37 @@ def solve_simplex_weights(
             "donor_matrix and treated_vec must have the same number of rows."
         )
 
-    J = donor_matrix.shape[1]
-    w0 = np.full(J, 1.0 / J)
+    A = np.asarray(donor_matrix, dtype=float)
+    b = np.asarray(treated_vec, dtype=float)
+    J = A.shape[1]
+    if J == 1:
+        return np.ones(1)
 
-    def loss(w: np.ndarray) -> float:
-        diff = donor_matrix @ w - treated_vec
-        return float(diff @ diff)
+    AtA = A.T @ A
+    Atb = A.T @ b
+    # Lipschitz constant of the gradient of ||A w - b||^2 is 2 * lambda_max(AtA).
+    lip = 2.0 * float(np.linalg.norm(AtA, 2))
+    step = 1.0 / max(lip, 1e-12)
 
-    def loss_grad(w: np.ndarray) -> np.ndarray:
-        diff = donor_matrix @ w - treated_vec
-        return 2.0 * donor_matrix.T @ diff
+    w = np.full(J, 1.0 / J)
+    y = w.copy()
+    t = 1.0
+    prev_obj = np.inf
+    for _ in range(max_iter):
+        grad = 2.0 * (AtA @ y - Atb)
+        w_new = _project_to_simplex(y - step * grad)
+        t_new = 0.5 * (1.0 + np.sqrt(1.0 + 4.0 * t * t))
+        y = w_new + ((t - 1.0) / t_new) * (w_new - w)
+        w, t = w_new, t_new
+        diff = A @ w - b
+        obj = float(diff @ diff)
+        if abs(prev_obj - obj) <= tol * (1.0 + abs(obj)):
+            break
+        prev_obj = obj
 
-    result = minimize(
-        fun=loss,
-        x0=w0,
-        jac=loss_grad,
-        method="SLSQP",
-        bounds=[(0.0, 1.0)] * J,
-        constraints=({"type": "eq", "fun": lambda w: np.sum(w) - 1.0},),
-        options={"maxiter": 500, "ftol": 1e-10},
-    )
-    if not result.success:
-        # SLSQP occasionally reports failure even when the solution is
-        # within tolerance; check feasibility explicitly before raising.
-        w = result.x
-        if (
-            (w < -1e-6).any()
-            or abs(w.sum() - 1.0) > 1e-4
-        ):
-            raise MlsynthEstimationError(
-                f"Simplex QP failed: {result.message}"
-            )
-
-    w = np.clip(result.x, 0.0, 1.0)
+    w = np.clip(w, 0.0, None)
     s = w.sum()
-    if s > 0:
-        w = w / s
-    return w
+    return w / s if s > 0 else np.full(J, 1.0 / J)
 
 
 def wasserstein_loss_at_weights(
