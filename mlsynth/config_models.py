@@ -1827,8 +1827,12 @@ class SPCDConfig(BaseMAREXConfig):
         closed-form approximation used in all of the paper's
         experiments. ``"exact"`` solves Eq. (6) via cvxpy.
     alpha_ridge : float or None, optional
-        Ridge term ``alpha`` in Eq. (2). Auto-estimated from the
-        spectrum of ``Y_pre.T @ Y_pre`` if ``None``.
+        Ridge term ``alpha`` in Eq. (2), playing the role of the noise
+        variance ``sigma``. If ``None``, it is chosen by out-of-sample
+        pre-period balance over a noise-scale grid
+        (``select_alpha_by_holdout``), since the post-period RMSE is a
+        jumpy function of ``alpha`` when ``N > T_pre``. Pass a value
+        (e.g. a known noise variance) to bypass selection.
     lam_balance : float or None, optional
         Sum-zero penalty ``lambda`` in Eq. (2). Auto-estimated if
         ``None``. Theorem 1 requires this to be "large enough".
@@ -1870,7 +1874,9 @@ class SPCDConfig(BaseMAREXConfig):
     alpha_ridge: Optional[float] = Field(
         default=None,
         ge=0,
-        description="Ridge term alpha in Eq. (2). Auto-estimated if None.",
+        description="Ridge term alpha in Eq. (2) (the noise variance sigma). "
+                    "If None, selected by out-of-sample pre-period balance "
+                    "over a noise-scale grid (select_alpha_by_holdout).",
     )
     lam_balance: Optional[float] = Field(
         default=None,
