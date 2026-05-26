@@ -233,6 +233,50 @@ where :math:`\alpha` plays the role of :math:`\sigma` (noise variance) and
    simulations below fix :math:`\sigma = 1`), pass ``alpha_ridge`` explicitly
    to skip selection.
 
+Balancing on Covariates
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default SPCD balances the two groups on the **pre-treatment outcomes**
+only. Passing ``covariates`` (a list of column names) additionally balances on
+auxiliary unit characteristics. Each unit's per-covariate **pre-period mean**
+is taken (time-invariant covariates -- e.g. last year's market share -- collapse
+to their value), the resulting :math:`N \times P` matrix :math:`X` is z-scored
+across units, and a covariate-balance term is folded into the iteration matrix:
+
+.. math::
+
+   M \;=\; Y Y^\top
+   \;+\; \texttt{covariate\_weight} \cdot s \cdot X X^\top
+   \;+\; \alpha I \;+\; \lambda \mathbf{1}\mathbf{1}^\top,
+
+where :math:`s` rescales :math:`X X^\top` to match the trace ("energy") of
+:math:`Y Y^\top`, so ``covariate_weight = 1`` weights covariates **equally** to
+the outcomes, ``> 1`` upweights them, and ``0`` (or omitting ``covariates``)
+recovers the outcome-only design. Crucially this keeps the iteration matrix a
+quadratic form :math:`W^\top M W` with the *same* phase-synchronization
+structure, so the spectral solver **and the global-optimality theory are
+unchanged** -- the design now drives the weighted treated and control groups to
+agree on outcomes *and* covariates jointly. (This is the same way classical
+synthetic control balances on predictors; the relative weight ``covariate_weight``
+is the analog of SCM's :math:`V`.)
+
+.. note::
+
+   Budget / cardinality constraints are **not** supported by SPCD: they are
+   linear constraints on the discrete assignment and break the
+   phase-synchronization reduction (which is precisely what removing the
+   cardinality constraint buys, per the paper's Remark 1). Use :doc:`syndes`,
+   whose MIP takes such constraints natively, when you need a budget.
+
+.. code-block:: python
+
+   res = SPCD({
+       "df": df, "outcome": "sales", "unitid": "DMA", "time": "Week",
+       "covariates": ["mkt_share"],     # balance outcomes + last-year market share
+       "covariate_weight": 1.0,          # equal weight to outcomes (default)
+   }).fit()
+   # the weighted treated/control groups now match on mkt_share as well
+
 Spectral Initialization
 ^^^^^^^^^^^^^^^^^^^^^^^
 
