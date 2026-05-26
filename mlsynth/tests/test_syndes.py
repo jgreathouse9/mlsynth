@@ -108,12 +108,21 @@ class TestConfigValidation:
                 K=2, mode="two_way_global", post_col="not_a_column",
             )
 
-    def test_T0_or_post_col_required(self, panel):
-        with pytest.raises(MlsynthConfigError):
-            SYNDESConfig(
-                df=panel, outcome="y", unitid="unit", time="time",
-                K=2, mode="two_way_global",
-            )
+    def test_neither_T0_nor_post_col_is_design_only(self, panel):
+        # No T0 and no post_col -> the whole panel is pre-treatment
+        # (design-only / planning mode). Config is valid and fit returns a
+        # design with no post period and no inference.
+        cfg = SYNDESConfig(
+            df=panel, outcome="y", unitid="unit", time="time",
+            K=2, mode="two_way_global",
+        )
+        assert cfg.T0 is None and cfg.post_col is None
+        res = SYNDES({
+            "df": panel, "outcome": "y", "unitid": "unit", "time": "time",
+            "K": 2, "mode": "two_way_global",
+        }).fit()
+        assert res.inputs.Y_post is None
+        assert res.inference is None
 
 
 # ----------------------------------------------------------------------
