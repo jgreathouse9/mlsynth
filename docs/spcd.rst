@@ -719,6 +719,79 @@ arm's units** and returns an :class:`SPCDMultiArmResults` (a dict of per-arm
 :class:`SPCDResults`); when ``arm`` is ``None`` (default) a single
 :class:`SPCDResults` is returned.
 
+Multi-Arm Power: the Pooled Average Effect
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Each arm carries its own per-arm MDE (``arm_designs[label].mde``), but those
+are *m* independent analyses with no family-wise error control. When the
+estimand of interest is the **average effect across arms** — the usual
+program-level question — :class:`SPCDMultiArmResults` also reports a single
+**pooled average-effect MDE** (``results.pooled_mde`` /
+``results.pooled_mde_pct``), computed by default whenever inference is enabled
+and at least two arms have a usable holdout window.
+
+It is formed by pooling the arms' **time-aligned** holdout residuals into one
+contrast, :math:`g_t = \sum_a w_a\, r^{(a)}_{B,t}`, and running the ordinary
+single-series MDE on :math:`g`. Because the arms share calendar time, summing
+the *aligned* series makes the cross-arm correlation enter through
+:math:`\operatorname{Var}(g) = w^\top \Sigma\, w` automatically — which is why
+the residual **series** must be pooled, never resampled per arm independently
+(that would drop positive correlation and report an over-optimistic MDE). The
+weights :math:`w_a` are set by ``pooled_weights``: ``"size"`` (default) weights
+each arm by its unit count, giving the *population-average* effect;
+``"equal"`` weights arms equally.
+
+Pooling answers an easier question than the per-arm analyses — averaging
+cancels idiosyncratic noise, so the detectable *average* effect is typically
+several times smaller than any single arm's MDE.
+
+.. warning::
+
+   The pooled MDE targets the **weighted-average** effect. If arm effects are
+   heterogeneous and **opposite-signed** they can cancel in the average and go
+   undetected even when individual arms move a lot. Use the per-arm
+   ``arm_designs[label].mde`` (or a family-wise procedure) when detecting
+   *individual* arms is what matters.
+
+.. code-block:: python
+
+   res = SPCD({
+       "df": df, "outcome": "sales", "unitid": "unit", "time": "time",
+       "arm": "region", "post_col": "post",
+       "pooled_weights": "size",    # population-average effect ("equal" also available)
+   }).fit()
+
+   print(res.pooled_mde)            # smallest detectable AVERAGE effect across arms
+   print(res.pooled_mde_pct)        # ... as % of the pooled baseline
+   print({k: r.mde for k, r in res.arm_designs.items()})   # per-arm MDEs
+
+How Long to Run the Study (Detectability Curve)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Passing ``mde_horizon_grid`` evaluates the MDE at each candidate
+post-treatment horizon, so you can read off **how many post periods are
+needed** to detect a target effect. The curve is produced both per arm
+(``arm_designs[label].power.detectability``) and for the **whole study**
+(``pooled_power.detectability``), each a ``{horizon -> MDE percent}`` map.
+The MDE shrinks as the horizon grows (more post periods → more power), and
+the pooled/whole-study curve sits below every per-arm curve.
+
+.. code-block:: python
+
+   res = SPCD({
+       "df": df, "outcome": "sales", "unitid": "unit", "time": "time",
+       "arm": "region", "post_col": "post",
+       "mde_horizon_grid": list(range(2, 13)),   # evaluate horizons 2..12
+   }).fit()
+
+   whole_study = res.pooled_power.detectability    # {horizon: MDE % of baseline}
+   per_arm = {k: r.power.detectability for k, r in res.arm_designs.items()}
+
+   # Recommend the shortest horizon that detects a target average effect:
+   target_pct = 1.0
+   feasible = [h for h, m in sorted(whole_study.items()) if m <= target_pct]
+   recommended_periods = min(feasible) if feasible else None
+
 .. code-block:: python
 
    from mlsynth import SPCD
