@@ -66,7 +66,10 @@ from ..utils.syndes_helpers.plotter import plot_syndes_design
 from ..utils.syndes_helpers.relaxed_solver import solve_two_way_relaxed
 from ..utils.syndes_helpers.relaxed_structures import RelaxedSolverResults
 from ..utils.syndes_helpers.setup import prepare_syndes_inputs
-from ..utils.syndes_helpers.structures import SYNDESResults
+from ..utils.syndes_helpers.structures import (
+    SYNDESMultiArmResults,
+    SYNDESResults,
+)
 
 
 # Paper-aligned -> internal optimization mode mapping. The optimization
@@ -128,28 +131,42 @@ class SYNDES:
         self.verbose: bool = config.verbose
         self.costs = config.costs
         self.budget = config.budget
+        self.arm: Optional[str] = config.arm
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def fit(self) -> Union[SYNDESResults, RelaxedSolverResults]:
-        """Solve the MIP (or relaxation), run optional inference, return results."""
+    def fit(
+        self,
+    ) -> Union[SYNDESResults, "RelaxedSolverResults", SYNDESMultiArmResults]:
+        """Solve the MIP (or relaxation), run optional inference, return results.
+
+        Returns a single result when no ``arm`` column is configured;
+        otherwise solves the SYNDES design **independently within each arm's
+        units** and returns a :class:`SYNDESMultiArmResults` keyed by arm
+        label.
+        """
 
         try:
-            balance(self.df, self.unitid, self.time)
-            inputs = prepare_syndes_inputs(
-                df=self.df,
-                outcome=self.outcome,
-                unitid=self.unitid,
-                time=self.time,
-                T0=self.T0,
-                post_col=self.post_col,
-            )
+            if self.arm is None:
+                return self._fit_single(self.df)
 
-            if self.mode_public == "two_way_global_annealed":
-                return self._fit_relaxed(inputs)
-            return self._fit_mip(inputs)
+            # Multi-arm: solve the SYNDES design independently within each arm.
+            if self.arm not in self.df.columns:
+                raise MlsynthDataError(
+                    f"Arm column {self.arm!r} not found in the data."
+                )
+            if self.df.groupby(self.unitid)[self.arm].nunique().max() > 1:
+                raise MlsynthDataError(
+                    "The arm column varies within a unit over time."
+                )
+
+            arm_designs = {
+                arm_label: self._fit_single(sub.copy())
+                for arm_label, sub in self.df.groupby(self.arm, sort=True)
+            }
+            return SYNDESMultiArmResults(arm_designs=arm_designs, arm=self.arm)
 
         except (
             MlsynthConfigError,
@@ -162,6 +179,25 @@ class SYNDES:
             raise MlsynthEstimationError(
                 f"SYNDES estimation failed: {exc}"
             ) from exc
+
+    def _fit_single(
+        self, df: pd.DataFrame
+    ) -> Union[SYNDESResults, "RelaxedSolverResults"]:
+        """Run the SYNDES pipeline on one (sub-)panel and return its result."""
+
+        balance(df, self.unitid, self.time)
+        inputs = prepare_syndes_inputs(
+            df=df,
+            outcome=self.outcome,
+            unitid=self.unitid,
+            time=self.time,
+            T0=self.T0,
+            post_col=self.post_col,
+        )
+
+        if self.mode_public == "two_way_global_annealed":
+            return self._fit_relaxed(inputs)
+        return self._fit_mip(inputs)
 
     # ------------------------------------------------------------------
     # MIP path
