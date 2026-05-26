@@ -78,7 +78,7 @@ nonstationary outcomes this breaks down. If each untreated outcome
 regression of :math:`Y_{1,t}` on the donor outcomes over the pre-period
 will *still* often produce statistically significant coefficients and a
 tight in-sample fit — an artifact of spurious comovement, not shared
-factors (Granger and Newbold, 1974; Phillips, 1986). Imposing
+factors (`Granger and Newbold, 1974<https://doi.org/10.1016/0304-4076(74)90034-7>`_ ; `Phillips, 1986<https://doi.org/10.1016/0304-4076(86)90001-1>`_). Imposing
 non-negativity and adding-up constraints narrows the feasible weights but
 does not eliminate the problem. There is no reason for such a fit to
 persist out of sample, so it cannot be used to impute the treated unit's
