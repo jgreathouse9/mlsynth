@@ -154,6 +154,8 @@ class SPCD:
         self.inference_seed: int = config.inference_seed
         self.min_blank_size: int = config.min_blank_size
         self.pooled_weights: str = config.pooled_weights
+        self.covariates = list(config.covariates) if config.covariates else None
+        self.covariate_weight: float = config.covariate_weight
 
     def _fit_single(self, df: pd.DataFrame) -> SPCDResults:
         """Run the SPCD pipeline on one (sub-)panel and return its design."""
@@ -165,6 +167,7 @@ class SPCD:
             time=self.time,
             T0=self.T0,
             post_col=self.post_col,
+            covariates=self.covariates,
         )
         design, conformal, power = solve_spcd_with_holdout(
             inputs=inputs,
@@ -185,6 +188,7 @@ class SPCD:
             mde_horizon_grid=self.mde_horizon_grid,
             inference_seed=self.inference_seed,
             min_blank_size=self.min_blank_size,
+            covariate_weight=self.covariate_weight,
         )
         summary = build_summary(
             design=design, inputs=inputs, conformal=conformal, power=power
@@ -197,8 +201,7 @@ class SPCD:
 
     def _pre_fit_agreement(self, inputs, design) -> SPCDPreFit:
         """RMSE of the synthetic gap (treated - control) over the
-        estimation, blank, and overall pre-treatment windows.
-        """
+        estimation, blank, and overall pre-treatment windows."""
 
         n_pre = int(inputs.Y_pre.shape[0])
         gap = np.asarray(design.synthetic_gap, dtype=float)[:n_pre]
