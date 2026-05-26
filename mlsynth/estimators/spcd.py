@@ -43,11 +43,18 @@ from ..utils.spcd_helpers.holdout import (
     split_pre_window,
 )
 from ..utils.spcd_helpers.orchestration import solve_spcd_with_holdout
-from ..utils.spcd_helpers.power import compute_pooled_average_mde
+from ..utils.spcd_helpers.power import (
+    compute_pooled_average_mde,
+    default_detectability_grid,
+)
 from ..utils.spcd_helpers.results_assembly import build_summary
 from ..utils.spcd_helpers.plotter import plot_spcd_design
 from ..utils.spcd_helpers.setup import prepare_spcd_inputs
-from ..utils.spcd_helpers.structures import SPCDMultiArmResults, SPCDResults
+from ..utils.spcd_helpers.structures import (
+    SPCDMultiArmResults,
+    SPCDPreFit,
+    SPCDResults,
+)
 
 
 class SPCD:
@@ -182,9 +189,40 @@ class SPCD:
         summary = build_summary(
             design=design, inputs=inputs, conformal=conformal, power=power
         )
+        pre_fit = self._pre_fit_agreement(inputs, design)
         return SPCDResults(
             design=design, inputs=inputs, summary=summary,
-            conformal=conformal, power=power,
+            conformal=conformal, power=power, pre_fit=pre_fit,
+        )
+
+    def _pre_fit_agreement(self, inputs, design) -> SPCDPreFit:
+        """RMSE of the synthetic gap (treated - control) over the
+        estimation, blank, and overall pre-treatment windows."""
+
+        n_pre = int(inputs.Y_pre.shape[0])
+        gap = np.asarray(design.synthetic_gap, dtype=float)[:n_pre]
+
+        def _rmse(a: np.ndarray) -> float:
+            a = np.asarray(a, dtype=float)
+            return float(np.sqrt(np.mean(np.square(a)))) if a.size else float("nan")
+
+        rmse_pre = _rmse(gap)
+        if self.enable_inference:
+            _Y_E, _Y_B, n_E, n_B, _ = split_pre_window(
+                inputs.Y_pre,
+                frac_E=self.holdout_frac_E,
+                min_blank_size=self.min_blank_size,
+            )
+            return SPCDPreFit(
+                rmse_estimation=_rmse(gap[:n_E]),
+                rmse_blank=_rmse(gap[n_E:n_pre]) if n_B > 0 else None,
+                rmse_pre=rmse_pre,
+                n_estimation=int(n_E),
+                n_blank=int(n_B),
+            )
+        return SPCDPreFit(
+            rmse_estimation=rmse_pre, rmse_blank=None, rmse_pre=rmse_pre,
+            n_estimation=n_pre, n_blank=0,
         )
 
     def _pooled_average_power(self, arm_designs: dict):
@@ -223,7 +261,7 @@ class SPCD:
         horizon_grid = (
             list(self.mde_horizon_grid)
             if self.mde_horizon_grid
-            else list(range(1, n_post + 1))
+            else default_detectability_grid(n_post)
         )
         return compute_pooled_average_mde(
             residuals_by_arm=residuals,
