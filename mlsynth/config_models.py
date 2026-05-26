@@ -3040,8 +3040,10 @@ class SYNDESConfig(BaseMAREXConfig):
         sample variance of the pre-treatment outcomes (Section 6 of
         the paper).
     T0 : int or None
-        Number of pre-treatment periods. Either ``T0`` or ``post_col``
-        must be supplied.
+        Number of pre-treatment periods. If neither ``T0`` nor
+        ``post_col`` is supplied, the **entire panel is treated as
+        pre-treatment** (design-only / planning mode -- no post period,
+        so no ATT/inference is produced).
     post_col : str or None
         Optional 0/1 column identifying post-treatment periods.
     alpha : float
@@ -3173,6 +3175,8 @@ class SYNDESConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "T0 cannot exceed the number of unique time periods in df."
             )
+        # Neither T0 nor post_col is allowed: the whole panel is then treated
+        # as pre-treatment (design-only / planning mode, no post period).
 
         if (values.costs is None) != (values.budget is None):
             raise MlsynthConfigError(
