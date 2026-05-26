@@ -213,6 +213,36 @@ Choosing among the modes
      - treated fixed at ``1/K``, control free
      - heterogeneous effects but a simple, fixed treated average is the target estimand
 
+Multiple Treatment Arms
+-----------------------
+
+When a single experiment runs several **treatment arms** (e.g. different
+creatives, offers, or price points, each rolled out to its own set of
+markets), pass an ``arm`` column. ``SYNDES`` then solves the design problem
+**independently within each arm's units** and returns a
+:class:`~mlsynth.utils.syndes_helpers.structures.SYNDESMultiArmResults` —
+a dict of per-arm results keyed by arm label. Every option (``mode``, ``K``,
+``lam``, inference) applies within each arm, and ``K`` is interpreted
+**per arm** (so it must be smaller than the smallest arm's unit count).
+
+.. code-block:: python
+
+   res = SYNDES({
+       "df": df, "outcome": "sales", "unitid": "DMA", "time": "week",
+       "arm": "treat",                 # categorical arm label per unit
+       "K": 3, "mode": "two_way_global", "post_col": "post",
+       "run_inference": True,
+   }).fit()
+
+   res.arm_designs["A"]                 # full SYNDESResults for arm A
+   res.atet_by_arm()                    # {arm: ATET}
+   res.selected_unit_labels_by_arm()    # {arm: treated units}
+
+The arm column must be constant within each unit over time. ``arm`` is not
+compatible with the global ``costs``/``budget`` constraint (the cost vector is
+defined over all units, not per arm). When ``arm`` is ``None`` (default), a
+single :class:`SYNDESResults` is returned, exactly as before.
+
 Example
 -------
 
