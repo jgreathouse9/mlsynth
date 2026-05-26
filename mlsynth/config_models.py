@@ -763,6 +763,18 @@ class DSCConfig(BaseEstimatorConfig):
         default=0,
         description="Seed forwarded to the QMC sampler.",
     )
+    compute_inference: bool = Field(
+        default=False,
+        description="Run the Gunsilius (2023) placebo permutation test "
+                    "(Algorithm 1): refit DSC with every donor treated as a "
+                    "placebo and rank the real unit's post-period Wasserstein "
+                    "distance. Costs J extra pre-period refits.",
+    )
+    inference_grid_points: int = Field(
+        default=200, ge=2,
+        description="Number of quantiles used to evaluate the squared "
+                    "2-Wasserstein distances in the placebo permutation test.",
+    )
 
 
 class SpSyDiDConfig(BaseEstimatorConfig):
@@ -1466,12 +1478,15 @@ class LEXSCMConfig(BaseMAREXConfig):
 
     top_K: int = Field(
         default=20,
-        description="Number of top candidate tuples returned by branch-and-bound."
+        description="Number of top candidate treated tuples returned by the "
+                    "Stage 1 search (exact enumeration or multi-start local search)."
     )
 
     top_P: int = Field(
         default=10,
-        description="Number of seed units for BnB initialization."
+        description="Deprecated and unused by the rebuilt Stage 1 search "
+                    "(retained for backward-compatible configs). The multi-start "
+                    "local search sets its own seed count internally."
     )
 
     # =========================================================
