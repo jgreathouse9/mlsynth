@@ -69,6 +69,7 @@ from mlsynth.utils.spcd_helpers.power import (
     SPCDPowerAnalysis,
     compute_detectability_curve,
     compute_mde,
+    compute_pooled_average_mde,
 )
 from mlsynth.utils.spcd_helpers.orchestration import (
     solve_spcd,
@@ -1106,3 +1107,132 @@ class TestAlphaSelection:
     def test_explicit_alpha_bypasses_selection(self, inputs):
         design = solve_spcd(inputs, alpha=1.0)
         assert design.alpha_ridge == pytest.approx(1.0)
+
+
+# =========================================================================
+# POOLED AVERAGE-EFFECT MDE (MULTI-ARM)
+# =========================================================================
+
+class TestPooledAverageMDE:
+    """Option-3 pooled MDE: the size-/equal-weighted *average* effect
+    across arms, formed on time-aligned holdout residuals so cross-arm
+    correlation enters through Var(g) = w' Sigma w.
+    """
+
+    def _residuals(self, rng, m=4, nB=12, corr=0.4, scale=1.0):
+        """m correlated holdout series (shared factor + idiosyncratic)."""
+        common = rng.standard_normal(nB)
+        return {
+            f"A{a}": scale * (np.sqrt(corr) * common
+                              + np.sqrt(1 - corr) * rng.standard_normal(nB))
+            for a in range(m)
+        }
+
+    def test_pooling_beats_per_arm(self):
+        rng = np.random.default_rng(0)
+        res = self._residuals(rng, m=4, nB=14)
+        base = {k: 100.0 for k in res}
+        size = {k: 8 for k in res}
+        pooled = compute_pooled_average_mde(
+            res, base, size, n_post=8, weights="size",
+            n_sims=800, n_trials=300, seed=1,
+        )
+        per_arm = [
+            compute_mde(res[k], baseline=100.0, n_post=8,
+                        n_sims=800, n_trials=300, seed=1).mde_tau
+            for k in res
+        ]
+        assert pooled.feasible and pooled.mde_tau > 0
+        # averaging cancels idiosyncratic noise -> smaller detectable effect
+        assert pooled.mde_tau < np.nanmedian(per_arm)
+
+    def test_alignment_captures_correlation(self):
+        # Pooled variance must equal w' Sigma w (aligned), not the
+        # independent-sum w'^2 diag(Sigma); for positive correlation the
+        # aligned sd is strictly larger.
+        rng = np.random.default_rng(2)
+        res = self._residuals(rng, m=5, nB=200, corr=0.5)
+        labels = sorted(res)
+        R = np.column_stack([res[l] for l in labels])
+        w = np.full(len(labels), 1 / len(labels))
+        aligned_sd = (R @ w).std(ddof=1)
+        indep_sd = np.sqrt(np.sum(w**2 * np.var(R, axis=0, ddof=1)))
+        assert aligned_sd > indep_sd  # positive correlation is retained
+
+    def test_size_vs_equal_weights(self):
+        rng = np.random.default_rng(3)
+        res = self._residuals(rng, m=3, nB=14)
+        base = {k: 100.0 for k in res}
+        size = {"A0": 20, "A1": 5, "A2": 5}
+        out_size = compute_pooled_average_mde(res, base, size, n_post=6,
+                                              weights="size", n_sims=600,
+                                              n_trials=200, seed=4)
+        out_eq = compute_pooled_average_mde(res, base, size, n_post=6,
+                                            weights="equal", n_sims=600,
+                                            n_trials=200, seed=4)
+        assert out_size.feasible and out_eq.feasible
+
+    def test_requires_two_arms(self):
+        with pytest.raises(ValueError):
+            compute_pooled_average_mde({"A0": np.ones(10)}, {"A0": 1.0},
+                                       {"A0": 8}, n_post=5)
+
+    def test_bad_weights_mode(self):
+        rng = np.random.default_rng(5)
+        res = self._residuals(rng, m=2, nB=10)
+        with pytest.raises(ValueError):
+            compute_pooled_average_mde(res, {k: 1.0 for k in res},
+                                       {k: 8 for k in res}, n_post=5,
+                                       weights="nope")
+
+    def test_multiarm_fit_exposes_pooled(self, arm_panel):
+        res = SPCD({"df": arm_panel, "arm": "arm", "outcome": "y",
+                    "unitid": "unitid", "time": "time", "post_col": "post",
+                    "mde_n_sims": 600, "mde_n_trials": 200}).fit()
+        assert isinstance(res, SPCDMultiArmResults)
+        assert res.pooled_weights == "size"
+        assert res.pooled_power is not None
+        assert res.pooled_mde is not None and res.pooled_mde >= 0
+        assert res.pooled_mde_pct is not None
+
+    def test_multiarm_no_pooled_when_inference_off(self, arm_panel):
+        res = SPCD({"df": arm_panel, "arm": "arm", "outcome": "y",
+                    "unitid": "unitid", "time": "time", "post_col": "post",
+                    "enable_inference": False}).fit()
+        assert res.pooled_power is None
+        assert res.pooled_mde is None
+        assert res.pooled_weights is None
+
+
+class TestPooledDetectabilityCurve:
+    """Pooled-average MDE as a function of post-period horizon -- the
+    'how long should the study run?' question."""
+
+    def _res(self, rng, m=4, nB=16, corr=0.4):
+        common = rng.standard_normal(nB)
+        return {f"A{a}": np.sqrt(corr) * common
+                + np.sqrt(1 - corr) * rng.standard_normal(nB) for a in range(m)}
+
+    def test_pooled_horizon_grid_attaches_curve(self):
+        rng = np.random.default_rng(0)
+        res = self._res(rng)
+        H = [2, 4, 6, 8]
+        out = compute_pooled_average_mde(
+            res, {k: 100.0 for k in res}, {k: 8 for k in res},
+            n_post=8, horizon_grid=H, n_sims=600, n_trials=200, seed=1,
+        )
+        assert out.detectability is not None
+        assert sorted(out.detectability) == H
+        assert all(np.isfinite(v) or np.isnan(v) for v in out.detectability.values())
+
+    def test_pooled_curve_via_estimator(self, arm_panel):
+        res = SPCD({"df": arm_panel, "arm": "arm", "outcome": "y",
+                    "unitid": "unitid", "time": "time", "post_col": "post",
+                    "mde_horizon_grid": [2, 4, 6], "mde_n_sims": 500,
+                    "mde_n_trials": 150}).fit()
+        # whole-study curve
+        assert res.pooled_power.detectability is not None
+        assert sorted(res.pooled_power.detectability) == [2, 4, 6]
+        # per-arm curves too
+        for r in res.arm_designs.values():
+            assert r.power.detectability is not None
