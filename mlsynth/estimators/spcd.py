@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Union
 
+import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
@@ -37,7 +38,12 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.datautils import balance
+from ..utils.spcd_helpers.holdout import (
+    compute_holdout_residuals,
+    split_pre_window,
+)
 from ..utils.spcd_helpers.orchestration import solve_spcd_with_holdout
+from ..utils.spcd_helpers.power import compute_pooled_average_mde
 from ..utils.spcd_helpers.results_assembly import build_summary
 from ..utils.spcd_helpers.plotter import plot_spcd_design
 from ..utils.spcd_helpers.setup import prepare_spcd_inputs
@@ -140,6 +146,7 @@ class SPCD:
         self.mde_horizon_grid = config.mde_horizon_grid
         self.inference_seed: int = config.inference_seed
         self.min_blank_size: int = config.min_blank_size
+        self.pooled_weights: str = config.pooled_weights
 
     def _fit_single(self, df: pd.DataFrame) -> SPCDResults:
         """Run the SPCD pipeline on one (sub-)panel and return its design."""
@@ -180,6 +187,53 @@ class SPCD:
             conformal=conformal, power=power,
         )
 
+    def _pooled_average_power(self, arm_designs: dict):
+        """Pooled **average-effect** MDE across arms (size-/equal-weighted).
+
+        Reconstructs each arm's holdout residual series ``r_B`` (the design
+        is fit on the E-window inside ``solve_spcd_with_holdout``), pools
+        them on aligned periods, and runs the single-series MDE on the
+        pooled contrast. Returns ``None`` when inference is disabled or
+        fewer than two arms have a usable holdout window.
+        """
+
+        if not self.enable_inference:
+            return None
+        residuals, baselines, sizes = {}, {}, {}
+        n_post: Optional[int] = None
+        for label, result in arm_designs.items():
+            if result.power is None or result.inputs is None:
+                continue
+            _Y_E, Y_B, _n_E, _n_B, can_infer = split_pre_window(
+                result.inputs.Y_pre,
+                frac_E=self.holdout_frac_E,
+                min_blank_size=self.min_blank_size,
+            )
+            if not can_infer:
+                continue
+            residuals[label] = compute_holdout_residuals(
+                Y_B, result.design.contrast_weights
+            )
+            baselines[label] = float(np.mean(Y_B @ result.design.treated_weights))
+            sizes[label] = int(result.design.selected_mask.size)
+            if n_post is None:
+                n_post = int(result.power.n_post)
+        if len(residuals) < 2 or n_post is None:
+            return None
+        return compute_pooled_average_mde(
+            residuals_by_arm=residuals,
+            baselines_by_arm=baselines,
+            sizes_by_arm=sizes,
+            n_post=n_post,
+            weights=self.pooled_weights,
+            alpha=self.inference_alpha,
+            power_target=self.power_target,
+            n_sims=self.mde_n_sims,
+            n_trials=self.mde_n_trials,
+            seed=self.inference_seed,
+            horizon_grid=self.mde_horizon_grid,
+        )
+
     def fit(self) -> Union[SPCDResults, SPCDMultiArmResults]:
         """Run the SPCD pipeline and return the design.
 
@@ -213,7 +267,13 @@ class SPCD:
                 arm_label: self._fit_single(sub.copy())
                 for arm_label, sub in self.df.groupby(self.arm, sort=True)
             }
-            results = SPCDMultiArmResults(arm_designs=arm_designs, arm=self.arm)
+            pooled_power = self._pooled_average_power(arm_designs)
+            results = SPCDMultiArmResults(
+                arm_designs=arm_designs,
+                arm=self.arm,
+                pooled_power=pooled_power,
+                pooled_weights=self.pooled_weights if pooled_power is not None else None,
+            )
 
             if self.display_graph:
                 for arm_result in arm_designs.values():
