@@ -286,6 +286,12 @@ References
     *Advances in Neural Information Processing Systems (NeurIPS)*, 2021.
     arXiv:2112.00278. URL: https://arxiv.org/abs/2112.00278
 
+.. [SPCD]
+    Lu, Yiping, Li, Jiajin, Ying, Lexing, and Blanchet, Jose.
+    "Synthetic Principal Component Design: Fast Covariate Balancing with Synthetic Controls."
+    *arXiv Working Paper*, 2211.15241, 2022.
+    URL: https://arxiv.org/abs/2211.15241
+
 .. [PPSCM]
     Ben-Michael, Eli, Feller, Avi, and Rothstein, Jesse.
     "Synthetic Controls with Staggered Adoption."
