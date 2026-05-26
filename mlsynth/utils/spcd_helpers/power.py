@@ -16,7 +16,7 @@ power stage.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -173,6 +173,120 @@ def compute_mde(
         power_target=float(power_target),
         detectability=None,
     )
+
+
+def compute_pooled_average_mde(
+    residuals_by_arm: Dict[object, np.ndarray],
+    baselines_by_arm: Dict[object, float],
+    sizes_by_arm: Dict[object, int],
+    n_post: int,
+    weights: str = "size",
+    alpha: float = 0.05,
+    power_target: float = 0.8,
+    n_sims: int = 5000,
+    n_trials: int = 400,
+    seed: int = 1400,
+    horizon_grid: Optional[List[int]] = None,
+) -> SPCDPowerAnalysis:
+    """MDE for the (size- or equal-weighted) **average** effect across arms.
+
+    Forms the pooled contrast series ``g_t = sum_a w_a * r_B^(a)_t`` on
+    **time-aligned** holdout residuals, then runs the ordinary
+    single-series :func:`compute_mde` on ``g``. Because the arms share
+    calendar time, summing the aligned series makes the cross-arm
+    correlation enter through ``Var(g) = w' Sigma w`` automatically -- so
+    one must pool the aligned *series*, never resample arms
+    independently, or positive correlation is dropped and the MDE comes
+    out over-optimistic.
+
+    This answers *"what average effect across arms can we detect?"* and is
+    the most powerful pooled question (averaging cancels idiosyncratic
+    noise). Its estimand is the weighted-average effect, so heterogeneous,
+    **opposite-signed** arm effects can cancel and be missed; use the
+    per-arm analyses when individual-arm detection matters.
+
+    Parameters
+    ----------
+    residuals_by_arm : dict
+        ``{arm_label: r_B}`` out-of-sample holdout residual series. The
+        series are truncated to the common (minimum) length and aligned
+        from the start, which is correct when arms share the calendar
+        time index.
+    baselines_by_arm : dict
+        ``{arm_label: baseline}`` per-arm holdout baselines; pooled by the
+        same weights for the percentage scaling.
+    sizes_by_arm : dict
+        ``{arm_label: n_units}`` used for ``weights="size"``.
+    n_post : int
+        Post-treatment horizon for the MDE.
+    weights : {"size", "equal"}
+        ``"size"`` weights each arm by its unit count (the
+        population-average effect); ``"equal"`` weights arms equally.
+    horizon_grid : list of int, optional
+        If given, also computes the pooled-average MDE at each
+        post-treatment horizon and attaches it as ``detectability``
+        (``{horizon -> MDE percent}``). This answers *"how long must the
+        study run to detect a target average effect?"*.
+    alpha, power_target, n_sims, n_trials, seed : see :func:`compute_mde`.
+
+    Returns
+    -------
+    SPCDPowerAnalysis
+        The MDE of the pooled average-effect contrast (with a
+        ``detectability`` curve when ``horizon_grid`` is supplied).
+    """
+
+    labels = sorted(residuals_by_arm, key=str)
+    if len(labels) < 2:
+        raise ValueError("Pooled average MDE requires at least two arms.")
+
+    n_B = min(np.asarray(residuals_by_arm[l]).ravel().size for l in labels)
+    if n_B < 1:
+        raise ValueError("Holdout residual series are empty; cannot pool.")
+    R = np.column_stack(
+        [np.asarray(residuals_by_arm[l], dtype=float).ravel()[:n_B] for l in labels]
+    )
+
+    if weights == "equal":
+        w = np.full(len(labels), 1.0 / len(labels))
+    elif weights == "size":
+        sizes = np.array([float(sizes_by_arm[l]) for l in labels])
+        w = sizes / sizes.sum()
+    else:
+        raise ValueError(
+            f"Unknown pooled weights mode '{weights}'. Use 'size' or 'equal'."
+        )
+
+    pooled_residuals = R @ w
+    pooled_baseline = float(
+        sum(w[i] * float(baselines_by_arm[labels[i]]) for i in range(len(labels)))
+    )
+
+    result = compute_mde(
+        residuals_B=pooled_residuals,
+        baseline=pooled_baseline,
+        n_post=int(n_post),
+        alpha=alpha,
+        power_target=power_target,
+        n_sims=n_sims,
+        n_trials=n_trials,
+        seed=seed,
+    )
+
+    if horizon_grid:
+        curve = compute_detectability_curve(
+            residuals_B=pooled_residuals,
+            baseline=pooled_baseline,
+            horizon_grid=list(horizon_grid),
+            alpha=alpha,
+            power_target=power_target,
+            n_sims=n_sims,
+            n_trials=n_trials,
+            seed=seed,
+        )
+        result = replace(result, detectability=curve)
+
+    return result
 
 
 def compute_detectability_curve(

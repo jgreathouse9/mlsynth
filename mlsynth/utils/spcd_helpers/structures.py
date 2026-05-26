@@ -296,10 +296,22 @@ class SPCDMultiArmResults:
         ``{arm_label: SPCDResults}`` -- one independent SPCD solution per arm.
     arm : str
         Name of the arm column the units were partitioned on.
+    pooled_power : SPCDPowerAnalysis, optional
+        Minimum detectable effect for the **average** effect across arms
+        (the pooled, size- or equal-weighted contrast). Computed by
+        default when inference is enabled and at least two arms have a
+        usable holdout window. ``None`` otherwise. Note this targets the
+        weighted-average effect, so opposite-signed arm effects can
+        cancel -- use the per-arm ``power`` for individual-arm detection.
+    pooled_weights : str, optional
+        Weighting used for the pooled average (``"size"`` or ``"equal"``);
+        ``None`` when no pooled MDE was computed.
     """
 
     arm_designs: Dict[Any, SPCDResults]
     arm: str
+    pooled_power: Optional["SPCDPowerAnalysis"] = None
+    pooled_weights: Optional[str] = None
 
     @property
     def mode(self) -> str:
@@ -308,3 +320,13 @@ class SPCDMultiArmResults:
     def att_by_arm(self) -> Dict[Any, Optional[float]]:
         """``{arm_label: ATT}`` across arms (None where no summary)."""
         return {a: r.att for a, r in self.arm_designs.items()}
+
+    @property
+    def pooled_mde(self) -> Optional[float]:
+        """MDE of the average effect across arms (absolute scale), if computed."""
+        return self.pooled_power.mde_tau if self.pooled_power is not None else None
+
+    @property
+    def pooled_mde_pct(self) -> Optional[float]:
+        """Pooled average-effect MDE as a percentage of the pooled baseline."""
+        return self.pooled_power.mde_pct if self.pooled_power is not None else None
