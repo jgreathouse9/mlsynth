@@ -57,6 +57,8 @@ class SPCDInputs:
     pre_time_index: IndexSet
     post_time_index: Optional[IndexSet]
     outcome: str
+    covariates: Optional[np.ndarray] = None
+    covariate_names: Optional[list] = None
 
 
 @dataclass(frozen=True)

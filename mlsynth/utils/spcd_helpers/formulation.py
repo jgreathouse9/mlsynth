@@ -132,6 +132,8 @@ def build_iteration_matrix(
     alpha: Optional[float] = None,
     lam: Optional[float] = None,
     beta: Optional[float] = None,
+    covariates: Optional[np.ndarray] = None,
+    covariate_weight: float = 1.0,
 ) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
     """Build the SPCD iteration matrix ``M`` and its inverse.
 
@@ -142,6 +144,19 @@ def build_iteration_matrix(
     Note that ``Y_pre`` here is ``(T_pre, N)`` (mlsynth convention),
     which is the transpose of the paper's ``Y in R^{N x T}``. The product
     ``Y_pre.T @ Y_pre`` is exactly the paper's ``Y Y^T``.
+
+    When ``covariates`` (an ``(N, P)`` z-scored matrix) is supplied, a
+    covariate-balance term is folded in:
+
+        M = Y_pre.T @ Y_pre + covariate_weight * s * (X X^T)
+            + alpha I + lambda 1 1^T,
+
+    where ``s`` scales the covariate Gram to match the trace (total
+    "energy") of ``Y_pre.T @ Y_pre`` so ``covariate_weight = 1`` weights
+    covariates equally to outcomes. This keeps the phase-synchronization
+    structure (a quadratic form ``W^T M W``) intact, so the solver and the
+    global-optimality theory are unchanged -- the design now balances the
+    two groups on outcomes *and* covariates jointly.
 
     Parameters
     ----------
@@ -189,6 +204,21 @@ def build_iteration_matrix(
     N = Y_pre.shape[1]
 
     YtY = Y_pre.T @ Y_pre
+
+    # Optional covariate-balance term, scaled to match the trace of YtY so
+    # ``covariate_weight = 1`` means "balance covariates as hard as outcomes".
+    if covariates is not None and covariate_weight > 0:
+        X = np.asarray(covariates, dtype=float)
+        if X.ndim != 2 or X.shape[0] != N:
+            raise MlsynthDataError(
+                f"covariates must be an (N, P) matrix with N={N} rows; "
+                f"got shape {X.shape}."
+            )
+        XXt = X @ X.T
+        trace_xx = float(np.trace(XXt))
+        if trace_xx > 1e-12:
+            scale = float(np.trace(YtY)) / trace_xx
+            YtY = YtY + covariate_weight * scale * XXt
 
     eigvals_YtY = np.linalg.eigvalsh(YtY)
     lam_max_YtY = float(eigvals_YtY[-1])

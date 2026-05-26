@@ -13,7 +13,7 @@ downstream in ``formulation.py``.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -30,6 +30,7 @@ def prepare_spcd_inputs(
     time: str,
     T0: Optional[int] = None,
     post_col: Optional[str] = None,
+    covariates: Optional[List[str]] = None,
 ) -> SPCDInputs:
     """Pivot long panel data and split it into pre/post matrices for SPCD.
 
@@ -43,6 +44,11 @@ def prepare_spcd_inputs(
         Number of pre-treatment periods when ``post_col`` is not supplied.
     post_col : Optional[str]
         Optional 0/1 or boolean column identifying post-treatment periods.
+    covariates : Optional[list of str]
+        Optional covariate columns to balance on alongside the outcomes.
+        Each unit's per-covariate **pre-period mean** is taken and the
+        resulting ``(N, P)`` matrix is z-scored across units. Time-invariant
+        covariates collapse to their constant value.
 
     Returns
     -------
@@ -101,6 +107,30 @@ def prepare_spcd_inputs(
     if Y_pre.shape[1] < 2:
         raise MlsynthDataError("SPCD requires at least two units.")
 
+    cov_matrix = None
+    cov_names = None
+    if covariates:
+        cov_names = list(covariates)
+        pre_label_set = set(np.asarray(pre_labels).tolist())
+        columns = []
+        for c in cov_names:
+            if c not in ordered_df.columns:
+                raise MlsynthDataError(f"covariate '{c}' is not present in df.")
+            cwide = ordered_df.pivot(index=time, columns=unitid, values=c).sort_index()
+            pre_rows = cwide.index.isin(pre_label_set)
+            per_unit = cwide.loc[pre_rows, :].mean(axis=0)  # per-unit pre-period mean
+            col = per_unit.reindex(unit_labels).to_numpy(dtype=float)
+            if np.isnan(col).any():
+                raise MlsynthDataError(
+                    f"covariate '{c}' has missing values for some units in the "
+                    f"pre-treatment period."
+                )
+            columns.append(col)
+        X = np.column_stack(columns)  # (N, P)
+        # z-score each covariate across units so they share a common scale.
+        X = (X - X.mean(axis=0)) / (X.std(axis=0, ddof=0) + 1e-12)
+        cov_matrix = X
+
     return SPCDInputs(
         Y_pre=Y_pre,
         Y_post=Y_post,
@@ -109,4 +139,6 @@ def prepare_spcd_inputs(
         pre_time_index=IndexSet.from_labels(pre_labels),
         post_time_index=IndexSet.from_labels(post_labels) if post_labels is not None else None,
         outcome=outcome,
+        covariates=cov_matrix,
+        covariate_names=cov_names,
     )

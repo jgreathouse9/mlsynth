@@ -15,8 +15,7 @@ def _resolve_arms(
     results: Union[SPCDResults, SPCDMultiArmResults]
 ) -> Tuple[dict, object]:
     """Return ``({label: SPCDResults}, pooled_power_or_None)`` for either a
-    single :class:`SPCDResults` or a multi-arm :class:`SPCDMultiArmResults`.
-    """
+    single :class:`SPCDResults` or a multi-arm :class:`SPCDMultiArmResults`."""
 
     if isinstance(results, SPCDMultiArmResults):
         return dict(results.arm_designs), results.pooled_power

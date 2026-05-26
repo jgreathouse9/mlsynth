@@ -69,6 +69,8 @@ def _contrast_weights_for_alpha(
     beta: Optional[float],
     max_iter: int,
     solver: Optional[Any],
+    covariates: Optional[np.ndarray] = None,
+    covariate_weight: float = 1.0,
 ) -> np.ndarray:
     """Run the SPCD design pipeline on a raw array and return its signed
     contrast weights (``treated - control``).
@@ -79,7 +81,8 @@ def _contrast_weights_for_alpha(
     """
 
     _M, M_inv, _a, _l, beta_used = build_iteration_matrix(
-        Y_pre=Y_fit, alpha=alpha, lam=lam, beta=beta
+        Y_pre=Y_fit, alpha=alpha, lam=lam, beta=beta,
+        covariates=covariates, covariate_weight=covariate_weight,
     )
     y0 = spectral_initialization(_M)
     if variant == "spcd":
@@ -113,6 +116,8 @@ def select_alpha_by_holdout(
     max_iter: int = 200,
     solver: Optional[Any] = None,
     val_frac: float = 0.3,
+    covariates: Optional[np.ndarray] = None,
+    covariate_weight: float = 1.0,
 ) -> float:
     """Choose the ridge ``alpha`` by out-of-sample pre-period balance.
 
@@ -167,6 +172,8 @@ def select_alpha_by_holdout(
                 beta=beta,
                 max_iter=max_iter,
                 solver=solver,
+                covariates=covariates,
+                covariate_weight=covariate_weight,
             )
         except Exception:  # pragma: no cover - skip infeasible candidates
             continue
@@ -187,6 +194,7 @@ def solve_spcd(
     max_iter: int = 200,
     solver: Optional[Any] = None,
     verbose: bool = False,
+    covariate_weight: float = 1.0,
 ) -> SPCDDesign:
     """Run SPCD end-to-end and return the resulting design.
 
@@ -238,6 +246,7 @@ def solve_spcd(
     # has not fixed it. alpha is the noise-scale ridge of Eq. (2); its
     # post-period RMSE surface is jumpy when N > T_pre, so we select it by
     # holdout balance rather than a single closed-form estimate.
+    covariates = inputs.covariates
     if alpha is None:
         alpha = select_alpha_by_holdout(
             inputs.Y_pre,
@@ -247,11 +256,14 @@ def solve_spcd(
             beta=beta,
             max_iter=max_iter,
             solver=solver,
+            covariates=covariates,
+            covariate_weight=covariate_weight,
         )
 
-    # Step 1: Formulation, Eq. (2).
+    # Step 1: Formulation, Eq. (2) (+ optional covariate-balance term).
     _M, M_inv, alpha_used, lam_used, beta_used = build_iteration_matrix(
-        Y_pre=inputs.Y_pre, alpha=alpha, lam=lam, beta=beta
+        Y_pre=inputs.Y_pre, alpha=alpha, lam=lam, beta=beta,
+        covariates=covariates, covariate_weight=covariate_weight,
     )
 
     # Step 2: Spectral Initialization (shared by Algorithms 1 & 2).
@@ -337,6 +349,7 @@ def solve_spcd_with_holdout(
     mde_horizon_grid: Optional[list] = None,
     inference_seed: int = 1400,
     min_blank_size: int = 5,
+    covariate_weight: float = 1.0,
 ):
     """Run SPCD with the train-on-E / calibrate-on-B inference flow.
 
@@ -386,6 +399,7 @@ def solve_spcd_with_holdout(
             max_iter=max_iter,
             solver=solver,
             verbose=verbose,
+            covariate_weight=covariate_weight,
         )
         return design, None, None
 
@@ -420,6 +434,7 @@ def solve_spcd_with_holdout(
         max_iter=max_iter,
         solver=solver,
         verbose=verbose,
+        covariate_weight=covariate_weight,
     )
 
     # ------------------------------------------------------------------
