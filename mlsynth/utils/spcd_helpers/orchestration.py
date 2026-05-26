@@ -503,18 +503,25 @@ def solve_spcd_with_holdout(
         seed=inference_seed,
     )
 
-    if mde_horizon_grid:
-        detectability = compute_detectability_curve(
-            residuals_B=r_B,
-            baseline=baseline,
-            horizon_grid=list(mde_horizon_grid),
-            alpha=inference_alpha,
-            power_target=power_target,
-            n_sims=mde_n_sims,
-            n_trials=mde_n_trials,
-            seed=inference_seed,
-        )
-        power = replace(power, detectability=detectability)
+    # Detectability ("MDE at time point t"): when no grid is supplied,
+    # default to every horizon from 1 to the planned post length so the
+    # curve is always available per design.
+    horizon_grid = (
+        list(mde_horizon_grid)
+        if mde_horizon_grid
+        else list(range(1, n_post_for_power + 1))
+    )
+    detectability = compute_detectability_curve(
+        residuals_B=r_B,
+        baseline=baseline,
+        horizon_grid=horizon_grid,
+        alpha=inference_alpha,
+        power_target=power_target,
+        n_sims=mde_n_sims,
+        n_trials=mde_n_trials,
+        seed=inference_seed,
+    )
+    power = replace(power, detectability=detectability)
 
     # ------------------------------------------------------------------
     # Conformal CI only when post data exists.

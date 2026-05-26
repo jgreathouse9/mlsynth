@@ -51,6 +51,13 @@ class SPCDPowerAnalysis:
     detectability : dict[int, float] or None
         Optional ``horizon -> MDE`` mapping if a horizon grid was
         supplied; ``None`` otherwise.
+    effect_grid_pct : np.ndarray or None
+        Grid of candidate effect sizes (as a percentage of ``baseline``)
+        at which the power curve was evaluated, at horizon ``n_post``.
+    power_curve : np.ndarray or None
+        Empirical power at each entry of ``effect_grid_pct`` (same length).
+        Together they give the full power-vs-effect curve; the MDE is the
+        smallest effect whose power reaches ``power_target``.
     """
 
     mde_tau: float
@@ -62,6 +69,8 @@ class SPCDPowerAnalysis:
     alpha: float
     power_target: float
     detectability: Optional[Dict[int, float]] = None
+    effect_grid_pct: Optional[np.ndarray] = None
+    power_curve: Optional[np.ndarray] = None
 
 
 def _null_distribution(
@@ -93,6 +102,7 @@ def compute_mde(
     n_sims: int = 5000,
     n_trials: int = 400,
     seed: int = 1400,
+    store_curve: bool = True,
 ) -> SPCDPowerAnalysis:
     """Compute the minimum detectable effect via Monte Carlo.
 
@@ -146,19 +156,37 @@ def compute_mde(
 
     safe_baseline = abs(baseline) if abs(baseline) > 1e-12 else 1.0
 
-    mde_tau = float("nan")
-    feasible = False
-    for tau in tau_grid:
+    def _power_at(tau: float) -> float:
         hits = 0
         for _ in range(n_trials):
             noise = rng.normal(0.0, sigma, n_post)
-            stat = float(np.mean(np.abs(tau + noise)))
-            if stat >= c_alpha:
+            if float(np.mean(np.abs(tau + noise))) >= c_alpha:
                 hits += 1
-        if hits / n_trials >= power_target:
-            mde_tau = float(tau)
-            feasible = True
-            break
+        return hits / n_trials
+
+    effect_grid_pct: Optional[np.ndarray] = None
+    power_curve: Optional[np.ndarray] = None
+
+    if store_curve:
+        # Evaluate power across the whole effect grid (store the full
+        # curve), then read the MDE off as the smallest effect reaching
+        # the target.
+        powers = np.array([_power_at(tau) for tau in tau_grid])
+        reached = np.flatnonzero(powers >= power_target)
+        feasible = reached.size > 0
+        mde_tau = float(tau_grid[reached[0]]) if feasible else float("nan")
+        effect_grid_pct = np.asarray(tau_grid) / safe_baseline * 100.0
+        power_curve = powers
+    else:
+        # Fast path (used for the per-horizon detectability sweep): stop
+        # at the first effect that clears the target; no curve stored.
+        mde_tau = float("nan")
+        feasible = False
+        for tau in tau_grid:
+            if _power_at(tau) >= power_target:
+                mde_tau = float(tau)
+                feasible = True
+                break
 
     mde_pct = (mde_tau / safe_baseline * 100.0) if feasible else float("nan")
 
@@ -172,6 +200,8 @@ def compute_mde(
         alpha=float(alpha),
         power_target=float(power_target),
         detectability=None,
+        effect_grid_pct=effect_grid_pct,
+        power_curve=power_curve,
     )
 
 
@@ -332,6 +362,7 @@ def compute_detectability_curve(
             n_sims=n_sims,
             n_trials=n_trials,
             seed=seed,
+            store_curve=False,
         )
         curve[int(h)] = result.mde_pct
     return curve
