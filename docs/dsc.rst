@@ -1,39 +1,80 @@
 Distributional Synthetic Control (DSC)
-=======================================
+======================================
 
 .. currentmodule:: mlsynth
 
 Overview
 --------
 
-DSC (Gunsilius, F. (2023). *"Distributional Synthetic Controls."*
-*Econometrica* 91(3):1105-1117; asymptotic theory in Zhang, L.,
-Zhang, X., & Zhang, X. (2026), *"Asymptotic Properties of the
-Distributional Synthetic Controls,"* arXiv:2405.00953) reconstructs
-the treated unit's counterfactual *outcome distribution* as a
-weighted average of the donor units' outcome distributions, where
-the average is taken in the 2-Wasserstein space. Unlike classical
-synthetic control -- which targets aggregate means and returns a
-single ATT -- DSC returns the full counterfactual quantile function
-at every post-period, and hence the quantile treatment effect (QTE)
-at any quantile :math:`q \in (0, 1)`.
+DSC generalizes the synthetic control method from *aggregate values* to
+*entire outcome distributions*. Where classical synthetic control builds a
+donor combination that matches the treated unit's pre-period **mean** and
+returns a single ATT, DSC builds a donor combination that matches the
+treated unit's pre-period **quantile function** and returns the full
+counterfactual distribution at every post-period -- hence the quantile
+treatment effect (QTE) at any quantile :math:`q \in (0, 1)`, and any
+functional of the distribution (Lorenz curves, Gini coefficients,
+interquartile ranges, stochastic-dominance comparisons).
 
-Three differences from the rest of mlsynth:
+The method is due to Gunsilius (2023); mlsynth's implementation is
+validated against the author's reference ``DiSCo`` R package, and the
+large-sample theory is from Zhang, Zhang & Zhang (2026). The core idea is
+the **2-Wasserstein barycenter**: the natural
+generalization of a weighted average from points on the real line to
+probability distributions. Averaging quantile functions (not densities)
+keeps the synthetic unit *geometrically faithful* -- it reproduces the
+support, the moments, and the quantiles of the target -- whereas a naive
+linear mixture of densities is multimodal and matches none of them.
 
-1. **Data requirement.** DSC needs *micro-level* panel data: for each
-   ``(unit, time)`` cell the user supplies multiple individual
-   observations, supplied as one row per individual in the input
-   DataFrame.
+When to use this estimator
+--------------------------
 
-2. **Output target.** The primary object is the QTE curve
-   :math:`q \mapsto \widehat \alpha_{1t, q}`, not a scalar ATT.
-   A mean-of-QTE summary is exposed as :py:attr:`DSCResults.att` for
-   compatibility, but the distributional information is the point.
+Reach for DSC when **the distribution is the object of interest, and you
+have micro-data**. Three motivating regimes:
 
-3. **Loss function.** Weights are fit by minimising the
-   2-Wasserstein distance between the treated and a convex
-   combination of donors' empirical quantile functions, rather than
-   the squared :math:`\ell_2` loss in outcome space.
+* **Inequality and the whole distribution, not the mean.** A minimum-wage
+  increase, a cash-transfer program, or a tax reform may leave the mean of
+  family income almost unchanged while compressing the lower tail or
+  fattening the middle. Gunsilius (2023, Section 6.2) studies exactly this:
+  the distribution of equalized family income (as multiples of the federal
+  poverty line) across U.S. states, treating Michigan as the unit of
+  interest. A mean-only synthetic control would miss the distributional
+  story entirely.
+
+* **Heterogeneous treatment effects across the outcome distribution.** In
+  marketing, a promotion might lift spending among already-heavy buyers
+  while doing nothing for light buyers; the QTE curve :math:`q \mapsto
+  \widehat\alpha_{1t, q}` reveals *where* in the spending distribution the
+  effect lands. DSC returns this directly, without pre-specifying which
+  quantile to test.
+
+* **Repeated cross-sections with many individuals per cell.** Whenever each
+  ``(unit, time)`` cell is itself a sample -- households in a state-year,
+  customers in a store-week, patients in a hospital-month -- DSC uses *all*
+  of that within-cell information rather than collapsing it to a mean.
+
+If you only have one aggregate number per ``(unit, time)`` cell, DSC
+reduces to classical synthetic control (Gunsilius 2023, Section 3.1) and
+the dedicated aggregate estimators (e.g. :class:`mlsynth.CLUSTERSC`,
+:class:`mlsynth.FMA`) are the appropriate tools.
+
+Notation
+--------
+
+We follow the repository's canonical conventions. There are :math:`J + 1`
+units; unit :math:`1` is treated and units :math:`j = 2, \dots, J + 1` are
+donors. The panel runs over periods :math:`t \in \{1, \dots, T\}` with
+treatment beginning at :math:`T_0 + 1`; the pre-period is
+:math:`\mathcal{T}_0 = \{1, \dots, T_0\}` and the post-period is
+:math:`\mathcal{T}_1 = \{T_0 + 1, \dots, T\}`. Each cell :math:`(j, t)`
+carries :math:`n_{jt}` individual observations
+:math:`\{Y_{l, jt}\}_{l = 1}^{n_{jt}}`. :math:`F_{Y_{jt}}` is the cell's
+outcome distribution and :math:`F^{-1}_{Y_{jt}}` its quantile function;
+:math:`\mathcal{H} = \{w \in \mathbb{R}^J_{\ge 0} : \mathbf{1}^\top w = 1\}`
+is the unit simplex. Weights :math:`\widehat w_t` are fit per pre-period
+and aggregated to :math:`\widehat w`. :math:`W_2` denotes the 2-Wasserstein
+distance, and :math:`F^{-1}_{Y_{1t, N}}` the *counterfactual* (no-treatment)
+quantile function of the treated unit.
 
 Mathematical Formulation
 ------------------------
@@ -41,160 +82,165 @@ Mathematical Formulation
 Setup
 ^^^^^
 
-We observe :math:`J + 1` units, with :math:`j = 1` treated, over
-:math:`T` periods. Treatment begins at :math:`T_0 + 1`. For each
-``(unit, time)`` cell we have :math:`n_{jt}` individual observations
-:math:`\{Y_{l, jt}\}_{l = 1}^{n_{jt}}`. Let :math:`F_{Y_{jt}}` denote
-the underlying outcome distribution of unit :math:`j` at time
-:math:`t`, with quantile function
-
-.. math::
-
-   F^{-1}_{Y_{jt}}(q) = \inf \{ y \in \mathbb{R} : F_{Y_{jt}}(y) \ge q \},
-   \quad q \in (0, 1).
-
-The empirical quantile estimator is the order-statistic rule
+The empirical quantile estimator for a cell is the order-statistic rule
 
 .. math::
 
    \widehat F^{-1}_{Y_{jt, n_j}}(q) = Y_{t, n_j(k)},
    \quad \frac{k - 1}{n_j} < q \le \frac{k}{n_j},
 
-where :math:`Y_{t, n_j(k)}` is the :math:`k`-th order statistic of
-the sample for cell :math:`(j, t)`.
-
-The DSC counterfactual quantile function at any post-period
-:math:`t > T_0` is
+where :math:`Y_{t, n_j(k)}` is the :math:`k`-th order statistic of cell
+:math:`(j, t)`. The DSC counterfactual quantile function for the treated
+unit at a post-period :math:`t > T_0` is the **2-Wasserstein barycenter**
+of the donor quantile functions,
 
 .. math::
 
    \widehat F^{-1}_{Y_{1t, N}}(q) =
        \sum_{j = 2}^{J + 1} \widehat w_j\, \widehat F^{-1}_{Y_{jt, n_j}}(q),
-   \quad
-   \widehat w \in \mathcal H = \bigl\{ w \in [0, 1]^J :
-       \mathbf 1^\top w = 1 \bigr\}.
+   \qquad \widehat w \in \mathcal{H},
 
-The QTE is :math:`\widehat \alpha_{1t, q} = \widehat F^{-1}_{Y_{1t, I}}(q)
-- \widehat F^{-1}_{Y_{1t, N}}(q)`.
+and the quantile treatment effect is
+:math:`\widehat \alpha_{1t, q} = \widehat F^{-1}_{Y_{1t, I}}(q)
+- \widehat F^{-1}_{Y_{1t, N}}(q)`, the gap between the *observed* treated
+quantile function and its counterfactual. Averaging quantile functions
+rather than densities is what makes the synthetic unit geometrically
+faithful: a weighted average of quantile functions is itself a valid
+quantile function, so the barycenter has the same kind of support and shape
+as the target (Gunsilius 2023, Figure 1; Agueh & Carlier 2011).
+
+Identifying assumptions
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The structural content sits in the causal model :math:`h(t, \cdot)` mapping
+latent variables to observed distributions. DSC recovers the *correct*
+counterfactual under a distributional analogue of the classical
+factor-model restriction.
+
+*Assumption 1 (scaled-isometry causal model -- identification).* The
+data-generating map :math:`h(t, \cdot)` on the 2-Wasserstein space is a
+**scaled isometry** for every :math:`t`: it preserves relative distances
+between distributions up to a common scale,
+:math:`d(U_1, U_j) = \tau\, d\bigl(h(t, U_1), h(t, U_j)\bigr)`. Then
+(Gunsilius 2023, Theorem 1) the DSC quantile function
+:math:`\widehat F^{-1}_{Y_{1t, N}}` coincides with the treated unit's
+quantile function had it not been treated. For the panel model it suffices
+that the maps :math:`U_{jt} \mapsto U_{jt'}` preserve the optimal weights
+:math:`\widehat\lambda^\star` across periods. *Remark.* This is the
+distributional counterpart of the linear factor model behind classical
+synthetic control: on the real line, scaled isometries in Euclidean space
+are exactly affine maps, so the classical method's affine factor structure
+is the special case. Working in Wasserstein space buys generality -- by the
+Kloeckner (2010) characterization, isometries there can even deform the
+support -- so identification can hold with as little as one pre- and one
+post-period, analogous to changes-in-changes (Athey & Imbens 2006), without
+a rank-invariance assumption.
+
+*Assumption 2 (finite second moments and independence -- consistency).*
+All cell distributions have finite second moments,
+:math:`\mathbb{E}[Y_{jt}^2] < \infty`, and are independent across units for
+each :math:`t`. *Remark.* This is all that is needed for the estimated
+weights to be consistent (Gunsilius 2023, Proposition 1): the plug-in
+empirical-quantile weights :math:`\widehat{\widetilde\lambda}^\star_{tn}`
+converge to the population optimal weights as the within-cell sample sizes
+grow. It is deliberately weak -- no smoothness or continuity is required
+just to estimate the weights.
+
+*Assumption 3 (absolute continuity -- uniform inference).* For uniform
+results on the whole quantile process, each :math:`F_{Y_{jt}}` is
+absolutely continuous with a density bounded away from zero on its support.
+*Remark.* This is the standard regularity condition (Csörgő & Horváth 1993)
+that delivers the Gaussian large-sample distribution of the counterfactual
+quantile process (Proposition 2) and hence bootstrap confidence bands. It
+can be relaxed at the cost of a non-Gaussian limit (discrete case,
+Proposition 5), which is why the inference below leans on Monte-Carlo /
+permutation routines rather than closed-form critical values.
 
 Algorithm
 ^^^^^^^^^
 
-mlsynth implements Algorithm 1 of Zhang et al. (2026), which
-formalises Gunsilius's recipe in four steps.
+mlsynth implements Gunsilius's four-step recipe (formalized as Algorithm 1
+in Zhang et al. 2026).
 
-**Step 1 -- Empirical quantile functions.** For each
-``(j, t)`` cell, compute :math:`\widehat F^{-1}_{Y_{jt, n_j}}` via
-the order-statistic estimator above.
+**Step 1 -- Empirical quantile functions.** For each cell :math:`(j, t)`,
+compute :math:`\widehat F^{-1}_{Y_{jt, n_j}}` via the order-statistic
+estimator above.
 
-**Step 2 -- Per-pre-period weights.** Draw :math:`M` quantile-grid
-points :math:`\{V_m\}_{m = 1}^{M} \subset (0, 1)` (uniform i.i.d.
-or a Halton / Sobol low-discrepancy sequence). The squared
-2-Wasserstein loss
-
-.. math::
-
-   W_2^2 \bigl( \textstyle \sum_{j = 2}^{J + 1} w_j\,
-                \widehat F^{-1}_{Y_{jt, n_j}},\,
-                \widehat F^{-1}_{Y_{1t, n_1}} \bigr)
-   = \int_0^1
-     \biggl|
-       \textstyle \sum_{j = 2}^{J + 1} w_j\,
-       \widehat F^{-1}_{Y_{jt, n_j}}(q)
-       - \widehat F^{-1}_{Y_{1t, n_1}}(q)
-     \biggr|^2 dq
-
-is approximated by the Monte-Carlo / QMC empirical risk
+**Step 2 -- Per-pre-period weights.** Draw an :math:`M`-point quantile grid
+:math:`\{V_m\}_{m=1}^M \subset (0, 1)` (Halton / Sobol low-discrepancy by
+default, or uniform i.i.d.) and form the pseudo-sample matrices
+:math:`\widetilde Y_{jt, m} = \widehat F^{-1}_{Y_{jt, n_j}}(V_m)`. The
+squared 2-Wasserstein loss
+:math:`W_2^2(\cdot) = \int_0^1 \lvert \sum_j w_j \widehat F^{-1}_{Y_{jt}}(q)
+- \widehat F^{-1}_{Y_{1t}}(q) \rvert^2 dq` is approximated by the empirical
+risk :math:`L_t(w) = M^{-1} \sum_m \lvert \widetilde Y_{1t, m} - \sum_j w_j
+\widetilde Y_{jt, m}\rvert^2`, and the per-pre-period weights solve the
+simplex-constrained quadratic program
 
 .. math::
 
-   L_t(w) = \frac{1}{M} \sum_{m = 1}^{M}
-            \biggl|
-              \widetilde Y_{1t, m}
-              - \textstyle \sum_{j = 2}^{J + 1} w_j\,
-              \widetilde Y_{jt, m}
-            \biggr|^2,
-   \quad
-   \widetilde Y_{jt, m} := \widehat F^{-1}_{Y_{jt, n_j}}(V_m).
+   \widehat w_t = \arg\min_{w \in \mathcal{H}} L_t(w),
+   \qquad t \in \mathcal{T}_0.
 
-The per-pre-period DSC weights solve the simplex-constrained QP
+mlsynth solves this with **accelerated projected gradient descent** (FISTA,
+Beck & Teboulle 2009) and the exact simplex projection of Duchi et al.
+(2008). This is the dependency-free analogue of the reference R package's
+``pracma::lsqlincon`` constrained least-squares call, and -- unlike a
+generic SLSQP solver -- it stays robust as the donor pool grows into the
+hundreds, the regime the method is designed for (Section 6.1). By the
+Koksma-Hlawka inequality the QMC approximation error is
+:math:`O(\log M / M)` for Halton / Sobol vs. :math:`O(M^{-1/2})` for i.i.d.
+draws.
 
-.. math::
+**Step 3 -- Aggregate over the pre-period.** The final weight is a convex
+combination :math:`\widehat w = \sum_{t \in \mathcal{T}_0} \lambda_t
+\widehat w_t`, with :math:`\lambda_t \ge 0` and :math:`\sum_t \lambda_t = 1`.
+mlsynth offers ``"uniform"`` (default; :math:`\lambda_t = 1/T_0`) and
+``"recency"`` (geometric decay) rules, and accepts caller-supplied weights
+so Arkhangelsky et al. (2021) SDiD-style :math:`\lambda_t` can be plugged in.
 
-   \widehat w_t = \arg\min_{w \in \mathcal H} L_t(w),
-   \quad t \in \mathcal T_0.
+**Step 4 -- Post-period QTE.** For each :math:`t > T_0`, evaluate the
+counterfactual quantile function at the QTE grid and difference it against
+the observed treated quantile function to obtain
+:math:`\widehat\alpha_{1t, q}`.
 
-By the Koksma-Hlawka inequality, the QMC approximation error has
-rate :math:`O(\log M / M)` for Halton / Sobol sequences vs.
-:math:`O(M^{-1/2})` for i.i.d. samples (Zhang et al. 2026 Section 2,
-Remark 1).
+Inference
+^^^^^^^^^
 
-**Step 3 -- Aggregate over the pre-period.** The final DSC weight
-is a convex combination of the per-pre-period weights,
-
-.. math::
-
-   \widehat w = \sum_{t \in \mathcal T_0} \lambda_t\, \widehat w_t,
-   \qquad \lambda_t \ge 0, \quad \sum_t \lambda_t = 1.
-
-mlsynth offers ``"uniform"`` (default; :math:`\lambda_t = 1/T_0`)
-and ``"recency"`` (geometric decay
-:math:`\lambda_t \propto \mathrm{decay}^{T_0 - t}`) rules, and
-accepts caller-supplied weights so Arkhangelsky et al. (2021)
-SDiD-style :math:`\lambda_t` can be plugged in externally.
-
-**Step 4 -- Post-period QTE.** For each :math:`t > T_0`, evaluate
-the counterfactual quantile function at the user's QTE grid
-:math:`\{q_1, \dots, q_Q\}`,
+**Placebo permutation test (Gunsilius 2023, Algorithm 1).** The
+distributional analogue of the Abadie-Diamond-Hainmueller (2010) placebo
+test, and of the reference package's ``DiSCo_per``. Each donor is treated
+as a pseudo-treated unit in turn: DSC is refit on the remaining units (the
+real treated unit re-enters the donor pool), and the per-period squared
+2-Wasserstein distance between that unit's observed and barycenter quantile
+functions is recorded,
 
 .. math::
 
-   \widehat F^{-1}_{Y_{1t, N}}(q_k) =
-       \sum_{j = 2}^{J + 1} \widehat w_j\,
-       \widehat F^{-1}_{Y_{jt, n_j}}(q_k),
+   d_{\iota t} = \int_0^1 \bigl| F^{-1}_{Y_{\iota t, N}}(q)
+                  - F^{-1}_{Y_{\iota t}}(q) \bigr|^2 dq .
 
-and form the QTE
+If the model fits the placebos pre-treatment and there is a genuine
+post-treatment effect, the real treated unit's distance sits in the extreme
+upper tail of the :math:`J + 1` distances. The permutation p-value at
+post-period :math:`t` is :math:`p_t = r(d_{1t}) / (J + 1)`, the rank of the
+treated unit's distance (rank 1 = largest). Enable it with
+``compute_inference=True``; the :class:`DSCInference` object exposes the
+full distance paths (treated and every placebo) and the per-post-period
+p-values. Because it refits the weights :math:`J` times it costs roughly
+:math:`J\times` the point estimate.
 
-.. math::
-
-   \widehat \alpha_{1t, q_k} = \widehat F^{-1}_{Y_{1t, I}}(q_k)
-                              - \widehat F^{-1}_{Y_{1t, N}}(q_k).
-
-Asymptotic optimality
-^^^^^^^^^^^^^^^^^^^^^
-
-Zhang et al. (2026) prove two main theoretical results that
-underwrite the procedure.
-
-* **Theorem 1 (Asymptotic optimality).** Under regularity conditions
-  on the quantile-grid sampling and on the moments of the empirical
-  quantile functions, the DSC weight achieves the lowest possible
-  post-period averaged 2-Wasserstein distance among all simplex
-  weighting combinations as :math:`M \to \infty`:
-
-  .. math::
-
-     \frac{\bar R_{T_1}(\widehat w)}
-          {\inf_{w \in \mathcal H} \bar R_{T_1}(w)}
-     \xrightarrow{p} 1.
-
-* **Theorem 2 (Convergence rate).** With :math:`\xi_t` denoting the
-  pre-treatment 2-Wasserstein fit at time :math:`t`,
-
-  .. math::
-
-     \bigl\| \widehat w - w^{\mathrm{opt}}_{T_1} \bigr\|_2
-     = O_p\bigl( \bar \xi^{1/2}
-                 + \bar \xi_{T_1}^{1/2}
-                 + M^{-1/4} J \bigr),
-
-  i.e. faster pre-fit (smaller :math:`\bar \xi`) and richer
-  quantile-grid sampling (larger :math:`M`) tighten the weight
-  estimate.
-
-mlsynth surfaces :math:`\xi_t` via
-:py:attr:`DSCResults.pre_period_wasserstein` so users can inspect
-the pre-period fit quality directly.
+**Goodness-of-fit and large-sample bands.** Working with whole
+distributions also licenses a Wasserstein goodness-of-fit test of
+:math:`H_0: F_{Y_{1t, N}} = F_{Y_{1t}}` and tests of first-/second-order
+stochastic dominance (Gunsilius 2023, Propositions 3-4). Under Assumption 3
+the counterfactual quantile process is asymptotically Gaussian
+(Proposition 2), so confidence bands follow from the standard bootstrap; in
+the discrete case the limit is non-Gaussian (Proposition 5) and a
+Monte-Carlo plug-in is used instead. The pre-period fit
+:math:`\xi_t` is surfaced directly via
+:py:attr:`DSCResults.pre_period_wasserstein` so users can check fit quality
+before trusting any post-period contrast.
 
 Core API
 --------
@@ -234,6 +280,10 @@ Helper Modules
    :members:
    :undoc-members:
 
+.. automodule:: mlsynth.utils.dsc_helpers.inference
+   :members:
+   :undoc-members:
+
 .. automodule:: mlsynth.utils.dsc_helpers.structures
    :members:
    :undoc-members:
@@ -241,33 +291,25 @@ Helper Modules
 Example
 -------
 
-A self-contained one-draw Monte Carlo. The treated unit shares the
-same pre-period DGP as its donors; in the post-period it receives a
-*location shift* of +1.5 (the planted treatment effect is constant
-across quantiles). We expect the DSC QTE to be roughly flat around
-1.5 across the quantile grid.
+A self-contained one-draw Monte Carlo. The treated unit shares the donors'
+pre-period DGP; in the post-period it receives a location shift of
+:math:`+1.5` (a constant effect across quantiles). We expect a roughly flat
+QTE near :math:`1.5`, and -- because the shift is real -- the placebo
+permutation test should rank the treated unit most extreme.
 
 .. code-block:: python
 
-   """One draw of a DSC location-shift simulation."""
+   """One draw of a DSC location-shift simulation with placebo inference."""
 
    import numpy as np
    import pandas as pd
 
    from mlsynth import DSC
 
-
-   # ---------------------------------------------------------------------
-   # 1. Simulate one micro-panel from a location-family DGP
-   # ---------------------------------------------------------------------
-
    rng = np.random.default_rng(0)
-   J = 4
-   T_pre = 8
-   T_post = 4
+   J, T_pre, T_post, n_per_cell = 12, 8, 4, 200
    T = T_pre + T_post
-   n_per_cell = 200          # individuals per (unit, time) cell
-   delta_post = 1.5          # planted location-shift treatment effect
+   delta_post = 1.5
 
    unit_loc = rng.standard_normal(J + 1) * 0.5
    time_shift = np.linspace(0.0, 1.0, T)
@@ -277,63 +319,114 @@ across quantiles). We expect the DSC QTE to be roughly flat around
            loc = unit_loc[j] + time_shift[t]
            if j == 0 and t >= T_pre:
                loc += delta_post
-           sample = rng.normal(loc=loc, scale=1.0, size=n_per_cell)
-           for y in sample:
-               rows.append({
-                   "unit": j,
-                   "time": t,
-                   "y": float(y),
-                   "D": int(j == 0 and t >= T_pre),
-               })
+           for y in rng.normal(loc=loc, scale=1.0, size=n_per_cell):
+               rows.append({"unit": j, "time": t, "y": float(y),
+                            "D": int(j == 0 and t >= T_pre)})
    df = pd.DataFrame(rows)
 
-
-   # ---------------------------------------------------------------------
-   # 2. Fit DSC
-   # ---------------------------------------------------------------------
-
    res = DSC({
-       "df": df,
-       "outcome": "y",
-       "treat": "D",
-       "unitid": "unit",
-       "time": "time",
-       "M": 400,                  # QMC grid size for the Wasserstein loss
-       "grid_method": "halton",   # low-discrepancy sequence
-       "lambda_method": "uniform",
+       "df": df, "outcome": "y", "treat": "D", "unitid": "unit", "time": "time",
+       "M": 400, "grid_method": "halton", "lambda_method": "uniform",
        "n_qte_points": 49,
+       "compute_inference": True,        # placebo permutation test
+       "inference_grid_points": 100,
    }).fit()
 
+   print(f"true location shift = {delta_post:+.3f}")
+   print(f"DSC mean-of-QTE     = {res.att:+.3f}")
+   print(f"placebo p-values    = "
+         f"{{t: round(p, 3) for t, p in res.inference.p_values.items()}}")
+   print(f"pre-period W2 fit   = {res.pre_period_wasserstein.round(4).tolist()}")
 
-   # ---------------------------------------------------------------------
-   # 3. Inspect the output
-   # ---------------------------------------------------------------------
+Reproducing the paper's simulation (Gunsilius 2023, Figure 4)
+-------------------------------------------------------------
 
-   print(f"true location shift   = {delta_post:+.3f}")
-   print(f"DSC mean-of-QTE       = {res.att:+.3f}")
-   print(f"donor weights         = {res.donor_weights}")
-   print(f"pre-period Wasserstein loss per t = "
-         f"{res.pre_period_wasserstein.round(4).tolist()}")
+The headline simulation in Gunsilius (2023, Section 6.1) shows the DSC
+barycenter replicating a Gaussian-mixture target *better as the donor pool
+grows*: rough with 4 controls, good with 30, near-perfect with 500. The
+controls are mixtures of 3 Gaussians and the target a mixture of 4, with
+means drawn uniformly on :math:`[-10, 10]` and variances on
+:math:`[0.5, 6]`. The snippet below reproduces that finding using the same
+quantile machinery the estimator calls internally, reporting the squared
+2-Wasserstein distance between barycenter and target as :math:`J` grows.
 
-   import pandas as pd
-   qte_table = pd.DataFrame({
-       "quantile": res.qte_curves[0].quantiles,
-       "qte_t=8":  res.qte_curves[0].qte,
-       "qte_t=9":  res.qte_curves[1].qte,
-       "avg_qte":  res.average_qte,
-   })
-   print("\nQTE by quantile (selected rows):")
-   print(qte_table.iloc[::10].round(3).to_string(index=False))
+.. code-block:: python
+
+   import numpy as np
+   from mlsynth.utils.dsc_helpers import (
+       empirical_quantile, sample_quantile_grid, solve_simplex_weights,
+   )
+
+   def mixture(rng, n_comp, n):
+       means = rng.uniform(-10.0, 10.0, n_comp)
+       var = rng.uniform(0.5, 6.0, n_comp)
+       comp = rng.integers(0, n_comp, n)
+       return rng.normal(means[comp], np.sqrt(var[comp]))
+
+   def w2_to_target(J, rng, n=1000, M=1000, n_eval=1000):
+       target = mixture(rng, 4, n)
+       controls = [mixture(rng, 3, n) for _ in range(J)]
+       V = sample_quantile_grid(M=M, method="uniform",
+                                random_state=int(rng.integers(1_000_000_000)))
+       donor_mat = np.column_stack([empirical_quantile(c, V) for c in controls])
+       w = solve_simplex_weights(donor_mat, empirical_quantile(target, V))
+       q = np.linspace(0.005, 0.995, n_eval)
+       bc = np.column_stack([empirical_quantile(c, q) for c in controls]) @ w
+       w2 = float(np.mean((bc - empirical_quantile(target, q)) ** 2))
+       return w2, float(np.mean(w > 1e-4))   # distance, fraction of active weights
+
+   rng = np.random.default_rng(12345)
+   for J in (4, 30, 100, 500):
+       reps = 20 if J <= 100 else 6
+       out = np.array([w2_to_target(J, rng) for _ in range(reps)])
+       print(f"J={J:>4}:  mean W2^2 = {out[:, 0].mean():7.3f}   "
+             f"frac weights > 1e-4 = {out[:, 1].mean():.3f}")
+
+   # J=   4:  mean W2^2 ~  4.2     frac weights > 1e-4 ~ 0.58
+   # J=  30:  mean W2^2 ~  0.6     frac weights > 1e-4 ~ 0.17
+   # J= 100:  mean W2^2 ~  0.8     frac weights > 1e-4 ~ 0.05
+   # J= 500:  mean W2^2 ~  0.4     frac weights > 1e-4 ~ 0.02
+
+The distance collapses once the donor pool is rich enough for the target to
+sit inside (or near) the convex hull of the controls, and the weight vector
+is "essentially sparse" -- only a small fraction of donors carry
+non-negligible weight -- exactly the two phenomena Gunsilius reports. (The
+residual distance at large :math:`J` is empirical-quantile noise from the
+finite within-cell sample of 1000 draws, not bias.)
 
 References
 ----------
 
-Arkhangelsky, D., Athey, S., Hirshberg, D. A., Imbens, G. W., &
-Wager, S. (2021). "Synthetic Difference-in-Differences."
-*American Economic Review* 111(12):4088-4118.
+Abadie, A., Diamond, A., & Hainmueller, J. (2010). "Synthetic Control
+Methods for Comparative Case Studies." *Journal of the American Statistical
+Association* 105(490):493-505.
+
+Agueh, M., & Carlier, G. (2011). "Barycenters in the Wasserstein Space."
+*SIAM Journal on Mathematical Analysis* 43(2):904-924.
+
+Arkhangelsky, D., Athey, S., Hirshberg, D. A., Imbens, G. W., & Wager, S.
+(2021). "Synthetic Difference-in-Differences." *American Economic Review*
+111(12):4088-4118.
+
+Athey, S., & Imbens, G. W. (2006). "Identification and Inference in
+Nonlinear Difference-in-Differences Models." *Econometrica* 74(2):431-497.
+
+Beck, A., & Teboulle, M. (2009). "A Fast Iterative Shrinkage-Thresholding
+Algorithm for Linear Inverse Problems." *SIAM Journal on Imaging Sciences*
+2(1):183-202.
+
+Dube, A. (2019). "Minimum Wages and the Distribution of Family Incomes."
+*American Economic Journal: Applied Economics* 11(4):268-304.
+
+Duchi, J., Shalev-Shwartz, S., Singer, Y., & Chandra, T. (2008). "Efficient
+Projections onto the l1-Ball for Learning in High Dimensions." *ICML*.
 
 Gunsilius, F. F. (2023). "Distributional Synthetic Controls."
-*Econometrica* 91(3):1105-1117.
+*Econometrica* 91(3):1105-1117. Reference implementation: the ``DiSCo`` R
+package.
 
-Zhang, L., Zhang, X., & Zhang, X. (2026). "Asymptotic Properties of
-the Distributional Synthetic Controls." arXiv:2405.00953.
+Kloeckner, B. (2010). "A Geometric Study of Wasserstein Spaces: Euclidean
+Spaces." *Annali della Scuola Normale Superiore di Pisa* 9(2):297-323.
+
+Zhang, L., Zhang, X., & Zhang, X. (2026). "Asymptotic Properties of the
+Distributional Synthetic Controls." arXiv:2405.00953.
