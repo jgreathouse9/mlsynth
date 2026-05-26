@@ -913,7 +913,7 @@ class TestBuildSummary:
         d = solve_spcd(inputs)
         summary = build_summary(d, inputs)
         assert all(v >= 0 for v in summary.weights.donor_weights.values())
-        assert "treated_weights_by_unit" in summary.weights.summary_stats or \
+        assert "treated_weights_by_unit" in summary.weights.summary_stats or\
                hasattr(summary.weights, "treated_weights_by_unit")
 
 
@@ -1120,7 +1120,7 @@ class TestPooledAverageMDE:
     """
 
     def _residuals(self, rng, m=4, nB=12, corr=0.4, scale=1.0):
-        """m correlated holdout series (shared factor + idiosyncratic)."""
+        """M correlated holdout series (shared factor + idiosyncratic)."""
         common = rng.standard_normal(nB)
         return {
             f"A{a}": scale * (np.sqrt(corr) * common
@@ -1206,7 +1206,8 @@ class TestPooledAverageMDE:
 
 class TestPooledDetectabilityCurve:
     """Pooled-average MDE as a function of post-period horizon -- the
-    'how long should the study run?' question."""
+    'how long should the study run?' question.
+    """
 
     def _res(self, rng, m=4, nB=16, corr=0.4):
         common = rng.standard_normal(nB)
