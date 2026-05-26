@@ -913,7 +913,7 @@ class TestBuildSummary:
         d = solve_spcd(inputs)
         summary = build_summary(d, inputs)
         assert all(v >= 0 for v in summary.weights.donor_weights.values())
-        assert "treated_weights_by_unit" in summary.weights.summary_stats or\
+        assert "treated_weights_by_unit" in summary.weights.summary_stats or \
                hasattr(summary.weights, "treated_weights_by_unit")
 
 
@@ -1120,7 +1120,7 @@ class TestPooledAverageMDE:
     """
 
     def _residuals(self, rng, m=4, nB=12, corr=0.4, scale=1.0):
-        """M correlated holdout series (shared factor + idiosyncratic)."""
+        """m correlated holdout series (shared factor + idiosyncratic)."""
         common = rng.standard_normal(nB)
         return {
             f"A{a}": scale * (np.sqrt(corr) * common
@@ -1206,8 +1206,7 @@ class TestPooledAverageMDE:
 
 class TestPooledDetectabilityCurve:
     """Pooled-average MDE as a function of post-period horizon -- the
-    'how long should the study run?' question.
-    """
+    'how long should the study run?' question."""
 
     def _res(self, rng, m=4, nB=16, corr=0.4):
         common = rng.standard_normal(nB)
@@ -1313,3 +1312,57 @@ class TestPowerCurvesAndPlots:
                     "enable_inference": False}).fit()
         with pytest.raises(MlsynthPlottingError):
             plot_power_curves(res)
+
+
+# =========================================================================
+# DEFAULT HORIZON CAP (<=12) AND PRE-FIT AGREEMENT RMSE
+# =========================================================================
+
+from mlsynth.utils.spcd_helpers.power import default_detectability_grid
+from mlsynth.utils.spcd_helpers.structures import SPCDPreFit
+
+
+class TestHorizonCapAndPreFit:
+
+    def test_default_grid_caps_at_12(self):
+        assert default_detectability_grid(37) == list(range(1, 13))
+        assert default_detectability_grid(12) == list(range(1, 13))
+        assert default_detectability_grid(8) == list(range(1, 9))
+
+    def test_fit_default_detectability_capped(self):
+        df, _ = _make_panel(n_units=24, T=60, T_post=20)
+        code = df["unitid"].str[1:].astype(int)
+        df["arm"] = np.where(code < 8, "A", np.where(code < 16, "B", "C"))
+        res = SPCD({"df": df, "arm": "arm", "outcome": "y", "unitid": "unitid",
+                    "time": "time", "post_col": "post",
+                    "mde_n_sims": 400, "mde_n_trials": 120}).fit()
+        assert max(res.pooled_power.detectability) == 12
+        for r in res.arm_designs.values():
+            assert max(r.power.detectability) == 12
+
+    def test_explicit_grid_overrides_cap(self, arm_panel):
+        res = SPCD({"df": arm_panel, "arm": "arm", "outcome": "y",
+                    "unitid": "unitid", "time": "time", "post_col": "post",
+                    "mde_horizon_grid": [2, 4, 6], "mde_n_sims": 400,
+                    "mde_n_trials": 120}).fit()
+        assert sorted(res.pooled_power.detectability) == [2, 4, 6]
+
+    def test_pre_fit_rmse_windows(self, arm_panel):
+        res = SPCD({"df": arm_panel, "arm": "arm", "outcome": "y",
+                    "unitid": "unitid", "time": "time", "post_col": "post",
+                    "mde_n_sims": 400, "mde_n_trials": 120}).fit()
+        for r in res.arm_designs.values():
+            pf = r.pre_fit
+            assert isinstance(pf, SPCDPreFit)
+            assert np.isfinite(pf.rmse_estimation) and np.isfinite(pf.rmse_pre)
+            assert pf.rmse_blank is not None and np.isfinite(pf.rmse_blank)
+            assert pf.n_estimation + pf.n_blank == r.inputs.Y_pre.shape[0]
+            assert set(r.pre_fit_rmse) == {"estimation", "blank", "overall_pre"}
+
+    def test_pre_fit_no_blank_when_inference_off(self, panel_df):
+        res = SPCD({"df": panel_df, "outcome": "y", "unitid": "unitid",
+                    "time": "time", "post_col": "post",
+                    "enable_inference": False}).fit()
+        assert res.pre_fit.rmse_blank is None
+        assert res.pre_fit.n_blank == 0
+        assert res.pre_fit_rmse["estimation"] == res.pre_fit_rmse["overall_pre"]
