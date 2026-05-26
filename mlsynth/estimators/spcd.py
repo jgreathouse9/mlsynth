@@ -197,7 +197,8 @@ class SPCD:
 
     def _pre_fit_agreement(self, inputs, design) -> SPCDPreFit:
         """RMSE of the synthetic gap (treated - control) over the
-        estimation, blank, and overall pre-treatment windows."""
+        estimation, blank, and overall pre-treatment windows.
+        """
 
         n_pre = int(inputs.Y_pre.shape[0])
         gap = np.asarray(design.synthetic_gap, dtype=float)[:n_pre]
