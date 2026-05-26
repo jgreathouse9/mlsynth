@@ -3126,12 +3126,32 @@ class SYNDESConfig(BaseMAREXConfig):
             "Required when ``costs`` is supplied; ignored otherwise."
         ),
     )
+    arm: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional categorical column naming each unit's treatment arm. "
+            "When given, SYNDES solves its design independently within each "
+            "arm's units and returns SYNDESMultiArmResults (a dict of per-arm "
+            "results); when None (default), a single SYNDESResults is "
+            "returned. K (if set) then applies per arm."
+        ),
+    )
 
     @model_validator(mode="after")
     def _check_syndes_params(cls, values: Any) -> Any:
         df = values.df
         n_units = df[values.unitid].nunique()
         n_periods = df[values.time].nunique()
+
+        if values.arm is not None and values.arm in df.columns:
+            # K applies within each arm, so validate against the smallest arm.
+            arm_sizes = df.groupby(values.arm)[values.unitid].nunique()
+            n_units = int(arm_sizes.min()) if len(arm_sizes) else n_units
+            if values.costs is not None:
+                raise MlsynthConfigError(
+                    "costs/budget are not supported together with an 'arm' "
+                    "column (the cost vector is global, not per-arm)."
+                )
 
         if values.K is not None:
             if values.K >= n_units:
