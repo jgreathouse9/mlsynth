@@ -1976,6 +1976,24 @@ class SPCDConfig(BaseMAREXConfig):
                     "each arm by its unit count (population-average effect); "
                     "'equal' weights arms equally.",
     )
+    covariates: Optional[List[str]] = Field(
+        default=None,
+        description="Optional covariate columns to balance on *in addition* "
+                    "to the pre-treatment outcomes. Each unit's per-covariate "
+                    "pre-period mean is z-scored across units and folded into "
+                    "the SPCD iteration matrix as a covariate-balance term "
+                    "(M += covariate_weight * scale * X X^T). None (default) "
+                    "balances on outcomes only. Time-invariant covariates "
+                    "(e.g. last year's market share) collapse to their value.",
+    )
+    covariate_weight: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Relative weight of covariate balance vs outcome balance "
+                    "in the SPCD Gram matrix. 0 ignores covariates; 1 gives "
+                    "covariates equal 'energy' to the outcomes; >1 upweights "
+                    "covariate balance. Only used when 'covariates' is set.",
+    )
 
     @model_validator(mode="after")
     def check_spcd_params(cls, values: Any) -> Any:
@@ -1987,6 +2005,21 @@ class SPCDConfig(BaseMAREXConfig):
 
         if values.T0 is not None and values.T0 > n_periods:
             raise MlsynthConfigError("T0 cannot exceed the number of unique time periods in df.")
+
+        if values.covariates:
+            missing = [c for c in values.covariates if c not in df.columns]
+            if missing:
+                raise MlsynthConfigError(
+                    f"covariates not present in df: {missing}."
+                )
+            non_numeric = [
+                c for c in values.covariates
+                if not pd.api.types.is_numeric_dtype(df[c])
+            ]
+            if non_numeric:
+                raise MlsynthConfigError(
+                    f"SPCD covariates must be numeric; non-numeric: {non_numeric}."
+                )
 
         return values
 
