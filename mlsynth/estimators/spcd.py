@@ -220,6 +220,11 @@ class SPCD:
                 n_post = int(result.power.n_post)
         if len(residuals) < 2 or n_post is None:
             return None
+        horizon_grid = (
+            list(self.mde_horizon_grid)
+            if self.mde_horizon_grid
+            else list(range(1, n_post + 1))
+        )
         return compute_pooled_average_mde(
             residuals_by_arm=residuals,
             baselines_by_arm=baselines,
@@ -231,7 +236,7 @@ class SPCD:
             n_sims=self.mde_n_sims,
             n_trials=self.mde_n_trials,
             seed=self.inference_seed,
-            horizon_grid=self.mde_horizon_grid,
+            horizon_grid=horizon_grid,
         )
 
     def fit(self) -> Union[SPCDResults, SPCDMultiArmResults]:
