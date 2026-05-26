@@ -778,11 +778,43 @@ Every fitted design stores two diagnostic curves on its
   the MDE is the smallest effect whose power reaches ``power_target``.
 * **MDE vs. horizon** ("MDE at time point :math:`t`") —
   ``power.detectability`` is a ``{horizon -> MDE percent}`` map. It is
-  computed **by default** over every horizon :math:`1, \dots, n_{\text{post}}`
-  (pass ``mde_horizon_grid`` to override the horizons), so you can read off
-  **how many post periods are needed** to detect a target effect, both per
-  arm and for the whole study. The MDE shrinks as the horizon grows, and the
-  pooled curve sits below every per-arm curve.
+  computed **by default** over horizons
+  :math:`1, \dots, \min(12, n_{\text{post}})` — real market tests rarely run
+  past ~12 periods, so the grid is capped at 12 rather than sweeping the full
+  (often 30+ period) post window. Pass ``mde_horizon_grid`` to choose your own
+  horizons (e.g. ``range(1, 9)`` for an 8-week test). The curve is built both
+  per arm and for the whole study; the MDE shrinks as the horizon grows, and
+  the pooled curve sits below every per-arm curve.
+
+.. warning::
+
+   The headline ``pooled_mde_pct`` is computed at the **full** post-window
+   length in your data. If you will actually run a shorter test, quote the
+   curve point for that length — e.g. ``pooled_power.detectability[12]`` for a
+   12-period test — not the headline number.
+
+Pre-Period Agreement (Design Diagnostic)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Every fitted design also reports how closely the **synthetic treated** and
+**synthetic control** trajectories agree *before* treatment — the RMSE of
+their gap, broken out by window (``results.pre_fit`` /
+``results.pre_fit_rmse``):
+
+* ``estimation`` — RMSE over the estimation window :math:`E` (in-sample for
+  the design fit);
+* ``blank`` — RMSE over the blank/holdout window :math:`B` (out-of-sample —
+  the honest read on whether the match will hold up post-launch);
+* ``overall_pre`` — RMSE over the full pre-period (:math:`E \cup B`).
+
+Lower is better. The ``blank`` value is ``None`` when
+``enable_inference=False`` (no holdout split is made).
+
+.. code-block:: python
+
+   r = results.arm_designs["A"]            # or a single SPCDResults
+   print(r.pre_fit_rmse)
+   # {"estimation": 25.8, "blank": 16.7, "overall_pre": 23.4}
 
 .. code-block:: python
 
