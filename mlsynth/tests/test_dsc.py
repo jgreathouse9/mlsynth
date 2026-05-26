@@ -277,3 +277,93 @@ def test_weights_results_exposed(micro_panel):
                "time": "time", "M": 300, "display_graphs": False}).fit()
     assert isinstance(res.weights, WeightsResults)
     assert "simplex" in res.weights.summary_stats["constraint"]
+
+
+# ----------------------------------------------------------------------
+# Definition-of-Done replication: Gunsilius (2023) Section 6.1 / Figure 4
+# ----------------------------------------------------------------------
+
+class TestGunsiliusSimulation:
+    """Path B replication of the paper's own Monte Carlo (Figure 4).
+
+    Controls are mixtures of 3 Gaussians (means ~ U(-10, 10), variances
+    ~ U(0.5, 6)); the target is a mixture of 4 such Gaussians. The
+    paper's headline finding is that the DSC barycenter replicates the
+    target *better as the donor pool grows*. The earlier SLSQP solver
+    crashed for J past a few dozen -- exactly this regime -- so these
+    tests guard the fix.
+    """
+
+    @staticmethod
+    def _mixture(rng, n_comp, n):
+        means = rng.uniform(-10.0, 10.0, n_comp)
+        var = rng.uniform(0.5, 6.0, n_comp)
+        comp = rng.integers(0, n_comp, n)
+        return rng.normal(means[comp], np.sqrt(var[comp]))
+
+    def _w2(self, J, rng, n=800, M=600, n_eval=400):
+        target = self._mixture(rng, 4, n)
+        controls = [self._mixture(rng, 3, n) for _ in range(J)]
+        V = sample_quantile_grid(
+            M=M, method="uniform", random_state=int(rng.integers(1_000_000_000)),
+        )
+        donor_mat = np.column_stack([empirical_quantile(c, V) for c in controls])
+        w = solve_simplex_weights(donor_mat, empirical_quantile(target, V))
+        # Feasible on the simplex at any donor count.
+        assert (w >= -1e-9).all()
+        assert abs(w.sum() - 1.0) < 1e-6
+        q = np.linspace(0.01, 0.99, n_eval)
+        bc = np.column_stack([empirical_quantile(c, q) for c in controls]) @ w
+        return float(np.mean((bc - empirical_quantile(target, q)) ** 2))
+
+    def test_large_donor_pool_does_not_crash(self):
+        # The crux of Figure 4 is many donors; the old SLSQP path raised here.
+        rng = np.random.default_rng(0)
+        self._w2(200, rng)  # must not raise
+
+    def test_replication_tightens_with_more_donors(self):
+        rng = np.random.default_rng(7)
+        small = float(np.mean([self._w2(4, rng) for _ in range(8)]))
+        large = float(np.mean([self._w2(60, rng) for _ in range(8)]))
+        # Headline finding: distance to target shrinks as the pool grows.
+        assert large < small
+
+
+# ----------------------------------------------------------------------
+# Placebo permutation inference (Gunsilius 2023, Algorithm 1)
+# ----------------------------------------------------------------------
+
+class TestPlaceboPermutation:
+    def _shift_panel(self, J=12, T_pre=6, T_post=3, n=250, shift=2.5, seed=3):
+        rng = np.random.default_rng(seed)
+        T = T_pre + T_post
+        unit_loc = rng.uniform(-1.0, 1.0, J + 1)
+        rows = []
+        for j in range(J + 1):
+            for t in range(T):
+                loc = unit_loc[j] + 0.1 * t
+                if j == 0 and t >= T_pre:
+                    loc += shift
+                for y in rng.normal(loc, 1.0, n):
+                    rows.append({"unit": j, "time": t, "y": float(y),
+                                 "D": int(j == 0 and t >= T_pre)})
+        return pd.DataFrame(rows), J
+
+    def test_real_effect_lands_in_the_tail(self):
+        df, J = self._shift_panel()
+        res = DSC({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
+                   "time": "time", "M": 300, "display_graphs": False,
+                   "compute_inference": True, "inference_grid_points": 100}).fit()
+        assert res.inference is not None
+        assert res.inference.n_permutations == J
+        assert res.inference.placebo_distances.shape[0] == J
+        # A clear post shift should rank the treated unit most extreme:
+        # p_t at the floor 1/(J+1).
+        for p in res.inference.p_values.values():
+            assert p <= 1.0 / (J + 1) + 1e-9
+
+    def test_inference_off_by_default(self):
+        df, _ = self._shift_panel()
+        res = DSC({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
+                   "time": "time", "M": 200, "display_graphs": False}).fit()
+        assert res.inference is None
