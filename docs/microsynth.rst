@@ -438,6 +438,90 @@ all standardized mean differences driven to ~2e-5 after weighting
 (the constraints are binding), and the effective sample size is
 417 out of 500 clean holdouts (minimal weight concentration).
 
+When Balancing Is Not Enough: ITT vs. As-Treated vs. CACE
+---------------------------------------------------------
+
+The study above is the *happy case*: contamination is selected on
+**observed** covariates, so balancing on them removes the bias.
+Reality is rarely so kind. Suppose the thing that makes a held-out
+user see the ad anyway -- latent purchase intent, in-market status --
+is **unobserved**, and that same intent also lifts sales. Now the
+actually-exposed users are positively selected on a confounder you
+cannot put in the balancing constraint, and reweighting on age /
+income only removes the slice of that selection the covariates happen
+to explain. **No amount of balancing recovers the truth from an
+as-treated comparison**, because the bias lives in a variable the
+method never sees.
+
+The decisive move is *not* to regroup users by what they received
+(exposed vs. not) -- that is exactly what reintroduces the selection.
+Keep users in their randomized arm and let MicroSynth balance for
+precision, then either report the intent-to-treat (ITT) effect or
+divide it by the compliance gap to recover the per-exposure effect
+(a covariate-balanced Wald / CACE ratio):
+
+.. math::
+
+   \widehat\tau_{\text{ITT}}
+     = \frac{1}{N_1}\sum_{i:\,\text{assigned}=1} Y_i
+       - \sum_{i:\,\text{assigned}=0} w_i Y_i,
+   \qquad
+   \widehat\tau_{\text{CACE}}
+     = \frac{\widehat\tau_{\text{ITT}}}
+            {\widehat p_{\text{expose}\mid\text{ad arm}}
+             - \widehat p_{\text{expose}\mid\text{holdout}}} .
+
+The helper :func:`mlsynth.utils.microsynth_helpers.simulate_ad_holdout`
+generates exactly this DGP -- randomized assignment, holdout leakage
+selected on latent intent, and an unobserved confounder in the sales
+equation -- and encodes treatment two ways: ``D_itt`` (assigned arm)
+and ``D_att`` (actually exposed).
+
+.. code-block:: python
+
+   from mlsynth import MicroSynth
+   from mlsynth.utils.microsynth_helpers import simulate_ad_holdout
+
+   df, truth = simulate_ad_holdout(n_per_arm=8000, delta=1.0, seed=1)
+   gap = truth["compliance_gap"]
+
+   def att(treat_col):
+       return MicroSynth({
+           "df": df, "outcome": "sales", "treat": treat_col,
+           "unitid": "user_id", "time": "time",
+           "covariates": ["age", "income"],
+           "run_inference": False, "display_graphs": False,
+       }).fit().att
+
+   as_treated = att("D_att")        # regroup by exposure -- the WRONG move
+   itt        = att("D_itt")        # randomized arms -- correct ITT
+   cace       = itt / gap           # per-exposure -- covariate-balanced Wald
+
+   print(f"true per-exposure delta = {truth['delta_per_exposure']:.3f}")
+   print(f"true ITT effect         = {truth['itt_effect']:.3f}")
+   print(f"as-treated ATT          = {as_treated:.3f}   (biased: balancing "
+         f"cannot remove unobserved intent)")
+   print(f"ITT ATT                 = {itt:.3f}   (~ true ITT effect)")
+   print(f"CACE = ITT / gap        = {cace:.3f}   (~ true per-exposure delta)")
+
+Representative output::
+
+   true per-exposure delta = 1.000
+   true ITT effect         = 0.779
+   as-treated ATT          = 1.286   (biased: balancing cannot remove unobserved intent)
+   ITT ATT                 = 0.806   (~ true ITT effect)
+   CACE = ITT / gap        = 1.035   (~ true per-exposure delta)
+
+The as-treated estimate overstates the per-exposure effect by ~29%
+even though balancing drives every standardized mean difference on
+age and income below ``1e-3`` -- the leftover bias is the unobserved
+intent. ITT lands on the diluted campaign effect, and the Wald ratio
+recovers the per-exposure effect while never breaking randomization.
+The lesson is the boundary of the method: MicroSynth removes
+imbalance on the covariates you give it; it is the *estimand* (ITT,
+CACE), not the balancing, that handles non-compliance and unobserved
+selection.
+
 References
 ----------
 
