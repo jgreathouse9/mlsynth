@@ -46,6 +46,7 @@ from .power import (
     SPCDPowerAnalysis,
     compute_detectability_curve,
     compute_mde,
+    default_detectability_grid,
 )
 from .spectral_init import spectral_initialization
 from .structures import SPCDDesign, SPCDInputs
@@ -504,12 +505,12 @@ def solve_spcd_with_holdout(
     )
 
     # Detectability ("MDE at time point t"): when no grid is supplied,
-    # default to every horizon from 1 to the planned post length so the
-    # curve is always available per design.
+    # default to horizons 1..min(12, n_post) (see default_detectability_grid)
+    # so the curve is always available per design without a 37-week sweep.
     horizon_grid = (
         list(mde_horizon_grid)
         if mde_horizon_grid
-        else list(range(1, n_post_for_power + 1))
+        else default_detectability_grid(n_post_for_power)
     )
     detectability = compute_detectability_curve(
         residuals_B=r_B,

@@ -21,6 +21,17 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+# Default cap on the detectability horizon grid: evaluate the MDE at post
+# horizons 1..12 unless the caller supplies an explicit ``mde_horizon_grid``.
+# Real market tests rarely run beyond ~12 periods, and an uncapped 1..n_post
+# sweep is both expensive and mostly irrelevant for planning.
+DEFAULT_MAX_HORIZON = 12
+
+
+def default_detectability_grid(n_post: int, cap: int = DEFAULT_MAX_HORIZON) -> List[int]:
+    """Default per-horizon detectability grid: ``1 .. min(cap, n_post)``."""
+    return list(range(1, min(int(cap), int(n_post)) + 1))
+
 
 @dataclass(frozen=True)
 class SPCDPowerAnalysis:

@@ -142,6 +142,33 @@ class SPCDDesign:
     lam_balance: float
     beta: float
 
+
+@dataclass(frozen=True)
+class SPCDPreFit:
+    """Pre-period agreement between the synthetic treated and synthetic
+    control trajectories -- a design-phase fit diagnostic.
+
+    Reports the RMSE of the synthetic gap (synthetic treated minus
+    synthetic control) over three windows:
+
+    * ``rmse_estimation`` -- the **estimation** window E, in-sample for the
+      design fit;
+    * ``rmse_blank`` -- the **blank**/holdout window B, out-of-sample
+      (``None`` when ``enable_inference=False`` so no split was made);
+    * ``rmse_pre`` -- the **overall** pre-period (E + B).
+
+    Lower values mean the two synthetic series track each other more
+    closely before treatment. The blank-window RMSE is the honest
+    out-of-sample read on how well the design will hold up post-launch.
+    """
+
+    rmse_estimation: float
+    rmse_blank: Optional[float]
+    rmse_pre: float
+    n_estimation: int
+    n_blank: int
+
+
 @dataclass(frozen=True)
 class SPCDResults:
     """User-facing output of the SPCD estimator.
@@ -176,11 +203,29 @@ class SPCDResults:
     summary: Optional["BaseEstimatorResults"] = None
     conformal: Optional["SPCDConformalResult"] = None
     power: Optional["SPCDPowerAnalysis"] = None
+    pre_fit: Optional[SPCDPreFit] = None
 
     @property
     def mode(self) -> str:
         """Solver mode reported to downstream consumers."""
         return "spcd"
+
+    @property
+    def pre_fit_rmse(self) -> Optional[dict]:
+        """Synthetic treated-vs-control RMSE by window.
+
+        ``{"estimation": ..., "blank": ..., "overall_pre": ...}`` -- how
+        closely the synthetic treated and synthetic control trajectories
+        agree over the estimation, blank, and overall pre-treatment
+        windows. ``None`` if the pre-fit diagnostic was not computed.
+        """
+        if self.pre_fit is None:
+            return None
+        return {
+            "estimation": self.pre_fit.rmse_estimation,
+            "blank": self.pre_fit.rmse_blank,
+            "overall_pre": self.pre_fit.rmse_pre,
+        }
 
     @property
     def assignment(self) -> np.ndarray:
