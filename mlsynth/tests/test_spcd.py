@@ -913,7 +913,7 @@ class TestBuildSummary:
         d = solve_spcd(inputs)
         summary = build_summary(d, inputs)
         assert all(v >= 0 for v in summary.weights.donor_weights.values())
-        assert "treated_weights_by_unit" in summary.weights.summary_stats or\
+        assert "treated_weights_by_unit" in summary.weights.summary_stats or \
                hasattr(summary.weights, "treated_weights_by_unit")
 
 
@@ -1120,7 +1120,7 @@ class TestPooledAverageMDE:
     """
 
     def _residuals(self, rng, m=4, nB=12, corr=0.4, scale=1.0):
-        """M correlated holdout series (shared factor + idiosyncratic)."""
+        """m correlated holdout series (shared factor + idiosyncratic)."""
         common = rng.standard_normal(nB)
         return {
             f"A{a}": scale * (np.sqrt(corr) * common
@@ -1206,8 +1206,7 @@ class TestPooledAverageMDE:
 
 class TestPooledDetectabilityCurve:
     """Pooled-average MDE as a function of post-period horizon -- the
-    'how long should the study run?' question.
-    """
+    'how long should the study run?' question."""
 
     def _res(self, rng, m=4, nB=16, corr=0.4):
         common = rng.standard_normal(nB)
@@ -1367,3 +1366,89 @@ class TestHorizonCapAndPreFit:
         assert res.pre_fit.rmse_blank is None
         assert res.pre_fit.n_blank == 0
         assert res.pre_fit_rmse["estimation"] == res.pre_fit_rmse["overall_pre"]
+
+
+# =========================================================================
+# COVARIATE BALANCING
+# =========================================================================
+
+class TestCovariateBalancing:
+
+    def _panel_with_covariate(self, seed=11, n=14, T=30, T_post=6):
+        rng = np.random.default_rng(seed)
+        f = np.zeros((T, 2))
+        for t in range(1, T):
+            f[t] = 0.7 * f[t - 1] + rng.standard_normal(2)
+        mkt_share = rng.uniform(0.02, 0.25, size=n)
+        rows = []
+        for u in range(n):
+            load = rng.uniform(0.4, 1.0, size=2); level = rng.uniform(800, 1200)
+            y = level + 30 * (f @ load) + rng.normal(scale=20, size=T)
+            for t in range(T):
+                rows.append({"DMA": f"D{u:02d}", "time": t, "sales": y[t],
+                             "mkt_share": mkt_share[u], "post": int(t >= T - T_post)})
+        return pd.DataFrame(rows)
+
+    def _cov_gap(self, res):
+        X = res.inputs.covariates
+        d = res.design
+        return float(np.linalg.norm(X.T @ (d.treated_weights - d.control_weights)))
+
+    def test_covariates_optional_default_none(self):
+        df = self._panel_with_covariate()
+        res = SPCD({"df": df, "outcome": "sales", "unitid": "DMA", "time": "time",
+                    "post_col": "post", "enable_inference": False}).fit()
+        assert res.inputs.covariates is None
+        assert res.inputs.covariate_names is None
+
+    def test_covariates_stored_and_zscored(self):
+        df = self._panel_with_covariate()
+        res = SPCD({"df": df, "outcome": "sales", "unitid": "DMA", "time": "time",
+                    "post_col": "post", "enable_inference": False,
+                    "covariates": ["mkt_share"]}).fit()
+        X = res.inputs.covariates
+        assert X is not None and X.shape == (14, 1)
+        assert res.inputs.covariate_names == ["mkt_share"]
+        # z-scored across units
+        assert abs(float(X.mean())) < 1e-8
+        assert abs(float(X.std()) - 1.0) < 1e-6
+
+    def test_covariates_improve_balance(self):
+        df = self._panel_with_covariate()
+        base = dict(df=df, outcome="sales", unitid="DMA", time="time",
+                    post_col="post", enable_inference=False)
+        no_cov = SPCD(base).fit()
+        with_cov = SPCD({**base, "covariates": ["mkt_share"],
+                         "covariate_weight": 1.0}).fit()
+        # need the z-scored X to score the no-cov design on the same scale
+        X = with_cov.inputs.covariates
+        d0 = no_cov.design
+        gap_no = float(np.linalg.norm(X.T @ (d0.treated_weights - d0.control_weights)))
+        gap_yes = self._cov_gap(with_cov)
+        assert gap_yes <= gap_no + 1e-9        # covariate balance no worse, typically better
+
+    def test_covariate_weight_zero_ignores_covariate(self):
+        df = self._panel_with_covariate()
+        base = dict(df=df, outcome="sales", unitid="DMA", time="time",
+                    post_col="post", enable_inference=False)
+        no_cov = SPCD(base).fit()
+        w0 = SPCD({**base, "covariates": ["mkt_share"],
+                   "covariate_weight": 0.0}).fit()
+        # weight 0 -> covariate term dropped -> identical design to no-covariate
+        assert np.allclose(no_cov.design.contrast_weights, w0.design.contrast_weights)
+
+    def test_missing_covariate_column_raises(self):
+        df = self._panel_with_covariate()
+        with pytest.raises(MlsynthConfigError):
+            SPCD({"df": df, "outcome": "sales", "unitid": "DMA", "time": "time",
+                  "post_col": "post", "covariates": ["nope"]}).fit()
+
+    def test_multiarm_with_covariates(self):
+        df = self._panel_with_covariate(n=18)
+        code = df["DMA"].str[1:].astype(int)
+        df["arm"] = np.where(code < 6, "A", np.where(code < 12, "B", "C"))
+        res = SPCD({"df": df, "outcome": "sales", "unitid": "DMA", "time": "time",
+                    "post_col": "post", "arm": "arm", "covariates": ["mkt_share"],
+                    "mde_n_sims": 400, "mde_n_trials": 120}).fit()
+        for r in res.arm_designs.values():
+            assert r.inputs.covariates is not None
