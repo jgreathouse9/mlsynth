@@ -37,8 +37,10 @@ from mlsynth.utils.spcd_helpers.structures import (
 from mlsynth.utils.spcd_helpers.setup import prepare_spcd_inputs
 from mlsynth.utils.spcd_helpers.formulation import (
     build_iteration_matrix,
+    estimate_noise_variance,
     validate_spcd_inputs,
 )
+from mlsynth.utils.spcd_helpers.orchestration import select_alpha_by_holdout
 from mlsynth.utils.spcd_helpers.spectral_init import spectral_initialization
 from mlsynth.utils.spcd_helpers.iteration_spcd import (
     run_spcd_iteration,
@@ -1054,3 +1056,53 @@ class TestImmutability:
         }).fit()
         with pytest.raises(FrozenInstanceError):
             res.inputs = None   # type: ignore[misc]
+
+
+# =========================================================================
+# NOISE-SCALE ALPHA: ESTIMATION + HOLDOUT SELECTION
+# =========================================================================
+
+class TestAlphaSelection:
+    """The alpha default tracks the noise scale (Eq. (2) / appendix
+    alpha = ||Delta||), chosen by out-of-sample pre-period balance.
+    """
+
+    def test_noise_variance_recovers_known_sigma(self):
+        # A low-rank signal plus i.i.d. N(0, sigma^2) noise; the
+        # Gavish-Donoho estimate should land within a small factor of
+        # the true variance (not the dominant signal eigenvalue).
+        rng = np.random.default_rng(0)
+        T, N, sigma = 60, 12, 2.0
+        signal = rng.standard_normal((T, 2)) @ rng.standard_normal((2, N)) * 5.0
+        Y = signal + rng.normal(scale=sigma, size=(T, N))
+        sigma2_hat = estimate_noise_variance(Y)
+        assert sigma2_hat > 0
+        assert 0.3 * sigma ** 2 < sigma2_hat < 3.0 * sigma ** 2
+
+    def test_noise_variance_is_positive_and_finite(self, inputs):
+        val = estimate_noise_variance(inputs.Y_pre)
+        assert np.isfinite(val) and val > 0
+
+    def test_select_alpha_returns_grid_scale_value(self, inputs):
+        alpha = select_alpha_by_holdout(inputs.Y_pre)
+        gd = estimate_noise_variance(inputs.Y_pre)
+        assert np.isfinite(alpha) and alpha > 0
+        # selected value lives on the multiplicative grid around the GD scale
+        assert 0.1 * gd <= alpha <= 3.5 * gd
+
+    def test_select_alpha_short_pre_falls_back_to_estimate(self):
+        # Too few pre-periods to spare a validation tail -> bare estimate.
+        rng = np.random.default_rng(1)
+        Y = rng.standard_normal((4, 6))
+        assert select_alpha_by_holdout(Y, val_frac=0.5) == pytest.approx(
+            estimate_noise_variance(Y)
+        )
+
+    def test_auto_alpha_used_when_not_supplied(self, inputs):
+        # With alpha=None the design records a concrete, positive ridge.
+        design = solve_spcd(inputs, alpha=None)
+        assert design.alpha_ridge > 0
+
+    def test_explicit_alpha_bypasses_selection(self, inputs):
+        design = solve_spcd(inputs, alpha=1.0)
+        assert design.alpha_ridge == pytest.approx(1.0)
