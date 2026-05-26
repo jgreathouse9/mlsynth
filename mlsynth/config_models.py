@@ -1969,6 +1969,13 @@ class SPCDConfig(BaseMAREXConfig):
                     "skipped with a warning (design is still fit on the "
                     "estimation window).",
     )
+    pooled_weights: Literal["size", "equal"] = Field(
+        default="size",
+        description="Weighting for the multi-arm pooled average-effect MDE "
+                    "(only used when an 'arm' column is set). 'size' weights "
+                    "each arm by its unit count (population-average effect); "
+                    "'equal' weights arms equally.",
+    )
 
     @model_validator(mode="after")
     def check_spcd_params(cls, values: Any) -> Any:
