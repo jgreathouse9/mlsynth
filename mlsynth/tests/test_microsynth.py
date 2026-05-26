@@ -278,6 +278,60 @@ class TestSyntheticRecovery:
 
 
 # ---------------------------------------------------------------------------
+# Layer 3b: ad-holdout simulation (ITT vs as-treated vs CACE)
+# ---------------------------------------------------------------------------
+
+class TestAdHoldoutSimulation:
+    """Spillover/contamination DGP with an unobserved confounder.
+
+    The as-treated comparison (regroup by exposure) is biased because
+    exposure is selected on latent intent that balancing on observed
+    covariates cannot remove; ITT on the randomized arms is unbiased for
+    the campaign effect; and CACE = ITT / compliance-gap recovers the
+    true per-exposure effect.
+    """
+
+    @staticmethod
+    def _att(df, treat_col):
+        return MicroSynth({
+            "df": df, "outcome": "sales", "treat": treat_col,
+            "unitid": "user_id", "time": "time",
+            "covariates": ["age", "income"],
+            "run_inference": False, "display_graphs": False,
+        }).fit()
+
+    def test_as_treated_is_biased_itt_and_cace_recover(self):
+        from mlsynth.utils.microsynth_helpers import simulate_ad_holdout
+
+        df, truth = simulate_ad_holdout(n_per_arm=6000, delta=1.0, seed=1)
+        gap = truth["compliance_gap"]
+        delta = truth["delta_per_exposure"]
+
+        as_treated = self._att(df, "D_att").att
+        itt = self._att(df, "D_itt").att
+        cace = itt / gap
+
+        # As-treated overstates the per-exposure effect (residual
+        # unobserved-intent confounding survives covariate balancing).
+        assert as_treated > delta + 0.10
+        # ITT lands on the (diluted) campaign effect delta * gap.
+        assert itt == pytest.approx(truth["itt_effect"], abs=0.08)
+        # The covariate-balanced Wald ratio recovers the per-exposure effect.
+        assert cace == pytest.approx(delta, abs=0.12)
+        # And it beats the as-treated estimate it is meant to replace.
+        assert abs(cace - delta) < abs(as_treated - delta)
+
+    def test_covariates_balanced_under_both_labellings(self):
+        from mlsynth.utils.microsynth_helpers import simulate_ad_holdout
+
+        df, _ = simulate_ad_holdout(n_per_arm=4000, seed=2)
+        for treat_col in ("D_itt", "D_att"):
+            res = self._att(df, treat_col)
+            assert res.design.feasible
+            assert np.max(np.abs(res.design.smd_after)) < 1e-3
+
+
+# ---------------------------------------------------------------------------
 # Layer 4: public API
 # ---------------------------------------------------------------------------
 
