@@ -913,7 +913,7 @@ class TestBuildSummary:
         d = solve_spcd(inputs)
         summary = build_summary(d, inputs)
         assert all(v >= 0 for v in summary.weights.donor_weights.values())
-        assert "treated_weights_by_unit" in summary.weights.summary_stats or\
+        assert "treated_weights_by_unit" in summary.weights.summary_stats or \
                hasattr(summary.weights, "treated_weights_by_unit")
 
 
@@ -1120,7 +1120,7 @@ class TestPooledAverageMDE:
     """
 
     def _residuals(self, rng, m=4, nB=12, corr=0.4, scale=1.0):
-        """M correlated holdout series (shared factor + idiosyncratic)."""
+        """m correlated holdout series (shared factor + idiosyncratic)."""
         common = rng.standard_normal(nB)
         return {
             f"A{a}": scale * (np.sqrt(corr) * common
@@ -1206,8 +1206,7 @@ class TestPooledAverageMDE:
 
 class TestPooledDetectabilityCurve:
     """Pooled-average MDE as a function of post-period horizon -- the
-    'how long should the study run?' question.
-    """
+    'how long should the study run?' question."""
 
     def _res(self, rng, m=4, nB=16, corr=0.4):
         common = rng.standard_normal(nB)
@@ -1237,3 +1236,79 @@ class TestPooledDetectabilityCurve:
         # per-arm curves too
         for r in res.arm_designs.values():
             assert r.power.detectability is not None
+
+
+# =========================================================================
+# POWER CURVES, DETECTABILITY-BY-TIME, AND PLOT HELPERS
+# =========================================================================
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as _plt
+from matplotlib.figure import Figure
+from mlsynth.utils.spcd_helpers.plotter import (
+    plot_mde_bars,
+    plot_power_curves,
+    plot_detectability,
+)
+
+
+class TestPowerCurvesAndPlots:
+
+    def test_compute_mde_stores_power_curve(self):
+        rng = np.random.default_rng(0)
+        r_B = rng.normal(0, 1.0, 30)
+        out = compute_mde(r_B, baseline=100.0, n_post=6,
+                          n_sims=800, n_trials=300, seed=1)
+        assert out.power_curve is not None and out.effect_grid_pct is not None
+        assert len(out.power_curve) == len(out.effect_grid_pct)
+        # power is (weakly) increasing in effect size overall
+        assert out.power_curve[-1] >= out.power_curve[0]
+
+    def test_compute_mde_fast_path_skips_curve(self):
+        rng = np.random.default_rng(0)
+        out = compute_mde(rng.normal(0, 1, 30), baseline=100.0, n_post=6,
+                          n_sims=800, n_trials=300, seed=1, store_curve=False)
+        assert out.power_curve is None and out.effect_grid_pct is None
+        assert np.isfinite(out.mde_tau) or np.isnan(out.mde_tau)
+
+    def test_detectability_auto_default_per_arm_and_pooled(self, arm_panel):
+        # No mde_horizon_grid supplied -> curve still present for every arm
+        # and the pooled whole-study contrast, spanning 1..n_post.
+        res = SPCD({"df": arm_panel, "arm": "arm", "outcome": "y",
+                    "unitid": "unitid", "time": "time", "post_col": "post",
+                    "mde_n_sims": 500, "mde_n_trials": 150}).fit()
+        for r in res.arm_designs.values():
+            assert r.power.detectability is not None
+            assert min(r.power.detectability) == 1
+        assert res.pooled_power.detectability is not None
+        # detectability at the full horizon matches the headline pooled MDE
+        n_post = res.pooled_power.n_post
+        assert res.pooled_power.detectability[n_post] == pytest.approx(
+            res.pooled_mde_pct, rel=0.5
+        )
+
+    def test_plot_helpers_return_figures(self, arm_panel):
+        res = SPCD({"df": arm_panel, "arm": "arm", "outcome": "y",
+                    "unitid": "unitid", "time": "time", "post_col": "post",
+                    "mde_n_sims": 400, "mde_n_trials": 120}).fit()
+        for fn in (plot_mde_bars, plot_power_curves, plot_detectability):
+            fig = fn(res)
+            assert isinstance(fig, Figure)
+            _plt.close(fig)
+
+    def test_plot_single_result(self, panel_df):
+        res = SPCD({"df": panel_df, "outcome": "y", "unitid": "unitid",
+                    "time": "time", "post_col": "post",
+                    "mde_n_sims": 400, "mde_n_trials": 120}).fit()
+        fig = plot_power_curves(res)
+        assert isinstance(fig, Figure)
+        _plt.close(fig)
+
+    def test_plot_raises_without_inference(self, arm_panel):
+        from mlsynth.exceptions import MlsynthPlottingError
+        res = SPCD({"df": arm_panel, "arm": "arm", "outcome": "y",
+                    "unitid": "unitid", "time": "time", "post_col": "post",
+                    "enable_inference": False}).fit()
+        with pytest.raises(MlsynthPlottingError):
+            plot_power_curves(res)
