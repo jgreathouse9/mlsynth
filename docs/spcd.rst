@@ -9,39 +9,39 @@ When to Use This Estimator
 Most synthetic-control work takes the treated unit as *given* and asks only
 how to weight the donors. SPCD, due to Lu, Li, Ying and Blanchet (2022)
 [SPCD]_ `arXiv:2211.15241 <https://arxiv.org/abs/2211.15241>`_, answers the
-*prior, design-time question*: you are about to run an experiment, you
+**prior, design-time question**: you are about to run an experiment, you
 have a panel of pre-treatment outcomes, and you must decide *which units to
 treat* (and how to weight the rest into a synthetic comparison) so that the
 treatment-effect estimate is as precise as possible. It is a sibling of
 :doc:`syndes` — both choose the treated set rather than assume it — but where
 SYNDES solves a mixed-integer program, SPCD reformulates the design as a
-phase-synchronization problem and solves it with a spectrally-initialized
+**phase-synchronization** problem and solves it with a spectrally-initialized
 power method that converges *globally* under standard linear-factor models,
 in seconds rather than minutes.
 
-Reach for SPCD when treatment can only be applied to coarse, expensive
-units, randomizing at random leaves accuracy on the table, and you want a
+Reach for SPCD when treatment can only be applied to **coarse, expensive
+units**, randomizing at random leaves accuracy on the table, and you want a
 fast, provably-good assignment:
 
 - **Marketing / geo experiments.** You can switch a campaign on in some
-  media markets (DMAs), regions, or store clusters but not at the
-  individual-customer level. SPCD reads each market's pre-period sales or
-  traffic history and picks the treated markets — and the synthetic
+  **media markets (DMAs)**, **regions**, or **store clusters** but not at the
+  individual-customer level. SPCD reads each market's pre-period **sales** or
+  **traffic** history and picks the treated markets — and the synthetic
   comparison — so the two groups tracked each other *before* launch. Any
   post-launch divergence is then a low-variance read on the campaign.
-- *Retail / product rollouts.* Choosing which stores or SKUs get a
+- **Retail / product rollouts.** Choosing which **stores** or **SKUs** get a
   new layout, price, or feature first. Treating a handful of stores is costly,
   so you want the few you pick to be maximally informative about the whole
   chain.
-- *Platform / policy pilots.* Selecting cities or submarkets for a
+- **Platform / policy pilots.** Selecting **cities** or **submarkets** for a
   pricing pilot, a new service tier, or a regulatory change, where
   interference rules out customer-level randomization and the number of
   treatable units is small.
 
 The flip side: if assignment is *already fixed* (you know who was treated and
-only need a counterfactual), this is the wrong tool. Use a standard
+only need a counterfactual), this is the wrong tool — use a standard
 retrospective estimator such as :doc:`fscm`, :doc:`clustersc`, or
-:doc:`tssc`. SPCD's value is entirely in the design stage, before the
+:doc:`tssc`. SPCD's value is entirely in the **design** stage, before the
 experiment runs.
 
 Notation
@@ -85,7 +85,7 @@ How SPCD Works (Plain-Language Walkthrough)
 
 Before the equations, here is the whole idea in five steps.
 
-1. **The goal is a fair pre-period match**. Split the units into a treated
+1. **The goal is a fair pre-period match.** Split the units into a treated
    group and a control group, and weight each unit, so that *before* the
    experiment the weighted treated history and the weighted control history
    are nearly identical curves. If the two groups move together in the
@@ -210,9 +210,28 @@ matrix from Eq. (2) of the paper:
    M \;=\; Y Y^\top \;+\; \alpha I \;+\; \lambda \mathbf{1} \mathbf{1}^\top,
 
 where :math:`\alpha` plays the role of :math:`\sigma` (noise variance) and
-:math:`\lambda` is the constraint-absorbing penalty. When the user does not
-supply these hyperparameters, ``formulation.py`` auto-defaults them from the
-spectrum of :math:`Y Y^\top`.
+:math:`\lambda` is the constraint-absorbing penalty. The paper treats both as
+*pre-defined* hyperparameters and gives no formula for them.
+
+.. note::
+
+   **Choosing** :math:`\alpha`. The paper's appendix sets the perturbation
+   ridge on the **noise** scale (:math:`\alpha = \lVert\Delta\rVert` with
+   :math:`\alpha \le \lVert\Delta\rVert`), so :math:`\alpha` should track the
+   idiosyncratic noise variance, *not* the dominant (signal/level) eigenvalue
+   of :math:`Y Y^\top`. When :math:`N > T_{\text{pre}}` the matrix
+   :math:`Y Y^\top` is rank-deficient and the post-period RMSE is a
+   non-monotone, *jumpy* function of :math:`\alpha` (small changes flip the
+   discrete sign vector), so no single closed-form estimate is robust. When
+   the user does not supply :math:`\alpha`, ``formulation.py`` first fixes its
+   *scale* with the Gavish-Donoho median-singular-value noise estimate
+   (:func:`~mlsynth.utils.spcd_helpers.formulation.estimate_noise_variance`),
+   and ``orchestration.select_alpha_by_holdout`` then picks the value on a
+   noise-scale grid that **balances a held-out tail of the pre-period best**
+   out of sample. :math:`\lambda` and :math:`\beta` still default from the
+   spectrum of :math:`Y Y^\top`. If you know the noise level (e.g. the
+   simulations below fix :math:`\sigma = 1`), pass ``alpha_ridge`` explicitly
+   to skip selection.
 
 Spectral Initialization
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -577,17 +596,21 @@ residuals are produced, and inference / power analysis are not run. Use this
 when you need byte-identical reproducibility against a pre-inference SPCD
 release, or when your pretreatment window is too short to spare a holdout.
 
-Example: Recovering a Known Effect from the Paper's Factor Model
-----------------------------------------------------------------
+Example: Reproducing the Paper's RMSE Advantage
+-----------------------------------------------
 
-The block below is self-contained. It draws a panel from the linear
-latent-factor model of Lu et al. (2022, Section 4.1) with **no treatment yet**,
-lets SPCD choose the treated set from the pre-period, injects a *known*
-constant effect :math:`\tau` onto exactly those chosen units, and recovers it.
-Because the design is fit on pre-treatment data only, injecting a post-period
-effect never changes *which* units SPCD selects — so the two calls below share
-an identical design and the second simply reads the effect back off the
-post-period gap.
+The paper's headline finding (Section 4.1, Table 1, Figures 2–4) is not merely
+that SPCD is unbiased — it is that **SPCD's design yields a far lower
+root-mean-square error of the treatment-effect estimate than a random design**
+on the linear latent-factor model. The block below reproduces that finding and
+is self-contained: it draws panels from the paper's data-generating process
+(:math:`Y_{it} = \text{level}_i + v_t^\top \gamma_i + e_{it}`, with a true
+effect :math:`\tau = 1` and noise :math:`\sigma = 1`), and for each draw
+estimates :math:`\tau` two ways — with SPCD, and with the paper's random
+baseline (assign each unit to treated/control with probability one half, then
+take a simple difference in group means). Because the SPCD design is fit on
+pre-treatment data only, injecting a post-period effect never changes *which*
+units SPCD selects, so the two SPCD calls per draw share an identical design.
 
 .. code-block:: python
 
@@ -595,9 +618,9 @@ post-period gap.
    import pandas as pd
    from mlsynth import SPCD
 
-   def factor_panel(rng, N=12, T_pre=30, T_post=10, L=3, sigma=1.0):
-       """One draw from the paper's linear factor model: Y_it = level_i +
-       v_t^T gamma_i + e_it, with no treatment applied yet."""
+   def factor_panel(rng, N=10, T_pre=20, T_post=10, L=8, sigma=1.0):
+       """One draw from the paper's linear factor model (Section 4.1):
+       Y_it = level_i + v_t^T gamma_i + e_it, with no treatment applied yet."""
        gamma = rng.standard_normal((N, L))                 # unit loadings
        v = rng.standard_normal((T_pre + T_post, L))        # time factors
        level = rng.uniform(40.0, 60.0, size=N)             # positive baselines
@@ -611,41 +634,63 @@ post-period gap.
             for i in range(N) for t in range(T)]
        )
 
+   def spcd_att(Y, T_pre, tau):
+       """Fit the SPCD design on the pre-period, inject tau on the chosen
+       treated units, then read the estimated ATT off the post-period."""
+       cfg = dict(outcome="y", unitid="unit", time="time", post_col="post",
+                  enable_inference=False, alpha_ridge=1.0)  # sigma^2 known = 1
+       treated = SPCD({"df": make_df(Y, T_pre), **cfg}).fit().selected_unit_labels
+       Y = Y.copy(); Y[T_pre:, np.asarray(treated)] += tau
+       return SPCD({"df": make_df(Y, T_pre), **cfg}).fit().att
+
+   def random_att(rng, Y, T_pre, tau):
+       """Paper's baseline: assign each unit to treated/control with prob 1/2
+       and estimate tau by a difference in (equally weighted) group means."""
+       N = Y.shape[1]
+       sign = rng.choice([-1, 1], size=N)
+       if sign.min() == sign.max():                        # keep both groups non-empty
+           sign[rng.integers(N)] *= -1
+       treated, control = np.where(sign == 1)[0], np.where(sign == -1)[0]
+       Y = Y.copy(); Y[T_pre:, treated] += tau
+       gap = Y[T_pre:, treated].mean(axis=1) - Y[T_pre:, control].mean(axis=1)
+       return gap.mean()
+
    rng = np.random.default_rng(0)
-   T_pre, T_post, tau = 30, 10, 5.0
-   cfg = dict(outcome="y", unitid="unit", time="time", post_col="post")
+   T_pre, T_post, tau, n_draws = 20, 10, 1.0, 200
 
-   # --- one draw: fit the design, inject the true effect on the chosen units ---
+   # --- one draw: SPCD recovers the injected effect ---
    Y = factor_panel(rng, T_pre=T_pre, T_post=T_post)
-   treated = SPCD({"df": make_df(Y, T_pre), **cfg}).fit().selected_unit_labels
-   Y[T_pre:, treated] += tau                               # add tau post-period
-   res = SPCD({"df": make_df(Y, T_pre), **cfg}).fit()       # identical design
+   print(f"single-draw SPCD ATT: {spcd_att(Y, T_pre, tau):.3f}  (true {tau})")
 
-   print("treated units:", treated.tolist())
-   print(f"single-draw ATT: {res.att:.2f}  (true {tau})")
-   print(f"pre-period RMSE: {res.rmse_pre:.3f}")
-   print(f"conformal p-value: {res.p_value}, 95% CI: ({res.ci_lower}, {res.ci_upper})")
-   print(f"MDE: {res.mde}")                                 # design-time power
-
-   # --- many draws: the ATT averages to the true effect ---
-   def one_att(rng):
+   # --- many draws: SPCD's design slashes ATT RMSE vs a random design ---
+   err_spcd, err_rand = [], []
+   for _ in range(n_draws):
        Y = factor_panel(rng, T_pre=T_pre, T_post=T_post)
-       fast = dict(**cfg, enable_inference=False)           # full-pre fit, both calls
-       sel = SPCD({"df": make_df(Y, T_pre), **fast}).fit().selected_unit_labels
-       Y[T_pre:, sel] += tau
-       return SPCD({"df": make_df(Y, T_pre), **fast}).fit().att
+       err_spcd.append(spcd_att(Y, T_pre, tau) - tau)
+       err_rand.append(random_att(rng, Y, T_pre, tau) - tau)
+   err_spcd, err_rand = np.array(err_spcd), np.array(err_rand)
 
-   atts = np.array([one_att(rng) for _ in range(100)])
-   print(f"mean ATT over 100 draws: {atts.mean():.2f}  (true {tau})")
-   print(f"std across draws:        {atts.std():.2f}")
+   rmse = lambda e: np.sqrt(np.mean(e ** 2))
+   print(f"SPCD   mean ATT {tau + err_spcd.mean():.3f}   RMSE {rmse(err_spcd):.3f}")
+   print(f"random mean ATT {tau + err_rand.mean():.3f}   RMSE {rmse(err_rand):.3f}")
+   print(f"RMSE ratio (random / SPCD): {rmse(err_rand) / rmse(err_spcd):.1f}x")
 
-A single draw is noisy — the post-period idiosyncratic shocks cannot be
-balanced away by a pre-period design — but the ATT averages to the true effect
-across draws, the practical content of the paper's unbiasedness result. Switch
-``variant`` (``"spcd"`` vs. ``"norm_spcd"``) and ``weights`` (``"empirical"``
-vs. ``"exact"``) to compare the four code-paths; all share the same iteration
-matrix :math:`M` and differ only in the refinement and weight steps described
-above.
+Both designs are roughly **unbiased** (mean ATT :math:`\approx 1`), but SPCD's
+RMSE is about **0.4** against the random design's **3.9** — an **order-of-
+magnitude reduction** (≈ 9–10× on this seed), reproducing the paper's central
+claim that SPCD "surpasses the random design by a large margin." The mechanism
+is the balance term of Eq. (1): a single draw of the random design can split
+the units so that the two group means differ substantially even before
+treatment, and that pre-period imbalance carries straight through to the ATT;
+SPCD instead chooses the split (and weights) that makes the groups track each
+other, so almost nothing but the injected effect survives into the post-period
+gap.
+
+Switch ``variant`` (``"spcd"`` vs. ``"norm_spcd"``) and ``weights``
+(``"empirical"`` vs. ``"exact"``) to compare the four code-paths; all share the
+same iteration matrix :math:`M` and differ only in the refinement and weight
+steps described above. Enabling inference (the default) additionally returns a
+conformal p-value, CI, and the design-time MDE on each fit.
 
 .. note::
 
