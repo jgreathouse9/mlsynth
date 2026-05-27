@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from mlsynth.utils.bayesutils import BayesSCM
+from mlsynth.utils.clustersc_helpers.pcr.bayesian import BayesSCM
 from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
 
 def test_BayesSCM_smoke():
