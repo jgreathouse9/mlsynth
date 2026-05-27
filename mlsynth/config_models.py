@@ -76,6 +76,7 @@ class MAREXConfig(BaseMAREXConfig):
     design: str = Field(default="standard", description="Design type: 'standard', 'weakly_targeted', 'penalized', 'unit_penalized'.")
     covariates: Optional[List[str]] = Field(default=None, description="Time-invariant covariate columns matched on alongside pre-period outcomes (the paper's X = [Y^E ; Z]).")
     covariate_weight: float = Field(default=1.0, description="Scale applied to covariate predictors relative to outcomes.")
+    standardize: bool = Field(default=False, description="Scale each design predictor to unit variance across units (the paper's Walmart normalisation).")
     program_type: str = Field(default="MIQP", description="Optimization type: 'QP' or 'MIQP'.")
 
     # --- NEW display option ---
