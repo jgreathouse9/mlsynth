@@ -2,7 +2,7 @@
 
 Composes the estimator's stages (Section 2.3) using the shared numerical
 kernels in :mod:`mlsynth.utils.shc_helpers.kernels`, :mod:`mlsynth.utils.datautils`,
-and :mod:`mlsynth.utils.selector_helpers`:
+and :mod:`mlsynth.utils.shc_helpers.selection`:
 
     1. LOOCV-select a kernel bandwidth and smooth the pre-period into the
        latent trend ``ell_hat`` (Eq. 21).
@@ -30,7 +30,7 @@ from .kernels import (
     tune_lambda_ashc,
 )
 from ..resultutils import effects
-from ..selector_helpers import stepwise_donor_selection
+from .selection import stepwise_donor_selection
 from .structures import SHCDesign, SHCInputs
 
 _DEFAULT_BANDWIDTH_GRID = np.linspace(0.05, 1.0, 50)
