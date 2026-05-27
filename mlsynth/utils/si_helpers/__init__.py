@@ -27,6 +27,7 @@ from .estimation import (
 )
 from .orchestration import solve_si
 from .setup import prepare_si_inputs
+from .simulation import generate_low_rank_matrix, generate_low_rank_matrices
 from .structures import SIArm, SIDonorPool, SIInputs, SIResults
 
 __all__ = [
@@ -36,6 +37,8 @@ __all__ = [
     "resolve_rank",
     "prepare_si_inputs",
     "solve_si",
+    "generate_low_rank_matrix",
+    "generate_low_rank_matrices",
     "SIDonorPool",
     "SIInputs",
     "SIArm",
