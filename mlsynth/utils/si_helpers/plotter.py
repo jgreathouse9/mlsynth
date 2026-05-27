@@ -1,5 +1,6 @@
 """Plotting for SI: the focal unit's observed series vs its counterfactual
-under each alternative intervention."""
+under each alternative intervention.
+"""
 
 from __future__ import annotations
 
