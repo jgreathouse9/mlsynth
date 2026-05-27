@@ -227,15 +227,19 @@ def run_pcr(
         counterfactual = projection_full @ f_hat
         method_tag = f"pcr_{'simplex' if objective == 'SIMPLEX' else 'ols'}"
     else:
-        # Bayesian: replace inner OLS with Gaussian posterior; project
-        # through `projection_full` (raw by default, denoised when
-        # `project_denoised=True`) so the band shares the projection
-        # convention of the frequentist path.
+        # Bayesian: replace inner OLS with a Gaussian posterior over the
+        # weights. The Bayesian predictive counterfactual (posterior mean) and
+        # its credible band are projected through the *denoised* rank-r full
+        # donor matrix M-hat -- the Amjad-Shah-Shen (2018) Bayesian model. This
+        # keeps the band on the rank-r signal subspace so it is not inflated by
+        # raw donor noise in the weight null space (independent of the
+        # frequentist `project_denoised` flag).
+        denoised_full, _, _, _ = hsvt(selected_full, rank=r)
         rng = np.random.default_rng(random_state)
         f_hat, counterfactual, cf_lo, cf_hi = solve_bayesian(
             denoised_donor_pre=denoised_pre,
             target_pre=pre_target,
-            denoised_donor_full=projection_full,
+            denoised_donor_full=denoised_full,
             alpha=alpha,
             n_samples=n_bayes_samples,
             alpha_prior=alpha_prior,
