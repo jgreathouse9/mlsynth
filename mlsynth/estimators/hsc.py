@@ -38,7 +38,6 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.datautils import balance
-from ..utils.hsc_helpers.inference import placebo_inference
 from ..utils.hsc_helpers.orchestration import solve_hsc, summarize_effects
 from ..utils.hsc_helpers.plotter import plot_hsc
 from ..utils.hsc_helpers.setup import prepare_hsc_inputs
@@ -56,8 +55,15 @@ class HSC:
     Returns
     -------
     HSCResults
-        Donor weights, the fitted smooth component, the counterfactual, the
-        cross-validated allocation ``rho``, and (optionally) placebo inference.
+        Donor weights, the fitted smooth component, the counterfactual, and
+        the cross-validated allocation ``rho``.
+
+    Notes
+    -----
+    Following Liu & Xu (2026), this ships the HSC *point* estimator only.
+    Uncertainty quantification rests on additional assumptions beyond those
+    needed for the point estimate (the authors point to a Cattaneo-Feng-Titiunik
+    (2021) style prediction interval) and is deliberately not implemented here.
     """
 
     def __init__(self, config: Union[HSCConfig, dict]) -> None:
@@ -81,8 +87,6 @@ class HSC:
         self.cv_splits: int = config.cv_splits
         self.ridge = config.ridge  # float (relative) or "sdid"
         self.forecaster: str = config.forecaster
-        self.run_inference: bool = config.run_inference
-        self.max_placebo = config.max_placebo
         self.display_graphs: bool = config.display_graphs
 
     def fit(self) -> HSCResults:
@@ -131,23 +135,6 @@ class HSC:
             if abs(w) > 1e-8
         }
 
-        inference = None
-        if self.run_inference:
-            try:
-                inference = placebo_inference(
-                    inputs=inputs,
-                    design=design,
-                    rho_grid=self.rho_grid,
-                    n_splits=self.cv_splits,
-                    ridge=self.ridge,
-                    forecaster=self.forecaster,
-                    max_placebo=self.max_placebo,
-                )
-            except Exception as exc:
-                raise MlsynthEstimationError(
-                    f"HSC placebo inference failed: {exc}"
-                ) from exc
-
         results = HSCResults(
             inputs=inputs,
             design=design,
@@ -155,7 +142,6 @@ class HSC:
             counterfactual_full=cf_full,
             treatment_effect=te,
             weights_by_donor=weights_by_donor,
-            inference=inference,
         )
 
         if self.display_graphs:
