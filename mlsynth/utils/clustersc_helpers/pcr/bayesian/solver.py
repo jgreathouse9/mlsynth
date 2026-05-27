@@ -25,6 +25,25 @@ from mlsynth.exceptions import MlsynthEstimationError
 from .posterior import BayesSCM
 
 
+def _estimate_noise_var(denoised_donor_pre: np.ndarray, target_pre: np.ndarray) -> float:
+    """Estimate sigma^2 from the OLS residual of the target on the denoised donors.
+
+    The denoised donor block spans the rank-r signal subspace; the variance of
+    the target left unexplained by it estimates the observation noise. Falls
+    back to the total target variance only if the residual estimate is
+    degenerate (e.g. an exact fit).
+    """
+    if target_pre.size <= 1:
+        return 1.0
+    beta, *_ = np.linalg.lstsq(denoised_donor_pre, target_pre, rcond=None)
+    resid = target_pre - denoised_donor_pre @ beta
+    dof = max(target_pre.size - np.linalg.matrix_rank(denoised_donor_pre), 1)
+    noise_var = float(resid @ resid) / dof
+    if not np.isfinite(noise_var) or noise_var <= 0:
+        noise_var = float(np.var(target_pre, ddof=1))
+    return noise_var if (np.isfinite(noise_var) and noise_var > 0) else 1.0
+
+
 def solve_bayesian(
     denoised_donor_pre: np.ndarray,
     target_pre: np.ndarray,
@@ -73,7 +92,16 @@ def solve_bayesian(
 
     rng = rng or np.random.default_rng()
 
-    noise_var = float(np.var(target_pre, ddof=1)) if target_pre.size > 1 else 1.0
+    # Observation-noise variance for the Gaussian likelihood. Estimate it from
+    # the pre-period *fit residual* -- the variance of the treated series left
+    # unexplained by the (rank-r) denoised donor span -- rather than the total
+    # variance of the target. var(target_pre) conflates the signal with the
+    # noise and, for strong-signal targets, massively over-inflates the
+    # posterior (a looser counterfactual than the frequentist OLS path). The
+    # residual after projecting the target onto the denoised donor column space
+    # isolates the noise level sigma^2, matching the empirical-Bayes plug-in of
+    # Amjad-Shah-Shen (2018, Sec. 5.3).
+    noise_var = _estimate_noise_var(denoised_donor_pre, target_pre)
     f_hat, f_cov, _, _ = BayesSCM(
         denoised_donor_matrix=denoised_donor_pre,
         target_outcome_pre_intervention=target_pre,
@@ -81,15 +109,21 @@ def solve_bayesian(
         weights_prior_precision=alpha_prior,
     )
 
-    samples = rng.multivariate_normal(mean=f_hat, cov=f_cov, size=n_samples)
-    # cf draws: project each posterior weight sample through the *denoised*
-    # donor matrix in both pre and post (Algorithm 4 Step 5).
-    cf_draws = denoised_donor_full @ samples.T  # (T, n_samples)
+    # Point counterfactual: the posterior-MEAN projection through the denoised
+    # donor matrix (exact for a Gaussian posterior), not the Monte-Carlo median
+    # of draws. The median-of-draws is a noisy estimator dominated by the
+    # prior-width weight directions in the donor null space; the mean projection
+    # coincides with the frequentist OLS path when the prior is weak.
+    counterfactual = denoised_donor_full @ f_hat
 
+    # Credible band: percentiles of the projected posterior draws (Algorithm 4
+    # Step 5). Projecting through the *denoised* (rank-r) donor matrix confines
+    # the band to the signal subspace, so it is not inflated by raw donor noise.
+    samples = rng.multivariate_normal(mean=f_hat, cov=f_cov, size=n_samples)
+    cf_draws = denoised_donor_full @ samples.T  # (T, n_samples)
     lo_q = 100.0 * (alpha / 2.0)
     hi_q = 100.0 * (1.0 - alpha / 2.0)
     cf_lower = np.percentile(cf_draws, lo_q, axis=1)
     cf_upper = np.percentile(cf_draws, hi_q, axis=1)
-    cf_median = np.median(cf_draws, axis=1)
 
-    return f_hat, cf_median, cf_lower, cf_upper
+    return f_hat, counterfactual, cf_lower, cf_upper
