@@ -44,6 +44,7 @@ MLSYNTH
    sbc
    hsc
    si
+   marex
    tasc
    mlsc
    sdid
