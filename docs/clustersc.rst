@@ -1081,6 +1081,103 @@ rank-1 HSVT PCR fit matches the canonical estimate.
    }).fit()
    print(f"rank-1 PCR ATT = {res.att:+.2f}")
 
+PCR-SC -- de-noising and the Bayesian posterior (Amjad-Shah-Shen 2018)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Amjad-Shah-Shen ([Amjad2018]_, Section 5.3) introduce the HSVT
+de-noising step that PCR-SC is built on, and validate it on a
+fully synthetic panel where the *true* mean is known. Each unit
+:math:`i` draws a latent feature :math:`\theta_i \sim U[0, 1]`,
+time is :math:`\rho_t = t`, and the mean is
+
+.. math::
+
+   m_{it} = \theta_i\bigl(1 + 0.3\tfrac{\rho_t}{T} e^{\rho_t/T}\bigr)
+   + \cos\tfrac{f_1\pi}{180} + 0.5\sin\tfrac{f_2\pi}{180}
+   + 1.5\cos\tfrac{f_3\pi}{180} - 0.5\sin\tfrac{f_4\pi}{180},
+
+with periodicities :math:`f_1 = \rho_t \bmod 360`,
+:math:`f_2 = \rho_t \bmod 180`, :math:`f_3 = 2\rho_t \bmod 360`,
+:math:`f_4 = 2\rho_t \bmod 180`; the observed
+:math:`X_{it} = m_{it} + \mathcal N(0, \sigma^2)`. They use
+:math:`N = 100`, :math:`T = 2000`, intervention at
+:math:`t = 1600`. Two findings drive the paper:
+
+* **Training error tracks generalization error (Table 1).** The
+  pre-intervention MSE of the estimated mean closely matches the
+  post-intervention MSE at every noise level -- the de-noised fit
+  generalizes.
+* **De-noising beats no de-noising (Table 2).** The HSVT step lowers
+  the generalization error consistently versus regressing on the raw
+  donor matrix.
+
+mlsynth reproduces both: the pre/post MSE ratio is :math:`\approx 1`
+across :math:`\sigma^2`, and rank-4 HSVT de-noising cuts the
+generalization error several-fold relative to the full-rank (no
+de-noising) fit. The paper's Bayesian counterpart (Figure 12) trades
+the inner OLS for a Gaussian posterior over the weights; mlsynth's
+``estimator="bayesian"`` path now tracks the frequentist point
+estimate to within Monte-Carlo error. Three implementation choices
+make that hold (in
+:py:func:`mlsynth.utils.clustersc_helpers.pcr.bayesian.solve_bayesian`):
+the observation noise :math:`\sigma^2` is estimated from the *pre-period
+fit residual* (not the total target variance, which conflates signal
+with noise); the point counterfactual is the *posterior-mean
+projection* (not a Monte-Carlo median of draws); and both the point
+estimate and the credible band are projected through the *de-noised*
+rank-:math:`r` donor matrix, so the band reflects the signal subspace
+rather than raw-donor noise in the weight null space.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import CLUSTERSC
+
+   N, T, T0 = 100, 2000, 1600
+   rng = np.random.default_rng(0)
+   theta = rng.uniform(0, 1, N)
+   rho = np.arange(1, T + 1).astype(float)
+   time_term = (np.cos((rho % 360) * np.pi / 180)
+                + 0.5 * np.sin((rho % 180) * np.pi / 180)
+                + 1.5 * np.cos(((2 * rho) % 360) * np.pi / 180)
+                - 0.5 * np.sin(((2 * rho) % 180) * np.pi / 180))
+   a = 1.0 + 0.3 * (rho / T) * np.exp(rho / T)
+   M = np.outer(theta, a) + np.outer(np.ones(N), time_term)   # true means (N, T)
+   m_true = M[0]                                              # treated unit's truth
+
+   def fit(X, rank, estimator="frequentist"):
+       df = pd.DataFrame(
+           [(j, t, float(X[j, t]), int(j == 0 and t >= T0))
+            for j in range(N) for t in range(T)],
+           columns=["unit", "time", "y", "D"])
+       res = CLUSTERSC({
+           "df": df, "outcome": "y", "treat": "D", "unitid": "unit",
+           "time": "time", "method": "pcr", "estimator": estimator,
+           "clustering": False, "rank": rank, "rank_method": "fixed",
+           "standardize_for_rank": False, "compute_shen_ci": False,
+       }).fit()
+       return np.asarray(res.pcr.counterfactual)
+
+   X = M + rng.normal(0, np.sqrt(1.9), (N, T))                # sigma^2 = 1.9
+   cf4 = fit(X, rank=4)                  # de-noised (4 singular values)
+   cf_full = fit(X, rank=N - 1)          # no de-noising (full rank)
+   cf_b = fit(X, rank=4, estimator="bayesian")
+
+   mse = lambda u, v: float(np.mean((u - v) ** 2))
+   print(f"Table 1  train(pre)={mse(cf4[:T0], m_true[:T0]):.4f}  "
+         f"gen(post)={mse(cf4[T0:], m_true[T0:]):.4f}")          # ~equal
+   print(f"Table 2  de-noised gen={mse(cf4[T0:], m_true[T0:]):.4f}  "
+         f"no-de-noising gen={mse(cf_full[T0:], m_true[T0:]):.4f}")
+   print(f"Bayesian gen={mse(cf_b[T0:], m_true[T0:]):.4f}  (tracks frequentist)")
+
+A single draw at :math:`\sigma^2 = 1.9` gives training and
+generalization MSE both :math:`\approx 0.02`, a no-de-noising
+generalization error :math:`\approx 6\times` larger, and a Bayesian
+generalization error indistinguishable from the frequentist -- the
+de-noising and posterior machinery behaving as Amjad-Shah-Shen
+describe.
+
 PCR-SC -- donor-selection gains (Rho et al. 2025, ClusterSC)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
