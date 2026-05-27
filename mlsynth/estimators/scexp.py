@@ -71,6 +71,8 @@ class MAREX:
         self.lambda2_unit: float = config.lambda2_unit
         self.costs = config.costs
         self.budget = config.budget
+        self.covariates = config.covariates
+        self.covariate_weight: float = config.covariate_weight
 
         self.blank_periods: int = config.blank_periods
         self.m_eq = config.m_eq
@@ -106,6 +108,7 @@ class MAREX:
                 df=self.df, outcome=self.outcome, unitid=self.unitid, time=self.time,
                 cluster=self.cluster, T0=self.T0, inference=self.inference,
                 blank_periods=self.blank_periods, T_post=self.T_post,
+                covariates=self.covariates,
             )
         except (MlsynthDataError, MlsynthConfigError):
             raise
@@ -124,6 +127,7 @@ class MAREX:
                 lambda1=self.lambda1, lambda2=self.lambda2, xi=self.xi,
                 lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
                 costs=self.costs, budget=self.budget,
+                covariates=panel.covariates, covariate_weight=self.covariate_weight,
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
                 relaxed=self.relaxed, inference=self.inference,
             )
