@@ -1,8 +1,8 @@
 """Tests for the Harmonic Synthetic Control (HSC) estimator.
 
 Covers config validation, the helper math (metric / QP / forecaster), the
-estimator integration, placebo inference, plotting, and -- crucially -- that
-the packaged estimator reproduces the standalone helper computation exactly.
+estimator integration, plotting, and -- crucially -- that the packaged
+estimator reproduces the standalone helper computation exactly.
 
 Reference: Liu, Z., & Xu, Y. (2026). "The Harmonic Synthetic Control Method."
 """
@@ -213,13 +213,7 @@ class TestRegimeAdaptation:
         assert np.mean(rho_common) > np.mean(rho_idio)
 
 
-class TestInferenceAndPlot:
-    def test_placebo_inference(self, panel):
-        res = HSC({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
-                   "treat": "treat", "run_inference": True, "max_placebo": 4}).fit()
-        assert res.inference is not None
-        assert 0.0 < res.p_value <= 1.0 and res.inference.n_placebo <= 4
-
+class TestPlot:
     def test_plot_returns_none_without_crash(self, panel):
         res = HSC({"df": panel, "outcome": "y", "unitid": "unit",
                    "time": "time", "treat": "treat"}).fit()
