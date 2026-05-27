@@ -342,23 +342,12 @@ is the reverse. And the cross-validated allocation moves the right way on its ow
 Inference
 ---------
 
-``mlsynth`` ships the HSC **point estimator only**, matching the scope of
-Liu and Xu (2026). The authors are explicit that uncertainty quantification "rests
+The authors are explicit that uncertainty quantification "rests
 on additional assumptions beyond those required for the point estimator" and
 leave it to future work, pointing toward a prediction interval that combines
 donor-weight estimation uncertainty with out-of-sample forecast-error calibration
-for the smooth component — extending the synthetic-control prediction-interval
-framework of Cattaneo, Feng and Titiunik (2021) to the soft-allocation setting.
+for the smooth component.
 
-We deliberately do **not** bolt on an Abadie-style placebo permutation test.
-Beyond departing from the paper, placebo permutation rests on donors being
-*exchangeable* with the treated unit under the null — precisely what HSC's model
-denies: the treated unit carries an idiosyncratic stochastic trend (Assumption 3)
-that no donor combination reproduces, so a placebo donor with its own large
-idiosyncratic trend would manufacture a spurious "effect" unrelated to treatment.
-A valid interval is the natural next addition; until then, report the point
-estimate and the robustness of the counterfactual to the tuning choices (as in
-the application below).
 
 .. _hsc-hong-kong:
 
@@ -461,20 +450,7 @@ spanning the Asian Financial Crisis (1998) and the 2003 SARS epidemic:
 The 2003 effect is **-$1,902** against a counterfactual of **$29,999** —
 matching the paper's headline (≈ -$1,900 against ≈ $30,000) to the dollar. The
 average post-treatment effect is :math:`\widehat{\text{ATT}} =` **-$1,734** per
-capita. (HSC reports the point estimate only; see *Inference* above for why no
-placebo p-value accompanies it.)
-
-.. note::
-
-   **Why the window stops at 2003.** HSC's counterfactual adds a *forecast* of
-   the integrated smooth component :math:`E` (Assumption 4). The forecast
-   variance of an integrated process grows with the horizon, so the
-   counterfactual degrades the further past :math:`T_0` it is pushed. Extending
-   this same fit to the end of the raw series (2010) illustrates the hazard: the
-   estimated gap drifts monotonically positive (to ≈ +$5,400 by 2010) and the
-   *pooled* ATT is dragged to ≈ +$340 — an artifact of accumulating forecast
-   error, not an integration dividend. The authors stop at 2003 for exactly this
-   reason, and so should applied users: report a short, defensible horizon.
+capita.
 
 .. note::
 
