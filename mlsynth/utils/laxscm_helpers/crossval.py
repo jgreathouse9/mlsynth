@@ -474,7 +474,7 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
         Mixing parameter(s) between L1 and second norm.
     lam : float or array-like, optional
         Regularization strength(s). If None, lambda sequence is generated automatically.
-    second_norm : {"l2", "L1_INF"}, default "l2"
+    second_norm : {"L1_L2", "L1_INF"}, default "L1_L2"
         Second norm used in Elastic Net.
     n_splits : int, default=5
         Number of folds for time-series CV.
@@ -485,7 +485,7 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
     def __init__(self, *,
                  alpha: Optional[float | list[float]] = 0.5,
                  lam: Optional[float | list[float]] = None,
-                 second_norm: Literal["l2", "L1_INF"] = "l2",
+                 second_norm: Literal["L1_L2", "L1_INF"] = "L1_L2",
                  constraint_type: Literal[
                      "unconstrained", "simplex", "affine", "nonneg", "unit"
                  ] = "affine",

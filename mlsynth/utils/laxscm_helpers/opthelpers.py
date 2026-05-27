@@ -77,7 +77,7 @@ class OptHelpers:
             Mixing parameter between L1 and second norm.
             alpha = 1   -> pure L1
             alpha = 0   -> pure second norm
-        second_norm : {"l2", "inf"}, default "l2"
+        second_norm : {"L1_L2", "L1_INF"}, default "L1_L2"
             Choice of second norm when alpha < 1.
 
         Returns
@@ -342,7 +342,7 @@ class OptHelpers:
             Penalty strength for "penalized".
         alpha : float, default 0.5
             L1 mixing parameter for elastic net in "penalized".
-        second_norm : {"l2", "inf"}, default "l2"
+        second_norm : {"L1_L2", "L1_INF"}, default "L1_L2"
             Second norm for elastic net in "penalized".
         custom_penalty_callable : callable, optional
             Additional custom penalty term.

@@ -69,7 +69,7 @@ class Opt2:
                     Regularization strength for "penalized" objective_type.
                 alpha : float, default 0.5
                     Elastic net mixing parameter for "penalized" (1 = L1 only, 0 = second_norm only).
-                second_norm : {"l2", "inf"}, default "l2"
+                second_norm : {"L1_L2", "L1_INF"}, default "L1_L2"
                     Second norm in elastic net for "penalized" when alpha < 1.
                 tau : Optional[float], default None
                     Balance relaxation tolerance for "relaxed" objective_type (required if objective_type="relaxed").
