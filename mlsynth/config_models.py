@@ -2966,120 +2966,61 @@ class MLSCConfig(BaseModel):
 
 
 class RESCMConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Relaxed Balanced SCM (RESCM) estimator.
+    """Configuration for the Relaxed/Balanced SCM (RESCM) estimator.
 
-    Users can select which models to run via a nested dictionary:
-    - "RELAXED" → Relaxed SCM with selectable relaxation method: "l2", "entropy", or "el"
-    - "ELASTIC" → L1-INF / Elastic Net-ish SCM with selectable constraint type
-    Each value is a dict: {"run": bool, ...additional params per model}
-
-    Example:
-        models_to_run = {
-            "RELAXED": {"run": True, "tau": 0.00257, "n_splits": 5, "n_taus": 100, "relaxation": "l2"},
-            "ELASTIC": {
-                "run": True,
-                "intercept": False,
-                "constraint_type": "simplex",
-                "enet_type": "L1_INF",
-                "alpha": 1.0,
-                "lambda": 0.01
-            }
-        }
+    Pick one or more named corner-case estimators of the RESCM convex program
+    via ``methods`` (e.g. ``["SC", "LINF", "RELAX_L2"]``); the first listed
+    drives the convenience aliases on the returned ``RESCMResults``. Valid
+    names and aliases come from the registry in
+    :mod:`mlsynth.utils.laxscm_helpers.specs` (``METHOD_SPECS``).
     """
 
-    models_to_run: Dict[Literal["RELAXED", "ELASTIC"], Dict[str, Any]] = Field(
-        default_factory=lambda: {
-            "RELAXED": {
-                "run": True,
-                "tau": None,
-                "n_splits": None,
-                "n_taus": None,
-                "relaxation": "l2"
-            },
-            "ELASTIC": {
-                "run": True,
-                "intercept": False,
-                "enet_type": "L1_INF",
-                "alpha": None,
-                "lambda": None,
-                "constraint_type": "simplex"
-            }
-        },
+    methods: List[str] = Field(
+        default_factory=lambda: ["SC", "LINF", "RELAX_L2"],
         description=(
-            "Nested dictionary specifying which models to run and optional parameters per model. "
-            "RELAXED supports 'relaxation': 'l2', 'entropy', or 'el'. "
-            "ELASTIC supports 'enet_type', 'alpha', 'lambda', and 'constraint_type'."
-        )
+            "Named RESCM estimators to fit (e.g. 'SC', 'LASSO', 'L2', 'ENET', "
+            "'LINF', 'L1LINF', 'RELAX_L2', 'RELAX_ENTROPY', 'RELAX_EL'; aliases "
+            "allowed). The first listed drives the result aliases."
+        ),
+    )
+    tau: Optional[float] = Field(
+        default=None,
+        description="L2-relaxation parameter; None selects it by cross-validation.",
+    )
+    n_splits: Optional[int] = Field(
+        default=None, ge=2,
+        description="Number of CV folds for tau selection (relaxation methods).",
+    )
+    n_taus: Optional[int] = Field(
+        default=None, ge=1,
+        description="Grid size for the cross-validated tau search.",
+    )
+    solver: Any = Field(
+        default="CLARABEL",
+        description="CVXPY solver name (e.g. 'CLARABEL', 'ECOS', 'OSQP', 'SCS').",
+    )
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Significance level for confidence intervals and ATE inference.",
     )
 
     @model_validator(mode="after")
-    def validate_models(cls, values):
-        models = values.models_to_run
-        if not isinstance(models, dict):
-            raise MlsynthConfigError("'models_to_run' must be a dictionary.")
+    def _validate_methods(self):
+        from mlsynth.utils.laxscm_helpers.specs import normalize_method
 
-        allowed_keys = {"RELAXED", "ELASTIC"}
-        allowed_enet_types = {"L1_INF", "L1_L2"}
-        allowed_relaxations = {"l2", "entropy", "el"}
-        allowed_constraints = {"simplex", "affine", "unit"}
-
-        # Allowed keys per model
-        allowed_model_keys = {
-            "RELAXED": {"run", "tau", "n_splits", "n_taus", "relaxation"},
-            "ELASTIC": {"run", "intercept", "enet_type", "alpha", "lambda", "constraint_type"}
-        }
-
-        for key, val in models.items():
-            if key not in allowed_keys:
-                raise MlsynthConfigError(
-                    f"Invalid key in 'models_to_run': {key}. Allowed keys: {allowed_keys}"
-                )
-
-            if not isinstance(val, dict):
-                raise MlsynthConfigError(f"Value for '{key}' must be a dictionary.")
-
-            if "run" not in val or not isinstance(val["run"], bool):
-                raise MlsynthConfigError(f"Each model dict must contain 'run': bool for '{key}'.")
-
-            # Check for unknown keys
-            extra_keys = set(val.keys()) - allowed_model_keys[key]
-            if extra_keys:
-                raise MlsynthConfigError(
-                    f"Unknown keys for '{key}' in 'models_to_run': {extra_keys}. "
-                    f"Allowed keys are {allowed_model_keys[key]}"
-                )
-
-            # RELAXED-specific validation
-            if key == "RELAXED":
-                if "tau" in val and val["tau"] is not None and not isinstance(val["tau"], (int, float)):
-                    raise MlsynthConfigError(f"'tau' for '{key}' must be a float or None.")
-                if "n_splits" in val and val["n_splits"] is not None and not isinstance(val["n_splits"], int):
-                    raise MlsynthConfigError(f"'n_splits' for '{key}' must be an int or None.")
-                if "n_taus" in val and val["n_taus"] is not None and not isinstance(val["n_taus"], int):
-                    raise MlsynthConfigError(f"'n_taus' for '{key}' must be an int or None.")
-                if "relaxation" in val and val["relaxation"] not in allowed_relaxations:
-                    raise MlsynthConfigError(f"'relaxation' for '{key}' must be one of {allowed_relaxations}.")
-
-            # ELASTIC-specific validation
-            if key == "ELASTIC":
-                if "intercept" in val and not isinstance(val["intercept"], bool):
-                    raise MlsynthConfigError(f"'intercept' for '{key}' must be a bool.")
-                if "enet_type" in val and val["enet_type"] not in allowed_enet_types:
-                    raise MlsynthConfigError(f"'enet_type' for '{key}' must be one of {allowed_enet_types}.")
-                if "alpha" in val and val["alpha"] is not None and not isinstance(val["alpha"], (int, float, list, np.ndarray)):
-                    raise MlsynthConfigError(f"'alpha' for '{key}' must be a scalar or list/array if provided.")
-                if "lambda" in val and val["lambda"] is not None and not isinstance(val["lambda"], (int, float, list, np.ndarray)):
-                    raise MlsynthConfigError(f"'lambda' for '{key}' must be a scalar or list/array if provided.")
-                if "constraint_type" in val and val["constraint_type"] not in allowed_constraints:
-                    raise MlsynthConfigError(f"'constraint_type' for '{key}' must be one of {allowed_constraints}.")
-
-        return values
+        if not self.methods:
+            raise MlsynthConfigError("`methods` must list at least one RESCM estimator.")
+        normalized = []
+        for m in self.methods:
+            try:
+                normalized.append(normalize_method(m))
+            except ValueError as e:
+                raise MlsynthConfigError(str(e)) from e
+        object.__setattr__(self, "methods", normalized)
+        return self
 
     class Config:
         extra = "forbid"  # Unknown fields will raise a validation error
-
-
 class EICPConfig(BaseEstimatorConfig):
     """Configuration for the Entrywise Inference for Causal Panels (EICP) estimator.
 
