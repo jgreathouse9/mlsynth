@@ -37,7 +37,6 @@ MLSYNTH
    bvss
    proximal
    fscm
-   src
    scmo
    spcd
    shc
