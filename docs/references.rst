@@ -292,6 +292,11 @@ References
     *arXiv Working Paper*, 2211.15241, 2022.
     URL: https://arxiv.org/abs/2211.15241
 
+.. [HSC]
+    Liu, Ziyi, and Xu, Yiqing.
+    "The Harmonic Synthetic Control Method."
+    *Working Paper*, 2026.
+
 .. [PPSCM]
     Ben-Michael, Eli, Feller, Avi, and Rothstein, Jesse.
     "Synthetic Controls with Staggered Adoption."

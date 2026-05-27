@@ -42,6 +42,7 @@ MLSYNTH
    spcd
    shc
    sbc
+   hsc
    si
    tasc
    mlsc
