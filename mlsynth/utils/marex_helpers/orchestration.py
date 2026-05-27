@@ -37,6 +37,7 @@ def solve_marex(
     budget=None,
     covariates=None,
     covariate_weight=1.0,
+    standardize=False,
     solver=None,
     verbose=False,
     relaxed=False,
@@ -58,7 +59,8 @@ def solve_marex(
         beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
         lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit,
         costs=costs, budget=budget, covariates=covariates,
-        covariate_weight=covariate_weight, solver=solver, verbose=verbose,
+        covariate_weight=covariate_weight, standardize=standardize,
+        solver=solver, verbose=verbose,
     )
 
     df = raw["df"]

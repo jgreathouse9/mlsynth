@@ -26,20 +26,26 @@ from .formulation import (
 )
 
 
-def _augment_fit(Y_fit, covariates, covariate_weight):
-    """Stack (weighted) time-invariant covariates onto the fitting matrix.
+def _augment_fit(Y_fit, covariates, covariate_weight, standardize=False):
+    """Build the design predictor matrix ``X = [Y^E ; Z]`` (units x predictors).
 
     The paper's predictor vector is ``X_j = [Y^E_j ; Z_j]`` -- pre-period
     outcomes plus covariates -- so the design matches on both. Covariates are
     appended as extra predictor columns; the synthetic outcome series still uses
-    outcomes only.
+    outcomes only. With ``standardize=True`` each predictor column is scaled to
+    unit variance across units (the paper's Walmart normalisation), so the match
+    is not dominated by high-level series.
     """
-    if covariates is None:
-        return Y_fit
-    cov = np.asarray(covariates, dtype=float)
-    if cov.ndim == 1:
-        cov = cov[:, None]
-    return np.hstack([Y_fit, covariate_weight * cov])
+    X = Y_fit
+    if covariates is not None:
+        cov = np.asarray(covariates, dtype=float)
+        if cov.ndim == 1:
+            cov = cov[:, None]
+        X = np.hstack([Y_fit, covariate_weight * cov])
+    if standardize:
+        sd = X.std(axis=0)
+        X = X / np.where(sd == 0, 1.0, sd)
+    return X
 
 
 def _aggregate_weights(w_opt, v_opt, cluster_members, N, K):
@@ -57,7 +63,8 @@ def solve_design(
     Y_full, T0, clusters, blank_periods=0, m_eq=None, m_min=None, m_max=None,
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
-    covariates=None, covariate_weight=1.0, solver=cp.SCIP, verbose=False,
+    covariates=None, covariate_weight=1.0, standardize=False,
+    solver=cp.SCIP, verbose=False,
 ):
     """Exact mixed-integer MAREX design (was ``SCMEXP``)."""
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
@@ -65,7 +72,7 @@ def solve_design(
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
     costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
     Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
-    X_fit = _augment_fit(Y_fit, covariates, covariate_weight)   # predictors = [Y^E ; Z]
+    X_fit = _augment_fit(Y_fit, covariates, covariate_weight, standardize)   # predictors = [Y^E ; Z]
     M = build_membership_mask(clusters, label_to_k, N, K)
     Xbar_clusters, cluster_members = compute_cluster_means_members(X_fit, M, cluster_labels)
     D1, D2_list = precompute_distances(X_fit, Xbar_clusters, cluster_members)
@@ -160,8 +167,8 @@ def solve_design_relaxed(
     Y_full, T0, clusters, blank_periods=0, m_eq=None, m_min=None, m_max=None,
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
-    covariates=None, covariate_weight=1.0, solver=None, verbose=False,
-    zeta=0.0, trim_threshold=1e-2,
+    covariates=None, covariate_weight=1.0, standardize=False, solver=None,
+    verbose=False, zeta=0.0, trim_threshold=1e-2,
 ):
     """Relaxed (continuous-``z``) design with post-hoc discretization (was ``SCMEXP_REL``)."""
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
@@ -169,7 +176,7 @@ def solve_design_relaxed(
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
     costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
     Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
-    X_fit = _augment_fit(Y_fit, covariates, covariate_weight)
+    X_fit = _augment_fit(Y_fit, covariates, covariate_weight, standardize)
     M = build_membership_mask(clusters, label_to_k, N, K)
     Xbar_clusters, cluster_members = compute_cluster_means_members(X_fit, M, cluster_labels)
     D1, D2_list = precompute_distances(X_fit, Xbar_clusters, cluster_members)
