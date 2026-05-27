@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from ..crossval import fit_en_scm, fit_relaxed_scm
+from .crossval import fit_en_scm, fit_relaxed_scm
 from .inference import ate_inference
 from .specs import MethodSpec, resolve_specs
 from .structures import ELASTIC, RELAXED, RESCMInputs, RESCMMethodFit

@@ -7,7 +7,7 @@ registry of *named* estimators: the user picks methods by name and each name
 resolves to the exact engine call.
 
 Every spec dispatches to one of two engine entry points
-(:func:`mlsynth.utils.crossval.fit_relaxed_scm` or ``fit_en_scm``); ``kwargs``
+(:func:`mlsynth.utils.laxscm_helpers.crossval.fit_relaxed_scm` or ``fit_en_scm``); ``kwargs``
 are forwarded verbatim.
 """
 
