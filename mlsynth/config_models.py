@@ -73,7 +73,9 @@ class MAREXConfig(BaseMAREXConfig):
 
     T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
     cluster: Optional[str] = Field(default=None, description="Column name for cluster membership.")
-    design: str = Field(default="base", description="Design type: 'base', 'weak', 'eq11', 'unit'.")
+    design: str = Field(default="standard", description="Design type: 'standard', 'weakly_targeted', 'penalized', 'unit_penalized'.")
+    covariates: Optional[List[str]] = Field(default=None, description="Time-invariant covariate columns matched on alongside pre-period outcomes (the paper's X = [Y^E ; Z]).")
+    covariate_weight: float = Field(default=1.0, description="Scale applied to covariate predictors relative to outcomes.")
     program_type: str = Field(default="MIQP", description="Optimization type: 'QP' or 'MIQP'.")
 
     # --- NEW display option ---
@@ -120,8 +122,10 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthDataError(f"T0 must be between 1 and {n_periods}.")
 
         # --- design ---
-        if design not in {"base", "weak", "eq11", "unit"}:
-            raise MlsynthDataError(f"design must be one of 'base', 'weak', 'eq11', 'unit', got '{design}'")
+        valid_designs = {"standard", "weakly_targeted", "penalized", "unit_penalized"}
+        if design not in valid_designs:
+            raise MlsynthDataError(
+                f"design must be one of {sorted(valid_designs)}, got '{design}'")
 
         # --- consecutive time check ---
         time_vals = df[time_col].sort_values().unique()
