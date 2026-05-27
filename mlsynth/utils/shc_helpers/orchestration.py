@@ -1,7 +1,7 @@
 """End-to-end Synthetic Historical Control procedure (Chen-Yang-Yang 2024).
 
 Composes the estimator's stages (Section 2.3) using the shared numerical
-kernels in :mod:`mlsynth.utils.estutils`, :mod:`mlsynth.utils.datautils`,
+kernels in :mod:`mlsynth.utils.shc_helpers.kernels`, :mod:`mlsynth.utils.datautils`,
 and :mod:`mlsynth.utils.selector_helpers`:
 
     1. LOOCV-select a kernel bandwidth and smooth the pre-period into the
@@ -23,7 +23,7 @@ import numpy as np
 
 from ...exceptions import MlsynthEstimationError
 from ..datautils import build_donor_segments
-from ..estutils import (
+from .kernels import (
     _solve_SHC_QP,
     loocv_bandwidth,
     smooth,
