@@ -5,7 +5,6 @@ from .estimators.fdid import FDID ## Check
 from .estimators.clustersc import CLUSTERSC ## Check
 from .estimators.proximal import PROXIMAL ## Check
 from .estimators.fscm import FSCM ## Check
-from .estimators.src import SRC ## Check
 from .estimators.scmo import SCMO
 from .estimators.si import SI ## Check
 from .estimators.nsc import NSC # Check
@@ -54,7 +53,6 @@ __all__ = [
     "CLUSTERSC",
     "PROXIMAL",
     "FSCM",
-    "SRC",
     "SCMO",
     "SI",
     "NSC",
