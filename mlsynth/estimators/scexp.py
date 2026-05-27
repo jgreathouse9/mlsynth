@@ -1,304 +1,143 @@
-import pandas as pd
-import numpy as np
-from typing import Dict, Any, List, Union, Optional
-import warnings
-import pydantic # For ValidationError
-import cvxpy as cp # For cvxpy.error types
+"""MAREX: Synthetic Controls for Experimental Design (Abadie & Zhao 2026).
 
-from ..utils.datautils import balance
-from ..utils.exputils import _get_per_cluster_param, SCMEXP, plot_marex_results
-from ..utils.exprelutils import SCMEXP_REL
+MAREX *designs* an experiment on aggregate units (e.g. markets): using only
+pre-experimental data it selects which units to treat (treated weights ``w``)
+and which untreated units form the synthetic control (control weights ``v``),
+on the simplex and disjoint (a unit is treated or a control, never both). The
+synthetic treated and synthetic control units are built to reproduce population
+predictor means, so their post-period difference estimates the average
+treatment effect. Optional clustering treats one (or a few) units per cluster;
+optional blank-period placebo inference yields p-values and confidence bands.
+"""
+
+from __future__ import annotations
+
+from typing import Union
+
+import pandas as pd
+from pydantic import ValidationError
+
+from ..config_models import MAREXConfig
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
     MlsynthEstimationError,
+    MlsynthPlottingError,
 )
-
-from ..config_models import ClusterResults, MAREXResults, MAREXConfig, GlobalResults, StudyConfig
+from ..utils.datautils import balance
+from ..utils.marex_helpers.orchestration import solve_marex
+from ..utils.marex_helpers.plotter import plot_marex
+from ..utils.marex_helpers.setup import prepare_marex_panel
+from ..utils.marex_helpers.structures import MAREXResults
 
 
 class MAREX:
+    """Synthetic-control experimental design estimator (Abadie & Zhao 2026).
 
-    def __init__(self, config: MAREXConfig) -> None: # Changed to MAREXConfig
+    Parameters
+    ----------
+    config : MAREXConfig or dict
+        Configuration object. See :class:`mlsynth.config_models.MAREXConfig`.
 
+    Returns
+    -------
+    MAREXResults
+        Per-cluster and aggregate treated/control weights, synthetic series,
+        the selected treated units, and (optionally) placebo inference.
+    """
+
+    def __init__(self, config: Union[MAREXConfig, dict]) -> None:
         if isinstance(config, dict):
-            config =MAREXConfig(**config)  # convert dict to config object
-        # Panel data
+            try:
+                config = MAREXConfig(**config)
+            except ValidationError as exc:
+                raise MlsynthConfigError(f"Invalid MAREX configuration: {exc}") from exc
 
-        # Panel data
+        self.config = config
         self.df: pd.DataFrame = config.df
         self.outcome: str = config.outcome
         self.unitid: str = config.unitid
         self.time: str = config.time
 
-        # Optional design parameters
-        self.T0: Optional[int] = config.T0
-        self.cluster: str = config.cluster
+        self.T0 = config.T0
+        self.cluster = config.cluster
         self.design: str = config.design
 
-        # Penalization parameters
         self.beta: float = config.beta
         self.lambda1: float = config.lambda1
         self.lambda2: float = config.lambda2
         self.xi: float = config.xi
         self.lambda1_unit: float = config.lambda1_unit
         self.lambda2_unit: float = config.lambda2_unit
+        self.costs = config.costs
+        self.budget = config.budget
 
-        # Additional SCMEXP options
-        self.blank_periods: int = getattr(config, "blank_periods", 0)
-        self.m_eq: Optional[int] = getattr(config, "m_eq", 1)
-        self.m_min: Optional[int] = getattr(config, "m_min", 1)
-        self.m_max: Optional[int] = getattr(config, "m_max", 1)
-        self.exclusive: bool = getattr(config, "exclusive", True)
-        self.solver = getattr(config, "solver", None)
-        self.verbose: bool = getattr(config, "verbose", False)
-        self.inference: bool = getattr(config, "inference", False)
-        self.T_post: int = getattr(config, "T_post", 0)
-        self.display_graph: int = getattr(config, "display_graph", False)
+        self.blank_periods: int = config.blank_periods
+        self.m_eq = config.m_eq
+        self.m_min = config.m_min
+        self.m_max = config.m_max
+        self.exclusive: bool = config.exclusive
+        self.solver = config.solver
+        self.verbose: bool = config.verbose
+        self.inference: bool = config.inference
+        self.T_post = config.T_post
+        self.relaxed: bool = getattr(config, "relaxed", False)
+        self.display_graph: bool = config.display_graph
 
-        # Validate cluster column if provided
         if self.cluster and self.cluster not in self.df.columns:
             raise MlsynthDataError(f"Cluster column '{self.cluster}' not found in DataFrame.")
 
-    class DesignResultsProcessor:
-        """Process raw SCMEXP output into structured MAREXResults."""
-
-        def __init__(self, scm_result: dict, beta: float, lambda1: float, lambda2: float, xi: float, design: str):
-            self.scm_result = scm_result
-            self.beta = beta
-            self.lambda1 = lambda1
-            self.lambda2 = lambda2
-            self.xi = xi
-            self.design = design
-
-        def get_results(self) -> MAREXResults:
-            clusters_out = {}
-
-            w_opt = self.scm_result.get("w_opt")
-            v_opt = self.scm_result.get("v_opt")
-            z_opt = self.scm_result.get("z_opt")
-            Y_full = self.scm_result.get("Y_full")
-            Y_fit = self.scm_result.get("Y_fit")
-            Y_blank = self.scm_result.get("Y_blank")
-
-            clusters_vector = self.scm_result.get("original_cluster_vector")
-            unit_labels = self.scm_result['df'].index.to_list()
-            T0 = self.scm_result.get('T0', Y_fit.shape[1] if Y_fit is not None else 0)
-            unique_clusters = np.unique(clusters_vector)
-
-            for c in unique_clusters:
-                # Get units in this cluster
-                cluster_units_idx = np.where(clusters_vector == c)[0]
-                members = [unit_labels[i] for i in cluster_units_idx]
-
-                # Selection mask
-                selection_indicators = z_opt[cluster_units_idx, c] if z_opt is not None else np.zeros(
-                    len(cluster_units_idx))
-
-                # Take the full cluster column directly
-                treated_weights = w_opt[:, c]  # all treated weights for this cluster
-                control_weights = v_opt[:, c]  # all control weights for this cluster
-
-                # Precompute full synthetic treated/control vectors
-                synthetic_treated = treated_weights.T @ self.scm_result['df'].to_numpy()
-                synthetic_control = control_weights.T @ self.scm_result['df'].to_numpy()
-
-                # Map of unit → weight
-                unit_weight_map = {
-                    "Treated": {unit_labels[i]: treated_weights[i] for i in range(len(unit_labels)) if
-                                treated_weights[i] > 0},
-                    "Control": {unit_labels[i]: control_weights[i] for i in range(len(unit_labels)) if
-                                control_weights[i] > 0}
-                }
-
-                pre_means = self.scm_result['Xbar_clusters'][c]
-
-                clusters_out[str(c)] = ClusterResults(
-                    members=members,
-                    cluster_cardinality=len(members),
-                    synthetic_treated=synthetic_treated,
-                    synthetic_control=synthetic_control,
-                    treated_weights=treated_weights,
-                    control_weights=control_weights,
-                    selection_indicators=selection_indicators,
-                    pre_treatment_means=pre_means,
-                    rmse=self.scm_result['rmse_cluster'][c],
-                    unit_weight_map=unit_weight_map
-                )
-
-            # Global pre-treatment results
-            w_agg = self.scm_result['w_agg']
-            v_agg = self.scm_result['v_agg']
-            z_diag = np.array([z_opt[i, c] for i, c in enumerate(clusters_vector)])
-            adjusted_treated_weights_agg = np.where(z_diag == 1, w_agg, 0.0)
-            adjusted_control_weights_agg = np.where(z_diag == 1, 0.0, v_agg)
-
-            study_config = StudyConfig(
-                beta=self.beta,
-                lambda1=self.lambda1,
-                lambda2=self.lambda2,
-                xi=self.xi,
-                T0=T0,
-                blank_periods=self.scm_result.get("blank_periods", 0),
-                design=self.design
-            )
-
-            global_pre_results = GlobalResults(
-                Y_fit=Y_fit,
-                Y_blank=Y_blank,
-                Y_full=self.scm_result['df'].to_numpy(),
-                treated_weights_agg=adjusted_treated_weights_agg,
-                control_weights_agg=adjusted_control_weights_agg,
-                synthetic_treated = adjusted_treated_weights_agg.T @ self.scm_result['df'].to_numpy(),
-                synthetic_control=adjusted_control_weights_agg.T @ self.scm_result['df'].to_numpy()
-            )
-
-            return MAREXResults(
-                clusters=clusters_out,
-                study=study_config,
-                globres=global_pre_results
-            )
-
     def fit(self) -> MAREXResults:
-        # Ensure the panel data is balanced
+        """Run the MAREX design and return :class:`MAREXResults`."""
         balance(self.df, self.unitid, self.time)
 
-        # Validate treatment specification
         if self.m_eq is not None and (self.m_min is not None or self.m_max is not None):
             raise MlsynthConfigError(
-                "Cannot specify both 'm_eq' and 'm_min/m_max' at the same time. "
-                "Choose either an exact number of treated units per cluster or a range."
+                "Cannot specify both 'm_eq' and 'm_min/m_max'. Choose an exact "
+                "count or a range of treated units per cluster."
             )
         if self.m_eq is None and self.m_min is None and self.m_max is None:
             raise MlsynthConfigError(
-                "You must specify either 'm_eq' or at least one of 'm_min'/'m_max' to define treated units."
+                "You must specify either 'm_eq' or at least one of 'm_min'/'m_max'."
             )
 
-        # Define unit_labels unconditionally
-        unit_labels = self.df[self.unitid].unique()
+        try:
+            panel = prepare_marex_panel(
+                df=self.df, outcome=self.outcome, unitid=self.unitid, time=self.time,
+                cluster=self.cluster, T0=self.T0, inference=self.inference,
+                blank_periods=self.blank_periods, T_post=self.T_post,
+            )
+        except (MlsynthDataError, MlsynthConfigError):
+            raise
+        except ValueError as exc:
+            raise MlsynthConfigError(str(exc)) from exc
+        except Exception as exc:
+            raise MlsynthDataError(f"Error preparing MAREX inputs: {exc}") from exc
 
-        # Handle clusters based on whether cluster is specified
-        if self.cluster is not None:
-            clusters = self.df.drop_duplicates(subset=[self.unitid]).set_index(self.unitid)[self.cluster].reindex(
-                unit_labels).to_numpy()
-        else:
-            clusters = np.zeros(len(unit_labels), dtype=int)
-
-        # Reshape data: units as rows, time as columns
-        Y_full = self.df.pivot(index=self.unitid, columns=self.time, values=self.outcome).reindex(unit_labels)
-
-        # Determine total time and T0
-        T_total = len(self.df[self.time].unique())
-        T0 = self.T0 if self.T0 is not None else T_total - 1  # default T0 = T-1
-
-        # Determine blank_periods only if inference or T_post is specified
-        if self.inference:
-            if hasattr(self, "blank_periods") and self.blank_periods is not None:
-                blanks = self.blank_periods
-            else:
-                # default blank_periods = eventual post-treatment periods
-                blanks = getattr(self, "T_post", T_total - T0)
-
-            # Validate blank_periods
-            if blanks < 0 or blanks >= T0:
-                raise ValueError(
-                    f"blank_periods must be 0 <= blank_periods < T0 (T0={T0}, got blank_periods={blanks})"
-                )
-        else:
-            blanks = self.blank_periods  # pre-treatment only, no blanks needed
-
-        # Prepare SCMEXP arguments
-        scm_kwargs = dict(
-            Y_full=Y_full,
-            T0=T0,
-            clusters=clusters,
-            blank_periods=blanks,
-            design=self.design,
-            beta=self.beta,
-            lambda1=self.lambda1,
-            lambda2=self.lambda2,
-            xi=self.xi,
-            lambda1_unit=self.lambda1_unit,
-            lambda2_unit=self.lambda2_unit,
-            solver=self.solver or cp.SCIP,
-            verbose=self.verbose,
-            exclusive=self.exclusive,
-        )
-
-        if self.m_eq is not None:
-            scm_kwargs["m_eq"] = self.m_eq
-        else:
-            scm_kwargs["m_min"] = self.m_min
-            scm_kwargs["m_max"] = self.m_max
-
-        # After raw_results = SCMEXP(**scm_kwargs)
-        raw_results = SCMEXP(**scm_kwargs)
-
-        # Process results with DesignResultsProcessor
-        processor = self.DesignResultsProcessor(
-            scm_result=raw_results,
-            beta=self.beta,
-            lambda1=self.lambda1,
-            lambda2=self.lambda2,
-            xi=self.xi,
-            design=self.design
-        )
-
-        marex_results = processor.get_results()
-
-        synthetic_dict = {}
-
-        # Cluster-level synthetics
-        for cluster_id, cluster_res in marex_results.clusters.items():
-            synthetic_dict[cluster_id] = {
-                "synthetic_treated": cluster_res.synthetic_treated,
-                "synthetic_control": cluster_res.synthetic_control
-            }
-
-        # Global synthetics
-        synthetic_dict["global"] = {
-            "synthetic_treated": marex_results.globres.synthetic_treated,
-            "synthetic_control": marex_results.globres.synthetic_control
-        }
-
-        if self.inference:
-            from ..utils.exputils import InferenceResults
-
-            inferences = {}
-
-            for key, syn in synthetic_dict.items():
-                inf_res = InferenceResults(
-                    Y_treated=syn["synthetic_treated"],
-                    Y_control=syn["synthetic_control"],
-                    T0=marex_results.study.T0,
-                    TcE=marex_results.study.blank_periods,
-                    Tb=marex_results.study.blank_periods,
-                    alpha=0.05,
-                    max_combinations=1000,
-                    random_state=42
-                )
-                inferences[key] = inf_res
-
-                if key == "global":
-                    marex_results.globres.inference = inf_res
-                else:
-                    # Add inference to each cluster
-                    marex_results.clusters[key].inference = inf_res
+        try:
+            import cvxpy as cp
+            results = solve_marex(
+                Y_full=panel.Y_full, T0=panel.T0, clusters=panel.clusters,
+                design=self.design, blank_periods=panel.blank_periods,
+                m_eq=self.m_eq, m_min=self.m_min, m_max=self.m_max,
+                exclusive=self.exclusive, beta=self.beta,
+                lambda1=self.lambda1, lambda2=self.lambda2, xi=self.xi,
+                lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
+                costs=self.costs, budget=self.budget,
+                solver=self.solver or cp.SCIP, verbose=self.verbose,
+                relaxed=self.relaxed, inference=self.inference,
+            )
+        except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
+            raise
+        except Exception as exc:
+            raise MlsynthEstimationError(f"MAREX design failed: {exc}") from exc
 
         if self.display_graph:
+            try:
+                plot_marex(results, plot_type="treatment")
+            except MlsynthPlottingError:
+                raise
+            except Exception as exc:
+                raise MlsynthPlottingError(f"MAREX plotting failed: {exc}") from exc
 
-            plot_marex_results(marex_results, plot_type="treatment")
-
-        return marex_results
-
-
-
-
-
-
-
-
-
-
-
-
+        return results
