@@ -4,7 +4,6 @@ import numpy as np
 from pydantic import BaseModel, Field, model_validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import warnings
-from mlsynth.utils.exputils import InferenceResults
 
 class BaseMAREXConfig(BaseModel):
     """
@@ -94,6 +93,7 @@ class MAREXConfig(BaseMAREXConfig):
     m_min: Optional[int] = Field(default=None)
     m_max: Optional[int] = Field(default=None)
     exclusive: bool = Field(default=True)
+    relaxed: bool = Field(default=False, description="Relax the MIQP (continuous z) and discretise post hoc.")
     solver: Any = Field(default=None)
     verbose: bool = Field(default=False)
 
@@ -3624,96 +3624,3 @@ class BaseEstimatorResults(BaseModel):
             np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()] if arr is not None else None
             # This explicitly converts np.nan (which becomes float('nan') in tolist()) to Python None.
         }
-
-
-
-class StudyConfig(BaseModel):
-    """Holds hyperparameters and design characteristics of the SCMEXP study."""
-    beta: float
-    lambda1: float
-    lambda2: float
-    xi: float
-    T0: int
-    blank_periods: int
-    design: str
-
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "forbid"
-
-
-class GlobalResults(BaseModel):
-    """
-    Aggregated global results from the synthetic control fitting,
-    before any treatment effect calculations.
-    """
-    Y_fit: Optional[np.ndarray]           # Full fitted matrix (units x time)
-    Y_blank: Optional[np.ndarray]         # Blank / missing periods
-    Y_full: Optional[np.ndarray]          # Original observed matrix
-    treated_weights_agg: np.ndarray       # Flattened treated weights across all units
-    control_weights_agg: np.ndarray       # Flattened control weights across all units
-    rmse_clusters: Optional[np.ndarray] = None  # Pre-treatment RMSE for each cluster
-    synthetic_treated: np.ndarray       # Treated Average
-    synthetic_control: np.ndarray       # Control Average
-    inference: Optional[InferenceResults] = None  # Add this field
-
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "forbid"
-
-
-class ClusterResults(BaseModel):
-    """Results for a single cluster in the SCMEXP design."""
-    members: List[str]                        # unit IDs in this cluster
-    cluster_cardinality: int                  # number of units
-    rmse: Optional[float] = None              # pre-treatment fit error
-
-    # Synthetic outcomes
-    synthetic_treated: np.ndarray
-    synthetic_control: np.ndarray
-
-    # Weights
-    treated_weights: np.ndarray
-    control_weights: np.ndarray
-    selection_indicators: np.ndarray
-
-    # Diagnostics
-    pre_treatment_means: Optional[np.ndarray] = None
-
-    unit_weight_map: Optional[dict] = None
-    inference: Optional[Any] = None  # Add this line
-
-    # Allow arbitrary types like np.ndarray
-    model_config = {
-        "arbitrary_types_allowed": True
-    }
-
-
-
-class MAREXResults(BaseModel):
-    """
-    Results of a MAREX synthetic experiment design.
-    Contains cluster-level results, study configuration, and global pre-treatment results.
-    """
-    clusters: Dict[str, ClusterResults]
-    study: StudyConfig
-    globres: GlobalResults
-    inferences: Optional[Dict[str, InferenceResults]] = None  # NEW FIELD
-
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "forbid"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
