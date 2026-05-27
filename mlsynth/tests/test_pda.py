@@ -155,7 +155,7 @@ def test_fit_with_display_graphs_saves(panel, tmp_path):
 
 
 def test_fit_with_display_graphs_show(panel):
-    """display_graphs=True with save=False exercises the plt.show() branch."""
+    """Display_graphs=True with save=False exercises the plt.show() branch."""
     PDA(PDAConfig(**base_config(panel, method="fs", display_graphs=True,
                                 save=False))).fit()
 
