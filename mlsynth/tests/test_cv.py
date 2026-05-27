@@ -2,10 +2,10 @@ import numpy as np
 import pytest
 from unittest.mock import patch
 
-from mlsynth.utils.crossval import ElasticNetCV, RelaxationCV, fit_en_scm, generate_lambda_seq2
+from mlsynth.utils.laxscm_helpers.crossval import ElasticNetCV, RelaxationCV, fit_en_scm, generate_lambda_seq2
 
 
-from mlsynth.utils.optutils import Opt2
+from mlsynth.utils.laxscm_helpers.optutils import Opt2
 from mlsynth.tests.helper_tests import incrementality_synth_panel
 from mlsynth.exceptions import MlsynthEstimationError
 
@@ -104,7 +104,7 @@ def test_selected_params_from_grid(incrementality_synth_panel):
 # Solver failure tolerance tests
 # ======================================================
 
-@patch("mlsynth.utils.crossval.Opt2.SCopt", side_effect=RuntimeError("boom"))
+@patch("mlsynth.utils.laxscm_helpers.crossval.Opt2.SCopt", side_effect=RuntimeError("boom"))
 def test_solve_enet_failure_returns_zero_weights(mock_scopt, incrementality_synth_panel):
     y, X, _ = incrementality_synth_panel
     model = ElasticNetCV()

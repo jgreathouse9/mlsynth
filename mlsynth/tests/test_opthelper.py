@@ -5,7 +5,7 @@
 import pytest
 import numpy as np
 import cvxpy as cp
-from mlsynth.utils.opthelpers import OptHelpers  # Adjust import as needed
+from mlsynth.utils.laxscm_helpers.opthelpers import OptHelpers  # Adjust import as needed
 
 @pytest.fixture
 def small_vars():

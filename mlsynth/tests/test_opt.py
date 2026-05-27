@@ -5,8 +5,8 @@
 import numpy as np
 import cvxpy as cp
 import pytest
-from mlsynth.utils.optutils import Opt2
-from mlsynth.utils.opthelpers import OptHelpers
+from mlsynth.utils.laxscm_helpers.optutils import Opt2
+from mlsynth.utils.laxscm_helpers.opthelpers import OptHelpers
 from sklearn.linear_model import Lasso
 
 # Fixture for synthetic data
