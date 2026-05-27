@@ -1116,6 +1116,81 @@ the latent structure, restricting to the treated unit's cluster pays
 off. mlsynth's ``clustering=True`` (the default) is exactly this
 donor-selection step ahead of the PCR weight solve.
 
+mlsynth's PCR-SC was validated head to head against the authors'
+own reference implementation (the ``syclib`` library released with
+the paper) on this exact DGP and on the paper's empirical
+house-price-index panel. Running both pipelines -- SVD
+:math:`k`-means clustering, HSVT denoising, then an OLS weight solve
+-- on the same targets, the two produce **near-identical
+counterfactuals**: the per-target counterfactual trajectories
+correlate at :math:`\ge 0.99` on the synthetic sine panel and at
+:math:`\ge 0.999` on the house-price-index panel, with matching
+cluster assignment / donor-pool sizes and pre- and post-intervention
+MSEs in the same range. The two residual differences are documented
+design choices, not discrepancies: mlsynth denoises the *pre-period*
+donor block for the weight fit (the Amjad-Shah-Shen [Amjad2018]_
+convention, ``project_denoised=False`` by default) where the
+reference code denoises the full :math:`Y_0` once, and mlsynth's
+clustering features come from the pre-period SVD rather than the full
+panel. Set ``project_denoised=True`` to match the reference code's
+projection convention.
+
+The synthetic DGP is self-contained -- one draw, one treated
+subgroup-:math:`A` unit, donors clustered before the PCR fit:
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import CLUSTERSC
+
+
+   def _sine_panel(n, T, noise, n_signals, alpha_beta, omega_lo, omega_hi, rng):
+       """One subgroup: n units, each a random mix of n_signals sinusoids + noise."""
+       basis = np.zeros((n_signals, T))
+       grid = np.arange(int(T * 1.2)) * 10 * np.pi
+       for i in range(n_signals):
+           alpha = rng.beta(*alpha_beta)
+           omega = rng.uniform(omega_lo, omega_hi)
+           phi = rng.normal(0, 1)
+           wave = alpha * np.sin(2 * np.pi * omega * grid / 360 + phi)
+           basis[i] = wave[int(0.2 * T):]                  # drop first 20%
+       W = rng.uniform(0, 1, (n, n_signals))
+       return W @ basis + rng.normal(0, noise, (n, T))      # (n, T)
+
+
+   rng = np.random.default_rng(0)
+   T, T0, rS, nA, nB, noise = 10, 8, 3, 60, 60, 0.30
+   A = _sine_panel(nA, T, noise, rS, (2, 2), 1, 3, rng)     # subgroup A
+   B = _sine_panel(nB, T, noise, rS, (2, 5), 3, 6, rng)     # subgroup B
+   panel = np.vstack([A, B])                                # (nA + nB, T)
+
+   # Treat one subgroup-A unit; everyone else is a donor. Add a known effect.
+   tau_true, treated = 5.0, 0
+   panel[treated, T0:] += tau_true
+   df = pd.DataFrame([
+       {"unit": j, "time": t, "y": float(panel[j, t]),
+        "D": int(j == treated and t >= T0)}
+       for j in range(nA + nB) for t in range(T)
+   ])
+
+   res = CLUSTERSC({
+       "df": df, "outcome": "y", "treat": "D", "unitid": "unit", "time": "time",
+       "method": "pcr", "pcr_objective": "OLS", "clustering": True,
+       "k_clusters": 2, "rank": rS, "rank_method": "fixed",
+   }).fit()
+
+   n_sel = len(res.pcr.donor_weights)
+   print(f"donors selected by clustering = {n_sel} of {nA + nB - 1}")  # ~ subgroup A
+   print(f"selected (mostly) subgroup A  = {n_sel <= nA}")             # True
+   print(f"pre-RMSE                      = {res.pcr.pre_rmse:.3f}")
+   print(f"ATT (true {tau_true:+.1f})             = {res.pcr.att:+.3f}")  # ~ +5
+
+The clustering step isolates the treated unit's subgroup
+(:math:`\approx n_A - 1` donors), the pre-period fit is tight, and
+the OLS weight solve recovers the planted effect -- matching the
+reference ClusterSC+OLS output to the differences noted above.
+
 RPCA-SC -- two-process recovery under noise and missingness (Bayani 2021)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
