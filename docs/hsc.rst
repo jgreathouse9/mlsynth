@@ -342,11 +342,23 @@ is the reverse. And the cross-validated allocation moves the right way on its ow
 Inference
 ---------
 
-Setting ``run_inference=True`` runs an **Abadie placebo permutation test**: each
-donor is reassigned to the treated slot, HSC is refit (including the
-:math:`\rho`-CV), and the treated unit's absolute ATT is compared to the placebo
-distribution to form ``results.p_value``. It is off by default because it refits
-HSC once per donor; cap the cost with ``max_placebo``.
+``mlsynth`` ships the HSC **point estimator only**, matching the scope of
+Liu and Xu (2026). The authors are explicit that uncertainty quantification "rests
+on additional assumptions beyond those required for the point estimator" and
+leave it to future work, pointing toward a prediction interval that combines
+donor-weight estimation uncertainty with out-of-sample forecast-error calibration
+for the smooth component — extending the synthetic-control prediction-interval
+framework of Cattaneo, Feng and Titiunik (2021) to the soft-allocation setting.
+
+We deliberately do **not** bolt on an Abadie-style placebo permutation test.
+Beyond departing from the paper, placebo permutation rests on donors being
+*exchangeable* with the treated unit under the null — precisely what HSC's model
+denies: the treated unit carries an idiosyncratic stochastic trend (Assumption 3)
+that no donor combination reproduces, so a placebo donor with its own large
+idiosyncratic trend would manufacture a spurious "effect" unrelated to treatment.
+A valid interval is the natural next addition; until then, report the point
+estimate and the robustness of the counterfactual to the tuning choices (as in
+the application below).
 
 .. _hsc-hong-kong:
 
@@ -386,14 +398,12 @@ the donor pool or idiosyncratic — exactly the regime HSC's cross-validated
        # refine the rho grid: the CV optimum (~0.09) lies between the default
        # grid's 0.0 and 0.2 points, so the coarse default would miss it.
        "rho_grid": list(np.round(np.arange(0.0, 0.98, 0.01), 2)),
-       "run_inference": True,    # Abadie placebo permutation
        "display_graphs": True,
    }).fit()
 
    print("selected rho:", round(res.selected_rho, 3))   # 0.09
    print("2003 effect:", round(res.treatment_effect[-1]))  # -1902
    print("ATT 1997-2003:", round(res.att))              # -1734
-   print("placebo p-value:", round(res.p_value, 3))     # 0.167
    for k, v in sorted(res.weights_by_donor.items(), key=lambda kv: -kv[1]):
        print(f"  {k:12s} {v:.3f}")
 
@@ -451,10 +461,8 @@ spanning the Asian Financial Crisis (1998) and the 2003 SARS epidemic:
 The 2003 effect is **-$1,902** against a counterfactual of **$29,999** —
 matching the paper's headline (≈ -$1,900 against ≈ $30,000) to the dollar. The
 average post-treatment effect is :math:`\widehat{\text{ATT}} =` **-$1,734** per
-capita; the Abadie placebo permutation test (each of the 11 donors reassigned to
-the treated slot, HSC fully refit) returns **p ≈ 0.167** (one of 11 placebos
-exceeds Hong Kong's shortfall — the resolution floor with so few donors is
-1/12 ≈ 0.083).
+capita. (HSC reports the point estimate only; see *Inference* above for why no
+placebo p-value accompanies it.)
 
 .. note::
 
@@ -595,9 +603,8 @@ Result Containers
 ``HSC.fit()`` returns an
 :class:`~mlsynth.utils.hsc_helpers.structures.HSCResults`, bundling the fitted
 :class:`~mlsynth.utils.hsc_helpers.structures.HSCDesign` (donor weights, the smooth
-component, the cross-validated ``rho`` and its CV curve, the counterfactual), the
-prepared :class:`~mlsynth.utils.hsc_helpers.structures.HSCInputs`, and an optional
-:class:`~mlsynth.utils.hsc_helpers.structures.HSCInference`.
+component, the cross-validated ``rho`` and its CV curve, the counterfactual) and
+the prepared :class:`~mlsynth.utils.hsc_helpers.structures.HSCInputs`.
 
 .. automodule:: mlsynth.utils.hsc_helpers.structures
    :members:
@@ -627,10 +634,6 @@ Helper Modules
    :members:
    :undoc-members:
 
-.. automodule:: mlsynth.utils.hsc_helpers.inference
-   :members:
-   :undoc-members:
-
 .. automodule:: mlsynth.utils.hsc_helpers.plotter
    :members:
    :undoc-members:
@@ -651,6 +654,10 @@ Arkhangelsky, D., Athey, S., Hirshberg, D. A., Imbens, G. W., & Wager, S.
 
 Bai, J. (2009). "Panel Data Models with Interactive Fixed Effects."
 *Econometrica* 77(4):1229-1279.
+
+Cattaneo, M. D., Feng, Y., & Titiunik, R. (2021). "Prediction Intervals for
+Synthetic Control Methods." *Journal of the American Statistical Association*
+116(536):1865-1880.
 
 Granger, C. W. J., & Newbold, P. (1974). "Spurious Regressions in
 Econometrics." *Journal of Econometrics* 2(2):111-120.
