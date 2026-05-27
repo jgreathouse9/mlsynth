@@ -15,7 +15,6 @@ from mlsynth.config_models import (
     CLUSTERSCConfig,
     PROXIMALConfig,
     FSCMConfig,
-    SRCConfig,
     SCMOConfig,
     SIConfig,
     StableSCConfig,
@@ -268,10 +267,6 @@ def test_proximal_config_valid(base_config_data: Dict[str, Any], sample_df: pd.D
 def test_fscm_config_valid(base_config_data: Dict[str, Any]):
     """Test valid instantiation of FSCMConfig."""
     FSCMConfig(**base_config_data) # Should not raise
-
-def test_src_config_valid(base_config_data: Dict[str, Any]):
-    """Test valid instantiation of SRCConfig."""
-    SRCConfig(**base_config_data) # Should not raise
 
 def test_scmo_config_valid(base_config_data: Dict[str, Any]):
     """Test valid instantiation of SCMOConfig."""
