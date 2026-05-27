@@ -1,0 +1,193 @@
+"""MAREX design optimizers (Abadie & Zhao 2026).
+
+``solve_design`` solves the exact mixed-integer design (binary selection ``z``);
+``solve_design_relaxed`` relaxes ``z`` to ``[0, 1]``, solves the QP, then
+discretizes post hoc. Both return a raw result dict consumed by the
+orchestrator.
+"""
+
+from __future__ import annotations
+
+import cvxpy as cp
+import numpy as np
+
+from .formulation import (
+    build_constraints,
+    build_objective,
+    compute_cluster_means_members,
+    get_per_cluster_param,
+    init_cvxpy_variables,
+    precompute_distances,
+    prepare_clusters,
+    prepare_fit_slices,
+    build_membership_mask,
+    validate_costs_budget,
+    validate_scm_inputs,
+)
+
+
+def _aggregate_weights(w_opt, v_opt, cluster_members, N, K):
+    cluster_sizes = [len(m) for m in cluster_members]
+    total = sum(cluster_sizes)
+    w_agg = np.zeros(N)
+    v_agg = np.zeros(N)
+    for k_idx in range(K):
+        w_agg += (cluster_sizes[k_idx] / total) * w_opt[:, k_idx]
+        v_agg += (cluster_sizes[k_idx] / total) * v_opt[:, k_idx]
+    return w_agg, v_agg, cluster_sizes
+
+
+def solve_design(
+    Y_full, T0, clusters, blank_periods=0, m_eq=None, m_min=None, m_max=None,
+    exclusive=True, design="base", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
+    lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
+    solver=cp.SCIP, verbose=False,
+):
+    """Exact mixed-integer MAREX design (was ``SCMEXP``)."""
+    validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
+                        lambda2, xi, lambda1_unit, lambda2_unit)
+    Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
+    costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
+    Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
+    M = build_membership_mask(clusters, label_to_k, N, K)
+    Xbar_clusters, cluster_members = compute_cluster_means_members(Y_fit, M, cluster_labels)
+    D1, D2_list = precompute_distances(Y_fit, Xbar_clusters, cluster_members)
+
+    w, v, z = init_cvxpy_variables(N, K)
+    constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
+                                    m_eq, m_min, m_max, costs_np, budget_dict, exclusive)
+    objective = build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
+                               design, beta, lambda1, lambda2, xi,
+                               lambda1_unit, lambda2_unit, D1, D2_list)
+    prob = cp.Problem(objective, constraints)
+    prob.solve(solver=solver, verbose=verbose)
+
+    w_opt, v_opt, z_opt = w.value, v.value, z.value
+    Y_full_T = Y_full_np.T
+    rmse_cluster = []
+    for k_idx in range(K):
+        treated_idx = np.where(w_opt[:, k_idx] > 1e-8)[0]
+        y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx]
+                     / np.sum(w_opt[treated_idx, k_idx])) if len(treated_idx) > 0 else np.zeros(T_fit)
+        y_control = Y_fit.T @ v_opt[:, k_idx]
+        rmse_cluster.append(np.sqrt(np.mean((y_treated - y_control) ** 2)))
+
+    w_agg, v_agg, cluster_sizes = _aggregate_weights(w_opt, v_opt, cluster_members, N, K)
+    return {
+        "df": Y_full, "w_opt": w_opt, "v_opt": v_opt, "z_opt": z_opt,
+        "Xbar_clusters": Xbar_clusters, "cluster_labels": list(cluster_labels),
+        "cluster_members": cluster_members, "w_agg": w_agg, "v_agg": v_agg,
+        "cluster_sizes": cluster_sizes, "T0": T0, "blank_periods": blank_periods,
+        "T_fit": T_fit, "Y_fit": Y_fit, "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster, "design": design,
+        "original_cluster_vector": clusters,
+    }
+
+
+def post_hoc_discretize(w_opt, v_opt, cluster_members, cluster_labels,
+                        m_eq=None, m_min=None, m_max=None, trim_threshold=1e-2,
+                        Y_fit=None, Y_blank=None):
+    """Round relaxed weights to a feasible integer design (was internal)."""
+    K = len(cluster_members)
+    w_discrete = np.zeros_like(w_opt)
+    v_discrete = np.zeros_like(v_opt)
+    selected_treated = [[] for _ in range(K)]
+    selected_control = [[] for _ in range(K)]
+    rmse_blank = []
+
+    for k_idx, lab in enumerate(cluster_labels):
+        members = cluster_members[k_idx]
+        w_k = w_opt[members, k_idx].copy()
+        v_k = v_opt[members, k_idx].copy()
+        w_k[w_k < trim_threshold] = 0
+        v_k[v_k < trim_threshold] = 0
+
+        m_eq_k = get_per_cluster_param(m_eq, lab)
+        m_min_k = get_per_cluster_param(m_min, lab, default=1)
+        m_max_k = get_per_cluster_param(m_max, lab, default=len(members) // 2)
+        if m_eq_k is not None:
+            m_select = int(m_eq_k)
+        else:
+            nonzero = np.count_nonzero(w_k) or m_min_k
+            m_select = min(max(nonzero, m_min_k), m_max_k)
+
+        top_indices = np.argsort(-w_k)[:m_select]
+        treated_idx = members[top_indices]
+        selected_treated[k_idx] = treated_idx.tolist()
+        w_sel = w_k[top_indices]
+        w_k = np.zeros_like(w_k)
+        w_k[top_indices] = w_sel / w_sel.sum() if w_sel.sum() > 0 else 1.0 / len(top_indices)
+        w_discrete[members, k_idx] = w_k
+
+        control_idx = np.setdiff1d(members, treated_idx)
+        selected_control[k_idx] = control_idx.tolist()
+        mask = np.isin(members, control_idx)
+        v_sel = v_k[mask]
+        if v_sel.sum() > 0:
+            v_k = np.zeros_like(v_k); v_k[mask] = v_sel / v_sel.sum()
+        elif len(control_idx) > 0:
+            v_k = np.zeros_like(v_k); v_k[mask] = 1.0 / len(control_idx)
+        v_discrete[members, k_idx] = v_k
+
+        if Y_blank is not None and len(treated_idx) > 0 and len(control_idx) > 0:
+            y_treated_blank = Y_blank[treated_idx, :].mean(axis=0)
+            y_control_blank = Y_blank.T @ v_discrete[:, k_idx]
+            rmse_blank.append(np.sqrt(np.mean((y_treated_blank - y_control_blank) ** 2)))
+        else:
+            rmse_blank.append(None)
+
+    return w_discrete, v_discrete, selected_treated, selected_control, rmse_blank
+
+
+def solve_design_relaxed(
+    Y_full, T0, clusters, blank_periods=0, m_eq=None, m_min=None, m_max=None,
+    exclusive=True, design="base", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
+    lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
+    solver=None, verbose=False, zeta=0.0, trim_threshold=1e-2,
+):
+    """Relaxed (continuous-``z``) design with post-hoc discretization (was ``SCMEXP_REL``)."""
+    validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
+                        lambda2, xi, lambda1_unit, lambda2_unit)
+    Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
+    costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
+    Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
+    M = build_membership_mask(clusters, label_to_k, N, K)
+    Xbar_clusters, cluster_members = compute_cluster_means_members(Y_fit, M, cluster_labels)
+    D1, D2_list = precompute_distances(Y_fit, Xbar_clusters, cluster_members)
+
+    w, v, z = init_cvxpy_variables(N, K, boolean=False)   # continuous z in [0, 1]
+    constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
+                                    m_eq, m_min, m_max, costs_np, budget_dict, exclusive)
+    constraints += [z <= 1]
+    solver = solver or cp.CLARABEL
+    objective = build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
+                               design, beta, lambda1, lambda2, xi,
+                               lambda1_unit, lambda2_unit, D1, D2_list, zeta=zeta)
+    prob = cp.Problem(objective, constraints)
+    prob.solve(solver=solver, verbose=verbose)
+
+    w_opt_rel, v_opt_rel, z_opt_rel = w.value, v.value, z.value
+    w_opt, v_opt, sel_t, sel_c, rmse_blank = post_hoc_discretize(
+        w_opt_rel, v_opt_rel, cluster_members, cluster_labels, m_eq, m_min, m_max,
+        trim_threshold=trim_threshold, Y_fit=Y_fit, Y_blank=Y_blank)
+
+    rmse_cluster = []
+    for k_idx in range(K):
+        treated_idx = sel_t[k_idx]
+        y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx]
+                     / np.sum(w_opt[treated_idx, k_idx])) if len(treated_idx) > 0 else np.zeros(T_fit)
+        y_control = Y_fit.T @ v_opt[:, k_idx]
+        rmse_cluster.append(np.sqrt(np.mean((y_treated - y_control) ** 2)))
+
+    w_agg, v_agg, cluster_sizes = _aggregate_weights(w_opt, v_opt, cluster_members, N, K)
+    return {
+        "df": Y_full, "w_opt": w_opt, "v_opt": v_opt, "z_opt": None,
+        "w_opt_rel": w_opt_rel, "v_opt_rel": v_opt_rel, "z_opt_rel": z_opt_rel,
+        "selected_treated": sel_t, "selected_control": sel_c,
+        "Xbar_clusters": Xbar_clusters, "cluster_labels": list(cluster_labels),
+        "cluster_members": cluster_members, "w_agg": w_agg, "v_agg": v_agg,
+        "cluster_sizes": cluster_sizes, "T0": T0, "blank_periods": blank_periods,
+        "T_fit": T_fit, "Y_fit": Y_fit, "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster, "rmse_blank": rmse_blank, "design": design,
+        "original_cluster_vector": clusters, "zeta": zeta,
+    }
