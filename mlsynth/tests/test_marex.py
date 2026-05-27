@@ -53,7 +53,7 @@ def panel():
 class TestMAREXConfig:
     def test_defaults(self, panel):
         cfg = MAREXConfig(df=panel, outcome="y", unitid="unit", time="time")
-        assert cfg.design == "base" and cfg.exclusive is True and cfg.relaxed is False
+        assert cfg.design == "standard" and cfg.exclusive is True and cfg.relaxed is False
 
     def test_bad_design_rejected(self, panel):
         with pytest.raises(MlsynthDataError):
@@ -89,10 +89,10 @@ class TestEstimator:
         assert np.all(g.treated_weights_agg * g.control_weights_agg == 0)
 
     @pytest.mark.parametrize("design,kw", [
-        ("base", {}),
-        ("weak", {"beta": 0.1}),
-        ("eq11", {"lambda1": 0.1, "lambda2": 0.1}),
-        ("unit", {"lambda1_unit": 0.1}),
+        ("standard", {}),
+        ("weakly_targeted", {"beta": 0.1}),
+        ("penalized", {"lambda1": 0.1, "lambda2": 0.1}),
+        ("unit_penalized", {"lambda1_unit": 0.1}),
     ])
     def test_designs_run(self, panel, design, kw):
         res = MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
@@ -132,6 +132,21 @@ class TestEstimator:
         res = MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
                      "T0": 10, "m_eq": 2, "relaxed": True}).fit()
         assert len(res.treated_units) == 2
+
+    def test_covariates_matched(self):
+        rng = np.random.default_rng(7)
+        J, T = 8, 14
+        F = rng.normal(0, 1, (T, 2)); lam = rng.normal(0, 1, (J, 2))
+        Y = lam @ F.T + 0.2 * rng.standard_normal((J, T))
+        zval = rng.uniform(0, 1, J)            # time-invariant covariate
+        rows = [{"unit": f"u{j:02d}", "time": t, "y": float(Y[j, t]), "share": float(zval[j])}
+                for j in range(J) for t in range(T)]
+        df = pd.DataFrame(rows)
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 10, "m_eq": 2, "covariates": ["share"]}).fit()
+        assert len(res.treated_units) == 2
+        # the matching target now includes the covariate row (pre-outcomes + 1)
+        assert res.clusters["0"].pre_treatment_means.shape[0] == 10 + 1
 
 
 # ----------------------------------------------------------------------
