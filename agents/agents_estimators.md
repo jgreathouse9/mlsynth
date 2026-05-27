@@ -44,10 +44,14 @@ To claim Path A you must:
 - reduce the claim to a **concrete target number** (e.g. "ATT = −952.2,
   weights Portugal 0.44 / Japan 0.37 / Italy 0.16") and show the
   implementation hits it, and
+- drive the reproduction through the **packaged estimator** (the public
+  `mlsynth` class a user calls — `EstimatorName(config).fit()`), not
+  internal helper functions, so the public config/wiring is exercised
+  end-to-end, and
 - capture the reproduction as a **runnable empirical example in the
   docs**.
 
-## Path B — Monte Carlo replication (when data are inaccessible)
+## Path B — Monte Carlo replication
 
 If the paper's data are **proprietary or otherwise unavailable**, the
 estimator must **largely reproduce the paper's own Monte Carlo result**,
@@ -59,6 +63,25 @@ the estimator is approximately unbiased across draws when the paper
 claims unbiasedness, or it attains the paper's reported MSE-ratio /
 size / power pattern — using the paper's own data-generating process and
 parameter settings.
+
+To claim Path B you must:
+- reproduce the paper's headline Monte Carlo **finding** — the
+  relationship / ratio / pattern, **not** necessarily exact cell values.
+  DGP and normalization details (e.g. an unspecified rescaling to
+  `[−1, 1]`) routinely make absolute table cells unreproducible while the
+  *finding* (a near-equal ratio, a several-fold gap, a correlation ≥ 0.99)
+  is the real target. Validate the relationship, not the digits, and
+- drive the reproduction through the **packaged estimator** (the public
+  `mlsynth` class a user calls — `EstimatorName(config).fit()`), not
+  internal helper functions. A check that calls helpers can pass while the
+  public estimator is broken — this is not hypothetical: PDA and RESCM
+  each had working helpers behind a config that omitted the fields the
+  public `.fit()` reads (`methods` / `alpha` / `tau`), so every
+  user-facing call raised `AttributeError`. Routing Path B through the
+  packaged class makes the replication an end-to-end wiring test too, and
+- provide **runnable code in the docs** that produces the relevant
+  **table(s) and figure(s)** of the finding, as applicable — the headline
+  result, not every cell or panel.
 
 ## What does NOT count as done
 
