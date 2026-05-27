@@ -1,7 +1,7 @@
 """Factor extraction + selection for FMA.
 
-Wraps the existing :func:`mlsynth.utils.denoiseutils.nbpiid` helper
-to apply the appropriate Li & Sonnier (2023) selection criterion:
+Wraps the :func:`.bai_ng.nbpiid` helper to apply the appropriate
+Li & Sonnier (2023) selection criterion:
 
 * ``stationarity="stationary"`` -> modified Bai-Ng (MBN) -- nbpiid
   criterion code 10 with ``N_co + max(70 - N_co, 0)`` /
@@ -20,7 +20,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthConfigError, MlsynthEstimationError
-from ..denoiseutils import nbpiid
+from .bai_ng import nbpiid
 
 
 _STATIONARITY_TO_CRITERION = {
