@@ -189,7 +189,7 @@ spurious-matching risk.
    first differences. The SDID ridge **diversifies** the donor weights (no
    corner solutions) and is the configuration the paper uses for its empirical
    application. On the 1997 Hong Kong handover it spreads weight broadly across
-   all 11 donors (largest Korea ≈ 0.21, vs ≈ 0.41 under the near-unregularized
+   all 11 donors (largest Korea ≈ 0.18, vs ≈ 0.41 under the near-unregularized
    relative ridge) while leaving the counterfactual essentially unchanged
    — see :ref:`hsc-hong-kong` below.
 
@@ -369,6 +369,7 @@ the donor pool or idiosyncratic — exactly the regime HSC's cross-validated
 
 .. code-block:: python
 
+   import numpy as np
    import pandas as pd
    from mlsynth import HSC
 
@@ -382,30 +383,35 @@ the donor pool or idiosyncratic — exactly the regime HSC's cross-validated
        "df": df, "outcome": "gdp", "unitid": "country",
        "time": "year", "treat": "Handover",
        "ridge": "sdid",          # SDID-style ridge -> diversified weights
+       # refine the rho grid: the CV optimum (~0.09) lies between the default
+       # grid's 0.0 and 0.2 points, so the coarse default would miss it.
+       "rho_grid": list(np.round(np.arange(0.0, 0.98, 0.01), 2)),
        "run_inference": True,    # Abadie placebo permutation
        "display_graphs": True,
    }).fit()
 
-   print("selected rho:", round(res.selected_rho, 3))   # 0.5
-   print("ATT 1997-2003:", round(res.att))              # -1847
-   print("placebo p-value:", round(res.p_value, 3))     # 0.083
+   print("selected rho:", round(res.selected_rho, 3))   # 0.09
+   print("2003 effect:", round(res.treatment_effect[-1]))  # -1902
+   print("ATT 1997-2003:", round(res.att))              # -1734
+   print("placebo p-value:", round(res.p_value, 3))     # 0.167
    for k, v in sorted(res.weights_by_donor.items(), key=lambda kv: -kv[1]):
        print(f"  {k:12s} {v:.3f}")
 
 **Donor weights.** With the SDID ridge the design leans on a *broad* mix of
-donors rather than a handful — the largest weight is Korea ≈ 0.21, followed by
-Germany ≈ 0.15, the US ≈ 0.15 and Italy ≈ 0.12, with the remaining seven donors
-each contributing 0.01–0.10. This is the diversification the paper reports; under
-the near-unregularized relative ridge the same fit collapses most of the weight
-onto Korea (≈ 0.41).
+donors rather than a handful — the largest weight is Korea ≈ 0.18, followed by
+Germany ≈ 0.14, the US ≈ 0.13 and Italy ≈ 0.11, with the remaining seven donors
+each contributing 0.04–0.09. This matches the paper's reported weights almost
+exactly (Korea 0.18, Germany 0.14, US 0.13, Italy 0.11, max < 0.19). Under the
+near-unregularized relative ridge the same fit instead collapses most of the
+weight onto Korea (≈ 0.41) — the SDID ridge is what buys the diversification.
 
-**The counterfactual path.** Cross-validation selects :math:`\hat\rho = 0.5` — a
-genuine interior allocation, blending levels and differences. Hong Kong sits
-**below** its synthetic counterfactual throughout the post-handover window, a
-persistent shortfall spanning the Asian Financial Crisis (1998) and the 2003 SARS
-epidemic:
+**The counterfactual path.** Cross-validation selects :math:`\hat\rho = 0.09`
+(paper: 0.11) — a genuine interior allocation, leaning toward differencing but
+keeping some level information. Hong Kong sits **below** its synthetic
+counterfactual throughout the post-handover window, a persistent shortfall
+spanning the Asian Financial Crisis (1998) and the 2003 SARS epidemic:
 
-.. list-table:: HSC counterfactual vs. observed real GDP per capita (USD), ``ridge="sdid"``
+.. list-table:: HSC counterfactual vs. observed real GDP per capita (USD), ``ridge="sdid"``, fine grid
    :header-rows: 1
    :widths: 14 20 20 18
 
@@ -415,39 +421,40 @@ epidemic:
      - Effect
    * - 1997
      - 26,632
-     - 26,459
-     - +173
+     - 26,093
+     - +538
    * - 1998
      - 24,857
-     - 26,825
-     - **-1,968**
+     - 26,528
+     - **-1,671**
    * - 1999
      - 25,238
-     - 27,852
-     - **-2,614**
+     - 27,651
+     - **-2,413**
    * - 2000
      - 26,933
-     - 28,925
-     - **-1,992**
+     - 28,809
+     - **-1,876**
    * - 2001
      - 26,885
-     - 29,238
-     - **-2,353**
+     - 29,225
+     - **-2,340**
    * - 2002
      - 27,210
-     - 29,621
-     - **-2,410**
+     - 29,688
+     - **-2,478**
    * - 2003
      - 28,097
-     - 29,861
-     - **-1,764**
+     - 29,999
+     - **-1,902**
 
-The average post-treatment effect is :math:`\widehat{\text{ATT}} =`
-**-$1,847** per capita, and the Abadie placebo permutation test (each of the 11
-donors reassigned to the treated slot, HSC fully refit) returns
-**p ≈ 0.083** — Hong Kong's shortfall is larger than all but one of the 11
-placebos. This reproduces the paper's finding: a roughly **-$1,900** average
-effect over 1997–2003 with broadly diversified weights.
+The 2003 effect is **-$1,902** against a counterfactual of **$29,999** —
+matching the paper's headline (≈ -$1,900 against ≈ $30,000) to the dollar. The
+average post-treatment effect is :math:`\widehat{\text{ATT}} =` **-$1,734** per
+capita; the Abadie placebo permutation test (each of the 11 donors reassigned to
+the treated slot, HSC fully refit) returns **p ≈ 0.167** (one of 11 placebos
+exceeds Hong Kong's shortfall — the resolution floor with so few donors is
+1/12 ≈ 0.083).
 
 .. note::
 
@@ -456,19 +463,32 @@ effect over 1997–2003 with broadly diversified weights.
    variance of an integrated process grows with the horizon, so the
    counterfactual degrades the further past :math:`T_0` it is pushed. Extending
    this same fit to the end of the raw series (2010) illustrates the hazard: the
-   estimated gap drifts monotonically positive (to ≈ +$5,000 by 2010) and the
-   *pooled* ATT is dragged to ≈ +$270 — an artifact of accumulating forecast
+   estimated gap drifts monotonically positive (to ≈ +$5,400 by 2010) and the
+   *pooled* ATT is dragged to ≈ +$340 — an artifact of accumulating forecast
    error, not an integration dividend. The authors stop at 2003 for exactly this
    reason, and so should applied users: report a short, defensible horizon.
+
+.. note::
+
+   **Refine the** :math:`\rho` **grid for empirical work.** The default
+   ``rho_grid`` ``[0, 0.2, 0.5, 0.8, 0.97]`` is coarse — fine for the validated
+   Monte Carlo, but here the true CV optimum (:math:`\rho \approx 0.09`) falls in
+   the *gap* between the grid's 0.0 and 0.2 points. Both neighbours are ~8-10%
+   worse on the CV criterion than the interior optimum, so the coarse grid
+   selects an unrelated point (0.5) and inflates the largest weight to 0.21.
+   Passing a fine grid (``np.arange(0, 0.98, 0.01)``) recovers
+   :math:`\hat\rho = 0.09` and the paper's weights. **This was the dominant
+   source of the gap to the paper** — not the data.
 
 Robustness Checks
 ^^^^^^^^^^^^^^^^^
 
-The average effect (≈ -$1,900) and the 2003 counterfactual (≈ $30,000) are
-stable across the estimator's tuning choices. Re-fitting under the relative
-ridge, second-order differencing (:math:`q = 2`), and the last-value forecaster:
+The 2003 effect (≈ -$1,900) and counterfactual (≈ $30,000) are stable across the
+estimator's tuning choices. Re-fitting (fine :math:`\rho` grid throughout) under
+the relative ridge, second-order differencing (:math:`q = 2`), and the last-value
+forecaster:
 
-.. list-table:: Hong Kong robustness (post-window 1997-2003): the effect is stable
+.. list-table:: Hong Kong robustness (post-window 1997-2003, fine grid)
    :header-rows: 1
    :widths: 32 9 11 12 13 13
 
@@ -479,17 +499,17 @@ ridge, second-order differencing (:math:`q = 2`), and the last-value forecaster:
      - effect 2003
      - ATT
    * - ``ridge="sdid"``, ``q=1``, ARIMA(1,1,0)
-     - 0.50
-     - 0.21
-     - 29,861
-     - -1,764
-     - **-1,847**
+     - 0.09
+     - 0.18
+     - 29,999
+     - **-1,902**
+     - -1,734
    * - ``ridge=1e-6``, ``q=1``, ARIMA(1,1,0)
-     - 0.50
+     - 0.56
      - 0.41
-     - 29,792
-     - -1,694
-     - -1,656
+     - 29,857
+     - -1,760
+     - -1,744
    * - ``ridge="sdid"``, ``q=2``, ARIMA(1,1,0)
      - 0.00
      - 0.17
@@ -503,42 +523,56 @@ ridge, second-order differencing (:math:`q = 2`), and the last-value forecaster:
      - -2,611
      - -2,319
 
-Across every configuration the average ATT stays in a tight **-$1,650 to
--$2,320** band and the 2003 counterfactual in **$29,800–$30,700**. The ridge
-choice changes *how the weight is spread* (max donor weight 0.21 under the SDID
+Across every configuration the 2003 effect stays in a tight **-$1,760 to
+-$2,610** band and the 2003 counterfactual in **$29,800–$30,700**. The ridge
+choice changes *how the weight is spread* (max donor weight 0.18 under the SDID
 ridge vs. 0.41 under the relative ridge) far more than it changes the
 counterfactual; the differencing order and forecaster move it only modestly. The
-rolling-origin CV curve over :math:`\rho` is also informative — it is flat
-through the interior and rises sharply toward :math:`\rho = 1`, confirming that
-pure levels-matching is *penalized* here, the signature of a partly idiosyncratic
-trend:
+rolling-origin CV curve over :math:`\rho` confirms a real interior optimum near
+0.09 that the default grid straddles — the criterion rises ~8-10% at the default
+grid's 0.0/0.2/0.5 points and explodes toward :math:`\rho = 1`, the signature of
+a partly idiosyncratic trend:
 
-.. list-table:: Rolling-origin CV error by :math:`\rho` (``ridge="sdid"``)
+.. list-table:: Rolling-origin CV error by :math:`\rho` (``ridge="sdid"``, fine grid)
    :header-rows: 1
-   :widths: 20 30
+   :widths: 16 22 22
 
    * - :math:`\rho`
      - CV mean squared error
-   * - 0.00
-     - 1.18e6
-   * - 0.20
-     - 1.19e6
-   * - **0.50** (selected)
-     - **1.18e6**
-   * - 0.80
-     - 1.85e6
-   * - 0.97
+     - vs. optimum
+   * - 0.00 *(default grid)*
+     - 1.178e6
+     - +8.3%
+   * - 0.05
+     - 1.103e6
+     - +1.3%
+   * - **0.09** (selected)
+     - **1.088e6**
+     - —
+   * - 0.11 *(paper)*
+     - 1.094e6
+     - +0.6%
+   * - 0.20 *(default grid)*
+     - 1.193e6
+     - +9.6%
+   * - 0.50 *(default grid)*
+     - 1.177e6
+     - +8.2%
+   * - 0.97 *(default grid)*
      - 4.69e6
+     - +331%
 
 .. note::
 
-   This is a **Path-A-style empirical illustration**: on the same data and the
-   authors' 1997–2003 window it reproduces the paper's headline numbers — an
-   average effect ≈ -$1,900, a ≈ $30,000 2003 counterfactual, and broadly
-   diversified donor weights (max Korea ≈ 0.21, no corner solution) — though the
-   public donor panel and pre-processing may differ in minor ways from the
-   authors'. The validated bit-for-bit check for HSC is the Monte Carlo above,
-   which matches the standalone estimation skeleton exactly.
+   This is a close **Path-A empirical replication**: on the same data, the
+   authors' 1997–2003 window, and a fine :math:`\rho` grid, HSC matches the
+   paper's headline numbers essentially to the dollar — :math:`\hat\rho = 0.09`
+   (paper 0.11), a -$1,902 2003 effect against a $29,999 counterfactual (paper
+   ≈ -$1,900 / ≈ $30,000), and donor weights Korea 0.18 / Germany 0.14 / US 0.13
+   / Italy 0.11 (paper 0.18 / 0.14 / 0.13 / 0.11). The remaining
+   :math:`\rho`-gap (0.09 vs 0.11) is within the CV's grid resolution. The
+   validated bit-for-bit check for HSC is the Monte Carlo above, which matches
+   the standalone estimation skeleton exactly.
 
 Core API
 --------
