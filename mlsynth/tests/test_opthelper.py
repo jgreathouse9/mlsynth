@@ -81,7 +81,7 @@ def test_squared_loss_variants(small_vars, small_problem, use_intercept, scale):
 # ======================
 
 @pytest.mark.parametrize("alpha, second_norm", [
-    (0.5, "l2"), (0.5, "inf"), (1.0, "l2"), (0.0, "l2")
+    (0.5, "L1_L2"), (0.5, "L1_INF"), (1.0, "L1_L2"), (0.0, "L1_L2")
 ])
 def test_elastic_net_penalty_types(small_vars, alpha, second_norm):
     w, _, _, _ = small_vars
@@ -113,9 +113,9 @@ def test_el_penalty(small_vars):
 def test_elastic_net_penalty_numeric(small_problem):
     w, _, _, _ = small_problem
     w.value = np.ones(w.shape[0])
-    pen = OptHelpers.elastic_net_penalty(w, lam=1.0, alpha=0.5, second_norm="l2")
+    pen = OptHelpers.elastic_net_penalty(w, lam=1.0, alpha=0.5, second_norm="L1_L2")
     assert np.isfinite(pen.value) and pen.value > 0
-    pen_inf = OptHelpers.elastic_net_penalty(w, lam=1.0, alpha=0.5, second_norm="inf")
+    pen_inf = OptHelpers.elastic_net_penalty(w, lam=1.0, alpha=0.5, second_norm="L1_INF")
     assert np.isfinite(pen_inf.value) and pen_inf.value > 0
 
 def test_entropy_penalty_numeric(small_problem):
@@ -310,9 +310,9 @@ def test_full_optimization_with_penalty(small_problem, penalty_type):
     w, _, X, y = small_problem
     loss = OptHelpers.squared_loss(y, X, w)
     if penalty_type == "elastic_l2":
-        pen = OptHelpers.elastic_net_penalty(w, lam=0.1, alpha=0.5, second_norm="l2")
+        pen = OptHelpers.elastic_net_penalty(w, lam=0.1, alpha=0.5, second_norm="L1_L2")
     elif penalty_type == "elastic_inf":
-        pen = OptHelpers.elastic_net_penalty(w, lam=0.1, alpha=0.5, second_norm="inf")
+        pen = OptHelpers.elastic_net_penalty(w, lam=0.1, alpha=0.5, second_norm="L1_INF")
     elif penalty_type == "l2_only":
         pen = OptHelpers.l2_only_penalty(w)
     elif penalty_type == "entropy":

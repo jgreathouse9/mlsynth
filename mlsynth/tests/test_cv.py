@@ -809,14 +809,14 @@ def test_name_elastic_net_model_with_mocked_panel(incrementality_synth_panel):
     # Test alpha = 0.0 (should be L2)
     result = fit_en_scm(
         X_pre, y_pre, X_post, donor_names=donor_names,
-        alpha=0.0, lam=0.1, second_norm="l2", y=y
+        alpha=0.0, lam=0.1, second_norm="L1_L2", y=y
     )
     assert result["Model"] == "$\\ell_2$"
 
     # Test intermediate alpha (Elastic Net)
     result = fit_en_scm(
         X_pre, y_pre, X_post, donor_names=donor_names,
-        alpha=0.5, lam=0.1, second_norm="l2", y=y
+        alpha=0.5, lam=0.1, second_norm="L1_L2", y=y
     )
     assert result["Model"] == "$\\alpha \\ell_1 + (1-\\alpha) \\ell_2$"
 

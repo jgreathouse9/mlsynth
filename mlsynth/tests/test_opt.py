@@ -99,7 +99,7 @@ def test_scopt_solve_flag(incrementality_synth_panel, solve):
 
 
 @pytest.mark.parametrize("lam", [0.1, 0.5])
-@pytest.mark.parametrize("second_norm", ["l2", "inf"])
+@pytest.mark.parametrize("second_norm", ["L1_L2", "L1_INF"])
 def test_l1linf_elastic_net_with_linf_zero_equals_lasso(incrementality_synth_panel, lam, second_norm):
     """L1-Linf elastic net with alpha=1 should produce same solution as LASSO SCopt."""
     y, X, T0 = incrementality_synth_panel
@@ -200,7 +200,7 @@ def test_unpenalized_scm_equivalence(incrementality_synth_panel):
 
 @pytest.mark.parametrize("constraint_type", ["simplex", "affine"])
 @pytest.mark.parametrize("alpha", [0.0, 0.5, 1.0])
-@pytest.mark.parametrize("second_norm", ["l2", "inf"])
+@pytest.mark.parametrize("second_norm", ["L1_L2", "L1_INF"])
 def test_penalized_sc_weight_invariants(incrementality_synth_panel, constraint_type, alpha, second_norm):
     """
     Invariant tests for penalized synthetic control weights.
