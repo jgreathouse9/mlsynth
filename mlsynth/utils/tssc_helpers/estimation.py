@@ -21,10 +21,10 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
+import cvxpy as cp
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
-from ..estutils import Opt
 from ..resultutils import effects
 from .structures import MSCA, MSCB, MSCC, SC, TSSCInputs, TSSCVariantFit
 
@@ -40,19 +40,42 @@ _ATT_CI_SUBSAMPLE_ADJUSTMENT = 5
 def _solve(
     method: str, donor_pre: np.ndarray, y_pre: np.ndarray, n_pre: int, n_donors: int
 ) -> Optional[np.ndarray]:
-    """Solve one SC-class variant; return its coefficient vector or ``None``."""
-    problem = Opt.SCopt(
-        num_control_units=n_donors,
-        target_outcomes_pre_treatment=y_pre,
-        num_pre_treatment_periods=n_pre,
-        donor_outcomes_pre_treatment=donor_pre,
-        scm_model_type=_SCOPT_MODEL[method],
-    )
-    if problem.status not in ("optimal", "optimal_inaccurate"):
+    """Solve one SC-class variant; return its coefficient vector or ``None``.
+
+    Standalone constrained least-squares (cvxpy/CLARABEL) for the four
+    SC-class variants -- no dependency on the legacy ``estutils.Opt``:
+
+    * ``SC`` (SIMPLEX): ``min ||y - Xw||_2`` s.t. ``w >= 0``, ``sum(w) == 1``;
+    * ``MSCa``: free intercept + donor weights ``>= 0`` summing to 1;
+    * ``MSCb``: donor weights ``>= 0`` (no intercept, no sum constraint);
+    * ``MSCc``: free intercept + donor weights ``>= 0`` (no sum constraint).
+
+    For the intercept variants (MSCa/MSCc) the returned vector has the
+    intercept as its first element, matching ``_features``.
+    """
+    model = _SCOPT_MODEL[method]
+    X = np.asarray(donor_pre, dtype=float)[:n_pre]
+    y = np.asarray(y_pre, dtype=float)[:n_pre]
+    if model in ("MSCa", "MSCc"):
+        X = np.c_[np.ones((X.shape[0], 1)), X]   # prepend intercept column
+        dim = n_donors + 1
+    else:
+        dim = n_donors
+
+    w = cp.Variable(dim)
+    objective = cp.Minimize(cp.norm(y - X @ w, 2))
+    if model == "SIMPLEX":
+        constraints = [w >= 0, cp.sum(w) == 1]
+    elif model == "MSCa":
+        constraints = [w >= 0, cp.sum(w[1:]) == 1]   # donor weights (excl. intercept) sum to 1
+    else:  # MSCb, MSCc
+        constraints = [w >= 0]
+
+    problem = cp.Problem(objective, constraints)
+    problem.solve(solver=cp.CLARABEL)
+    if w.value is None or problem.status not in ("optimal", "optimal_inaccurate"):
         return None
-    primal = problem.solution.primal_vars
-    weights = primal[next(iter(primal))]
-    return np.asarray(weights, dtype=float).ravel()
+    return np.asarray(w.value, dtype=float).ravel()
 
 
 def fit_mscc_beta(
