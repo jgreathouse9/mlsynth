@@ -189,8 +189,8 @@ spurious-matching risk.
    first differences. The SDID ridge **diversifies** the donor weights (no
    corner solutions) and is the configuration the paper uses for its empirical
    application. On the 1997 Hong Kong handover it spreads weight broadly across
-   all 11 donors (largest Korea ≈ 0.16, vs ≈ 0.41 under the near-unregularized
-   relative ridge) while leaving the 2003 counterfactual essentially unchanged
+   all 11 donors (largest Korea ≈ 0.21, vs ≈ 0.41 under the near-unregularized
+   relative ridge) while leaving the counterfactual essentially unchanged
    — see :ref:`hsc-hong-kong` below.
 
 The Two Endpoints
@@ -357,11 +357,15 @@ The paper's headline application (Liu-Xu §7) revisits the economic-integration
 question of Hsiao, Ching and Wan (2012): what happened to Hong Kong's real GDP
 per capita after the 1997 handover to mainland China? The panel
 (``basedata/hong_kong_handover.csv``) is annual real GDP per capita for Hong Kong
-and **11 OECD donors**, 1961–2010, with treatment switching on in **1997**
-(:math:`T_0 = 36` pre-treatment years, 14 post). GDP per capita is the canonical
-nonstationary, trending outcome for which HSC is built, and it is unknown a
-priori whether Hong Kong's growth trend is shared with the donor pool or
-idiosyncratic — exactly the regime HSC's cross-validated :math:`\rho` resolves.
+and **11 OECD donors**, with treatment switching on in **1997**
+(:math:`T_0 = 36` pre-treatment years, 1961–1996). Following the authors, the
+post-treatment window runs **1997–2003** (:math:`T_{\text{post}} = 7`) — the
+counterfactual of an integrated process is only trustworthy a few years out (see
+the note below), so the analysis is *not* extended to the end of the raw series.
+GDP per capita is the canonical nonstationary, trending outcome for which HSC is
+built, and it is unknown a priori whether Hong Kong's growth trend is shared with
+the donor pool or idiosyncratic — exactly the regime HSC's cross-validated
+:math:`\rho` resolves.
 
 .. code-block:: python
 
@@ -372,34 +376,34 @@ idiosyncratic — exactly the regime HSC's cross-validated :math:`\rho` resolves
        "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
        "refs/heads/main/basedata/hong_kong_handover.csv"
    )
+   df = df[df["year"] <= 2003]               # authors' post-window: 1997-2003
 
    res = HSC({
        "df": df, "outcome": "gdp", "unitid": "country",
        "time": "year", "treat": "Handover",
        "ridge": "sdid",          # SDID-style ridge -> diversified weights
+       "run_inference": True,    # Abadie placebo permutation
        "display_graphs": True,
    }).fit()
 
-   print("selected rho:", round(res.selected_rho, 3))          # 0.0
-   yrs = list(res.inputs.time_labels)
-   i03 = yrs.index(2003)
-   print("2003 counterfactual:", round(res.counterfactual_full[i03]))   # 30145
-   print("2003 effect:", round(res.inputs.Y_post[i03 - res.inputs.T0]
-                               - res.counterfactual_full[i03]))          # -2048
+   print("selected rho:", round(res.selected_rho, 3))   # 0.5
+   print("ATT 1997-2003:", round(res.att))              # -1847
+   print("placebo p-value:", round(res.p_value, 3))     # 0.083
    for k, v in sorted(res.weights_by_donor.items(), key=lambda kv: -kv[1]):
        print(f"  {k:12s} {v:.3f}")
 
 **Donor weights.** With the SDID ridge the design leans on a *broad* mix of
-donors rather than a handful — the largest weight is Korea ≈ 0.16, followed by
-Germany ≈ 0.13, the US ≈ 0.12 and Italy ≈ 0.11, with the remaining seven donors
-each contributing 0.05–0.09. This is the diversification the paper reports;
-under the near-unregularized relative ridge the same fit collapses most of the
-weight onto Korea (≈ 0.41).
+donors rather than a handful — the largest weight is Korea ≈ 0.21, followed by
+Germany ≈ 0.15, the US ≈ 0.15 and Italy ≈ 0.12, with the remaining seven donors
+each contributing 0.01–0.10. This is the diversification the paper reports; under
+the near-unregularized relative ridge the same fit collapses most of the weight
+onto Korea (≈ 0.41).
 
-**The counterfactual path.** Cross-validation selects :math:`\hat\rho = 0`
-(lean to differencing), consistent with Hong Kong's post-handover growth being
-substantially idiosyncratic. The estimated effect is **not monotone**, and that
-is the substantive finding:
+**The counterfactual path.** Cross-validation selects :math:`\hat\rho = 0.5` — a
+genuine interior allocation, blending levels and differences. Hong Kong sits
+**below** its synthetic counterfactual throughout the post-handover window, a
+persistent shortfall spanning the Asian Financial Crisis (1998) and the 2003 SARS
+epidemic:
 
 .. list-table:: HSC counterfactual vs. observed real GDP per capita (USD), ``ridge="sdid"``
    :header-rows: 1
@@ -411,97 +415,103 @@ is the substantive finding:
      - Effect
    * - 1997
      - 26,632
-     - 26,059
-     - +573
+     - 26,459
+     - +173
    * - 1998
      - 24,857
-     - 26,578
-     - **-1,721**
+     - 26,825
+     - **-1,968**
    * - 1999
      - 25,238
-     - 27,748
-     - **-2,510**
+     - 27,852
+     - **-2,614**
+   * - 2000
+     - 26,933
+     - 28,925
+     - **-1,992**
+   * - 2001
+     - 26,885
+     - 29,238
+     - **-2,353**
    * - 2002
      - 27,210
-     - 29,830
-     - **-2,620**
+     - 29,621
+     - **-2,410**
    * - 2003
      - 28,097
-     - 30,145
-     - **-2,048**
-   * - 2005
-     - 32,401
-     - 31,709
-     - +693
-   * - 2008
-     - 36,924
-     - 33,616
-     - +3,308
-   * - 2010
-     - 38,090
-     - 33,104
-     - +4,986
+     - 29,861
+     - **-1,764**
 
-Hong Kong falls **below** its synthetic counterfactual for roughly 1998–2004 —
-the Asian Financial Crisis and the 2003 SARS epidemic — bottoming near
-**-$2,600** per capita, before crossing above it from 2005 on as mainland
-integration (the 2003 CEPA agreement and the post-2004 mainland boom) takes
-hold, reaching **+$5,000** by 2010.
+The average post-treatment effect is :math:`\widehat{\text{ATT}} =`
+**-$1,847** per capita, and the Abadie placebo permutation test (each of the 11
+donors reassigned to the treated slot, HSC fully refit) returns
+**p ≈ 0.083** — Hong Kong's shortfall is larger than all but one of the 11
+placebos. This reproduces the paper's finding: a roughly **-$1,900** average
+effect over 1997–2003 with broadly diversified weights.
 
 .. note::
 
-   Because the effect changes sign, the *pooled* post-period mean ATT is small
-   (≈ +$270) and the Abadie placebo test does **not** reject (``p ≈ 0.92`` with
-   all 11 donors as placebos). This is the correct reading, not a defect: the
-   handover's effect on GDP per capita is **dynamic** — a multi-year shortfall
-   during the crisis years followed by an integration dividend — and a single
-   averaged number hides it. Report the trajectory, not just the mean.
+   **Why the window stops at 2003.** HSC's counterfactual adds a *forecast* of
+   the integrated smooth component :math:`E` (Assumption 4). The forecast
+   variance of an integrated process grows with the horizon, so the
+   counterfactual degrades the further past :math:`T_0` it is pushed. Extending
+   this same fit to the end of the raw series (2010) illustrates the hazard: the
+   estimated gap drifts monotonically positive (to ≈ +$5,000 by 2010) and the
+   *pooled* ATT is dragged to ≈ +$270 — an artifact of accumulating forecast
+   error, not an integration dividend. The authors stop at 2003 for exactly this
+   reason, and so should applied users: report a short, defensible horizon.
 
 Robustness Checks
 ^^^^^^^^^^^^^^^^^
 
-The 2003 counterfactual and its ≈ -$2,000 shortfall are stable across the
-estimator's tuning choices. Re-fitting under the relative ridge, second-order
-differencing (:math:`q = 2`), and the last-value forecaster:
+The average effect (≈ -$1,900) and the 2003 counterfactual (≈ $30,000) are
+stable across the estimator's tuning choices. Re-fitting under the relative
+ridge, second-order differencing (:math:`q = 2`), and the last-value forecaster:
 
-.. list-table:: Hong Kong robustness: the 2003 counterfactual is stable
+.. list-table:: Hong Kong robustness (post-window 1997-2003): the effect is stable
    :header-rows: 1
-   :widths: 34 10 12 14 14
+   :widths: 32 9 11 12 13 13
 
    * - Configuration
      - :math:`\hat\rho`
      - max weight
      - cf 2003
      - effect 2003
+     - ATT
    * - ``ridge="sdid"``, ``q=1``, ARIMA(1,1,0)
-     - 0.00
-     - 0.16
-     - 30,145
-     - -2,048
+     - 0.50
+     - 0.21
+     - 29,861
+     - -1,764
+     - **-1,847**
    * - ``ridge=1e-6``, ``q=1``, ARIMA(1,1,0)
      - 0.50
      - 0.41
      - 29,792
      - -1,694
+     - -1,656
    * - ``ridge="sdid"``, ``q=2``, ARIMA(1,1,0)
      - 0.00
-     - 0.15
-     - 30,218
-     - -2,121
+     - 0.17
+     - 30,200
+     - -2,103
+     - -1,818
    * - ``ridge="sdid"``, ``q=1``, ``forecaster="last"``
      - 0.00
-     - 0.16
-     - 30,755
-     - -2,658
+     - 0.18
+     - 30,708
+     - -2,611
+     - -2,319
 
-Across every configuration the 2003 counterfactual stays in a tight
-**$29,800–$30,800** band and the 2003 effect in **-$1,700 to -$2,700**. The
-ridge choice changes *how the weight is spread* (max donor weight 0.16 under the
-SDID ridge vs. 0.41 under the relative ridge) far more than it changes the
-counterfactual; the differencing order and forecaster barely move it. The
-rolling-origin CV curve over :math:`\rho` is also informative — it is flat-to-
-rising, confirming that levels-matching (high :math:`\rho`) is *penalized* here,
-the signature of an idiosyncratic trend:
+Across every configuration the average ATT stays in a tight **-$1,650 to
+-$2,320** band and the 2003 counterfactual in **$29,800–$30,700**. The ridge
+choice changes *how the weight is spread* (max donor weight 0.21 under the SDID
+ridge vs. 0.41 under the relative ridge) far more than it changes the
+counterfactual; the differencing order and forecaster move it only modestly. The
+rolling-origin CV curve over :math:`\rho` is also informative — it is flat
+through the interior and rises sharply toward :math:`\rho = 1`, confirming that
+pure levels-matching is *penalized* here, the signature of a partly idiosyncratic
+trend:
 
 .. list-table:: Rolling-origin CV error by :math:`\rho` (``ridge="sdid"``)
    :header-rows: 1
@@ -509,26 +519,26 @@ the signature of an idiosyncratic trend:
 
    * - :math:`\rho`
      - CV mean squared error
-   * - **0.00** (selected)
-     - **1.15e6**
+   * - 0.00
+     - 1.18e6
    * - 0.20
-     - 1.20e6
-   * - 0.50
-     - 1.17e6
+     - 1.19e6
+   * - **0.50** (selected)
+     - **1.18e6**
    * - 0.80
      - 1.85e6
    * - 0.97
-     - 5.05e6
+     - 4.69e6
 
 .. note::
 
-   This is a **Path-A-style empirical illustration**, not a machine-precision
-   replication: it reproduces the paper's *qualitative* findings on the same
-   data — broadly diversified donor weights (max ≈ 0.16, no corner solution) and
-   a ≈ $30,000 / ≈ -$2,000 post-handover counterfactual through 2003 — but the
-   public donor panel and pre-processing differ in minor ways from the authors'.
-   The validated bit-for-bit check for HSC is the Monte Carlo above, which
-   matches the standalone estimation skeleton exactly.
+   This is a **Path-A-style empirical illustration**: on the same data and the
+   authors' 1997–2003 window it reproduces the paper's headline numbers — an
+   average effect ≈ -$1,900, a ≈ $30,000 2003 counterfactual, and broadly
+   diversified donor weights (max Korea ≈ 0.21, no corner solution) — though the
+   public donor panel and pre-processing may differ in minor ways from the
+   authors'. The validated bit-for-bit check for HSC is the Monte Carlo above,
+   which matches the standalone estimation skeleton exactly.
 
 Core API
 --------
