@@ -115,15 +115,28 @@ with the number of treated units pinned by ``m_eq`` (exactly) or bounded by
 ``z``); ``mlsynth`` solves it with SCIP by default, or — via ``relaxed=True`` —
 relaxes ``z`` to :math:`[0, 1]`, solves the QP, and discretises post hoc.
 
-``mlsynth`` exposes four objective variants through ``design``:
+``mlsynth`` exposes four objective variants through ``design`` (clear names
+that map to the paper's formulations):
 
-* ``"base"`` — match each predictor mean with both synthetic units;
-* ``"weak"`` — match the treated synthetic to the mean and softly tie the
-  control synthetic to it (weight ``beta``), the weakly-targeted design;
-* ``"eq11"`` — ``base`` plus cluster-level distance penalties (``lambda1`` /
-  ``lambda2``);
-* ``"unit"`` — ``base`` plus unit-level penalties (``lambda1_unit`` /
-  ``lambda2_unit``).
+* ``"standard"`` — match each predictor mean with both synthetic units
+  (formulation 5);
+* ``"weakly_targeted"`` — match the treated synthetic to the mean and softly tie
+  the control synthetic to it (weight ``beta``);
+* ``"penalized"`` — ``standard`` plus a distance penalty that down-weights
+  units far from the population mean (``lambda1`` / ``lambda2``);
+* ``"unit_penalized"`` — ``standard`` plus unit-level penalties
+  (``lambda1_unit`` / ``lambda2_unit``).
+
+Covariates
+^^^^^^^^^^
+
+By default the design matches on pre-period outcomes. Passing ``covariates``
+(time-invariant column names) appends them to the predictor vector,
+:math:`X_j = [Y^E_j ; Z_j]`, exactly as in the paper — the synthetic treated and
+control are then balanced on both pre-period outcomes *and* covariates (with an
+optional ``covariate_weight`` scale). When the pre-period is long, the outcomes
+already encode the covariates' contribution, so covariates matter most when few
+pre-periods are available.
 
 Clustering, Costs, and Budgets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -201,6 +214,51 @@ from one to two or three treated units.
    authors' replication package. It is locked in as
    :mod:`mlsynth.tests.test_marex_replication`.
 
+Correspondence with the Authors' Code
+-------------------------------------
+
+The authors' R replication code (``Random_Data_Generator.R``,
+``Synthetic_Experiments.R``, ``Different_optimization_methods.R``) maps directly
+onto ``mlsynth``'s implementation, which was checked against it:
+
+.. list-table:: Authors' R ↔ ``mlsynth`` MAREX
+   :header-rows: 1
+   :widths: 42 42
+
+   * - Authors' R
+     - ``mlsynth``
+   * - DGP (``Random_Data_Generator.R``)
+     - :func:`~mlsynth.utils.marex_helpers.simulation.generate_marex_sample`
+   * - Formulation (5), Gurobi non-convex QCQP
+     - ``design="standard"`` (MIQP with binary ``z``; same optimum)
+   * - Penalization formulation
+     - ``design="penalized"`` (identical :math:`\lambda` distance penalty)
+   * - Cardinality formulation
+     - ``m_eq`` / ``m_min`` / ``m_max``
+   * - Predictors :math:`X = [Y^E ; Z]`
+     - ``covariates=[...]`` (matched on pre-outcomes + covariates)
+   * - "treated = smaller set" swap
+     - applied in :func:`~mlsynth.utils.marex_helpers.orchestration.solve_marex`
+   * - Exact permutation test (sum statistic)
+     - permutation inference (mlsynth defaults to a mean statistic / sampled
+       permutations)
+
+Driving ``mlsynth``'s ``solve_design`` on the authors' exact DGP and predictor
+matrix recovers the average treatment effect to within its scale, and the effect
+estimate degrades gracefully as the noise SD rises from 1 to 5 to 10 (the
+figures 2-7 settings) — matching the paper's qualitative findings.
+
+.. note::
+
+   Two faithfulness details from their R code: ``rnorm(N, 0, noise.variance)``
+   passes the value as a *standard deviation*, so the figures' "variance"
+   1/5/10 are SDs; and the R code uses random population weights :math:`f_j`
+   whereas the 2026 paper (and ``mlsynth``) use :math:`f_j = 1/J`. Also note that
+   the *unconstrained* ``standard`` design (formulation 5) is **degenerate** —
+   many disjoint splits match :math:`\bar X` equally well, so the realised
+   design (and hence a single ATE estimate) is solver-dependent; the
+   cardinality-constrained design is the stable, recommended choice.
+
 Example
 -------
 
@@ -214,7 +272,7 @@ Example
        "df": df, "outcome": "revenue", "unitid": "market", "time": "week",
        "T0": 40,            # 40 pre-experiment weeks
        "m_eq": 2,           # treat exactly two markets
-       "design": "base",
+       "design": "standard",
        "inference": True, "blank_periods": 4, "T_post": 4,
        "display_graph": True,
    }).fit()
