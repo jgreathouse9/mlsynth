@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -17,6 +17,7 @@ class MAREXPanel:
     clusters: np.ndarray          # cluster label per unit, shape (N,)
     T0: int
     blank_periods: int
+    covariates: Optional[np.ndarray] = None   # time-invariant predictors, (N, R)
 
 
 def prepare_marex_panel(
@@ -29,11 +30,14 @@ def prepare_marex_panel(
     inference: bool,
     blank_periods: int,
     T_post: Optional[int],
+    covariates: Optional[List[str]] = None,
 ) -> MAREXPanel:
     """Pivot the long panel to ``units x time`` and resolve T0 / blank periods.
 
     ``T0`` defaults to ``T - 1``. When ``inference`` is on, ``blank_periods``
     defaults to the requested post-window length (``T_post``) or ``T - T0``.
+    ``covariates`` (time-invariant columns) are extracted as an ``(N, R)`` matrix
+    aligned to the unit order and matched on alongside the pre-period outcomes.
     """
     unit_labels = df[unitid].unique()
     if cluster is not None:
@@ -41,6 +45,11 @@ def prepare_marex_panel(
                     .reindex(unit_labels).to_numpy())
     else:
         clusters = np.zeros(len(unit_labels), dtype=int)
+
+    cov = None
+    if covariates:
+        per_unit = df.drop_duplicates(subset=[unitid]).set_index(unitid)
+        cov = per_unit.reindex(unit_labels)[covariates].to_numpy(dtype=float)
 
     Y_full = df.pivot(index=unitid, columns=time, values=outcome).reindex(unit_labels)
     T_total = df[time].nunique()
@@ -55,4 +64,5 @@ def prepare_marex_panel(
     else:
         blanks = blank_periods
 
-    return MAREXPanel(Y_full=Y_full, clusters=clusters, T0=T0_eff, blank_periods=blanks)
+    return MAREXPanel(Y_full=Y_full, clusters=clusters, T0=T0_eff,
+                      blank_periods=blanks, covariates=cov)

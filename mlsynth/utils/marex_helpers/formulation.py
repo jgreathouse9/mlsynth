@@ -54,12 +54,12 @@ def validate_scm_inputs(Y_full, T0, blank_periods, design,
                          f"Y_full.shape[1]={Y_full.shape[1]})")
     if blank_periods < 0 or blank_periods >= T0:
         raise ValueError("blank_periods must be 0 <= blank_periods < T0 (need at least 1 fit period)")
-    if design != "weak" and beta != 1e-6:
-        raise ValueError("beta is only valid when design == 'weak'")
-    if design != "eq11" and (lambda1 != 0.0 or lambda2 != 0.0):
-        raise ValueError("lambda1/lambda2 are only valid when design == 'eq11'")
-    if design != "unit" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
-        raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit'")
+    if design != "weakly_targeted" and beta != 1e-6:
+        raise ValueError("beta is only valid when design == 'weakly_targeted'")
+    if design != "penalized" and (lambda1 != 0.0 or lambda2 != 0.0):
+        raise ValueError("lambda1/lambda2 are only valid when design == 'penalized'")
+    if design != "unit_penalized" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
+        raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit_penalized'")
 
 
 def validate_costs_budget(costs, budget, N, cluster_labels, K):
@@ -194,13 +194,13 @@ def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
     obj_terms = []
     K = len(cluster_members)
 
-    if design == "base":
+    if design == "standard":
         for k_idx in range(K):
             Xbar_k = Xbar_clusters[k_idx]
             obj_terms.append(cp.sum_squares(Xbar_k - Y_T @ w[:, k_idx]))
             obj_terms.append(cp.sum_squares(Xbar_k - Y_T @ v[:, k_idx]))
 
-    elif design == "weak":
+    elif design == "weakly_targeted":
         for k_idx in range(K):
             Xbar_k = Xbar_clusters[k_idx]
             syn_treated = Y_T @ w[:, k_idx]
@@ -208,7 +208,7 @@ def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
             obj_terms.append(cp.sum_squares(Xbar_k - syn_treated))
             obj_terms.append(beta * cp.sum_squares(syn_treated - syn_control))
 
-    elif design == "eq11":
+    elif design == "penalized":
         for k_idx in range(K):
             Xbar_k = Xbar_clusters[k_idx]
             syn_treated = Y_T @ w[:, k_idx]
@@ -220,7 +220,7 @@ def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
             if lambda2 > 0:
                 obj_terms.append(lambda2 * cp.sum(cp.multiply(v[:, k_idx], D1[:, k_idx])))
 
-    elif design == "unit":
+    elif design == "unit_penalized":
         for k_idx in range(K):
             members = cluster_members[k_idx]
             Xbar_k = Xbar_clusters[k_idx]

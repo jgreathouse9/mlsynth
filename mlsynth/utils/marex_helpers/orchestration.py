@@ -21,7 +21,7 @@ def solve_marex(
     Y_full,
     T0,
     clusters,
-    design="base",
+    design="standard",
     blank_periods=0,
     m_eq=None,
     m_min=None,
@@ -35,6 +35,8 @@ def solve_marex(
     lambda2_unit=0.0,
     costs=None,
     budget=None,
+    covariates=None,
+    covariate_weight=1.0,
     solver=None,
     verbose=False,
     relaxed=False,
@@ -55,7 +57,8 @@ def solve_marex(
         m_eq=m_eq, m_min=m_min, m_max=m_max, exclusive=exclusive, design=design,
         beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
         lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit,
-        costs=costs, budget=budget, solver=solver, verbose=verbose,
+        costs=costs, budget=budget, covariates=covariates,
+        covariate_weight=covariate_weight, solver=solver, verbose=verbose,
     )
 
     df = raw["df"]
@@ -75,18 +78,30 @@ def solve_marex(
                                  alpha=alpha, max_combinations=max_combinations,
                                  random_state=random_state)
 
+    # swap labels so the *treated* group is the smaller-support set (Abadie &
+    # Zhao's convention: treat as few units as possible), ties broken by the
+    # earlier first-treated index.
+    def _first_pos(x):
+        nz = np.where(x > 1e-8)[0]
+        return int(nz[0]) if nz.size else len(x)
+
+    w_sw, v_sw = w_opt.copy(), v_opt.copy()
+    for lab in np.unique(clusters_vec):
+        k = label_to_k[lab]
+        tw, cw = w_opt[:, k], v_opt[:, k]
+        n_t, n_c = int((tw > 1e-8).sum()), int((cw > 1e-8).sum())
+        if (n_t > n_c) or (n_t == n_c and _first_pos(tw) > _first_pos(cw)):
+            w_sw[:, k], v_sw[:, k] = cw, tw
+
     # per-cluster designs
     clusters_out = {}
     for lab in np.unique(clusters_vec):
         k = label_to_k[lab]
         idx = np.where(clusters_vec == lab)[0]
         members = [unit_labels[i] for i in idx]
-        treated_w = w_opt[:, k]
-        control_w = v_opt[:, k]
-        if z_opt is not None:
-            sel = z_opt[idx, k]
-        else:
-            sel = (treated_w[idx] > 1e-8).astype(float)
+        treated_w = w_sw[:, k]
+        control_w = v_sw[:, k]
+        sel = (treated_w[idx] > 1e-8).astype(float)
         syn_t = treated_w @ Y_full_np
         syn_c = control_w @ Y_full_np
         uwm = {
@@ -103,10 +118,14 @@ def solve_marex(
         )
 
     # aggregate (global) design
-    w_agg, v_agg = raw["w_agg"], raw["v_agg"]
+    sizes = raw["cluster_sizes"]; total = sum(sizes)
+    w_agg = sum((sizes[label_to_k[lab]] / total) * w_sw[:, label_to_k[lab]]
+                for lab in np.unique(clusters_vec))
+    v_agg = sum((sizes[label_to_k[lab]] / total) * v_sw[:, label_to_k[lab]]
+                for lab in np.unique(clusters_vec))
     is_treated = np.zeros(len(unit_labels), dtype=bool)
     for i, lab in enumerate(clusters_vec):
-        is_treated[i] = w_opt[i, label_to_k[lab]] > 1e-8
+        is_treated[i] = w_sw[i, label_to_k[lab]] > 1e-8
     adj_treated = np.where(is_treated, w_agg, 0.0)
     adj_control = np.where(is_treated, 0.0, v_agg)
     g_syn_t = adj_treated @ Y_full_np

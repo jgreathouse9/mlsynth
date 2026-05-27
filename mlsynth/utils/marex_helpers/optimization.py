@@ -26,6 +26,22 @@ from .formulation import (
 )
 
 
+def _augment_fit(Y_fit, covariates, covariate_weight):
+    """Stack (weighted) time-invariant covariates onto the fitting matrix.
+
+    The paper's predictor vector is ``X_j = [Y^E_j ; Z_j]`` -- pre-period
+    outcomes plus covariates -- so the design matches on both. Covariates are
+    appended as extra predictor columns; the synthetic outcome series still uses
+    outcomes only.
+    """
+    if covariates is None:
+        return Y_fit
+    cov = np.asarray(covariates, dtype=float)
+    if cov.ndim == 1:
+        cov = cov[:, None]
+    return np.hstack([Y_fit, covariate_weight * cov])
+
+
 def _aggregate_weights(w_opt, v_opt, cluster_members, N, K):
     cluster_sizes = [len(m) for m in cluster_members]
     total = sum(cluster_sizes)
@@ -39,9 +55,9 @@ def _aggregate_weights(w_opt, v_opt, cluster_members, N, K):
 
 def solve_design(
     Y_full, T0, clusters, blank_periods=0, m_eq=None, m_min=None, m_max=None,
-    exclusive=True, design="base", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
+    exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
-    solver=cp.SCIP, verbose=False,
+    covariates=None, covariate_weight=1.0, solver=cp.SCIP, verbose=False,
 ):
     """Exact mixed-integer MAREX design (was ``SCMEXP``)."""
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
@@ -49,14 +65,15 @@ def solve_design(
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
     costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
     Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
+    X_fit = _augment_fit(Y_fit, covariates, covariate_weight)   # predictors = [Y^E ; Z]
     M = build_membership_mask(clusters, label_to_k, N, K)
-    Xbar_clusters, cluster_members = compute_cluster_means_members(Y_fit, M, cluster_labels)
-    D1, D2_list = precompute_distances(Y_fit, Xbar_clusters, cluster_members)
+    Xbar_clusters, cluster_members = compute_cluster_means_members(X_fit, M, cluster_labels)
+    D1, D2_list = precompute_distances(X_fit, Xbar_clusters, cluster_members)
 
     w, v, z = init_cvxpy_variables(N, K)
     constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
                                     m_eq, m_min, m_max, costs_np, budget_dict, exclusive)
-    objective = build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
+    objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                design, beta, lambda1, lambda2, xi,
                                lambda1_unit, lambda2_unit, D1, D2_list)
     prob = cp.Problem(objective, constraints)
@@ -141,9 +158,10 @@ def post_hoc_discretize(w_opt, v_opt, cluster_members, cluster_labels,
 
 def solve_design_relaxed(
     Y_full, T0, clusters, blank_periods=0, m_eq=None, m_min=None, m_max=None,
-    exclusive=True, design="base", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
+    exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
-    solver=None, verbose=False, zeta=0.0, trim_threshold=1e-2,
+    covariates=None, covariate_weight=1.0, solver=None, verbose=False,
+    zeta=0.0, trim_threshold=1e-2,
 ):
     """Relaxed (continuous-``z``) design with post-hoc discretization (was ``SCMEXP_REL``)."""
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
@@ -151,16 +169,17 @@ def solve_design_relaxed(
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
     costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
     Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
+    X_fit = _augment_fit(Y_fit, covariates, covariate_weight)
     M = build_membership_mask(clusters, label_to_k, N, K)
-    Xbar_clusters, cluster_members = compute_cluster_means_members(Y_fit, M, cluster_labels)
-    D1, D2_list = precompute_distances(Y_fit, Xbar_clusters, cluster_members)
+    Xbar_clusters, cluster_members = compute_cluster_means_members(X_fit, M, cluster_labels)
+    D1, D2_list = precompute_distances(X_fit, Xbar_clusters, cluster_members)
 
     w, v, z = init_cvxpy_variables(N, K, boolean=False)   # continuous z in [0, 1]
     constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
                                     m_eq, m_min, m_max, costs_np, budget_dict, exclusive)
     constraints += [z <= 1]
     solver = solver or cp.CLARABEL
-    objective = build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
+    objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                design, beta, lambda1, lambda2, xi,
                                lambda1_unit, lambda2_unit, D1, D2_list, zeta=zeta)
     prob = cp.Problem(objective, constraints)
