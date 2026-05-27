@@ -15,11 +15,16 @@ not asserted in this fast smoke test.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+import pytest
 
 from mlsynth import MAREX
 from mlsynth.utils.marex_helpers.simulation import generate_marex_sample
+
+_WALMART = Path(__file__).resolve().parents[2] / "basedata" / "walmart_weekly_sales.csv"
 
 
 def _design_mae(sample, m_eq=None, m_min=None, m_max=None):
@@ -65,3 +70,31 @@ def test_marex_recovers_ate():
     # the design recovers the effect to within its own scale (Table 2)
     assert mae2 < scale
     assert mae3 < scale
+
+
+# ----------------------------------------------------------------------
+# Path A: the Walmart placebo empirical illustration (Section 4)
+# ----------------------------------------------------------------------
+
+@pytest.mark.slow
+def test_walmart_placebo():
+    """The placebo design tracks closely and fails to reject (paper p = 0.933)."""
+    if not _WALMART.exists():
+        pytest.skip(f"vendored Walmart panel not found at {_WALMART}")
+    df = pd.read_csv(_WALMART)
+    res = MAREX({
+        "df": df, "outcome": "sales", "unitid": "store", "time": "week",
+        "T0": 128, "blank_periods": 28, "T_post": 15, "m_eq": 2,
+        "design": "standard", "standardize": True, "inference": True,
+    }).fit()
+
+    g = res.globres
+    T0 = res.study.T0
+    Tfit = T0 - res.study.blank_periods
+    gap = g.synthetic_treated - g.synthetic_control
+    mean = g.synthetic_treated[:Tfit].mean()
+    assert len(res.treated_units) == 2
+    # close pre-period fit, near-zero placebo effect, fail to reject
+    assert np.sqrt(np.mean(gap[:Tfit] ** 2)) / mean < 0.10
+    assert abs(np.mean(gap[T0:]) / mean) < 0.10
+    assert g.inference.global_p_value > 0.5
