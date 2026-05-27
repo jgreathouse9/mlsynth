@@ -73,6 +73,7 @@ class MAREX:
         self.budget = config.budget
         self.covariates = config.covariates
         self.covariate_weight: float = config.covariate_weight
+        self.standardize: bool = config.standardize
 
         self.blank_periods: int = config.blank_periods
         self.m_eq = config.m_eq
@@ -128,6 +129,7 @@ class MAREX:
                 lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
                 costs=self.costs, budget=self.budget,
                 covariates=panel.covariates, covariate_weight=self.covariate_weight,
+                standardize=self.standardize,
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
                 relaxed=self.relaxed, inference=self.inference,
             )
