@@ -396,10 +396,9 @@ class FMAConfig(BaseEstimatorConfig):
 class PDAConfig(BaseEstimatorConfig):
     """Configuration for the Panel Data Approach (PDA) estimator."""
     method: str = Field(default="fs", description="Type of PDA to use: 'LASSO', 'l2', or 'fs'.", pattern="^(LASSO|l2|fs)$")
+    methods: Optional[List[str]] = Field(default=None, description="Optional list of PDA variants to run; overrides `method` when set.")
     tau: Optional[float] = Field(default=None, description="User-specified treatment effect value (used as tau_l2 for 'l2' method).")
-    # Note: The original __init__ had validation for method.lower(). Pydantic's pattern handles case-sensitivity.
-    # If case-insensitivity is desired, the pattern would be different or a validator would be needed.
-    # For now, assuming exact match "LASSO", "l2", "fs".
+    alpha: float = Field(default=0.05, gt=0.0, lt=1.0, description="Significance level for confidence intervals and ATE inference.")
 
 class FDIDConfig(BaseEstimatorConfig):
     """
