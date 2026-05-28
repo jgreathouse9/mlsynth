@@ -574,7 +574,8 @@ from mlsynth.utils.marex_helpers.formulation import (
 
 class TestFormulationGuards:
     """Every guard in formulation.py — bad shapes, mis-paired design/penalty
-    flags, bad costs/budget — should raise before cvxpy is touched."""
+    flags, bad costs/budget — should raise before cvxpy is touched.
+    """
 
     def test_prepare_clusters_length_mismatch(self):
         with pytest.raises(ValueError, match="length N"):
@@ -682,7 +683,8 @@ from mlsynth.utils.marex_helpers.optimization import (
 class TestOptimizationEdges:
     """Cover the unusual branches of the optimizer module: 1-D covariates,
     post-hoc discretization when the relaxed v-mass collapses, and the
-    relaxed blank-window RMSE branch."""
+    relaxed blank-window RMSE branch.
+    """
 
     def test_augment_fit_accepts_1d_covariates(self):
         Y = np.ones((5, 4))
@@ -749,7 +751,8 @@ class TestOptimizationEdges:
 
 class TestOrchestrationEdges:
     """The swap-to-smaller-treated-set rule (Abadie & Zhao convention) and the
-    ``try/except`` shield around power analysis must both be exercised."""
+    ``try/except`` shield around power analysis must both be exercised.
+    """
 
     def test_label_swap_picks_smaller_treated_set(self):
         # Constructed example where the raw optimization yields a treated set
@@ -788,7 +791,8 @@ class TestOrchestrationEdges:
 
 class TestPlotterEdges:
     """The plotter has four interacting toggles (plot_type, clusters,
-    global_result, blank_periods) — exercise each branch."""
+    global_result, blank_periods) — exercise each branch.
+    """
 
     def test_plotter_returns_when_nothing_to_plot(self, panel):
         res = MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
@@ -825,8 +829,9 @@ from mlsynth.utils.marex_helpers.inference import compute_inference
 
 
 class TestInferenceEdges:
-    """compute_inference must degrade gracefully when the blank or post window
-    has zero length."""
+    """Compute_inference must degrade gracefully when the blank or post window
+    has zero length.
+    """
 
     def test_inference_no_post_window(self):
         # T_post = 0 ⇒ no treated effects, global_p falls back to NaN
@@ -901,7 +906,8 @@ from mlsynth.utils.marex_helpers.simulation import (
 
 class TestSimulationDGP:
     """The linear-factor DGP that backs the replication tests should produce
-    well-shaped samples with zero pre-period effects."""
+    well-shaped samples with zero pre-period effects.
+    """
 
     def test_generate_marex_sample_shapes_and_zero_pre_effect(self):
         rng = np.random.default_rng(0)
@@ -938,7 +944,8 @@ from mlsynth.utils.post_fit import (
 class TestPostFitEdges:
     """Cover the post_fit module's defensive branches: degenerate weights,
     bad covariate scales, inference adapters across estimators, and the
-    power-analysis fallbacks for missing pre/post windows."""
+    power-analysis fallbacks for missing pre/post windows.
+    """
 
     # ---- _normalize_weights -----------------------------------------
 
@@ -1276,7 +1283,8 @@ class TestCoverageMopUp:
     """Branches that need a specific construction to fire: tied-support swap,
     full budget dict, unit-penalized xi / lambda2_unit, the zeta integrality
     penalty in the relaxed solver, the MAREXResults convenience properties,
-    and the three exception-conversion paths in MAREX.fit()."""
+    and the three exception-conversion paths in MAREX.fit().
+    """
 
     # ---- orchestration: tied-support label swap (orchestration.py 90-92)
 
