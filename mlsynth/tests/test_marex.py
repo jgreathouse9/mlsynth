@@ -206,6 +206,7 @@ class TestPlot:
 
 from mlsynth.utils.post_fit import (
     SyntheticControlPostFit, compute_smd, compute_post_fit,
+    PowerAnalysis, MDEPoint, compute_power_analysis,
 )
 
 
@@ -219,8 +220,7 @@ class TestPostFit:
     def _panel_with_cov(self, J=12, T=18, seed=11):
         """Panel where two time-invariant covariates load the outcome, so the
         MAREX design that minimises the Abadie-Zhou objective actually achieves
-        small SMD against both the synthetic control and the population mean.
-        """
+        small SMD against both the synthetic control and the population mean."""
         rng = np.random.default_rng(seed)
         pop = rng.uniform(800, 2400, J)
         inc = rng.uniform(45_000, 75_000, J)
@@ -279,8 +279,7 @@ class TestPostFit:
     def test_design_with_covariates_balances_better(self):
         """The covariate-aware MAREX design should achieve smaller |SMD|
         treated-vs-control than the no-covariates design, scored on the
-        same raw covariate matrix so the comparison is apples-to-apples.
-        """
+        same raw covariate matrix so the comparison is apples-to-apples."""
         df = self._panel_with_cov()
         common = dict(df=df, outcome="y", unitid="unit", time="time",
                       T0=14, m_eq=3, standardize=True)
@@ -318,8 +317,7 @@ class TestPostFit:
     def test_population_smd_matches_marex_objective(self):
         """Both vs-population SMDs (treated-vs-pop, control-vs-pop) should be
         small — this is exactly what Abadie & Zhou's standard objective
-        ||X̄ − Σwⱼ Xⱼ||² + ||X̄ − Σvⱼ Xⱼ||² minimises.
-        """
+        ||X̄ − Σwⱼ Xⱼ||² + ||X̄ − Σvⱼ Xⱼ||² minimises."""
         df = self._panel_with_cov()
         res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
                      "T0": 14, "m_eq": 3, "covariates": ["pop", "inc"],
@@ -332,7 +330,7 @@ class TestPostFit:
         assert pf.covariate_smd_control_vs_pop_abs_max < 0.3
 
     def test_compute_smd_standalone(self):
-        """Compute_smd works panel-free on raw arrays."""
+        """compute_smd works panel-free on raw arrays."""
         rng = np.random.default_rng(0)
         N, M = 12, 3
         cov = rng.normal(size=(N, M))
@@ -345,7 +343,7 @@ class TestPostFit:
                           sum(v ** 2 for v in out["smd"].values()))
 
     def test_compute_post_fit_standalone(self):
-        """Compute_post_fit works panel-free on raw arrays (no estimator)."""
+        """compute_post_fit works panel-free on raw arrays (no estimator)."""
         rng = np.random.default_rng(2)
         T, N, M = 30, 10, 2
         treated = rng.normal(size=T) + 5
@@ -365,3 +363,97 @@ class TestPostFit:
         assert pf.covariate_smd is not None
         assert pf.covariate_smd_treated_vs_pop is not None
         assert pf.covariate_smd_control_vs_pop is not None
+
+
+# ----------------------------------------------------------------------
+# Power analysis (analytical AR(1)-inflated MDE from blank residuals)
+# ----------------------------------------------------------------------
+
+class TestPowerAnalysis:
+    """``res.post_fit.power`` is auto-attached by MAREX.fit() and exposes
+    an analytical MDE / power curve consistent with the placebo-inference
+    framework Abadie & Zhao (2026) propose.
+    """
+
+    def _panel(self, J=10, T=20, seed=11):
+        rng = np.random.default_rng(seed)
+        F = rng.normal(0, 1, (T, 2)); lam = rng.normal(0, 1, (J, 2))
+        Y = lam @ F.T + 0.2 * rng.standard_normal((J, T))
+        return pd.DataFrame([{"unit": f"u{j:02d}", "time": t, "y": float(Y[j, t])}
+                              for j in range(J) for t in range(T)])
+
+    def test_power_attached_with_inference_blank(self):
+        df = self._panel(J=10, T=20)
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 16, "m_eq": 2,
+                     "inference": True, "blank_periods": 4, "T_post": 4}).fit()
+        power = res.post_fit.power
+        assert isinstance(power, PowerAnalysis)
+        # Headline + curve populated
+        assert isinstance(power.headline, MDEPoint)
+        assert len(power.curve) >= 1
+        # Standard scalars are finite
+        assert np.isfinite(power.sigma_placebo) and power.sigma_placebo > 0
+        assert -1.0 <= power.serial_correlation <= 1.0
+        assert power.alpha == 0.05
+        assert power.power_target == 0.80
+        assert power.method == "analytical_ar1"
+
+    def test_power_falls_back_to_pre_window_without_blank(self, panel):
+        # No inference -> no carved-out blank window. Power still attaches,
+        # using the pre-period gap as the placebo proxy.
+        res = MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 10, "m_eq": 2}).fit()
+        power = res.post_fit.power
+        assert isinstance(power, PowerAnalysis)
+        assert np.isfinite(power.sigma_placebo)
+
+    def test_mde_shrinks_with_longer_horizon(self):
+        """The MDE should DECREASE as the post horizon T grows (the AR(1)
+        variance-inflation factor monotonically dilutes per-period noise)."""
+        df = self._panel(J=10, T=20)
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 16, "m_eq": 2,
+                     "inference": True, "blank_periods": 4, "T_post": 4}).fit()
+        curve = sorted(res.post_fit.power.curve, key=lambda p: p.post_periods)
+        # Take the first two horizons that are different and check MDE shrinks.
+        horizons = [c for c in curve if np.isfinite(c.mde_absolute)]
+        assert len(horizons) >= 2
+        first, last = horizons[0], horizons[-1]
+        assert last.post_periods > first.post_periods
+        assert last.mde_absolute <= first.mde_absolute + 1e-9, (
+            f"MDE should not grow with horizon; got T={first.post_periods}: "
+            f"{first.mde_absolute:.4f} vs T={last.post_periods}: "
+            f"{last.mde_absolute:.4f}"
+        )
+
+    def test_mde_pct_consistent_with_baseline(self):
+        df = self._panel(J=10, T=20)
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 16, "m_eq": 2,
+                     "inference": True, "blank_periods": 4, "T_post": 4}).fit()
+        h = res.post_fit.power.headline
+        bl = res.post_fit.power.baseline
+        if np.isfinite(h.mde_absolute) and np.isfinite(bl) and abs(bl) > 1e-12:
+            assert np.isclose(h.mde_pct, h.mde_absolute / bl * 100.0, rtol=1e-9)
+
+    def test_compute_power_analysis_standalone(self):
+        """The function works on any SyntheticControlPostFit, not just MAREX."""
+        rng = np.random.default_rng(3)
+        T = 40
+        treated = rng.normal(size=T) + 100
+        control = rng.normal(size=T) + 100
+        pf = compute_post_fit(treated, control, n_fit=28, n_blank=4, n_post=8)
+        power = compute_power_analysis(pf, alpha=0.05, power_target=0.80,
+                                        post_grid=[2, 4, 8, 16])
+        assert isinstance(power, PowerAnalysis)
+        assert {p.post_periods for p in power.curve} >= {2, 4, 8, 16}
+
+    def test_power_at_observed_effect_in_unit_interval(self):
+        df = self._panel(J=10, T=20)
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 16, "m_eq": 2,
+                     "inference": True, "blank_periods": 4, "T_post": 4}).fit()
+        for pt in res.post_fit.power.curve:
+            if pt.power_at_observed is not None:
+                assert 0.0 <= pt.power_at_observed <= 1.0
