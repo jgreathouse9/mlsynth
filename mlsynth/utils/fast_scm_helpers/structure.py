@@ -262,3 +262,9 @@ class LEXSCMResults:
 
     # OPTIONAL
     y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
+
+    # Standardized post-fit diagnostics (SyntheticControlPostFit) computed from
+    # ``best_candidate.predictions`` at the end of LEXSCM.fit(). Provides the
+    # unified ATE / total / RMSE / SMD / power surface used across the entire
+    # MAREX-family (LEXSCM, MAREX, SYNDES, PANGEO).
+    post_fit: Optional[Any] = None
