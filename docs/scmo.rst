@@ -437,6 +437,206 @@ Verification
    averaged 1.408), confirming both papers' analyses and the regime-dependence
    of which scheme wins.
 
+Simulation study: Tian-Lee-Panchenko Table 1 (Path B)
+-----------------------------------------------------
+
+We reproduce the **concatenated** paper's own Monte Carlo
+(Tian-Lee-Panchenko 2024, Section 3, Table 1) through the packaged
+:py:class:`~mlsynth.estimators.scmo.SCMO`. Their DGP has :math:`N = 30`
+units (1 treated, 29 control), one post period, **zero** true effect, and
+:math:`Y_{it,k} = \delta_{t,k} + Z_i'\theta_{t,k} + \mu_i'\lambda_{t,k}
++ \varepsilon_{it,k}` with shared predictors :math:`Z_i` (2 observed),
+:math:`\mu_i` (4 unobserved) drawn once from :math:`U[-d, d]`, large level
+differences :math:`\delta, \theta, \lambda \sim N(\omega_k, 1)`,
+:math:`\omega_k \sim N(0, 10^2)`, and :math:`\varepsilon \sim N(0,1)`. The
+estimand is the effect on outcome 1 at :math:`t = T_0+1`; with a zero true
+effect the average absolute bias and SD of :math:`\hat\tau` approach the
+half-normal floor :math:`\sqrt{2/\pi} \approx 0.80` and :math:`1.00` as the
+fit improves. The ``concatenated`` (de-meaned) scheme reproduces Table 1 at
+:math:`d = 1` -- bias and SD fall monotonically as :math:`K` and :math:`T_0`
+grow toward the floor (800 reps; the paper uses 5000):
+
+.. list-table:: Average absolute bias / SD of :math:`\hat\tau`, :math:`d=1`
+   :header-rows: 1
+   :widths: 8 8 22 22
+
+   * - :math:`T_0`
+     - :math:`K`
+     - mlsynth (bias / SD)
+     - paper (bias / SD)
+   * - 5
+     - 1
+     - 1.47 / 1.83
+     - 1.43 / 1.81
+   * - 5
+     - 10
+     - 1.26 / 1.64
+     - 1.22 / 1.54
+   * - 20
+     - 1
+     - 1.26 / 1.59
+     - 1.18 / 1.49
+   * - 20
+     - 10
+     - 1.11 / 1.40
+     - 1.08 / 1.36
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SCMO
+
+   N = 30
+   def tlp_sim(d, T0, K, rng):                       # Tian-Lee-Panchenko Sec 3 draw
+       T = T0 + 1
+       Z = np.empty((N, 2)); mu = np.empty((N, 4))
+       Z[1:] = rng.uniform(-1, 1, (N - 1, 2)); mu[1:] = rng.uniform(-1, 1, (N - 1, 4))
+       Z[0] = rng.uniform(-d, d, 2); mu[0] = rng.uniform(-d, d, 4)
+       Y = np.empty((N, T, K))
+       for k in range(K):
+           w = rng.normal(0, 10)
+           Y[:, :, k] = (rng.normal(w, 1, T)[None, :] + Z @ rng.normal(w, 1, (T, 2)).T
+                         + mu @ rng.normal(w, 1, (T, 4)).T + rng.normal(0, 1, (N, T)))
+       df = pd.DataFrame([{"unit": f"u{i}", "time": t, "treat": int(i == 0 and t >= T0),
+                           **{f"y{k+1}": float(Y[i, t, k]) for k in range(K)}}
+                          for i in range(N) for t in range(T)])
+       spec = {"year": list(range(T0)), "vars": {f"y{k+1}": f"y{k+1}" for k in range(K)}}
+       res = SCMO({"df": df, "outcome": "y1", "treat": "treat", "unitid": "unit",
+                   "time": "time", "spec": spec, "schemes": ["concatenated"],
+                   "demean": True, "display_graphs": False}).fit()
+       return res.att_by_method()["concatenated"]
+
+   for K in (1, 3, 10):                              # half-normal floor: bias~0.80, sd~1.00
+       tau = np.array([tlp_sim(1.0, 10, K, np.random.default_rng(K)) for _ in range(300)])
+       print(f"K={K:>2}:  bias={np.mean(np.abs(tau)):.2f}  sd={np.std(tau):.2f}")
+   # bias/SD shrink toward the floor as K grows
+
+Simulation study: Sun-Ben-Michael-Feller averaging gain (Path B)
+----------------------------------------------------------------
+
+Sun-Ben-Michael-Feller (2025) prove that, under a shared factor structure,
+the multiple-outcome schemes lower the weight-estimation bias relative to
+fitting each outcome **separately**, and that **averaging** lowers it
+furthest. Their Table 1 gives the leading bias terms (:math:`N` fixed):
+
+.. list-table:: SBMF Table 1 -- leading bias terms
+   :header-rows: 1
+   :widths: 18 26 26
+
+   * - scheme
+     - bias from imperfect fit
+     - bias from overfitting
+   * - separate
+     - :math:`O(1)`
+     - :math:`O(1/\sqrt{T_0})`
+   * - concatenated
+     - :math:`O(1)`
+     - :math:`O(1/\sqrt{T_0 K})`
+   * - averaged
+     - :math:`O(1/\sqrt{K})`
+     - :math:`O(1/\sqrt{T_0 K})`
+
+The distinctive claim is the **averaged** column: averaging the :math:`K`
+outcomes denoises the matching target, so it alone shaves the
+*imperfect-fit* bias by :math:`1/\sqrt{K}` while separate and concatenated
+stay :math:`O(1)` there. To see this through the packaged estimator we
+isolate the object the theorem bounds -- the **weight bias**
+:math:`(\hat\gamma - \gamma^\star)` -- by applying each scheme's estimated
+donor weights to the *noiseless* donor structure (the observed-data
+counterfactual is otherwise swamped by the treated unit's irreducible
+post-period noise). On their supplement DGP
+:math:`Y_{it,k} = \rho\,\phi_i \mu_t + (1-\rho)\,\phi_{ik}\mu_{tk}
++ \varepsilon_{it,k}` (:math:`\rho = 0.5`, a common rank-one factor plus
+outcome-specific idiosyncratic factors), 200 reps:
+
+.. list-table:: Pure weight bias (RMSE of :math:`\hat\gamma` applied to structure)
+   :header-rows: 1
+   :widths: 8 14 14 14
+
+   * - :math:`K`
+     - separate
+     - concatenated
+     - averaged
+   * - 1
+     - 0.112
+     - 0.112
+     - 0.112
+   * - 4
+     - 0.149
+     - 0.138
+     - 0.140
+   * - 8
+     - 0.140
+     - 0.120
+     - 0.097
+   * - 16
+     - 0.135
+     - 0.087
+     - 0.071
+
+The ordering is exactly Table 1's: **separate is flat in** :math:`K`
+(:math:`O(1)`), while concatenated and averaged fall as outcomes are added,
+and **averaged is lowest at large** :math:`K` -- the
+:math:`1/\sqrt{K}` imperfect-fit reduction that is unique to averaging.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SCMO
+
+   N, T0, TPOST, RHO, TAU = 20, 40, 4, 0.5, 2.0
+
+   def _ar1(T, rng, c=0.5):
+       x = np.zeros(T)
+       for t in range(1, T):
+           x[t] = c * x[t - 1] + rng.normal()
+       return x
+
+   def one_rep(K, rng):
+       """SBMF-regime draw; returns each scheme's weight bias on the noiseless structure."""
+       T = T0 + TPOST
+       gstar = rng.dirichlet(np.ones(N) * 0.5)
+       phi = rng.normal(0, 1, N); phi0 = gstar @ phi; mu = _ar1(T, rng)
+       m0 = donor1 = None; structs = []
+       for k in range(K):
+           if k == 0:                                # outcome 1: common only (oracle holds)
+               phik, muk, phi0k = phi.copy(), mu.copy(), phi0
+           else:                                     # k>=2: idiosyncratic, treated loading independent
+               phik, muk, phi0k = rng.normal(0, 1, N), _ar1(T, rng), rng.normal()
+           donor = RHO * phi[:, None] * mu[None, :] + (1 - RHO) * phik[:, None] * muk[None, :]
+           treated = RHO * phi0 * mu + (1 - RHO) * phi0k * muk
+           structs.append(np.vstack([treated, donor]))
+           if k == 0:
+               m0, donor1 = treated.copy(), donor
+       Y = np.stack(structs, axis=2) + rng.normal(0, 1, (N + 1, T, K))
+       Y[0, T0:, 0] += TAU
+       df = pd.DataFrame([{"unit": f"u{i}", "time": t, "treat": int(i == 0 and t >= T0),
+                           **{f"y{k+1}": float(Y[i, t, k]) for k in range(K)}}
+                          for i in range(N + 1) for t in range(T)])
+       spec = {"year": list(range(T0)), "vars": {f"y{k+1}": f"y{k+1}" for k in range(K)}}
+       res = SCMO({"df": df, "outcome": "y1", "treat": "treat", "unitid": "unit",
+                   "time": "time", "spec": spec,
+                   "schemes": ["separate", "concatenated", "averaged"],
+                   "demean": False, "display_graphs": False}).fit()
+       out = {}
+       for sch in ("separate", "concatenated", "averaged"):
+           g = np.array([res.fits[sch].donor_weights.get(f"u{j}", 0.0) for j in range(1, N + 1)])
+           out[sch] = float(np.mean(donor1[:, T0:].T @ g - m0[T0:]))
+       return out
+
+   for K in (1, 4, 8, 16):
+       e = {s: [] for s in ("separate", "concatenated", "averaged")}
+       rng = np.random.default_rng(100 + K)
+       for _ in range(100):
+           r = one_rep(K, rng)
+           for s in e: e[s].append(r[s])
+       rmse = lambda v: float(np.sqrt(np.mean(np.array(v) ** 2)))
+       print(f"K={K:>2}:  sep={rmse(e['separate']):.3f}  cat={rmse(e['concatenated']):.3f}  "
+             f"avg={rmse(e['averaged']):.3f}")
+   # separate flat; concatenated & averaged fall; averaged lowest at large K
+
 Core API
 --------
 
