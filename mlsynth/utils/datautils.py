@@ -181,7 +181,7 @@ def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
 
 
 # ─── New private helper (place between logictreat() and dataprep()) ────────
-def _build_covariate_matrix(
+def build_covariate_matrix(
     df: pd.DataFrame,
     unit_id_column_name: str,
     time_period_column_name: str,
@@ -398,7 +398,7 @@ def dataprep(
             # ``donor_covariate_matrix`` and ``treated_covariate_matrix`` can
             # be sliced off the unified ``covariate_matrix`` cleanly.
             unit_order = list(donor_names) + [treated_unit_name]
-            cov_matrix, cov_names, cov_means, cov_scales = _build_covariate_matrix(
+            cov_matrix, cov_names, cov_means, cov_scales = build_covariate_matrix(
                 df, unit_id_column_name, time_period_column_name,
                 covariates, num_pre_treatment_periods, unit_order,
                 aggregation=covariate_aggregation,
@@ -499,7 +499,7 @@ def dataprep(
             min_pre = (min(c["pre_periods"] for c in cohort_details_map.values())
                        if cohort_details_map else 0)
             unit_order = list(outcome_matrix_wide.columns)
-            cov_matrix, cov_names, cov_means, cov_scales = _build_covariate_matrix(
+            cov_matrix, cov_names, cov_means, cov_scales = build_covariate_matrix(
                 df, unit_id_column_name, time_period_column_name,
                 covariates, max(min_pre, 1), unit_order,
                 aggregation=covariate_aggregation,
