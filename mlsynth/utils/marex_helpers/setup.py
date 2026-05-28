@@ -35,11 +35,14 @@ def prepare_marex_panel(
     T_post: Optional[int],
     covariates: Optional[List[str]] = None,
 ) -> MAREXPanel:
-    """Pivot the long panel to ``units x time`` and resolve T0 / blank periods.
+    """Pivot the long panel to ``units x time`` and forward the resolved
+    ``T0`` / ``blank_periods``.
 
-    ``T0`` defaults to ``T - 1``. When ``inference`` is on, ``blank_periods``
-    defaults to the requested post-window length (``T_post``) or ``T - T0``.
-    ``covariates`` columns are aggregated to a per-unit pre-period mean via
+    The MAREX config validator is the single source of truth for resolving
+    ``T0`` (from either an explicit scalar or a ``post_col`` 0/1 column) and
+    the default 30%-of-pre-tail blank window — by the time this helper runs
+    both are concrete integers. ``covariates`` columns are aggregated to a
+    per-unit pre-period mean via
     :func:`mlsynth.utils.datautils.build_covariate_matrix` and returned as an
     ``(N, R)`` matrix aligned to the unit order. The matrix is left
     un-normalised here so MAREX's existing ``standardize=True`` flag (applied
@@ -73,14 +76,11 @@ def prepare_marex_panel(
             normalize=False,
         )
 
-    if inference:
-        blanks = blank_periods if blank_periods else (T_post if T_post else T_total - T0_eff)
-        if blanks < 0 or blanks >= T0_eff:
-            raise ValueError(
-                f"blank_periods must be 0 <= blank_periods < T0 (T0={T0_eff}, got {blanks})"
-            )
-    else:
-        blanks = blank_periods
+    blanks = int(blank_periods or 0)
+    if blanks < 0 or blanks >= T0_eff:
+        raise ValueError(
+            f"blank_periods must be 0 <= blank_periods < T0 (T0={T0_eff}, got {blanks})"
+        )
 
     return MAREXPanel(Y_full=Y_full, clusters=clusters, T0=T0_eff,
                       blank_periods=blanks, covariates=cov,
