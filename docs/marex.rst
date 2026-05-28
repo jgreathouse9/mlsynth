@@ -158,6 +158,205 @@ no effect, per-period p-values, and a split-conformal confidence band
 (Chernozhukov-Wuthrich-Zhu 2021), all on
 :class:`~mlsynth.utils.marex_helpers.structures.MAREXInference`.
 
+
+
+Standardized Post-Fit and Power Analysis
+----------------------------------------
+
+Every call to :meth:`MAREX.fit` attaches a
+:class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` to ``res.post_fit``.
+This is the single, estimator-agnostic surface for the diagnostic numbers a
+consumer of the design typically needs: effects, fit RMSEs, conformal /
+permutation inference, covariate balance (when covariates were used), and
+power analysis. It is computed by
+:func:`~mlsynth.utils.post_fit.compute_post_fit` from MAREX's own
+``synthetic_treated`` / ``synthetic_control`` trajectories and weight vectors,
+so by construction it agrees with what the underlying optimization produced.
+
+.. code-block:: python
+
+   pf = res.post_fit                          # SyntheticControlPostFit
+   pf.ate, pf.ate_percent, pf.total_effect    # treatment-effect scalars
+   pf.rmse_fit, pf.rmse_blank, pf.rmse_post   # fit quality, per phase
+   pf.p_value, pf.ci_lower, pf.ci_upper       # inference (when computed)
+   pf.covariate_smd                           # treated-vs-control SMD dict
+   pf.covariate_smd_treated_vs_pop            # treated-vs-population
+   pf.covariate_smd_control_vs_pop            # control-vs-population
+   pf.power                                   # PowerAnalysis (see below)
+
+Three Standardized Mean Differences
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When ``covariates=[...]`` is set, the post-fit reports the **three** covariate
+balance diagnostics that match the structure of Abadie & Zhao's objective.
+Each is a per-covariate signed dict (``covariate_smd_*``) plus two summary
+scalars (max absolute SMD, sum of squared SMDs). With :math:`\bar X` the
+population covariate aggregate, :math:`X_w := \sum_j w_j X_j`,
+:math:`X_v := \sum_j v_j X_j`, and :math:`s_m` the cross-unit standard
+deviation of covariate :math:`m`, each comparison is the unit-free vector
+
+.. math::
+
+   \mathrm{SMD}_m^{(a,b)} = \frac{X_a[m] - X_b[m]}{s_m}.
+
+The three pairs ``(a, b)`` reported are:
+
+* ``covariate_smd``                — ``(X_w, X_v)``: synthetic treated vs
+  synthetic control. The **internal-validity** check ("is the experiment
+  apples-to-apples?").
+* ``covariate_smd_treated_vs_pop`` — ``(X_w, \bar X)``: synthetic treated vs
+  population aggregate. Tracks the first term of MAREX's objective,
+  :math:`\|\bar X - \sum_j w_j X_j\|^2`. Tells you whether the *chosen
+  treated group* represents the population.
+* ``covariate_smd_control_vs_pop`` — ``(X_v, \bar X)``: synthetic control vs
+  population aggregate. Tracks the second term of the objective. Tells you
+  whether the *control set* represents the population.
+
+A rule-of-thumb threshold of :math:`|\mathrm{SMD}| < 0.1` is conventionally
+"well balanced"; below :math:`0.25` is acceptable; above is a red flag.
+
+Power Analysis and Minimum Detectable Effect
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Power analysis answers the **pre-experiment planning question**: *given the
+design I've chosen, how large a treatment effect can I detect with high
+probability?* This is the dual of inference: inference asks "is the observed
+effect distinguishable from noise?", power asks "what effect sizes would be?"
+
+The paper develops permutation inference for MAREX but does not provide a
+matching MDE. ``mlsynth`` fills this gap with an analytical, AR(1)-inflated
+Gaussian MDE computed from the same residual series the permutation test
+draws on. Set ``inference=True`` and a positive ``blank_periods`` (or just
+let ``T_post`` default to one) and the result auto-populates
+``res.post_fit.power``.
+
+Where the noise standard deviation comes from
+""""""""""""""""""""""""""""""""""""""""""""""
+
+Under the linear factor model of Assumption 1, the per-period contrast
+:math:`g_t := \sum_j w_j Y_{jt} - \sum_j v_j Y_{jt}` has expectation zero
+under the no-effect null. Its sample SD on the **blank window**
+:math:`\mathcal{B}` (the held-out tail of the pre-period) is the natural
+estimator of the noise scale:
+
+.. math::
+
+   \hat\sigma_{\text{placebo}} = \sqrt{\frac{1}{|\mathcal{B}| - 1}
+       \sum_{t \in \mathcal{B}} \bigl(g_t - \bar g\bigr)^2}.
+
+When no blank window is carved out (``inference=False``) the pre-period gap
+serves as the placebo proxy. The blank-window estimator is preferred because
+it uses periods that played no role in fitting the weights — it is honest in
+exactly the same sense Chernozhukov-Wuthrich-Zhu's conformal residuals are.
+
+Serial correlation matters
+""""""""""""""""""""""""""
+
+Synthetic-control gap residuals are virtually always serially correlated:
+the donor weighting absorbs the level but the persistent components of the
+factor structure (business cycles, seasonality, slow trends) leak through.
+Ignoring this systematically under-states the SE at long horizons. We model
+it as an AR(1) process with lag-1 autocorrelation
+
+.. math::
+
+   \hat\rho = \frac{\sum_t g_t g_{t-1}}{\sum_t g_t^2},
+
+clipped to :math:`(-0.99, 0.99)` for numerical safety. The variance of the
+mean of :math:`T` consecutive AR(1) periods, expressed as a multiple of
+:math:`\sigma^2`, is the *variance inflation factor*
+
+.. math::
+
+   \mathrm{VIF}(T, \rho) =
+   \frac{1}{T}\!\left(1 + 2 \sum_{k=1}^{T-1}\!\Bigl(1 - \frac{k}{T}\Bigr)\rho^k\right),
+
+which collapses to the textbook :math:`1/T` when :math:`\rho = 0` and grows
+substantially for :math:`\rho > 0.3`. The same formula is used by PANGEO's
+power module.
+
+The MDE formula
+"""""""""""""""
+
+Combining: the standard error of the mean of :math:`T` post-period contrasts
+under :math:`H_0` is :math:`\mathrm{SE}(T) = \hat\sigma_{\text{placebo}} \,
+\sqrt{\mathrm{VIF}(T, \hat\rho)}`. For a two-sided test at level :math:`\alpha`
+with target power :math:`1 - \beta`, the **minimum detectable effect** is
+
+.. math::
+
+   \mathrm{MDE}(T) = \bigl(z_{1-\alpha/2} + z_{1-\beta}\bigr) \cdot
+   \hat\sigma_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \hat\rho)}.
+
+The corresponding **power** to detect a *given* true effect :math:`\tau` at
+horizon :math:`T` is
+
+.. math::
+
+   \pi(\tau, T) = \Phi\!\Bigl(\frac{|\tau|}{\mathrm{SE}(T)} - z_{1-\alpha/2}\Bigr)
+                 + \Phi\!\Bigl(-\frac{|\tau|}{\mathrm{SE}(T)} - z_{1-\alpha/2}\Bigr),
+
+which is reported as ``power_at_observed`` for each horizon point using the
+realised :math:`\hat\tau`.
+
+What the surface looks like
+"""""""""""""""""""""""""""
+
+.. code-block:: python
+
+   p = res.post_fit.power                  # PowerAnalysis dataclass
+
+   p.headline.mde_absolute                 # MDE at the realised T_post
+   p.headline.mde_pct                      # ... as % of post-period baseline
+   p.headline.se                           # implied SE of mean(g_t) over T_post
+   p.headline.power_at_observed            # power to detect res.post_fit.ate
+
+   p.curve                                 # tuple of MDEPoint, one per horizon
+   for pt in p.curve:
+       print(pt.post_periods, pt.mde_absolute, pt.mde_pct, pt.power_at_observed)
+
+   p.sigma_placebo                         # σ̂ used (from blank or pre window)
+   p.serial_correlation                    # ρ̂ AR(1) of the placebo gaps
+   p.baseline                              # mean(synthetic_control) on post window
+   p.alpha, p.power_target                 # 0.05 / 0.80 by default
+   p.method                                # "analytical_ar1"
+
+The default horizon grid covers :math:`T \in \{1, 2, 4, 6, 8, 12\}` plus the
+realised ``n_post``, so the table also doubles as a *"how long do I need to
+run?"* answer — pick the smallest :math:`T` whose MDE drops below your
+target effect size.
+
+Practical reading
+"""""""""""""""""
+
+A typical MAREX run with ``T_post = 6``, ``blank_periods = 4`` and modest
+serial correlation (:math:`\hat\rho \approx 0.5`) on a Walmart-style sales
+panel produces an MDE on the order of **0.05–0.15% of mean sales**, well
+below the 1–3% effect sizes typical marketing interventions aim for; this
+is the quantitative substance of *"good designs are well-powered"*.
+Conversely, an MDE much above the expected effect is a signal the design
+needs more units (lower ``m_eq``/``m_max`` are typically *worse* for power)
+or more post-periods (extend the experiment).
+
+Opting out
+""""""""""
+
+The power computation is wrapped in a ``try/except`` in
+:func:`~mlsynth.utils.marex_helpers.orchestration.solve_marex` — a power
+analysis failure (e.g. degenerate residual variance) never breaks the fit,
+``res.post_fit.power`` is just left as ``None``. To compute power on a
+non-default horizon grid or significance level, call the free function
+directly:
+
+.. code-block:: python
+
+   from mlsynth.utils.post_fit import compute_power_analysis
+
+   alt = compute_power_analysis(
+       res.post_fit, alpha=0.10, power_target=0.90,
+       post_grid=[2, 4, 8, 16, 32, 52],     # weekly horizons out to a year
+   )
+
 Monte Carlo: Recovering the Treatment Effect
 --------------------------------------------
 
