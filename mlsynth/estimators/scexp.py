@@ -60,6 +60,7 @@ class MAREX:
         self.time: str = config.time
 
         self.T0 = config.T0
+        self.post_col = config.post_col
         self.cluster = config.cluster
         self.design: str = config.design
 
