@@ -193,6 +193,69 @@ i.i.d. :math:`\sigma_{\text{perm}}/\sqrt{n_{\text{post}}}`:
 reported as ``long_run_sigma``. It reduces to the textbook formula when the
 contrast series is serially uncorrelated.
 
+Standardized Post-Fit and Power Analysis
+----------------------------------------
+
+Every call to :meth:`SYNDES.fit` attaches a
+:class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` to ``res.post_fit``
+— the **same diagnostic surface** used by LEXSCM, MAREX, and PANGEO. This is
+the one-stop container downstream consumers (dashboards, paper-style reports,
+comparison tables) read from, regardless of which member of the family
+produced the design:
+
+.. code-block:: python
+
+   pf = res.post_fit                          # SyntheticControlPostFit
+   pf.ate, pf.ate_percent, pf.total_effect    # treatment-effect scalars
+   pf.rmse_fit, pf.rmse_post                  # pre / post fit quality
+   pf.p_value, pf.ci_lower, pf.ci_upper       # permutation inference
+   pf.power                                   # PowerAnalysis (see below)
+
+The synthetic treated / control trajectories used to populate ``post_fit`` are
+the per-unit weighted aggregates ``Y[:, j] @ treated_weights`` and
+``Y[:, j] @ control_weights`` over the **full** timeline. SYNDES has no
+pre-period blank window (its inference is a moving-block permutation on the
+post-period rather than a placebo test on a held-out pre-tail), so
+``pf.n_blank = 0`` and the power-analysis module falls back to the
+pre-period gap as its placebo proxy. Mathematically the MDE surface is the
+same Gaussian + AR(1) construction used across the family:
+
+.. math::
+
+   \mathrm{MDE}(T) = \bigl(z_{1-\alpha/2} + z_{1-\beta}\bigr) \cdot
+       \hat\sigma_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \hat\rho)},
+
+with :math:`\hat\sigma_{\text{placebo}}` the per-period contrast SD on the
+pre-period (the SYNDES paper's "pre-period imbalance"), :math:`\hat\rho` the
+lag-1 autocorrelation of that contrast clipped to :math:`(-0.99, 0.99)`, and
+:math:`\mathrm{VIF}(T, \rho) = \tfrac{1}{T}\bigl(1 + 2\sum_{k=1}^{T-1}
+(1-k/T)\rho^k\bigr)` the AR(1) variance-inflation factor (textbook
+:math:`1/T` when :math:`\rho = 0`). See :doc:`marex` for the full derivation;
+the same module powers all three estimators.
+
+.. code-block:: python
+
+   p = res.post_fit.power                      # PowerAnalysis
+   p.headline.mde_absolute                     # MDE at the realised T_post
+   p.headline.mde_pct                          # ... as % of post-period baseline
+   p.headline.power_at_observed                # power to detect res.post_fit.ate
+   p.curve                                     # tuple of MDEPoint per horizon
+
+Power-analysis failures (e.g. degenerate pre-period contrast) never break a
+fit; ``res.post_fit.power`` is simply left as ``None`` in that case. To
+compute on a non-default horizon grid or significance level call
+:func:`~mlsynth.utils.post_fit.compute_power_analysis` directly.
+
+post_col vs T0
+^^^^^^^^^^^^^^
+
+``SYNDES`` accepts either a scalar ``T0`` (count of pre-treatment periods) or
+``post_col`` (a 0/1 column marking the post-treatment window). Both express
+the same pre/post split — passing ``post_col`` is just the more ergonomic
+form when the panel already carries an experiment-window flag. If both are
+supplied and disagree, ``post_col`` wins and a ``UserWarning`` is emitted so
+the override is visible.
+
 Choosing among the modes
 ------------------------
 
@@ -380,6 +443,30 @@ optimized :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESDesign`
    :undoc-members:
    :show-inheritance:
 
+In addition, ``SYNDES.fit()`` attaches a
+:class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` as
+``results.post_fit`` — the standardized diagnostics container shared with
+the rest of the MAREX family (LEXSCM / MAREX / PANGEO). It carries the ATE
+/ total effect / percentage lift / per-period gap, pre- and post-period
+RMSEs, the inference triple (p-value, CI), and a
+:class:`~mlsynth.utils.post_fit.PowerAnalysis` block with the headline MDE
+and the MDE-versus-horizon curve.
+
+.. autoclass:: mlsynth.utils.post_fit.SyntheticControlPostFit
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: mlsynth.utils.post_fit.PowerAnalysis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: mlsynth.utils.post_fit.MDEPoint
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Helper Modules
 --------------
 
@@ -414,3 +501,15 @@ The minimum-detectable-effect power analysis (Newey-West long-run SE).
 .. automodule:: mlsynth.utils.syndes_helpers.power
    :members:
    :undoc-members:
+
+Standardized post-fit (shared across the MAREX family) — the
+:func:`~mlsynth.utils.post_fit.compute_post_fit` /
+:func:`~mlsynth.utils.post_fit.compute_power_analysis` /
+:func:`~mlsynth.utils.post_fit.compute_smd` helpers that populate
+``res.post_fit`` live outside this package so LEXSCM, MAREX, and PANGEO
+all consume the same diagnostics machinery:
+
+.. automodule:: mlsynth.utils.post_fit
+   :members:
+   :undoc-members:
+   :show-inheritance:

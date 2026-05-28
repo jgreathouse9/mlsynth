@@ -406,6 +406,84 @@ exposed for transparency), a ``status``, a human-readable
   crashing);
 * ``EMPTY`` -- no candidate designs were supplied.
 
+Standardized Post-Fit and Power Analysis
+----------------------------------------
+
+LEXSCM's Stage 3 already produces the lexicographic MDE curve used to **rank
+designs against each other**; the standardized post-fit attached to
+``LEXSCMResults.post_fit`` is the complementary surface used **once a design
+has been chosen** -- it is the same
+:class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` object SYNDES,
+MAREX, and PANGEO expose, so downstream consumers (dashboards, paper-style
+reports, comparison tables) read identical fields across the family.
+
+.. code-block:: python
+
+   pf = res.post_fit                          # SyntheticControlPostFit
+   pf.ate, pf.ate_percent, pf.total_effect    # treatment-effect scalars
+   pf.rmse_fit, pf.rmse_blank, pf.rmse_post   # pre / blank / post fit quality
+   pf.p_value, pf.ci_lower, pf.ci_upper       # conformal inference
+   pf.power                                   # PowerAnalysis (see below)
+
+The trajectories ``pf.treated_series`` and ``pf.control_series`` are the
+**winning candidate**'s ``predictions.synthetic_treated`` and
+``predictions.synthetic_control`` -- per-unit weighted aggregates of the
+treated and control donors over the full timeline. The phase boundaries
+``(n_fit, n_blank, n_post)`` line up with the same E / B / post split LEXSCM
+uses internally (so ``n_fit + n_blank = T0`` and the 30%-of-pre-tail
+holdout convention applies via ``frac_E = 0.7``).
+
+Where the unified power analysis fits in
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Stage 3's :func:`~mlsynth.utils.fast_scm_helpers.lexpower.detectability_curve`
+is the **design-selection** workhorse -- it converts the moving-block placebo
+null on the B window into a per-horizon MDE used by Stage 4's lexicographic
+selector. The post-fit power analysis is the **post-selection** companion:
+analytical Gaussian + AR(1) variance inflation on the realised gap residuals,
+matching the MAREX / SYNDES / PANGEO power surfaces exactly so the same
+diagnostic table can be produced for every family member.
+
+.. math::
+
+   \mathrm{MDE}(T) = \bigl(z_{1-\alpha/2} + z_{1-\beta}\bigr) \cdot
+       \hat\sigma_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \hat\rho)},
+
+with :math:`\hat\sigma_{\text{placebo}}` the SD of the gap on the B (blank /
+holdout) window, :math:`\hat\rho` the lag-1 autocorrelation of those
+residuals clipped to :math:`(-0.99, 0.99)`, and
+:math:`\mathrm{VIF}(T, \rho) = \tfrac{1}{T}\bigl(1 + 2\sum_{k=1}^{T-1}
+(1-k/T)\rho^k\bigr)` the standard AR(1) variance-inflation factor (textbook
+:math:`1/T` when :math:`\rho = 0`). See :doc:`marex` for the full derivation;
+the same module powers all three estimators.
+
+.. code-block:: python
+
+   p = res.post_fit.power                      # PowerAnalysis
+   p.headline.mde_absolute                     # MDE at the realised T_post
+   p.headline.mde_pct                          # ... as % of post-period baseline
+   p.headline.power_at_observed                # power to detect res.post_fit.ate
+   p.curve                                     # tuple of MDEPoint per horizon
+   p.sigma_placebo                             # σ̂ used (B window in LEXSCM)
+   p.serial_correlation                        # ρ̂ AR(1) of the B residuals
+
+Two MDEs, complementary roles
+"""""""""""""""""""""""""""""
+
+* **Stage 3 MDE** (``best_candidate.mde_results``) -- moving-block placebo
+  null on the B window, used to *rank designs against each other*. Aggregated
+  to a representative scalar by ``mde_horizon`` (``late`` / ``early_min`` /
+  ``early_mean``) and consumed by Stage 4's lexicographic gate.
+* **Post-fit MDE** (``res.post_fit.power``) -- analytical Gaussian +
+  AR(1) MDE consumed *after* a design has been chosen, on the same surface
+  that MAREX / SYNDES / PANGEO produce. Use this when reporting a single
+  detectability number alongside the realised ATE / CI.
+
+Power-analysis failures (e.g. degenerate B-window residuals) never break a
+fit; ``res.post_fit.power`` is simply left as ``None``. To compute on a
+non-default horizon grid or significance level call
+:func:`~mlsynth.utils.post_fit.compute_power_analysis` directly.
+
 Core API
 --------
 
@@ -420,6 +498,39 @@ Configuration
 .. autoclass:: mlsynth.config_models.LEXSCMConfig
    :members:
    :undoc-members:
+
+Result Containers
+-----------------
+
+``LEXSCM.fit()`` returns a
+:class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMResults` carrying the
+winning :class:`~mlsynth.utils.fast_scm_helpers.structure.SEDCandidate`
+(weights, predictions, losses, inference), the full candidate shortlist, the
+Stage-1 branch-and-bound metadata, and the time / unit metadata blocks. In
+addition, ``results.post_fit`` is the standardized
+:class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` shared across the
+MAREX family (LEXSCM / MAREX / SYNDES / PANGEO): same ATE / RMSE / SMD /
+inference / power surface, regardless of which estimator produced the design.
+
+.. autoclass:: mlsynth.utils.fast_scm_helpers.structure.LEXSCMResults
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: mlsynth.utils.post_fit.SyntheticControlPostFit
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: mlsynth.utils.post_fit.PowerAnalysis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: mlsynth.utils.post_fit.MDEPoint
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Helper Modules
 --------------
@@ -470,6 +581,17 @@ estimation/blank split, and the Gram matrix.
    :members: prepare_experiment_inputs, split_periods, build_X_tilde,
        build_candidate_mask, build_f_vector, build_Y_matrix, build_Z_matrix
    :undoc-members:
+
+Standardized post-fit (shared across the MAREX family) -- the
+:func:`~mlsynth.utils.post_fit.compute_post_fit` and
+:func:`~mlsynth.utils.post_fit.compute_power_analysis` helpers that
+populate ``results.post_fit`` live outside this package so SYNDES, MAREX,
+and PANGEO all consume the same diagnostics module:
+
+.. automodule:: mlsynth.utils.post_fit
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Example: choosing treated markets under a budget
 ================================================
