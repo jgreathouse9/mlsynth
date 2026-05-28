@@ -46,6 +46,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any, Optional, Union
 
+import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
@@ -57,6 +58,7 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.datautils import balance
+from ..utils.post_fit import compute_post_fit, compute_power_analysis
 from ..utils.syndes_helpers.inference import (
     permutation_test_global,
     permutation_test_relaxed_global,
@@ -83,6 +85,52 @@ _MODE_TO_INTERNAL = {
     "one_way_global": "global_equal_weights",
 }
 _MODE_FROM_INTERNAL = {v: k for k, v in _MODE_TO_INTERNAL.items()}
+
+
+def _syndes_post_fit(inputs, treated_weights, control_weights, inference, alpha):
+    """Build a :class:`SyntheticControlPostFit` for any SYNDES design.
+
+    SYNDES has no pre-period blank window (its inference is a moving-block
+    permutation on the post-period), so ``n_blank = 0`` and the unified
+    power-analysis module falls back to the pre-period gap as its placebo
+    proxy for the noise scale. Treated and control trajectories are built
+    from the per-unit design weights so the SMD / RMSE / ATE numbers are
+    consistent with the same quantities :func:`compute_post_fit` produces
+    for MAREX and LEXSCM.
+    """
+    Y_pre = np.asarray(inputs.Y_pre, dtype=float)
+    if inputs.Y_post is not None:
+        Y_full = np.vstack([Y_pre, np.asarray(inputs.Y_post, dtype=float)])
+    else:
+        Y_full = Y_pre
+    n_fit = int(Y_pre.shape[0])
+    n_post = int(Y_full.shape[0] - n_fit)
+    # Per-unit trajectories: synthetic_treated = Y @ treated_weights, etc.
+    # When the design omits one side (per_unit mode has only treated_weights
+    # in some configurations), fall back to a zero series so compute_post_fit
+    # can still produce the ATE / RMSE pieces it does know how to compute.
+    tw = (np.asarray(treated_weights, dtype=float).flatten()
+          if treated_weights is not None
+          else np.zeros(Y_full.shape[1]))
+    cw = (np.asarray(control_weights, dtype=float).flatten()
+          if control_weights is not None
+          else np.zeros(Y_full.shape[1]))
+    syn_t = Y_full @ tw
+    syn_c = Y_full @ cw
+    pf = compute_post_fit(
+        treated_series=syn_t, control_series=syn_c,
+        n_fit=n_fit, n_blank=0, n_post=n_post,
+        treated_weights=tw, control_weights=cw,
+        inference=inference,
+        n_treated_units=int(np.sum(tw > 1e-8)),
+    )
+    try:
+        from dataclasses import replace as _dc_replace
+        power = compute_power_analysis(pf, alpha=alpha)
+        pf = _dc_replace(pf, power=power)
+    except Exception:                # never let power analysis break a fit
+        pass
+    return pf
 
 
 class SYNDES:
@@ -231,8 +279,16 @@ class SYNDES:
                 alpha=self.alpha,
             )
 
+        post_fit = _syndes_post_fit(
+            inputs=inputs,
+            treated_weights=getattr(design, "treated_weights", None),
+            control_weights=getattr(design, "control_weights", None),
+            inference=inference, alpha=self.alpha,
+        )
+
         results = SYNDESResults(
-            design=design, inputs=inputs, inference=inference
+            design=design, inputs=inputs, inference=inference,
+            post_fit=post_fit,
         )
 
         if self.display_graph:
@@ -273,4 +329,12 @@ class SYNDES:
                 alpha=self.alpha,
             )
 
-        return replace(relaxed, inputs=inputs, inference=inference)
+        post_fit = _syndes_post_fit(
+            inputs=inputs,
+            treated_weights=getattr(relaxed.design, "treated_weights", None),
+            control_weights=getattr(relaxed.design, "control_weights", None),
+            inference=inference, alpha=self.alpha,
+        )
+
+        return replace(relaxed, inputs=inputs, inference=inference,
+                        post_fit=post_fit)

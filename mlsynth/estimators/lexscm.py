@@ -506,6 +506,34 @@ class LEXSCM:
             y_pop_mean_t=y_pop_mean_t
         )
 
+        # Standardized post-fit + power analysis from the chosen design's gap
+        # series. Mirrors the MAREX / SYNDES wiring so downstream consumers see
+        # the same SyntheticControlPostFit surface across the entire family.
+        try:
+            from ..utils.post_fit import compute_post_fit, compute_power_analysis
+            from dataclasses import replace as _dc_replace
+            preds = best_candidate.predictions
+            inf_obj = getattr(best_candidate, "inference", None)
+            pf = compute_post_fit(
+                treated_series=preds.synthetic_treated,
+                control_series=preds.synthetic_control,
+                n_fit=int(time_info.n_fit_time),
+                n_blank=int(time_info.n_blank_time),
+                n_post=int(time_info.n_post),
+                treated_weights=best_candidate.weights.treated,
+                control_weights=best_candidate.weights.control,
+                inference=inf_obj,
+                n_treated_units=int(np.sum(best_candidate.weights.treated > 1e-8)),
+            )
+            try:
+                power = compute_power_analysis(pf, alpha=self.alpha)
+                pf = _dc_replace(pf, power=power)
+            except Exception:        # never let power analysis break a fit
+                pass
+            results.post_fit = pf
+        except Exception:            # never let post_fit assembly break a fit
+            pass
+
         if self.display_graph:
             lexplot(results)
 
