@@ -158,8 +158,6 @@ no effect, per-period p-values, and a split-conformal confidence band
 (Chernozhukov-Wuthrich-Zhu 2021), all on
 :class:`~mlsynth.utils.marex_helpers.structures.MAREXInference`.
 
-
-
 Standardized Post-Fit and Power Analysis
 ----------------------------------------
 
@@ -586,6 +584,32 @@ objects, the aggregate
    :undoc-members:
    :show-inheritance:
 
+In addition, ``MAREX.fit()`` attaches a
+:class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` as
+``results.post_fit``: the standardized diagnostics container shared across the
+MAREX family (LEXSCM, MAREX, SYNDES, PANGEO). It carries the ATE / total /
+lift / per-period / cumulative effect summaries, the inference triple
+(:math:`p`, CI), the pre-/blank-/post-period RMSEs, the three
+standardized-mean-difference blocks (treated-vs-control, treated-vs-population,
+control-vs-population), and — when a valid noise window exists — a
+:class:`~mlsynth.utils.post_fit.PowerAnalysis` block with the headline MDE and
+the MDE-versus-horizon curve.
+
+.. autoclass:: mlsynth.utils.post_fit.SyntheticControlPostFit
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: mlsynth.utils.post_fit.PowerAnalysis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: mlsynth.utils.post_fit.MDEPoint
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Helper Modules
 --------------
 
@@ -616,6 +640,17 @@ Helper Modules
 .. automodule:: mlsynth.utils.marex_helpers.plotter
    :members:
    :undoc-members:
+
+The shared post-fit module — :func:`~mlsynth.utils.post_fit.compute_smd`,
+:func:`~mlsynth.utils.post_fit.compute_post_fit`, and
+:func:`~mlsynth.utils.post_fit.compute_power_analysis` — lives outside the
+``marex_helpers`` package so the other MAREX-family estimators (LEXSCM,
+SYNDES, PANGEO) can call into the same one-source-of-truth diagnostics:
+
+.. automodule:: mlsynth.utils.post_fit
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 References
 ----------
