@@ -8,6 +8,8 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
+from ..datautils import build_covariate_matrix
+
 
 @dataclass(frozen=True)
 class MAREXPanel:
@@ -36,8 +38,12 @@ def prepare_marex_panel(
 
     ``T0`` defaults to ``T - 1``. When ``inference`` is on, ``blank_periods``
     defaults to the requested post-window length (``T_post``) or ``T - T0``.
-    ``covariates`` (time-invariant columns) are extracted as an ``(N, R)`` matrix
-    aligned to the unit order and matched on alongside the pre-period outcomes.
+    ``covariates`` columns are aggregated to a per-unit pre-period mean via
+    :func:`mlsynth.utils.datautils.build_covariate_matrix` and returned as an
+    ``(N, R)`` matrix aligned to the unit order. The matrix is left
+    un-normalised here so MAREX's existing ``standardize=True`` flag (applied
+    to the combined ``[Y_fit; covariate_weight * Z]`` predictor matrix in
+    :mod:`marex_helpers.optimization`) keeps its previous behaviour.
     """
     unit_labels = df[unitid].unique()
     if cluster is not None:
@@ -46,14 +52,25 @@ def prepare_marex_panel(
     else:
         clusters = np.zeros(len(unit_labels), dtype=int)
 
-    cov = None
-    if covariates:
-        per_unit = df.drop_duplicates(subset=[unitid]).set_index(unitid)
-        cov = per_unit.reindex(unit_labels)[covariates].to_numpy(dtype=float)
-
     Y_full = df.pivot(index=unitid, columns=time, values=outcome).reindex(unit_labels)
     T_total = df[time].nunique()
     T0_eff = T0 if T0 is not None else T_total - 1
+
+    cov: Optional[np.ndarray] = None
+    if covariates:
+        # Pre-period mean aggregation via the shared dataprep helper; passing
+        # ``normalize=False`` preserves the raw scale so the downstream
+        # ``covariate_weight`` * ``standardize`` pipeline keeps its semantics.
+        cov, _names, _means, _scales = build_covariate_matrix(
+            df=df,
+            unit_id_column_name=unitid,
+            time_period_column_name=time,
+            covariates=covariates,
+            pre_periods=T0_eff,
+            unit_order=list(unit_labels),
+            aggregation="pre_mean",
+            normalize=False,
+        )
 
     if inference:
         blanks = blank_periods if blank_periods else (T_post if T_post else T_total - T0_eff)
