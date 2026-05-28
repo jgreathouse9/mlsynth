@@ -234,6 +234,13 @@ class SYNDESResults:
         Preprocessed data used in estimation.
     inference : SYNDESInference or None
         Optional inference results.
+    post_fit : SyntheticControlPostFit, optional
+        Standardized post-fit diagnostics (ATE / total effect / percentage
+        lift / fit RMSEs / inference / power analysis) attached at the end
+        of :meth:`mlsynth.estimators.SYNDES.fit` via
+        :func:`mlsynth.utils.post_fit.compute_post_fit`. Same shape and
+        semantics as the MAREX / LEXSCM / PANGEO equivalents, so downstream
+        consumers see a single uniform surface across the family.
 
     Notes
     -----
@@ -250,6 +257,7 @@ class SYNDESResults:
     design: SYNDESDesign
     inputs: SYNDESInputs
     inference: Optional[SYNDESInference] = None
+    post_fit: Optional[Any] = None    # SyntheticControlPostFit; Any to dodge import cycle
 
     @property
     def mode(self) -> str:

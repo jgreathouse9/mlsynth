@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Optional
+from typing import Any, TYPE_CHECKING, List, Optional
 
 import numpy as np
 
@@ -178,6 +178,7 @@ class RelaxedSolverResults:
     trace: RelaxedAnnealingTrace
     inputs: Optional["SYNDESInputs"] = None
     inference: Optional[RelaxedInference] = None
+    post_fit: Optional[Any] = None    # SyntheticControlPostFit; Any to dodge import cycle
 
     @property
     def mode(self) -> str:
