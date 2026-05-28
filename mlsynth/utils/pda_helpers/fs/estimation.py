@@ -28,17 +28,32 @@ def _ols_sigma2(y: np.ndarray, Z: np.ndarray) -> float:
 
 
 def forward_select(
-    y: np.ndarray, X: np.ndarray, T0: int,
+    y: np.ndarray, X: np.ndarray, T0: int, intercept: bool = False,
 ) -> Tuple[List[int], np.ndarray, float, np.ndarray]:
     """Forward-select donors with the stop-on-increase IC rule, then refit OLS.
 
     Returns ``(selected_indices, beta_full, intercept, counterfactual)`` where
     ``beta_full`` is an ``N``-vector with zeros off the selected support.
+
+    Parameters
+    ----------
+    intercept : bool, default False
+        When ``False`` the donor regression is fit *without* a constant and the
+        IC baseline is ``log(mean(y_pre**2))`` -- the paper's simulation
+        convention (Shi & Huang 2023, ``simulation/FS.R``). This is the
+        correctly-specified form for the factor DGP (mean-zero factors, no unit
+        level shift) and yields valid test size. When ``True`` a constant is
+        included and the baseline is ``log(var(y_pre))`` -- the released
+        ``fsPDA`` R package convention (``est.fsPDA.R``), appropriate for panels
+        with genuine level differences but size-distorting on centered data.
     """
     y_pre, X_pre = y[:T0], X[:T0]
     N = X.shape[1]
     B = np.log(np.log(max(N, 3))) * np.log(T0) / T0
-    IC = float(np.log(np.var(y_pre, ddof=1)))
+    IC = float(np.log(np.var(y_pre, ddof=1))) if intercept else float(np.log(np.mean(y_pre ** 2)))
+
+    def _design(cols):
+        return np.column_stack([np.ones(T0), X_pre[:, cols]]) if intercept else X_pre[:, cols]
 
     selected: List[int] = []
     remaining = list(range(N))
@@ -47,9 +62,7 @@ def forward_select(
             break
         best_j, best_s2 = None, np.inf
         for j in remaining:
-            cols = selected + [j]
-            Z = np.column_stack([np.ones(T0), X_pre[:, cols]])
-            s2 = _ols_sigma2(y_pre, Z)
+            s2 = _ols_sigma2(y_pre, _design(selected + [j]))
             if s2 < best_s2:
                 best_s2, best_j = s2, j
         IC_new = np.log(best_s2) + B * (len(selected) + 1)
@@ -60,15 +73,18 @@ def forward_select(
         else:                                 # stop at first non-improvement
             break
 
-    if not selected:                          # degenerate: intercept only
-        intercept = float(np.mean(y_pre))
+    if not selected:                          # degenerate: intercept-only / zero
+        intercept_val = float(np.mean(y_pre)) if intercept else 0.0
         beta_full = np.zeros(N)
-        return [], beta_full, intercept, np.full(X.shape[0], intercept)
+        return [], beta_full, intercept_val, np.full(X.shape[0], intercept_val)
 
-    Z = np.column_stack([np.ones(T0), X_pre[:, selected]])
-    coef, *_ = np.linalg.lstsq(Z, y_pre, rcond=None)
-    intercept = float(coef[0])
+    coef, *_ = np.linalg.lstsq(_design(selected), y_pre, rcond=None)
     beta_full = np.zeros(N)
-    beta_full[selected] = coef[1:]
-    counterfactual = X @ beta_full + intercept
-    return selected, beta_full, intercept, counterfactual
+    if intercept:
+        intercept_val = float(coef[0])
+        beta_full[selected] = coef[1:]
+    else:
+        intercept_val = 0.0
+        beta_full[selected] = coef
+    counterfactual = X @ beta_full + intercept_val
+    return selected, beta_full, intercept_val, counterfactual
