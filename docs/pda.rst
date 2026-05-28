@@ -389,57 +389,98 @@ Verification
    Kong panel (above) and agree on a significant positive integration effect,
    consistent with the literature and the Forward-DiD cross-check (0.025).
 
-   **Simulation (Path B).** A Monte Carlo on the papers' own four-factor DGP
-   (``f1`` i.i.d.; ``f2`` AR(1) 0.9; ``f3`` MA(2) (0.8,0.4); ``f4`` ARMA(1,1)
-   (0.5,0.5); strong loadings ~ ``U([-0.5,-0.3] U [0.3,0.5])``; idiosyncratic
-   ``N(0,0.5)``; :math:`N=100` controls, :math:`T_1=T_2` as in Shi & Huang)
-   reproduces the size and power behaviour each paper reports. Rejection rate of
-   ``H0: ATE = 0`` at the 5% level (:math:`\delta=0` is size, :math:`\delta=0.3`
-   is power), 50 replications:
+Simulation study (Path B): forward selection vs LASSO
+-----------------------------------------------------
 
-   .. list-table::
-      :header-rows: 1
-      :widths: 10 10 12 12 12
+Shi & Huang's (2023) Table 1 compares forward selection against LASSO on a
+four-factor DGP: ``f1`` i.i.d. (var :math:`\ell^2`); ``f2`` AR(1) 0.9; ``f3``
+MA(2) (0.8,0.4); ``f4`` ARMA(1,1) (0.5,0.5); loadings ``U(1,2)`` on the treated
++ 4 relevant controls and ``U(-0.1,0.1)`` on the remaining 96; idiosyncratic
+``N(0,0.5)``; one treated unit, :math:`N=100` controls, :math:`T_1=T_2`. Effects
+``D1``-``D7`` set the post-period ATE (``D1``-``D3`` null → *size*; ``D4``-``D7``
+non-zero → *power*). Driving the **packaged** ``PDA`` (``methods=["fs","LASSO"]``)
+over this gamut (300 reps, i.i.d. factors):
 
-      * - :math:`T_1=T_2`
-        - :math:`\delta`
-        - ``l2``
-        - ``lasso``
-        - ``fs``
-      * - 50
-        - 0.00 (size)
-        - 0.12
-        - 0.12
-        - 0.22
-      * - 100
-        - 0.00 (size)
-        - 0.14
-        - 0.14
-        - 0.30
-      * - 50
-        - 0.30 (power)
-        - 0.64
-        - 0.42
-        - 0.62
-      * - 100
-        - 0.30 (power)
-        - 0.80
-        - 0.68
-        - 0.88
+.. list-table:: forward selection vs LASSO, i.i.d. factors, 300 reps
+   :header-rows: 1
+   :widths: 8 8 10 10 10 10
 
-   These match the **finite-sample over-rejection the papers themselves
-   document** at short pre-periods: Shi & Wang's Table 2 reports L2-relaxation
-   size :math:`0.142` at :math:`T_1=50`, falling to :math:`0.072` at
-   :math:`T_1=200` (our l2 is :math:`0.12`); Shi & Huang's Table 1 reports
-   forward-selection size :math:`0.07`-:math:`0.12` at :math:`T_1=T_2=50`. The
-   size shrinks toward the nominal 5% only as :math:`T_1 \to \infty` (each
-   method's t-statistic is asymptotically :math:`N(0,1)`), while **power rises
-   sharply with the sample size** for all three. fs is the most conservative-
-   to-control here because its sample-splitting standard error omits the
-   first-stage variance, which is non-negligible at this scale. (Only 50
-   replications -- noisy, well short of the papers' :math:`M=1000`+ -- and the
-   L2 :math:`\tau` is validated by out-of-sample CV, not fixed; the algorithms
-   are value-for-value ports, e.g. fs of ``est.fsPDA.R``.)
+   * - :math:`T_1`
+     - method
+     - # donors
+     - RMPSE
+     - size (D1)
+     - power (D5)
+   * - 50
+     - fs
+     - 7
+     - 1.07
+     - 0.047
+     - 0.98
+   * - 50
+     - LASSO
+     - 12
+     - 0.85
+     - 0.190
+     - 1.00
+   * - 100
+     - fs
+     - 6
+     - 0.86
+     - 0.023
+     - 1.00
+   * - 100
+     - LASSO
+     - 15
+     - 0.77
+     - 0.173
+     - 1.00
+   * - 200
+     - fs
+     - 8
+     - 0.82
+     - 0.057
+     - 1.00
+   * - 200
+     - LASSO
+     - 16
+     - 0.78
+     - 0.163
+     - 1.00
+
+Two of the paper's findings reproduce cleanly. **Forward selection is far more
+parsimonious**: it keeps to ~the 5 relevant donors at every :math:`T`, while
+LASSO over-selects and inflates with the sample size (to 28 donors at
+:math:`T_1=200` under dynamic factors). And **forward selection's test is
+correctly sized** (≈ 5% under the null), whereas LASSO's over-rejects
+(0.16-0.36) -- exactly the size inflation Shi & Huang report for LASSO.
+
+.. admonition:: The ``fs_intercept`` knob -- valid size on factor data
+
+   Achieving the correct fs size above required a fix. The released ``fsPDA``
+   R package (``est.fsPDA.R``) fits the donor regression *with* an intercept;
+   on the paper's mean-zero factor DGP that intercept absorbs a spurious
+   pre-period constant which extrapolates into the post window, biasing the
+   gap and **inflating the null rejection rate to ~0.20**. The paper's Table 1
+   was produced by the *simulation* code (``FS.R``), which fits **without** an
+   intercept and yields valid size. ``mlsynth`` exposes both via
+   ``PDAConfig.fs_intercept`` (default ``False`` = the no-intercept, valid-size
+   form; set ``True`` for panels with genuine unit level shifts). With the
+   default, fs D1 size drops from 0.195 to 0.050.
+
+   Two honest caveats remain: the RMPSE *ordering* is reversed versus the paper
+   (fs ≳ LASSO here) because ``mlsynth``'s LASSO is cross-validated rather than
+   the paper's hand-tuned modified-BIC LASSO; and under *dynamic* factors fs
+   shows mild residual size inflation at small :math:`T` (0.15 → 0.09 as
+   :math:`T_1`: 50 → 200), the "imprecise long-run-variance" effect the paper
+   itself notes, vanishing as :math:`T_1 \to \infty`.
+
+**L2-relaxation (Shi & Wang).** The ``l2`` method's out-of-sample MPSE falls
+with :math:`T` and its test approaches the nominal 5% size as :math:`T_1 \to
+\infty`, matching Shi & Wang's Table 2 (size :math:`0.142` at :math:`T_1=50`
+→ :math:`0.072` at :math:`200`). Its per-fit cross-validation over the
+:math:`\tau` grid makes large Monte Carlos expensive (~5 s/fit), so the full
+table is summarized rather than swept here.
 
 Core API
 --------
