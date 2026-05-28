@@ -220,8 +220,7 @@ class TestPostFit:
     def _panel_with_cov(self, J=12, T=18, seed=11):
         """Panel where two time-invariant covariates load the outcome, so the
         MAREX design that minimises the Abadie-Zhou objective actually achieves
-        small SMD against both the synthetic control and the population mean.
-        """
+        small SMD against both the synthetic control and the population mean."""
         rng = np.random.default_rng(seed)
         pop = rng.uniform(800, 2400, J)
         inc = rng.uniform(45_000, 75_000, J)
@@ -280,8 +279,7 @@ class TestPostFit:
     def test_design_with_covariates_balances_better(self):
         """The covariate-aware MAREX design should achieve smaller |SMD|
         treated-vs-control than the no-covariates design, scored on the
-        same raw covariate matrix so the comparison is apples-to-apples.
-        """
+        same raw covariate matrix so the comparison is apples-to-apples."""
         df = self._panel_with_cov()
         common = dict(df=df, outcome="y", unitid="unit", time="time",
                       T0=14, m_eq=3, standardize=True)
@@ -319,8 +317,7 @@ class TestPostFit:
     def test_population_smd_matches_marex_objective(self):
         """Both vs-population SMDs (treated-vs-pop, control-vs-pop) should be
         small — this is exactly what Abadie & Zhou's standard objective
-        ||X̄ − Σwⱼ Xⱼ||² + ||X̄ − Σvⱼ Xⱼ||² minimises.
-        """
+        ||X̄ − Σwⱼ Xⱼ||² + ||X̄ − Σvⱼ Xⱼ||² minimises."""
         df = self._panel_with_cov()
         res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
                      "T0": 14, "m_eq": 3, "covariates": ["pop", "inc"],
@@ -333,7 +330,7 @@ class TestPostFit:
         assert pf.covariate_smd_control_vs_pop_abs_max < 0.3
 
     def test_compute_smd_standalone(self):
-        """Compute_smd works panel-free on raw arrays."""
+        """compute_smd works panel-free on raw arrays."""
         rng = np.random.default_rng(0)
         N, M = 12, 3
         cov = rng.normal(size=(N, M))
@@ -346,7 +343,7 @@ class TestPostFit:
                           sum(v ** 2 for v in out["smd"].values()))
 
     def test_compute_post_fit_standalone(self):
-        """Compute_post_fit works panel-free on raw arrays (no estimator)."""
+        """compute_post_fit works panel-free on raw arrays (no estimator)."""
         rng = np.random.default_rng(2)
         T, N, M = 30, 10, 2
         treated = rng.normal(size=T) + 5
@@ -413,8 +410,7 @@ class TestPowerAnalysis:
 
     def test_mde_shrinks_with_longer_horizon(self):
         """The MDE should DECREASE as the post horizon T grows (the AR(1)
-        variance-inflation factor monotonically dilutes per-period noise).
-        """
+        variance-inflation factor monotonically dilutes per-period noise)."""
         df = self._panel(J=10, T=20)
         res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
                      "T0": 16, "m_eq": 2,
@@ -461,3 +457,96 @@ class TestPowerAnalysis:
         for pt in res.post_fit.power.curve:
             if pt.power_at_observed is not None:
                 assert 0.0 <= pt.power_at_observed <= 1.0
+
+
+# ----------------------------------------------------------------------
+# post_col and blank-period defaults (parity with sibling estimators)
+# ----------------------------------------------------------------------
+
+class TestPostColAndBlankDefaults:
+    """post_col should be an exact alias for T0 (same synthetic design), and
+    blank_periods should default to ``max(1, floor(0.3 * T0))`` when
+    inference is requested without an explicit blank window."""
+
+    @staticmethod
+    def _panel_with_post_col(J=8, T=20, T0=14, seed=0):
+        df = _panel(J=J, T=T, seed=seed)
+        df["post"] = (df["time"] >= T0).astype(int)
+        return df
+
+    def test_post_col_same_design_as_T0(self):
+        df = self._panel_with_post_col(T0=14)
+        kw = dict(outcome="y", unitid="unit", time="time", m_eq=2,
+                  inference=True, blank_periods=3, T_post=3)
+        res_T0 = MAREX({"df": df, "T0": 14, **kw}).fit()
+        res_pc = MAREX({"df": df, "post_col": "post", **kw}).fit()
+        # Same T0 derivation
+        assert res_T0.study.T0 == res_pc.study.T0
+        # Same per-unit treated/control weights => same synthetic design
+        np.testing.assert_allclose(
+            res_T0.globres.treated_weights_agg,
+            res_pc.globres.treated_weights_agg, atol=1e-8,
+        )
+        np.testing.assert_allclose(
+            res_T0.globres.control_weights_agg,
+            res_pc.globres.control_weights_agg, atol=1e-8,
+        )
+        np.testing.assert_allclose(
+            res_T0.globres.synthetic_treated,
+            res_pc.globres.synthetic_treated, atol=1e-8,
+        )
+        np.testing.assert_allclose(
+            res_T0.globres.synthetic_control,
+            res_pc.globres.synthetic_control, atol=1e-8,
+        )
+
+    def test_post_col_invalid_column_rejected(self, panel):
+        with pytest.raises((MlsynthDataError, Exception)):
+            MAREXConfig(df=panel, outcome="y", unitid="unit", time="time",
+                        post_col="not_a_column")
+
+    def test_post_col_with_inconsistent_T0_warns(self):
+        df = self._panel_with_post_col(T0=14)
+        with pytest.warns(UserWarning, match="derived T0"):
+            cfg = MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
+                              T0=10, post_col="post")
+        # post_col wins
+        assert cfg.T0 == 14
+
+    def test_post_col_all_post_rejected(self, panel):
+        bad = panel.assign(post=1)
+        with pytest.raises(Exception):
+            MAREXConfig(df=bad, outcome="y", unitid="unit", time="time",
+                        post_col="post")
+
+    def test_blank_periods_default_30pct_with_inference(self):
+        # T0=14 -> floor(0.3 * 14) = 4
+        df = _panel(J=8, T=18)
+        cfg = MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
+                          T0=14, m_eq=2, inference=True)
+        assert cfg.blank_periods == max(1, int(0.3 * 14))
+
+    def test_blank_periods_default_zero_without_inference(self, panel):
+        # Without inference, no blank window is carved out (design fits on
+        # the entire pre-period; the user opted out of placebo holdout).
+        cfg = MAREXConfig(df=panel, outcome="y", unitid="unit", time="time",
+                          T0=10, m_eq=2)
+        assert cfg.blank_periods == 0
+
+    def test_explicit_blank_periods_preserved(self, panel):
+        cfg = MAREXConfig(df=panel, outcome="y", unitid="unit", time="time",
+                          T0=10, m_eq=2, inference=True, blank_periods=2,
+                          T_post=2)
+        assert cfg.blank_periods == 2
+
+    def test_blank_periods_default_runs_end_to_end(self):
+        # Smoke: with inference=True and no blank_periods / T_post specified,
+        # MAREX should pick the 30% default and produce a usable result.
+        df = _panel(J=10, T=20)
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 14, "m_eq": 2, "inference": True}).fit()
+        # The 30% default ⇒ blank_periods = 4 on T0=14
+        assert res.study.blank_periods == max(1, int(0.3 * 14))
+        # Post-fit and inference both populated
+        assert res.post_fit is not None
+        assert res.globres.inference is not None
