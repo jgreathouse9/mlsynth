@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
-from typing import Optional, Dict, List, Tuple, Any
-from mlsynth.exceptions import MlsynthDataError # Assuming MlsynthTypeError is not defined, using the MlsynthDataError
+# Add `Literal` to the existing typing import:
+from typing import Optional, Dict, List, Tuple, Any, Literal
+from mlsynth.exceptions import MlsynthDataError
 
 # Constants for dictionary keys used in logictreat and dataprep
 KEY_NUM_TREATED_UNITS = "Num Treated Units"
@@ -178,12 +179,95 @@ def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
         }
 
 
+
+# ─── New private helper (place between logictreat() and dataprep()) ────────
+def _build_covariate_matrix(
+    df: pd.DataFrame,
+    unit_id_column_name: str,
+    time_period_column_name: str,
+    covariates: List[str],
+    pre_periods: int,
+    unit_order: List[Any],
+    *,
+    aggregation: str = "pre_mean",
+    normalize: bool = True,
+) -> Tuple[np.ndarray, Tuple[str, ...], np.ndarray, np.ndarray]:
+    """Per-unit covariate matrix aligned to ``unit_order``.
+
+    Aggregates each covariate column into a single value per unit. The
+    default ``"pre_mean"`` aggregation takes the mean over the first
+    ``pre_periods`` rows; time-invariant covariates collapse to their
+    constant value.
+
+    With ``normalize=True`` each column is centered by its cross-unit mean
+    and scaled by its cross-unit std (computed across the units in
+    ``unit_order``) so all covariates are unit-free, which is the standard
+    pre-step before applying SCM-style predictor weights or computing
+    standardized mean differences for balance diagnostics.
+
+    Returns
+    -------
+    cov_matrix : np.ndarray, shape ``(len(unit_order), len(covariates))``
+        Per-unit values for each covariate, in the order given by
+        ``unit_order`` and ``covariates``.
+    cov_names : tuple of str
+        The covariate names, in the same order as the columns of
+        ``cov_matrix``.
+    cov_means : np.ndarray, shape ``(len(covariates),)``
+        Cross-unit means used for centering (zeros when ``normalize=False``).
+    cov_scales : np.ndarray, shape ``(len(covariates),)``
+        Cross-unit stds used for scaling (ones when ``normalize=False``).
+    """
+    rows = []
+    for cov in covariates:
+        if cov not in df.columns:
+            raise MlsynthDataError(f"covariate {cov!r} not present in df.columns")
+        pivot = df.pivot(index=time_period_column_name,
+                         columns=unit_id_column_name, values=cov)
+        if aggregation == "pre_mean":
+            if pre_periods <= 0:
+                raise MlsynthDataError(
+                    "covariate_aggregation='pre_mean' requires at least one "
+                    "pre-treatment period"
+                )
+            agg = pivot.iloc[:pre_periods, :].mean(axis=0)
+        else:
+            raise MlsynthDataError(
+                f"Unknown covariate_aggregation: {aggregation!r}"
+            )
+        rows.append(agg.reindex(unit_order).to_numpy(dtype=float))
+
+    cov_matrix = np.array(rows).T                                # (N, M)
+
+    if normalize:
+        means = cov_matrix.mean(axis=0)
+        scales = cov_matrix.std(axis=0, ddof=1)
+        scales = np.where(scales > 1e-12, scales, 1.0)
+        cov_matrix = (cov_matrix - means) / scales
+    else:
+        means = np.zeros(cov_matrix.shape[1])
+        scales = np.ones(cov_matrix.shape[1])
+
+    return cov_matrix, tuple(covariates), means, scales
+
+
+
+
+
+
+# ─── Updated dataprep() ────────────────────────────────────────────────────
 def dataprep(
     df: pd.DataFrame,
     unit_id_column_name: str,
     time_period_column_name: str,
     outcome_column_name: str,
-    treatment_indicator_column_name: str, allow_no_donors: bool = False
+    treatment_indicator_column_name: str,
+    allow_no_donors: bool = False,
+    *,
+    covariates: Optional[List[str]] = None,
+    covariate_aggregation: Literal["pre_mean"] = "pre_mean",
+    normalize_covariates: bool = True,
+    marex: bool = False,
 ) -> Dict[str, Any]:
     """Prepare data for synthetic control methods.
 
@@ -199,66 +283,58 @@ def dataprep(
         The input panel data in long format. Must contain columns for unit
         identifiers, time periods, outcome variable, and treatment indicator.
     unit_id_column_name : str
-        Name of the column in `df` that identifies unique units. (Formerly `unitid`)
+        Name of the column in `df` that identifies unique units.
     time_period_column_name : str
-        Name of the column in `df` that identifies time periods. (Formerly `time`)
+        Name of the column in `df` that identifies time periods.
     outcome_column_name : str
-        Name of the column in `df` for the outcome variable. (Formerly `outcome`)
+        Name of the column in `df` for the outcome variable.
     treatment_indicator_column_name : str
-        Name of the column in `df` for the treatment indicator (0 or 1). (Formerly `treat`)
+        Name of the column in `df` for the treatment indicator (0 or 1).
+    allow_no_donors : bool, default False
+        If True, do not raise when zero donor units remain after dropping
+        the treated unit.
+    covariates : list of str, optional
+        Column names to fold into a per-unit covariate matrix. When
+        supplied, the returned dict gains
+        ``covariate_matrix`` / ``covariate_names`` / ``covariate_means`` /
+        ``covariate_scales`` plus
+        ``donor_covariate_matrix`` / ``treated_covariate_matrix`` (single
+        treated case). Time-varying covariates are aggregated per the
+        ``covariate_aggregation`` mode; time-invariant covariates collapse
+        to their constant value. ``None`` (default) leaves the return dict
+        identical to the pre-extension behaviour.
+    covariate_aggregation : {"pre_mean"}, default "pre_mean"
+        How to collapse each covariate column to a single value per unit.
+        Currently only ``"pre_mean"`` (the pre-treatment mean) is supported.
+    normalize_covariates : bool, default True
+        If True, z-score each covariate column across units (the standard
+        pre-step for SCM-style predictor weights and SMD diagnostics).
+    marex : bool, default False
+        If True, additionally compute the Abadie-Zhou-style stacked
+        predictor matrix ``X = [Y_pre; covariates^T]`` plus its
+        population-weighted aggregate, surfacing the inputs that the
+        MAREX-family experimental-design estimators consume.
 
     Returns
     -------
     Dict[str, Any]
-        A dictionary containing the prepared data. The structure of this
-        dictionary depends on whether a single or multiple treated units
-        are identified by `logictreat`.
+        A dictionary containing the prepared data. Always populates the
+        backward-compatible keys (`treated_unit_name`, `Ywide`, `y`,
+        `donor_names`, `donor_matrix`, `total_periods`, `pre_periods`,
+        `post_periods`, `time_labels` in the single-treated case;
+        `Ywide`, `cohorts`, `time_labels` in the cohort case). When the
+        opt-in kwargs above are non-default, additionally populates:
 
-        If a single treated unit is found:
-            "treated_unit_name" : str
-                Name/identifier of the treated unit.
-            "Ywide" : pd.DataFrame
-                DataFrame of outcome data pivoted to wide format, with time periods
-                as index and unit identifiers as columns. Shape (n_periods, n_units).
-            "y" : np.ndarray
-                1D array of outcome data for the treated unit. Shape (n_periods,).
-            "donor_names" : pd.Index
-                Index object containing the names/identifiers of the donor units.
-            "donor_matrix" : np.ndarray
-                2D array of outcome data for the donor units.
-                Shape (n_periods, n_donors).
-            "total_periods" : int
-                Total number of time periods.
-            "pre_periods" : int
-                Number of pre-treatment periods.
-            "post_periods" : int
-                Number of post-treatment periods.
-
-        If multiple treated units are found (cohort mode):
-            "Ywide" : pd.DataFrame
-                As above, outcome data pivoted wide. Shape (n_periods, n_units).
-            "cohorts" : Dict[Any, Dict[str, Any]]
-                A dictionary where keys are treatment start times (identifying
-                each cohort) and values are dictionaries, each containing data
-                specific to that cohort:
-                "treated_units" : List[str]
-                    List of unit names/identifiers belonging to this cohort.
-                "y" : np.ndarray
-                    Outcome matrix for the treated units in this cohort.
-                    Shape (n_periods, n_treated_in_cohort).
-                "donor_names" : pd.Index
-                    Names/identifiers of donor units for this cohort (units not
-                    in this specific cohort).
-                "donor_matrix" : np.ndarray
-                    Outcome matrix for donor units relevant to this cohort.
-                    Shape (n_periods, n_donors_for_cohort).
-                "total_periods" : int
-                    Total number of time periods.
-                "pre_periods" : int
-                    Number of pre-treatment periods for this cohort, determined
-                    by the cohort's treatment start time.
-                "post_periods" : int
-                    Number of post-treatment periods for this cohort.
+        ``covariate_matrix`` : (N, M)
+        ``covariate_names`` : tuple of str
+        ``covariate_means`` : (M,)
+        ``covariate_scales`` : (M,)
+        ``donor_covariate_matrix`` : (n_donors, M)        — single-treated only
+        ``treated_covariate_matrix`` : (1, M)             — single-treated only
+        ``predictor_matrix`` : (T_pre + M, N)             — when ``marex=True``
+        ``predictor_block_sizes`` : (T_pre, M)            — when ``marex=True``
+        ``f_weights`` : (N,)                              — when ``marex=True``
+        ``X_population_mean`` : (T_pre + M,)              — when ``marex=True``
 
     Raises
     ------
@@ -266,42 +342,46 @@ def dataprep(
         - If no donor units are found after pivoting and selecting for a single
           treated unit case.
         - If there are zero pre-treatment periods for a single treated unit case.
+        - If a covariate column name is not present in ``df.columns``.
+        - If ``covariate_aggregation`` is unknown.
     """
     # Pivot the treatment indicator column to a wide format (time x units).
-    treatment_matrix_wide = df.pivot(index=time_period_column_name, columns=unit_id_column_name, values=treatment_indicator_column_name)
-    treatment_array_wide = treatment_matrix_wide.to_numpy() # Convert to NumPy array for logictreat
-    # Analyze the treatment structure (timings, number of treated units).
+    treatment_matrix_wide = df.pivot(
+        index=time_period_column_name,
+        columns=unit_id_column_name,
+        values=treatment_indicator_column_name,
+    )
+    treatment_array_wide = treatment_matrix_wide.to_numpy()
     treatment_analysis_results = logictreat(treatment_array_wide)
 
-    # Case: Only one treated unit (preserve original logic)
-    # This path is taken if logictreat identifies exactly one treated unit.
+    # ─── Single treated unit ───────────────────────────────────────────
     if len(treatment_analysis_results[KEY_TREATED_INDEX]) == 1:
         num_post_treatment_periods = treatment_analysis_results[KEY_POST_PERIODS]
         num_pre_treatment_periods = treatment_analysis_results[KEY_PRE_PERIODS]
         total_periods_for_unit = treatment_analysis_results[KEY_TOTAL_PERIODS]
-        treated_unit_column_index = treatment_analysis_results[KEY_TREATED_INDEX] # Index of the treated unit column
+        treated_unit_column_index = treatment_analysis_results[KEY_TREATED_INDEX]
 
-        # Pivot the outcome variable to wide format.
-        outcome_matrix_wide = df.pivot(index=time_period_column_name, columns=unit_id_column_name, values=outcome_column_name)
-        # Get the name (identifier) of the treated unit.
+        outcome_matrix_wide = df.pivot(
+            index=time_period_column_name,
+            columns=unit_id_column_name,
+            values=outcome_column_name,
+        )
         treated_unit_name = outcome_matrix_wide.columns[treated_unit_column_index[0]]
-        # Extract the outcome vector for the treated unit.
         treated_unit_outcome_vector = outcome_matrix_wide[treated_unit_name].to_numpy()
-        # Create a DataFrame for donor units by dropping the treated unit's column.
-        donor_outcome_df_wide = outcome_matrix_wide.drop(outcome_matrix_wide.columns[treated_unit_column_index[0]], axis=1)
-        donor_names = donor_outcome_df_wide.columns # Get names of donor units.
-        donor_outcome_array_wide = donor_outcome_df_wide.to_numpy() # Outcome matrix for donors.
+        donor_outcome_df_wide = outcome_matrix_wide.drop(
+            outcome_matrix_wide.columns[treated_unit_column_index[0]], axis=1
+        )
+        donor_names = donor_outcome_df_wide.columns
+        donor_outcome_array_wide = donor_outcome_df_wide.to_numpy()
 
         if donor_outcome_df_wide.shape[1] == 0:
             if not allow_no_donors:
                 raise MlsynthDataError("No donor units found after pivoting and selecting.")
-            # else: allow to proceed without donors
 
-        if num_pre_treatment_periods == 0: # pre_periods is num_pre_treatment_periods
-            # Ensure there are pre-treatment periods for comparison.
+        if num_pre_treatment_periods == 0:
             raise MlsynthDataError("Not enough pre-treatment periods (0 pre-periods found).")
 
-        return {
+        out: Dict[str, Any] = {
             "treated_unit_name": treated_unit_name,
             "Ywide": outcome_matrix_wide,
             "y": treated_unit_outcome_vector,
@@ -310,41 +390,92 @@ def dataprep(
             "total_periods": total_periods_for_unit,
             "pre_periods": num_pre_treatment_periods,
             "post_periods": num_post_treatment_periods,
-            "time_labels": outcome_matrix_wide.index, # Time labels (e.g., dates, years) from the index.
+            "time_labels": outcome_matrix_wide.index,
         }
 
-    # Multiple treated units case
+        if covariates:
+            # Order is donors first, then the single treated unit, so that
+            # ``donor_covariate_matrix`` and ``treated_covariate_matrix`` can
+            # be sliced off the unified ``covariate_matrix`` cleanly.
+            unit_order = list(donor_names) + [treated_unit_name]
+            cov_matrix, cov_names, cov_means, cov_scales = _build_covariate_matrix(
+                df, unit_id_column_name, time_period_column_name,
+                covariates, num_pre_treatment_periods, unit_order,
+                aggregation=covariate_aggregation,
+                normalize=normalize_covariates,
+            )
+            n_donors = len(donor_names)
+            out["covariate_matrix"] = cov_matrix                      # (N, M)
+            out["covariate_names"] = cov_names                        # tuple of str
+            out["covariate_means"] = cov_means                        # (M,)
+            out["covariate_scales"] = cov_scales                      # (M,)
+            out["donor_covariate_matrix"] = cov_matrix[:n_donors]     # (n_donors, M)
+            out["treated_covariate_matrix"] = cov_matrix[n_donors:]   # (1, M)
+
+            if marex:
+                # Abadie-Zhou stacked predictor matrix (T_pre + M, N).
+                Y_pre_all = (
+                    outcome_matrix_wide.iloc[:num_pre_treatment_periods, :]
+                    .reindex(columns=unit_order)
+                    .to_numpy(dtype=float)
+                )
+                X_stacked = np.vstack([Y_pre_all, cov_matrix.T])
+                out["predictor_matrix"] = X_stacked
+                out["predictor_block_sizes"] = (num_pre_treatment_periods,
+                                                len(cov_names))
+                # Equal-weighted population aggregate X̄ (the design objective's
+                # target). Users with a non-uniform ``f`` can recompute from
+                # ``predictor_matrix`` directly.
+                f = np.ones(len(unit_order)) / len(unit_order)
+                out["f_weights"] = f
+                out["X_population_mean"] = X_stacked @ f
+
+        elif marex:
+            # MAREX mode without covariates: still expose the f / X̄ pair
+            # built from outcomes only.
+            Y_pre_all = (
+                outcome_matrix_wide.iloc[:num_pre_treatment_periods, :]
+                .to_numpy(dtype=float)
+            )
+            f = np.ones(Y_pre_all.shape[1]) / Y_pre_all.shape[1]
+            out["predictor_matrix"] = Y_pre_all
+            out["predictor_block_sizes"] = (num_pre_treatment_periods, 0)
+            out["f_weights"] = f
+            out["X_population_mean"] = Y_pre_all @ f
+
+        return out
+
+    # ─── Multiple treated units (cohort mode) ──────────────────────────
     else:
-        outcome_matrix_wide = df.pivot(index=time_period_column_name, columns=unit_id_column_name,
-                                       values=outcome_column_name)
-        treatment_matrix_wide_multi = df.pivot(index=time_period_column_name, columns=unit_id_column_name,
-                                               values=treatment_indicator_column_name)
+        outcome_matrix_wide = df.pivot(
+            index=time_period_column_name,
+            columns=unit_id_column_name,
+            values=outcome_column_name,
+        )
+        treatment_matrix_wide_multi = df.pivot(
+            index=time_period_column_name,
+            columns=unit_id_column_name,
+            values=treatment_indicator_column_name,
+        )
 
-        # Determine first treatment period by unit
         first_treatment_time_by_unit = (treatment_matrix_wide_multi == 1).idxmax().to_dict()
-
-        # Map treatment_start_time -> cohort units
-        cohort_treatment_start_times_map = {}
+        cohort_treatment_start_times_map: Dict[Any, List[Any]] = {}
         for unit_id, start_time in first_treatment_time_by_unit.items():
             if treatment_matrix_wide_multi.loc[start_time, unit_id] == 1:
                 cohort_treatment_start_times_map.setdefault(start_time, []).append(unit_id)
 
-        # All treated units across all cohorts
         all_treated_units = set()
         for units in cohort_treatment_start_times_map.values():
             all_treated_units.update(units)
 
-        cohort_details_map = {}
+        cohort_details_map: Dict[Any, Dict[str, Any]] = {}
         for start_time, cohort_units in cohort_treatment_start_times_map.items():
             cohort_treated_matrix = outcome_matrix_wide[cohort_units].to_numpy()
-
             num_post = outcome_matrix_wide.shape[0] - outcome_matrix_wide.index.get_loc(start_time)
             num_pre = outcome_matrix_wide.index.get_loc(start_time)
-
-            # Donor units = all units NOT treated in any cohort
-            donor_units = [u for u in outcome_matrix_wide.columns if u not in all_treated_units]
+            donor_units = [u for u in outcome_matrix_wide.columns
+                           if u not in all_treated_units]
             cohort_donor_matrix = outcome_matrix_wide[donor_units].to_numpy()
-
             cohort_details_map[start_time] = {
                 "treated_units": cohort_units,
                 "y": cohort_treated_matrix,
@@ -355,11 +486,55 @@ def dataprep(
                 "post_periods": num_post,
             }
 
-        return {
+        out_multi: Dict[str, Any] = {
             "Ywide": outcome_matrix_wide,
             "cohorts": cohort_details_map,
             "time_labels": outcome_matrix_wide.index,
         }
+
+        if covariates:
+            # Use the earliest pre-period length across cohorts as the
+            # aggregation window so the covariate aggregation is stable
+            # regardless of which cohort consumes the result.
+            min_pre = (min(c["pre_periods"] for c in cohort_details_map.values())
+                       if cohort_details_map else 0)
+            unit_order = list(outcome_matrix_wide.columns)
+            cov_matrix, cov_names, cov_means, cov_scales = _build_covariate_matrix(
+                df, unit_id_column_name, time_period_column_name,
+                covariates, max(min_pre, 1), unit_order,
+                aggregation=covariate_aggregation,
+                normalize=normalize_covariates,
+            )
+            out_multi["covariate_matrix"] = cov_matrix
+            out_multi["covariate_names"] = cov_names
+            out_multi["covariate_means"] = cov_means
+            out_multi["covariate_scales"] = cov_scales
+
+            if marex:
+                Y_pre_all = (
+                    outcome_matrix_wide.iloc[:min_pre, :]
+                    .reindex(columns=unit_order)
+                    .to_numpy(dtype=float)
+                )
+                X_stacked = np.vstack([Y_pre_all, cov_matrix.T])
+                f = np.ones(len(unit_order)) / len(unit_order)
+                out_multi["predictor_matrix"] = X_stacked
+                out_multi["predictor_block_sizes"] = (min_pre, len(cov_names))
+                out_multi["f_weights"] = f
+                out_multi["X_population_mean"] = X_stacked @ f
+
+        elif marex:
+            min_pre = (min(c["pre_periods"] for c in cohort_details_map.values())
+                       if cohort_details_map else 0)
+            Y_pre_all = outcome_matrix_wide.iloc[:min_pre, :].to_numpy(dtype=float)
+            f = (np.ones(Y_pre_all.shape[1]) / Y_pre_all.shape[1]
+                 if Y_pre_all.size else None)
+            out_multi["predictor_matrix"] = Y_pre_all
+            out_multi["predictor_block_sizes"] = (min_pre, 0)
+            out_multi["f_weights"] = f
+            out_multi["X_population_mean"] = Y_pre_all @ f if f is not None else None
+
+        return out_multi
 
 
 def balance(df: pd.DataFrame, unit_id_column_name: str, time_period_column_name: str) -> None:
