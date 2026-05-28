@@ -71,7 +71,18 @@ class BaseMAREXConfig(BaseModel):
 class MAREXConfig(BaseMAREXConfig):
     """Configuration for the Synthetic Experiment Design estimator (MAREX) in mlsynth."""
 
-    T0: Optional[int] = Field(default=None, description="Number of pre-treatment periods.")
+    T0: Optional[int] = Field(
+        default=None,
+        description="Number of pre-treatment periods. Alternative to ``post_col``.",
+    )
+    post_col: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional 0/1 (or boolean) column identifying post-treatment periods. "
+            "When supplied, ``T0`` is derived as the count of pre-treatment periods "
+            "and an explicit ``T0`` argument is ignored."
+        ),
+    )
     cluster: Optional[str] = Field(default=None, description="Column name for cluster membership.")
     design: str = Field(default="standard", description="Design type: 'standard', 'weakly_targeted', 'penalized', 'unit_penalized'.")
     covariates: Optional[List[str]] = Field(default=None, description="Time-invariant covariate columns matched on alongside pre-period outcomes (the paper's X = [Y^E ; Z]).")
@@ -91,7 +102,17 @@ class MAREXConfig(BaseMAREXConfig):
     costs: Optional[List[float]] = None
     budget: Optional[Union[int, Dict[int, int]]] = None
 
-    blank_periods: int = Field(default=0)
+    blank_periods: Optional[int] = Field(
+        default=None,
+        description=(
+            "Number of held-out blank periods at the tail of the pre-period used "
+            "for placebo inference and noise-scale estimation. When unspecified "
+            "and ``inference=True``, defaults to ``max(1, floor(0.3 * T0))`` — "
+            "the same 30% pre-tail convention as the other MAREX-family "
+            "estimators. When ``inference=False`` (no placebo needed), defaults "
+            "to ``0`` (the optimizer fits on the entire pre-period)."
+        ),
+    )
     m_eq: Optional[int] = Field(default=None)
     m_min: Optional[int] = Field(default=None)
     m_max: Optional[int] = Field(default=None)
@@ -117,8 +138,37 @@ class MAREXConfig(BaseMAREXConfig):
         if program_type not in {"QP", "MIQP"}:
             raise MlsynthDataError(f"program_type must be 'QP' or 'MIQP', got '{program_type}'")
 
-        # --- T0 ---
+        # --- T0 / post_col ---
         n_periods = df[time_col].nunique()
+        if values.post_col is not None:
+            if values.post_col not in df.columns:
+                raise MlsynthConfigError(
+                    f"post_col '{values.post_col}' is not present in df."
+                )
+            # Derive T0 from post_col (count of pre-treatment periods).
+            post_by_time = (
+                df[[time_col, values.post_col]]
+                .drop_duplicates(subset=[time_col])
+                .set_index(time_col)[values.post_col]
+            )
+            if post_by_time.isna().any():
+                raise MlsynthDataError(
+                    "post_col must be defined for every time period in the panel."
+                )
+            post_mask = post_by_time.astype(bool).to_numpy()
+            if post_mask.all():
+                raise MlsynthConfigError(
+                    "post_col marks every period as post-treatment; no pre-period."
+                )
+            T0_from_post = int((~post_mask).sum())
+            if T0 is not None and T0 != T0_from_post:
+                warnings.warn(
+                    f"T0={T0} ignored: derived T0={T0_from_post} from post_col "
+                    f"'{values.post_col}'.",
+                    UserWarning,
+                )
+            values.T0 = T0_from_post
+            T0 = T0_from_post
         if T0 is not None and (T0 <= 0 or T0 > n_periods):
             raise MlsynthDataError(f"T0 must be between 1 and {n_periods}.")
 
@@ -206,15 +256,34 @@ class MAREXConfig(BaseMAREXConfig):
 
         values.df = df
 
-        # --- inference validation ---
+        # --- inference / blank_periods validation ---
+        n_periods = values.df[values.time].nunique()
+        T0_eff = values.T0 if values.T0 is not None else n_periods - 1
         if values.inference:
-            n_periods = values.df[values.time].nunique()
-            T0 = values.T0 if values.T0 is not None else n_periods - 1
-            max_post = n_periods - T0
+            max_post = n_periods - T0_eff
             if values.T_post is None:
                 values.T_post = max_post
             elif values.T_post <= 0 or values.T_post > max_post:
-                raise MlsynthDataError(f"T_post must be between 1 and {max_post} (T0={T0}, total periods={n_periods})")
+                raise MlsynthDataError(
+                    f"T_post must be between 1 and {max_post} "
+                    f"(T0={T0_eff}, total periods={n_periods})"
+                )
+            # Default blank window to the same 30% pre-tail convention used by
+            # the other MAREX-family estimators (LEXSCM, SYNDES, PANGEO).
+            if values.blank_periods is None:
+                values.blank_periods = max(1, int(0.3 * T0_eff))
+        else:
+            # No inference requested: do not silently carve out a blank
+            # window from the optimization (would change the synthetic
+            # design relative to the natural "fit on full pre-period" case).
+            if values.blank_periods is None:
+                values.blank_periods = 0
+
+        if values.blank_periods < 0 or values.blank_periods >= T0_eff:
+            raise MlsynthDataError(
+                f"blank_periods must satisfy 0 <= blank_periods < T0 "
+                f"(T0={T0_eff}, got {values.blank_periods})."
+            )
 
         return values
 
@@ -2984,9 +3053,15 @@ class RESCMConfig(BaseEstimatorConfig):
             "allowed). The first listed drives the result aliases."
         ),
     )
-    tau: Optional[float] = Field(
+    tau: Optional[Union[float, Literal["heuristic"]]] = Field(
         default=None,
-        description="L2-relaxation parameter; None selects it by cross-validation.",
+        description=(
+            "Relaxation parameter for the SCM-relaxation methods. ``None`` "
+            "selects it by time-series cross-validation (slow). ``\"heuristic\"`` "
+            "skips CV and uses the Bickel-Ritov-Tsybakov universal penalty "
+            "``sd(y) * sqrt(2 T0 log 2J)`` (with 2x/4x feasibility fallbacks); "
+            "much faster, at the cost of a defensible-but-not-optimal tau."
+        ),
     )
     n_splits: Optional[int] = Field(
         default=None, ge=2,
@@ -3004,7 +3079,6 @@ class RESCMConfig(BaseEstimatorConfig):
         default=0.05, gt=0.0, lt=1.0,
         description="Significance level for confidence intervals and ATE inference.",
     )
-
     @model_validator(mode="after")
     def _validate_methods(self):
         from mlsynth.utils.laxscm_helpers.specs import normalize_method
