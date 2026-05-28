@@ -3319,10 +3319,34 @@ class SYNDESConfig(BaseMAREXConfig):
                     f"got mode={values.mode!r}."
                 )
 
-        if values.post_col is not None and values.post_col not in df.columns:
-            raise MlsynthConfigError(
-                f"post_col '{values.post_col}' is not present in df."
+        # --- T0 / post_col resolution (mirrors MAREXConfig) ---
+        if values.post_col is not None:
+            if values.post_col not in df.columns:
+                raise MlsynthConfigError(
+                    f"post_col '{values.post_col}' is not present in df."
+                )
+            post_by_time = (
+                df[[values.time, values.post_col]]
+                .drop_duplicates(subset=[values.time])
+                .set_index(values.time)[values.post_col]
             )
+            if post_by_time.isna().any():
+                raise MlsynthConfigError(
+                    "post_col must be defined for every time period in the panel."
+                )
+            post_mask = post_by_time.astype(bool).to_numpy()
+            if post_mask.all():
+                raise MlsynthConfigError(
+                    "post_col marks every period as post-treatment; no pre-period."
+                )
+            T0_from_post = int((~post_mask).sum())
+            if values.T0 is not None and values.T0 != T0_from_post:
+                warnings.warn(
+                    f"T0={values.T0} ignored: derived T0={T0_from_post} from "
+                    f"post_col '{values.post_col}'.",
+                    UserWarning,
+                )
+            values.T0 = T0_from_post
         if values.T0 is not None and values.T0 > n_periods:
             raise MlsynthConfigError(
                 "T0 cannot exceed the number of unique time periods in df."
