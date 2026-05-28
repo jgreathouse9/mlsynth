@@ -219,7 +219,8 @@ class TestPostFit:
     def _panel_with_cov(self, J=12, T=18, seed=11):
         """Panel where two time-invariant covariates load the outcome, so the
         MAREX design that minimises the Abadie-Zhou objective actually achieves
-        small SMD against both the synthetic control and the population mean."""
+        small SMD against both the synthetic control and the population mean.
+        """
         rng = np.random.default_rng(seed)
         pop = rng.uniform(800, 2400, J)
         inc = rng.uniform(45_000, 75_000, J)
@@ -278,7 +279,8 @@ class TestPostFit:
     def test_design_with_covariates_balances_better(self):
         """The covariate-aware MAREX design should achieve smaller |SMD|
         treated-vs-control than the no-covariates design, scored on the
-        same raw covariate matrix so the comparison is apples-to-apples."""
+        same raw covariate matrix so the comparison is apples-to-apples.
+        """
         df = self._panel_with_cov()
         common = dict(df=df, outcome="y", unitid="unit", time="time",
                       T0=14, m_eq=3, standardize=True)
@@ -316,7 +318,8 @@ class TestPostFit:
     def test_population_smd_matches_marex_objective(self):
         """Both vs-population SMDs (treated-vs-pop, control-vs-pop) should be
         small — this is exactly what Abadie & Zhou's standard objective
-        ||X̄ − Σwⱼ Xⱼ||² + ||X̄ − Σvⱼ Xⱼ||² minimises."""
+        ||X̄ − Σwⱼ Xⱼ||² + ||X̄ − Σvⱼ Xⱼ||² minimises.
+        """
         df = self._panel_with_cov()
         res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
                      "T0": 14, "m_eq": 3, "covariates": ["pop", "inc"],
@@ -329,7 +332,7 @@ class TestPostFit:
         assert pf.covariate_smd_control_vs_pop_abs_max < 0.3
 
     def test_compute_smd_standalone(self):
-        """compute_smd works panel-free on raw arrays."""
+        """Compute_smd works panel-free on raw arrays."""
         rng = np.random.default_rng(0)
         N, M = 12, 3
         cov = rng.normal(size=(N, M))
@@ -342,7 +345,7 @@ class TestPostFit:
                           sum(v ** 2 for v in out["smd"].values()))
 
     def test_compute_post_fit_standalone(self):
-        """compute_post_fit works panel-free on raw arrays (no estimator)."""
+        """Compute_post_fit works panel-free on raw arrays (no estimator)."""
         rng = np.random.default_rng(2)
         T, N, M = 30, 10, 2
         treated = rng.normal(size=T) + 5
