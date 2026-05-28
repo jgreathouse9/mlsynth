@@ -1,4 +1,5 @@
-"""Standardized post-fit diagnostics for synthetic control designs.
+"""Standardized post-fit diagnostics for synthetic control designs and the
+matching power-analysis surface that consumes them.
 
 After any MAREX-family estimator (LEXSCM, MAREX, SYNDES, PANGEO, ...) solves
 its design problem, downstream consumers (the SAGE dashboard, paper-style
@@ -32,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
+from scipy.stats import norm
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +95,69 @@ class SyntheticControlPostFit:
     covariate_smd_control_vs_pop: Optional[Dict[str, float]] = None
     covariate_smd_control_vs_pop_abs_max: Optional[float] = None
     covariate_smd_control_vs_pop_squared_sum: Optional[float] = None
+
+    # -------- Power analysis (None unless compute_power_analysis was run)
+    power: Optional["PowerAnalysis"] = None
+
+
+@dataclass(frozen=True)
+class MDEPoint:
+    """Minimum detectable effect at a single post-treatment horizon."""
+
+    post_periods: int                       # horizon length used
+    mde_absolute: float                     # MDE on the outcome scale
+    mde_pct: float                          # MDE as % of baseline
+    se: float                               # implied standard error of mean(post gap)
+    power_at_observed: Optional[float] = None  # power to detect the design's observed ATT
+
+
+@dataclass(frozen=True)
+class PowerAnalysis:
+    """Standardized power-analysis output attached to ``SyntheticControlPostFit``.
+
+    Built from the placebo / blank-period gap variance and an analytical
+    Gaussian approximation, with AR(1) variance inflation to handle serial
+    correlation in the gap residuals. The intent matches the per-estimator
+    power modules already in the library (PangeoPower, SPCDPowerAnalysis,
+    SYNDESPower) but consumes the same ``SyntheticControlPostFit`` shape so
+    every covariate-aware SCM-family estimator gets the surface for free.
+
+    Attributes
+    ----------
+    headline : MDEPoint
+        MDE for the actual ``n_post`` horizon of the realised design.
+    curve : list of MDEPoint
+        MDE / power values across the requested ``post_grid`` horizons (so
+        callers can read a detectability curve).
+    alpha : float
+        Two-sided significance level assumed.
+    power_target : float
+        Target power the MDEs are computed at (default 0.80).
+    sigma_placebo : float
+        Standard deviation of the placebo gap series used as the noise scale.
+    serial_correlation : float
+        Lag-1 (AR(1)) autocorrelation of the placebo gap residuals used to
+        inflate the variance for serial dependence.
+    baseline : float
+        Mean of the control trajectory on the post window (denominator for
+        ``mde_pct``). NaN when no post window exists.
+    method : str
+        ``"analytical_ar1"`` for the closed-form Gaussian + AR(1) MDE used
+        here. Reserved for future ``"monte_carlo"`` extensions.
+    """
+
+    headline: MDEPoint
+    curve: Tuple[MDEPoint, ...]
+    alpha: float
+    power_target: float
+    sigma_placebo: float
+    serial_correlation: float
+    baseline: float
+    method: str = "analytical_ar1"
+
+    def mde_by_horizon(self) -> Dict[int, float]:
+        """``{post_periods: mde_pct}`` for quick lookup."""
+        return {pt.post_periods: pt.mde_pct for pt in self.curve}
 
 
 # ---------------------------------------------------------------------------
@@ -429,3 +494,137 @@ def _safe_float(x) -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return v if np.isfinite(v) else None
+
+
+# ---------------------------------------------------------------------------
+# Power analysis (analytical, Gaussian + AR(1) variance inflation)
+# ---------------------------------------------------------------------------
+
+def _ar1_rho(residuals: np.ndarray) -> float:
+    """Lag-1 autocorrelation of a residual series, clipped to ``(-0.99, 0.99)``."""
+    r = np.asarray(residuals, dtype=float).flatten()
+    if r.size < 2:
+        return 0.0
+    num = float(r[:-1] @ r[1:])
+    den = float(r @ r)
+    if den <= 1e-12:
+        return 0.0
+    return float(np.clip(num / den, -0.99, 0.99))
+
+
+def _variance_inflation(n: int, rho: float) -> float:
+    """``Var(mean of n serially-correlated periods) / sigma^2``.
+
+    For an AR(1) process with lag-1 correlation ``rho`` this is
+    ``(1 + 2 * sum_{k=1}^{n-1} (1 - k/n) rho^k) / n`` (``= 1/n`` when
+    ``rho = 0``). Matches the same formula PANGEO uses.
+    """
+    if n <= 0:
+        return 0.0
+    if n == 1 or abs(rho) < 1e-12:
+        return 1.0 / n
+    k = np.arange(1, n)
+    s = float(np.sum((1.0 - k / n) * rho ** k))
+    return (1.0 + 2.0 * s) / n
+
+
+def compute_power_analysis(
+    post_fit: SyntheticControlPostFit,
+    *,
+    alpha: float = 0.05,
+    power_target: float = 0.80,
+    post_grid: Optional[Sequence[int]] = None,
+) -> PowerAnalysis:
+    """Analytical MDE + power curve for a design's :class:`SyntheticControlPostFit`.
+
+    Uses the placebo / blank-period gap residuals (or the pre-period gap when
+    no blank window was carved out) to estimate the noise standard deviation
+    ``sigma_placebo`` and the AR(1) autocorrelation ``rho``, then computes
+    the minimum detectable effect for each horizon ``T`` in ``post_grid`` via
+    the Gaussian formula
+
+        MDE(T) = (z_{1-alpha/2} + z_{power}) * sigma_placebo * sqrt(VIF(T, rho)),
+
+    where ``VIF(T, rho) = Var(mean of T AR(1) periods) / sigma_placebo^2``.
+    The headline MDE uses ``T = post_fit.n_post`` (the realised post window).
+
+    Parameters
+    ----------
+    post_fit : SyntheticControlPostFit
+        The standardized post-fit from any MAREX-family estimator.
+    alpha : float, default 0.05
+        Two-sided significance level.
+    power_target : float, default 0.80
+        Target power for the MDE.
+    post_grid : sequence of int, optional
+        Post-treatment horizons at which to compute MDE. Defaults to a small
+        geometric grid centered on ``post_fit.n_post`` so users see the
+        detectability tradeoff vs. running the experiment longer.
+
+    Returns
+    -------
+    PowerAnalysis
+        Headline MDE + a curve over the requested horizons.
+    """
+    z_a = float(norm.ppf(1.0 - alpha / 2.0))
+    z_p = float(norm.ppf(power_target))
+    factor = z_a + z_p
+
+    # Estimate noise scale from the blank period when available; fall back
+    # to the pre / fit window otherwise. Both windows are zero-mean under H0
+    # so std() is the right estimator.
+    if post_fit.n_blank > 0:
+        placebo = post_fit.gap_series[post_fit.n_fit:
+                                       post_fit.n_fit + post_fit.n_blank]
+    else:
+        placebo = post_fit.gap_series[:post_fit.n_fit]
+    placebo = np.asarray(placebo, dtype=float)
+    if placebo.size < 2 or not np.isfinite(placebo).all():
+        sigma_placebo = float("nan")
+        rho = 0.0
+    else:
+        sigma_placebo = float(placebo.std(ddof=1))
+        rho = _ar1_rho(placebo)
+
+    # Baseline for percentage scaling (mean of control on post window).
+    if post_fit.n_post > 0:
+        post_end = post_fit.n_fit + post_fit.n_blank + post_fit.n_post
+        baseline = float(post_fit.control_series[
+            post_fit.n_fit + post_fit.n_blank: post_end
+        ].mean())
+    else:
+        baseline = float("nan")
+
+    # Default horizon grid: 1, 2, ..., max(n_post, 12), tagged with the
+    # realised horizon if it isn't already in the grid.
+    if post_grid is None:
+        n_post = max(post_fit.n_post, 1)
+        grid = sorted({int(h) for h in [1, 2, 4, 6, 8, 12, n_post] if h >= 1})
+    else:
+        grid = sorted({int(h) for h in post_grid if int(h) >= 1})
+
+    def _point(T: int) -> MDEPoint:
+        if not np.isfinite(sigma_placebo) or sigma_placebo <= 0:
+            return MDEPoint(T, float("nan"), float("nan"), float("nan"))
+        se = sigma_placebo * float(np.sqrt(_variance_inflation(T, rho)))
+        mde_abs = factor * se
+        mde_pct = (mde_abs / baseline * 100.0
+                   if np.isfinite(baseline) and abs(baseline) > 1e-12
+                   else float("nan"))
+        # Power to detect the observed ATT, if there is one.
+        power_at = None
+        if post_fit.ate is not None and se > 0:
+            z = abs(post_fit.ate) / se
+            power_at = float(norm.cdf(z - z_a) + norm.cdf(-z - z_a))
+        return MDEPoint(T, mde_abs, mde_pct, se, power_at_observed=power_at)
+
+    headline_T = max(post_fit.n_post, 1)
+    headline = _point(headline_T)
+    curve = tuple(_point(T) for T in grid)
+
+    return PowerAnalysis(
+        headline=headline, curve=curve,
+        alpha=float(alpha), power_target=float(power_target),
+        sigma_placebo=sigma_placebo, serial_correlation=rho,
+        baseline=baseline, method="analytical_ar1",
+    )
