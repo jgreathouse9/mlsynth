@@ -224,9 +224,10 @@ effect distinguishable from noise?", power asks "what effect sizes would be?"
 The paper develops permutation inference for MAREX but does not provide a
 matching MDE. ``mlsynth`` fills this gap with an analytical, AR(1)-inflated
 Gaussian MDE computed from the same residual series the permutation test
-draws on. Set ``inference=True`` and a positive ``blank_periods`` (or just
-let ``T_post`` default to one) and the result auto-populates
-``res.post_fit.power``.
+draws on. Set ``inference=True`` and the result auto-populates
+``res.post_fit.power`` — ``blank_periods`` defaults to
+``max(1, floor(0.3 * T0))`` so you do not need to pick a scalar yourself
+(matching the LEXSCM / SYNDES / PANGEO convention).
 
 Where the noise standard deviation comes from
 """"""""""""""""""""""""""""""""""""""""""""""
@@ -542,9 +543,11 @@ Example
    res = MAREX({
        "df": df, "outcome": "revenue", "unitid": "market", "time": "week",
        "T0": 40,            # 40 pre-experiment weeks
+       # Equivalently: pass a 0/1 column marking the experiment window
+       # "post_col": "in_experiment",
        "m_eq": 2,           # treat exactly two markets
        "design": "standard",
-       "inference": True, "blank_periods": 4, "T_post": 4,
+       "inference": True,   # blank_periods defaults to floor(0.3 * T0) = 12
        "display_graph": True,
    }).fit()
 
