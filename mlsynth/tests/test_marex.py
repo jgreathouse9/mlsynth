@@ -198,3 +198,167 @@ class TestPlot:
         plot_marex(res, plot_type="treatment")
         plot_marex(res, plot_type="prediction")
         _plt.close("all")
+
+
+# ----------------------------------------------------------------------
+# Standardized post-fit diagnostics (mlsynth.utils.post_fit)
+# ----------------------------------------------------------------------
+
+from mlsynth.utils.post_fit import (
+    SyntheticControlPostFit, compute_smd, compute_post_fit,
+)
+
+
+class TestPostFit:
+    """``res.post_fit`` is auto-attached and exposes the three SMD comparisons
+    (treated-vs-control, treated-vs-population, control-vs-population) plus the
+    standardized ATE / total / lift / RMSE / inference scalars used by every
+    downstream consumer.
+    """
+
+    def _panel_with_cov(self, J=12, T=18, seed=11):
+        """Panel where two time-invariant covariates load the outcome, so the
+        MAREX design that minimises the Abadie-Zhou objective actually achieves
+        small SMD against both the synthetic control and the population mean."""
+        rng = np.random.default_rng(seed)
+        pop = rng.uniform(800, 2400, J)
+        inc = rng.uniform(45_000, 75_000, J)
+        baseline = 100 + 0.05 * pop + 1e-3 * inc
+        F = np.cumsum(rng.normal(size=T))
+        lam = rng.normal(scale=0.5, size=J)
+        Y = baseline[None, :] + F[:, None] * lam[None, :] + 0.5 * rng.normal(size=(T, J))
+        rows = [{"unit": f"u{j:02d}", "time": t, "y": float(Y[t, j]),
+                  "pop": float(pop[j]), "inc": float(inc[j])}
+                for j in range(J) for t in range(T)]
+        return pd.DataFrame(rows)
+
+    def test_post_fit_attached_without_covariates(self, panel):
+        res = MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 10, "m_eq": 2}).fit()
+        pf = res.post_fit
+        assert isinstance(pf, SyntheticControlPostFit)
+        # Without covariates, the SMD fields stay None but the rest populates.
+        assert pf.covariate_smd is None
+        assert pf.covariate_smd_treated_vs_pop is None
+        assert pf.covariate_smd_control_vs_pop is None
+        # Trajectories and phase boundaries always populated.
+        assert pf.treated_series.shape == pf.control_series.shape
+        assert pf.gap_series.size == pf.treated_series.size
+        assert pf.n_fit > 0
+        assert pf.n_post >= 0
+
+    def test_post_fit_three_smd_pairs_populated_with_covariates(self):
+        df = self._panel_with_cov()
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 14, "m_eq": 3, "covariates": ["pop", "inc"],
+                     "covariate_weight": 1.0, "standardize": True}).fit()
+        pf = res.post_fit
+
+        # All three SMD dicts populated and keyed by user-supplied column names.
+        for d in (pf.covariate_smd,
+                  pf.covariate_smd_treated_vs_pop,
+                  pf.covariate_smd_control_vs_pop):
+            assert d is not None
+            assert set(d) == {"pop", "inc"}
+
+        # Summary scalars present and finite.
+        for s in (pf.covariate_smd_abs_max,
+                  pf.covariate_smd_treated_vs_pop_abs_max,
+                  pf.covariate_smd_control_vs_pop_abs_max):
+            assert s is not None and np.isfinite(s) and s >= 0
+
+        for s in (pf.covariate_smd_squared_sum,
+                  pf.covariate_smd_treated_vs_pop_squared_sum,
+                  pf.covariate_smd_control_vs_pop_squared_sum):
+            assert s is not None and np.isfinite(s) and s >= 0
+
+        # Names tuple matches the dict keys.
+        assert set(pf.covariate_names) == {"pop", "inc"}
+
+    def test_design_with_covariates_balances_better(self):
+        """The covariate-aware MAREX design should achieve smaller |SMD|
+        treated-vs-control than the no-covariates design, scored on the
+        same raw covariate matrix so the comparison is apples-to-apples."""
+        df = self._panel_with_cov()
+        common = dict(df=df, outcome="y", unitid="unit", time="time",
+                      T0=14, m_eq=3, standardize=True)
+        no_cov_res = MAREX({**common, "covariates": None}).fit()
+        with_cov_res = MAREX({**common, "covariates": ["pop", "inc"],
+                                "covariate_weight": 1.0}).fit()
+
+        # Score both designs on the same raw covariate matrix.
+        units = sorted(df["unit"].unique())
+        cov = np.array([[df[df["unit"] == u]["pop"].iloc[0],
+                          df[df["unit"] == u]["inc"].iloc[0]] for u in units])
+
+        # MAREX preserves the unit order from df[unitid].unique(); align cov.
+        marex_order = list(no_cov_res.globres.Y_full.shape and
+                            sorted(set(df["unit"].unique()),
+                                    key=lambda u: list(df["unit"].unique()).index(u)))
+        # (MAREXPanel uses df[unitid].unique(); since our generator already
+        # produces unique() in u00..u11 order, the natural sort matches.)
+        no_cov_tc = compute_smd(
+            cov,
+            no_cov_res.globres.treated_weights_agg,
+            no_cov_res.globres.control_weights_agg,
+            cov_names=["pop", "inc"],
+        )["smd_abs_max"]
+        with_cov_tc = with_cov_res.post_fit.covariate_smd_abs_max
+
+        # Both finite; with-cov should not be worse.
+        assert np.isfinite(no_cov_tc) and np.isfinite(with_cov_tc)
+        assert with_cov_tc <= no_cov_tc + 1e-6, (
+            f"covariate-aware design should not have worse treated-vs-control "
+            f"balance (no_cov |SMD|={no_cov_tc:.3f} vs with_cov |SMD|="
+            f"{with_cov_tc:.3f})"
+        )
+
+    def test_population_smd_matches_marex_objective(self):
+        """Both vs-population SMDs (treated-vs-pop, control-vs-pop) should be
+        small — this is exactly what Abadie & Zhou's standard objective
+        ||X̄ − Σwⱼ Xⱼ||² + ||X̄ − Σvⱼ Xⱼ||² minimises."""
+        df = self._panel_with_cov()
+        res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
+                     "T0": 14, "m_eq": 3, "covariates": ["pop", "inc"],
+                     "covariate_weight": 1.0, "standardize": True}).fit()
+        pf = res.post_fit
+        # On this DGP, MAREX's standard objective drives both vs-population
+        # imbalances down. We use a loose 0.3 threshold to leave headroom for
+        # different solver paths while still asserting "much better than random".
+        assert pf.covariate_smd_treated_vs_pop_abs_max < 0.3
+        assert pf.covariate_smd_control_vs_pop_abs_max < 0.3
+
+    def test_compute_smd_standalone(self):
+        """compute_smd works panel-free on raw arrays."""
+        rng = np.random.default_rng(0)
+        N, M = 12, 3
+        cov = rng.normal(size=(N, M))
+        tw = np.zeros(N); tw[[0, 1, 2]] = 1 / 3
+        cw = np.zeros(N); cw[[5, 6, 7, 8]] = 1 / 4
+        out = compute_smd(cov, tw, cw, cov_names=["a", "b", "c"])
+        assert set(out["smd"]) == {"a", "b", "c"}
+        assert out["smd_abs_max"] == max(abs(v) for v in out["smd"].values())
+        assert np.isclose(out["smd_squared_sum"],
+                          sum(v ** 2 for v in out["smd"].values()))
+
+    def test_compute_post_fit_standalone(self):
+        """compute_post_fit works panel-free on raw arrays (no estimator)."""
+        rng = np.random.default_rng(2)
+        T, N, M = 30, 10, 2
+        treated = rng.normal(size=T) + 5
+        control = rng.normal(size=T) + 5
+        cov = rng.normal(size=(N, M))
+        tw = np.zeros(N); tw[[0, 1]] = 0.5
+        cw = np.zeros(N); cw[[5, 6, 7]] = 1 / 3
+        pf = compute_post_fit(
+            treated, control,
+            n_fit=20, n_blank=2, n_post=8,
+            cov_matrix=cov, cov_names=["a", "b"],
+            treated_weights=tw, control_weights=cw,
+        )
+        assert pf.ate is not None
+        assert pf.rmse_fit is not None
+        assert pf.rmse_post is not None
+        assert pf.covariate_smd is not None
+        assert pf.covariate_smd_treated_vs_pop is not None
+        assert pf.covariate_smd_control_vs_pop is not None
