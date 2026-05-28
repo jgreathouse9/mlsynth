@@ -614,17 +614,12 @@ on the incumbent.
 References
 ----------
 
-Abadie, A., & Zhao, J. (2024/2026). "Synthetic Controls for Experimental
+Abadie, A., & Zhao, J. (2026). "Synthetic Controls for Experimental
 Design." *arXiv Working Paper* 2108.02196. (The February 2026 revision
 develops the design-based bias bound and the approximate-balance criterion
 used here.) https://arxiv.org/abs/2108.02196
 
-Vives-i-Bastida, J. (2022). "Synthetic Experimental Design." Working paper
--- source of the standard-deviation MDE scale and the power-analysis
-conventions used in Stage 3.
-
-Vives-i-Bastida, J. (2022). "Predictor Selection for Synthetic Controls."
-*Working paper*, arXiv:2203.11576.
+Vives-i-Bastida, J. (2022). "Synthetic Experimental Design for a UBI pilot study." Working paper (https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf)
 
 Doudchenko, N., Khosravi, K., Pouget-Abadie, J., Lahaie, S., et al.
 "Synthetic Design: An Optimization Approach to Experimental Design with
