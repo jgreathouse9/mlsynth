@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -20,6 +20,7 @@ class MAREXPanel:
     T0: int
     blank_periods: int
     covariates: Optional[np.ndarray] = None   # time-invariant predictors, (N, R)
+    covariate_names: Tuple[str, ...] = ()     # column names aligned to ``covariates``
 
 
 def prepare_marex_panel(
@@ -82,4 +83,5 @@ def prepare_marex_panel(
         blanks = blank_periods
 
     return MAREXPanel(Y_full=Y_full, clusters=clusters, T0=T0_eff,
-                      blank_periods=blanks, covariates=cov)
+                      blank_periods=blanks, covariates=cov,
+                      covariate_names=tuple(covariates) if covariates else ())

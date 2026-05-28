@@ -6,6 +6,7 @@ from typing import Optional
 
 import numpy as np
 
+from ..post_fit import compute_post_fit
 from .inference import compute_inference
 from .optimization import solve_design, solve_design_relaxed
 from .structures import (
@@ -36,6 +37,7 @@ def solve_marex(
     costs=None,
     budget=None,
     covariates=None,
+    covariate_names=(),
     covariate_weight=1.0,
     standardize=False,
     solver=None,
@@ -143,4 +145,23 @@ def solve_marex(
         design=design, T0=T0_eff, blank_periods=blank_periods,
         beta=beta, lambda1=lambda1 or lambda1_unit, lambda2=lambda2 or lambda2_unit, xi=xi,
     )
-    return MAREXResults(clusters=clusters_out, study=study, globres=globres)
+
+    # Standardized post-fit diagnostics (ATE / total / lift / RMSEs / SMDs).
+    # Constructed inline because MAREXResults is frozen; one source of truth
+    # for these quantities lives in mlsynth.utils.post_fit.compute_post_fit.
+    n_fit = T0_eff - blank_periods
+    n_post = max(0, Y_full_np.shape[1] - T0_eff)
+    cov_matrix = covariates if isinstance(covariates, np.ndarray) else None
+    cov_names_seq = tuple(covariate_names) if covariate_names else None
+    post_fit = compute_post_fit(
+        treated_series=globres.synthetic_treated,
+        control_series=globres.synthetic_control,
+        n_fit=n_fit, n_blank=blank_periods, n_post=n_post,
+        cov_matrix=cov_matrix, cov_names=cov_names_seq,
+        treated_weights=adj_treated, control_weights=adj_control,
+        inference=globres.inference,
+        n_treated_units=int(np.sum(adj_treated > 1e-8)),
+    )
+
+    return MAREXResults(clusters=clusters_out, study=study, globres=globres,
+                          post_fit=post_fit)

@@ -160,11 +160,18 @@ class MAREXResults:
         Design hyperparameters.
     globres : MAREXGlobalDesign
         Aggregate design and synthetics.
+    post_fit : SyntheticControlPostFit, optional
+        Standardized post-fit diagnostics (ATE / total effect / percentage
+        lift / fit RMSEs / inference / covariate SMDs). Computed at the
+        end of :meth:`mlsynth.estimators.MAREX.fit` via
+        :func:`mlsynth.utils.post_fit.compute_post_fit_marex`. ``None`` only
+        when an estimator failure leaves the result partially constructed.
     """
 
     clusters: Dict[str, MAREXClusterDesign]
     study: MAREXStudy
     globres: MAREXGlobalDesign
+    post_fit: Optional[Any] = None      # SyntheticControlPostFit; Any to dodge import cycle
 
     @property
     def mode(self) -> str:
