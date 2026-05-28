@@ -6,7 +6,9 @@ from typing import Optional
 
 import numpy as np
 
-from ..post_fit import compute_post_fit
+from dataclasses import replace as _dc_replace
+
+from ..post_fit import compute_post_fit, compute_power_analysis
 from .inference import compute_inference
 from .optimization import solve_design, solve_design_relaxed
 from .structures import (
@@ -162,6 +164,14 @@ def solve_marex(
         inference=globres.inference,
         n_treated_units=int(np.sum(adj_treated > 1e-8)),
     )
+    # Power analysis: analytical AR(1)-inflated MDE from the placebo/blank
+    # gap residuals (or the pre-period gap when no blank window was carved
+    # out). Skipped when no pre window or both windows are degenerate.
+    try:
+        power = compute_power_analysis(post_fit, alpha=alpha)
+        post_fit = _dc_replace(post_fit, power=power)
+    except Exception:                # never let power analysis break a fit
+        pass
 
     return MAREXResults(clusters=clusters_out, study=study, globres=globres,
                           post_fit=post_fit)
