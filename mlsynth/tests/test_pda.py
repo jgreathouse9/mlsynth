@@ -527,16 +527,22 @@ def test_forward_select_exhausts_all_donors():
 
 
 def test_forward_select_degenerate_no_selection(monkeypatch):
-    """If no donor ever lowers the IC, fall back to intercept-only."""
+    """If no donor ever lowers the IC, fall back appropriately per intercept mode."""
     import mlsynth.utils.pda_helpers.fs.estimation as fs_est
     monkeypatch.setattr(fs_est, "_ols_sigma2", lambda y, Z: 1e9)  # never improves
     rng = np.random.default_rng(13)
     X = rng.normal(0, 1, (20, 4))
     y = rng.normal(5.0, 1.0, 20)
+
+    # default (no intercept): degenerate -> zero counterfactual
     sel, beta, intercept, cf = forward_select(y, X, T0=20)
-    assert sel == []
-    assert np.allclose(beta, 0.0)
-    assert np.allclose(cf, np.mean(y[:20]))            # flat counterfactual at pre-mean
+    assert sel == [] and np.allclose(beta, 0.0)
+    assert np.allclose(cf, 0.0)
+
+    # intercept mode: degenerate -> flat counterfactual at the pre-period mean
+    sel2, beta2, icpt2, cf2 = forward_select(y, X, T0=20, intercept=True)
+    assert sel2 == [] and np.allclose(beta2, 0.0)
+    assert np.allclose(cf2, np.mean(y[:20]))
 
 
 def test_forward_select_runs_full_t0_iterations(monkeypatch):
@@ -547,7 +553,7 @@ def test_forward_select_runs_full_t0_iterations(monkeypatch):
     rng = np.random.default_rng(14)
     X = rng.normal(0, 1, (4, 6))                       # N=6 > T0=4
     y = rng.normal(0, 1, 4)
-    sel, beta, intercept, cf = forward_select(y, X, T0=4)
+    sel, beta, intercept, cf = forward_select(y, X, T0=4, intercept=True)
     assert len(sel) == 4                                # selected once per iteration
     assert cf.shape == (4,)
 
