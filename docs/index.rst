@@ -115,12 +115,14 @@ list of contributors.
 
 **News.**
 
-Recent verification campaign: each estimator's docs page is being audited
-against its source paper -- either by reproducing an empirical Table value
-on the authors' own data ("Path A") or by reproducing a Monte Carlo result
-from the paper's simulation section ("Path B"). Estimators currently
-carrying a *Verification* section include
-:doc:`tssc`, :doc:`siv`, :doc:`tasc`, and :doc:`bvss`.
+The verification campaign now covers twenty-nine of the
+thirty-three estimators in mlsynth -- each auditing its
+implementation against its source paper, either by reproducing an
+empirical Table value on the authors' own data ("Path A") or by
+reproducing a Monte Carlo from the paper's simulation section
+("Path B"), or against an authoritative reference implementation.
+See the :doc:`replications` page for the full catalogue with
+headline numbers.
 
 .. toctree::
    :hidden:
@@ -128,6 +130,7 @@ carrying a *Verification* section include
 
    about
    choose
+   replications
    references
 
 .. toctree::

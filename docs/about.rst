@@ -107,28 +107,24 @@ The verification campaign
 
 mlsynth's strongest claim is *reproducibility against the source
 paper*. Each verified estimator's documentation page contains a
-*Verification* section showing that the implementation replicates the
-paper's headline numbers. Coverage is being expanded on an ongoing
-basis; estimators currently carrying a verification receipt include
-
-* :doc:`tssc` -- Li & Shankar's published Brooklyn-showroom variant
-  numbers to three decimals plus the Figure-2 Monte Carlo.
-* :doc:`siv` -- Autor-Dorn-Hanson Table 3 baseline reproduced
-  exactly; Section 6 Monte Carlo grid carries the paper's headline
-  ordering.
-* :doc:`tasc` -- Proposition 99 counterfactual matches Rho et al.'s
-  Figure 10 trajectory; Section 5 ablation grid reproduced.
-* :doc:`bvss` -- Xu & Zhou's anti-corruption ATT on luxury-watch
-  imports reproduced to within :math:`0.001`.
-* :doc:`fdid`, :doc:`fma`, :doc:`fscm`, :doc:`mcnnm`, :doc:`mlsc`,
-  :doc:`pda`, :doc:`ppscm`, :doc:`rescm`, :doc:`scmo`, :doc:`syndes`
-  -- each carries a paper-anchored verification of its own.
+replication section showing that the implementation matches one of
+the paper's headline numbers. **Twenty-nine of the thirty-three
+estimators currently carry a strong or solid verification
+receipt** -- spanning canonical workhorses, decomposition-first
+methods, every estimator that generalises the classical estimand
+or treatment, the full high-dimensional family, both time-aware
+state-space methods, three of the four staggered-adoption
+estimators, both missing-data methods, both endogeneity methods,
+and every experimental-design estimator.
 
 The campaign distinguishes between **Path A** (empirical replication
 on the original authors' dataset, matching their published
 estimates) and **Path B** (Monte Carlo replication of the paper's
 simulation section). Where both paths are feasible, both are run;
 where the authors' data is not redistributable, Path B is used.
+
+See :doc:`replications` for the catalogue of all current
+replications, with headline numbers and per-family coverage status.
 
 Installation
 ------------
