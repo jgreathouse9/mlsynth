@@ -302,3 +302,22 @@ References
     "Synthetic Controls with Staggered Adoption."
     *Journal of the Royal Statistical Society: Series B*, 84(2): 351-381, 2022.
     DOI: https://doi.org/10.1111/rssb.12448
+
+.. [SIV]
+    Gulek, Atilla, and Vives-i-Bastida, Jaume.
+    "Synthetic IV Estimation in Panels."
+    *Working Paper*, 2024.
+
+.. [TASC]
+    Rho, Saeyoung, Illick, Cyrus, Narasipura, Samhitha, Abadie, Alberto,
+    Hsu, Daniel, and Misra, Vishal.
+    "Time-Aware Synthetic Control."
+    *arXiv Preprint*, 2601.03099, 2026.
+    URL: https://arxiv.org/abs/2601.03099
+
+.. [ADH]
+    Autor, David H., Dorn, David, and Hanson, Gordon H.
+    "The China Syndrome: Local Labor Market Effects of Import Competition
+    in the United States."
+    *American Economic Review*, 103(6): 2121-2168, 2013.
+    DOI: https://doi.org/10.1257/aer.103.6.2121

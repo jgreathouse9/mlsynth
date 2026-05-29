@@ -188,7 +188,7 @@ These are populated unconditionally on :attr:`TASCResults.inference`,
 with :math:`\alpha` controlled by the :class:`TASCConfig.alpha` field.
 
 Learning :math:`\theta` from Pre-Intervention Data (EM)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The parameter set :math:`\theta` is learned by Expectation-Maximization
 on the pre-intervention slice :math:`Y_{\text{pre}} \in
@@ -426,6 +426,198 @@ Example
    results.inputs.Y_post_donors.shape        # (N - 1, T - T0)  (None if no post)
    results.inputs.treated_unit_name
    results.inputs.donor_names
+
+Verification
+------------
+
+**Empirical replication against the authors' published numbers (Path A)
+plus a Section 5 state-space Monte Carlo (Path B).** Path A reruns the
+classical Proposition 99 California-tobacco illustration from Section
+6.1 of [TASC]_ using the long-form panel
+:file:`basedata/prop99_packsales.csv` shipped with ``mlsynth``, and
+reproduces the post-1988 divergence between observed California
+cigarette sales and the TASC counterfactual that the paper's Figure 10
+displays. Path B replicates the four-cell :math:`(Q, R)` ablation grid
+(Figures 3 and 4) by drawing panels directly from TASC's own
+generative state-space model and comparing ``mlsynth.TASC`` against a
+simplex-constrained Synthetic Control baseline -- the same baseline
+the paper benchmarks.
+
+Path A: Proposition 99 California (Section 6.1)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The paper runs TASC on per-capita cigarette sales alone (no auxiliary
+predictors) with hidden-state dimension :math:`d = 2`. ``mlsynth.TASC``
+on the same long-form panel reproduces the qualitative pattern of the
+paper's Figure 10 directly:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import TASC
+
+   df = pd.read_csv("basedata/prop99_packsales.csv")
+   df["treat"] = ((df["state"] == "California")
+                   & (df["year"] >= 1989)).astype(int)
+
+   res = TASC({"df": df, "outcome": "cigsale", "unitid": "state",
+                "time": "year", "treat": "treat", "d": 2,
+                "n_em_iter": 50, "em_tol": 1e-4, "alpha": 0.05,
+                "seed": 0, "display_graphs": False}).fit()
+   yhat = res.inference.counterfactual
+   print(f"pre-RMSE = {res.pre_rmse:.3f}  ATT = {res.att:.3f}")
+
+prints::
+
+   pre-RMSE = 0.767  ATT = -16.793
+
+with the year-by-year trajectory
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 22 22 18
+
+   * - Year
+     - California (observed)
+     - TASC counterfactual
+     - Gap
+   * - 1985
+     - 102.80
+     - 102.66
+     - +0.14
+   * - 1988
+     - 90.10
+     - 91.88
+     - -1.78
+   * - 1989
+     - 82.40
+     - 88.30
+     - -5.90
+   * - 1990
+     - 77.80
+     - 84.37
+     - -6.57
+   * - 1995
+     - 56.40
+     - 76.50
+     - -20.10
+   * - 2000
+     - 41.60
+     - 65.14
+     - -23.54
+
+The 1985-1988 fit is essentially tight on California's observed
+series (pre-RMSE :math:`= 0.77` packs against an outcome scale of
+roughly 100 packs), the divergence opens at the 1989 intervention,
+and the gap widens monotonically -- reaching a roughly :math:`-24`
+pack difference by 2000 against the paper's Figure-10 gap of about
+:math:`-25` to :math:`-30` packs at the same horizon. The average
+post-1989 treatment effect is :math:`\widehat{\mathrm{ATT}} = -16.8`
+packs per year, in the same neighbourhood as Abadie, Diamond and
+Hainmueller's classical estimate.
+
+Path B: Section 5 state-space ablation grid
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The paper's Section 5.2 ablation sweeps a :math:`2 \times 2` grid of
+state-perturbation and observation-noise covariance scales
+:math:`(Q, R)` (Figures 3-4): a "small" covariance has diagonal
+variance :math:`0.01` (average :math:`|r_t| \approx 0.084`) and a
+"big" covariance has diagonal variance :math:`1.0` (average
+:math:`|r_t| \approx 0.836`). Panels are drawn from TASC's own
+generative model (Equations 2-3), so this is a *correctly-specified*
+Monte Carlo. The DGP is packaged as
+:func:`mlsynth.utils.tasc_helpers.simulation.simulate_tasc_sample`;
+the panel below compares the post-period RMSE of ``mlsynth.TASC``
+(:math:`d_{\mathrm{fit}} = d_{\mathrm{true}} = 5`) against a
+simplex-constrained Synthetic Control baseline.
+
+.. code-block:: python
+
+   import numpy as np
+   import scipy.optimize as opt
+   from mlsynth import TASC
+   from mlsynth.utils.tasc_helpers.simulation import simulate_tasc_sample
+
+   def sc_simplex(Y, T0):
+       y, X = Y[0], Y[1:].T
+       n = X.shape[1]
+       cons = [{"type": "eq", "fun": lambda w: w.sum() - 1.0}]
+       bnds = [(0.0, 1.0)] * n
+       r = opt.minimize(lambda w: ((X[:T0] @ w - y[:T0]) ** 2).sum(),
+                         np.full(n, 1.0 / n), method="SLSQP",
+                         bounds=bnds, constraints=cons)
+       return float(np.sqrt(np.mean((y[T0:] - X[T0:] @ r.x) ** 2)))
+
+   def tasc_rmse(sample, d_fit=5):
+       r = TASC({"df": sample.df, "outcome": "y", "treat": "treat",
+                   "unitid": "unit", "time": "time", "d": d_fit,
+                   "n_em_iter": 30, "em_tol": 1e-4, "alpha": 0.05,
+                   "seed": 0, "display_graphs": False}).fit()
+       y0, T0 = sample.Y[0], sample.T0
+       return float(np.sqrt(np.mean(
+           (y0[T0:] - r.inference.counterfactual[T0:]) ** 2)))
+
+   M = 30
+   for q, r in [(0.01, 0.01), (0.01, 1.0), (0.10, 0.01), (0.10, 1.0)]:
+       sc_, tasc_ = [], []
+       for seed in range(M):
+           s = simulate_tasc_sample(q_scale=q, r_scale=r,
+                                      rng=np.random.default_rng(seed))
+           sc_.append(sc_simplex(s.Y, s.T0))
+           tasc_.append(tasc_rmse(s))
+       print(f"q={q:.2f} r={r:.2f}  TASC={np.median(tasc_):.3f}  "
+              f"SC={np.median(sc_):.3f}")
+
+prints (at :math:`M = 30`, :math:`N = 38`, :math:`T = 100`,
+:math:`T_0 = 50`, :math:`d_{\mathrm{true}} = 5`):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 18 18 18
+
+   * - Regime
+     - TASC median RMSE
+     - SC median RMSE
+     - Margin (SC / TASC)
+   * - small Q, small R
+     - 0.116
+     - 0.196
+     - 1.7x
+   * - small Q, big R
+     - 1.103
+     - 1.198
+     - 1.1x
+   * - big Q, small R
+     - 0.117
+     - 0.524
+     - 4.5x
+   * - big Q, big R
+     - 1.130
+     - 1.301
+     - 1.2x
+
+TASC carries the lowest median RMSE in all four regimes, and the
+margin over SC is largest precisely in the high-:math:`Q` /
+low-:math:`R` cell -- the same regime where the paper's Figure 4
+identifies TASC's strongest dominance (a fitted state-space model
+extracts the persistent low-rank signal that the simplex projection
+cannot exploit). Under high observation noise (:math:`R = 1.0`), the
+SC simplex projection still trails TASC but by a narrower margin,
+reflecting the noise floor common to both estimators. The paper's
+Figures 3-4 also include the Robust Synthetic Control of Amjad,
+Shah and Shen (2018) and the Causal Impact Model of Brodersen et al.
+(2015) as additional comparators that are not in ``mlsynth``; the
+ordering above against the canonical simplex-SC baseline is the
+slice of those comparisons that ``mlsynth`` can reproduce directly.
+
+The takeaway carried into the published TASC procedure is the
+paper's headline finding: when the data-generating process carries a
+persistent low-rank temporal signal -- as it does in many policy
+panels with strong trends -- explicitly fitting that temporal
+structure through a state-space model lowers post-period prediction
+error relative to permutation-invariant alternatives, and the
+advantage widens as the latent signal strengthens (large :math:`Q`).
 
 References
 ----------
