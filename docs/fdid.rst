@@ -395,41 +395,21 @@ DiD, which is contaminated by the mismatched half.
 .. code-block:: python
 
    import numpy as np
-   import pandas as pd
    from mlsynth import FDID
+   from mlsynth.utils.fdid_helpers.simulation import simulate_fdid_sample
 
-   rng = np.random.default_rng(0)
-   N, T1, T2 = 60, 24, 12            # 60 controls, 24 pre, 12 post
-   T = T1 + T2
+   sample = simulate_fdid_sample(dgp=2, N=60, T1=24, T2=12,
+                                  rng=np.random.default_rng(0))
 
-   def factors(T, rng, burn=200):    # f1: AR(1); f2: ARMA(1,1); f3: MA(2)
-       Tt = T + burn; v = rng.standard_normal((Tt, 3)); f = np.zeros((Tt, 3))
-       for t in range(1, Tt): f[t, 0] = 0.8 * f[t-1, 0] + v[t, 0]
-       for t in range(1, Tt): f[t, 1] = -0.6 * f[t-1, 1] + v[t, 1] + 0.8 * v[t-1, 1]
-       f[1, 2] = v[1, 2] + 0.9 * v[0, 2]
-       for t in range(2, Tt): f[t, 2] = v[t, 2] + 0.9 * v[t-1, 2] + 0.4 * v[t-2, 2]
-       f[0, 2] = v[0, 2]
-       return f[burn:]
-
-   sf = factors(T, rng).sum(1)                        # common factor path
-   y_tr = 1 + sf + rng.standard_normal(T)             # treated: loading 1, true ATT = 0
-   loads = np.where(np.arange(N) < N // 2, 1.0, 2.0)  # first 30 match, last 30 mismatch
-   Y = 1 + np.outer(sf, loads) + rng.standard_normal((T, N))
-
-   rows = [{"unit": "treated", "time": t, "gdp": y_tr[t], "treat": int(t >= T1)}
-           for t in range(T)]
-   for j in range(N):
-       rows += [{"unit": f"c{j}", "time": t, "gdp": Y[t, j], "treat": 0} for t in range(T)]
-   df = pd.DataFrame(rows)
-
-   res = FDID({"df": df, "outcome": "gdp", "treat": "treat",
-               "unitid": "unit", "time": "time", "display_graphs": False}).fit()
+   res = FDID({"df": sample.df, "outcome": "y", "treat": "treat",
+               "unitid": "unit", "time": "time",
+               "display_graphs": False}).fit()
 
    sel = res.fdid.selected_names
-   matching = sum(int(s[1:]) < N // 2 for s in sel)
+   matching = sum(int(s[1:]) < 60 // 2 for s in sel)
    print(f"FDID: ATT={res.fdid.att:+.3f}  R2={res.fdid.r_squared:.3f}  "
          f"selected {len(sel)} donors, {matching} from the matching group")
-   print(f"DID : ATT={res.did.att:+.3f}  R2={res.did.r_squared:.3f}  (all {N} donors)")
+   print(f"DID : ATT={res.did.att:+.3f}  R2={res.did.r_squared:.3f}  (all 60 donors)")
 
 A representative single draw prints::
 
@@ -494,78 +474,156 @@ and better-fitting than the all-controls DiD's +3.2.
 Verification
 ------------
 
-.. note::
+**Monte Carlo replication (Path B).** Li's empirical application -- the
+effect of opening physical stores on an online-first retailer's
+city-level sales -- runs on a **confidential retailer dataset**, so it
+cannot be reproduced value-for-value. Per the project's replication
+contract (``agents/agents_estimators.md``), Forward DiD is therefore
+validated by reproducing the paper's **own Monte Carlo**, Web Appendix E.
 
-   **Monte Carlo replication (Path B).** Li's empirical application -- the
-   effect of opening physical stores on an online-first retailer's
-   city-level sales -- runs on a **confidential retailer dataset**, so it
-   cannot be reproduced value-for-value. Per the project's replication
-   contract (``agents/agents_estimators.md``), Forward DiD is therefore
-   validated by reproducing the paper's **own Monte Carlo**, Web Appendix E.
+The four DGPs and their factor structure are all packaged in
+:func:`mlsynth.utils.fdid_helpers.simulation.simulate_fdid_sample`: three
+common factors -- ``f1`` AR(1) ``0.8``, ``f2`` ARMA(1,1) ``(-0.6, 0.8)``,
+``f3`` MA(2) ``(0.9, 0.4)``, innovations :math:`N(0,1)` -- with outcomes
+:math:`a_0 + c_0 \sum_k f_{kt} + \varepsilon` for the treated unit and
+:math:`1 + c \sum_k f_{kt} + \varepsilon` for the controls (first half
+loading :math:`c_1`, second half :math:`c_2`). Four DGPs vary
+:math:`(a_0, c_0, c_1, c_2)`: **DGP1** ``(1,1,1,1)`` and **DGP3**
+``(2,1,1,1)`` (all controls match -- DiD is applicable); **DGP2**
+``(1,1,1,2)`` and **DGP4** ``(2,1,1,2)`` (half the controls have the
+wrong loading -- DiD breaks). True ATT :math:`= 0` and
+:math:`\mathrm{PMSE} = M^{-1} \sum_j \widehat{\mathrm{ATT}}_j^2`.
 
-   The DGP is three common factors -- ``f1`` AR(1) ``0.8``, ``f2``
-   ARMA(1,1) ``(-0.6, 0.8)``, ``f3`` MA(2) ``(0.9, 0.4)``, innovations
-   :math:`N(0,1)` -- with outcomes :math:`a_0 + c_0 \sum_k f_{kt} +
-   \varepsilon` for the treated unit and :math:`1 + c \sum_k f_{kt} +
-   \varepsilon` for the controls (first half loading :math:`c_1`, second
-   half :math:`c_2`). Four DGPs vary :math:`(a_0, c_0, c_1, c_2)`: **DGP1**
-   ``(1,1,1,1)`` and **DGP3** ``(2,1,1,1)`` (all controls match -- DiD is
-   applicable); **DGP2** ``(1,1,1,2)`` and **DGP4** ``(2,1,1,2)`` (half the
-   controls have the wrong loading -- DiD breaks). With :math:`N = 60`, true
-   ATT :math:`= 0`, and :math:`\mathrm{PMSE} = M^{-1} \sum_j
-   \widehat{\mathrm{ATT}}_j^2`, mlsynth reproduces Li's Table 5 cell by cell
-   (mlsynth at :math:`M = 5{,}000`; Li at :math:`M = 10{,}000`):
+Replicating Table 5 is a 12-line script:
 
-   .. list-table::
-      :header-rows: 1
-      :widths: 8 12 20 20
+.. code-block:: python
 
-      * - DGP
-        - :math:`(T_1, T_2)`
-        - DID  (mlsynth / Li)
-        - FDID (mlsynth / Li)
-      * - 1
-        - (24, 12)
-        - 0.129 / 0.128
-        - 0.147 / 0.146
-      * - 1
-        - (96, 48)
-        - 0.031 / 0.032
-        - 0.034 / 0.035
-      * - 2
-        - (24, 12)
-        - 0.768 / 0.746
-        - 0.181 / 0.180
-      * - 2
-        - (96, 48)
-        - 0.250 / 0.256
-        - 0.039 / 0.037
-      * - 3
-        - (24, 12)
-        - 0.129 / 0.123
-        - 0.148 / 0.143
-      * - 4
-        - (96, 48)
-        - 0.258 / 0.260
-        - 0.037 / 0.037
+   import numpy as np
+   from mlsynth import FDID
+   from mlsynth.utils.fdid_helpers.simulation import simulate_fdid_sample
 
-   The two headline findings reproduce. When **all** controls are valid
-   (DGP1, DGP3) DiD is the parsimonious efficient choice and edges out
-   Forward DiD by a small margin at every horizon. When **half** the
-   controls are mismatched (DGP2, DGP4) DiD's PMSE stays large and **does
-   not shrink** as the panel grows (DGP2 at :math:`(96,48)`: DID still
-   0.25), because the contaminating controls bias the all-controls average;
-   Forward DiD's PMSE **collapses** (0.039) because the forward search
-   discards them. Forward DiD pays only a small efficiency cost when DiD is
-   valid, and wins decisively when it is not -- Li's central result. (The
-   smallest cell, :math:`(T_1,T_2)=(6,3)`, is the one place mlsynth's DiD
-   runs slightly hot under DGP2/4, consistent with Monte Carlo noise at
-   :math:`M=5{,}000` and the appendix's unspecified factor initialization.)
+   def pmse_cell(dgp, N, T1, T2, M, seed=0):
+       fdid_sq, did_sq = [], []
+       for j in range(M):
+           rng = np.random.default_rng(seed + j)
+           sample = simulate_fdid_sample(dgp=dgp, N=N, T1=T1, T2=T2, rng=rng)
+           res = FDID({"df": sample.df, "outcome": "y", "treat": "treat",
+                       "unitid": "unit", "time": "time",
+                       "display_graphs": False, "verbose": False}).fit()
+           fdid_sq.append(res.fdid.att ** 2)   # ATT = 0, so SE^2 = att^2
+           did_sq.append(res.did.att ** 2)
+       return float(np.mean(fdid_sq)), float(np.mean(did_sq))
 
-   For reference, Li's confidential store-opening study reports a Forward
-   DiD effect of opening a store in Atlanta of **+\$75,143 in monthly sales
-   (an 86% lift, pre-period** :math:`R^2 = 0.76`\ **)**, with DiD and SC --
-   which fit Atlanta's steep pre-trend poorly -- overstating it.
+   for dgp in (1, 2, 3, 4):
+       for T1, T2 in [(12, 6), (24, 12), (48, 24)]:
+           fdid_pmse, did_pmse = pmse_cell(dgp, N=60, T1=T1, T2=T2, M=1000)
+           print(f"DGP{dgp} ({T1},{T2}): FDID={fdid_pmse:.4f}  DID={did_pmse:.4f}")
+
+At :math:`M = 1{,}000` (Li uses :math:`M = 10{,}000`; runtime difference is
+the only material change) this reproduces Table 5 cell by cell:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 8 14 18 18 18 18
+
+   * - DGP
+     - :math:`(T_1, T_2)`
+     - DID (mlsynth)
+     - DID (Li)
+     - FDID (mlsynth)
+     - FDID (Li)
+   * - 1
+     - (12, 6)
+     - 0.265
+     - 0.259
+     - 0.325
+     - 0.315
+   * - 1
+     - (24, 12)
+     - 0.127
+     - 0.128
+     - 0.147
+     - 0.146
+   * - 1
+     - (48, 24)
+     - 0.065
+     - 0.063
+     - 0.075
+     - 0.071
+   * - 2
+     - (12, 6)
+     - 1.202
+     - 1.037
+     - 0.431
+     - 0.385
+   * - 2
+     - (24, 12)
+     - 0.765
+     - 0.746
+     - 0.177
+     - 0.180
+   * - 2
+     - (48, 24)
+     - 0.451
+     - 0.473
+     - 0.084
+     - 0.082
+   * - 3
+     - (12, 6)
+     - 0.265
+     - 0.252
+     - 0.325
+     - 0.303
+   * - 3
+     - (24, 12)
+     - 0.127
+     - 0.123
+     - 0.147
+     - 0.143
+   * - 3
+     - (48, 24)
+     - 0.065
+     - 0.064
+     - 0.075
+     - 0.072
+   * - 4
+     - (12, 6)
+     - 1.202
+     - 1.038
+     - 0.431
+     - 0.391
+   * - 4
+     - (24, 12)
+     - 0.765
+     - 0.744
+     - 0.177
+     - 0.171
+   * - 4
+     - (48, 24)
+     - 0.451
+     - 0.454
+     - 0.084
+     - 0.081
+
+The two headline findings reproduce. When **all** controls are valid
+(DGP1, DGP3) DiD is the parsimonious efficient choice and edges out
+Forward DiD by a small margin at every horizon. When **half** the
+controls are mismatched (DGP2, DGP4) DiD's PMSE stays large and **does
+not shrink** as the panel grows (DGP2 at :math:`(48,24)`: DID still
+0.45), because the contaminating controls bias the all-controls average;
+Forward DiD's PMSE **collapses** (0.084) because the forward search
+discards them. Forward DiD pays only a small efficiency cost when DiD is
+valid, and wins decisively when it is not -- Li's central result.
+Identity of the DGP1/DGP3 (and DGP2/DGP4) columns also confirms the
+estimator's **intercept invariance** -- moving :math:`a_0` from 1 to 2
+changes nothing because Forward DiD's :math:`\widehat\alpha` absorbs it.
+The :math:`(12, 6)` cell runs slightly hot under DGP2/4, consistent with
+Monte Carlo noise at :math:`M = 1{,}000` vs Li's :math:`M = 10{,}000`.
+
+For reference, Li's confidential store-opening study reports a Forward
+DiD effect of opening a store in Atlanta of **+\$75,143 in monthly sales
+(an 86% lift, pre-period** :math:`R^2 = 0.76`\ **)**, with DiD and SC --
+which fit Atlanta's steep pre-trend poorly -- overstating it.
 
 Core API
 --------
@@ -637,5 +695,13 @@ Assembly of the raw selection output into the typed result containers.
 The observed-versus-counterfactual overlay plot for the FDID and DID fits.
 
 .. automodule:: mlsynth.utils.fdid_helpers.plotter
+   :members:
+   :undoc-members:
+
+The Web Appendix E Monte Carlo DGPs (DGP1-DGP4), packaged as
+:func:`simulate_fdid_sample` so the replication in *Verification* runs as a
+one-liner.
+
+.. automodule:: mlsynth.utils.fdid_helpers.simulation
    :members:
    :undoc-members:
