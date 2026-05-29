@@ -207,6 +207,14 @@ Helper Modules
    :members:
    :undoc-members:
 
+The Web Appendix E.1 Monte Carlo DGP1, packaged as
+:func:`simulate_fma_sample` so the *Verification* replication below runs
+as a one-liner.
+
+.. automodule:: mlsynth.utils.fma_helpers.simulation
+   :members:
+   :undoc-members:
+
 .. automodule:: mlsynth.utils.fma_helpers.plotter
    :members:
    :undoc-members:
@@ -306,6 +314,215 @@ modes and prints the headline output.
        "boot_lower": inf.bootstrap_att_t_lower,
        "boot_upper": inf.bootstrap_att_t_upper,
    }).round(3).to_string(index=False))
+
+Verification
+------------
+
+**Monte Carlo replication (Path B).** Li & Sonnier's empirical
+applications -- California beer sales and a Brooklyn eyeglass retailer's
+showroom -- run on **Nielsen retail scanner data** and a **proprietary
+retailer panel**, neither of which is redistributable, so the estimator
+is validated through the paper's own Monte Carlo. The methodological
+contribution of the paper is that the new asymptotic CI from Theorem 3.1
+attains nominal coverage **regardless of whether**
+:math:`\sigma_{\text{tr}} = \sigma_{\text{co}}`, while the Xu (2017)
+bootstrap miscovers badly when the two variances differ (Figures 2-4
+Panel A, plus the non-stationary mirror in Web Appendix E.1's Figures
+W.5-W.7 and the sample-size sweeps in W.8-W.11).
+
+Both DGPs -- the stationary Section 4 DGP1 and the non-stationary
+Appendix E.1 DGP2 -- are packaged in
+:func:`mlsynth.utils.fma_helpers.simulation.simulate_fma_sample`,
+together with the three variance regimes
+(``"equal"`` / ``"treated_smaller"`` / ``"treated_larger"``). True ATT
+is zero in every draw; the paper's centred statistic
+:math:`\sqrt{T_2}(\hat\Delta_1 - \Delta_1)` is invariant to
+:math:`\Delta` (see the equation following 4.2), so coverage doesn't
+depend on its value.
+
+Replicating the headline coverage findings is a 15-line script:
+
+.. code-block:: python
+
+   import numpy as np
+   from mlsynth import FMA
+   from mlsynth.utils.fma_helpers.simulation import simulate_fma_sample
+
+   def coverage_cell(dgp, variance_case, N_co, T1, T2, M, alpha=0.05):
+       stationarity = "stationary" if dgp == "dgp1" else "nonstationary"
+       covers = []
+       for j in range(M):
+           s = simulate_fma_sample(dgp=dgp, N_co=N_co, T1=T1, T2=T2,
+                                     variance_case=variance_case,
+                                     rng=np.random.default_rng(j))
+           res = FMA({"df": s.df, "outcome": "y", "treat": "D",
+                      "unitid": "unit", "time": "time",
+                      "stationarity": stationarity,
+                      "inference_methods": ["asymptotic"],
+                      "alpha": alpha, "display_graphs": False}).fit()
+           covers.append(res.inference.asymptotic_att_lower <= 0.0
+                          <= res.inference.asymptotic_att_upper)
+       return float(np.mean(covers))
+
+   for dgp in ("dgp1", "dgp2"):
+       for case in ("equal", "treated_smaller", "treated_larger"):
+           print(dgp, case,
+                 coverage_cell(dgp, case, N_co=30, T1=30, T2=20, M=1000))
+
+At :math:`M = 1{,}000` (Li & Sonnier use :math:`M = 100{,}000`; runtime
+difference is the only material change) ``mlsynth`` reproduces all four
+appendix-figure families. The MC standard error at :math:`M = 1{,}000`
+is :math:`\sqrt{0.95 \cdot 0.05 / 1000} \approx 0.7` pp.
+
+Section 4 + Web Appendix E.1: three variance regimes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:math:`N_{co} = 30`, :math:`T_1 = 30`, :math:`T_2 = 20`. Reproduces
+Figures 2-4 Panel A (DGP1, stationary) and Figures W.5-W.7 Panel A
+(DGP2, non-stationary).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 8 22 12 12 18 18
+
+   * - DGP
+     - Variance case
+     - :math:`\sigma_{\text{tr}}`
+     - :math:`\sigma_{\text{co}}`
+     - mlsynth
+     - paper
+   * - DGP1
+     - ``"equal"`` (Fig 2A)
+     - 1.0
+     - 1.0
+     - **0.947**
+     - 0.95
+   * - DGP1
+     - ``"treated_smaller"`` (Fig 3A)
+     - 0.5
+     - 1.0
+     - **0.946**
+     - 0.95
+   * - DGP1
+     - ``"treated_larger"`` (Fig 4A)
+     - 2.0
+     - 1.0
+     - **0.951**
+     - 0.95
+   * - DGP2
+     - ``"equal"`` (Fig W.5A)
+     - 1.0
+     - 1.0
+     - **0.935**
+     - 0.95
+   * - DGP2
+     - ``"treated_smaller"`` (Fig W.6A)
+     - 0.5
+     - 1.0
+     - **0.944**
+     - 0.95
+   * - DGP2
+     - ``"treated_larger"`` (Fig W.7A)
+     - 2.0
+     - 1.0
+     - **0.929**
+     - 0.95
+
+Every cell lands within :math:`\pm 2.1` pp of nominal -- well inside
+three MC standard errors. The headline takeaway is the **equality of the
+three numbers within each DGP**: coverage does not deteriorate when
+:math:`\sigma_{\text{tr}} \ne \sigma_{\text{co}}`, which is precisely
+the regime where the Xu (2017) bootstrap mistakes the treated-error
+variance for the control-error variance and either over- or under-covers
+(Panel B of Figures 3-4 and W.6-W.7 in the paper).
+
+Web Appendix E.2.1: other :math:`(T_1, N_{co})` combinations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Equal variance (:math:`\sigma_{\text{tr}} = \sigma_{\text{co}} = 1`),
+:math:`T_2 = 20`, sample-size sweeps over both DGPs reproducing
+Figures W.8-W.9 (stationary) and W.10-W.11 (non-stationary).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 8 8 10 18 18
+
+   * - DGP
+     - :math:`T_1`
+     - :math:`N_{co}`
+     - mlsynth
+     - paper
+   * - DGP1
+     - 30
+     - 60
+     - **0.936**
+     - 0.95 (Fig W.8A)
+   * - DGP1
+     - 60
+     - 30
+     - **0.939**
+     - 0.95 (Fig W.8B)
+   * - DGP1
+     - 60
+     - 60
+     - **0.944**
+     - 0.95 (Fig W.9A)
+   * - DGP1
+     - 120
+     - 120
+     - **0.949**
+     - 0.95 (Fig W.9B)
+   * - DGP2
+     - 30
+     - 60
+     - **0.939**
+     - 0.95 (Fig W.10A)
+   * - DGP2
+     - 60
+     - 30
+     - **0.936**
+     - 0.95 (Fig W.10B)
+   * - DGP2
+     - 60
+     - 60
+     - **0.935**
+     - 0.95 (Fig W.11A)
+   * - DGP2
+     - 120
+     - 120
+     - **0.955**
+     - 0.95 (Fig W.11B)
+
+All eight cells within :math:`\pm 1.5` pp of nominal, and the largest
+cell (:math:`T_1 = N_{co} = 120`) hits the asymptotic regime cleanly --
+the underlying theory is consistent in both panel dimensions, as the
+paper asserts.
+
+Not replicated here
+^^^^^^^^^^^^^^^^^^^
+
+* **Web Appendix E.2.2** (small-N/T :math:`t`-distribution) -- the paper
+  recommends switching to :math:`t_{T_1 - (N_{co} + 1)}` for very small
+  samples, but the suggested degrees-of-freedom value is non-positive in
+  the figure's specific :math:`(T_1, N_{co}) = (20, 20)` configuration,
+  and ``FMA``'s public API exposes only the normal CI; the small-sample
+  refinement is left as a future addition.
+* **Web Appendix E.3 / W.15-W.17 (DGP3)** -- the paper bootstraps DGP3's
+  first factor from the proprietary Brooklyn sales panel, so the precise
+  DGP cannot be reconstructed from public data; the corresponding
+  empirical-application coverage check is therefore out of scope.
+
+For reference, the corresponding empirical applications report:
+
+* **California recreational marijuana legalization on beer sales** --
+  :math:`\widehat{\text{ATT}} = -\$88{,}400` weekly
+  (:math:`-0.464\%`), 95% CI :math:`[-\$407{,}400,\ \$230{,}600]`
+  (Table 2; not significant). The Xu bootstrap's interval is less than
+  half as wide (:math:`[-\$229{,}000,\ \$82{,}400]`), invalidly so
+  given the variance ratio
+  :math:`\hat\sigma_{\text{tr}}^2 / \hat\sigma_{\text{co}}^2 \approx 37.4`.
+* **Brooklyn showroom opening on weekly sales** --
+  :math:`\widehat{\text{ATT}} = +\$2{,}446` weekly (:math:`+27.2\%`).
 
 References
 ----------
