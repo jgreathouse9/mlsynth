@@ -86,56 +86,9 @@ mlsynth builds on top of `numpy <https://numpy.org/>`_,
 `statsmodels <https://www.statsmodels.org/>`_; convex programs are routed
 through cvxpy's solver stack.
 
-Pick an estimator
------------------
-
-If you've never used mlsynth before, start with one of these workhorses
-based on the shape of your data and what you need from the output. The full
-estimator catalogue is in the *Estimators* sidebar.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 22 48
-
-   * - Setting
-     - Estimator
-     - Why
-   * - Single treated unit, classical SC, want a built-in pre-trends test
-     - :doc:`tssc`
-     - Tests SC's adding-up and zero-intercept restrictions, falls back
-       to MSCa / MSCb / MSCc when violated. Subsampling CIs.
-   * - Single treated unit, want forward-step donor selection + DiD safety net
-     - :doc:`fdid`
-     - Forward Difference-in-Differences -- greedy donor selection with a
-       DiD fallback if SC fails.
-   * - Donors :math:`\gg` pre-periods (high-dimensional)
-     - :doc:`bvss`
-     - Bayesian spike-and-slab with a *soft* simplex constraint.
-       Posterior tells you whether the constraint should bind.
-   * - High-dim donors with heterogeneous structure
-     - :doc:`clustersc`
-     - Cluster-then-pool synthetic control: groups similar donors before
-       weighting.
-   * - Staggered adoption, multiple treated cohorts
-     - :doc:`seq_sdid` or :doc:`spsydid`
-     - Sequential SDiD / staggered SyDiD with per-event-time ATTs and
-       bootstrap inference.
-   * - Treatment is endogenous, an instrument is available
-     - :doc:`siv`
-     - Synthetic IV: SC-debias the (outcome, treatment, instrument)
-       triple, then run 2SLS.
-   * - Strong temporal trends; want a generative state-space model
-     - :doc:`tasc`
-     - Kalman-filter + RTS-smoother + EM. Tolerates high observation
-       noise and provides posterior bands.
-   * - Outcome matrix is sparse / partially missing
-     - :doc:`mcnnm`
-     - Nuclear-norm matrix completion of the (units :math:`\times` time)
-       panel.
-
-Each estimator's page contains the math, an empirical example, and (where
-applicable) a *Verification* section reproducing the original paper's
-reported numbers.
+**Not sure which estimator to use?** Head to :doc:`choose` for a guided
+pick by treatment design, data shape, and the kind of inference you
+need.
 
 **Community.**
 
@@ -174,6 +127,7 @@ carrying a *Verification* section include
    :caption: Get started
 
    about
+   choose
    references
 
 .. toctree::
