@@ -37,8 +37,8 @@ where applicable.
 For example, the following code replicates Abadie, Diamond and Hainmueller's
 Proposition 99 study end-to-end. It loads the panel shipped with the
 library, fits TSSC (which auto-selects between four SC-class variants based
-on a pre-trends test), and prints the recommended ATT with a 95% credible
-interval:
+on a pre-trends test), and prints the recommended ATT with a 95%
+subsampling confidence interval:
 
 .. code:: python
 
