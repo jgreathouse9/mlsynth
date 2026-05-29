@@ -87,16 +87,27 @@ _MODE_TO_INTERNAL = {
 _MODE_FROM_INTERNAL = {v: k for k, v in _MODE_TO_INTERNAL.items()}
 
 
-def _syndes_post_fit(inputs, treated_weights, control_weights, inference, alpha):
+def _syndes_post_fit(inputs, design, inference, alpha):
     """Build a :class:`SyntheticControlPostFit` for any SYNDES design.
 
     SYNDES has no pre-period blank window (its inference is a moving-block
     permutation on the post-period), so ``n_blank = 0`` and the unified
     power-analysis module falls back to the pre-period gap as its placebo
-    proxy for the noise scale. Treated and control trajectories are built
-    from the per-unit design weights so the SMD / RMSE / ATE numbers are
-    consistent with the same quantities :func:`compute_post_fit` produces
-    for MAREX and LEXSCM.
+    proxy for the noise scale.
+
+    Three mode shapes are handled:
+
+    * ``global_2way`` / ``global_equal_weights`` -- ``treated_weights`` and
+      ``control_weights`` are both ``(N,)`` simplex vectors; the synthetic
+      trajectories are :math:`Y \\cdot w_t` and :math:`Y \\cdot w_c`.
+    * ``per_unit`` -- ``treated_weights`` is the per-treated-unit SC matrix
+      ``q`` of shape ``(K, N)`` and ``control_weights`` is ``None``. The
+      naturally-defined contrast for the unified post-fit is the *aggregate*
+      (1/K)-averaged synthetic treated vs synthetic control derived from
+      :math:`D` and :math:`q.sum(axis=0)`.
+    * ``two_way_global_annealed`` -- same shape as ``global_2way`` (the
+      annealed solver returns plain ``(N,)`` ``treated_weights`` /
+      ``control_weights``).
     """
     Y_pre = np.asarray(inputs.Y_pre, dtype=float)
     if inputs.Y_post is not None:
@@ -105,16 +116,27 @@ def _syndes_post_fit(inputs, treated_weights, control_weights, inference, alpha)
         Y_full = Y_pre
     n_fit = int(Y_pre.shape[0])
     n_post = int(Y_full.shape[0] - n_fit)
-    # Per-unit trajectories: synthetic_treated = Y @ treated_weights, etc.
-    # When the design omits one side (per_unit mode has only treated_weights
-    # in some configurations), fall back to a zero series so compute_post_fit
-    # can still produce the ATE / RMSE pieces it does know how to compute.
-    tw = (np.asarray(treated_weights, dtype=float).flatten()
-          if treated_weights is not None
-          else np.zeros(Y_full.shape[1]))
-    cw = (np.asarray(control_weights, dtype=float).flatten()
-          if control_weights is not None
-          else np.zeros(Y_full.shape[1]))
+
+    N = Y_full.shape[1]
+    mode = getattr(design, "mode", None)
+    assignment = np.asarray(getattr(design, "assignment", np.zeros(N)),
+                            dtype=float).flatten()
+    K = int(assignment.sum()) or 1
+
+    tw_raw = getattr(design, "treated_weights", None)
+    cw_raw = getattr(design, "control_weights", None)
+
+    if mode == "per_unit" and tw_raw is not None and np.asarray(tw_raw).ndim == 2:
+        # per_unit: q is (K, N), control side derived from D - q.sum(axis=0)
+        q = np.asarray(tw_raw, dtype=float)
+        tw = assignment / K                       # uniform 1/K on treated set
+        cw = q.sum(axis=0) / K                    # average synthetic control
+    else:
+        tw = (np.asarray(tw_raw, dtype=float).flatten()
+              if tw_raw is not None else np.zeros(N))
+        cw = (np.asarray(cw_raw, dtype=float).flatten()
+              if cw_raw is not None else np.zeros(N))
+
     syn_t = Y_full @ tw
     syn_c = Y_full @ cw
     pf = compute_post_fit(
@@ -280,9 +302,7 @@ class SYNDES:
             )
 
         post_fit = _syndes_post_fit(
-            inputs=inputs,
-            treated_weights=getattr(design, "treated_weights", None),
-            control_weights=getattr(design, "control_weights", None),
+            inputs=inputs, design=design,
             inference=inference, alpha=self.alpha,
         )
 
@@ -330,9 +350,7 @@ class SYNDES:
             )
 
         post_fit = _syndes_post_fit(
-            inputs=inputs,
-            treated_weights=getattr(relaxed.design, "treated_weights", None),
-            control_weights=getattr(relaxed.design, "control_weights", None),
+            inputs=inputs, design=relaxed.design,
             inference=inference, alpha=self.alpha,
         )
 
