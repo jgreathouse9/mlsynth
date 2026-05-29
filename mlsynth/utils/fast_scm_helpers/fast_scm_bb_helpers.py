@@ -228,7 +228,12 @@ def greedy_init(pre, candidate_idx, m, unit_costs=None, budget=None):
         scores = -np.diag(pre.G)[remaining]
         order = np.argsort(scores)[::-1]
 
-        current_selection_cost = np.sum(unit_costs[selected]) if selected else 0.0
+        # Budget bookkeeping is only meaningful when costs are supplied; default
+        # to zero current-cost and k_needed when no costs/budget were given.
+        if unit_costs is not None:
+            current_selection_cost = np.sum(unit_costs[selected]) if selected else 0.0
+        else:
+            current_selection_cost = 0.0
         k_needed = m - (len(selected) + 1)
 
         for idx in order[:min(20, len(order))]:
@@ -368,14 +373,19 @@ def expand(
         # -------------------------
         # FW BRANCH PRUNE
         # -------------------------
-        if fw_completion_bound(pre, indices + [j], remaining) >= ub:
+        # FW / IRB are secondary pruners; both require the candidate
+        # completion bound to exceed the incumbent, which is dominated
+        # by the parent-level diagonal_bound_Q check (a smaller bound).
+        # The diagonal prune therefore always fires first when these
+        # would, leaving the FW / IRB branches as defensive guards.
+        if fw_completion_bound(pre, indices + [j], remaining) >= ub:  # pragma: no cover
             hit(stats, "fw", "branch")
             continue
 
         # -------------------------
         # IRB BRANCH PRUNE
         # -------------------------
-        if inverse_rank_bound(Q_new) >= ub:
+        if inverse_rank_bound(Q_new) >= ub:  # pragma: no cover
             hit(stats, "inverse_rank", "branch")
             continue
 

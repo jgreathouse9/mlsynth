@@ -4,6 +4,7 @@ import numpy as np
 from typing import Optional, Tuple, Dict, List
 import pandas as pd
 from typing import Any, Dict, Iterable
+from ...exceptions import MlsynthDataError
 from .inference import compute_moving_block_conformal_ci
 from.structure import IndexSet
 

@@ -424,9 +424,9 @@ def select_treated_designs(
             "consensus": consensus,          # None for enumeration
         },
         "incumbent": {
-            "objective": designs[0].loss,
-            "imbalance": designs[0].imbalance,
-            "worst_in_pool_imbalance": designs[-1].imbalance,
+            "objective": designs[0].loss if designs else None,
+            "imbalance": designs[0].imbalance if designs else None,
+            "worst_in_pool_imbalance": designs[-1].imbalance if designs else None,
         },
         "relaxation": {
             "lower_bound_imbalance": float(np.sqrt(relax_lb)),

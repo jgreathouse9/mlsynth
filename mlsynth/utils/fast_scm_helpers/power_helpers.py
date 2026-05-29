@@ -339,8 +339,13 @@ def mde_summary_table(candidates):
             row[f"mde_{w}w"] = d.get(w, {}).get("mde_pct", np.nan)
 
         rows.append(row)
-        
-    return pd.DataFrame(rows).sort_values("nmse_B").reset_index(drop=True)
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        # An empty candidate list shouldn't crash sort_values; downstream
+        # callers (select_best_tuple) raise a user-friendly ValueError.
+        return df
+    return df.sort_values("nmse_B").reset_index(drop=True)
 
 
 # =========================================================
