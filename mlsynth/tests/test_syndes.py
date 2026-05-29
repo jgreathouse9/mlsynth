@@ -495,7 +495,8 @@ class TestMultiArmSYNDES:
 class TestSYNDESPostFit:
     """Every SYNDES.fit() call attaches a ``SyntheticControlPostFit`` to
     ``res.post_fit`` regardless of mode, post_col/T0 selection, or whether
-    inference was requested."""
+    inference was requested.
+    """
 
     def test_post_fit_attached_for_each_mode(self, panel):
         from mlsynth.utils.post_fit import SyntheticControlPostFit
@@ -537,7 +538,8 @@ class TestSYNDESPostFit:
 
 class TestAnnealedMode:
     """The annealed relaxation pathway is otherwise dark to the suite. Covers
-    the full chain end-to-end plus the relaxed-specific error paths."""
+    the full chain end-to-end plus the relaxed-specific error paths.
+    """
 
     @pytest.fixture
     def panel(self):

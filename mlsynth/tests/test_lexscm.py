@@ -525,7 +525,8 @@ class TestLEXPlot:
 
 class TestLEXSCMPostFitAndBranches:
     """Post-fit auto-attached to LEXSCMResults, plus the mde_horizon
-    'early_mean' / 'early_min' branches and the try/except shields."""
+    'early_mean' / 'early_min' branches and the try/except shields.
+    """
 
     def _est_kwargs(self, mde_horizon):
         return dict(outcome="y", unitid="unitid", time="time",
@@ -627,7 +628,8 @@ class TestBBHelpers:
     """The branch-and-bound primitives in fast_scm_bb_helpers — presolve,
     greedy init, bound functions, solve_qp, and the recursive expand —
     aren't used by the production lexsearch path but remain part of the
-    library surface and need direct coverage."""
+    library surface and need direct coverage.
+    """
 
     @staticmethod
     def _make_Q(seed=0):
