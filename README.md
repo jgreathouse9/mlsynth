@@ -46,18 +46,42 @@ pip install -U git+https://github.com/jgreathouse9/mlsynth.git
 ## Quickstart
 
 ```python
+import numpy as np
 import pandas as pd
 from mlsynth import FDID
 
-config = {
-    "df": pd.read_csv("panel.csv"),
-    "outcome": "sales",
-    "unitid":  "state",
-    "time":    "year",
-    "treat":   "treated",          # binary 0/1 treatment indicator
-}
+rng = np.random.default_rng(0)
+N, T1, T2 = 60, 24, 12            # 60 controls, 24 pre, 12 post
+T = T1 + T2
 
-results = FDID(config).fit()
+def factors(T, rng, burn=200):    # f1: AR(1); f2: ARMA(1,1); f3: MA(2)
+    Tt = T + burn; v = rng.standard_normal((Tt, 3)); f = np.zeros((Tt, 3))
+    for t in range(1, Tt): f[t, 0] = 0.8 * f[t-1, 0] + v[t, 0]
+    for t in range(1, Tt): f[t, 1] = -0.6 * f[t-1, 1] + v[t, 1] + 0.8 * v[t-1, 1]
+    f[1, 2] = v[1, 2] + 0.9 * v[0, 2]
+    for t in range(2, Tt): f[t, 2] = v[t, 2] + 0.9 * v[t-1, 2] + 0.4 * v[t-2, 2]
+    f[0, 2] = v[0, 2]
+    return f[burn:]
+
+sf = factors(T, rng).sum(1)                        # common factor path
+y_tr = 1 + sf + rng.standard_normal(T)             # treated: loading 1, true ATT = 0
+loads = np.where(np.arange(N) < N // 2, 1.0, 2.0)  # first 30 match, last 30 mismatch
+Y = 1 + np.outer(sf, loads) + rng.standard_normal((T, N))
+
+rows = [{"unit": "treated", "time": t, "gdp": y_tr[t], "treat": int(t >= T1)}
+        for t in range(T)]
+for j in range(N):
+    rows += [{"unit": f"c{j}", "time": t, "gdp": Y[t, j], "treat": 0} for t in range(T)]
+df = pd.DataFrame(rows)
+
+res = FDID({"df": df, "outcome": "gdp", "treat": "treat",
+            "unitid": "unit", "time": "time", "display_graphs": False}).fit()
+
+sel = res.fdid.selected_names
+matching = sum(int(s[1:]) < N // 2 for s in sel)
+print(f"FDID: ATT={res.fdid.att:+.3f}  R2={res.fdid.r_squared:.3f}  "
+      f"selected {len(sel)} donors, {matching} from the matching group")
+print(f"DID : ATT={res.did.att:+.3f}  R2={res.did.r_squared:.3f}  (all {N} donors)")
 ```
 
 The same five `df`/`outcome`/`unitid`/`time`/`treat` fields work for every
