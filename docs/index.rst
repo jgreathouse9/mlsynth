@@ -132,63 +132,86 @@ carrying a *Verification* section include
 
 .. toctree::
    :hidden:
-   :caption: Classical synthetic control
+   :caption: Observational: canonical workhorses
 
    tssc
    fdid
-   fma
-   scmo
-   dsc
-   fscm
+
+.. toctree::
+   :hidden:
+   :caption: Observational: decomposition-first
+
    sbc
-   shc
    hsc
+
+.. toctree::
+   :hidden:
+   :caption: Observational: generalised estimand / treatment / unit
+
+   scmo
+   ctsc
+   dsc
+   si
    microsynth
-   sparse_sc
-   pda
+
+.. toctree::
+   :hidden:
+   :caption: Observational: convex-hull relaxation
+
+   iscm
    nsc
 
 .. toctree::
    :hidden:
-   :caption: High-dimensional and variable selection
+   :caption: Observational: high-dimensional donors
 
    bvss
    clustersc
    mlsc
-   lexscm
+   fscm
+   sparse_sc
+   pda
    rescm
-   marex
-   ppscm
 
 .. toctree::
    :hidden:
-   :caption: Staggered adoption and multiple treated units
+   :caption: Observational: time-aware and factor models
+
+   tasc
+   fma
+
+.. toctree::
+   :hidden:
+   :caption: Observational: staggered adoption
 
    sdid
    seq_sdid
    spsydid
-   iscm
-   ctsc
+   ppscm
 
 .. toctree::
    :hidden:
-   :caption: Time-aware, factor and state-space
+   :caption: Observational: missing data
 
-   tasc
-   si
    mcnnm
    snn
-   pangeo
-   proximal
-   spcd
 
 .. toctree::
    :hidden:
-   :caption: Instrumental variables and special designs
+   :caption: Observational: endogenous treatment
 
    siv
+   proximal
+
+.. toctree::
+   :hidden:
+   :caption: Experimental design
+
+   lexscm
+   marex
    syndes
-   spill
+   pangeo
+   spcd
 
 .. toctree::
    :hidden:
@@ -198,6 +221,7 @@ carrying a *Verification* section include
    opthelpers
    data
    selector
+   spill
    helpers
    exp
    est
