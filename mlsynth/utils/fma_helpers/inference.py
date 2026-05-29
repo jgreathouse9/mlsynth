@@ -55,14 +55,19 @@ def asymptotic_inference(
     F_pre = factors_with_const[:T0]
     F_post = factors_with_const[T0:]
     F_post_mean = F_post.mean(axis=0).reshape(-1, 1)
-    XtX_pre = F_pre.T @ F_pre
+    # Ψ̂ = (X' X / T₁)⁻¹ (the population second-moment matrix's inverse),
+    # NOT (X' X)⁻¹. Web Appendix A's Ω_1 = σ_tr² · φ · C' E[F_s F_s'] C
+    # with C = E[F_s F_s']⁻¹ E[F_t]; plugging in sample analogues:
+    #   Ω̂_1 = σ̂_tr² · (T₂/T₁) · F̄_post' (X'X/T₁)⁻¹ F̄_post.
+    XtX_normalised = (F_pre.T @ F_pre) / max(T0, 1)
     try:
-        psi_hat = np.linalg.inv(XtX_pre)
+        psi_hat = np.linalg.inv(XtX_normalised)
     except np.linalg.LinAlgError:
-        psi_hat = np.linalg.pinv(XtX_pre)
+        psi_hat = np.linalg.pinv(XtX_normalised)
 
-    # Omega_hat = Omega1 + Omega2
-    omega1 = (T2 / max(T0, 1)) * float(
+    # Omega_hat = Omega1 + Omega2; both terms scale with σ_tr² (the
+    # residual-variance estimate).
+    omega1 = (T2 / max(T0, 1)) * float(residual_variance) * float(
         (F_post_mean.T @ psi_hat @ F_post_mean).item()
     )
     omega2 = float(residual_variance)
