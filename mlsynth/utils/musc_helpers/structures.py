@@ -223,3 +223,82 @@ class MUSCResults:
 
     def att_by_variant(self) -> Dict[str, float]:
         return {name: fit.att for name, fit in self.fits.items()}
+
+
+@dataclass(frozen=True)
+class MUSCCohortFit:
+    """A single-cohort MUSC fit inside a staggered design.
+
+    Each cohort is the group of units sharing a common intervention
+    period. We collapse the cohort's treated units to their within-
+    period mean (the uniform-treated-weight version of Bottmer et al.
+    2024 Appendix D.1, equation D.1, with ``M_{k,j,t} = 1/N_T`` for
+    ``j`` in the treated subset) and run single-unit MUSC against the
+    panel-wide donor pool (i.e. units that are never treated in any
+    cohort).
+
+    Attributes
+    ----------
+    intervention_time : Any
+        First treated period for the cohort.
+    treated_units : Tuple[Any, ...]
+        Original treated-unit labels (length ``N_T``).
+    results : MUSCResults
+        MUSC fit on the cohort-collapsed panel. ``results.att`` is the
+        cohort's ATT; ``results.inputs.treated_label`` is the
+        synthetic cohort label that replaces the constituent treated
+        units.
+    """
+
+    intervention_time: Any
+    treated_units: Tuple[Any, ...]
+    results: MUSCResults
+
+
+@dataclass(frozen=True)
+class MUSCMultiCohortResults:
+    """Top-level container for a multi-cohort (staggered) MUSC fit.
+
+    Returned by :meth:`mlsynth.MUSC.fit` when the panel contains
+    multiple treated units that share more than one distinct
+    intervention period. The per-cohort MUSC fits are computed
+    independently against a shared, never-treated donor pool; the
+    aggregate ATT is the *equal-weighted average across cohorts* of
+    their cohort-level ATTs (matching the standard staggered-adoption
+    aggregation in :mod:`mlsynth`).
+
+    Attributes
+    ----------
+    cohort_fits : Dict[Any, MUSCCohortFit]
+        Per-cohort fits keyed by ``intervention_time``.
+    metadata : dict
+        Free-form provenance.
+    """
+
+    cohort_fits: Dict[Any, "MUSCCohortFit"]
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def att(self) -> float:
+        """Equal-weighted average ATT across cohorts."""
+        if not self.cohort_fits:
+            return float("nan")
+        return float(
+            np.mean([cf.results.att for cf in self.cohort_fits.values()])
+        )
+
+    @property
+    def n_cohorts(self) -> int:
+        return len(self.cohort_fits)
+
+    def att_by_cohort(self) -> Dict[Any, float]:
+        return {
+            t: cf.results.att for t, cf in self.cohort_fits.items()
+        }
+
+    def __iter__(self):
+        return iter(self.cohort_fits.values())
+
+    def __getitem__(self, intervention_time):
+        return self.cohort_fits[intervention_time]
+

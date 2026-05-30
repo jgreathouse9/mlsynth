@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -14,11 +14,14 @@ from .inference import (
     randomization_ci,
     unbiased_variance,
 )
+from .setup import prepare_musc_inputs
 from .structures import (
     MUSC,
     SC,
+    MUSCCohortFit,
     MUSCInference,
     MUSCInputs,
+    MUSCMultiCohortResults,
     MUSCResults,
     MUSCVariantFit,
 )
@@ -31,37 +34,149 @@ from .structures import (
 def derive_treatment(
     df: pd.DataFrame, unitid: str, time: str, treat: str,
 ) -> Tuple[Any, Any]:
-    """Identify the single treated unit and the first treated period.
+    """Identify a single treated unit and its first treated period.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Long balanced panel.
-    unitid, time, treat : str
-        Column names for the unit id, period index, and 0/1 treatment
-        indicator.
-
-    Returns
-    -------
-    (treated_unit, intervention_time) : (Any, Any)
-        The treated unit's label and the first period with
-        ``treat == 1`` for that unit.
+    Kept for back-compatibility with single-unit callers. Returns a
+    plain ``(treated_unit, intervention_time)`` tuple. Raises if more
+    than one treated unit is found; use :func:`derive_treatment_cohorts`
+    for the multi-treated / staggered case.
     """
     treated_rows = df.loc[df[treat] == 1, [unitid, time]]
     if treated_rows.empty:
         raise MlsynthDataError(
-            f"No rows with {treat}=1 found; MUSC requires a single "
+            f"No rows with {treat}=1 found; MUSC requires at least one "
             "treated unit with a sharp intervention."
         )
     treated_units = treated_rows[unitid].unique()
     if treated_units.size != 1:
         raise MlsynthDataError(
-            f"MUSC currently supports exactly one treated unit; got "
-            f"{treated_units.size}: {treated_units.tolist()}."
+            "derive_treatment was called on a panel with multiple treated "
+            "units; use derive_treatment_cohorts for the multi-treated / "
+            f"staggered case (found {treated_units.size} treated units)."
         )
     treated_unit = treated_units[0]
     intervention_time = treated_rows[time].min()
     return treated_unit, intervention_time
+
+
+def derive_treatment_cohorts(
+    df: pd.DataFrame, unitid: str, time: str, treat: str,
+) -> List[Tuple[Tuple[Any, ...], Any]]:
+    """Group treated units into cohorts by intervention period.
+
+    A *cohort* is the set of units that share a common first treated
+    period. The result is a list of ``(treated_units, intervention_time)``
+    tuples sorted by intervention time, where ``treated_units`` is a
+    tuple of one or more unit labels.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Long balanced panel with a 0/1 treatment indicator.
+    unitid, time, treat : str
+        Column names.
+
+    Returns
+    -------
+    list of (tuple of unit labels, intervention time)
+        One entry per cohort; the cohort with the earliest intervention
+        time comes first.
+
+    Raises
+    ------
+    MlsynthDataError
+        If no treated unit is found.
+    """
+    treated_rows = df.loc[df[treat] == 1, [unitid, time]]
+    if treated_rows.empty:
+        raise MlsynthDataError(
+            f"No rows with {treat}=1 found; MUSC requires at least one "
+            "treated unit with a sharp intervention."
+        )
+    first_treated = (
+        treated_rows.groupby(unitid)[time].min().to_dict()
+    )
+    cohort_map: Dict[Any, List[Any]] = {}
+    for unit, intervention_time in first_treated.items():
+        cohort_map.setdefault(intervention_time, []).append(unit)
+    cohorts = [
+        (tuple(sorted(units, key=str)), intervention_time)
+        for intervention_time, units in sorted(
+            cohort_map.items(), key=lambda kv: kv[0]
+        )
+    ]
+    return cohorts
+
+
+def collapse_cohort(
+    df: pd.DataFrame,
+    *,
+    unitid: str,
+    time: str,
+    outcome: str,
+    treat: str,
+    treated_units: Sequence[Any],
+    intervention_time: Any,
+    synthetic_label: Any,
+    other_treated_units: Sequence[Any] = (),
+) -> pd.DataFrame:
+    """Collapse a cohort of treated units into a single synthetic row.
+
+    Implements the uniform-treated-weight version of Bottmer et al.
+    (2024) Appendix D.1: with the constraint ``M_{k, j, t} = 1 / N_T``
+    for ``j`` in the treated set, the K-row formulation's per-row
+    objective reduces to a single-row objective on a synthetic unit
+    whose outcome is the within-period mean of the treated units'
+    outcomes. We construct that synthetic unit here and drop the
+    constituent treated rows from the panel; the resulting DataFrame
+    is then passed to :func:`prepare_musc_inputs` unchanged.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Original long panel.
+    unitid, time, outcome, treat : str
+        Column names for the unit id, period, outcome, and 0/1 treatment
+        indicator.
+    treated_units : sequence of unit labels
+        Units belonging to this cohort.
+    intervention_time : Any
+        First treated period for this cohort.
+    synthetic_label : Any
+        Label assigned to the synthetic cohort row in the returned
+        DataFrame (must not collide with any existing unit label).
+    other_treated_units : sequence of unit labels, default ()
+        Treated units belonging to *other* cohorts that should be
+        excluded from the donor pool. Mirrors ``dataprep``'s cohort
+        donor-pool convention -- only never-treated units serve as
+        donors for any cohort.
+
+    Returns
+    -------
+    pd.DataFrame
+        Modified long panel containing the synthetic cohort row plus
+        all non-treated units. The synthetic row's ``treat`` column is
+        1 on/after ``intervention_time`` and 0 otherwise.
+    """
+    treated_set = set(treated_units)
+    other_set = set(other_treated_units)
+    if synthetic_label in set(df[unitid].unique()):
+        raise MlsynthDataError(
+            f"synthetic_label {synthetic_label!r} collides with an "
+            "existing unit label in the panel."
+        )
+
+    cohort_rows = df.loc[df[unitid].isin(treated_set), [time, outcome]].copy()
+    averaged = (
+        cohort_rows.groupby(time, as_index=False)[outcome].mean()
+    )
+    averaged[unitid] = synthetic_label
+    averaged[treat] = (averaged[time] >= intervention_time).astype(int)
+
+    # Strip cohort + other-cohort treated rows, keep never-treated donors.
+    keep_mask = ~df[unitid].isin(treated_set | other_set)
+    donor_rows = df.loc[keep_mask].copy()
+    return pd.concat([donor_rows, averaged], ignore_index=True)
 
 
 # ---------------------------------------------------------------------------
@@ -198,5 +313,102 @@ def run_musc(
             "alpha": alpha,
             "run_inference": run_inference,
             "solver": solver or "CLARABEL",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Multi-cohort dispatcher (Appendix D.1, uniform-treated-weight version)
+# ---------------------------------------------------------------------------
+
+def _synthetic_cohort_label(treated_units: Sequence[Any]) -> str:
+    """Build a stable, panel-safe label for a collapsed cohort."""
+    return "_musc_cohort__" + "__".join(str(u) for u in treated_units)
+
+
+def run_musc_cohorts(
+    df: pd.DataFrame,
+    *,
+    unitid: str,
+    time: str,
+    outcome: str,
+    treat: str,
+    cohorts: List[Tuple[Tuple[Any, ...], Any]],
+    alpha: float = 0.05,
+    run_inference: bool = True,
+    solver: Optional[str] = None,
+    verbose: bool = False,
+) -> MUSCMultiCohortResults:
+    """Fit per-cohort MUSC on a multi-treated / staggered panel.
+
+    For each cohort the constituent treated units are collapsed to
+    their within-period mean (uniform-treated-weight version of
+    Bottmer et al. 2024 Appendix D.1), and single-unit MUSC is fitted
+    on the resulting panel against a shared pool of never-treated
+    donors -- the same convention used by ``dataprep`` and the
+    staggered-adoption estimators elsewhere in :mod:`mlsynth`.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Long panel.
+    unitid, time, outcome, treat : str
+        Column names.
+    cohorts : list of (tuple of unit labels, intervention time)
+        As returned by :func:`derive_treatment_cohorts`.
+    alpha, run_inference, solver, verbose
+        Forwarded to :func:`run_musc` for each cohort.
+
+    Returns
+    -------
+    MUSCMultiCohortResults
+    """
+    if not cohorts:
+        raise MlsynthDataError("No cohorts supplied to run_musc_cohorts.")
+
+    # All treated units across all cohorts: removed from every cohort's
+    # donor pool so the same never-treated donors fit each cohort.
+    all_treated: List[Any] = []
+    for treated_units, _ in cohorts:
+        all_treated.extend(treated_units)
+
+    cohort_fits: Dict[Any, MUSCCohortFit] = {}
+    for treated_units, intervention_time in cohorts:
+        synthetic_label = _synthetic_cohort_label(treated_units)
+        others = [u for u in all_treated if u not in set(treated_units)]
+        df_collapsed = collapse_cohort(
+            df,
+            unitid=unitid, time=time, outcome=outcome, treat=treat,
+            treated_units=treated_units,
+            intervention_time=intervention_time,
+            synthetic_label=synthetic_label,
+            other_treated_units=others,
+        )
+        inputs = prepare_musc_inputs(
+            df_collapsed,
+            unitid=unitid, time=time, outcome=outcome,
+            treated_unit=synthetic_label,
+            intervention_time=intervention_time,
+        )
+        results = run_musc(
+            inputs,
+            alpha=alpha,
+            run_inference=run_inference,
+            solver=solver,
+            verbose=verbose,
+        )
+        cohort_fits[intervention_time] = MUSCCohortFit(
+            intervention_time=intervention_time,
+            treated_units=tuple(treated_units),
+            results=results,
+        )
+
+    return MUSCMultiCohortResults(
+        cohort_fits=cohort_fits,
+        metadata={
+            "alpha": alpha,
+            "run_inference": run_inference,
+            "solver": solver or "CLARABEL",
+            "n_cohorts": len(cohort_fits),
         },
     )

@@ -11,14 +11,22 @@ from .inference import (
     randomization_ci,
     unbiased_variance,
 )
-from .orchestration import derive_treatment, run_musc
+from .orchestration import (
+    collapse_cohort,
+    derive_treatment,
+    derive_treatment_cohorts,
+    run_musc,
+    run_musc_cohorts,
+)
 from .plotter import plot_musc
 from .setup import prepare_musc_inputs
 from .structures import (
     MUSC,
     SC,
+    MUSCCohortFit,
     MUSCInference,
     MUSCInputs,
+    MUSCMultiCohortResults,
     MUSCResults,
     MUSCVariantFit,
 )
@@ -26,18 +34,23 @@ from .structures import (
 __all__ = [
     "MUSC",
     "SC",
+    "MUSCCohortFit",
     "MUSCInference",
     "MUSCInputs",
+    "MUSCMultiCohortResults",
     "MUSCResults",
     "MUSCVariantFit",
     "att_for_unit",
+    "collapse_cohort",
     "derive_treatment",
+    "derive_treatment_cohorts",
     "normal_ci_from_variance",
     "plot_musc",
     "predict_counterfactual",
     "prepare_musc_inputs",
     "randomization_ci",
     "run_musc",
+    "run_musc_cohorts",
     "solve_musc_qp",
     "unbiased_variance",
 ]
