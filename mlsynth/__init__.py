@@ -17,6 +17,7 @@ from .estimators.lexscm import LEXSCM
 from .estimators.syndes import SYNDES
 from .utils.syndes_helpers.power import SYNDESPower, power_analysis
 from .estimators.spcd import SPCD
+from .estimators.tasc import MASC
 from .estimators.tasc import TASC
 from .estimators.sbc import SBC
 from .estimators.bvss import BVSS
@@ -53,6 +54,7 @@ __all__ = [
     "FDID",
     "CLUSTERSC",
     "PROXIMAL",
+    "MASC",
     "FSCM",
     "SCMO",
     "SI",
