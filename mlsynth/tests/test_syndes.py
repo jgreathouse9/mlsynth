@@ -1762,7 +1762,7 @@ class TestSYNDESConfigGapLimit:
 
     @pytest.mark.parametrize("bad", [-0.01, 1.0, 1.5])
     def test_gap_limit_out_of_range_rejected(self, panel, bad):
-        """gap_limit must be in [0, 1)."""
+        """Gap_limit must be in [0, 1)."""
         with pytest.raises(_pydantic_for_gap_tests.ValidationError):
             SYNDESConfig(
                 df=panel, outcome="y", unitid="unit", time="time",
@@ -1772,7 +1772,7 @@ class TestSYNDESConfigGapLimit:
 
     @pytest.mark.parametrize("bad", [0.0, -1.0])
     def test_time_limit_non_positive_rejected(self, panel, bad):
-        """time_limit must be strictly positive."""
+        """Time_limit must be strictly positive."""
         with pytest.raises(_pydantic_for_gap_tests.ValidationError):
             SYNDESConfig(
                 df=panel, outcome="y", unitid="unit", time="time",
@@ -1814,7 +1814,8 @@ class TestSYNDESLimitsPlumbing:
 
     def test_none_limits_disable_passthrough(self, panel):
         """``gap_limit=None`` and ``time_limit=None`` are accepted and
-        produce the same headline answer as the default on a small panel."""
+        produce the same headline answer as the default on a small panel.
+        """
         Y_pre = (panel[panel["post"] == 0]
                  .pivot(index="time", columns="unit", values="y")
                  .sort_index().to_numpy())
@@ -1844,7 +1845,8 @@ class TestSYNDESGapLimitEndToEnd:
                                        "one_way_global"])
     def test_default_limits_produce_valid_result(self, panel, mode):
         """All three modes solve under the default 5% / 60s limits and
-        return a fully populated ``SYNDESResults`` on a small panel."""
+        return a fully populated ``SYNDESResults`` on a small panel.
+        """
         res = SYNDES({
             "df": panel, "outcome": "y", "unitid": "unit", "time": "time",
             "K": 2, "mode": mode, "post_col": "post",
@@ -1863,7 +1865,8 @@ class TestSYNDESGapLimitEndToEnd:
         only requires feasibility (Abadie & Zhao 2026 p. 13), so the
         returned design must still satisfy SYNDES's structural
         constraints: K treated units, normalised weights, finite
-        objective."""
+        objective.
+        """
         res = SYNDES({
             "df": panel, "outcome": "y", "unitid": "unit", "time": "time",
             "K": 2, "mode": "two_way_global", "post_col": "post",
@@ -1885,7 +1888,8 @@ class TestSYNDESGapLimitEndToEnd:
         """A 0.5s wall-clock cap is much smaller than the smallest sensible
         SCIP iteration, but the orchestrator should still surface the
         primal SCIP managed to find (presolve usually finds something
-        feasible). The point is *no crash*, not optimality."""
+        feasible). The point is *no crash*, not optimality.
+        """
         res = SYNDES({
             "df": panel, "outcome": "y", "unitid": "unit", "time": "time",
             "K": 2, "mode": "two_way_global", "post_col": "post",
@@ -1897,7 +1901,8 @@ class TestSYNDESGapLimitEndToEnd:
 
     def test_user_limit_statuses_accepted(self):
         """Status set must include the SCIP ``user_limit`` codes so
-        a gap- or time-stopped solve isn't reported as a failure."""
+        a gap- or time-stopped solve isn't reported as a failure.
+        """
         assert "user_limit" in _SYNDES_OPTIMAL_STATUSES
         assert "user_limit_inaccurate" in _SYNDES_OPTIMAL_STATUSES
 
@@ -1909,7 +1914,8 @@ class TestSYNDESGapLimitEndToEnd:
 class TestSYNDESLimitMonotonicity:
     """Tighter gap_limit must produce an objective no worse than a
     looser one on the same panel. This catches regressions where the
-    limit kwarg gets dropped on the way to SCIP."""
+    limit kwarg gets dropped on the way to SCIP.
+    """
 
     def test_tighter_gap_at_least_as_good(self, panel):
         res_loose = SYNDES({
