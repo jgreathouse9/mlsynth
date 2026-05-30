@@ -234,8 +234,7 @@ class TestEstimatorPipeline:
     def test_donor_weights_are_canonical_sign(self, medium_panel):
         """The reported donor weights must be non-negative and bounded
         by 1 (the canonical SC sign), even though the internal matrix
-        ``M`` uses the paper's negative parametrisation.
-        """
+        ``M`` uses the paper's negative parametrisation."""
         res = MUSC({
             "df": medium_panel, "outcome": "y", "treat": "treat",
             "unitid": "unit", "time": "time",
@@ -258,15 +257,91 @@ class TestEstimatorPipeline:
                 "display_graphs": False, "run_inference": False,
             }).fit()
 
-    def test_rejects_multiple_treated_units(self, medium_panel):
+    def test_collapses_one_cohort_with_multiple_treated(self, medium_panel):
+        """Two treated units sharing the same first treated period
+        collapse to a single synthetic mean-treated unit (uniform-
+        weight version of Bottmer et al. 2024 Appendix D.1). The
+        result remains a :class:`MUSCResults`, with the synthetic
+        cohort label exposed as ``treated_label`` and ``N`` reduced
+        by ``N_T - 1``."""
         df = medium_panel.copy()
         df.loc[(df["unit"] == "u01") & (df["time"] >= 20), "treat"] = 1
-        with pytest.raises(MlsynthDataError, match="one treated unit"):
-            MUSC({
-                "df": df, "outcome": "y", "treat": "treat",
-                "unitid": "unit", "time": "time",
-                "display_graphs": False, "run_inference": False,
-            }).fit()
+        res = MUSC({
+            "df": df, "outcome": "y", "treat": "treat",
+            "unitid": "unit", "time": "time",
+            "display_graphs": False, "run_inference": False,
+        }).fit()
+        assert isinstance(res, MUSCResults)
+        assert res.inputs.N == 11           # 12 original - 2 treated + 1 synth
+        assert "_musc_cohort__" in str(res.inputs.treated_label)
+        assert np.isfinite(res.att)
+
+
+# ---------------------------------------------------------------------------
+# Layer 3b — staggered (multi-cohort) dispatch
+# ---------------------------------------------------------------------------
+
+class TestMultiCohortPipeline:
+    """Bottmer et al. 2024 Appendix D.1 multi-treated extension --
+    implemented in the uniform-treated-weight + cohort-fit form that
+    matches mlsynth's standard staggered-adoption convention."""
+
+    @pytest.fixture
+    def staggered_panel(self):
+        rng = np.random.default_rng(42)
+        Y = _factor_panel(rng, N=12, T_pre=20, T_post=6)
+        rows = []
+        for j in range(Y.shape[1]):
+            for t in range(Y.shape[0]):
+                treat = int(
+                    (j == 0 and t >= 20) or (j == 1 and t >= 22)
+                )
+                rows.append({
+                    "unit": f"u{j:02d}", "time": t,
+                    "y": float(Y[t, j]), "treat": treat,
+                })
+        return pd.DataFrame(rows)
+
+    def test_returns_multi_cohort_results(self, staggered_panel):
+        from mlsynth.utils.musc_helpers import MUSCMultiCohortResults
+        res = MUSC({
+            "df": staggered_panel, "outcome": "y", "treat": "treat",
+            "unitid": "unit", "time": "time",
+            "display_graphs": False, "run_inference": False,
+        }).fit()
+        assert isinstance(res, MUSCMultiCohortResults)
+        assert res.n_cohorts == 2
+        assert set(res.att_by_cohort().keys()) == {20, 22}
+
+    def test_aggregate_att_equals_equal_weighted_mean(self, staggered_panel):
+        res = MUSC({
+            "df": staggered_panel, "outcome": "y", "treat": "treat",
+            "unitid": "unit", "time": "time",
+            "display_graphs": False, "run_inference": False,
+        }).fit()
+        manual_mean = np.mean(list(res.att_by_cohort().values()))
+        assert res.att == pytest.approx(manual_mean)
+
+    def test_each_cohort_uses_shared_donor_pool(self, staggered_panel):
+        """All never-treated units fit every cohort: ``inputs.N``
+        equals (n_never_treated + 1 synthetic treated) for every
+        cohort. With 12 total units and 2 treated, that is 11."""
+        res = MUSC({
+            "df": staggered_panel, "outcome": "y", "treat": "treat",
+            "unitid": "unit", "time": "time",
+            "display_graphs": False, "run_inference": False,
+        }).fit()
+        for cf in res:
+            assert cf.results.inputs.N == 11
+
+    def test_cohort_treated_units_are_recorded(self, staggered_panel):
+        res = MUSC({
+            "df": staggered_panel, "outcome": "y", "treat": "treat",
+            "unitid": "unit", "time": "time",
+            "display_graphs": False, "run_inference": False,
+        }).fit()
+        assert res[20].treated_units == ("u00",)
+        assert res[22].treated_units == ("u01",)
 
 
 # ---------------------------------------------------------------------------
@@ -313,8 +388,7 @@ class TestResultContract:
 class TestLemma1Replication:
     """Bottmer et al. (2024) Lemma 1 says that under random assignment
     of which unit is treated, MUSC's ATT estimator is exactly
-    unbiased while standard SC carries a bias.
-    """
+    unbiased while standard SC carries a bias."""
 
     def test_musc_bias_is_exactly_zero(self):
         rng = np.random.default_rng(0)
@@ -340,8 +414,7 @@ class TestLemma1Replication:
         """Averaging MUSC's per-assignment expectation over 50 DGP
         draws should remain at machine zero (the column-sum
         constraint mathematically annihilates the bias formula 3.2,
-        irrespective of the panel).
-        """
+        irrespective of the panel)."""
         bias_estimates = []
         for rep in range(50):
             rng = np.random.default_rng(rep + 1)
@@ -359,8 +432,7 @@ class TestLemma1Replication:
 class TestProposition1Replication:
     """Bottmer et al. (2024) Proposition 1: the closed-form V̂ is an
     unbiased estimator of Var_U[τ̂] under random unit assignment.
-    Across many DGP draws ``E_Y[V̂]`` should match ``E_Y[Var_U[τ̂]]``.
-    """
+    Across many DGP draws ``E_Y[V̂]`` should match ``E_Y[Var_U[τ̂]]``."""
 
     def test_variance_matches_empirical_variance_on_average(self):
         v_hats, v_emps = [], []
@@ -389,8 +461,7 @@ class TestProposition1Replication:
     def test_variance_is_non_negative_in_practice(self):
         """The Prop 1 estimator can be negative in finite samples in
         principle, but on well-behaved factor panels it stays
-        non-negative.
-        """
+        non-negative."""
         for rep in range(20):
             rng = np.random.default_rng(rep)
             Y = _factor_panel(rng, N=10, T_pre=20, T_post=3)
