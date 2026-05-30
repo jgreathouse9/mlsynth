@@ -225,6 +225,85 @@ as ``results.att_ci``. Table 6 of the paper shows the randomization
 CIs attain nominal coverage in their CPS simulation while Normal-
 approximation CIs may mildly under- or over-cover.
 
+Multiple Treated Units (Appendix D.1)
+-------------------------------------
+
+The main paper develops MUSC for the single-treated-unit case.
+Appendix D.1 extends the formulation to :math:`N_T \ge 2` treated
+units by introducing a :math:`K \times (N+1) \times T` weight tensor
+with one row for each of the :math:`K = \binom{N}{N_T}` possible
+treated subsets. The constraint set generalises to
+
+.. math::
+
+   \mathcal{M}^{\text{MUSC}}
+     \;=\; \Big\{\,M \;\Big|\;
+        \sum_{j = 1}^N M_{k, j, t} = 0 \;\;\forall\, k, t,
+        \quad
+        \sum_{k = 1}^{K} M_{k, j, t} = 0 \;\;\forall\, j \ge 1, t
+     \,\Big\},
+
+and the per-row treated loading becomes :math:`M_{k, j, t} = 1/N_T`
+for every :math:`j` in the treated subset (the **uniform-treated-
+weight** assumption that the appendix singles out as the natural
+default).
+
+Under the uniform-weight assumption, the per-row objective collapses
+to a single-row objective on a synthetic unit whose outcome at every
+period is the *within-period mean of the treated units' outcomes*.
+This is the reduction :mod:`mlsynth.MUSC` implements: when the panel
+contains a cohort of :math:`N_T \ge 2` treated units sharing the same
+first treated period, the constituent treated rows are collapsed to
+that mean and single-unit MUSC is fitted on the resulting panel. The
+result is theoretically equivalent to the appendix's K-row
+formulation under uniform treated weights, and avoids the
+combinatorial blow-up (:math:`K = \binom{50}{3} = 19{,}600` for a
+typical state-level panel) that makes the exact K-row formulation
+intractable.
+
+When the treated units have **different first treated periods**
+(staggered adoption), :mod:`mlsynth.MUSC` partitions them into
+cohorts by intervention period and fits MUSC independently on each
+cohort, drawing donors from the panel-wide pool of *never-treated*
+units. The aggregate ATT reported on the result object is the equal-
+weighted average across cohorts. This is the standard staggered-
+adoption convention used by :mod:`mlsynth`'s
+:class:`mlsynth.utils.datautils.dataprep` and matches the way
+:doc:`fdid`, :doc:`seq_sdid` and :doc:`spsydid` aggregate per-cohort
+estimates.
+
+.. note::
+
+   The exact K-row formulation from Appendix D.1 -- without the
+   uniform-treated-weight restriction -- is not provided in
+   :mod:`mlsynth`. For typical synthetic-control panels :math:`K`
+   grows combinatorially with :math:`N_T` and the resulting QP is
+   not tractable. Practitioners who require an unrestricted multi-
+   treated MUSC fit should re-formulate the problem with a smaller
+   :math:`N` (e.g. by clustering donors) and the standalone solver.
+
+Routing
+^^^^^^^
+
+.. list-table:: How :meth:`mlsynth.MUSC.fit` dispatches based on
+   treatment structure.
+   :widths: 32 36 32
+   :header-rows: 1
+
+   * - Treatment structure
+     - Dispatch
+     - Returned object
+   * - one treated unit
+     - single-unit MUSC
+     - :class:`~mlsynth.utils.musc_helpers.structures.MUSCResults`
+   * - :math:`N_T \ge 2` units, all treated at the same period
+     - cohort collapse (uniform-weight)
+     - :class:`~mlsynth.utils.musc_helpers.structures.MUSCResults`
+       whose ``inputs.treated_label`` is the synthetic cohort label
+   * - staggered adoption (multiple intervention periods)
+     - per-cohort MUSC against shared donors
+     - :class:`~mlsynth.utils.musc_helpers.structures.MUSCMultiCohortResults`
+
 Example
 -------
 
