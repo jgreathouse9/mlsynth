@@ -3258,6 +3258,32 @@ class SYNDESConfig(BaseMAREXConfig):
         default=0.97, gt=0.0, lt=1.0,
         description="Geometric decay factor for the annealed solver's temperature.",
     )
+    gap_limit: Optional[float] = Field(
+        default=0.05, ge=0.0, lt=1.0,
+        description=(
+            "Optimality-gap tolerance handed to the MIP solver. The default "
+            "of 0.05 (5%) follows Abadie & Zhao (2026, eq. 10 discussion, "
+            "p. 13): 'we do not strictly require optimality of {w*, v*}, "
+            "provided {w*, v*} is feasible and the design produces "
+            "approximate balance.' Their bias bounds (Theorems 1-2) are "
+            "written in terms of the residual fit, not the QP gap, so a "
+            "5%-suboptimal solution inherits the same econometric "
+            "guarantees as a proven-optimal one. Set to ``None`` for full "
+            "optimality (can be very slow on long panels). For SCIP this "
+            "is plumbed through as ``scip_params={'limits/gap': value}``."
+        ),
+    )
+    time_limit: Optional[float] = Field(
+        default=60.0, gt=0.0,
+        description=(
+            "Wall-clock cap on the MIP solve in seconds. Default 60s "
+            "trades a guaranteed-near-optimal return time against rare "
+            "early termination when the dual bound is far from the "
+            "incumbent. Same justification as ``gap_limit``: near-optimal "
+            "feasibility is sufficient for the paper's bias bounds. Set "
+            "to ``None`` for no cap."
+        ),
+    )
     display_graph: bool = Field(default=False,
                                  description="Whether to render the SYNDES design plot.")
     verbose: bool = Field(default=False,
