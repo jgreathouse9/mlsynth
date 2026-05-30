@@ -234,7 +234,8 @@ class TestEstimatorPipeline:
     def test_donor_weights_are_canonical_sign(self, medium_panel):
         """The reported donor weights must be non-negative and bounded
         by 1 (the canonical SC sign), even though the internal matrix
-        ``M`` uses the paper's negative parametrisation."""
+        ``M`` uses the paper's negative parametrisation.
+        """
         res = MUSC({
             "df": medium_panel, "outcome": "y", "treat": "treat",
             "unitid": "unit", "time": "time",
@@ -312,7 +313,8 @@ class TestResultContract:
 class TestLemma1Replication:
     """Bottmer et al. (2024) Lemma 1 says that under random assignment
     of which unit is treated, MUSC's ATT estimator is exactly
-    unbiased while standard SC carries a bias."""
+    unbiased while standard SC carries a bias.
+    """
 
     def test_musc_bias_is_exactly_zero(self):
         rng = np.random.default_rng(0)
@@ -338,7 +340,8 @@ class TestLemma1Replication:
         """Averaging MUSC's per-assignment expectation over 50 DGP
         draws should remain at machine zero (the column-sum
         constraint mathematically annihilates the bias formula 3.2,
-        irrespective of the panel)."""
+        irrespective of the panel).
+        """
         bias_estimates = []
         for rep in range(50):
             rng = np.random.default_rng(rep + 1)
@@ -356,7 +359,8 @@ class TestLemma1Replication:
 class TestProposition1Replication:
     """Bottmer et al. (2024) Proposition 1: the closed-form V̂ is an
     unbiased estimator of Var_U[τ̂] under random unit assignment.
-    Across many DGP draws ``E_Y[V̂]`` should match ``E_Y[Var_U[τ̂]]``."""
+    Across many DGP draws ``E_Y[V̂]`` should match ``E_Y[Var_U[τ̂]]``.
+    """
 
     def test_variance_matches_empirical_variance_on_average(self):
         v_hats, v_emps = [], []
@@ -385,7 +389,8 @@ class TestProposition1Replication:
     def test_variance_is_non_negative_in_practice(self):
         """The Prop 1 estimator can be negative in finite samples in
         principle, but on well-behaved factor panels it stays
-        non-negative."""
+        non-negative.
+        """
         for rep in range(20):
             rng = np.random.default_rng(rep)
             Y = _factor_panel(rng, N=10, T_pre=20, T_post=3)
