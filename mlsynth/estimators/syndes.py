@@ -195,6 +195,8 @@ class SYNDES:
         self.alpha: float = config.alpha
         self.run_inference: bool = config.run_inference
         self.solver: Any = config.solver
+        self.gap_limit: Optional[float] = config.gap_limit
+        self.time_limit: Optional[float] = config.time_limit
         self.relaxed_max_iter: int = config.relaxed_max_iter
         self.relaxed_decay: float = config.relaxed_decay
         self.display_graph: bool = config.display_graph
@@ -286,6 +288,8 @@ class SYNDES:
             unit_index=inputs.unit_index,
             costs=self.costs,
             budget=self.budget,
+            gap_limit=self.gap_limit,
+            time_limit=self.time_limit,
         )
 
         # Re-tag with the paper-aligned mode label so the design surface
