@@ -215,6 +215,7 @@ headline numbers.
    syndes
    pangeo
    spcd
+   musc
 
 .. toctree::
    :hidden:
