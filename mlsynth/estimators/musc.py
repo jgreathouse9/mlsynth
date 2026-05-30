@@ -28,11 +28,13 @@ import pandas as pd
 from ..config_models import MUSCConfig
 from ..utils.datautils import balance
 from ..utils.musc_helpers import (
+    MUSCMultiCohortResults,
     MUSCResults,
-    derive_treatment,
+    derive_treatment_cohorts,
     plot_musc,
     prepare_musc_inputs,
     run_musc,
+    run_musc_cohorts,
 )
 
 
@@ -71,31 +73,80 @@ class MUSC:
         self.counterfactual_color: Union[str, List[str]] = config.counterfactual_color
         self.treated_color: str = config.treated_color
 
-    def fit(self) -> MUSCResults:
+    def fit(self) -> Union[MUSCResults, MUSCMultiCohortResults]:
         """Run the MUSC pipeline end to end.
 
-        Returns
-        -------
-        MUSCResults
-            Result container with two :class:`MUSCVariantFit` entries
-            (``"SC"`` and ``"MUSC"``), the Prop 1 variance and CI in
-            the :attr:`inference` attribute, and convenience aliases
-            (``att``, ``att_ci``, ``counterfactual``, ``gap``,
-            ``donor_weights``, ``pre_rmse``) forwarding to the MUSC
-            variant.
+        Detects treated cohorts via the treatment indicator, then
+        dispatches:
+
+        * one treated unit -> single-unit MUSC, returns
+          :class:`MUSCResults`;
+        * multiple treated units sharing the same first treated
+          period -> single-cohort MUSC with the constituent units
+          collapsed to their within-period mean (Bottmer et al. 2024
+          Appendix D.1 uniform-weight version), returns
+          :class:`MUSCResults`;
+        * multiple cohorts with distinct intervention times
+          (staggered adoption) -> per-cohort MUSC fits against a
+          shared never-treated donor pool, returns
+          :class:`MUSCMultiCohortResults` whose ``att`` is the
+          equal-weighted average across cohorts.
         """
         balance(self.df, self.unitid, self.time)
-        treated_unit, intervention_time = derive_treatment(
+
+        cohorts = derive_treatment_cohorts(
             self.df, self.unitid, self.time, self.treat
         )
-        inputs = prepare_musc_inputs(
-            self.df,
-            unitid=self.unitid,
-            time=self.time,
-            outcome=self.outcome,
-            treated_unit=treated_unit,
-            intervention_time=intervention_time,
-        )
+
+        if len(cohorts) > 1:
+            # Staggered adoption: per-cohort fits.
+            return run_musc_cohorts(
+                self.df,
+                unitid=self.unitid, time=self.time,
+                outcome=self.outcome, treat=self.treat,
+                cohorts=cohorts,
+                alpha=self.config.alpha,
+                run_inference=self.config.run_inference,
+                solver=self.config.solver,
+                verbose=False,
+            )
+
+        treated_units, intervention_time = cohorts[0]
+
+        if len(treated_units) == 1:
+            # Classical single-treated-unit MUSC.
+            inputs = prepare_musc_inputs(
+                self.df,
+                unitid=self.unitid, time=self.time, outcome=self.outcome,
+                treated_unit=treated_units[0],
+                intervention_time=intervention_time,
+            )
+        else:
+            # One cohort with multiple treated units: collapse to a
+            # synthetic mean-treated unit before single-unit MUSC.
+            # Implements the uniform-weight version of Appendix D.1
+            # (M_{k,j,t} = 1/N_T on the treated subset).
+            from ..utils.musc_helpers.orchestration import (
+                _synthetic_cohort_label,
+                collapse_cohort,
+            )
+            synthetic_label = _synthetic_cohort_label(treated_units)
+            df_collapsed = collapse_cohort(
+                self.df,
+                unitid=self.unitid, time=self.time,
+                outcome=self.outcome, treat=self.treat,
+                treated_units=treated_units,
+                intervention_time=intervention_time,
+                synthetic_label=synthetic_label,
+                other_treated_units=(),
+            )
+            inputs = prepare_musc_inputs(
+                df_collapsed,
+                unitid=self.unitid, time=self.time, outcome=self.outcome,
+                treated_unit=synthetic_label,
+                intervention_time=intervention_time,
+            )
+
         results = run_musc(
             inputs,
             alpha=self.config.alpha,
