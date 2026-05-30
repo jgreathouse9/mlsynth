@@ -12,7 +12,15 @@ from ...exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimatio
 from .formulation import build_syndes_problem_components, unpack_problem_components
 from .structures import SYNDESDesign
 
-_OPTIMAL_STATUSES = {"optimal", "optimal_inaccurate"}
+_OPTIMAL_STATUSES = {
+    "optimal",
+    "optimal_inaccurate",
+    # SCIP returns these when it hits gap_limit / time_limit with a valid
+    # incumbent. Per Abadie & Zhao (2026, p. 13) a feasible non-optimal
+    # solution is sufficient for the bias bounds, so we accept them.
+    "user_limit",
+    "user_limit_inaccurate",
+}
 
 
 def estimate_lambda(Y: np.ndarray) -> float:
@@ -196,6 +204,8 @@ def solve_synthetic_design(
     unit_index: Optional[IndexSet] = None,
     costs: Optional[np.ndarray] = None,
     budget: Optional[float] = None,
+    gap_limit: Optional[float] = None,
+    time_limit: Optional[float] = None,
 ) -> SYNDESDesign:
     """
     Solve the SYNDES synthetic design optimization problem.
@@ -264,8 +274,22 @@ def solve_synthetic_design(
 
     problem = cp.Problem(cp.Minimize(components.objective), components.constraints)
 
+    # Plumb the user-supplied SCIP limits (Abadie & Zhao 2026 p. 13:
+    # "we do not strictly require optimality of {w*, v*}, provided
+    # {w*, v*} is feasible"). Only added when the solver is SCIP, since
+    # ``scip_params`` is a SCIP-specific cvxpy kwarg.
+    solve_kwargs: dict = {"solver": solver, "verbose": verbose}
+    if str(solver).upper() == "SCIP":
+        scip_params: dict = {}
+        if gap_limit is not None:
+            scip_params["limits/gap"] = float(gap_limit)
+        if time_limit is not None:
+            scip_params["limits/time"] = float(time_limit)
+        if scip_params:
+            solve_kwargs["scip_params"] = scip_params
+
     try:
-        problem.solve(solver=solver, verbose=verbose)
+        problem.solve(**solve_kwargs)
     except Exception as exc:
         raise MlsynthEstimationError(
             f"SYNDES optimization failed to solve: {exc}"
