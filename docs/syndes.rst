@@ -276,6 +276,88 @@ Choosing among the modes
      - treated fixed at ``1/K``, control free
      - heterogeneous effects but a simple, fixed treated average is the target estimand
 
+
+
+Solver runtime and the 5%-gap default
+-------------------------------------
+
+The SYNDES MIP is structurally hard. The ``two_way_global`` formulation
+contains a bilinear product :math:`q_i = w_i D_i` between the
+continuous weight ``w_i`` and the binary assignment ``D_i``, encoded
+via the standard McCormick linearisation (``q_i \le D_i``,
+``q_i \le w_i``, ``q_i \ge w_i - (1 - D_i)``). McCormick is the
+tightest *linear* relaxation of a bilinear term, but it is still loose
+at the root LP — so the SCIP optimality gap closes slowly on long
+panels even when the primal incumbent is essentially optimal. For
+example on the Walmart weekly-sales panel
+(:math:`N = 45,\ T_0 = 128`, :math:`K = 3`) SCIP finds the optimal
+treated set within a minute, then spends an additional 30+ minutes
+*proving* optimality by climbing the dual bound. The treated set
+itself does not change during this proof phase.
+
+This matters because in practice our SCM bias bounds do *not* require
+optimality of the solver. `Abadie and Zhao (2026) <https://economics.mit.edu/sites/default/files/2026-02/Synthetic%20Controls%20for%20Experimental%20Design%20Feb%202026.pdf>`_ (2026, eq. 10 discussion,
+p. 10 and 13), writing about their formulation, state explicitly:
+
+   *"we do not strictly require optimality of* :math:`\{w^*, v^*\}`,
+   *provided* :math:`\{w^*, v^*\}` *is feasible and*
+   :math:`\bar{X} - \sum_j w^*_j X_j \approx 0` *and*
+   :math:`X_j - \sum_i v^*_{ij} X_i \approx 0` *for all j such that*
+   :math:`w^*_j > 0`."
+
+Their Theorems 1 and 2 are written in terms of the residual fit, not
+the QP optimality gap, so a 5%-suboptimal solution that achieves
+approximate balance inherits the same econometric guarantees as a
+proven-optimal one. SYNDES is not the same problem as the ones AZ are concerned with, but the conclusion still holds.
+
+mlsynth therefore exposes two SCIP-knob fields on :class:`SYNDESConfig`
+and defaults them to the production-friendly setting:
+
+* ``gap_limit`` (default ``0.05``, i.e. 5%) -- handed to SCIP as
+  ``scip_params={"limits/gap": value}``. The MIP terminates as soon
+  as the primal-dual gap is within this fraction of the incumbent.
+* ``time_limit`` (default ``60.0`` seconds) -- wall-clock cap on the
+  solve, passed through as ``scip_params={"limits/time": value}``.
+
+With these defaults Walmart-scale designs return in under a minute
+with a known :math:`\le 5\%` gap to the (provable) optimum. Tighten
+either knob -- or set it to ``None`` -- for research-grade
+optimality:
+
+.. code-block:: python
+
+   # Default: 5% gap, 60s wall-clock — production-suitable.
+   SYNDES({
+       "df": df, "outcome": "y", "unitid": "unit", "time": "time",
+       "K": 3, "mode": "two_way_global", "post_col": "post",
+   }).fit()
+
+   # Loosen the gap to return in seconds when you just need a
+   # plausible design for prototyping.
+   SYNDES({...,
+           "gap_limit": 0.25, "time_limit": 5.0,
+   }).fit()
+
+   # Disable both limits for an asymptotic-optimality run. Be
+   # prepared for hours-long solves on long panels.
+   SYNDES({...,
+           "gap_limit": None, "time_limit": None,
+   }).fit()
+
+The MIP status codes ``user_limit`` and ``user_limit_inaccurate``
+(SCIP's "stopped early with a valid incumbent") are accepted as
+successful returns alongside the standard ``optimal`` /
+``optimal_inaccurate`` codes — again, because the theory only needs
+the incumbent's feasibility, not the proof of optimality.
+
+.. note::
+
+   If you have a commercial solver (Gurobi, CPLEX, MOSEK) installed,
+   pass ``solver="GUROBI"`` and the MIP closes the gap orders of
+   magnitude faster than SCIP — these solvers handle MIQP / MIQCP
+   relaxations natively. The default of SCIP is chosen because it
+   ships with mlsynth (via ``pyscipopt``) with no license required.
+
 Multiple Treatment Arms
 -----------------------
 
