@@ -287,6 +287,44 @@ class MAREXConfig(BaseMAREXConfig):
 
         return values
 
+class BaseEstimatorConfig(BaseModel):
+    """
+    Base Pydantic model for estimator configurations.
+    Includes common fields required by most or all estimators.
+    """
+    df: pd.DataFrame = Field(..., description="Input panel data as a pandas DataFrame.")
+    outcome: str = Field(..., description="Name of the outcome variable column in the DataFrame.")
+    treat: str = Field(..., description="Name of the treatment indicator column in the DataFrame.")
+    unitid: str = Field(..., description="Name of the unit identifier column in the DataFrame.")
+    time: str = Field(..., description="Name of the time period column in the DataFrame.")
+    display_graphs: bool = Field(default=True, description="Whether to display plots of results.")
+    save: Union[bool, str] = Field(default=False, description="Configuration for saving plots. If False (default), plots are not saved. If True, plots are saved with default names. If a string, it's used as the base filename for saved plots.")
+    counterfactual_color: List[str] = Field(default_factory=lambda: ["red"],description="Color(s) for counterfactual line(s) in plots.")
+    treated_color: str = Field(default="black", description="Color for the treated unit line in plots.")
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = 'forbid' # Forbid extra fields not defined in the model
+
+    @model_validator(mode='after')
+    def check_df_and_columns(cls, values: Any) -> Any:
+        df = values.df
+        outcome = values.outcome
+        treat = values.treat
+        unitid = values.unitid
+        time = values.time
+
+        if df.empty:
+            raise MlsynthDataError("Input DataFrame 'df' cannot be empty.")
+
+        required_columns = {outcome, treat, unitid, time}
+        missing_columns = required_columns - set(df.columns)
+        if missing_columns:
+            raise MlsynthDataError(
+                f"Missing required columns in DataFrame 'df': {', '.join(sorted(list(missing_columns)))}"
+            )
+        return values
+
 
 
 
@@ -384,43 +422,6 @@ class MASCConfig(BaseEstimatorConfig):
 
 
 
-class BaseEstimatorConfig(BaseModel):
-    """
-    Base Pydantic model for estimator configurations.
-    Includes common fields required by most or all estimators.
-    """
-    df: pd.DataFrame = Field(..., description="Input panel data as a pandas DataFrame.")
-    outcome: str = Field(..., description="Name of the outcome variable column in the DataFrame.")
-    treat: str = Field(..., description="Name of the treatment indicator column in the DataFrame.")
-    unitid: str = Field(..., description="Name of the unit identifier column in the DataFrame.")
-    time: str = Field(..., description="Name of the time period column in the DataFrame.")
-    display_graphs: bool = Field(default=True, description="Whether to display plots of results.")
-    save: Union[bool, str] = Field(default=False, description="Configuration for saving plots. If False (default), plots are not saved. If True, plots are saved with default names. If a string, it's used as the base filename for saved plots.")
-    counterfactual_color: List[str] = Field(default_factory=lambda: ["red"],description="Color(s) for counterfactual line(s) in plots.")
-    treated_color: str = Field(default="black", description="Color for the treated unit line in plots.")
-
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid' # Forbid extra fields not defined in the model
-
-    @model_validator(mode='after')
-    def check_df_and_columns(cls, values: Any) -> Any:
-        df = values.df
-        outcome = values.outcome
-        treat = values.treat
-        unitid = values.unitid
-        time = values.time
-
-        if df.empty:
-            raise MlsynthDataError("Input DataFrame 'df' cannot be empty.")
-
-        required_columns = {outcome, treat, unitid, time}
-        missing_columns = required_columns - set(df.columns)
-        if missing_columns:
-            raise MlsynthDataError(
-                f"Missing required columns in DataFrame 'df': {', '.join(sorted(list(missing_columns)))}"
-            )
-        return values
 
 class TSSCConfig(BaseEstimatorConfig):
     """Configuration for the Two-Step Synthetic Control (TSSC) estimator.
