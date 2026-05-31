@@ -156,6 +156,158 @@ can be relaxed at the cost of a non-Gaussian limit (discrete case,
 Proposition 5), which is why the inference below leans on Monte-Carlo /
 permutation routines rather than closed-form critical values.
 
+
+When the assumptions bind: practical diagnostics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The theory above states the structural conditions; this section translates
+them into things you can actually look for in a dataset. Each item names a
+plausible failure mode of an applied DSC study and a concrete diagnostic.
+
+(a) **Scaled-isometry structure fails -- the donor pool cannot reproduce
+    the treated quantile function in the pre-period.**
+    DSC's identification requires the data-generating maps to be scaled
+    isometries on Wasserstein space (Assumption 1). The cheapest practical
+    proxy is whether the barycenter actually fits the treated quantile
+    function pre-treatment.
+
+    *Plausibly violated when* the treated unit has support, skewness, or
+    tail behaviour that no convex combination of donors can match -- a
+    state whose income distribution is bimodal while every donor is
+    unimodal, a hospital whose patient mix is qualitatively different
+    from every other hospital. *Diagnostic*: inspect
+    :py:attr:`DSCResults.pre_period_wasserstein`. If the pre-period
+    :math:`W_2` distance is large relative to the cross-donor scale, the
+    barycenter is not finding the treated unit in the donor convex hull;
+    overlay :math:`\widehat F^{-1}_{Y_{1t}}` against the fitted
+    barycenter at a few pre-periods and look for systematic miss in the
+    tails.
+
+(b) **Too few within-cell observations -- empirical quantile functions
+    are noisy.**
+    Consistency (Assumption 2) requires finite second moments, but in
+    practice it also requires *enough draws per cell* for the empirical
+    quantile function :math:`\widehat F^{-1}_{Y_{jt, n_j}}` to be a
+    reasonable estimate of the population quantile function. With small
+    :math:`n_{jt}` the order-statistic estimator is jagged and the
+    Wasserstein loss is dominated by sampling noise.
+
+    *Plausibly violated when* you have only tens of individuals per
+    cell -- a small store-week, a rare disease cohort, a thinly populated
+    state-year. *Diagnostic*: re-fit the model on the half of cells with
+    the largest :math:`n_{jt}` only, and check whether the QTE moves
+    substantially. Alternatively, bin the quantile grid more coarsely
+    and confirm the weights stabilise.
+
+(c) **Heavy tails or infinite second moments.**
+    The 2-Wasserstein loss requires finite second moments
+    (Assumption 2). With Pareto-tailed outcomes (firm revenue, financial
+    losses) the empirical loss is dominated by tail outliers and the
+    weights become unstable.
+
+    *Plausibly violated when* the outcome is a Pareto-like distribution
+    or has visible outliers in the extreme upper quantiles.
+    *Diagnostic*: refit DSC after Winsorising the outcome at, say, the
+    99th percentile and compare; large differences flag the
+    second-moment assumption. Alternatively, run the analysis on a
+    log-transformed outcome and confirm conclusions are preserved.
+
+(d) **Discrete or mixed outcomes -- inference is non-Gaussian.**
+    Uniform large-sample bands (Assumption 3) require
+    absolute-continuity of each cell distribution with a density bounded
+    away from zero. With ordinal-scale outcomes or large point masses
+    the quantile-process limit is non-Gaussian (Gunsilius 2023,
+    Proposition 5).
+
+    *Plausibly violated when* the outcome has heaps (counts, Likert
+    scales, capped variables). *Diagnostic*: the point estimate is still
+    fine -- but lean on the placebo permutation test
+    (``compute_inference=True``) rather than analytic bands, since the
+    permutation procedure is distribution-free.
+
+(e) **Non-stationary donors -- weights drift across pre-periods.**
+    DSC aggregates per-pre-period weights via :math:`\widehat w =
+    \sum_t \lambda_t \widehat w_t`. The implicit assumption is that the
+    donor-to-treated mapping is the same isometry across :math:`t`.
+
+    *Plausibly violated when* the cross-sectional distribution of
+    donors itself shifts over the pre-period (a new entrant changes a
+    market, a policy change affects only some donors). *Diagnostic*:
+    inspect the per-pre-period weights (returned in the DSC fit object)
+    and look for a single donor whose weight rises or falls
+    monotonically over :math:`t`; switch ``lambda_method="recency"`` to
+    down-weight stale pre-periods.
+
+(f) **Donor contamination -- another donor was treated in the pre-period.**
+    DSC, like classical SC, assumes donors are untreated in the pre-period
+    and remain on their counterfactual trajectory throughout the post-period
+    (no spillovers, no anticipation).
+
+    *Plausibly violated when* a donor enacts a similar policy partway
+    through the analysis window, or when the treatment generates
+    spillovers across units (geographic neighbours, vertically linked
+    markets). *Diagnostic*: drop suspected contaminated donors and
+    refit; large QTE changes flag the SUTVA failure. Spillover-aware
+    estimators (:doc:`spillsynth`, :doc:`spsydid`) are aggregate-only
+    and so do not directly substitute, but they can characterise the
+    spillover size at the mean.
+
+When **not** to use DSC
+^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Only one aggregate observation per (unit, time) cell.** DSC needs a
+  *sample* within each cell to estimate the empirical quantile
+  function. With one number per cell, the empirical quantile function
+  collapses to a step at that single value and DSC reduces to classical
+  synthetic control. Use the aggregate estimators -- :doc:`tssc`,
+  :doc:`scm`, :doc:`fma`, :doc:`clustersc` -- instead.
+
+* **The mean (or any single moment) is the genuine object of interest.**
+  If the policy question is "did the average outcome change?" and there
+  is no scientific reason to read off effects at specific quantiles,
+  DSC is overkill: it pays a variance cost for distributional richness
+  you will not use. A scalar-targeted estimator with sharper inference
+  (:doc:`fdid`, :doc:`fma`) is more efficient.
+
+* **Outcome is fundamentally non-continuous and you need uniform
+  inference.** Heavily discrete outcomes (binary, low-count) violate
+  Assumption 3 and the Gaussian large-sample bands no longer apply.
+  Point estimation still works, but if you need uniform confidence
+  bands, switch to a model designed for discrete outcomes (or rely on
+  permutation inference and report quantile-by-quantile rather than
+  uniformly).
+
+* **Short pre-period with rapidly moving donor distributions.** DSC
+  averages per-pre-period weights and so needs enough pre-periods for
+  that average to stabilise. If :math:`T_0` is a handful of periods
+  *and* the cross-sectional donor distributions are themselves moving
+  rapidly, the aggregation step is doing little work and the post-period
+  counterfactual will be dominated by whichever pre-period
+  happens to look most like the post. Use :doc:`fdid` or :doc:`tssc`
+  with carefully chosen covariates.
+
+* **Small within-cell sample (a few individuals per cell-period).**
+  The empirical quantile function is jagged with small :math:`n_{jt}`
+  and the Wasserstein loss becomes dominated by sampling noise. If
+  micro-data is sparse, collapse to means and run an aggregate
+  estimator instead of forcing a distributional fit.
+
+* **Treated unit lies outside the convex hull of donor distributions.**
+  No simplex-weighted combination of donor quantile functions can
+  reproduce a treated distribution that sits outside the hull -- e.g.
+  the only unit with a bimodal outcome, the only state with a long
+  Pareto tail. The pre-period :math:`W_2` will be visibly large.
+  Either expand the donor pool, switch to an extrapolating variant
+  (drop the simplex constraint, at the cost of identification), or
+  fall back to an aggregate estimator.
+
+* **Spillovers or interference across units.** SUTVA-violating designs
+  break DSC for the same reason they break classical SC. Use a
+  spillover-aware aggregate estimator (:doc:`spillsynth`,
+  :doc:`spsydid`) and accept that the distributional question becomes
+  identification-impractical at the same time.
+
+
 Algorithm
 ^^^^^^^^^
 
