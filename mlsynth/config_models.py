@@ -1572,8 +1572,38 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
         default=None,
         description=(
             "Labels of control units potentially exposed to spillover. "
-            "Each gets its own spillover coefficient. The treated unit "
-            "must NOT appear here."
+            "Required for spillover_structure='per_unit' (when p > 0) "
+            "and 'homogeneous'. Ignored for 'distance_decay' (which "
+            "uses unit_distances). The treated unit must NOT appear here."
+        ),
+    )
+    spillover_structure: Literal["per_unit", "homogeneous", "distance_decay"] = Field(
+        default="per_unit",
+        description=(
+            "A-matrix construction (Cao-Dowd v3 Examples 1/2/3): "
+            "'per_unit' (Example 1, default, each affected unit gets its "
+            "own free coefficient), 'homogeneous' (Example 2, shared "
+            "coefficient b across affected units), 'distance_decay' "
+            "(Example 3, alpha_i = b * exp(-d_i) via unit_distances)."
+        ),
+    )
+    unit_distances: Optional[Dict[Any, float]] = Field(
+        default=None,
+        description=(
+            "Required when spillover_structure='distance_decay'. Maps "
+            "unit label to a non-negative scalar distance from the "
+            "treated unit. Controls absent from the dict are treated as "
+            "infinitely far (zero decay weight)."
+        ),
+    )
+    weighting: Literal["identity", "efficient"] = Field(
+        default="identity",
+        description=(
+            "Weighting matrix in the SP estimator. 'identity' = the "
+            "standard W = I estimator. 'efficient' = additionally "
+            "compute the GMM-weighted variant of Cao-Dowd v3 "
+            "Proposition S.1 using W = sample-Omega^{-1} (lower "
+            "asymptotic variance); exposed via results.cd.efficient_fit."
         ),
     )
     solver: Optional[str] = Field(
@@ -1585,6 +1615,22 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
     @model_validator(mode="after")
     def _check_affected_units(cls, values: Any) -> Any:
         au = values.affected_units
+        structure = values.spillover_structure
+        distances = values.unit_distances
+
+        # Structure-specific requirements.
+        if structure == "homogeneous" and (au is None or len(au) == 0):
+            raise MlsynthConfigError(
+                "SPILLSYNTH: spillover_structure='homogeneous' needs at "
+                "least one entry in affected_units."
+            )
+        if structure == "distance_decay":
+            if not isinstance(distances, dict) or len(distances) == 0:
+                raise MlsynthConfigError(
+                    "SPILLSYNTH: spillover_structure='distance_decay' "
+                    "requires a non-empty unit_distances={label: d, ...}."
+                )
+
         if au is None:
             return values
         if len(set(au)) != len(au):

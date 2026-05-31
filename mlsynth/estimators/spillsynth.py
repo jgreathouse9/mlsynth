@@ -74,6 +74,11 @@ class SPILLSYNTH:
         self.time: str = config.time
         self.method: str = config.method
         self.affected_units = list(config.affected_units or [])
+        self.spillover_structure: str = getattr(
+            config, "spillover_structure", "per_unit",
+        )
+        self.unit_distances = getattr(config, "unit_distances", None)
+        self.weighting: str = getattr(config, "weighting", "identity")
         self.solver = config.solver
         self.display_graphs: bool = config.display_graphs
         self.save = config.save
@@ -92,6 +97,8 @@ class SPILLSYNTH:
                 unitid=self.unitid,
                 time=self.time,
                 affected_units=self.affected_units,
+                spillover_structure=self.spillover_structure,
+                unit_distances=self.unit_distances,
             )
         except MlsynthDataError:
             raise
@@ -102,7 +109,9 @@ class SPILLSYNTH:
 
         try:
             if self.method == "cd":
-                fit = run_cd(inputs, solver=self.solver)
+                fit = run_cd(
+                    inputs, solver=self.solver, weighting=self.weighting,
+                )
                 results = SpillSynthResults(
                     inputs=inputs, method="cd", cd=fit,
                 )

@@ -9,16 +9,35 @@ dispatched through ``SPILLSYNTHConfig.method``.
 from __future__ import annotations
 
 from .cd import run_cd
+from .cd.inference import (
+    KappaATestResult, PTestResult, kappa_A_test, p_test, select_A_by_kappa,
+    signed_ci,
+)
+from .cd.sensitivity import PureDonorSensitivity, pure_donor_sensitivity
 from .plotter import plot_spillsynth
-from .setup import build_A_example3, prepare_spillsynth_inputs
+from .setup import (
+    build_A_distance_decay, build_A_example3, build_A_homogeneous,
+    build_A_per_unit, prepare_spillsynth_inputs,
+)
 from .structures import CDFit, SpillSynthInputs, SpillSynthResults
 
 __all__ = [
     "CDFit",
+    "KappaATestResult",
+    "PTestResult",
+    "PureDonorSensitivity",
     "SpillSynthInputs",
     "SpillSynthResults",
+    "build_A_distance_decay",
     "build_A_example3",
+    "build_A_homogeneous",
+    "build_A_per_unit",
+    "kappa_A_test",
+    "p_test",
     "plot_spillsynth",
     "prepare_spillsynth_inputs",
+    "pure_donor_sensitivity",
     "run_cd",
+    "select_A_by_kappa",
+    "signed_ci",
 ]

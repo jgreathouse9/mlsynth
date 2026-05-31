@@ -13,12 +13,21 @@ from typing import Optional
 import numpy as np
 
 from ..structures import CDFit, SpillSynthInputs
-from .estimation import build_M, sp_estimate, vanilla_scm_path
-from .inference import run_per_period_tests
+from .estimation import (
+    build_M, estimate_omega_from_pre_residuals, sp_estimate,
+    sp_estimate_weighted, vanilla_scm_path,
+)
+from .inference import kappa_A_test, run_per_period_tests
 from .scm_core import fit_leave_one_out_sc
+from .sensitivity import pure_donor_sensitivity
 
 
-def run_cd(inputs: SpillSynthInputs, *, solver: Optional[str] = None) -> CDFit:
+def run_cd(
+    inputs: SpillSynthInputs,
+    *,
+    solver: Optional[str] = None,
+    weighting: str = "identity",
+) -> CDFit:
     """Run the Cao-Dowd spillover-adjusted SCM end-to-end.
 
     Parameters
@@ -27,13 +36,31 @@ def run_cd(inputs: SpillSynthInputs, *, solver: Optional[str] = None) -> CDFit:
         Output of :func:`prepare_spillsynth_inputs`.
     solver : str, optional
         cvxpy solver name forwarded to the per-unit SCM fits.
+    weighting : {"identity", "efficient"}
+        ``"identity"`` -- the standard Cao-Dowd estimator with
+        :math:`W = I`. ``"efficient"`` -- additionally compute the
+        GMM-weighted variant of Proposition S.1 (v3 Section S.1.1)
+        using :math:`\\widehat W = \\widehat \\Omega^{-1}`, where
+        :math:`\\widehat \\Omega` is the sample covariance of the
+        pre-period residuals. Both the identity and efficient results
+        are returned; the headline ``att_sp`` and ``alpha`` reflect the
+        identity (W=I) fit, while the efficient variant is exposed via
+        ``CDFit.efficient_fit``.
 
     Returns
     -------
     CDFit
         Bundle of intercepts, weights, per-period spillover and
-        treatment-effect estimates, and the SCM/SP counterfactual paths.
+        treatment-effect estimates, P-test inference, CIs, the
+        :math:`\\kappa_A` specification test, and (optionally) the
+        efficient-weighted variant.
     """
+    if weighting not in ("identity", "efficient"):
+        raise ValueError(
+            f"run_cd: weighting must be 'identity' or 'efficient'; "
+            f"got {weighting!r}."
+        )
+
     a, B = fit_leave_one_out_sc(inputs.Y_pre, solver=solver)
     M = build_M(B)
     gamma, alpha, cond_AMA = sp_estimate(
@@ -48,13 +75,27 @@ def run_cd(inputs: SpillSynthInputs, *, solver: Optional[str] = None) -> CDFit:
     gap_scm = y_treated_post - counterfactual_scm
 
     # Per-affected-unit spillover panel: {label: trajectory over T1 periods}.
-    spillover_panel = {
-        label: gamma[1 + k].copy()
-        for k, label in enumerate(inputs.affected_labels)
-    }
+    # We read from ``alpha`` (which has been mapped through A), not gamma,
+    # so this works uniformly across all three A-structures:
+    # * per_unit (Example 1): alpha[1+k] = gamma[1+k] (each affected unit's own coeff).
+    # * homogeneous (Example 2): alpha[1+k] = gamma[1] (shared b).
+    # * distance_decay (Example 3): alpha[i] = exp(-d_i) * gamma[1] (decayed).
+    spillover_panel: dict = {}
+    if inputs.spillover_structure == "distance_decay":
+        # No declared affected_labels under distance_decay; expose every
+        # control that received nonzero spillover.
+        decay = inputs.A[1:, 1]
+        control_labels_in_order = (*inputs.affected_labels, *inputs.clean_labels)
+        for k, label in enumerate(control_labels_in_order):
+            if decay[k] > 0:
+                spillover_panel[label] = alpha[1 + k].copy()
+    else:
+        for k, label in enumerate(inputs.affected_labels):
+            spillover_panel[label] = alpha[1 + k].copy()
 
-    # Cao-Dowd Section 4 P-test inference.
-    treatment_test, spillover_tests = run_per_period_tests(
+    # Cao-Dowd Section 4 P-test inference + signed CIs + joint test.
+    (treatment_test, spillover_tests, treatment_ci_95,
+     spillover_ci_95, joint_spillover_test) = run_per_period_tests(
         alpha_hat=alpha,
         Y_pre=inputs.Y_pre,
         a=a,
@@ -62,6 +103,37 @@ def run_cd(inputs: SpillSynthInputs, *, solver: Optional[str] = None) -> CDFit:
         A=inputs.A,
         affected_labels=inputs.affected_labels,
     )
+
+    # Cao-Dowd v3 Section 5.1.2 specification test for A.
+    kA = kappa_A_test(
+        Y_post=inputs.Y_post, alpha_hat=alpha,
+        Y_pre=inputs.Y_pre, a=a, B=B, A=inputs.A,
+    )
+
+    # Cao-Dowd v3 Section 5.2 pure-donor sensitivity. Only meaningful
+    # when at least one column of A is a unit basis vector for an
+    # affected (non-clean) control -- otherwise there are no
+    # "assumed-clean" units against which to bound misspecification.
+    pd_sens = None
+    if (np.abs(inputs.A).sum(axis=1) == 0).any():
+        pd_sens = pure_donor_sensitivity(inputs.Y_pre, B=B, A=inputs.A)
+
+    # Optional GMM-efficient variant (Proposition S.1).
+    efficient_fit = None
+    if weighting == "efficient":
+        Omega = estimate_omega_from_pre_residuals(inputs.Y_pre, a=a, B=B)
+        W = np.linalg.inv(Omega)
+        gamma_W, alpha_W, cond_AMA_W = sp_estimate_weighted(
+            inputs.Y_post, a=a, B=B, A=inputs.A, W=W,
+        )
+        efficient_fit = {
+            "gamma_W": gamma_W,
+            "alpha_W": alpha_W,
+            "W": W,
+            "Omega_hat": Omega,
+            "cond_AMA_W": cond_AMA_W,
+            "att_sp_W": float(alpha_W[0].mean()),
+        }
 
     return CDFit(
         a=a,
@@ -79,4 +151,10 @@ def run_cd(inputs: SpillSynthInputs, *, solver: Optional[str] = None) -> CDFit:
         cond_AMA=cond_AMA,
         treatment_test=treatment_test,
         spillover_tests=spillover_tests,
+        treatment_ci_95=treatment_ci_95,
+        spillover_ci_95=spillover_ci_95,
+        joint_spillover_test=joint_spillover_test,
+        kappa_A_test=kA,
+        pure_donor_sensitivity=pd_sens,
+        efficient_fit=efficient_fit,
     )

@@ -120,8 +120,8 @@ Two practical implications:
    unbiased). The Monte Carlo in Section 6.3 of the paper, reproduced
    under :ref:`spillsynth-mc`, illustrates both regimes.
 
-Method: ``method='cd'`` -- Cao & Dowd (2023)
---------------------------------------------
+Method: ``method='cd'`` -- Cao & Dowd (2023, v3)
+------------------------------------------------
 
 The Cao-Dowd estimator works in two steps. First, fit a Ferman-Pinto
 (2021) demeaned simplex SCM **for every unit** in the panel, treating
@@ -130,12 +130,10 @@ the resulting :math:`N \times N` weight matrix :math:`\widehat B`
 (with :math:`\widehat B_{ii} = 0`) and the length-:math:`N` intercept
 vector :math:`\widehat a`.
 
-Second, encode the spillover structure in an :math:`N \times (1+p)`
-matrix :math:`A` whose first column is a basis vector for the treated
-unit and whose remaining :math:`p` columns are basis vectors for each
-**declared potentially-affected** control unit (Example 3 of the
-paper). The treatment and spillover effects at post-period :math:`t` are
-recovered via the closed form (paper eq. 5)
+Second, encode the spillover structure in an :math:`N \times k` matrix
+:math:`A` -- one of the three examples in Section 2.2 of the paper --
+and recover the treatment-and-spillover effect vector at post-period
+:math:`t` via the closed form (paper eq. 6)
 
 .. math::
 
@@ -144,10 +142,45 @@ recovered via the closed form (paper eq. 5)
    \qquad \widehat M = (I - \widehat B)' (I - \widehat B).
 
 The full effect vector is :math:`\widehat \alpha_t = A \widehat \gamma_t`.
-Its first entry is the **spillover-adjusted ATT on the treated unit**;
-its remaining :math:`p` entries are the **per-affected-unit spillover
-effects**; the remaining :math:`N - 1 - p` entries are identically zero
-(reflecting the user's assertion that those units are unaffected).
+Row 0 is the **spillover-adjusted ATT on the treated unit**; the
+remaining rows hold the per-affected-unit spillover effects.
+
+Choice of A: the three Cao-Dowd v3 examples
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+SPILLSYNTH ships **all three** examples from Cao-Dowd (2023, v3),
+selected via ``SPILLSYNTHConfig.spillover_structure``. (The v3
+numbering renames v2's examples; we use v3 throughout.)
+
+* ``"per_unit"`` (**Example 1**, Section 2.2 -- *Limited range*; the
+  paper's leading case). Each declared affected unit gets its own
+  free spillover coefficient. :math:`A` is :math:`N \times (1 + p)`
+  with column 0 the treated-unit basis vector and columns
+  :math:`1, \dots, p` the basis vectors for each affected control.
+  Helper: :func:`build_A_per_unit`.
+
+* ``"homogeneous"`` (**Example 2**, Section 3.4). All declared
+  affected units share a single spillover coefficient :math:`b`.
+  :math:`A` is :math:`N \times 2` with column 0 = treated basis and
+  column 1 the indicator over affected rows. Use when domain
+  knowledge constrains spillovers to be of equal magnitude across the
+  affected set. Helper: :func:`build_A_homogeneous`.
+
+* ``"distance_decay"`` (**Example 3**, Section 7.1). Spillover decays
+  as :math:`\alpha_i = b \exp(-d_i)` with user-supplied
+  distances. :math:`A` is :math:`N \times 2` with row :math:`i` set to
+  :math:`(0, \exp(-d_i))`. **Every** control receives some spillover
+  (the magnitude is the variable of interest); see Section 7.1 for the
+  link to continuous-treatment models. Helper:
+  :func:`build_A_distance_decay`; supply ``unit_distances={label: d}``
+  to the config.
+
+Section 5.1 of the paper argues that a more conservative researcher
+should choose a larger :math:`p` (declare more units affected) -- if
+in doubt, include the unit. The :math:`\kappa_A` specification test
+(see :ref:`spillsynth-kappa-A`) and the pure-donor sensitivity
+analysis (see :ref:`spillsynth-pure-donor`) provide complementary
+diagnostics for the chosen :math:`A`.
 
 Why the demeaned simplex
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -184,22 +217,30 @@ Scope of this implementation
 
 Currently shipped:
 
-* Per-unit demeaned simplex SCM (eq. 1-2 of the paper).
-* The closed-form treatment-and-spillover estimator with Example-3
-  spillover structure (eq. 5 of the paper).
-* A vanilla-SCM counterfactual for side-by-side comparison.
-* Cao-Dowd Section 4 P-test inference: per-post-period tests for
-  ``H_0: alpha_1(t) = 0`` (treatment) and ``H_0: alpha_k(t) = 0``
-  (per-affected-unit spillover), with selector :math:`C`, identity
-  weight :math:`W_T = I`, and the empirical-CDF reference distribution
-  from pre-period quadratic-form residuals. See
-  :ref:`spillsynth-inference` below.
+* Per-unit demeaned simplex SCM (eq. 2-3 of the paper).
+* The closed-form treatment-and-spillover estimator (eq. 6 of v3)
+  under **all three A-matrix structures**: per-unit (Example 1),
+  homogeneous (Example 2), and distance-decay (Example 3).
+* Original Abadie 2010 SCM counterfactual for side-by-side comparison.
+* Cao-Dowd Section 4 P-test inference (Theorems 2 and 3): per-period
+  tests for ``H_0: alpha_1(t) = 0`` (treatment) and
+  ``H_0: alpha_k(t) = 0`` (per-affected-unit spillover), the **joint**
+  spillover hypothesis matching the MATLAB reference, signed
+  confidence intervals via test inversion, and the
+  :math:`\kappa_A` specification test for the chosen :math:`A`.
+  See :ref:`spillsynth-inference` and :ref:`spillsynth-kappa-A`.
+* Cao-Dowd v3 Section 5.2 **pure-donor sensitivity analysis** --
+  worst-case misspecification-bias bounds comparing SP against the
+  pure-donor SCM. See :ref:`spillsynth-pure-donor`.
+* Cao-Dowd v3 Section S.1.1 **GMM-efficient variant** (Proposition
+  S.1): :math:`\widehat \alpha^e` minimises asymptotic variance via
+  :math:`W = \widehat \Omega^{-1}`. See :ref:`spillsynth-efficient`.
 
 Not yet shipped (planned):
 
-* Distance-decay (Example 2) and homogeneous-set (Example 1)
-  spillover-structure helpers.
-* The GMM-efficient weighting variant from Section 7.1.
+* Multiple treated units (Section S.1.2).
+* Multiple post-treatment-period structure selection (Section S.1.3).
+* Covariates (Section S.1.4).
 
 Core API
 --------
@@ -236,6 +277,10 @@ Helper Modules
    :undoc-members:
 
 .. automodule:: mlsynth.utils.spillsynth_helpers.cd.inference
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.spillsynth_helpers.cd.sensitivity
    :members:
    :undoc-members:
 
@@ -524,6 +569,161 @@ paper gives the intuition (and the Monte Carlo below quantifies it):
 
    sp = res.cd.spillover_tests["u1"]  # PTestResult on H_0: alpha_{u1}(t) = 0
    # Same fields, indexed by affected-unit label.
+
+   # Joint spillover test (matches MATLAB reference): single rejection
+   # per post-period for H_0: alpha_2 = ... = alpha_{1+p} = 0 jointly.
+   jt = res.cd.joint_spillover_test   # PTestResult or None when p == 0
+
+   # 95% confidence intervals from inverting the level-5% P-test
+   # (Section 6.2 / MATLAB ``sp_andrews_te``).
+   res.cd.treatment_ci_95             # (T1, 2) [lower, upper] per period
+   res.cd.spillover_ci_95["u1"]       # likewise for each affected unit
+
+.. _spillsynth-kappa-A:
+
+A-specification test: the :math:`\kappa_A` statistic
+----------------------------------------------------
+
+**New in v3** (Section 5.1.2). The estimator's misspecification bias is
+linear in the *missed* spillover effects (eq. 10 of the paper), so a
+goodness-of-fit statistic on the residualised post-period outcome is
+informative about whether :math:`A` correctly captures the spillover
+structure. Define
+
+.. math::
+
+   \kappa_A = \| (I - \widehat B)(Y_{T+1} - \widehat \alpha) - \widehat a \|,
+
+a function of :math:`A` through :math:`\widehat \alpha`. Project the
+pre-period residual onto the orthogonal complement of the column space
+of :math:`(I - \widehat B) A`,
+
+.. math::
+
+   \widehat \Gamma_A = (I - \widehat B) A
+   \left( A' (I - \widehat B)' (I - \widehat B) A \right)^{-1}
+   A' (I - \widehat B)',
+
+and form the empirical CDF
+:math:`\widehat F^A_{\kappa, T}(x) = T^{-1} \sum_{t=1}^{T} \mathbf{1}\{
+\|(I - \widehat \Gamma_A) \widehat u_t\| \leq x\}`. Reject
+:math:`H_0`: "A correctly specifies the spillover effects" if
+:math:`\kappa_A` exceeds the empirical
+:math:`(1 - \tau)`-quantile.
+
+**Proposition 2** (Cao-Dowd v3). Under Assumption 3,
+:math:`\Pr(\kappa_A > \widehat q^A_{\kappa, 1 - \tau}) \to \Pr(\|(I -
+\Gamma_A) u_{T+1} + (I - \Gamma_A)(I - B) \alpha\| \geq q^A_{\kappa, 1
+- \tau})`. When :math:`A` is correctly specified the deterministic
+term vanishes and the rejection probability converges to the nominal
+:math:`\tau`.
+
+SPILLSYNTH always populates this test:
+
+.. code-block:: python
+
+   kA = res.cd.kappa_A_test           # KappaATestResult
+   kA.kappa_A                         # (T1,) per-period statistic
+   kA.p_value                         # (T1,) tail-mass p-value
+   kA.reject_05                       # (T1,) boolean
+
+For **A-selection**, use :func:`select_A_by_kappa` to pick among
+candidate :math:`A` matrices by minimising the mean
+:math:`\kappa_A` over post-periods (Section S.1.3 of the paper notes
+this is a heuristic with a single post-period and a consistent
+selector with multiple).
+
+.. _spillsynth-pure-donor:
+
+Pure-donor sensitivity analysis
+-------------------------------
+
+**New in v3** (Section 5.2). An alternative to SP is the *pure-donor*
+SCM, which simply drops every assumed-affected unit from the donor
+pool. Both methods are asymptotically unbiased when :math:`A` is
+correctly specified, but they differ in robustness to
+misspecification: if some assumed-clean control was actually exposed
+to a spillover of magnitude :math:`\bar \alpha`, what bias does that
+inject?
+
+Section 5.2 shows the worst-case bias is **linear** in
+:math:`\bar \alpha` with coefficient
+
+* SP: :math:`c_p^{SP} = \sum_{j=1}^{p} |\widetilde w_{SP, j}|`,
+
+* PD: :math:`c_p^{PD} = \sum_{j=1}^{p} |\widetilde w_{PD, j}|`,
+
+where :math:`\widetilde w_{SP}` and :math:`\widetilde w_{PD}` are the
+relevant weight vectors (treated-row of the SP misspecification
+operator, and the treated unit's SCM weights from the pure-donor fit
+respectively), each sorted by absolute value in descending order. For
+:math:`p` missed spillover units, the identified bias set is
+:math:`[-c_p^M \bar \alpha, +c_p^M \bar \alpha]` for
+:math:`M \in \{SP, PD\}`.
+
+SPILLSYNTH exposes the raw weights so users can reproduce Figure 3 of
+v3 (the Prop-99 sensitivity panel) or compute the smallest
+:math:`\bar \alpha` capable of invalidating their headline estimate:
+
+.. code-block:: python
+
+   pds = res.cd.pure_donor_sensitivity      # PureDonorSensitivity or None
+   pds.w_sp, pds.w_pd                       # sorted |weight| vectors
+   pds.n_clean                              # number of assumed-clean controls
+   sp_bias, pd_bias = pds.bias_bounds(p=1, alpha_bar_grid=np.linspace(0, 40, 100))
+   # sp_bias[i] is the SP method's worst-case bias bound at α̅ = grid[i],
+   # for the single worst-case missed spillover; pd_bias[i] is the
+   # pure-donor SCM's analogous bound.
+
+The :math:`\widetilde w_{SP}` vector is the first row of
+:math:`A (A' (I - \widehat B)' (I - \widehat B) A)^{-1} A' (I -
+\widehat B)' (I - \widehat B) - I_N`, restricted to columns that
+correspond to clean (assumed-unaffected) controls. The
+:math:`\widetilde w_{PD}` vector comes from refitting a single
+demeaned simplex SCM on the panel after deleting every assumed-
+affected row.
+
+.. _spillsynth-efficient:
+
+GMM-efficient weighting (Proposition S.1)
+-----------------------------------------
+
+**New in v3** (Section S.1.1). The default Cao-Dowd estimator
+minimises :math:`\| \widehat u_{T+1} \|`. The generalised variant
+minimises :math:`\| W^{1/2} \widehat u_{T+1} \|` for a positive-
+definite weighting matrix :math:`W`. The closed-form is
+
+.. math::
+
+   \widehat \gamma_W = (A' \widehat M_W A)^{-1}\, A' (I - \widehat B)' W\,
+   \big[ (I - \widehat B) Y_{T+1} - \widehat a \big], \qquad
+   \widehat M_W = (I - \widehat B)' W (I - \widehat B).
+
+**Proposition S.1**. Letting :math:`\Omega = \mathrm{Cov}[u_1]` and
+choosing :math:`W^e = \Omega^{-1}` (estimated by inverting the sample
+residual covariance), the resulting estimator :math:`\widehat \alpha^e`
+has asymptotic variance **no larger** than the unweighted
+:math:`\widehat \alpha` -- with strict reduction whenever
+:math:`\Omega` is not a scalar multiple of identity.
+
+Set ``weighting='efficient'`` on the config to obtain both fits side
+by side:
+
+.. code-block:: python
+
+   res = SPILLSYNTH({..., "weighting": "efficient", ...}).fit()
+   res.att                            # ATT under W = I (the default)
+   res.cd.efficient_fit["att_sp_W"]   # ATT under W = Ω̂⁻¹
+   res.cd.efficient_fit["alpha_W"]    # (N, T1) effects under W
+   res.cd.efficient_fit["Omega_hat"]  # the sample residual covariance
+
+Caveat (paper Remark to Prop S.1): :math:`\widehat \Omega` is a
+``(N, N)`` matrix with rank at most :math:`T_0`, so when :math:`T_0 <
+N` (the typical SCM regime) the inverse must be regularised. The
+implementation adds a small ridge to :math:`\widehat \Omega` before
+inversion. With small :math:`T_0` the efficient variant may not
+actually reduce variance in practice; treat it as a refinement when
+:math:`T_0 \gg N`.
 
 .. _spillsynth-mc:
 

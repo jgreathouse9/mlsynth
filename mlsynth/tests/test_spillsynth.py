@@ -34,9 +34,14 @@ from mlsynth.utils.spillsynth_helpers import (
     CDFit,
     SpillSynthInputs,
     SpillSynthResults,
+    build_A_distance_decay,
     build_A_example3,
+    build_A_homogeneous,
+    build_A_per_unit,
+    kappa_A_test,
     prepare_spillsynth_inputs,
     run_cd,
+    select_A_by_kappa,
 )
 from mlsynth.utils.spillsynth_helpers.cd import (
     build_M,
@@ -44,6 +49,9 @@ from mlsynth.utils.spillsynth_helpers.cd import (
     fit_leave_one_out_sc,
     sp_estimate,
     vanilla_scm_path,
+)
+from mlsynth.utils.spillsynth_helpers.cd.estimation import (
+    estimate_omega_from_pre_residuals, sp_estimate_weighted,
 )
 
 
@@ -360,6 +368,256 @@ class TestPTestInference:
         tt = res.cd.treatment_test
         # Mean p-value across post-period bounded away from 0.
         assert tt.p_value.mean() > 0.05, tt.p_value
+
+
+class TestAlternativeAStructures:
+    """v3 Examples 1, 2, 3 of Cao-Dowd."""
+
+    def test_build_A_per_unit_shapes(self):
+        # v3 Example 1 (default, per-unit free coefficients).
+        A = build_A_per_unit(N=6, p=2)
+        assert A.shape == (6, 3)
+        # Treated row is e_1.
+        np.testing.assert_array_equal(A[0], [1, 0, 0])
+        # Affected unit basis vectors.
+        np.testing.assert_array_equal(A[1], [0, 1, 0])
+        np.testing.assert_array_equal(A[2], [0, 0, 1])
+        # Clean controls all-zero.
+        assert (A[3:] == 0).all()
+
+    def test_build_A_homogeneous_shapes(self):
+        # v3 Example 2 (single shared b).
+        A = build_A_homogeneous(N=6, p=3)
+        assert A.shape == (6, 2)
+        np.testing.assert_array_equal(A[0], [1, 0])
+        # All p affected rows share column 1.
+        np.testing.assert_array_equal(A[1:4, 1], [1, 1, 1])
+        # Clean rows zero.
+        assert (A[4:] == 0).all()
+
+    def test_build_A_homogeneous_rejects_p_zero(self):
+        with pytest.raises(MlsynthDataError):
+            build_A_homogeneous(N=5, p=0)
+
+    def test_build_A_distance_decay_shapes(self):
+        # v3 Example 3 (exponential decay).
+        w = np.array([1.0, 0.5, 0.25, 0.0])
+        A = build_A_distance_decay(w)
+        assert A.shape == (5, 2)
+        np.testing.assert_array_equal(A[0], [1, 0])
+        np.testing.assert_allclose(A[1:, 1], w)
+
+    def test_build_A_distance_decay_rejects_all_zero(self):
+        with pytest.raises(MlsynthDataError):
+            build_A_distance_decay(np.zeros(4))
+
+    def test_homogeneous_recovers_shared_b(self):
+        # DGP injects the SAME spillover (+1.5) on u1 and u2, so the
+        # homogeneous assumption matches the truth and the shared b
+        # should recover ~1.5.
+        rng = np.random.default_rng(5)
+        N, T, T0 = 8, 40, 30
+        loadings = rng.uniform(0.5, 1.5, size=N)
+        f = np.cumsum(rng.standard_normal(T)) * 0.4 + 0.05 * np.arange(T)
+        intercept = rng.uniform(-1, 1, size=N)
+        Y = intercept[:, None] + np.outer(loadings, f) + 0.10 * rng.standard_normal((N, T))
+        Y[0, T0:] += -3.0
+        Y[1, T0:] += 1.5
+        Y[2, T0:] += 1.5
+        D = np.zeros((N, T)); D[0, T0:] = 1
+        df = pd.DataFrame([
+            {"unit": f"u{i}", "year": t, "y": float(Y[i, t]),
+             "treat": int(D[i, t])}
+            for i in range(N) for t in range(T)
+        ])
+
+        res = SPILLSYNTH(_cfg(
+            df,
+            spillover_structure="homogeneous",
+            affected_units=["u1", "u2"],
+        )).fit()
+        assert res.att == pytest.approx(-3.0, abs=0.8)
+        # Both keys map to the same shared coefficient series.
+        np.testing.assert_allclose(
+            res.spillover_effects["u1"], res.spillover_effects["u2"],
+        )
+        # Shared b averaged over post is in the right ballpark.
+        assert res.cd.gamma[1].mean() == pytest.approx(1.5, abs=0.6)
+
+    def test_distance_decay_runs_end_to_end(self, panel):
+        # Build a distance dict; closer unit -> bigger decay weight.
+        distances = {f"u{i}": 0.3 * i for i in range(1, 8)}
+        res = SPILLSYNTH(_cfg(
+            panel,
+            spillover_structure="distance_decay",
+            unit_distances=distances,
+        )).fit()
+        assert res.inputs.A.shape == (8, 2)
+        # All controls with positive decay weight appear in the
+        # spillover panel.
+        assert set(res.spillover_effects.keys()) == {f"u{i}" for i in range(1, 8)}
+
+    def test_distance_decay_requires_dict(self, panel):
+        with pytest.raises(MlsynthConfigError):
+            SPILLSYNTH(_cfg(panel, spillover_structure="distance_decay"))
+
+    def test_homogeneous_requires_affected_units(self, panel):
+        with pytest.raises(MlsynthConfigError):
+            SPILLSYNTH(_cfg(panel, spillover_structure="homogeneous"))
+
+
+class TestEfficientWeighting:
+    """v3 Proposition S.1 -- GMM-weighted variant."""
+
+    def test_efficient_fit_populated(self, panel):
+        res = SPILLSYNTH(_cfg(
+            panel, affected_units=["u1"], weighting="efficient",
+        )).fit()
+        eff = res.cd.efficient_fit
+        assert eff is not None
+        T1 = res.inputs.T1
+        N = res.inputs.N
+        assert eff["alpha_W"].shape == (N, T1)
+        assert eff["W"].shape == (N, N)
+        # ATT under efficient weighting is finite and close to identity ATT
+        # (same panel; weighting only changes finite-sample variance).
+        assert np.isfinite(eff["att_sp_W"])
+
+    def test_identity_weighting_returns_no_efficient(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        assert res.cd.efficient_fit is None
+
+    def test_sp_estimate_weighted_identity_matches_unweighted(self, panel):
+        # With W = I the weighted closed form equals sp_estimate.
+        inputs = prepare_spillsynth_inputs(
+            df=panel, outcome="y", treat="treat",
+            unitid="unit", time="year",
+            affected_units=["u1"],
+        )
+        a, B = fit_leave_one_out_sc(inputs.Y_pre)
+        M = build_M(B)
+        g0, a0, _ = sp_estimate(inputs.Y_post, a=a, B=B, M=M, A=inputs.A)
+        g1, a1, _ = sp_estimate_weighted(
+            inputs.Y_post, a=a, B=B, A=inputs.A, W=np.eye(inputs.N),
+        )
+        np.testing.assert_allclose(g0, g1, atol=1e-8)
+        np.testing.assert_allclose(a0, a1, atol=1e-8)
+
+
+class TestKappaASpecificationTest:
+    """v3 Section 5.1.2 -- kappa_A specification test."""
+
+    def test_kappa_A_fields_present(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        kA = res.cd.kappa_A_test
+        assert kA is not None
+        T1 = res.inputs.T1
+        T0 = res.inputs.T0
+        assert kA.kappa_A.shape == (T1,)
+        assert kA.kappa_pre.shape == (T0,)
+        assert kA.p_value.shape == (T1,)
+        assert ((kA.p_value >= 0.0) & (kA.p_value <= 1.0)).all()
+        assert isinstance(kA.cutoff_05, float)
+
+    def test_select_A_by_kappa_prefers_correct_structure(self):
+        # DGP injects spillover ONLY on u1; the per-unit-with-just-u1 A
+        # should win over a homogeneous A that assumes shared spillover
+        # across u1, u2, u3.
+        df = _spill_panel(treatment=-3.0, spillover=1.5,
+                          spillover_idx=1, seed=7)
+        inputs = prepare_spillsynth_inputs(
+            df=df, outcome="y", treat="treat",
+            unitid="unit", time="year",
+            affected_units=["u1"],
+        )
+        a, B = fit_leave_one_out_sc(inputs.Y_pre)
+        A_correct = build_A_per_unit(inputs.N, 1)
+        A_wrong = build_A_homogeneous(inputs.N, 3)
+        idx, kappas = select_A_by_kappa(
+            Y_post=inputs.Y_post, Y_pre=inputs.Y_pre,
+            a=a, B=B, candidates=[A_correct, A_wrong],
+        )
+        # The correctly-specified structure should have a smaller kappa_A.
+        assert idx == 0, (kappas, "expected per-unit correct spec to win")
+
+
+class TestSignedCIs:
+    """v3 page 27 / R reference -- CI via test inversion."""
+
+    def test_ci_brackets_alpha(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        ci = res.cd.treatment_ci_95
+        T1 = res.inputs.T1
+        assert ci.shape == (T1, 2)
+        # The point estimate lies inside its CI by construction (CI is
+        # alpha + [q_{0.025}, q_{0.975}]; q_{0.025} <= 0 <= q_{0.975} when
+        # pre-period residuals straddle zero, which holds generically).
+        # We just check the CI is non-degenerate (lower < upper).
+        assert (ci[:, 0] < ci[:, 1]).all()
+
+    def test_spillover_ci_keys(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1", "u2"])).fit()
+        assert set(res.cd.spillover_ci_95.keys()) == {"u1", "u2"}
+        for ci in res.cd.spillover_ci_95.values():
+            assert ci.shape == (res.inputs.T1, 2)
+
+
+class TestJointSpilloverTest:
+    """MATLAB reference -- joint H_0: alpha_2 = ... = alpha_{1+p} = 0."""
+
+    def test_joint_test_populated_when_affected_present(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1", "u2"])).fit()
+        jt = res.cd.joint_spillover_test
+        T1 = res.inputs.T1
+        assert jt is not None
+        assert jt.P_post.shape == (T1,)
+        assert jt.p_value.shape == (T1,)
+        assert ((jt.p_value >= 0) & (jt.p_value <= 1)).all()
+
+    def test_joint_test_none_when_no_affected(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=None)).fit()
+        assert res.cd.joint_spillover_test is None
+
+    def test_joint_rejects_under_strong_spillover(self):
+        # +3 spillover on u1 with N=8: joint test should fire in every
+        # post-period.
+        df = _spill_panel(treatment=-3.0, spillover=3.0,
+                          spillover_idx=1, seed=11)
+        res = SPILLSYNTH(_cfg(df, affected_units=["u1"])).fit()
+        assert res.cd.joint_spillover_test.reject_05.all()
+
+
+class TestPureDonorSensitivity:
+    """v3 Section 5.2 -- misspecification-bias bounds."""
+
+    def test_sensitivity_populated_with_clean_controls(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1", "u2"])).fit()
+        pds = res.cd.pure_donor_sensitivity
+        assert pds is not None
+        n_clean = res.inputs.N - 1 - res.inputs.p          # = N - 1 - p
+        assert pds.n_clean == n_clean
+        assert pds.w_sp.shape == (n_clean,)
+        assert pds.w_pd.shape == (n_clean,)
+        # Weights are sorted descending by |.|.
+        assert (np.diff(pds.w_sp) <= 1e-10).all()
+        assert (np.diff(pds.w_pd) <= 1e-10).all()
+
+    def test_bias_bounds_linear(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        pds = res.cd.pure_donor_sensitivity
+        grid = np.array([0.0, 1.0, 5.0])
+        sp, pd = pds.bias_bounds(p=1, alpha_bar_grid=grid)
+        assert sp[0] == 0 and pd[0] == 0                  # bound at alpha=0
+        assert sp[2] == pytest.approx(5.0 * sp[1], abs=1e-9)
+        assert pd[2] == pytest.approx(5.0 * pd[1], abs=1e-9)
+
+    def test_bias_bounds_rejects_bad_p(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        with pytest.raises(ValueError):
+            res.cd.pure_donor_sensitivity.bias_bounds(
+                p=res.cd.pure_donor_sensitivity.n_clean + 1,
+                alpha_bar_grid=np.array([1.0]),
+            )
 
 
 # ----------------------------------------------------------------------

@@ -88,3 +88,90 @@ def vanilla_scm_path(
     outcomes.
     """
     return a[0] + B[0] @ Y_post
+
+
+# ---------------------------------------------------------------------------
+# Cao-Dowd v3 Section S.1.1: efficient-weighted (GMM-style) variant
+# ---------------------------------------------------------------------------
+
+
+def estimate_omega_from_pre_residuals(
+    Y_pre: np.ndarray, a: np.ndarray, B: np.ndarray, *, ridge: float = 1e-6,
+) -> np.ndarray:
+    """Sample covariance of the pre-period residuals plus a ridge.
+
+    Implements :math:`\\widehat \\Omega = T_0^{-1} \\sum_{t=1}^{T_0}
+    \\widehat u_t \\widehat u_t^\\prime + \\lambda I`, where
+    :math:`\\widehat u_t = (I - \\widehat B) Y_t - \\widehat a` is the
+    in-sample SCM residual vector at pre-period :math:`t`. The ridge
+    ensures positive-definiteness when :math:`T_0 < N`.
+    """
+    N, T0 = Y_pre.shape
+    U = (np.eye(N) - B) @ Y_pre - a[:, None]            # (N, T0)
+    Omega = (U @ U.T) / T0
+    Omega = Omega + ridge * np.eye(N)
+    return Omega
+
+
+def sp_estimate_weighted(
+    Y_post: np.ndarray,
+    *,
+    a: np.ndarray,
+    B: np.ndarray,
+    A: np.ndarray,
+    W: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, float]:
+    """Weighted Cao-Dowd estimator with a user-supplied weighting matrix.
+
+    Cao-Dowd v3 Section S.1.1 generalisation: minimise
+    :math:`\\|W^{1/2} \\widehat u_{T+1}\\|` rather than the unweighted
+    Euclidean norm, where :math:`\\widehat u_{T+1} = (I - \\widehat B)
+    (Y_{T+1} - A \\gamma) - \\widehat a`. The closed form is
+
+    .. math::
+
+       \\widehat \\gamma_W = (A^\\prime \\widehat M_W A)^{-1}
+       A^\\prime (I - \\widehat B)^\\prime W
+       \\left[(I - \\widehat B) Y_{T+1} - \\widehat a\\right],
+
+    with :math:`\\widehat M_W = (I - \\widehat B)^\\prime W (I - \\widehat B)`.
+
+    Pass ``W`` = identity to recover :func:`sp_estimate`. Pass ``W``
+    = an estimator of :math:`\\Omega^{-1}` (e.g.\\
+    ``np.linalg.inv(estimate_omega_from_pre_residuals(...))``) to obtain
+    the efficient variant :math:`\\widehat \\alpha^e` of Proposition S.1
+    -- which has asymptotic variance no larger than the unweighted
+    estimator.
+
+    Parameters
+    ----------
+    Y_post : np.ndarray
+        Shape ``(N, T1)`` post-treatment outcomes.
+    a, B : np.ndarray
+        Leave-one-out SCM artefacts.
+    A : np.ndarray
+        Shape ``(N, k)`` spillover-structure matrix.
+    W : np.ndarray
+        Shape ``(N, N)`` weighting matrix. Should be positive-definite;
+        the caller is responsible for any regularisation.
+
+    Returns
+    -------
+    gamma : np.ndarray
+        Shape ``(k, T1)``.
+    alpha : np.ndarray
+        Shape ``(N, T1)``.
+    cond_AMA_W : float
+        Condition number of :math:`A^\\prime \\widehat M_W A`
+        (Assumption 1(d) diagnostic under the weighted estimator).
+    """
+    N, T1 = Y_post.shape
+    I_B = np.eye(N) - B
+    M_W = I_B.T @ W @ I_B
+    AMA_W = A.T @ M_W @ A
+    cond_AMA_W = float(np.linalg.cond(AMA_W))
+    AMA_W_inv = np.linalg.inv(AMA_W)
+    residual = I_B @ Y_post - a[:, None]                # (N, T1)
+    gamma = AMA_W_inv @ (A.T @ I_B.T @ W @ residual)     # (k, T1)
+    alpha = A @ gamma                                    # (N, T1)
+    return gamma, alpha, cond_AMA_W

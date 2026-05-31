@@ -165,6 +165,64 @@ def p_test(
     )
 
 
+def signed_ci(
+    *,
+    alpha_hat: np.ndarray,
+    U_pre: np.ndarray,
+    G_hat: np.ndarray,
+    C: np.ndarray,
+    alpha_level: float = 0.05,
+) -> np.ndarray:
+    """Confidence interval for ``C alpha`` obtained by inverting the P-test.
+
+    The R reference implementation (``scmSpillover::sp_andrews_te``) and
+    Section 6.2 of the paper construct the CI by exploiting the fact
+    that under :math:`H_0: C \\alpha = c_0`, the test statistic is
+    asymptotically equivalent to :math:`(C G u_{T+1} - (c_0 - C
+    \\alpha))^2`. Inverting the level-:math:`\\tau` test gives
+
+    .. math::
+
+       \\text{CI} = \\Big[\\, C \\widehat \\alpha + q_{\\tau/2}(\\{C
+       \\widehat G \\widehat u_t\\}), \\quad C \\widehat \\alpha +
+       q_{1-\\tau/2}(\\{C \\widehat G \\widehat u_t\\})\\, \\Big].
+
+    Only well-defined for a *single-row* selector ``C``; this function
+    raises if ``C.shape[0] != 1``.
+
+    Parameters
+    ----------
+    alpha_hat : np.ndarray
+        Shape ``(N, T1)``.
+    U_pre : np.ndarray
+        Shape ``(N, T0)`` pre-period residuals.
+    G_hat : np.ndarray
+        Shape ``(N, N)`` operator (see :func:`G_matrix`).
+    C : np.ndarray
+        Shape ``(1, N)`` linear selector.
+    alpha_level : float
+        Significance level (default 0.05 → 95% CI).
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(T1, 2)`` with columns ``[lower, upper]``.
+    """
+    if C.ndim != 2 or C.shape[0] != 1:
+        raise ValueError(
+            "signed_ci requires C with shape (1, N); for multi-row C "
+            "the inversion is not a scalar interval."
+        )
+    point = (C @ alpha_hat).ravel()                       # (T1,)
+    series = (C @ G_hat @ U_pre).ravel()                  # (T0,)
+    q_lo = float(np.quantile(series, alpha_level / 2.0))
+    q_hi = float(np.quantile(series, 1.0 - alpha_level / 2.0))
+    out = np.empty((point.size, 2))
+    out[:, 0] = point + q_lo
+    out[:, 1] = point + q_hi
+    return out
+
+
 def run_per_period_tests(
     *,
     alpha_hat: np.ndarray,
@@ -173,16 +231,28 @@ def run_per_period_tests(
     B: np.ndarray,
     A: np.ndarray,
     affected_labels,
-) -> "tuple[PTestResult, Dict[Any, PTestResult]]":
-    """Run the two SPILLSYNTH inferences of practical interest.
+) -> "tuple[PTestResult, Dict[Any, PTestResult], np.ndarray, Dict[Any, np.ndarray], Optional[PTestResult]]":
+    """Run the SPILLSYNTH inferences of practical interest, plus CIs.
 
     Returns
     -------
     treatment_test : PTestResult
         Per-post-period test of ``H_0: alpha_1(t) = 0``.
     spillover_tests : Dict[label, PTestResult]
-        Per-affected-unit, per-post-period test of
-        ``H_0: alpha_k(t) = 0``.
+        Per-affected-unit, per-post-period test of ``H_0: alpha_k(t) = 0``
+        (one rejection per declared affected unit per period).
+    treatment_ci_95 : np.ndarray
+        Shape ``(T1, 2)`` 95% confidence interval on the treatment effect
+        in each post-period (from :func:`signed_ci`).
+    spillover_ci_95 : Dict[label, np.ndarray]
+        Per-affected-unit 95% CI on the spillover effect in each
+        post-period.
+    joint_spillover_test : Optional[PTestResult]
+        Cao-Dowd MATLAB-reference *joint* spillover hypothesis with
+        :math:`C = [0_{p \\times 1} \\mid I_p \\mid 0_{p \\times
+        (N - 1 - p)}]` — one rejection per period that tests all
+        affected units together. ``None`` when ``p == 0`` (no affected
+        units declared).
     """
     N = Y_pre.shape[0]
     U_pre = compute_pre_residuals(Y_pre, a, B)
@@ -192,13 +262,182 @@ def run_per_period_tests(
     treatment_test = p_test(
         alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_treat,
     )
+    treatment_ci_95 = signed_ci(
+        alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_treat,
+    )
 
     spillover_tests: Dict[Any, PTestResult] = {}
+    spillover_ci_95: Dict[Any, np.ndarray] = {}
     for k, label in enumerate(affected_labels):
         row = 1 + k                                     # affected units live at rows 1..p
         e_k = np.zeros((1, N)); e_k[0, row] = 1.0
         spillover_tests[label] = p_test(
             alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_k,
         )
+        spillover_ci_95[label] = signed_ci(
+            alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_k,
+        )
 
-    return treatment_test, spillover_tests
+    joint_spillover_test: Optional[PTestResult] = None
+    p = len(affected_labels)
+    if p > 0:
+        # C is (p, N) selecting rows 1..p of alpha; this is the MATLAB
+        # reference `sp_andrews(... C = [0_{(N-1)x1} I_{N-1}] ...)`
+        # restricted to the declared affected rows (the remaining rows
+        # of alpha are identically zero in any case under per_unit/
+        # homogeneous A-structures).
+        C_joint = np.zeros((p, N))
+        for k in range(p):
+            C_joint[k, 1 + k] = 1.0
+        joint_spillover_test = p_test(
+            alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=C_joint,
+        )
+
+    return (treatment_test, spillover_tests, treatment_ci_95,
+            spillover_ci_95, joint_spillover_test)
+
+
+# ---------------------------------------------------------------------------
+# Cao-Dowd v3 Section 5.1.2: kappa_A specification test
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class KappaATestResult:
+    """Outcome of the Cao-Dowd v3 :math:`\\kappa_A` specification test.
+
+    Tests :math:`H_0`: the chosen spillover-structure matrix :math:`A`
+    correctly specifies the spillover effects.
+
+    Parameters
+    ----------
+    kappa_A : np.ndarray
+        Shape ``(T1,)``. Per-post-period
+        :math:`\\kappa_A = \\|(I - \\widehat B)(Y_{T+s} - \\widehat
+        \\alpha_{T+s}) - \\widehat a\\|`.
+    kappa_pre : np.ndarray
+        Shape ``(T0,)``. Pre-period reference values
+        :math:`\\|(I - \\widehat \\Gamma_A) \\widehat u_t\\|`,
+        where :math:`\\widehat \\Gamma_A = (I - \\widehat B) A
+        (A^\\prime (I - \\widehat B)^\\prime (I - \\widehat B) A)^{-1}
+        A^\\prime (I - \\widehat B)^\\prime` is the projection onto the
+        span of columns of :math:`(I - \\widehat B) A`.
+    p_value : np.ndarray
+        Shape ``(T1,)``. Per-period p-value
+        :math:`\\Pr(\\kappa_{\\text{pre}} \\geq \\kappa_A)` from the
+        pre-period empirical CDF.
+    cutoff_05 : float
+        95th percentile of ``kappa_pre`` — reject correct specification
+        at the 5% level when ``kappa_A > cutoff_05``.
+    reject_05 : np.ndarray
+        Shape ``(T1,)`` of bool.
+    """
+
+    kappa_A: np.ndarray
+    kappa_pre: np.ndarray
+    p_value: np.ndarray
+    cutoff_05: float
+    reject_05: np.ndarray
+
+
+def kappa_A_test(
+    *,
+    Y_post: np.ndarray,
+    alpha_hat: np.ndarray,
+    Y_pre: np.ndarray,
+    a: np.ndarray,
+    B: np.ndarray,
+    A: np.ndarray,
+) -> KappaATestResult:
+    """Per-post-period :math:`\\kappa_A` specification test (Section 5.1.2).
+
+    ``kappa_A`` measures how well the chosen A-matrix explains the
+    spillover-residualised post-period outcome. Small values indicate a
+    correctly-specified A; large values indicate missing spillover
+    structure.
+
+    Reference distribution: project the pre-period residuals
+    :math:`\\widehat u_t` orthogonally to the span of
+    :math:`(I - \\widehat B) A` and take the Euclidean norm of the
+    remainder. Under correct specification, the post-period
+    :math:`\\kappa_A` is asymptotically distributed like a draw from
+    this reference (Proposition 2 of Cao-Dowd v3).
+
+    For multi-period selection, the user may take the column-mean of
+    ``kappa_A`` to obtain a single statistic per A-matrix candidate
+    (Section S.1.3 of the paper).
+    """
+    N = Y_pre.shape[0]
+    I_B = np.eye(N) - B
+
+    # Sample projection Γ̂_A onto colspan((I - B̂) A).
+    IB_A = I_B @ A                                          # (N, k)
+    AMA = IB_A.T @ IB_A                                     # (k, k)
+    AMA_inv = np.linalg.inv(AMA)
+    Gamma_A = IB_A @ AMA_inv @ IB_A.T                       # (N, N)
+    I_minus_Gamma = np.eye(N) - Gamma_A
+
+    # Post-period: kappa_A_s = ||(I - B̂)(Y_post - α̂_s) - â||.
+    post_residual = I_B @ (Y_post - alpha_hat) - a[:, None]   # (N, T1)
+    kappa_A = np.linalg.norm(post_residual, axis=0)           # (T1,)
+
+    # Pre-period reference: ||(I - Γ̂_A) û_t||
+    U_pre = I_B @ Y_pre - a[:, None]                          # (N, T0)
+    kappa_pre = np.linalg.norm(I_minus_Gamma @ U_pre, axis=0) # (T0,)
+
+    cutoff_05 = float(np.quantile(kappa_pre, 0.95))
+    reject_05 = kappa_A > cutoff_05
+    p_value = np.array([float(np.mean(kappa_pre >= k)) for k in kappa_A])
+
+    return KappaATestResult(
+        kappa_A=kappa_A, kappa_pre=kappa_pre,
+        p_value=p_value, cutoff_05=cutoff_05, reject_05=reject_05,
+    )
+
+
+def select_A_by_kappa(
+    *,
+    Y_post: np.ndarray,
+    Y_pre: np.ndarray,
+    a: np.ndarray,
+    B: np.ndarray,
+    candidates,
+) -> "tuple[int, np.ndarray]":
+    """Heuristic Cao-Dowd v3 A-selection: ``argmin_A kappa_A``.
+
+    For each candidate A-matrix, refits the SP estimator under that A,
+    computes the multi-period mean of :math:`\\kappa_A` (Section S.1.3,
+    averaged across post-periods), and returns the index of the
+    smallest. Useful for choosing between, say, "per_unit" and
+    "homogeneous" structures given the same affected-unit set.
+
+    Parameters
+    ----------
+    candidates : Sequence[np.ndarray]
+        List of ``A`` matrices, all of shape ``(N, k_i)`` (``k_i`` may
+        differ across candidates).
+
+    Returns
+    -------
+    best_index : int
+        Index of the candidate with the smallest mean-kappa_A.
+    kappa_means : np.ndarray
+        Length ``len(candidates)`` vector of mean-kappa_A values.
+
+    Notes
+    -----
+    Section S.1.3 of the paper notes that consistent selection requires
+    multiple post-periods (so ``T1 >= 2``); with a single post-period
+    this is a heuristic that may misselect under uninformative noise.
+    """
+    from .estimation import build_M, sp_estimate                  # local import to avoid cycle
+
+    kappa_means = np.empty(len(candidates))
+    M = build_M(B)
+    for i, A in enumerate(candidates):
+        _gamma, alpha, _cond = sp_estimate(Y_post, a=a, B=B, M=M, A=A)
+        res = kappa_A_test(
+            Y_post=Y_post, alpha_hat=alpha, Y_pre=Y_pre, a=a, B=B, A=A,
+        )
+        kappa_means[i] = float(res.kappa_A.mean())
+    return int(np.argmin(kappa_means)), kappa_means

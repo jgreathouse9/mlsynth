@@ -25,7 +25,8 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 import numpy as np
 
 if TYPE_CHECKING:
-    from .cd.inference import PTestResult
+    from .cd.inference import KappaATestResult, PTestResult
+    from .cd.sensitivity import PureDonorSensitivity
 
 
 @dataclass(frozen=True)
@@ -69,8 +70,14 @@ class SpillSynthInputs:
     T1 : int
         Number of post-treatment periods.
     p : int
-        Number of potentially-affected control units (so ``A`` has
-        ``1 + p`` columns).
+        Number of potentially-affected control units. ``A`` has
+        ``1 + p`` columns under ``"per_unit"`` (Cao-Dowd v3 Example 1),
+        or ``2`` columns under ``"homogeneous"`` (v3 Example 2) and
+        ``"distance_decay"`` (v3 Example 3).
+    spillover_structure : str
+        One of ``"per_unit"`` (Cao-Dowd v3 Example 1, leading case),
+        ``"homogeneous"`` (v3 Example 2), ``"distance_decay"``
+        (v3 Example 3). Selects which A-matrix construction was used.
     """
 
     Y: np.ndarray
@@ -88,6 +95,7 @@ class SpillSynthInputs:
     T0: int
     T1: int
     p: int
+    spillover_structure: str = "per_unit"
 
 
 @dataclass(frozen=True)
@@ -148,6 +156,34 @@ class CDFit:
     spillover_tests : Dict[Any, PTestResult]
         Per-affected-unit Cao-Dowd P-test for ``H_0: alpha_k(t) = 0``
         at each post-period. Keyed by affected-unit label.
+    treatment_ci_95 : Optional[np.ndarray]
+        Shape ``(T1, 2)``. 95% confidence interval on the treated
+        unit's treatment effect in each post-period, obtained by
+        inverting the level-5% P-test (Cao-Dowd Section 6.2 / R
+        reference).
+    spillover_ci_95 : Dict[Any, np.ndarray]
+        Per-affected-unit 95% confidence interval on the spillover
+        effect in each post-period.
+    joint_spillover_test : Optional[PTestResult]
+        Cao-Dowd MATLAB-reference *joint* spillover test (single
+        rejection per post-period) with selector
+        :math:`C = [0_{p \\times 1} \\mid I_p \\mid 0]`. ``None`` when
+        no affected units are declared (``p == 0``).
+    kappa_A_test : Optional[KappaATestResult]
+        Cao-Dowd v3 Section 5.1.2 specification test for the chosen
+        A-matrix.
+    pure_donor_sensitivity : Optional[PureDonorSensitivity]
+        Cao-Dowd v3 Section 5.2 worst-case misspecification-bias
+        weights for SP vs the pure-donor SCM, as a function of the
+        number ``p`` of missed spillovers. ``None`` when ``A`` declares
+        every unit affected (no clean controls to bound bias against).
+    efficient_fit : Optional[Dict[str, np.ndarray]]
+        When the user requests ``weighting='efficient'``, this holds
+        the GMM-weighted estimator artefacts (Cao-Dowd v3 Section
+        S.1.1, Proposition S.1): keys are ``gamma_W``, ``alpha_W``,
+        ``W`` (the weighting matrix used, typically the inverse of the
+        sample residual covariance), and ``cond_AMA_W``. Otherwise
+        ``None``.
     """
 
     a: np.ndarray
@@ -165,6 +201,12 @@ class CDFit:
     cond_AMA: float
     treatment_test: Optional["PTestResult"] = None
     spillover_tests: Dict[Any, "PTestResult"] = field(default_factory=dict)
+    treatment_ci_95: Optional[np.ndarray] = None
+    spillover_ci_95: Dict[Any, np.ndarray] = field(default_factory=dict)
+    joint_spillover_test: Optional["PTestResult"] = None
+    kappa_A_test: Optional["KappaATestResult"] = None
+    pure_donor_sensitivity: Optional["PureDonorSensitivity"] = None
+    efficient_fit: Optional[Dict[str, Any]] = None
 
 
 @dataclass(frozen=True)
