@@ -212,7 +212,7 @@ the 24 hours after.
    import pandas as pd
    from mlsynth import DSCAR
 
-   df = pd.read_csv("basedata/beijing_pm25_orange_alert.csv")
+   df = pd.read_csv("https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/beijing_pm25_orange_alert.csv")
    df["treat_indicator"] = (
        (df["alert_if"] == 1) & (df["hour_eps"] > 48)
    ).astype(int)
@@ -235,7 +235,7 @@ the 24 hours after.
 prints::
 
    orange alert ATT  = -33.7830  (paper -33.8)
-     relative reduction = +24.29%  (paper -24.3%)
+     relative reduction = -24.29%  (paper -24.3%)
      mu_0 = 139.07  (paper 139.0)
      mu_1 = 105.28  (paper 105.3)
 
@@ -246,10 +246,10 @@ prints::
   faithful Path-A replication.
 * **Red alert**: my implementation produces ``ATT = −55.7 μg/m³``
   (relative reduction 21.9%) against the paper's reported ``-70.4
-  μg/m³`` (relative reduction 26.2%). The qualitative finding holds
+  μg/m³`` (relative reduction 26.2%). I do not know why this is, as the final code is unpublished. The qualitative finding holds
   (large negative ATT, ~20% reduction), but the magnitude differs by
-  ~21%. The released reference R script
-  ``eg2/Eg_Air_Pollution_eps_201616_12_16_final.R`` contains a
+  ~21%. The reference R script that was emailed to me two years ago (as of this writing,
+  ``eg2/Eg_Air_Pollution_eps_201616_12_16_final.R``) contains a
   **commented-out** per-unit pressure / humidity de-meaning block,
   suggesting the paper's red-alert numbers were produced with
   preprocessing the released code doesn't actually perform. The
