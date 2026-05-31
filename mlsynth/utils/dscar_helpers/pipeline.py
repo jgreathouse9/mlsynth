@@ -193,7 +193,7 @@ def run_dsc(
     mu1 = float(Y_treated_mean[post].mean())
     mu0 = float(Y0_hat[post].mean())
     att = mu1 - mu0
-    att_relative = 1.0 - (mu1 / mu0) if mu0 != 0 else float("nan")
+    att_relative = (mu1 / mu0) - 1.0 if mu0 != 0 else float("nan")
 
     # Optional inference.
     se: Optional[float] = None
