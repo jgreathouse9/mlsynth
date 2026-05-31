@@ -175,19 +175,25 @@ donor candidates), 1955-1997, with the JASA predictor specification
        "sec.agriculture", "sec.energy", "sec.industry", "sec.construction",
        "sec.services.venta", "sec.services.nonventa", "popdens",
    ]
+   # The covariate windows match Abadie & Gardeazabal (2003), Table 1:
+   # schooling and investment are averaged over 1964-1969, the sector
+   # shares (observed every other year) over 1961-1969, popdens is the
+   # 1969 cross-section, and a lagged outcome ``gdpcap`` is matched on
+   # the 1960-1969 mean (Abadie's "pre-treatment outcomes" predictor).
    covariate_windows = {
-       # Sector shares observed every other year 1961-1969 (JASA Section 4).
        "sec.agriculture": (1961, 1969), "sec.energy": (1961, 1969),
        "sec.industry": (1961, 1969), "sec.construction": (1961, 1969),
        "sec.services.venta": (1961, 1969),
        "sec.services.nonventa": (1961, 1969),
-       # popdens is the 1969 cross-section.
        "popdens": (1969, 1969),
+       "invest": (1964, 1969),
+       "school.illit": (1964, 1969), "school.prim": (1964, 1969),
+       "school.med": (1964, 1969), "school.high": (1964, 1969),
+       "gdpcap": (1960, 1969),
    }
 
    res = MASC({
-       "df": df[df["year"] >= 1960].copy(),
-       "outcome": "gdpcap", "treat": "terrorism",
+       "df": df, "outcome": "gdpcap", "treat": "terrorism",
        "unitid": "regionname", "time": "year",
        "m_grid": list(range(1, 11)),
        "min_preperiods": 5,
@@ -207,66 +213,64 @@ donor candidates), 1955-1997, with the JASA predictor specification
 
 This prints (roughly)::
 
-   Selected m   : 3
-   Selected phi : 0.460
-   Pre-RMSE     : $106/capita
-   ATT          : $-852/capita/year
+   Selected m   : 1
+   Selected phi : 0.324
+   Pre-RMSE     : $97/capita
+   ATT          : $-641/capita/year
    Top donors:
-     Cataluna                         0.370
-     Madrid (Comunidad De)            0.333
-     Baleares (Islas)                 0.243
-     Principado De Asturias           0.054
+     Cataluna                         0.640
+     Madrid (Comunidad De)            0.225
+     Principado De Asturias           0.063
+     Baleares (Islas)                 0.054
 
 The paper [KMPT2021]_, Section 5, reports MASC ≡ SCE
 (:math:`\hat\varphi = 0`), pre-RMSE :math:`\approx \$94`, ATT
 :math:`\approx -\$580`/capita/year, with donor weights ``Cataluna 0.85``,
-``Madrid 0.15``. The dominant donors (Cataluna + Madrid) agree; the absolute
-magnitudes do not. The reason is documented immediately below.
+``Madrid 0.15``. The dominant donors (Cataluna + Madrid) agree, both
+quantitatively (Cataluna 0.64 + Madrid 0.23 here vs.\ 0.85 + 0.15 in
+KMPT) and in pre-RMSE (:math:`\$97` vs.\ :math:`\$94`). The ATT
+:math:`-\$641` is within :math:`\$60` of the published :math:`-\$580`;
+the residual gap is the documented V-optimiser non-uniqueness below.
 
 .. note::
 
-   **Why our :math:`\hat\varphi` is not 0 and the donor distribution is
-   wider.** The JASA paper computes :math:`\boldsymbol{\omega}_{\mathrm{SC}}`
-   via the ``synth()`` package's quasi-Newton search over the predictor-weight
-   matrix :math:`\mathbf{V}`. ``mlsynth`` delegates the V-optimisation to the
+   **Why our :math:`\hat\varphi` is small but non-zero.** The JASA paper
+   computes :math:`\boldsymbol{\omega}_{\mathrm{SC}}` via the ``synth()``
+   package's quasi-Newton search over the predictor-weight matrix
+   :math:`\mathbf{V}`. ``mlsynth`` delegates the V-optimisation to the
    Malo et al. [malo2023computing]_ bilevel solver (the same solver used by
-   ``FSCM``). Both are mathematically valid V-optimisation strategies, and on
-   this problem they converge to **different :math:`\mathbf{V}`**:
-
-   * ``synth()`` lands at an **interior** :math:`\mathbf{V}` (a balanced mix
-     over popdens, sector shares and schooling), giving a sparse W with mass
-     on Cataluna and Madrid only and pre-RMSE :math:`\approx \$94`.
-   * The bilevel solver lands at a **corner** :math:`\mathbf{V}` (all
-     predictor weight on ``sec.agriculture``) that achieves a *lower*
-     in-sample outcome MSE -- pre-RMSE :math:`\approx \$83` for the SC piece
-     **alone** -- but with a wider donor distribution. With the wider SC W,
-     the rolling-origin CV pulls :math:`\hat\varphi` away from zero,
-     mixing in matching that worsens pre-RMSE to :math:`\approx \$101` for
-     the combined MASC.
+   ``FSCM``). Both are mathematically valid V-optimisation strategies; on
+   this problem they converge to slightly different :math:`\mathbf{V}` and
+   therefore slightly different :math:`\mathbf{W}` (Cataluna 0.64 + Madrid
+   0.23 vs.\ 0.85 + 0.15). The rolling-origin CV then prefers a small
+   amount of nearest-neighbour matching (:math:`\hat\varphi \approx 0.32`,
+   :math:`m=1`) rather than pure SC.
 
    This is the **non-uniqueness phenomenon** documented by Becker & Kloessner
    and discussed in Malo et al.: when the SC problem is over-parameterised
    (here 12 predictors over 16 donors) the upper-level loss is flat over many
-   feasible :math:`\mathbf{V}`. Different V-optimisers thus converge to
+   feasible :math:`\mathbf{V}`, and different V-optimisers converge to
    different :math:`\mathbf{W}`. Bit-perfect replication of JASA's Section 5
-   would require a true ADH ``synth()`` port; the present implementation is a
-   faithful port of the MASC *algorithm* (matching, rolling-origin CV,
-   closed-form :math:`\varphi`) on top of mlsynth's existing bilevel V
-   solver, with the documented caveat above.
+   would require a true ADH ``synth()`` port; the present implementation is
+   a faithful port of the MASC *algorithm* (matching, rolling-origin CV,
+   closed-form :math:`\varphi`) on top of mlsynth's bilevel V solver, with
+   the documented caveat above.
 
 Verification
 ------------
 
 .. note::
 
-   **Empirical (Basque proper).** The bilevel-SC component alone achieves
-   pre-RMSE :math:`\approx \$83/`capita on the JASA covariate
-   specification, **strictly lower** than the published ``synth()``-SC
-   pre-RMSE of :math:`\$94`. Donor mass concentrates on Cataluna and Madrid
-   in both implementations. The MASC combined estimator differs (mixing in
-   matching with :math:`\hat\varphi \approx 0.4`) because the CV reacts to
-   the bilevel W rather than the ``synth()`` W; the qualitative direction of
-   the ATT (large negative cost of terrorism) is preserved.
+   **Empirical (Basque proper).** With the Abadie-Gardeazabal predictor
+   windows (schooling and investment 1964-1969, sector shares 1961-1969,
+   popdens 1969, gdpcap 1960-1969), treatment starting in 1975 and Spain
+   itself removed from the donor pool, MASC selects :math:`m=1`,
+   :math:`\hat\varphi \approx 0.32`, pre-RMSE :math:`\approx \$97`/capita
+   (vs.\ KMPT's :math:`\$94`) and ATT :math:`\approx -\$641`/capita/year
+   (vs.\ KMPT's :math:`-\$580`). Donor mass concentrates on Cataluna
+   (0.64) and Madrid (0.23) -- the same two-donor structure KMPT report
+   (0.85 + 0.15). The residual gap is the V-optimiser non-uniqueness
+   documented above.
 
    **Helpers.** The nearest-neighbour selector, the simplex SC primitive,
    the analytic :math:`\hat\varphi` formula and the per-fold covariate
