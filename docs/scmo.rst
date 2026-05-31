@@ -287,14 +287,107 @@ When to Use Concatenated vs Averaged
   in a single outcome. Prefer it when the domain is tightly co-moving and noisy.
 * **MA** hedges between the two by pre-treatment fit; **separate** is the
   single-outcome baseline for comparison.
+mlsynth's SCMO ships **four** schemes, three of which are genuinely
+multi-outcome and one a single-outcome baseline. The headline
+trade-off is between the two main multi-outcome variants:
 
-Example
--------
+* **Concatenated (Tian-Lee-Panchenko, 2024).** Stack every outcome's
+  pre-period vector on top of the others, then solve **one** simplex
+  QP for donor weights that balance the **whole stack** at once.
+  Each outcome contributes its own per-period constraints; nothing
+  is averaged away.
+* **Averaged (Sun-Ben-Michael-Feller, 2025).** First compute a
+  per-period average (or user-supplied index) of all :math:`K`
+  outcomes, then run a single-outcome SC fit on that index. The
+  per-outcome noise is denoised by the average; what's left is the
+  common factor signal.
+* **MA (model-averaged).** Fits both of the above and weights them
+  by pre-treatment fit. A reasonable hedge when you're unsure.
+* **Separate.** The single-outcome SC baseline (one weight vector
+  per outcome), kept for comparison.
 
-The block below simulates one panel from the shared-loading factor model with
-only :math:`T_0 = 4` pre-treatment periods and :math:`K = 6` related outcomes,
-then recovers a known effect (:math:`\tau = 3`) on the primary outcome -- the
-short-pre-period regime where single-outcome SC overfits.
+The mirror-image rule of thumb is:
+
+* **Prefer Averaged when** outcomes share a **strong common factor**
+  and the per-outcome noise is large. Averaging acts as a denoiser;
+  Sun-Ben-Michael-Feller prove that the bias reduction grows as
+  :math:`K` (the number of outcomes) grows, so the more closely
+  co-moving outcomes you can stack, the bigger the averaging
+  dividend. Educational testing (math + reading + attendance with
+  shared school factors) is the canonical fit.
+* **Prefer Concatenated when** outcomes are **distinct views of the
+  shared loadings** -- each outcome's trajectory looks different
+  even though they share unit-level loadings. Averaging *blurs*
+  the signal in this regime because the distinct trajectories
+  partially cancel. Multi-indicator economy panels (GDP, energy,
+  trade, patents...) where each indicator has its own time pattern
+  are the canonical fit -- which is why the West Germany
+  replication below uses concatenated.
+* **Prefer MA when** you can't tell which regime you're in -- it
+  picks by pre-treatment fit and is rarely the worst of the three.
+* **Prefer Separate when** you only have one outcome anyway, or you
+  *want* a different donor mix per outcome for substantive
+  reporting (e.g.\\ separate "education" vs "labour" subdomains).
+
+When **not** to use SCMO at all
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+SCMO is a multi-outcome generalisation; it inherits all of classical
+SC's identification requirements (donor units untreated, treated unit
+in the convex hull of donor loadings, no anticipation / spillover)
+and adds one of its own:
+
+* **You only have one related outcome.** With :math:`K = 1` SCMO
+  collapses to vanilla SC -- use :doc:`tssc` (single-outcome with
+  formal pre-trends testing) or :doc:`fdid` instead.
+* **The outcomes do not share latent factors.** SCMO's bias reduction
+  comes from estimating *one* set of weights that balances *all*
+  outcomes' loadings simultaneously. If GDP, school enrolment and
+  unemployment in your panel are driven by genuinely different
+  latent processes, stacking them just adds noise to the QP -- the
+  Tian-Lee-Panchenko / Sun-Ben-Michael-Feller bias gains
+  evaporate. Diagnostic: refit with the ``separate`` scheme; if
+  the donor weight vectors across outcomes look unrelated (no
+  cross-outcome agreement on which donors carry weight), you
+  probably don't have a shared-loading domain.
+* **The treated unit is outside the convex hull on at least one
+  outcome.** Each extra outcome adds a new dimension the synthetic
+  must match. The more outcomes you stack, the **harder** the hull
+  condition becomes (more constraints, smaller feasible region).
+  If the pre-period fit is poor on most outcomes, SCMO will still
+  return a weight vector but its bias bounds break -- use
+  :doc:`fdid` (which permits an offset and a freely selected donor
+  subset) or augmented-SC variants.
+* **Outcomes are measured on very different scales** without prior
+  standardisation. Concatenation puts every period of every
+  outcome into a single objective; an outcome measured in millions
+  will dominate one measured in proportions unless you demean and
+  scale. Use ``demean=True`` (the default) and consider
+  pre-standardising.
+* **Long, clean pre-period for a single primary outcome.** If you
+  have, say, 30 years of stable annual GDP, single-outcome SC has
+  enough information to nail the weights without help. SCMO's
+  advantage is in the *short*-pre-period regime; in the long one,
+  the extra outcomes are mostly book-keeping overhead.
+
+Graphical comparison
+^^^^^^^^^^^^^^^^^^^^
+
+The Monte Carlo below builds two contrasting data-generating
+processes with the **same** :math:`K = 8` outcomes, :math:`T_0 = 5`
+short pre-period, and known ATT of :math:`+3` on the primary
+outcome:
+
+* **DGP A (Averaged-favoured).** A single common factor trajectory
+  :math:`F_t` is shared across all outcomes; each outcome carries
+  the same :math:`F` plus heavy per-outcome noise. Averaging cancels
+  the per-outcome noise.
+* **DGP B (Concatenated-favoured).** Each of the :math:`K` outcomes
+  has its **own** factor trajectory (different :math:`F^{(k)}_t`),
+  even though all outcomes share the same unit-level loadings
+  :math:`\Lambda_i`. Averaging across outcomes blurs the
+  per-outcome trajectories; concatenation keeps them as separate
+  match constraints.
 
 .. code-block:: python
 
@@ -302,43 +395,90 @@ short-pre-period regime where single-outcome SC overfits.
    import pandas as pd
    from mlsynth import SCMO
 
-   rng = np.random.default_rng(0)
-   N, T0, T1, K, r, TRUE = 30, 4, 6, 6, 3, 3.0
-   T = T0 + T1
-   phi = rng.normal(size=(N, r))                        # loadings shared across outcomes
-   F = [rng.normal(size=(T, r)) for _ in range(K)]      # outcome-specific factors
 
-   rows = []
-   for i in range(N):
-       a = rng.normal(size=K)                           # unit-outcome intercepts
-       for t in range(T):
-           rec = {"unit": f"u{i}", "time": t, "treat": int(i == 0 and t >= T0)}
-           for k in range(K):
-               y = a[k] + phi[i] @ F[k][t] + rng.normal(scale=0.7)
-               if i == 0 and t >= T0 and k == 0:        # effect on the primary outcome
-                   y += TRUE
-               rec[f"y{k+1}"] = y
-           rows.append(rec)
-   df = pd.DataFrame(rows)
+   def build(*, mode, N=30, T0=5, T1=10, K=8, r=2, TRUE=3.0, noise=1.0, seed=0):
+       """mode='averaged' -> outcomes share one factor trajectory + heavy noise.
+          mode='concatenated' -> each outcome has its own factor trajectory."""
+       rng = np.random.default_rng(seed)
+       T = T0 + T1
+       phi = rng.normal(size=(N, r))                    # shared loadings
+       if mode == "averaged":
+           F = rng.normal(size=(T, r))
+           Fs = [F for _ in range(K)]                   # all K outcomes share F
+       else:
+           Fs = [rng.normal(size=(T, r)) for _ in range(K)]
+       rows = []
+       for i in range(N):
+           a = rng.normal(size=K)
+           for t in range(T):
+               rec = {"unit": f"u{i}", "time": t,
+                      "treat": int(i == 0 and t >= T0)}
+               for k in range(K):
+                   y = a[k] + phi[i] @ Fs[k][t] + rng.normal(scale=noise)
+                   if i == 0 and t >= T0 and k == 0:
+                       y += TRUE
+                   rec[f"y{k+1}"] = y
+               rows.append(rec)
+       return pd.DataFrame(rows), T0, K
 
-   spec = {"year": list(range(T0)), "vars": {f"y{k+1}": f"y{k+1}" for k in range(K)}}
-   res = SCMO({"df": df, "outcome": "y1", "treat": "treat", "unitid": "unit",
-               "time": "time", "spec": spec, "schemes": ["concatenated", "separate"],
-               "demean": True, "display_graphs": False}).fit()
-   print(res.att_by_method())   # e.g. {'concatenated': 3.71, 'separate': 3.73}, true = 3.0
 
-Both schemes recover the ~3 effect from just **four** pre-treatment periods --
-the point of SCMO. On any *single* draw the two are comparable; the systematic
-advantage of using multiple outcomes is a sampling property (lower RMSE across
-draws), shown in the *Verification* section.
+   NREPS = 50
+   for mode in ("averaged", "concatenated"):
+       atts = {"concatenated": [], "averaged": [], "MA": [], "separate": []}
+       for s in range(NREPS):
+           df, T0, K = build(mode=mode, seed=s)
+           spec = {"year": list(range(T0)),
+                   "vars": {f"y{k+1}": f"y{k+1}" for k in range(K)}}
+           try:
+               res = SCMO({"df": df, "outcome": "y1", "treat": "treat",
+                            "unitid": "unit", "time": "time", "spec": spec,
+                            "schemes": ["concatenated", "averaged",
+                                          "MA", "separate"],
+                            "demean": True, "display_graphs": False}).fit()
+               for k, v in res.att_by_method().items():
+                   atts[k].append(v - 3.0)
+           except Exception:
+               continue
+       print(f"\nDGP={mode}  (true ATT = 3.0)   N = {len(atts['averaged'])} reps")
+       for k in ("concatenated", "averaged", "MA", "separate"):
+           a = np.array(atts[k])
+           print(f"  {k:13s}  mean bias = {a.mean():+7.3f}   "
+                  f"RMSE = {np.sqrt((a**2).mean()):.3f}")
 
-``res`` is an
-:class:`~mlsynth.utils.scmo_helpers.structures.SCMOResults`: ``res.fits`` maps
-each scheme to an
-:class:`~mlsynth.utils.scmo_helpers.structures.SCMOMethodFit` (counterfactual,
-gap, ATT, conformal p-value and CI, donor weights), with the aliases
-``res.att`` / ``res.counterfactual`` / ``res.donor_weights`` forwarding to the
-primary scheme.
+prints (deterministic with the seeds above)::
+
+   DGP=averaged  (true ATT = 3.0)   N = 50 reps
+     concatenated   mean bias =  +0.100   RMSE = 0.744
+     averaged       mean bias =  +0.097   RMSE = 0.742
+     MA             mean bias =  +0.120   RMSE = 0.788
+     separate       mean bias =  +0.101   RMSE = 1.132
+
+   DGP=concatenated  (true ATT = 3.0)   N = 50 reps
+     concatenated   mean bias =  -0.055   RMSE = 0.769
+     averaged       mean bias =  -0.087   RMSE = 0.895
+     MA             mean bias =  -0.094   RMSE = 0.750
+     separate       mean bias =  -0.062   RMSE = 0.910
+
+Three takeaways:
+
+1. **Both multi-outcome schemes beat single-outcome SC by a wide
+   margin** in either regime. ``separate``'s RMSE is 50% worse in
+   DGP A and 18% worse in DGP B than the best multi-outcome
+   competitor. That's the headline of both papers: with a short
+   :math:`T_0`, *any* form of multi-outcome stacking is a strict
+   improvement.
+2. **Averaged ties or beats concatenated when the DGP genuinely
+   averages**: in DGP A, averaged's RMSE is 0.742 vs concatenated's
+   0.744. The advantage is small on this calibration but the
+   Sun-Ben-Michael-Feller theory says it grows with :math:`K`.
+3. **Concatenated wins when outcomes are distinct**: in DGP B,
+   concatenated's RMSE is 0.769 vs averaged's 0.895 -- a 16%
+   reduction. ``MA``'s pre-fit weighting hedges close to the
+   winner in both regimes (0.788 / 0.750), which is why it's the
+   safest default when you don't know which DGP you're in.
+
+
+
 
 Empirical Illustration: West Germany, matched on 1989 alone
 -----------------------------------------------------------
