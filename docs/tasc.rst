@@ -37,6 +37,143 @@ Two structural properties distinguish TASC from the rest of the
   down — because it does not assume the principal directions are
   noise-free.
 
+
+
+When to use TASC instead of something else
+------------------------------------------
+
+The Rho-Illick-Narasipura-Abadie-Hsu-Misra (2026) paper runs a 4-cell
+ablation comparing TASC against vanilla SC, Robust SC, and the
+Causal Impact Model under independent variation of
+the observation-noise covariance :math:`R` and the state-perturbation
+covariance :math:`Q` (Section 5.2, Figures 3-4 of the paper). The
+clean recommendation:
+
+* **Use TASC when observation noise is high.** Across the two
+  large-:math:`R` cells (small-:math:`Q` and large-:math:`Q`) TASC
+  delivers the smallest median RMSE in the paper's simulation. PCA-
+  style denoising (Robust SC) and simplex shrinkage (vanilla SC)
+  break down because they assume the principal directions of the
+  observation matrix are noise-free; TASC's full-rank
+  :math:`R \sim \mathcal{N}(0, R)` assumption is a much better fit
+  when the noise is omnidirectional.
+* **Use TASC when the donor panel has a persistent, smoothly-varying
+  trend.** "Persistent" means the trend extends past the intervention
+  point. This is the strong-trend regime (small :math:`Q`,
+  non-trivial :math:`A`). The Kalman + RTS smoother extrapolates the
+  trend forward; PCA / nuclear-norm methods don't.
+* **Use TASC when you need a posterior credible band for free.** TASC
+  is a generative model. The RTS smoother returns the full posterior
+  covariance at every period, so a ``+/- 1.96 sigma`` band on the
+  counterfactual is part of the fit's output. The other mlsynth
+  estimators that ship credible bands are :doc:`bvss` (Bayesian
+  spike-and-slab) and :doc:`tasc` itself; the rest require an
+  external bootstrap or subsampling pass.
+
+When **not** to reach for TASC:
+
+* **The pre-intervention trend is weak or absent** (the paper writes
+  ":math:`A \approx 0`" — large :math:`Q` regime). The smaller the
+  trend, the smaller TASC's edge over classical SC; in the
+  small-:math:`R`, large-:math:`Q` cell of the paper's ablation,
+  vanilla SC matches or beats TASC.
+* **Observation noise is small AND structured low-dimensional.**
+  Under small :math:`R`, hard singular-value thresholding (Robust SC)
+  cleans the signal exactly, and TASC's omnidirectional-:math:`R`
+  prior is paying a price for flexibility it doesn't need.
+* **Long-horizon forecasting in noisy regimes.** The paper's
+  Figures 5-6 show that under large :math:`R` and large :math:`Q`,
+  TASC's RMSE rises noticeably from horizon 51-60 to horizon 91-100
+  (small-:math:`Q` is stable). If you need a 5-year-out
+  counterfactual on a noisy panel, look at :doc:`fma` or :doc:`mcnnm`
+  first.
+* **Time indices are not really ordered** (you're modelling a
+  cross-section that happens to be indexed by time, or the periods
+  are interchangeable up to relabelling). Permuting time indices
+  costs TASC 48.5% on mean RMSE and 25.7% on the RMSE standard
+  deviation in the paper's controlled test (Section 5.1, Figure 2).
+  If the time ordering is meaningless, use a permutation-invariant
+  estimator like :doc:`tssc` or :doc:`clustersc`.
+
+Assumptions (and how to spot violations)
+----------------------------------------
+
+TASC inherits the assumptions of a linear-Gaussian state-space model.
+Section 3 of the paper lays them out; the practitioner-facing
+restatement is:
+
+(a) **Linear-Gaussian dynamics.** The hidden state evolves as
+    :math:`x_t = A x_{t-1} + q_t` with :math:`q_t` zero-mean
+    Gaussian. Equivalently: the trend in the latent factors is
+    well-approximated by a stable linear AR(1) at the level of the
+    state vector, and the perturbations around the trend are
+    homoscedastic and uncorrelated across time.
+
+    *Plausibly violated when:* the latent factor evolution is
+    strongly nonlinear (regime switches, breakpoints, structural
+    breaks), has fat-tailed shocks, or has volatility clustering.
+    Diagnostic: examine the smoothed state residuals from the
+    pre-period fit; non-Gaussian QQ-plot tails or
+    Ljung-Box-significant autocorrelation suggest misspecification.
+
+(b) **Constant trend matrix :math:`A`.** The dynamics that hold over
+    the pre-period are assumed to continue unchanged through the
+    post-period. This is the "trend persists past the intervention
+    point" assumption that gives TASC its long-horizon advantage.
+
+    *Plausibly violated when:* the intervention itself triggers a
+    regime change in the donor units (e.g.\\ a tax change that
+    affects neighbouring states' growth dynamics, not just their
+    levels). TASC is by construction unable to detect a post-period
+    change in :math:`A` — the post-period target outcomes are
+    treated as missing, so they cannot inform the update.
+    Diagnostic: split the pre-period into two halves and refit on
+    each. If the estimated :math:`A` differs materially, the
+    constant-:math:`A` assumption is shaky and the post-period
+    forecast is suspect.
+
+(c) **Observation model :math:`y_t = H x_t + r_t`, :math:`R` full
+    rank, :math:`d \ll \min(n, T)`.** The signal is low-rank with
+    rank :math:`d` (the latent-state dimension); the noise
+    :math:`r_t` is Gaussian with a positive-definite covariance.
+    Importantly, :math:`R` does NOT have to be diagonal: TASC handles
+    correlated cross-donor noise via the full :math:`R` (set
+    ``diagonal_R = False`` in the config).
+
+    *Plausibly violated when:* the residual cross-section is
+    rank-deficient (some donors are exact linear combinations of
+    others, e.g.\\ aggregated subseries paired with their
+    components), or when the true signal is full-rank (no shared
+    factors — every donor moves independently). In both cases the
+    EM estimate of :math:`d` ends up wrong and either underfits
+    (low :math:`d`) or overfits (high :math:`d`).
+
+(d) **No unobserved confounders that affect donors AND treated
+    unit between :math:`T_0` and :math:`T_0 + 1`.** This is the
+    standard SC unconfoundedness assumption, not specific to TASC,
+    but worth restating: TASC's counterfactual is informative about
+    the treatment effect only if any post-period shock to the donor
+    pool is also reflected in what the target would have done absent
+    treatment.
+
+    *Plausibly violated when:* a covariate that drives the treated
+    unit's outcome (but is uncorrelated with the donors) shifts at
+    the intervention time. TASC has no covariate hook, so this kind
+    of confounding can only be diagnosed externally.
+
+(e) **Hidden-state dimension :math:`d` correctly specified.** TASC
+    takes :math:`d` as a user hyperparameter
+    (``hidden_state_dim``). The paper's Section 5.3 shows that
+    **underestimating :math:`d` is worse than overestimating** — if
+    in doubt, err on the high side.
+
+    *Plausibly violated when:* the data has more latent factors than
+    you've allowed for. Diagnostic: increase :math:`d` and refit; if
+    the RMSE on a held-out pre-period segment drops materially, you
+    were underfitting.
+
+
+
 Mathematical Formulation
 ------------------------
 
