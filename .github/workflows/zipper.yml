@@ -3,36 +3,43 @@ name: Unzip and Commit
 on:
   workflow_dispatch:
     inputs:
-      filename:
-        description: ZIP file to unzip
+      zip_path:
+        description: "Path to the zip file in the repo (relative to repo root)"
         required: true
-        type: string
-
-permissions:
-  contents: write
+      commit_message:
+        description: "Commit message"
+        required: true
 
 jobs:
   unzip:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
 
-      - name: Unzip file
+      - name: Unzip bundle
         run: |
-          unzip "${{ inputs.filename }}" -d .
+          test -f "${{ inputs.zip_path }}" || { echo "Zip not found: ${{ inputs.zip_path }}"; exit 1; }
+          unzip -o "${{ inputs.zip_path }}" -d .
 
-      - name: Commit extracted files
+      - name: Remove zip
+        run: rm -f "${{ inputs.zip_path }}"
+
+      - name: Commit and push
+        env:
+          COMMIT_MESSAGE: ${{ inputs.commit_message }}
         run: |
-          git config user.name "github-actions[bot]"
+          git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add .
-
+          git add -A
           if git diff --cached --quiet; then
-            echo "No changes to commit"
+            echo "No changes to commit."
             exit 0
           fi
-
-          git commit -m "Extract ${{ inputs.filename }}"
-          git push
+          git commit -m "$COMMIT_MESSAGE"
+          git push origin HEAD:${{ github.ref_name }}
