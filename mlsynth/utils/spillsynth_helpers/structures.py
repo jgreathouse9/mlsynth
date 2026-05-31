@@ -19,10 +19,13 @@ are added.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from .cd.inference import PTestResult
 
 
 @dataclass(frozen=True)
@@ -138,6 +141,13 @@ class CDFit:
         Condition number of ``A' M A`` (the matrix the per-period
         formula inverts). Diagnostic for the Assumption 1(d)
         invertibility requirement.
+    treatment_test : Optional[PTestResult]
+        Cao-Dowd Section 4.2 P-test for ``H_0: alpha_1(t) = 0`` at each
+        post-period, using selector :math:`C = e_1^\\prime` and weight
+        :math:`W_T = I`.
+    spillover_tests : Dict[Any, PTestResult]
+        Per-affected-unit Cao-Dowd P-test for ``H_0: alpha_k(t) = 0``
+        at each post-period. Keyed by affected-unit label.
     """
 
     a: np.ndarray
@@ -153,6 +163,8 @@ class CDFit:
     att_scm: float
     spillover_panel: Dict[Any, np.ndarray]
     cond_AMA: float
+    treatment_test: Optional["PTestResult"] = None
+    spillover_tests: Dict[Any, "PTestResult"] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

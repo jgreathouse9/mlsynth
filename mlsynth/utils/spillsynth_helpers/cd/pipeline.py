@@ -14,6 +14,7 @@ import numpy as np
 
 from ..structures import CDFit, SpillSynthInputs
 from .estimation import build_M, sp_estimate, vanilla_scm_path
+from .inference import run_per_period_tests
 from .scm_core import fit_leave_one_out_sc
 
 
@@ -52,6 +53,16 @@ def run_cd(inputs: SpillSynthInputs, *, solver: Optional[str] = None) -> CDFit:
         for k, label in enumerate(inputs.affected_labels)
     }
 
+    # Cao-Dowd Section 4 P-test inference.
+    treatment_test, spillover_tests = run_per_period_tests(
+        alpha_hat=alpha,
+        Y_pre=inputs.Y_pre,
+        a=a,
+        B=B,
+        A=inputs.A,
+        affected_labels=inputs.affected_labels,
+    )
+
     return CDFit(
         a=a,
         B=B,
@@ -66,4 +77,6 @@ def run_cd(inputs: SpillSynthInputs, *, solver: Optional[str] = None) -> CDFit:
         att_scm=float(gap_scm.mean()),
         spillover_panel=spillover_panel,
         cond_AMA=cond_AMA,
+        treatment_test=treatment_test,
+        spillover_tests=spillover_tests,
     )

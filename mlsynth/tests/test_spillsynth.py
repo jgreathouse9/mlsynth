@@ -316,6 +316,52 @@ class TestEstimatorPipeline:
         assert res.gap_scm.shape == (res.inputs.T1,)
 
 
+class TestPTestInference:
+    """Cao-Dowd Section 4.2 P-test wiring."""
+
+    def test_pipeline_populates_inference_fields(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1", "u2"])).fit()
+        tt = res.cd.treatment_test
+        T1 = res.inputs.T1
+        T0 = res.inputs.T0
+        assert tt is not None
+        assert tt.P_post.shape == (T1,)
+        assert tt.P_pre.shape == (T0,)
+        assert tt.p_value.shape == (T1,)
+        assert isinstance(tt.cutoff_05, float)
+        assert tt.reject_05.shape == (T1,)
+        assert tt.reject_05.dtype == bool
+        # p_values lie in [0, 1].
+        assert ((tt.p_value >= 0.0) & (tt.p_value <= 1.0)).all()
+
+    def test_spillover_test_keys_match_affected_labels(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u2", "u3"])).fit()
+        assert set(res.cd.spillover_tests.keys()) == {"u2", "u3"}
+        for label, t in res.cd.spillover_tests.items():
+            assert t.P_post.shape == (res.inputs.T1,)
+            assert ((t.p_value >= 0.0) & (t.p_value <= 1.0)).all()
+
+    def test_rejects_under_large_treatment_effect(self):
+        # Treatment = -8 on unit 0, no spillover; SP test should reject.
+        df = _spill_panel(treatment=-8.0, spillover=0.0,
+                          spillover_idx=1, seed=11)
+        res = SPILLSYNTH(_cfg(df, affected_units=["u1"])).fit()
+        tt = res.cd.treatment_test
+        # All post-period p-values should be small under a large true effect.
+        assert (tt.p_value < 0.10).all(), tt.p_value
+        assert tt.reject_05.all()
+
+    def test_does_not_reject_under_zero_effect(self):
+        # Treatment = 0, no spillover; per-period p-values should not be
+        # systematically tiny. Tests behaviour, not formal size.
+        df = _spill_panel(treatment=0.0, spillover=0.0,
+                          spillover_idx=1, seed=23)
+        res = SPILLSYNTH(_cfg(df, affected_units=["u1"])).fit()
+        tt = res.cd.treatment_test
+        # Mean p-value across post-period bounded away from 0.
+        assert tt.p_value.mean() > 0.05, tt.p_value
+
+
 # ----------------------------------------------------------------------
 # Layer 4 -- public API contracts
 # ----------------------------------------------------------------------
