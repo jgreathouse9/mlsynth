@@ -336,6 +336,97 @@ be i.i.d. or the levels :math:`y^0_{0t}` to be stationary.
    factor-model / interactive-fixed-effect estimators, or SC with an
    intercept.
 
+
+Diagnostic: a side-by-side panel where Forward PTA holds vs. fails
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The pretreatment :math:`R^2` returned by FDID is the natural empirical
+check on Assumption 1. The script below draws two panels with the same
+underlying common factor and the same true ATT of **zero**, differing
+only in the treated unit's factor loading:
+
+* **Panel A** (``treated_loading = 1``). The treated unit shares the
+  controls' single-factor loading. Assumption 1 holds for any subset
+  of the donors.
+* **Panel B** (``treated_loading = 3``). The treated unit trends three
+  times faster than any control. **No** subset of the equal-weighted
+  donors can extrapolate the steeper trend -- Assumption 1 fails.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   from mlsynth import FDID
+
+
+   def make_panel(*, treated_loading, n_controls=40, T1=24, T2=12, seed=0):
+       """Synthetic panel with one common smoothly-trending factor.
+
+       The treated unit's loading on the factor is ``treated_loading``; every
+       control loads with coefficient 1. True ATT = 0 by construction.
+       """
+       rng = np.random.default_rng(seed)
+       T = T1 + T2
+       f = np.cumsum(rng.standard_normal(T)) / np.sqrt(T)
+       eps_tr = 0.10 * rng.standard_normal(T)
+       eps_co = 0.10 * rng.standard_normal((n_controls, T))
+       y_tr = 1.0 + treated_loading * f + eps_tr
+       y_co = 1.0 + 1.0 * f[None, :] + eps_co
+       rows = []
+       for t in range(T):
+           rows.append({"unit": "treated", "time": t, "y": float(y_tr[t]),
+                        "treat": int(t >= T1)})
+           for i in range(n_controls):
+               rows.append({"unit": f"c{i}", "time": t, "y": float(y_co[i, t]),
+                            "treat": 0})
+       return pd.DataFrame(rows)
+
+
+   for label, loading in [("Forward PTA holds (loading=1)", 1.0),
+                           ("Forward PTA fails (loading=3)", 3.0)]:
+       df = make_panel(treated_loading=loading, seed=0)
+       res = FDID({"df": df, "outcome": "y", "treat": "treat",
+                    "unitid": "unit", "time": "time",
+                    "display_graphs": False}).fit()
+       print(f"{label:35s}  FDID ATT = {res.fdid.att:+.3f}  "
+              f"R^2 = {res.fdid.r_squared:.3f}  "
+              f"selected {len(res.fdid.selected_names)} donors")
+
+prints::
+
+   Forward PTA holds (loading=1)        FDID ATT = -0.009  R^2 = 0.975  selected 4 donors
+   Forward PTA fails (loading=3)        FDID ATT = -0.802  R^2 = 0.588  selected 2 donors
+
+Two lessons jump out:
+
+1. **The :math:`R^2` is the warning signal.** When Forward PTA holds, FDID hits
+   :math:`R^2 \approx 0.98` and recovers the true zero ATT to within
+   noise. When it fails, the in-sample fit drops to :math:`R^2 \approx
+   0.59` -- a much weaker fit on a panel of the same dimensions. Compare
+   the two against the same threshold you would apply in a forecast
+   exercise (Li's empirical applications report :math:`R^2` of 0.76-0.91
+   on Atlanta / San Diego / San Jose). When the pre-fit is weak, distrust
+   the post-fit ATT.
+
+2. **The bias is large and one-sided.** When Forward PTA fails because
+   the treated unit trends faster than any subset of controls, FDID's
+   equal-weighted comparison group flattens the post-period
+   counterfactual and the ATT is biased toward zero from above (here:
+   :math:`-0.80` against a true 0). A clean placebo on the pre-period
+   will also be off: the in-sample residuals are systematically wrong
+   when the controls cannot extrapolate the treated unit's trend.
+
+If your application reports :math:`R^2` materially below the threshold
+you would consider acceptable for a forecast (say, < 0.7), treat the
+ATT estimate as a lower bound on the magnitude of misspecification
+rather than an estimate of the causal effect, and switch to one of the
+methods Li flags for the out-of-hull case: :doc:`fdid` with a different
+comparison construction is unlikely to recover it -- try the augmented
+DiD, a factor-model / interactive-fixed-effects estimator, or
+synthetic control with an intercept.
+
+
 Inference
 ---------
 
