@@ -2952,9 +2952,13 @@ class NSCConfig(BaseEstimatorConfig):
         default=0.1, gt=0.0, le=0.5,
         description="CV grid step on [0, 1].",
     )
-    cv_target: Literal["controls", "treated"] = Field(
+    cv_target: Literal["controls"] = Field(
         default="controls",
-        description="CV target: predict-each-control (paper default) or treated-fit.",
+        description=(
+            "CV target. Only the R-faithful 'controls' target is supported: "
+            "for each donor, fit weights on its pre-period using the other "
+            "donors and score on its held-out post-period MSPE."
+        ),
     )
     cv_max_iterations: int = Field(
         default=3, ge=1, le=20,
@@ -2964,6 +2968,14 @@ class NSCConfig(BaseEstimatorConfig):
         default=None,
         description="Optional covariate columns stacked into the matching matrix.",
     )
+    standardize: bool = Field(
+        default=True,
+        description=(
+            "Centre each matching-variable column to mean 0 and rescale to "
+            "sample sd 1 (R's scale()). Default True matches the reference "
+            "NSC implementation; set False only for back-compat."
+        ),
+    )
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
         description="Two-sided significance level for Doudchenko-Imbens CIs.",
@@ -2971,6 +2983,14 @@ class NSCConfig(BaseEstimatorConfig):
     run_inference: bool = Field(
         default=True,
         description="Whether to run Doudchenko-Imbens variance estimation.",
+    )
+    seed: int = Field(
+        default=123,
+        description=(
+            "Seed for the extra-donor draws in the R-faithful CV and "
+            "leave-one-control inference loops. Matches the reference "
+            "R script's set.seed(123)."
+        ),
     )
 
     @model_validator(mode='after')

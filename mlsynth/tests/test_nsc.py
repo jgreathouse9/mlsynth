@@ -263,17 +263,19 @@ class TestEstimator:
         }).fit()
         assert res.inference.method == "none"
 
-    def test_cv_target_treated(self, panel):
+    def test_cv_target_treated_is_rejected(self, panel):
+        """The legacy ``target='treated'`` CV mode (training error on the
+        treated unit's pretreatment fit) was removed when the CV
+        objective was made R-faithful: the only supported target is
+        ``'controls'``, which scores held-out post-period MSPE."""
         df, _ = panel
-        res = NSC({
-            "df": df, "outcome": "y", "treat": "D",
-            "unitid": "unit", "time": "time",
-            "cv_target": "treated",
-            "cv_max_iterations": 2,
-            "display_graphs": False,
-        }).fit()
-        assert res.cv_trace is not None
-        assert res.cv_trace.target == "treated"
+        with pytest.raises(MlsynthConfigError):
+            NSC({
+                "df": df, "outcome": "y", "treat": "D",
+                "unitid": "unit", "time": "time",
+                "cv_target": "treated",
+                "display_graphs": False,
+            })
 
     def test_covariates_passed_through(self, panel):
         df, _ = panel

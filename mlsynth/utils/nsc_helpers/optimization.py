@@ -172,8 +172,12 @@ def solve_nsc_weights(
     Z0 = np.asarray(Z0, dtype=float)
     J, p = Z0.shape
 
-    # Pairwise discrepancies d_j = ||Z_1 - Z_0[j]||
-    d = np.linalg.norm(Z0 - Z1[None, :], axis=1)
+    # Pairwise discrepancies d_j = ||Z_1 - Z_0[j]||, mean-normalized so
+    # the dimensionless ``a`` multiplier sits on the same scale as the
+    # reference R implementation (NSC.R, ``dist_J / mean(dist_J)``).
+    d_raw = np.linalg.norm(Z0 - Z1[None, :], axis=1)
+    d_mean = float(d_raw.mean())
+    d = d_raw / d_mean if d_mean > 0 else d_raw
 
     if a <= 0.0:
         # No L1 penalty: tighter QP without the auxiliary variables.

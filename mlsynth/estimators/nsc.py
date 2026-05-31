@@ -92,9 +92,11 @@ class NSC:
         self.cv_target: str = config.cv_target
         self.cv_max_iterations: int = config.cv_max_iterations
         self.covariates = config.covariates
+        self.standardize: bool = config.standardize
         self.alpha: float = config.alpha
         self.run_inference: bool = config.run_inference
         self.display_graphs: bool = config.display_graphs
+        self.seed: int = config.seed
 
     def fit(self) -> NSCResults:
         """Run the NSC pipeline end to end."""
@@ -107,16 +109,25 @@ class NSC:
                 unitid=self.unitid,
                 time=self.time,
                 covariates=self.covariates,
+                standardize=self.standardize,
             )
+
+            # Single RNG threaded through CV and inference so the
+            # extra-donor draws are reproducible from one ``seed``
+            # (matches R's set.seed(123) flow).
+            rng = np.random.default_rng(self.seed)
 
             # ----- (a*, b*) selection -----
             if self.a is None or self.b is None:
                 a_star, b_star, trace = cv_select(
                     Z1=inputs.treated_matching_vector,
                     Z0=inputs.matching_matrix,
+                    Y_donors=inputs.donor_outcomes,
+                    T0=inputs.T0,
                     grid_size=self.cv_grid_size,
                     max_iterations=self.cv_max_iterations,
                     target=self.cv_target,
+                    seed=rng,
                 )
             else:
                 a_star = float(self.a)
@@ -165,6 +176,7 @@ class NSC:
                     a_star=a_star,
                     b_star=b_star,
                     alpha=self.alpha,
+                    seed=rng,
                 )
             else:
                 inference = NSCInference(

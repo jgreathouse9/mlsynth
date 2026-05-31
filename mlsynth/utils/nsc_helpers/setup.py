@@ -26,6 +26,7 @@ def prepare_nsc_inputs(
     unitid: str,
     time: str,
     covariates: Optional[List[str]] = None,
+    standardize: bool = True,
 ) -> NSCInputs:
     """Pivot the panel and assemble the NSC matching matrix.
 
@@ -39,6 +40,11 @@ def prepare_nsc_inputs(
         Optional column names to use as additional matching variables
         (each collapsed to its per-unit pre-treatment mean before
         being stacked alongside the pre-period outcomes in ``Z_0``).
+    standardize : bool, default True
+        Centre each matching-variable column to mean 0 and scale to
+        sample standard deviation 1 across the full (treated + donors)
+        stack -- matches R's ``scale(Z, center=T, scale=apply(Z,2,sd))``
+        in the reference NSC implementation.
 
     Returns
     -------
@@ -114,6 +120,19 @@ def prepare_nsc_inputs(
     else:
         Z1 = y_pre_treated.copy()
         Z0 = Y0_pre.T.copy()        # shape (J, T0)
+
+    if standardize and Z0.shape[1] > 0:
+        # Column-wise standardization across the (J + 1) rows = treated + donors.
+        # Matches R's scale() with center=TRUE and scale=apply(Z, 2, sd) which
+        # uses the unbiased sample sd (ddof=1).
+        stack = np.vstack([Z0, Z1[None, :]])
+        mu = stack.mean(axis=0)
+        sd = stack.std(axis=0, ddof=1)
+        # Guard zero-variance columns (constant covariates): leave them centred
+        # at 0 but unscaled, so the QP is unaffected by their inclusion.
+        safe_sd = np.where(sd > 1e-12, sd, 1.0)
+        Z0 = (Z0 - mu[None, :]) / safe_sd[None, :]
+        Z1 = (Z1 - mu) / safe_sd
 
     return NSCInputs(
         treated_outcome=y,

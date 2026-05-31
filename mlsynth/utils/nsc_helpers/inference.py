@@ -1,18 +1,24 @@
-"""Doudchenko-Imbens (2017) inference for NSC.
+"""Doudchenko-Imbens (2017) inference for NSC, R-faithful flavour.
 
-Estimates the per-period variance of the SC estimator by
+Mirrors the placebo-style variance estimator used in the reference
+R implementation (``NSC.R``, lines 200-220): for each donor ``j``,
+hold it out and refit the NSC weights using the other ``J - 1`` donors
+PLUS one randomly drawn extra donor (keeping the pool size at ``J``).
+Record the *full-period* residual ``Y_{j,t} - sum_k w_k Y_{k,t}`` for
+that fold. The per-period standard error is
 
-    sigma_t^2 ~= mean_k MSE( Y_{k, t}, sum_j w_{j -> k} Y_{j, t} )
+    se_t = sqrt(sum_j perr_{j,t}^2 / (J - 1))
 
-where ``w_{j -> k}`` are the NSC weights obtained by predicting
-donor ``k`` from the other donors using the same ``(a_star, b_star)``
-the treated-unit fit selected. The variance estimate is then used to
-build period-by-period normal confidence intervals around the gap
-``tau_hat_t = Y_{1, t} - Y_{1, t}^{SC}`` and, by averaging across the
-post-period, a CI for the ATT.
+and the gap CI at significance ``alpha`` is the normal interval
+``tau_hat_t ± z_{1-alpha/2} * se_t``. The ATT CI is built from the
+average of the per-period post-period SEs in the same way as the
+R script's reporting (an arithmetic mean of the ITE over the
+post-period, with SE = average post-period SE / sqrt(T1)).
 """
 
 from __future__ import annotations
+
+from typing import Union
 
 import numpy as np
 from scipy.stats import norm
@@ -30,6 +36,7 @@ def doudchenko_imbens_inference(
     a_star: float,
     b_star: float,
     alpha: float = 0.05,
+    seed: Union[int, np.random.Generator, None] = 123,
 ) -> NSCInference:
     """Compute per-period and ATT inference from the leave-one-control fits.
 
@@ -42,7 +49,7 @@ def doudchenko_imbens_inference(
     counterfactual : np.ndarray
         SC imputation of the treated outcome, shape ``(T,)``.
     Z0 : np.ndarray
-        Donor matching matrix, shape ``(J, p)``.
+        Standardized donor matching matrix, shape ``(J, p)``.
     T0 : int
         Number of pre-treatment periods.
     a_star, b_star : float
@@ -50,6 +57,9 @@ def doudchenko_imbens_inference(
         Used unchanged for the leave-one-control re-fits.
     alpha : float, default 0.05
         Two-sided significance level.
+    seed : int, Generator, or None, default 123
+        Seed (or RNG) for the extra-donor draws. Matches the reference
+        R script's ``set.seed(123)``.
     """
 
     T = treated_outcome.shape[0]
@@ -64,32 +74,36 @@ def doudchenko_imbens_inference(
             gap=gap,
         )
 
-    # Leave-one-control: for each donor k, re-fit NSC weights using the
-    # other J-1 donors as the donor pool, target = donor k. Predict
-    # donor k's outcome at every period; record per-period squared
-    # residuals; average across k to get the variance estimate.
-    sq_resids = np.zeros((J, T), dtype=float)
-    successes = np.zeros(T, dtype=int)
-    for k in range(J):
-        mask = np.ones(J, dtype=bool)
-        mask[k] = False
-        Z0_loo = Z0[mask]
-        Z1_loo = Z0[k]
-        Y0_loo = donor_outcomes[:, mask]
-        Y_target = donor_outcomes[:, k]
-        eig_loo = design_eigenvalues(Z0_loo)
+    if isinstance(seed, np.random.Generator):
+        rng = seed
+    else:
+        rng = np.random.default_rng(seed)
+
+    # Per-fold residuals: shape (J, T).
+    perr = np.full((J, T), np.nan, dtype=float)
+    for j in range(J):
+        other = np.array([k for k in range(J) if k != j])
+        idx = int(rng.choice(other))
+        ZJ = np.vstack([Z0[other], Z0[idx][None, :]])
+        Z1_j = Z0[j]
         try:
-            w_loo, _, _ = fit_nsc(
-                Z1_loo, Z0_loo, a_star, b_star, eigvals=eig_loo
-            )
+            eig = design_eigenvalues(ZJ)
+            w, _, _ = fit_nsc(Z1_j, ZJ, a_star, b_star, eigvals=eig)
         except Exception:
             continue
-        pred = Y0_loo @ w_loo
-        sq_resids[k] = (Y_target - pred) ** 2
-        successes += 1
+        Y_pool = np.column_stack(
+            [donor_outcomes[:, other], donor_outcomes[:, idx][:, None]]
+        )
+        perr[j] = donor_outcomes[:, j] - Y_pool @ w
 
-    successes = np.where(successes > 0, successes, 1)
-    period_variance = sq_resids.sum(axis=0) / successes
+    # Per-period SE = sqrt(sum_j perr_{j,t}^2 / (J - 1)), ignoring NaN folds.
+    sq = perr ** 2
+    valid = ~np.isnan(sq)
+    sum_sq = np.where(valid, sq, 0.0).sum(axis=0)
+    # Denominator is (number_of_valid_folds - 1); fall back to J-1 if all valid.
+    n_valid = valid.sum(axis=0)
+    denom = np.where(n_valid > 1, n_valid - 1, 1)
+    period_variance = sum_sq / denom
     period_se = np.sqrt(np.clip(period_variance, a_min=0.0, a_max=None))
 
     z = float(norm.ppf(1.0 - alpha / 2.0))
