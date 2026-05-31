@@ -50,7 +50,8 @@ from scipy.linalg import block_diag
 
 def _load_state_panel_and_W() -> Tuple[pd.DataFrame, np.ndarray, list]:
     """Load BLS state unemployment + queen-contiguity W from
-    ``mlsynth/basedata/``."""
+    ``mlsynth/basedata/``.
+    """
     import libpysal                                       # noqa: F401  (gal reader)
 
     base = Path(__file__).resolve().parents[2] / "basedata"

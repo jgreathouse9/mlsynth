@@ -389,7 +389,7 @@ class TestPTestInference:
 
 
 class TestAlternativeAStructures:
-    """v3 Examples 1, 2, 3 of Cao-Dowd."""
+    """V3 Examples 1, 2, 3 of Cao-Dowd."""
 
     def test_build_A_per_unit_shapes(self):
         # v3 Example 1 (default, per-unit free coefficients).
@@ -485,7 +485,7 @@ class TestAlternativeAStructures:
 
 
 class TestEfficientWeighting:
-    """v3 Proposition S.1 -- GMM-weighted variant."""
+    """V3 Proposition S.1 -- GMM-weighted variant."""
 
     def test_efficient_fit_populated(self, panel):
         res = SPILLSYNTH(_cfg(
@@ -523,7 +523,7 @@ class TestEfficientWeighting:
 
 
 class TestKappaASpecificationTest:
-    """v3 Section 5.1.2 -- kappa_A specification test."""
+    """V3 Section 5.1.2 -- kappa_A specification test."""
 
     def test_kappa_A_fields_present(self, panel):
         res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
@@ -560,7 +560,7 @@ class TestKappaASpecificationTest:
 
 
 class TestSignedCIs:
-    """v3 page 27 / R reference -- CI via test inversion."""
+    """V3 page 27 / R reference -- CI via test inversion."""
 
     def test_ci_brackets_alpha(self, panel):
         res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
@@ -606,7 +606,7 @@ class TestJointSpilloverTest:
 
 
 class TestPureDonorSensitivity:
-    """v3 Section 5.2 -- misspecification-bias bounds."""
+    """V3 Section 5.2 -- misspecification-bias bounds."""
 
     def test_sensitivity_populated_with_clean_controls(self, panel):
         res = SPILLSYNTH(_cfg(panel, affected_units=["u1", "u2"])).fit()
@@ -812,7 +812,7 @@ class TestStatisticalBehaviour:
         )).fit()
         # Mean p-value across post-periods should be lower for the
         # larger true effect.
-        assert big.cd.treatment_test.p_value.mean() <= \
+        assert big.cd.treatment_test.p_value.mean() <=\
             small.cd.treatment_test.p_value.mean()
 
     def test_ci_contains_point_estimate_when_residuals_symmetric(self, panel):
@@ -837,7 +837,7 @@ class TestStatisticalBehaviour:
         r_wrong = SPILLSYNTH(_cfg(df, affected_units=["u2"])).fit()
         # Right spec: kappa_A averaged across post-periods is smaller
         # than the misspecified version.
-        assert r_right.cd.kappa_A_test.kappa_A.mean() < \
+        assert r_right.cd.kappa_A_test.kappa_A.mean() <\
             r_wrong.cd.kappa_A_test.kappa_A.mean()
 
 
