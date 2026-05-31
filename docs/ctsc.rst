@@ -55,6 +55,145 @@ When to use CTSC
 * You want **unit-specific marginal effects** (heterogeneity), not just
   an average.
 
+Assumptions (and how to spot violations)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+CTSC is a *much* more permissive estimator than vanilla SC -- it does
+not require a clean treated/control split, it does not assume
+homogeneous effects, and it does not require the analyst to specify the
+number of factors. But it does still rely on a small set of identifying
+assumptions. Each is given here together with the symptom you would see
+if it failed.
+
+(a) **Interactive fixed-effects DGP for the untreated outcome.**
+    The paper assumes
+    :math:`Y_{it}^N = \lambda_t' \mu_i + \epsilon_{it}`, i.e. the
+    counterfactual (no-treatment) outcome is a low-rank factor model
+    plus mean-zero idiosyncratic noise.
+
+    *Plausibly violated when* the outcome has strong unit-specific
+    nonlinear trends, structural breaks affecting only some units, or
+    unit-specific deterministic time polynomials that cannot be written
+    as :math:`\lambda_t' \mu_i`. *Diagnostic*: fit an interactive-FE
+    model (e.g. ``gsynth``) to the pre-/non-treatment data and inspect
+    the residuals -- if there is visible unit-specific curvature left,
+    the factor structure is misspecified.
+
+(b) **Convex-hull condition on donor loadings.**
+    For each treated-period observation of unit :math:`i`, its factor
+    loading :math:`\mu_i` must lie (approximately) in the convex hull
+    of the other units' loadings, so that a simplex-weighted combination
+    of donors can reproduce its untreated trajectory.
+
+    *Plausibly violated when* the treated unit is an outlier on level,
+    seasonality, or factor exposure -- a coastal mega-state with no
+    interior analog, a country with idiosyncratic policy that no donor
+    shares. *Diagnostic*: look at the per-unit fit weights
+    :math:`\Omega_i` returned by CTSC; units with very poor untreated
+    fit get heavily down-weighted, and if most units fall in that
+    bucket the hull condition is failing population-wide.
+
+(c) **Large** :math:`T` **regime (consistency, not factor count).**
+    Powell shows the estimator is consistent as :math:`T \to \infty`
+    *without* the user having to specify the rank of
+    :math:`\lambda_t' \mu_i`. The trade-off is that very short panels
+    leave the simplex weights and slopes weakly identified.
+
+    *Plausibly violated when* :math:`T` is on the order of :math:`n` or
+    smaller (so the per-unit least squares with :math:`n-1` simplex
+    weights becomes ill-posed). *Diagnostic*: re-run on a longer
+    pre-period or aggregate to a coarser frequency and check whether
+    the average effect and weights are stable; large swings suggest
+    :math:`T` is too short.
+
+(d) **Linearity of the outcome in the treatment vector.**
+    The paper writes :math:`Y_{it} = Y_{it}^N + D_{it}' \alpha_i`, i.e.
+    the treatment effect is linear in :math:`D_{it}` (with unit-specific
+    slopes :math:`\alpha_i`). Multi-valued :math:`D_{it}` is fine, and
+    interactions/polynomial terms can be entered as extra columns of
+    :math:`D_{it}`, but CTSC does **not** estimate a fully nonparametric
+    dose-response curve.
+
+    *Plausibly violated when* the dose-response is strongly nonlinear
+    inside the support and you have not encoded the nonlinearity (e.g.
+    sharp regime-switching, kinked schedules). *Diagnostic*: add a
+    quadratic or spline term to ``treatment_vars`` and test whether the
+    higher-order coefficient is jointly significant under the sign-flip
+    distribution.
+
+(e) **Slope heterogeneity** :math:`\alpha_i` **is unit-specific but
+    time-invariant.**
+    Each unit gets its own marginal effect, but it does not drift over
+    time within a unit.
+
+    *Plausibly violated when* the marginal effect itself moves -- a
+    minimum-wage elasticity that changes after a labour-market reform,
+    a dose-response that shifts when patient populations change.
+    *Diagnostic*: split the post-treatment window in half, refit, and
+    compare the recovered :math:`\alpha_i`; large within-unit drift
+    indicates the time-invariance assumption is binding.
+
+(f) **No simultaneity in** :math:`D_{it}`.
+    CTSC allows :math:`D_{it}` to be correlated with the factors
+    :math:`\lambda_t' \mu_i` (this is the whole point), but it still
+    assumes :math:`D_{it}` is mean-independent of the idiosyncratic
+    shock :math:`\epsilon_{it}`. Reverse causality from contemporaneous
+    :math:`\epsilon_{it}` to :math:`D_{it}` breaks identification.
+
+    *Plausibly violated when* the policy responds within the same
+    period to the outcome -- e.g. the minimum wage being raised
+    *because* employment surprised on the upside this quarter.
+    *Diagnostic*: regress :math:`\Delta D_{it}` on lagged residuals
+    from a no-treatment factor fit; significant feedback is a red
+    flag.
+
+When **not** to use CTSC
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Single treated unit with a clean binary policy.** A canonical
+  comparative-case-study set-up (one state passes one law on one date,
+  others never do) is exactly what vanilla SC was built for; CTSC's
+  per-unit weight system is unnecessary overhead and its sign-flip
+  inference is weaker than the placebo / conformal inference available
+  in the binary-treatment world. Use :doc:`tssc` or :doc:`fdid`.
+
+* **Short panels.** Powell's consistency story is in :math:`T \to
+  \infty`. With :math:`T \lesssim n` the per-unit least squares with
+  :math:`n-1` simplex weights is ill-posed and the average effect can
+  swing dramatically with the seed. Prefer :doc:`fdid` (which is
+  designed for short panels by stepwise donor selection) or a factor
+  estimator that explicitly regularises the rank.
+
+* **Treated trajectory outside the donor convex hull.** If the treated
+  unit's untreated trend cannot be expressed as a simplex combination
+  of the donors' untreated trends -- coastal vs. interior states, an
+  outlier sector, a country with idiosyncratic seasonality -- CTSC has
+  no fix; the per-unit :math:`\Omega_i` will collapse and the average
+  effect is dominated by a handful of well-fit units. Use :doc:`fma`
+  or :doc:`scmo` (auxiliary outcomes) to widen the donor information
+  set before forcing a hull fit.
+
+* **Treatment effect that drifts over time within a unit.** CTSC fixes
+  :math:`\alpha_i` across time. If the dose-response is genuinely
+  time-varying (a minimum-wage elasticity that changes after a recession,
+  a drug whose effect attenuates with tolerance), CTSC will return an
+  average across the post-window that masks the dynamics. Use a
+  time-varying-effects estimator (:doc:`tasc` for state-space dynamics,
+  :doc:`dscar` for autoregressive treated processes) instead.
+
+* **Strongly nonlinear or kinked dose-response that you cannot encode.**
+  CTSC is linear in :math:`D_{it}`. If the policy effect has a sharp
+  kink or saturation that no parsimonious basis expansion captures,
+  fall back to a doubly-robust panel estimator or a changes-in-changes
+  design.
+
+* **Contemporaneous reverse causality from outcome to treatment.** CTSC
+  permits the treatment to be correlated with unobserved factors, but
+  not with the *same-period* idiosyncratic shock. If the policy is set
+  in response to within-period outcome surprises, you need an
+  instrument or a timing-based identification strategy; CTSC alone is
+  not enough.
+
 Mathematical Formulation
 ------------------------
 
