@@ -147,6 +147,116 @@ HSC; they are what make :math:`X_{\text{pre}}` and :math:`X_{\text{post}}` valid
 controls and the pre-period a clean training window for both :math:`\omega` and
 :math:`E`.
 
+
+Diagnostic: shared vs idiosyncratic stochastic trends
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The HSC paper's central claim is that the choice between matching on
+levels and matching on differences should be made by **the data**, not
+a fixed prior. The script below builds two panels with the **same true
+ATT of zero** and the same number of donors, differing only in whether
+the treated unit's stochastic trend is the one the donors share or its
+own independent random walk:
+
+* **Panel A** -- ``mode='shared'``. Donors and treated each carry the
+  *same* random walk plus their own short-run noise. Assumption 2
+  holds trivially (the treated factor loading sits inside the donor
+  hull) and Assumption 3 is irrelevant.
+* **Panel B** -- ``mode='idio'``. Donors share a random walk but the
+  treated unit is driven by an *independent* random walk. The treated
+  loading on the donors' shared factor is zero, so a convex
+  combination of the donors cannot reproduce the treated trajectory.
+  This is the Granger-Newbold / Phillips (1986) spurious-matching
+  regime: the level-matched pre-period fit will look great by chance,
+  but the post-period gap is mostly the difference between two
+  independent random walks -- not a treatment effect.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   from mlsynth import CLUSTERSC, HSC
+
+
+   def panel(*, mode, n_donors=10, T0=40, T1=20, seed=0):
+       """One shared random walk for the donors. Treated either shares
+       it (mode='shared') or has its own independent RW (mode='idio').
+       True ATT = 0 by construction.
+       """
+       rng = np.random.default_rng(seed)
+       T = T0 + T1
+       shared_rw = np.cumsum(rng.standard_normal(T))
+       eps_d = 0.3 * rng.standard_normal((n_donors, T))
+       donors = shared_rw[None, :] + eps_d
+       if mode == "shared":
+           treated_trend = shared_rw
+       else:
+           treated_trend = np.cumsum(rng.standard_normal(T))
+       treated = treated_trend + 0.3 * rng.standard_normal(T)
+       rows = [{"unit": "T", "t": t, "y": float(treated[t]),
+                "treat": int(t >= T0)} for t in range(T)]
+       for i, d in enumerate(donors):
+           rows.extend({"unit": f"d{i}", "t": t, "y": float(d[t]),
+                         "treat": 0} for t in range(T))
+       return pd.DataFrame(rows)
+
+
+   for mode, label in [
+       ("shared", "shared stochastic trend"),
+       ("idio",   "idiosyncratic stochastic trend"),
+   ]:
+       df = panel(mode=mode, seed=1)
+       h = HSC({"df": df, "outcome": "y", "treat": "treat",
+                  "unitid": "unit", "time": "t",
+                  "display_graphs": False}).fit()
+       sc = CLUSTERSC({"df": df, "outcome": "y", "treat": "treat",
+                         "unitid": "unit", "time": "t",
+                         "method": "PCR", "objective": "SIMPLEX",
+                         "cluster": False,
+                         "display_graphs": False}).fit()
+       print(f"\n{label}  (true ATT = 0)")
+       print(f"  HSC  ATT = {h.att:+7.3f}   rho* = {h.design.selected_rho:.3f}")
+       print(f"  SC   ATT = {sc.att:+7.3f}")
+
+prints (deterministic with the seed above)::
+
+   shared stochastic trend  (true ATT = 0)
+     HSC  ATT =  +0.079   rho* = 0.970
+     SC   ATT =  -0.082
+
+   idiosyncratic stochastic trend  (true ATT = 0)
+     HSC  ATT =  -5.002   rho* = 0.200
+     SC   ATT = -13.364
+
+Three takeaways:
+
+1. **HSC's selected** :math:`\rho^*` **is the diagnostic.** When the
+   trend is shared, cross-validation picks :math:`\rho^* \approx 1`
+   (essentially level-matching SC). When the trend is idiosyncratic,
+   it drops to :math:`\rho^* \approx 0.2` (almost pure differences
+   matching). Reading off :math:`\rho^*` after fitting tells you which
+   regime the data live in.
+2. **Spurious matching is large and one-sided.** On a panel where the
+   true ATT is zero, level-matched SC reports an apparent effect of
+   :math:`-13.4` simply because two independent random walks drifted
+   apart over 60 periods. This bias **does not vanish as** :math:`T_0`
+   **grows** -- it is the Phillips (1986) phenomenon, not finite-sample
+   noise.
+3. **HSC pays a small efficiency cost in the shared regime.** In Panel
+   A, both methods recover the true zero ATT to within noise (SC's
+   :math:`-0.08` vs HSC's :math:`+0.08`); in Panel B, HSC's bias
+   (:math:`-5.0`) is well below SC's (:math:`-13.4`) but is not
+   zero because cross-validation with a finite pre-period cannot
+   completely undo the spurious component. The choice between HSC and
+   a fixed-:math:`\rho` estimator is therefore a Bayesian one: if you
+   are confident which regime you are in, take the corresponding
+   endpoint; if you are not, HSC's CV pays a small price in the
+   easy regime and a large dividend in the hard one.
+
+
+
+
 Mathematical Formulation
 ------------------------
 
