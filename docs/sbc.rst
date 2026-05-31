@@ -614,6 +614,108 @@ Some donor cycles are negatively correlated with Hong Kong's, so the
 paper also reports a signed-weight specification — set
 ``weights_mode="unrestricted"`` to relax the non-negativity constraint.
 
+
+Diagnostic: spurious matching of independent stochastic trends
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The script below shows the **spurious synthetic control problem**
+isolated on a synthetic panel where the true ATT is zero. Two panels
+share donor structure but differ in the treated unit's stochastic
+trend:
+
+* **Panel A** -- ``mode='shared'``. Donors and the treated unit each
+  carry the *same* random-walk trend plus their own short-run noise.
+  Classical SC works (the donors really do span the treated trend);
+  SBC is slightly less efficient but unbiased.
+* **Panel B** -- ``mode='idio'``. The donors share one random walk,
+  the treated unit has an *independent* random walk of its own. No
+  weighted average of the donors can reproduce the treated trend, but
+  *finite-sample realised correlations* between two independent
+  random walks routinely look strong, so the pre-period fit is
+  great by chance and the post-period "treatment effect" is mostly
+  the divergence between the two RW realisations. This is exactly
+  the Granger-Newbold / Phillips (1986) phenomenon SBC is designed
+  to remove.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   from mlsynth import CLUSTERSC, SBC
+
+
+   def panel(*, mode, n_donors=10, T0=40, T1=20, seed=0):
+       """One shared random walk for the donors. Treated either shares
+       it (mode='shared') or has its own independent RW (mode='idio').
+       True ATT = 0 by construction.
+       """
+       rng = np.random.default_rng(seed)
+       T = T0 + T1
+       shared_rw = np.cumsum(rng.standard_normal(T))
+       eps_d = 0.3 * rng.standard_normal((n_donors, T))
+       donors = shared_rw[None, :] + eps_d
+       if mode == "shared":
+           treated_trend = shared_rw
+       else:
+           treated_trend = np.cumsum(rng.standard_normal(T))
+       treated = treated_trend + 0.3 * rng.standard_normal(T)
+       rows = [{"unit": "T", "t": t, "y": float(treated[t]),
+                "treat": int(t >= T0)} for t in range(T)]
+       for i, d in enumerate(donors):
+           rows.extend({"unit": f"d{i}", "t": t, "y": float(d[t]),
+                         "treat": 0} for t in range(T))
+       return pd.DataFrame(rows)
+
+
+   for mode, label in [
+       ("shared", "shared stochastic trend (donors trace treated)"),
+       ("idio",   "idiosyncratic stochastic trend (independent RW)"),
+   ]:
+       df = panel(mode=mode, seed=1)
+       s = SBC({"df": df, "outcome": "y", "treat": "treat",
+                  "unitid": "unit", "time": "t",
+                  "display_graphs": False}).fit()
+       sc = CLUSTERSC({"df": df, "outcome": "y", "treat": "treat",
+                         "unitid": "unit", "time": "t",
+                         "method": "PCR", "objective": "SIMPLEX",
+                         "cluster": False,
+                         "display_graphs": False}).fit()
+       print(f"\n{label}  (true ATT = 0)")
+       print(f"  SC   ATT = {sc.att:+7.3f}")
+       print(f"  SBC  ATT = {s.att:+7.3f}")
+
+prints (deterministic with the seed above)::
+
+   shared stochastic trend (donors trace treated)  (true ATT = 0)
+     SC   ATT =  -0.082
+     SBC  ATT =  -0.644
+
+   idiosyncratic stochastic trend (independent RW)  (true ATT = 0)
+     SC   ATT = -13.364
+     SBC  ATT =  -2.423
+
+Three takeaways:
+
+1. **The classical SC bias in the idiosyncratic regime is enormous
+   and one-sided.** On a panel where the true ATT is zero, SC reports
+   an apparent effect of :math:`-13.4` -- pure spurious matching. SBC
+   strips the trend via the Hamilton filter and recovers an ATT of
+   :math:`-2.4`, an 82% bias reduction. The remaining bias is the
+   finite-sample idiosyncratic-shock term from Theorem 1, which goes
+   to zero in expectation but not pointwise.
+2. **SBC pays a small efficiency cost in the easy regime.** When the
+   trend is genuinely shared (Panel A), SBC's :math:`-0.64` is a
+   little farther from the true zero ATT than SC's :math:`-0.08`,
+   because the cycle-only fit discards the shared trend variation
+   that SC exploits. This is the unavoidable price of insurance.
+3. **The diagnostic is the agreement between SC and SBC.** When
+   classical SC and SBC produce similar ATTs (Panel A), trust the SC
+   estimate -- the donors really do span the treated trend. When
+   they disagree by an order of magnitude (Panel B), trust the SBC
+   estimate -- classical SC is almost certainly picking up spurious
+   trend co-movement that SBC has removed by construction.
+
 When SBC vs Classical SCM Disagree
 ----------------------------------
 
