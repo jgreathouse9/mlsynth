@@ -133,6 +133,14 @@ dynamics explicitly without first decomposing the series.
 * :doc:`fma` -- Factor Model Approach. Principal-component extraction
   from the donor panel with a formal residual-bootstrap test.
 
+* :doc:`dscar` -- Dynamic SC for Auto-Regressive processes
+  (Zheng & Chen 2024). **Time-varying weights**: a fresh
+  empirical-likelihood weight problem is solved at every post-period,
+  matching on the current covariate state and the recursively-updated
+  lagged outcome. Suits high-:math:`N` / moderate-:math:`T` panels
+  with strongly autocorrelated outcomes (e.g., hourly pollutant
+  monitoring stations, daily prices, weekly sales).
+
 Staggered adoption and multiple cohorts
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -147,10 +155,33 @@ with appropriate inference.
 * :doc:`seq_sdid` -- Sequential SDiD for staggered adoption.
   Cohort-level aggregates with sequential imputation and bootstrap
   CIs.
-* :doc:`spsydid` -- Spatial Synthetic-DiD. Extends SDiD with
-  spillover exposure for geographic interference.
 * :doc:`ppscm` -- Partially-Pooled SC. Interpolates between separate
   per-cohort fits and a single fully-pooled SC.
+
+
+Spillover-aware (SUTVA violation)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These estimators relax the Stable Unit Treatment Value Assumption on
+the donor pool: classical SC assumes the donors are unaffected by the
+treatment, which fails when geographic / institutional proximity
+causes the treatment to leak. Both methods below disentangle direct
+effects on the treated unit from indirect effects on
+spillover-exposed donors.
+
+* :doc:`spsydid` -- Spatial Synthetic-DiD (Serenini & Masek 2024).
+  Extends SDiD with a single spillover-exposure regressor built from
+  a user-supplied row-standardised spatial weight matrix
+  :math:`W`. Use when spillovers decay with a known spatial structure
+  and pooling them buys efficiency.
+* :doc:`spillsynth` -- Spillover-aware SCM (Cao & Dowd 2023). Encodes
+  the spillover structure in an A-matrix (per-unit, homogeneous, or
+  distance-decay) and recovers per-affected-unit spillover effects
+  jointly with the treatment effect via a closed-form solution. Ships
+  with the Cao-Dowd P-test, signed CIs, the :math:`\kappa_A`
+  specification test, pure-donor sensitivity, and a GMM-efficient
+  variant. Use when the spillover set is enumerable and per-unit
+  effects matter.
 
 Missing data and matrix completion
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -213,7 +244,9 @@ uncertainty quantification?
 **Frequentist confidence intervals.** :doc:`tssc` (subsampling),
 :doc:`fdid` (Wald-style), :doc:`sdid` and :doc:`seq_sdid`
 (bootstrap), :doc:`fma` (residual bootstrap), :doc:`siv` (asymptotic
-IV sandwich or split-conformal).
+IV sandwich or split-conformal), :doc:`spillsynth` (Cao-Dowd
+end-of-sample P-test, signed CIs via test inversion, and a
+:math:`\kappa_A` specification test for the chosen A-matrix).
 
 **Bayesian credible intervals.** :doc:`bvss` (spike-and-slab
 posterior), :doc:`tasc` (Kalman posterior bands).
@@ -222,17 +255,22 @@ posterior), :doc:`tasc` (Kalman posterior bands).
 "conformal"``; :doc:`proximal` for proximal causal inference under
 unmeasured confounding.
 
+**Placebo-based standard errors.** :doc:`dscar` (normalised placebo
+SE: re-fit the dynamic estimator on random control-only "treated"
+draws, then rescale to match the observed-treated variance scale).
+
 **Per-event-time ATTs (event study).** :doc:`seq_sdid`,
-:doc:`spsydid`, :doc:`ppscm`.
+:doc:`spsydid`, :doc:`ppscm`; :doc:`spillsynth` (per-treated event-
+study plot when ``n_treated > 1``, with shaded 95% CIs from signed
+test inversion).
+
 
 Still not sure?
 ---------------
 
 * If your panel looks like the canonical Abadie-Diamond-Hainmueller
   Proposition 99 study -- one treated state, dozens of donor states,
-  decades of pre-treatment data -- start with :doc:`tssc`. Its
-  *Verification* section reproduces the published Brooklyn-showroom
-  and Figure-2 simulation numbers exactly.
+  decades of pre-treatment data -- start with :doc:`fdid`. If the forward parallel pre-trend assumption is not valid, switch to :doc:`tssc`.
 * If your :math:`N / T_0` ratio is large or you suspect the simplex
   constraint is too restrictive, start with :doc:`bvss`. Its
   *Verification* section reproduces Xu & Zhou's China anti-corruption
