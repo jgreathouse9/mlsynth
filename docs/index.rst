@@ -191,8 +191,13 @@ headline numbers.
 
    sdid
    seq_sdid
-   spsydid
    ppscm
+
+.. toctree::
+   :hidden:
+   :caption: Observational: spillover-aware
+
+   spsydid
    spillsynth
 
 .. toctree::
