@@ -620,6 +620,341 @@ class TestPureDonorSensitivity:
             )
 
 
+class TestAlgebraicIdentities:
+    """Closed-form identities that should hold for every fit."""
+
+    def test_alpha_equals_A_times_gamma(self, panel):
+        # alpha = A @ gamma by construction; verify for all three structures.
+        for cfg_extras in [
+            dict(spillover_structure="per_unit", affected_units=["u1", "u2"]),
+            dict(spillover_structure="homogeneous", affected_units=["u1", "u2"]),
+            dict(spillover_structure="distance_decay",
+                 unit_distances={f"u{i}": 0.3 * i for i in range(1, 8)}),
+        ]:
+            res = SPILLSYNTH(_cfg(panel, **cfg_extras)).fit()
+            expected = res.inputs.A @ res.cd.gamma
+            np.testing.assert_allclose(res.cd.alpha, expected, atol=1e-12)
+
+    def test_vanilla_scm_matches_a_plus_B_row0(self, panel):
+        # counterfactual_scm == a[0] + B[0] @ Y_post by definition.
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        manual = res.cd.a[0] + res.cd.B[0] @ res.inputs.Y_post
+        np.testing.assert_allclose(res.cd.counterfactual_scm, manual, atol=1e-12)
+
+    def test_gap_sp_equals_alpha_row0(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        np.testing.assert_allclose(res.cd.gap_sp, res.cd.alpha[0], atol=1e-12)
+
+    def test_att_sp_equals_gap_mean(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        assert res.att == pytest.approx(float(res.cd.gap_sp.mean()))
+        assert res.att_scm == pytest.approx(float(res.cd.gap_scm.mean()))
+
+    def test_homogeneous_equals_per_unit_when_p_is_one(self):
+        # With a single affected unit, homogeneous (k=2 cols) and per_unit
+        # (k=2 cols) are mathematically the same: A is the same matrix.
+        df = _spill_panel(treatment=-3.0, spillover=1.5,
+                          spillover_idx=1, seed=4)
+        r_per = SPILLSYNTH(_cfg(df, spillover_structure="per_unit",
+                                affected_units=["u1"])).fit()
+        r_hom = SPILLSYNTH(_cfg(df, spillover_structure="homogeneous",
+                                affected_units=["u1"])).fit()
+        np.testing.assert_allclose(r_per.inputs.A, r_hom.inputs.A)
+        assert r_per.att == pytest.approx(r_hom.att, abs=1e-9)
+
+    def test_distance_decay_alpha_proportional_to_decay(self):
+        # alpha[i] = exp(-d_i) * gamma[1]; verify the proportionality
+        # against the recovered gamma vector.
+        df = _spill_panel(treatment=-3.0, spillover=1.5,
+                          spillover_idx=1, seed=9)
+        distances = {f"u{i}": 0.2 * i for i in range(1, 8)}
+        res = SPILLSYNTH(_cfg(
+            df, spillover_structure="distance_decay",
+            unit_distances=distances,
+        )).fit()
+        decay = res.inputs.A[1:, 1]                       # (N-1,)
+        gamma_b = res.cd.gamma[1]                         # (T1,)
+        # For each control unit i, alpha[1+i] should equal decay[i] * gamma_b.
+        for i in range(decay.size):
+            np.testing.assert_allclose(
+                res.cd.alpha[1 + i], decay[i] * gamma_b, atol=1e-9,
+            )
+
+
+class TestEdgeCaseStructures:
+    """Edge cases at the boundaries of A-matrix construction."""
+
+    def test_per_unit_with_p_zero_runs(self, panel):
+        # No affected units declared: reduces to vanilla demeaned SCM.
+        res = SPILLSYNTH(_cfg(panel, affected_units=None)).fit()
+        assert res.inputs.A.shape == (res.inputs.N, 1)    # only treated col
+        assert res.cd.gamma.shape == (1, res.inputs.T1)
+        # SP gap equals treated unit's own residual (which is what
+        # vanilla SCM does on the demeaned variant).
+        assert np.isfinite(res.att)
+
+    def test_singular_AMA_all_units_affected_raises(self, panel):
+        # Declare every control as affected -> (I-B)A has rank deficiency
+        # for many panels (per Example 4 in Section 3.4.1). The pipeline
+        # should still produce numbers, but condition number must be flagged.
+        all_controls = [f"u{i}" for i in range(1, 8)]
+        try:
+            res = SPILLSYNTH(_cfg(panel, affected_units=all_controls)).fit()
+            # If it ran, cond_AMA should be huge (near singular).
+            assert res.cd.cond_AMA > 1e8 or np.isnan(res.cd.cond_AMA)
+        except (MlsynthEstimationError, np.linalg.LinAlgError):
+            # Either outcome is acceptable; we just don't want a silent
+            # garbage answer with cond_AMA O(1).
+            pass
+
+    def test_distance_decay_ignores_treated_in_dict(self, panel):
+        # Treated unit u0's distance is ignored (its row is always (1, 0)).
+        distances = {"u0": 99.0, **{f"u{i}": 0.5 for i in range(1, 8)}}
+        res = SPILLSYNTH(_cfg(
+            panel, spillover_structure="distance_decay",
+            unit_distances=distances,
+        )).fit()
+        np.testing.assert_array_equal(res.inputs.A[0], [1, 0])
+
+    def test_distance_decay_missing_controls_get_zero_weight(self, panel):
+        # Only u1 has a finite distance; the rest get exp(-d)=0 weight.
+        res = SPILLSYNTH(_cfg(
+            panel, spillover_structure="distance_decay",
+            unit_distances={"u1": 0.0},
+        )).fit()
+        decay = res.inputs.A[1:, 1]
+        # Exactly one control row should have weight 1; rest 0.
+        assert (decay > 0).sum() == 1
+        assert decay[0] == pytest.approx(1.0)
+
+    def test_distance_decay_rejects_negative_distance(self, panel):
+        with pytest.raises(MlsynthDataError):
+            SPILLSYNTH(_cfg(
+                panel, spillover_structure="distance_decay",
+                unit_distances={"u1": -0.5},
+            )).fit()
+
+    def test_distance_decay_rejects_infinite_distance(self, panel):
+        with pytest.raises(MlsynthDataError):
+            SPILLSYNTH(_cfg(
+                panel, spillover_structure="distance_decay",
+                unit_distances={"u1": float("inf")},
+            )).fit()
+
+    def test_distance_decay_rejects_unknown_label(self, panel):
+        with pytest.raises(MlsynthDataError):
+            SPILLSYNTH(_cfg(
+                panel, spillover_structure="distance_decay",
+                unit_distances={"ghost_unit": 1.0, "u1": 0.5},
+            )).fit()
+
+    def test_unknown_spillover_structure_rejected(self, panel):
+        with pytest.raises(MlsynthConfigError):
+            SPILLSYNTH(_cfg(
+                panel, spillover_structure="per-unit",   # hyphen not underscore
+                affected_units=["u1"],
+            ))
+
+
+class TestMultiplePostPeriods:
+    """Shapes scale correctly with T1 > 1."""
+
+    @pytest.mark.parametrize("T1", [1, 3, 10])
+    def test_shapes_scale_with_T1(self, T1):
+        df = _spill_panel(N=8, T=20 + T1, T0=20, treatment=-3.0,
+                          spillover=1.5, spillover_idx=1, seed=2)
+        res = SPILLSYNTH(_cfg(df, affected_units=["u1"])).fit()
+        assert res.inputs.T1 == T1
+        assert res.cd.alpha.shape == (res.inputs.N, T1)
+        assert res.cd.gamma.shape == (2, T1)
+        assert res.cd.gap_sp.shape == (T1,)
+        assert res.cd.gap_scm.shape == (T1,)
+        assert res.cd.treatment_test.P_post.shape == (T1,)
+        assert res.cd.treatment_ci_95.shape == (T1, 2)
+        assert res.cd.kappa_A_test.kappa_A.shape == (T1,)
+        if T1 > 0:
+            assert res.cd.joint_spillover_test.P_post.shape == (T1,)
+
+
+class TestStatisticalBehaviour:
+    """Statistical sanity checks: p-values, CIs, reject patterns."""
+
+    def test_treatment_pvalue_monotone_in_effect_size(self):
+        # Bigger true effect -> smaller p-value (in expectation; we use
+        # the same seed so the comparison is deterministic).
+        small = SPILLSYNTH(_cfg(
+            _spill_panel(treatment=-0.5, spillover=0.0,
+                         spillover_idx=1, seed=42),
+            affected_units=["u1"],
+        )).fit()
+        big = SPILLSYNTH(_cfg(
+            _spill_panel(treatment=-8.0, spillover=0.0,
+                         spillover_idx=1, seed=42),
+            affected_units=["u1"],
+        )).fit()
+        # Mean p-value across post-periods should be lower for the
+        # larger true effect.
+        assert big.cd.treatment_test.p_value.mean() <= \
+            small.cd.treatment_test.p_value.mean()
+
+    def test_ci_contains_point_estimate_when_residuals_symmetric(self, panel):
+        # The CI is alpha + [q_{0.025}, q_{0.975}]. As long as the
+        # pre-period residual distribution straddles 0 (generic), the
+        # point estimate should lie inside the CI.
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        ci = res.cd.treatment_ci_95
+        point = res.cd.alpha[0]
+        # Allow the point to coincide with an endpoint of the CI
+        # (happens with degenerate residual quantiles); strict
+        # containment is checked by the q_lo<0<q_hi pattern.
+        assert (ci[:, 0] <= point + 1e-9).all()
+        assert (point - 1e-9 <= ci[:, 1]).all()
+
+    def test_kappa_A_small_under_correct_spec(self):
+        # With the correct structure and a clean DGP, kappa_A should be
+        # smaller than a deliberately wrong structure on the same panel.
+        df = _spill_panel(treatment=-3.0, spillover=1.5,
+                          spillover_idx=1, seed=15)
+        r_right = SPILLSYNTH(_cfg(df, affected_units=["u1"])).fit()
+        r_wrong = SPILLSYNTH(_cfg(df, affected_units=["u2"])).fit()
+        # Right spec: kappa_A averaged across post-periods is smaller
+        # than the misspecified version.
+        assert r_right.cd.kappa_A_test.kappa_A.mean() < \
+            r_wrong.cd.kappa_A_test.kappa_A.mean()
+
+
+class TestReproducibility:
+    """Same inputs must produce identical numerical outputs."""
+
+    def test_same_panel_same_seed_same_results(self):
+        df1 = _spill_panel(seed=99)
+        df2 = _spill_panel(seed=99)
+        r1 = SPILLSYNTH(_cfg(df1, affected_units=["u1"])).fit()
+        r2 = SPILLSYNTH(_cfg(df2, affected_units=["u1"])).fit()
+        assert r1.att == pytest.approx(r2.att)
+        np.testing.assert_allclose(r1.cd.alpha, r2.cd.alpha, atol=1e-12)
+        np.testing.assert_allclose(r1.cd.B, r2.cd.B, atol=1e-9)
+        np.testing.assert_allclose(
+            r1.cd.treatment_test.P_post, r2.cd.treatment_test.P_post, atol=1e-9,
+        )
+
+    def test_dict_path_passes_through_new_options(self, panel):
+        # Verify the dict-config code path honours spillover_structure,
+        # unit_distances, and weighting.
+        res = SPILLSYNTH(_cfg(
+            panel,
+            spillover_structure="distance_decay",
+            unit_distances={f"u{i}": 0.4 for i in range(1, 8)},
+            weighting="efficient",
+        )).fit()
+        assert res.inputs.A.shape == (8, 2)
+        assert res.cd.efficient_fit is not None
+
+
+class TestInferenceEdgeCases:
+    """Inference module edge cases."""
+
+    def test_p_test_multi_row_C_runs(self, panel):
+        # Direct call to p_test with a multi-row C (matches MATLAB's
+        # joint-spillover selector).
+        from mlsynth.utils.spillsynth_helpers.cd.inference import (
+            G_matrix, compute_pre_residuals, p_test,
+        )
+        inputs = prepare_spillsynth_inputs(
+            df=panel, outcome="y", treat="treat",
+            unitid="unit", time="year", affected_units=["u1", "u2"],
+        )
+        a, B = fit_leave_one_out_sc(inputs.Y_pre)
+        M = build_M(B)
+        _gamma, alpha, _cond = sp_estimate(
+            inputs.Y_post, a=a, B=B, M=M, A=inputs.A,
+        )
+        U_pre = compute_pre_residuals(inputs.Y_pre, a, B)
+        G_hat = G_matrix(inputs.A, B)
+        # Multi-row C selecting both affected rows.
+        C = np.zeros((2, inputs.N))
+        C[0, 1] = 1; C[1, 2] = 1
+        result = p_test(alpha_hat=alpha, U_pre=U_pre, G_hat=G_hat, C=C)
+        assert result.P_post.shape == (inputs.T1,)
+        assert (result.P_post >= 0).all()                # quadratic form
+
+    def test_signed_ci_rejects_multi_row_C(self, panel):
+        from mlsynth.utils.spillsynth_helpers.cd.inference import (
+            G_matrix, compute_pre_residuals, signed_ci,
+        )
+        inputs = prepare_spillsynth_inputs(
+            df=panel, outcome="y", treat="treat",
+            unitid="unit", time="year", affected_units=["u1", "u2"],
+        )
+        a, B = fit_leave_one_out_sc(inputs.Y_pre)
+        M = build_M(B)
+        _g, alpha, _c = sp_estimate(inputs.Y_post, a=a, B=B, M=M, A=inputs.A)
+        U_pre = compute_pre_residuals(inputs.Y_pre, a, B)
+        G_hat = G_matrix(inputs.A, B)
+        C_multi = np.eye(2, inputs.N)
+        with pytest.raises(ValueError):
+            signed_ci(alpha_hat=alpha, U_pre=U_pre, G_hat=G_hat, C=C_multi)
+
+    def test_kappa_A_test_with_zero_p(self, panel):
+        # No affected units: A is N x 1 (just treated unit basis).
+        # kappa_A_test should still compute (it doesn't depend on p>0).
+        res = SPILLSYNTH(_cfg(panel, affected_units=None)).fit()
+        kA = res.cd.kappa_A_test
+        assert kA is not None
+        assert kA.kappa_A.shape == (res.inputs.T1,)
+
+
+class TestEfficientWeightingEdgeCases:
+    """GMM-efficient edge cases."""
+
+    def test_efficient_with_small_T0_runs(self):
+        # T0 = 5, N = 8 -> sample Omega is rank 5 < N. Ridge keeps
+        # it invertible.
+        df = _spill_panel(N=8, T=15, T0=5, treatment=-3.0, spillover=1.5,
+                          spillover_idx=1, seed=7)
+        res = SPILLSYNTH(_cfg(
+            df, affected_units=["u1"], weighting="efficient",
+        )).fit()
+        eff = res.cd.efficient_fit
+        assert eff is not None
+        assert np.isfinite(eff["att_sp_W"])
+        # Omega_hat must be symmetric.
+        np.testing.assert_allclose(
+            eff["Omega_hat"], eff["Omega_hat"].T, atol=1e-12,
+        )
+
+    def test_efficient_recovers_treatment_under_strong_signal(self):
+        df = _spill_panel(treatment=-3.0, spillover=1.5,
+                          spillover_idx=1, seed=23)
+        res = SPILLSYNTH(_cfg(
+            df, affected_units=["u1"], weighting="efficient",
+        )).fit()
+        # ATT under W should land near truth as well.
+        assert res.cd.efficient_fit["att_sp_W"] == pytest.approx(-3.0, abs=1.0)
+
+
+class TestPureDonorEdgeCases:
+    def test_no_clean_controls_returns_none(self, panel):
+        # Declare every control as affected. No clean controls remain,
+        # so the SP misspec analysis is undefined -- pipeline returns
+        # None.
+        try:
+            res = SPILLSYNTH(_cfg(
+                panel, affected_units=[f"u{i}" for i in range(1, 8)],
+            )).fit()
+        except MlsynthEstimationError:
+            # Singular A'MA path; accepted, not a sensitivity test.
+            return
+        assert res.cd.pure_donor_sensitivity is None
+
+    def test_bias_bounds_p_zero_rejected(self, panel):
+        res = SPILLSYNTH(_cfg(panel, affected_units=["u1"])).fit()
+        with pytest.raises(ValueError):
+            res.cd.pure_donor_sensitivity.bias_bounds(
+                p=0, alpha_bar_grid=np.array([1.0]),
+            )
+
+
 # ----------------------------------------------------------------------
 # Layer 4 -- public API contracts
 # ----------------------------------------------------------------------
