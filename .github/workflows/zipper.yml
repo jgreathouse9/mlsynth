@@ -1,0 +1,19 @@
+name: Unzip File
+description: Unzip a specified archive
+
+inputs:
+  zip-file:
+    description: Path to the zip file
+    required: true
+
+  destination:
+    description: Destination directory
+    required: false
+    default: .
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        unzip "${{ inputs.zip-file }}" -d "${{ inputs.destination }}"
