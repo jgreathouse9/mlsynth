@@ -222,9 +222,25 @@ class TestPrepareInputs:
                 unitid="unit", time="year",
             )
 
-    def test_rejects_multiple_treated(self, panel):
+    def test_accepts_multiple_treated_same_time(self, panel):
+        # Cao-Dowd v3 Section S.1.2: multiple treated units sharing a
+        # common intervention time are supported.
         panel = panel.copy()
         panel.loc[(panel["unit"] == "u3") & (panel["year"] >= 30), "treat"] = 1
+        inputs = prepare_spillsynth_inputs(
+            panel, outcome="y", treat="treat",
+            unitid="unit", time="year",
+        )
+        assert inputs.n_treated == 2
+        assert set(inputs.treated_labels) == {"u0", "u3"}
+        # Treated units are rows 0 and 1 of the reordered panel.
+        assert inputs.A.shape[1] == 2                  # n_treated + p=0
+
+    def test_rejects_multiple_treated_different_times(self, panel):
+        # Different intervention times = staggered adoption = out of
+        # scope for S.1.2.
+        panel = panel.copy()
+        panel.loc[(panel["unit"] == "u3") & (panel["year"] >= 25), "treat"] = 1
         with pytest.raises(MlsynthDataError):
             prepare_spillsynth_inputs(
                 panel, outcome="y", treat="treat",
@@ -953,6 +969,123 @@ class TestPureDonorEdgeCases:
             res.cd.pure_donor_sensitivity.bias_bounds(
                 p=0, alpha_bar_grid=np.array([1.0]),
             )
+
+
+class TestMultipleTreatedUnits:
+    """Cao-Dowd v3 Section S.1.2 -- multiple treated units, common time."""
+
+    def _multi_treated_panel(
+        self, *, treated_idx, spillover_idx, treatment_effects,
+        spillover, N=6, T=40, T0=30, seed=0,
+    ):
+        """Build a panel with multiple treated units at the same time."""
+        rng = np.random.default_rng(seed)
+        loadings = rng.uniform(0.5, 1.5, size=N)
+        f = np.cumsum(rng.standard_normal(T)) * 0.4 + 0.05 * np.arange(T)
+        intercept = rng.uniform(-1, 1, size=N)
+        Y = intercept[:, None] + np.outer(loadings, f) + 0.10 * rng.standard_normal((N, T))
+        for j, eff in zip(treated_idx, treatment_effects):
+            Y[j, T0:] += eff
+        if spillover_idx is not None:
+            Y[spillover_idx, T0:] += spillover
+        D = np.zeros((N, T))
+        for j in treated_idx:
+            D[j, T0:] = 1
+        return pd.DataFrame([
+            {"unit": f"u{i}", "year": t, "y": float(Y[i, t]),
+             "treat": int(D[i, t])}
+            for i in range(N) for t in range(T)
+        ])
+
+    def test_two_treated_one_affected_recovers_all(self):
+        # Section S.1.2 N=6 mimic: u0, u1 treated (effects -3, -2), u2
+        # affected by spillover +1.5, u3-u5 clean.
+        df = self._multi_treated_panel(
+            treated_idx=[0, 1], spillover_idx=2,
+            treatment_effects=[-3.0, -2.0], spillover=1.5, seed=7,
+        )
+        res = SPILLSYNTH(_cfg(df, affected_units=["u2"])).fit()
+        assert res.inputs.n_treated == 2
+        assert res.inputs.treated_labels == ("u0", "u1")
+        # A is (N, n_treated + p) = (6, 3).
+        assert res.inputs.A.shape == (6, 3)
+        # Per-treated ATT recovery.
+        assert res.cd.atts_sp_by_unit["u0"] == pytest.approx(-3.0, abs=0.6)
+        assert res.cd.atts_sp_by_unit["u1"] == pytest.approx(-2.0, abs=0.6)
+        # Spillover on u2.
+        assert res.spillover_effects["u2"].mean() == pytest.approx(1.5, abs=0.6)
+        # Back-compat: res.att = first-treated ATT.
+        assert res.att == pytest.approx(res.cd.atts_sp_by_unit["u0"])
+
+    def test_per_treated_inference_fields_present(self):
+        df = self._multi_treated_panel(
+            treated_idx=[0, 1], spillover_idx=2,
+            treatment_effects=[-3.0, -2.0], spillover=1.5, seed=11,
+        )
+        res = SPILLSYNTH(_cfg(df, affected_units=["u2"])).fit()
+        # Per-treated dicts.
+        assert set(res.cd.treatment_tests.keys()) == {"u0", "u1"}
+        assert set(res.cd.treatment_cis_95.keys()) == {"u0", "u1"}
+        assert set(res.cd.atts_sp_by_unit.keys()) == {"u0", "u1"}
+        assert set(res.cd.gaps_sp_by_unit.keys()) == {"u0", "u1"}
+        # Shapes.
+        for label in ("u0", "u1"):
+            assert res.cd.treatment_tests[label].p_value.shape == (res.inputs.T1,)
+            assert res.cd.treatment_cis_95[label].shape == (res.inputs.T1, 2)
+            assert res.cd.gaps_sp_by_unit[label].shape == (res.inputs.T1,)
+        # Strong true effects -> rejection at every period for both treated.
+        assert res.cd.treatment_tests["u0"].reject_05.all()
+        assert res.cd.treatment_tests["u1"].reject_05.all()
+
+    def test_back_compat_att_equals_first_treated(self):
+        df = self._multi_treated_panel(
+            treated_idx=[0, 1], spillover_idx=None,
+            treatment_effects=[-3.0, -2.0], spillover=0.0, seed=1,
+        )
+        res = SPILLSYNTH(_cfg(df, affected_units=None)).fit()
+        # Back-compat fields point at the first treated unit.
+        assert res.att == pytest.approx(res.cd.atts_sp_by_unit["u0"])
+        np.testing.assert_allclose(
+            res.gap, res.cd.gaps_sp_by_unit["u0"], atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            res.cd.treatment_ci_95, res.cd.treatment_cis_95["u0"], atol=1e-12,
+        )
+
+    def test_multi_treated_homogeneous_structure(self):
+        df = self._multi_treated_panel(
+            treated_idx=[0, 1], spillover_idx=2,
+            treatment_effects=[-3.0, -2.0], spillover=1.5, seed=2,
+        )
+        res = SPILLSYNTH(_cfg(
+            df, spillover_structure="homogeneous", affected_units=["u2"],
+        )).fit()
+        # A has n_treated + 1 columns under homogeneous.
+        assert res.inputs.A.shape == (6, 3)
+        # gamma is shape (3, T1): 2 treatment-effect rows + 1 shared b.
+        assert res.cd.gamma.shape == (3, res.inputs.T1)
+
+    def test_multi_treated_per_unit_alpha_partition(self):
+        df = self._multi_treated_panel(
+            treated_idx=[0, 1], spillover_idx=2,
+            treatment_effects=[-3.0, -2.0], spillover=1.5, seed=3,
+        )
+        res = SPILLSYNTH(_cfg(df, affected_units=["u2"])).fit()
+        # alpha rows 0..n_treated-1 = per-treated gaps; row n_treated = spillover.
+        np.testing.assert_allclose(res.cd.alpha[0], res.cd.gaps_sp_by_unit["u0"])
+        np.testing.assert_allclose(res.cd.alpha[1], res.cd.gaps_sp_by_unit["u1"])
+        np.testing.assert_allclose(res.cd.alpha[2], res.spillover_effects["u2"])
+        # Clean controls -> identically zero.
+        assert (np.abs(res.cd.alpha[3:]) < 1e-12).all()
+
+    def test_treated_in_affected_via_dict_path_multi(self):
+        # u0 and u1 both treated; declaring u1 as affected must be rejected.
+        df = self._multi_treated_panel(
+            treated_idx=[0, 1], spillover_idx=2,
+            treatment_effects=[-3.0, -2.0], spillover=1.5, seed=4,
+        )
+        with pytest.raises(MlsynthConfigError):
+            SPILLSYNTH(_cfg(df, affected_units=["u1"]))
 
 
 # ----------------------------------------------------------------------

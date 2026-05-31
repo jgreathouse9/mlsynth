@@ -235,12 +235,18 @@ Currently shipped:
 * Cao-Dowd v3 Section S.1.1 **GMM-efficient variant** (Proposition
   S.1): :math:`\widehat \alpha^e` minimises asymptotic variance via
   :math:`W = \widehat \Omega^{-1}`. See :ref:`spillsynth-efficient`.
+* Cao-Dowd v3 Section S.1.2 **multiple treated units** with a common
+  intervention time -- per-treated-unit ATTs, CIs, and treatment-
+  effect tests. See :ref:`spillsynth-multi-treated`.
 
 Not yet shipped (planned):
 
-* Multiple treated units (Section S.1.2).
 * Multiple post-treatment-period structure selection (Section S.1.3).
 * Covariates (Section S.1.4).
+* Staggered adoption (treated units with **different** intervention
+  times). The cohort decomposition is supported upstream by
+  :func:`mlsynth.utils.datautils.dataprep`; per-cohort SPILLSYNTH
+  orchestration is a separate scope.
 
 Core API
 --------
@@ -724,6 +730,83 @@ implementation adds a small ridge to :math:`\widehat \Omega` before
 inversion. With small :math:`T_0` the efficient variant may not
 actually reduce variance in practice; treat it as a refinement when
 :math:`T_0 \gg N`.
+
+.. _spillsynth-multi-treated:
+
+Multiple treated units (Section S.1.2)
+--------------------------------------
+
+**New in v3** (Section S.1.2). SPILLSYNTH supports panels with
+:math:`k > 1` treated units that all turn on at the **same**
+intervention time. The setup generalises the leading example: with
+:math:`N = 4`, units 1 and 2 treated, unit 3 affected by spillover,
+and unit 4 clean, the A-matrix is
+
+.. math::
+
+   A = \begin{bmatrix} I_3 \\ 0_{1 \times 3} \end{bmatrix},
+   \qquad \widehat\gamma = (\widehat\gamma_1, \widehat\gamma_2,
+   \widehat\gamma_3)',
+
+where :math:`\widehat\gamma_1, \widehat\gamma_2` are the per-treated-
+unit treatment effects and :math:`\widehat\gamma_3` is the spillover
+effect on unit 3. The closed form is identical to eq. (6); only the
+column count of :math:`A` (and the partition of :math:`\widehat\alpha
+= A \widehat\gamma`) changes.
+
+**How to invoke.** Put a non-zero ``treat`` indicator on every treated
+unit at and after the intervention time. SPILLSYNTH detects all
+treated units automatically and validates that they share a common
+start time. (Different start times trigger a friendly error pointing
+at v3 Section S.1.2; staggered adoption is a separate scope.) Cohort
+decomposition is delegated upstream to
+:func:`mlsynth.utils.datautils.dataprep`, which is the canonical
+panel-reshape utility for the whole mlsynth ecosystem.
+
+**Per-treated outputs.** ``CDFit`` gains dictionaries keyed by
+treated-unit label:
+
+.. code-block:: python
+
+   res = SPILLSYNTH({..., "affected_units": ["u_affected"]}).fit()
+
+   res.inputs.n_treated                    # number of treated units
+   res.inputs.treated_labels               # tuple of treated-unit labels
+
+   res.cd.atts_sp_by_unit                  # {label: ATT_SP scalar}
+   res.cd.atts_scm_by_unit                 # {label: ATT_SCM scalar}
+   res.cd.gaps_sp_by_unit                  # {label: (T1,) per-period gap}
+   res.cd.gaps_scm_by_unit                 # {label: (T1,) per-period gap}
+   res.cd.treatment_tests                  # {label: PTestResult}
+   res.cd.treatment_cis_95                 # {label: (T1, 2) CI}
+
+**Back-compat.** When :math:`k = 1`, every per-treated-unit dict has
+exactly one entry and the scalar/vector fields
+(``res.att``, ``res.gap``, ``res.counterfactual``,
+``res.cd.treatment_test``, ``res.cd.treatment_ci_95``) keep their
+existing semantics. With :math:`k > 1`, those legacy fields point at
+the **first** treated unit (in the same order ``dataprep`` returns
+the cohort); use the per-unit dicts to read out the rest.
+
+**A-matrix structure with multiple treated.** All three structures
+extend cleanly:
+
+* ``per_unit``: ``A`` is ``(N, k + p)`` -- columns ``0..k-1`` are
+  treated-unit basis vectors, columns ``k..k+p-1`` are affected-unit
+  basis vectors.
+* ``homogeneous``: ``A`` is ``(N, k + 1)`` -- ``k`` treated columns
+  plus a single shared-spillover column.
+* ``distance_decay``: ``A`` is ``(N, k + 1)`` -- ``k`` treated columns
+  plus one column carrying :math:`\exp(-d_i)` for every control row.
+
+**Inference with multiple treated.** The treatment-effect
+:math:`P`-test selector ``C = e_i'`` is computed once per treated unit
+:math:`i`, producing per-unit p-values and signed confidence
+intervals. The joint spillover hypothesis selects all
+:math:`k \ldots k+p-1` rows of :math:`\widehat\alpha`. The
+:math:`\kappa_A` specification test is unchanged (it operates on the
+post-period residual norm, which is invariant to the
+treatment/spillover partition of :math:`\widehat\alpha`).
 
 .. _spillsynth-mc:
 

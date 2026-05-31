@@ -1637,19 +1637,20 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
             raise MlsynthConfigError(
                 "SPILLSYNTH: affected_units contains duplicate labels."
             )
-        # Resolve treated unit on the spot to surface the helpful error
-        # before .fit() runs.
+        # Resolve treated units on the spot to surface helpful errors
+        # before .fit() runs. Multiple treated units are allowed (Cao-
+        # Dowd v3 Section S.1.2), but none of them may also appear in
+        # affected_units.
         df = values.df
         treat_col = values.treat
         unit_col = values.unitid
-        treated_rows = df.loc[df[treat_col] != 0, unit_col].unique()
-        if len(treated_rows) == 1:
-            treated = treated_rows[0]
-            if treated in au:
-                raise MlsynthConfigError(
-                    f"SPILLSYNTH: treated unit {treated!r} cannot also "
-                    "appear in affected_units."
-                )
+        treated_rows = set(df.loc[df[treat_col] != 0, unit_col].unique())
+        overlap = treated_rows.intersection(au)
+        if overlap:
+            raise MlsynthConfigError(
+                f"SPILLSYNTH: treated units {sorted(overlap, key=str)} cannot "
+                "also appear in affected_units."
+            )
         present = set(df[unit_col].unique())
         missing = [u for u in au if u not in present]
         if missing:

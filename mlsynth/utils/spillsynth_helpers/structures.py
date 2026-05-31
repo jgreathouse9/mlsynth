@@ -96,6 +96,8 @@ class SpillSynthInputs:
     T1: int
     p: int
     spillover_structure: str = "per_unit"
+    treated_labels: Tuple[Any, ...] = ()
+    n_treated: int = 1
 
 
 @dataclass(frozen=True)
@@ -207,6 +209,16 @@ class CDFit:
     kappa_A_test: Optional["KappaATestResult"] = None
     pure_donor_sensitivity: Optional["PureDonorSensitivity"] = None
     efficient_fit: Optional[Dict[str, Any]] = None
+    # Multi-treated extensions (Cao-Dowd v3 Section S.1.2). Keyed by
+    # treated-unit label. For the single-treated case (the default),
+    # each dict has exactly one entry corresponding to the sole treated
+    # unit.
+    gaps_sp_by_unit: Dict[Any, np.ndarray] = field(default_factory=dict)
+    gaps_scm_by_unit: Dict[Any, np.ndarray] = field(default_factory=dict)
+    atts_sp_by_unit: Dict[Any, float] = field(default_factory=dict)
+    atts_scm_by_unit: Dict[Any, float] = field(default_factory=dict)
+    treatment_tests: Dict[Any, "PTestResult"] = field(default_factory=dict)
+    treatment_cis_95: Dict[Any, np.ndarray] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

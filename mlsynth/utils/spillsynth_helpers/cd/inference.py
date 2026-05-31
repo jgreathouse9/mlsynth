@@ -230,46 +230,56 @@ def run_per_period_tests(
     a: np.ndarray,
     B: np.ndarray,
     A: np.ndarray,
+    treated_labels,
     affected_labels,
-) -> "tuple[PTestResult, Dict[Any, PTestResult], np.ndarray, Dict[Any, np.ndarray], Optional[PTestResult]]":
+) -> "tuple[Dict[Any, PTestResult], Dict[Any, PTestResult], Dict[Any, np.ndarray], Dict[Any, np.ndarray], Optional[PTestResult]]":
     """Run the SPILLSYNTH inferences of practical interest, plus CIs.
 
     Returns
     -------
-    treatment_test : PTestResult
-        Per-post-period test of ``H_0: alpha_1(t) = 0``.
-    spillover_tests : Dict[label, PTestResult]
-        Per-affected-unit, per-post-period test of ``H_0: alpha_k(t) = 0``
-        (one rejection per declared affected unit per period).
-    treatment_ci_95 : np.ndarray
-        Shape ``(T1, 2)`` 95% confidence interval on the treatment effect
-        in each post-period (from :func:`signed_ci`).
-    spillover_ci_95 : Dict[label, np.ndarray]
+    treatment_tests : Dict[treated_label, PTestResult]
+        Per-treated-unit, per-post-period test of
+        ``H_0: alpha_treated(t) = 0``.
+    spillover_tests : Dict[affected_label, PTestResult]
+        Per-affected-unit, per-post-period test of
+        ``H_0: alpha_affected(t) = 0`` (one rejection per declared
+        affected unit per period).
+    treatment_cis_95 : Dict[treated_label, np.ndarray]
+        Per-treated-unit 95% confidence interval on the treatment
+        effect in each post-period (shape ``(T1, 2)``).
+    spillover_ci_95 : Dict[affected_label, np.ndarray]
         Per-affected-unit 95% CI on the spillover effect in each
         post-period.
     joint_spillover_test : Optional[PTestResult]
-        Cao-Dowd MATLAB-reference *joint* spillover hypothesis with
-        :math:`C = [0_{p \\times 1} \\mid I_p \\mid 0_{p \\times
-        (N - 1 - p)}]` — one rejection per period that tests all
-        affected units together. ``None`` when ``p == 0`` (no affected
-        units declared).
+        Cao-Dowd MATLAB-reference *joint* spillover hypothesis with a
+        ``(p, N)`` selector that picks out every declared
+        affected-unit row of alpha. ``None`` when ``p == 0``.
     """
     N = Y_pre.shape[0]
+    n_treated = len(treated_labels)
+    p = len(affected_labels)
+
     U_pre = compute_pre_residuals(Y_pre, a, B)
     G_hat = G_matrix(A, B)
 
-    e_treat = np.zeros((1, N)); e_treat[0, 0] = 1.0
-    treatment_test = p_test(
-        alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_treat,
-    )
-    treatment_ci_95 = signed_ci(
-        alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_treat,
-    )
+    # One treatment-effect test + CI per treated unit.
+    treatment_tests: Dict[Any, PTestResult] = {}
+    treatment_cis_95: Dict[Any, np.ndarray] = {}
+    for i, label in enumerate(treated_labels):
+        e_i = np.zeros((1, N)); e_i[0, i] = 1.0
+        treatment_tests[label] = p_test(
+            alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_i,
+        )
+        treatment_cis_95[label] = signed_ci(
+            alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_i,
+        )
 
+    # Per-affected-unit spillover tests + CIs. Affected units live at
+    # rows ``n_treated .. n_treated + p - 1`` of alpha.
     spillover_tests: Dict[Any, PTestResult] = {}
     spillover_ci_95: Dict[Any, np.ndarray] = {}
     for k, label in enumerate(affected_labels):
-        row = 1 + k                                     # affected units live at rows 1..p
+        row = n_treated + k
         e_k = np.zeros((1, N)); e_k[0, row] = 1.0
         spillover_tests[label] = p_test(
             alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_k,
@@ -278,22 +288,18 @@ def run_per_period_tests(
             alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_k,
         )
 
+    # Joint spillover hypothesis: C selects every affected-unit row of
+    # alpha simultaneously.
     joint_spillover_test: Optional[PTestResult] = None
-    p = len(affected_labels)
     if p > 0:
-        # C is (p, N) selecting rows 1..p of alpha; this is the MATLAB
-        # reference `sp_andrews(... C = [0_{(N-1)x1} I_{N-1}] ...)`
-        # restricted to the declared affected rows (the remaining rows
-        # of alpha are identically zero in any case under per_unit/
-        # homogeneous A-structures).
         C_joint = np.zeros((p, N))
         for k in range(p):
-            C_joint[k, 1 + k] = 1.0
+            C_joint[k, n_treated + k] = 1.0
         joint_spillover_test = p_test(
             alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=C_joint,
         )
 
-    return (treatment_test, spillover_tests, treatment_ci_95,
+    return (treatment_tests, spillover_tests, treatment_cis_95,
             spillover_ci_95, joint_spillover_test)
 
 
