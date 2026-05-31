@@ -282,6 +282,251 @@ posterior mass near zero is a sign the data agrees with the simplex
 constraint, while bulk away from zero is evidence to relax it. BVS-SS
 exposes ``results.posterior.tau`` for direct inspection.
 
+Assumptions (Xu & Zhou 2025)
+----------------------------
+
+The paper proves *high-dimensional strong selection consistency* --
+the posterior probability of the true active-donor model converging
+to 1 under the true DGP -- in Theorem 2, under the technical
+conditions A1-A5 (Section 4.1). Stated for the working
+:math:`\tau = 0` (hard-simplex) limit:
+
+**A1 (Restricted eigenvalue on the donor matrix).** Each column
+:math:`X_j` of the donor matrix satisfies :math:`\| X_j \|_2^2 =
+T_0`, and there exists :math:`\underline\lambda \in (0, 1]` such
+that :math:`\lambda_{\min}(X_\gamma^\top X_\gamma) \ge T_0
+\underline\lambda` for every candidate model :math:`\gamma` in the
+sparse model space :math:`\mathbb{S}_L`. Translation: no two donors
+are perfectly collinear, no donor is a near-duplicate of a linear
+combination of a few others, and the minimum eigenvalue of every
+"reasonable-size" donor submatrix is bounded away from zero.
+
+**A2 (Inclusion-prior penalty).** The Bernoulli inclusion
+probability satisfies :math:`\theta / (1 - \theta) = N^{-c_\theta L}`
+for some universal :math:`c_\theta > 0`. Translation: the prior
+penalises large models geometrically in the donor count -- a
+default :math:`\theta \approx 1/N` keeps the prior expected model
+size around 1.
+
+**A3 (Noise-precision prior).** The Gamma prior on :math:`\phi`
+has shape :math:`\kappa_1 \in (0, T_0]` and rate :math:`\kappa_2
+\in [0, \sigma^2 T_0 / 2]`. Translation: the prior on the inverse
+error variance is not pathologically informative (neither shape
+nor rate scale faster than :math:`T_0`).
+
+**A4 (True DGP + signal strength /** :math:`\beta`-min).** The
+true outcome is :math:`Y \mid X \sim \mathcal{N}(X_{\gamma^*}
+\mu_{\gamma^*}^*, \sigma^2 I)` with :math:`\ell^* := |\gamma^*|
+\le L \wedge \sqrt{L \log N}`, :math:`\mu_{\gamma^*}^* \in
+\Delta^{\ell^* - 1}`, and a lower bound on the smallest non-zero
+weight,
+
+.. math::
+
+   \min_{j \in \gamma^*} |\mu_j^*|
+   \;\ge\;
+   \frac{c_\mu \sigma \sqrt{L \log N}}{\underline\lambda \sqrt{T_0}}.
+
+Translation: the true donor pool is sparse, lies on the simplex,
+and every truly-active donor carries weight detectable above the
+noise floor. The :math:`\beta`-min lower bound is the standard
+"signal large enough to identify" condition shared with all
+high-dimensional consistency theory (Yang et al. 2016).
+
+**A5 (Sample-size lower bound).** :math:`L \ge 3` and
+:math:`T_0 \ge c_M \ell^* \log N` for some :math:`c_M > 0`.
+Translation: the pre-period must grow with the (log of) the donor
+pool size for selection consistency to take hold.
+
+**Theorem 2 (Xu & Zhou 2025).** Under A1-A5, the posterior
+inclusion probability of the true model satisfies
+:math:`p(\gamma^* \mid y) \xrightarrow{p^*} 1` as :math:`T_0, N
+\to \infty` along any allowed sequence. Theorem 3 then bounds the
+posterior expected predictive loss on the test (post-treatment)
+sample at the order :math:`T_1 \ell^* \log N / T_0`, which is the
+"oracle" rate for the constrained problem -- i.e., BVS-SS is
+asymptotically as efficient as if an oracle had told you the true
+active set in advance.
+
+For the soft-simplex limit :math:`\tau \to \infty`, Theorem 4
+shows the BVS-SS posterior of :math:`\gamma` converges to the
+unconstrained spike-and-slab posterior. The two regimes are
+genuine endpoints of the same family; the data picks between them
+through the learned posterior of :math:`\tau`.
+
+When the assumptions bind: practical diagnostics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+(a) **Donor near-collinearity (A1).** If two donors carry
+    essentially the same pre-period information, the minimum
+    eigenvalue of :math:`X_\gamma^\top X_\gamma` is near zero on
+    models that include both -- the restricted-eigenvalue
+    condition fails and the spike-and-slab will *flip* between
+    them without ever converging on a single representative.
+
+    *Plausibly violated when* the donor pool contains near-clones
+    (two product categories whose time series differ only by
+    sampling noise; two states with essentially identical
+    industry mix). *Diagnostic*: inspect
+    ``results.inclusion_probs`` -- if two donors each show
+    :math:`P(\text{included}) \approx 0.4` with all others below
+    0.1, the model is splitting credit between near-duplicates.
+    Drop one or merge them before refitting.
+
+(b) **Prior penalty scale (A2).** A too-large :math:`\theta`
+    floods the posterior with large-model mass; a too-small one
+    blocks even truly-active donors.
+
+    *Plausibly violated when* the default :math:`\theta` was
+    chosen blindly. *Diagnostic*: track the posterior model size
+    ``results.posterior.gamma.sum(axis=0)``; if its posterior
+    mean is essentially the prior mean :math:`N \theta`, the
+    data is not informing model size and you should tighten
+    :math:`\theta`. The paper's empirical applications use
+    :math:`\theta = 0.2`.
+
+(c) **Sparse, simplex-supported truth (A4).** Selection
+    consistency requires that the true weight vector is sparse
+    *and* on the simplex. If the truth is genuinely dense
+    (many donors each contributing a small fraction) or
+    genuinely off-simplex (weights summing to substantially
+    more or less than 1), the consistency story does not apply
+    -- though the procedure still produces a well-defined
+    posterior.
+
+    *Plausibly violated when* the treated unit is structurally
+    outside the donor convex hull (Hong Kong handover; very
+    extreme growth unit). *Diagnostic*: the posterior of
+    :math:`\tau` is your friend here -- if
+    ``results.posterior.tau.mean()`` is materially above zero,
+    the data is telling you the simplex does not hold and you
+    should reach for the unconstrained-spike-and-slab limit
+    (Kim et al. 2020) or for an estimator that explicitly
+    handles outside-hull treated units (:doc:`iscm`).
+
+(d) **Long-enough pre-period (A5).** Selection consistency
+    requires :math:`T_0 \gtrsim \ell^* \log N`. With 20
+    pre-period observations and 100 donors, you need at most
+    :math:`\ell^* \le 20 / \log 100 \approx 4` truly-active
+    donors for the theory to apply -- realistic in practice but
+    a binding constraint at small :math:`T_0`.
+
+    *Plausibly violated when* the pre-period is short and the
+    donor pool is wide. *Diagnostic*: monitor MCMC mixing
+    diagnostics on the posterior model size; if the posterior of
+    :math:`|\gamma|` is unstable across chains (different seeds
+    select markedly different active sets), the
+    sample-size-vs-donor-count regime is too tight for stable
+    selection. Either lengthen the pre-period (aggregate to a
+    finer time grid) or pre-screen donors using domain
+    knowledge.
+
+(e) **Gaussian likelihood with shock independence.** The model
+    assumes :math:`Y_t \sim \mathcal{N}(X_t w, \phi^{-1})` with
+    iid errors. Strong autocorrelation in the pre-period
+    residuals or heavy tails breaks the variance estimate that
+    feeds into both :math:`\phi` and the :math:`\beta`-min
+    threshold.
+
+    *Plausibly violated when* the outcome has unit-root-like
+    persistence or heavy outliers. *Diagnostic*: ADF / KPSS on
+    the pre-period residual of the OLS-on-included-donors fit;
+    a non-stationary residual flags this. First-difference the
+    outcome and donors before refitting, or move to a
+    cycle-decomposing estimator (:doc:`sbc`) before BVS-SS.
+
+(f) **Posterior of** :math:`\tau` **as the soft-simplex test.**
+    The single diagnostic that summarises the
+    simplex-vs-unconstrained decision: small posterior mass of
+    :math:`\tau` near zero means the data agrees with the
+    simplex; bulk above the prior mean means the data prefers
+    the relaxation.
+
+    *Practical rule of thumb*: compare ``results.posterior.tau``
+    against the prior mean :math:`a_1 / a_2`. If the posterior
+    is concentrated well below the prior mean, the simplex is
+    supported. If the posterior sits at or above the prior mean
+    -- the China-watches case in the empirical application
+    below has posterior mean :math:`\tau \approx 0.03` against
+    a prior mean of :math:`0.1`, supporting the simplex -- the
+    data is consistent with the constraint. The Hong Kong
+    handover case (Hsiao 2012, motivation in Section 1.1 of the
+    paper) shows the opposite: posterior :math:`\tau` mass
+    elevated above the prior, telling the user to relax the
+    simplex.
+
+When to use BVSS -- and when not to
+-----------------------------------
+
+**Reach for BVSS when:**
+
+* **The donor pool is large relative to the pre-period**
+  (:math:`N \gtrsim T_0`). The classical SCM quadratic program
+  has no unique solution; Lasso over-selects; BVSS's
+  spike-and-slab cleanly returns a sparse posterior on inclusion.
+* **The simplex constraint itself is in question.** Hong Kong
+  handover, Basque conflict, China anti-corruption watches --
+  cases where the treated unit's level may legitimately exceed
+  any convex combination of donors. BVSS's learned :math:`\tau`
+  tells you which regime the data prefers.
+* **You want posterior distributions, not point estimates.**
+  The full posterior of the ATT, of each donor's weight, and of
+  inclusion are returned -- useful for downstream uncertainty
+  propagation (e.g. into a policy-evaluation report's CI
+  reporting).
+* **You want to formalise the "which donors do I trust" decision.**
+  Posterior inclusion probabilities replace the practitioner's
+  eyeball "I'll keep these states because they look similar"
+  step with a probability statement.
+
+**Do not use BVSS when:**
+
+* **Small donor pool with clear pre-fit.** With :math:`N = 8`
+  states and a tight pre-fit on the canonical SCM, BVSS's
+  per-pair Gibbs sampler is overkill; the spike-and-slab
+  uncertainty just propagates noise that the data does not
+  actually contain. Use :doc:`scm`, :doc:`tssc`, or :doc:`fdid`.
+* **Treated unit is severely outside the donor hull.** BVSS's
+  soft simplex *can* relax (:math:`\tau` learns), but the
+  posterior weights are still anchored to the simplex prior.
+  For the structural outside-hull case, :doc:`iscm`'s moment-
+  condition framework is identification-aware in a way BVSS is
+  not.
+* **Distribution of the outcome is the object of interest.**
+  BVSS targets the mean ATT through a Gaussian likelihood on
+  levels. Distributional questions (Lorenz curves, QTEs,
+  inequality measures) need :doc:`dsc`.
+* **You need speed.** MCMC is materially slower than
+  optimisation-based SC. The China-watches application takes
+  ~10 minutes for 1000 iterations on commodity hardware; for
+  large grid searches or batch processing across many
+  policy-evaluation cells, an optimisation-based estimator
+  (:doc:`scm`, :doc:`tssc`, :doc:`fdid`) is the right default.
+* **Outcomes with hard floors or ceilings, counts, or heavy
+  tails.** A4's Gaussian-likelihood / :math:`\beta`-min
+  argument breaks. Pre-process (log, difference, Winsorise)
+  before BVSS, or move to a discrete-outcome estimator.
+* **Strong serial correlation in pre-period residuals.** The
+  iid-error assumption inflates :math:`\phi`'s posterior
+  precision and the inclusion threshold; weights become
+  artificially sharp. First-difference the panel before
+  feeding into BVSS, or use a cycle-decomposing estimator
+  (:doc:`sbc`).
+* **Treated unit's outcome is non-stationary.** A5 governs the
+  pre-period sample size; the consistency story does not
+  cover unit-root outcomes. First-difference, or move to a
+  stationary-cycle approach.
+* **Continuous or multi-valued treatment.** BVSS encodes binary
+  treatment via a single treated-unit indicator. Continuous
+  dose belongs in :doc:`ctsc`.
+* **You need a single sparse interpretable weight vector for
+  policy storytelling.** BVSS returns *posterior expected*
+  weights -- a Bayesian model average. If the goal is the
+  canonical "California = 0.385 Utah + 0.271 Montana + 0.186
+  Nevada + ..." story, run :doc:`scm` alongside and report
+  both. The inclusion probabilities from BVSS sit at a
+  different rhetorical altitude.
+
 Core API
 --------
 
@@ -335,30 +580,25 @@ Helper Modules
 Example
 -------
 
+A minimal end-to-end run on the China anti-corruption / luxury-watch
+panel (the same outcome series the empirical replication below
+benchmarks against). With the default priors and sampler settings,
+the BVSS API is just five fields plus a display toggle:
+
 .. code-block:: python
 
    import pandas as pd
    from mlsynth import BVSS
 
-   url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv"
+   url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/china_watches_long.csv"
    data = pd.read_csv(url)
 
    config = {
        "df": data,
-       "outcome": "gdpcap",
-       "unitid": "regionname",
-       "time": "year",
-       "treat": "Terrorism",
-       # Prior hyperparameters
-       "kappa1": 1.0, "kappa2": 1.0,        # phi ~ Gamma(kappa1/2, kappa2/2)
-       "tau_a": 0.01, "tau_b": 0.1,         # tau ~ Gamma(tau_a, tau_b)
-       "theta": 0.25,                        # Bernoulli inclusion prior
-       # Sampler
-       "n_iter": 2000, "burn_in": 1000,
-       "n_tau": 11,                          # MH steps for tau per outer iter
-       "tau_min": 1e-6,
-       "ci_alpha": 0.05,                     # 95% credible intervals
-       "seed": 42,
+       "outcome": "y",
+       "unitid": "unit",
+       "time": "time",
+       "treat": "treat",
        "display_graphs": True,
    }
 
