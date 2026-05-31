@@ -112,6 +112,182 @@ shift via the intercept. The flexible variants are appropriate when the
 treated unit sits on a steeper trend than its donors, but that flexibility
 costs efficiency -- which is precisely the trade-off Step 1 adjudicates.
 
+Failure modes of the convex hull: when each restriction matters
+---------------------------------------------------------------
+
+The three SC restrictions -- zero intercept, weights sum to one,
+weights non-negative -- together force the synthetic counterfactual
+to lie strictly inside the **convex hull** of the donors' pre-period
+paths. Geometrically that's a useful prior when the treated unit
+*does* look like a weighted average of the donors. It is a
+*catastrophic* prior when the treated unit doesn't. Two simple
+violations cover almost every empirical case where vanilla SC goes
+wrong:
+
+* **Level shift -- treated above (or below) every donor's level.**
+  The zero-intercept restriction pins the synthetic to a convex
+  combination of the donors, which can never escape the donors'
+  range. If a national chain's flagship store outsells every donor
+  store by a constant multiple, SC's synthetic has to lie between
+  the donors and *cannot* reach the treated level. The pre-period
+  RMSE blows up; the post-period ATT inherits the same gap as a
+  spurious treatment effect.
+
+  *Fix:* add a free intercept. That is **MSCa** (keeps sum-to-one
+  and non-negativity, drops the zero-intercept). An intercept can
+  absorb an arbitrary vertical shift without inflating the donor
+  weights.
+
+* **Steeper trend -- treated growing faster than the fastest
+  donor.** The sum-to-one restriction forces the synthetic to track
+  a *weighted average* of donor trajectories, whose slope is bounded
+  above by the maximum donor slope. If the treated unit's pre-trend
+  is steeper than any donor's, the SC fit is uniformly behind in
+  the pre-period -- and again the post-period gap is mostly
+  miscalibration, not treatment effect.
+
+  *Fix:* drop sum-to-one. That is **MSCb** (keeps the zero
+  intercept and non-negativity, allows the weights to sum above
+  one). Weights summing above one act as a slope amplifier:
+  :math:`2 \cdot \text{donor with slope 1}` reproduces slope 2.
+
+* **Both at once.** Common in practice -- the treated unit is
+  bigger in level *and* steeper in trend than every donor. Neither
+  MSCa (slope still bounded) nor MSCb (no intercept) is enough.
+
+  *Fix:* relax both. That is **MSCc**, the most flexible variant
+  in the family, retaining only non-negativity.
+
+Side-by-side example
+^^^^^^^^^^^^^^^^^^^^
+
+The script below builds four panels with the same donor pool. Only
+the treated unit changes between panels, isolating the failure mode
+in question. The true ATT is zero in every panel (no treatment
+effect was injected); the pre-RMSE and post-period ATT estimates
+under each of the four variants tell the user which restriction is
+hurting the fit, and the TSSC recommendation picks the right
+variant automatically.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   from mlsynth import TSSC
+
+
+   def panel(treated, donors, T1=20):
+       T = treated.size
+       rows = [
+           {"unit": "T", "t": t, "y": float(treated[t]),
+            "treat": int(t >= T1)}
+           for t in range(T)
+       ]
+       for i, d in enumerate(donors):
+           rows.extend(
+               {"unit": f"d{i}", "t": t, "y": float(d[t]), "treat": 0}
+               for t in range(T)
+           )
+       return pd.DataFrame(rows)
+
+
+   def report(label, df):
+       res = TSSC({
+           "df": df, "outcome": "y", "treat": "treat",
+           "unitid": "unit", "time": "t",
+           "display_graphs": False, "seed": 0,
+       }).fit()
+       print(f"\n{label}")
+       print(f"  TSSC recommended: {res.recommended_method}")
+       for m in ("SC", "MSCa", "MSCb", "MSCc"):
+           v = res.variants[m]
+           ic = "" if v.intercept is None else f"  intercept={v.intercept:+.2f}"
+           print(f"    {m:5}  ATT = {v.att:+7.3f}   pre-RMSE = {v.rmse_pre:5.3f}{ic}")
+
+
+   rng = np.random.default_rng(0)
+   T, T1 = 30, 20
+   t = np.arange(T)
+
+   # Eight donors on a shallow common trend.
+   donors = np.array([1.0 + 0.05 * t + 0.3 * rng.standard_normal(T)
+                       for _ in range(8)])
+
+   # (A) Treated lies inside the donor hull.
+   treated_A = donors.mean(axis=0) + 0.10 * rng.standard_normal(T)
+   report("(A) Inside the hull -> SC", panel(treated_A, donors))
+
+   # (B) Treated is uniformly +8 above every donor.
+   report("(B) Level shift -> MSCa", panel(treated_A + 8.0, donors))
+
+   # (C) Treated trends 4x faster than any donor.
+   treated_C = 1.0 + 0.20 * t + 0.3 * rng.standard_normal(T)
+   report("(C) Steeper slope -> MSCb", panel(treated_C, donors))
+
+   # (D) Treated is both shifted and steeper.
+   treated_D = 5.0 + 0.20 * t + 0.3 * rng.standard_normal(T)
+   report("(D) Shifted AND steeper -> MSCc", panel(treated_D, donors))
+
+prints (deterministic with the seed above)::
+
+   (A) Inside the hull -> SC
+     TSSC recommended: SC
+       SC     ATT =  -0.059   pre-RMSE = 0.079
+       MSCa   ATT =  -0.147   pre-RMSE = 0.063  intercept=+0.06
+       MSCb   ATT =  -0.189   pre-RMSE = 0.062
+       MSCc   ATT =  -0.184   pre-RMSE = 0.062  intercept=+0.01
+
+   (B) Level shift -> MSCa
+     TSSC recommended: MSCa
+       SC     ATT =  +7.973   pre-RMSE = 7.897
+       MSCa   ATT =  -0.147   pre-RMSE = 0.063  intercept=+8.06
+       MSCb   ATT =  -3.761   pre-RMSE = 1.415
+       MSCc   ATT =  -0.184   pre-RMSE = 0.062  intercept=+8.01
+
+   (C) Steeper slope -> MSCb
+     TSSC recommended: MSCb
+       SC     ATT =  +3.669   pre-RMSE = 1.396
+       MSCa   ATT =  +2.430   pre-RMSE = 0.721  intercept=+1.23
+       MSCb   ATT =  +1.720   pre-RMSE = 0.493
+       MSCc   ATT =  +1.720   pre-RMSE = 0.493  intercept=-0.00
+
+   (D) Shifted AND steeper -> MSCc
+     TSSC recommended: MSCc
+       SC     ATT =  +7.719   pre-RMSE = 5.303
+       MSCa   ATT =  +2.408   pre-RMSE = 0.804  intercept=+5.30
+       MSCb   ATT =  +0.102   pre-RMSE = 0.434
+       MSCc   ATT =  +0.750   pre-RMSE = 0.332  intercept=+1.71
+
+How to read the table:
+
+* In **(A)**, no restriction is binding. All four variants attain
+  similar pre-RMSE (~0.06-0.08), and TSSC's first-step test fails to
+  reject the joint null -- so the recommendation is the most
+  restrictive, most efficient member: SC.
+* In **(B)**, dropping the zero intercept is *all* you need. MSCa
+  (intercept ~+8) and MSCc (intercept ~+8) both hit a pre-RMSE of
+  ~0.06. SC's pre-RMSE balloons to 7.9; MSCb tries to fake the level
+  shift by inflating the weights past 1 and only partially succeeds
+  (pre-RMSE 1.4). TSSC's test rejects the joint null but fails to
+  reject sum-to-one, so it recommends MSCa.
+* In **(C)**, dropping sum-to-one is what's needed. The treated's
+  slope (0.20) is 4x the donors' (0.05); only MSCb / MSCc can
+  amplify weights to chase the steeper trajectory. The intercept in
+  MSCc is essentially zero -- the level shift wasn't the problem.
+  TSSC tests through to MSCb.
+* In **(D)** both restrictions bite. MSCa misses on slope, MSCb
+  misses on level; only MSCc (free intercept *and* weights unbound
+  above 1) cleans both. The decision path runs all the way to
+  the leaf of the flowchart.
+
+What TSSC does is automate this diagnosis: instead of eyeballing the
+pre-period fit and guessing which restriction is the problem, Step 1
+runs a formal sub-sampling test that rejects exactly the
+restriction(s) the data refuse, and Step 2 then applies the most
+restrictive variant the test couldn't reject -- buying back efficiency
+wherever the data say SC's restrictions are correct.
+
 Assumptions
 -----------
 
