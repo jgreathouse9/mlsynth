@@ -147,7 +147,6 @@ HSC; they are what make :math:`X_{\text{pre}}` and :math:`X_{\text{post}}` valid
 controls and the pre-period a clean training window for both :math:`\omega` and
 :math:`E`.
 
-
 Diagnostic: shared vs idiosyncratic stochastic trends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -254,8 +253,161 @@ Three takeaways:
    endpoint; if you are not, HSC's CV pays a small price in the
    easy regime and a large dividend in the hard one.
 
+When to prefer SBC over HSC
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+HSC and :doc:`sbc` are both targeted at the spurious-matching
+failure mode of classical SC, but they take opposite engineering
+bets. HSC dials a soft :math:`\rho \in [0, 1]` between levels and
+differences; SBC commits to a hard Hamilton-filter trend-cycle
+split and forecasts the treated unit's trend from its own history.
+The cases where SBC is the better choice:
+
+* **The trend / cycle decomposition is part of the substantive
+  story.** Macro applications where you specifically want a
+  trend-vs-cycle interpretation (German reunification's
+  reunification dividend on trend versus the catch-up boom on the
+  cycle) get more out of SBC's explicit decomposition than out of
+  HSC's single :math:`\rho^*`.
+* **The treated unit has a long, self-forecastable trend.** SBC's
+  Step 2 forecasts the treated trend univariately. If the treated
+  unit's own history is rich enough that you'd happily fit an AR(p)
+  on it without donors, SBC's modularity is an asset, not a
+  liability.
+* **You prefer a fixed structural recipe to a CV-tuned knob.** HSC's
+  :math:`\rho^*` is chosen by rolling-origin CV, which is itself
+  noisy in finite samples. SBC's Hamilton filter has no
+  hyperparameter to tune at the SC step.
+* **You want explicit asymptotic unbiasedness theory.** SBC has a
+  clean Theorem 1; HSC's CV-based guarantee is less crisp.
+* **The Hamilton filter's stationary-cycle assumption is
+  defensible.** Macro outcomes (GDP, unemployment, prices) where
+  business-cycle properties are well documented are exactly SBC's
+  comfort zone.
+
+Conversely, prefer HSC when the trend-vs-cycle distinction is not
+substantively interesting (sales, market share, daily prices),
+when you have reason to think the shared-trend regime is plausible
+and don't want SBC to discard that variation by construction, or
+when your outcome is outside the macroeconomic comfort zone of the
+Hamilton filter.
+
+Graphical comparison
+^^^^^^^^^^^^^^^^^^^^
+
+The block below builds two contrasting panels and fits both
+:class:`HSC` and :class:`mlsynth.SBC` on each, then overlays the
+observed treated trajectory with both counterfactuals. Both panels
+have a true ATT of zero by construction; the closer a method's
+dashed line tracks the solid observed line in the post-period
+(right of the dotted intervention line), the better that method
+estimates the (zero) treatment effect on this panel.
+
+* **Panel A** -- sales-like data: donors and the treated unit share a
+  strong deterministic linear trend, short pre-period
+  (:math:`T_0 = 16`). HSC's cross-validation picks
+  :math:`\rho^* \approx 0.97` (essentially level-matching), exploits
+  the shared trend, and hugs the observed series. SBC strips the
+  trend by Hamilton-filtering and then has to *forecast* it from a
+  short pre-period of treated observations, which extrapolates
+  poorly -- the SBC counterfactual visibly undershoots.
+* **Panel B** -- macro-like data: the treated unit has its **own**
+  deterministic linear trend that none of the donors share, but
+  donors and treated share a strong stationary cycle. Long
+  pre-period (:math:`T_0 = 120`). SBC's univariate AR-trend forecast
+  of the treated trend is essentially exact, and the cycle-only SC
+  step uses the donors where they actually help. HSC has no donor
+  combination that can reproduce the treated trend and is forced
+  into a compromise :math:`\rho^* \approx 0.5`, which drifts off in
+  the post-period.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   import matplotlib.pyplot as plt
+
+   from mlsynth import HSC, SBC
 
 
+   def panel_HSC_wins(*, n_donors=10, T0=16, T1=12, seed=0):
+       """Sales-like: shared deterministic growth + short pre-period."""
+       rng = np.random.default_rng(seed)
+       T = T0 + T1
+       t = np.arange(T)
+       shared = 100 + 2.0 * t
+       donors = shared[None, :] + 1.5 * rng.standard_normal((n_donors, T))
+       treated = shared + 1.5 * rng.standard_normal(T)
+       rows = [{"unit": "T", "t": k, "y": float(treated[k]),
+                "treat": int(k >= T0)} for k in range(T)]
+       for i, d in enumerate(donors):
+           rows.extend({"unit": f"d{i}", "t": k, "y": float(d[k]),
+                         "treat": 0} for k in range(T))
+       return pd.DataFrame(rows), T0, T1
+
+
+   def panel_SBC_wins(*, n_donors=10, T0=120, T1=20, seed=1):
+       """Macro-like: treated has own linear trend, donors share a cycle only."""
+       rng = np.random.default_rng(seed)
+       T = T0 + T1
+       t = np.arange(T)
+       treated_trend = 100 + 0.8 * t
+       cycle = np.zeros(T)
+       for i in range(1, T):
+           cycle[i] = 0.6 * cycle[i - 1] + rng.standard_normal()
+       donors = np.zeros((n_donors, T))
+       for i in range(n_donors):
+           base = 100 + 4 * rng.standard_normal()
+           donors[i] = base + 5.0 * cycle + 0.3 * rng.standard_normal(T)
+       treated = treated_trend + 5.0 * cycle + 0.3 * rng.standard_normal(T)
+       rows = [{"unit": "T", "t": k, "y": float(treated[k]),
+                "treat": int(k >= T0)} for k in range(T)]
+       for i, d in enumerate(donors):
+           rows.extend({"unit": f"d{i}", "t": k, "y": float(d[k]),
+                         "treat": 0} for k in range(T))
+       return pd.DataFrame(rows), T0, T1
+
+
+   fig, axes = plt.subplots(1, 2, figsize=(13, 4.8))
+   for ax, (label, builder) in zip(axes, [
+       ("Panel A: shared trend, short pre  (HSC favoured)", panel_HSC_wins),
+       ("Panel B: own trend on treated, shared cycle  (SBC favoured)", panel_SBC_wins),
+   ]):
+       df, T0, T1 = builder()
+       h = HSC({"df": df, "outcome": "y", "treat": "treat",
+                 "unitid": "unit", "time": "t",
+                 "display_graphs": False}).fit()
+       s = SBC({"df": df, "outcome": "y", "treat": "treat",
+                 "unitid": "unit", "time": "t", "h": T1,
+                 "display_graphs": False}).fit()
+       obs = df.loc[df["unit"] == "T", "y"].to_numpy()
+       t = np.arange(obs.size)
+       ax.plot(t, obs, "k-", lw=2.2, label="Observed (true ATT=0)")
+       ax.plot(t, h.counterfactual_full, "--", color="tab:blue", lw=1.8,
+                label=f"HSC counterfactual  (ATT={h.att:+.2f})")
+       ax.plot(t, s.counterfactual_full, "--", color="tab:red", lw=1.8,
+                label=f"SBC counterfactual  (ATT={s.att:+.2f})")
+       ax.axvline(T0 - 0.5, color="grey", ls=":", alpha=0.7)
+       ax.set_title(label, fontsize=11)
+       ax.set_xlabel("t"); ax.set_ylabel("y")
+       ax.legend(loc="best", fontsize=8.5)
+       ax.grid(alpha=0.2)
+   plt.tight_layout()
+   plt.show()
+
+prints (deterministic with the seeds above)::
+
+   Panel A HSC:  ATT = -0.24   rho* = 0.97
+   Panel A SBC:  ATT = -6.62
+
+   Panel B HSC:  ATT = +6.22   rho* = 0.50
+   Panel B SBC:  ATT = -1.63
+
+Read the plot the same way you'd read a Figure-3-style synthetic
+control plot: the post-period vertical gap between solid (observed)
+and dashed (counterfactual) is the estimated ATT. The closer that
+gap is to zero, the closer the method is to recovering the true
+(zero) effect on this synthetic panel.
 
 Mathematical Formulation
 ------------------------
