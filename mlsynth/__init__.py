@@ -10,9 +10,6 @@ from .estimators.si import SI ## Check
 from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
 from .estimators.musc import MUSC                              # noqa: F401
-from .estimators.trop import TROP                              # noqa: F401
-from .estimators.osce import OSCE                              # noqa: F401
-from .estimators.gmmsce import GMMSCE                          # noqa: F401
 from .estimators.masc import MASC                              # noqa: F401
 from .estimators.tascm import TASCM                            # noqa: F401
 from .estimators.shc import SHC # Check
@@ -64,9 +61,6 @@ __all__ = [
     "SI",
     "NSC",
     "MUSC",
-    "TROP",
-    "OSCE",
-    "GMMSCE",
     "MASC",
     "TASCM",
     "SDID",
