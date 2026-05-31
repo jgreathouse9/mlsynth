@@ -139,7 +139,6 @@ headline numbers.
 
    tssc
    fdid
-   masc
 
 .. toctree::
    :hidden:
@@ -173,6 +172,8 @@ headline numbers.
    clustersc
    mlsc
    fscm
+   masc
+   tascm
    sparse_sc
    pda
    rescm
@@ -192,6 +193,7 @@ headline numbers.
    seq_sdid
    spsydid
    ppscm
+   spillsynth
 
 .. toctree::
    :hidden:

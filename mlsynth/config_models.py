@@ -287,6 +287,14 @@ class MAREXConfig(BaseMAREXConfig):
 
         return values
 
+
+
+
+
+
+
+
+
 class BaseEstimatorConfig(BaseModel):
     """
     Base Pydantic model for estimator configurations.
@@ -324,104 +332,6 @@ class BaseEstimatorConfig(BaseModel):
                 f"Missing required columns in DataFrame 'df': {', '.join(sorted(list(missing_columns)))}"
             )
         return values
-
-
-
-
-class MASCConfig(BaseEstimatorConfig):
-    """Configuration for the MASC estimator (Kellogg et al. 2021).
-
-    Kellogg, Mogstad, Pouliot & Torgovitsky (2021). *Combining
-    Matching and Synthetic Control to Trade Off Biases from
-    Extrapolation and Interpolation.* JASA 116(536), 1804-1816.
-    The estimator forms a convex combination ``phi * matching +
-    (1 - phi) * SC`` with the number of neighbours ``m`` and the
-    weight ``phi`` jointly chosen by rolling-origin cross-validation.
-    """
-
-    covariates: Optional[List[str]] = Field(
-        default=None,
-        description=(
-            "Optional predictor columns added to the SC objective in "
-            "place of (or alongside) pre-period outcomes. Each covariate "
-            "is row-standardised across all units before the QP -- the "
-            "FSCM/MAREX-style ``V = diag(1 / var)`` preconditioning that "
-            "matches Abadie's default heuristic V. Per-fold aggregation "
-            "is over the fold-specific pre-window unless "
-            "``covariate_windows`` overrides it."
-        ),
-    )
-    covariate_windows: Optional[dict] = Field(
-        default=None,
-        description=(
-            "Optional inclusive ``(start, end)`` aggregation window per "
-            "covariate label. Covariates without a window are averaged "
-            "over each fold's full pre-period."
-        ),
-    )
-    m_grid: Optional[List[int]] = Field(
-        default=None,
-        description=(
-            "Candidate nearest-neighbour counts for cross-validation. "
-            "Defaults to ``1..J`` (all values), mirroring the R "
-            "reference's default."
-        ),
-    )
-    min_preperiods: Optional[int] = Field(
-        default=None, ge=2,
-        description=(
-            "Smallest fold length used in cross-validation. Folds run "
-            "from ``min_preperiods`` to ``treatment_period - 2``. "
-            "Defaults to ``ceil(treatment_period / 2)`` per the R "
-            "reference. Mutually exclusive with ``set_f``."
-        ),
-    )
-    set_f: Optional[List[int]] = Field(
-        default=None,
-        description=(
-            "Explicit list of fold lengths to use (each integer is the "
-            "last pre-treatment period included in that fold's "
-            "training window). Mutually exclusive with "
-            "``min_preperiods``."
-        ),
-    )
-    fold_weights: Optional[List[float]] = Field(
-        default=None,
-        description=(
-            "Optional positive relative weights for each fold (length "
-            "matches the fold count). Normalised to sum to 1. Defaults "
-            "to equal weights."
-        ),
-    )
-    forecast_minlength: int = Field(
-        default=1, ge=1,
-        description=(
-            "First post-fold period used for forecast error "
-            "evaluation. Fold ``f`` forecasts period ``f + "
-            "forecast_minlength``."
-        ),
-    )
-    forecast_maxlength: int = Field(
-        default=1, ge=1,
-        description=(
-            "Last post-fold period used for forecast error "
-            "evaluation. Forecast window is capped at "
-            "``treatment_period - 1``."
-        ),
-    )
-    solver: Optional[str] = Field(
-        default=None,
-        description=(
-            "cvxpy solver name forwarded to the SC simplex QP. "
-            "Defaults to CLARABEL when unset."
-        ),
-    )
-
-
-
-
-
-
 
 class TSSCConfig(BaseEstimatorConfig):
     """Configuration for the Two-Step Synthetic Control (TSSC) estimator.
@@ -985,6 +895,314 @@ class MUSCConfig(BaseEstimatorConfig):
 
 
 
+class TASCMConfig(BaseEstimatorConfig):
+    """Configuration for Temporal-Aggregation SCM (Sun et al. 2024).
+
+    Sun, L., Ben-Michael, E., & Feller, A. (2024). *Temporal Aggregation
+    for the Synthetic Control Method.* AEA Papers and Proceedings.
+    """
+
+    aggregation_block_size: int = Field(
+        ..., ge=2,
+        description=(
+            "Number of high-frequency periods per aggregated period "
+            "(``K`` in the paper). For weekly-into-monthly aggregation "
+            "use ``K = 4`` or ``K = 5``; for monthly-into-yearly use "
+            "``K = 12``."
+        ),
+    )
+    nu_hat: float = Field(
+        default=0.5, ge=0.0, le=1.0,
+        description=(
+            "Convex-combination weight on the aggregated objective in "
+            "``[0, 1]``. ``nu_hat = 0`` recovers plain SCM on the "
+            "high-frequency data; ``nu_hat = 1`` recovers plain SCM "
+            "on the block-aggregated data; ``nu_hat = 0.5`` (default) "
+            "matches the paper's recommended baseline."
+        ),
+    )
+    nu_grid: Optional[List[float]] = Field(
+        default=None,
+        description=(
+            "Optional explicit grid of ``nu`` values for the imbalance-"
+            "frontier sweep. Each entry must lie in ``[0, 1]``. Defaults "
+            "to ``numpy.linspace(0, 1, 11)``."
+        ),
+    )
+    solver: Optional[str] = Field(
+        default=None,
+        description=(
+            "cvxpy solver name forwarded to the combined-objective QP. "
+            "Defaults to CLARABEL when unset."
+        ),
+    )
+
+
+class MASCConfig(BaseEstimatorConfig):
+    """Configuration for the MASC estimator (Kellogg et al. 2021).
+
+    Kellogg, Mogstad, Pouliot & Torgovitsky (2021). *Combining
+    Matching and Synthetic Control to Trade Off Biases from
+    Extrapolation and Interpolation.* JASA 116(536), 1804-1816.
+    The estimator forms a convex combination ``phi * matching +
+    (1 - phi) * SC`` with the number of neighbours ``m`` and the
+    weight ``phi`` jointly chosen by rolling-origin cross-validation.
+    """
+
+    covariates: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Optional predictor columns added to the SC objective in "
+            "place of (or alongside) pre-period outcomes. Each covariate "
+            "is row-standardised across all units before the QP -- the "
+            "FSCM/MAREX-style ``V = diag(1 / var)`` preconditioning that "
+            "matches Abadie's default heuristic V. Per-fold aggregation "
+            "is over the fold-specific pre-window unless "
+            "``covariate_windows`` overrides it."
+        ),
+    )
+    covariate_windows: Optional[dict] = Field(
+        default=None,
+        description=(
+            "Optional inclusive ``(start, end)`` aggregation window per "
+            "covariate label. Covariates without a window are averaged "
+            "over each fold's full pre-period."
+        ),
+    )
+    m_grid: Optional[List[int]] = Field(
+        default=None,
+        description=(
+            "Candidate nearest-neighbour counts for cross-validation. "
+            "Defaults to ``1..J`` (all values), mirroring the R "
+            "reference's default."
+        ),
+    )
+    min_preperiods: Optional[int] = Field(
+        default=None, ge=2,
+        description=(
+            "Smallest fold length used in cross-validation. Folds run "
+            "from ``min_preperiods`` to ``treatment_period - 2``. "
+            "Defaults to ``ceil(treatment_period / 2)`` per the R "
+            "reference. Mutually exclusive with ``set_f``."
+        ),
+    )
+    set_f: Optional[List[int]] = Field(
+        default=None,
+        description=(
+            "Explicit list of fold lengths to use (each integer is the "
+            "last pre-treatment period included in that fold's "
+            "training window). Mutually exclusive with "
+            "``min_preperiods``."
+        ),
+    )
+    fold_weights: Optional[List[float]] = Field(
+        default=None,
+        description=(
+            "Optional positive relative weights for each fold (length "
+            "matches the fold count). Normalised to sum to 1. Defaults "
+            "to equal weights."
+        ),
+    )
+    forecast_minlength: int = Field(
+        default=1, ge=1,
+        description=(
+            "First post-fold period used for forecast error "
+            "evaluation. Fold ``f`` forecasts period ``f + "
+            "forecast_minlength``."
+        ),
+    )
+    forecast_maxlength: int = Field(
+        default=1, ge=1,
+        description=(
+            "Last post-fold period used for forecast error "
+            "evaluation. Forecast window is capped at "
+            "``treatment_period - 1``."
+        ),
+    )
+    solver: Optional[str] = Field(
+        default=None,
+        description=(
+            "cvxpy solver name forwarded to the SC simplex QP. "
+            "Defaults to CLARABEL when unset."
+        ),
+    )
+
+
+
+class GMMSCEConfig(BaseEstimatorConfig):
+    """Configuration for the GMM Synthetic Control Estimator (Fry 2024 JoE).
+
+    Fry, J. (2024). *A method of moments approach to asymptotically
+    unbiased Synthetic Controls.* J. of Econometrics 244, 105846.
+    The estimator solves a GMM problem with IV moment conditions from
+    instrument units, on row-normalised pre-period outcomes. Under a
+    linear factor model the SC weights converge to the treated unit's
+    factor loadings so the ATT is asymptotically unbiased as
+    ``T0 -> infinity``.
+    """
+
+    donors: Optional[List[Any]] = Field(
+        default=None,
+        description=(
+            "Unit labels for the donor (control) pool. If omitted and "
+            "``auto_select=False``, every never-treated unit serves "
+            "as both donor and instrument (the R reference's initial "
+            "step, ``YK = YN0``)."
+        ),
+    )
+    instruments: Optional[List[Any]] = Field(
+        default=None,
+        description=(
+            "Unit labels for the instrument pool. Must be never-treated. "
+            "If omitted defaults to the donor pool (mirrors the R "
+            "reference's initial fit)."
+        ),
+    )
+    fixed_instruments: Optional[List[Any]] = Field(
+        default=None,
+        description=(
+            "Units guaranteed to be used as instruments under "
+            "``auto_select=True`` (the R reference's ``YN1`` argument). "
+            "For German reunification, Fry uses Penn World Table OECD "
+            "countries outside Abadie's candidate pool."
+        ),
+    )
+    auto_select: bool = Field(
+        default=False,
+        description=(
+            "If True, run the Sargan-Hansen J-test-driven model "
+            "selection (R reference's ``RandomModelSelection``) to "
+            "partition the never-treated units into donors and "
+            "instruments. Otherwise use the user-supplied "
+            "``donors`` / ``instruments``."
+        ),
+    )
+    meanfit: bool = Field(
+        default=True,
+        description=(
+            "Append a constant column to the instrument matrix (R "
+            "reference's ``meanfit=TRUE``). Adds the constant-instrument "
+            "moment ``mean_pre(Y0 - YJ w) = 0`` to the GMM system."
+        ),
+    )
+    solver: Optional[str] = Field(
+        default=None,
+        description=(
+            "cvxpy solver name forwarded to the step-1 QP. Defaults to "
+            "CLARABEL when unset."
+        ),
+    )
+
+
+
+class OSCEConfig(BaseEstimatorConfig):
+    """Configuration for the Orthogonalized SCE (Fry 2026).
+
+    Fry, J. (2026). *Orthogonalized Synthetic Controls.* SSRN.
+    The IV-SCE specialization of Fry's general orthogonalization
+    framework: simplex donor weights ``delta`` are fit alongside
+    orthogonalization coefficients ``eta`` via a penalized GMM step,
+    then the ATT is recovered in closed form from the orthogonalized
+    moment condition. Asymptotic normality of the ATT holds even when
+    ``delta`` is partially identified or on the simplex boundary.
+    """
+
+    instruments: list = Field(
+        ...,
+        description=(
+            "Unit labels (matching ``df[unitid]``) to use as instruments "
+            "Z_t. Must be never-treated. The donor pool delta is fit on "
+            "every other non-treated unit. For Fry's Sweden carbon-tax "
+            "application: Finland, Germany, Ireland, Italy, Netherlands, "
+            "Norway, United Kingdom."
+        ),
+    )
+    lambda_delta: Optional[float] = Field(
+        default=None, ge=0.0,
+        description=(
+            "Slackness on the pre-period IV moment constraints. When "
+            "None (default) the value is auto-tuned by Fry's "
+            "``EstimateLambdaDelta`` LP (inflated by ``log(min(T0,T1)) "
+            "* log(J) / log(K)``)."
+        ),
+    )
+    lambda_eta: Optional[float] = Field(
+        default=None, ge=0.0,
+        description=(
+            "Slackness on the orthogonality constraints. When None "
+            "(default) the value is auto-tuned by Fry's "
+            "``EstimateLambdaEta`` LP (inflated by ``log(min(T0,T1))``)."
+        ),
+    )
+    scaled: bool = Field(
+        default=True,
+        description=(
+            "Apply per-period standard-deviation rescaling to "
+            "``Y_treated``, ``Y_donors``, and ``Z`` before step 1 "
+            "(matches the R reference's ``Scaled = TRUE`` path). "
+            "Required for the empirical Sweden replication."
+        ),
+    )
+    solver: Optional[str] = Field(
+        default=None,
+        description=(
+            "cvxpy solver name forwarded to the step-1 QPs. Defaults "
+            "to CLARABEL when unset."
+        ),
+    )
+
+
+
+class TROPConfig(BaseEstimatorConfig):
+    """Configuration for the Triply Robust Panel (TROP) estimator.
+
+    Athey, Imbens, Qu & Viviano (2026, *Journal of Applied
+    Econometrics*). Combines exponential time and unit weights with a
+    nuclear-norm-penalised low-rank factor adjustment, fit on control
+    observations via weighted least squares; ATT is the average
+    treated-cell residual. First mlsynth release implements the
+    ``global`` (simultaneous-adoption) path only.
+    """
+
+    lambda_time_grid: Optional[List[float]] = Field(
+        default=None,
+        description=(
+            "LOOCV grid for the time-decay rate. 0.0 yields uniform "
+            "time weights. Inf is rejected. Default: "
+            "[0, 0.1, 0.5, 1, 2, 5]."
+        ),
+    )
+    lambda_unit_grid: Optional[List[float]] = Field(
+        default=None,
+        description=(
+            "LOOCV grid for the unit-decay rate. 0.0 yields uniform "
+            "unit weights. Inf is rejected. Default: "
+            "[0, 0.1, 0.5, 1, 2, 5]."
+        ),
+    )
+    lambda_nn_grid: Optional[List[float]] = Field(
+        default=None,
+        description=(
+            "LOOCV grid for the nuclear-norm penalty on the low-rank "
+            "component. 0 means no penalty (rank free); values >= 1e10 "
+            "disable the factor model (L=0). Default: "
+            "[0, 0.01, 0.1, 1, 10]."
+        ),
+    )
+    max_iter: int = Field(
+        default=100, ge=1,
+        description="Outer alternating-minimisation iterations.",
+    )
+    tol: float = Field(
+        default=1e-6, gt=0.0,
+        description="Convergence tolerance on the low-rank component.",
+    )
+    verbose: bool = Field(
+        default=False,
+        description="Print LOOCV scores for each grid triplet.",
+    )
+
+
 class SpSyDiDConfig(BaseEstimatorConfig):
     """Configuration for the Spatial Synthetic Difference-in-Differences estimator.
 
@@ -1305,6 +1523,94 @@ class ISCMConfig(BaseEstimatorConfig):
         default=0,
         description="Seed for the randomization-test RNG.",
     )
+
+
+class SPILLSYNTHConfig(BaseEstimatorConfig):
+    """Configuration for the SPILLSYNTH estimator.
+
+    Spillover-aware synthetic-control wrapper. Currently ships the
+    Cao & Dowd (2023) estimator under ``method='cd'``: a Ferman-Pinto
+    demeaned SCM is fit leave-one-out for every unit, and the
+    treatment-and-spillover effect vector is recovered jointly under
+    a user-specified spillover structure (Example 3 of the paper:
+    each declared affected unit gets its own free spillover
+    coefficient). Additional methods (e.g. iSCM, distance-decay
+    spillover, P-test inference) will be added behind the same
+    ``method`` dispatcher.
+
+    Parameters
+    ----------
+    method : {"cd"}
+        Estimation method. Only ``"cd"`` (Cao-Dowd 2023) is
+        implemented for now.
+    affected_units : list, optional
+        Labels (matching values of ``unitid``) of control units the
+        researcher believes are potentially exposed to spillover from
+        the treated unit. Each gets its own free spillover coefficient
+        in the resulting estimator. If ``None`` (the default), no
+        affected units are declared and the estimator reduces to
+        vanilla demeaned SCM. The treated unit must NOT appear in this
+        list.
+    solver : str, optional
+        ``cvxpy`` solver name used for the leave-one-out simplex SCM
+        fits. Defaults to ``"CLARABEL"``.
+
+    References
+    ----------
+    Cao, J., & Dowd, C. (2023). *Estimation and Inference for
+    Synthetic Control Methods with Spillover Effects.* Working paper.
+
+    Ferman, B., & Pinto, C. (2021). *Synthetic Controls with Imperfect
+    Pretreatment Fit.* Quantitative Economics, 12(4), 1197-1221.
+    """
+
+    method: Literal["cd"] = Field(
+        default="cd",
+        description="Spillover-aware SCM method. 'cd' = Cao & Dowd (2023).",
+    )
+    affected_units: Optional[List[Any]] = Field(
+        default=None,
+        description=(
+            "Labels of control units potentially exposed to spillover. "
+            "Each gets its own spillover coefficient. The treated unit "
+            "must NOT appear here."
+        ),
+    )
+    solver: Optional[str] = Field(
+        default=None,
+        description="cvxpy solver name for the leave-one-out SCM fits. "
+                    "Defaults to CLARABEL.",
+    )
+
+    @model_validator(mode="after")
+    def _check_affected_units(cls, values: Any) -> Any:
+        au = values.affected_units
+        if au is None:
+            return values
+        if len(set(au)) != len(au):
+            raise MlsynthConfigError(
+                "SPILLSYNTH: affected_units contains duplicate labels."
+            )
+        # Resolve treated unit on the spot to surface the helpful error
+        # before .fit() runs.
+        df = values.df
+        treat_col = values.treat
+        unit_col = values.unitid
+        treated_rows = df.loc[df[treat_col] != 0, unit_col].unique()
+        if len(treated_rows) == 1:
+            treated = treated_rows[0]
+            if treated in au:
+                raise MlsynthConfigError(
+                    f"SPILLSYNTH: treated unit {treated!r} cannot also "
+                    "appear in affected_units."
+                )
+        present = set(df[unit_col].unique())
+        missing = [u for u in au if u not in present]
+        if missing:
+            raise MlsynthConfigError(
+                f"SPILLSYNTH: affected_units {missing} not in df[{unit_col!r}]."
+            )
+        return values
 
 
 class COMPSYNTHConfig(BaseEstimatorConfig):

@@ -10,6 +10,11 @@ from .estimators.si import SI ## Check
 from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
 from .estimators.musc import MUSC                              # noqa: F401
+from .estimators.trop import TROP                              # noqa: F401
+from .estimators.osce import OSCE                              # noqa: F401
+from .estimators.gmmsce import GMMSCE                          # noqa: F401
+from .estimators.masc import MASC                              # noqa: F401
+from .estimators.tascm import TASCM                            # noqa: F401
 from .estimators.shc import SHC # Check
 from .estimators.laxscm import RESCM # Check
 from .estimators.scexp import MAREX
@@ -17,7 +22,6 @@ from .estimators.lexscm import LEXSCM
 from .estimators.syndes import SYNDES
 from .utils.syndes_helpers.power import SYNDESPower, power_analysis
 from .estimators.spcd import SPCD
-from .estimators.masc import MASC
 from .estimators.tasc import TASC
 from .estimators.sbc import SBC
 from .estimators.bvss import BVSS
@@ -30,6 +34,7 @@ from .estimators.siv import SIV
 from .estimators.dsc import DSC
 from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
+from .estimators.spillsynth import SPILLSYNTH
 from .estimators.ctsc import CTSC
 from .estimators.snn import SNN
 from .estimators.mcnnm import MCNNM
@@ -54,12 +59,16 @@ __all__ = [
     "FDID",
     "CLUSTERSC",
     "PROXIMAL",
-    "MASC",
     "FSCM",
     "SCMO",
     "SI",
     "NSC",
     "MUSC",
+    "TROP",
+    "OSCE",
+    "GMMSCE",
+    "MASC",
+    "TASCM",
     "SDID",
     "SHC",
     "RESCM",
@@ -80,6 +89,7 @@ __all__ = [
     "DSC",
     "SpSyDiD",
     "ISCM",
+    "SPILLSYNTH",
     "CTSC",
     "SNN",
     "MCNNM",
