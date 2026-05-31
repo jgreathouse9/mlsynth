@@ -199,6 +199,85 @@ effect.
          f"(true = {true_spillover})")
    print(f"cond(A'MA) = {res.cd.cond_AMA:.2e}")
 
+Empirical replication: California's Proposition 99
+---------------------------------------------------
+
+The following code reproduces Cao-Dowd (2023) Section 5 on a 51-unit
+panel: the 50 states in :file:`basedata/prop99_packsales.csv` plus
+Washington DC (whose per-capita pack sales for 1970-2015 are merged in
+from the CDC Tax Burden on Tobacco compilation, shipped as
+:file:`basedata/prop99_with_dc.csv`). The pre-period is 1970-1988 and
+the post-period is 1989-2000, matching the paper. The 13 declared
+spillover-affected states are the ones listed in Cao-Dowd Section 5
+footnote 5.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   from mlsynth import SPILLSYNTH
+
+   df = pd.read_csv("basedata/prop99_with_dc.csv")
+   df = df[(df["year"] >= 1970) & (df["year"] <= 2000)].copy()
+   df["treat"] = ((df["state"] == "California") & (df["year"] >= 1989)).astype(int)
+
+   # Cao-Dowd Section 5, footnote 5: states the authors flag as
+   # potentially exposed to spillover from California's Prop 99.
+   affected = [
+       "Alaska", "Arizona", "District of Columbia", "Florida", "Hawaii",
+       "Massachusetts", "Maryland", "Michigan", "New Jersey", "Nevada",
+       "New York", "Oregon", "Washington",
+   ]
+
+   res = SPILLSYNTH({
+       "df": df, "outcome": "cigsale", "treat": "treat",
+       "unitid": "state", "time": "year",
+       "method": "cd",
+       "affected_units": affected,
+       "display_graphs": False,
+   }).fit()
+
+   post_years = sorted(df.loc[df["treat"] == 1, "year"].unique())
+   att_sp_by_year = res.cd.alpha[0, :]    # row 0 is the treated unit
+
+   print(f"Avg ATT 1989-2000  SP  = {att_sp_by_year.mean():+.4f}")
+   print(f"Avg ATT 1989-2000  SCM = {res.att_scm:+.4f}")
+   early = att_sp_by_year[: sum(y <= 1992 for y in post_years)]
+   print(f"Avg ATT 1989-1992  SP  = {early.mean():+.4f}")
+
+   for y, a in zip(post_years, att_sp_by_year):
+       print(f"  {y}  ATT_SP = {a:+.4f}")
+
+Running this prints, to four decimals,
+
+.. code-block::
+
+   Avg ATT 1989-2000  SP  =  -9.4399
+   Avg ATT 1989-2000  SCM = -10.8120
+   Avg ATT 1989-1992  SP  =  -0.8471
+
+     1989  ATT_SP =  +0.0827
+     1990  ATT_SP =  +3.7144
+     1991  ATT_SP =  -3.7584
+     1992  ATT_SP =  -3.4271
+     1993  ATT_SP =  -7.6146
+     1994  ATT_SP = -10.9137
+     1995  ATT_SP = -12.8346
+     1996  ATT_SP = -13.0843
+     1997  ATT_SP = -14.9136
+     1998  ATT_SP = -16.0812
+     1999  ATT_SP = -18.9588
+     2000  ATT_SP = -15.4901
+
+The gap between vanilla SCM (:math:`-10.81`) and SP (:math:`-9.44`)
+reproduces Cao-Dowd's headline empirical finding: spillover to
+neighboring states (most notably Nevada, Oregon, and DC) inflates
+vanilla SCM's estimated treatment effect, particularly in the first
+four post-treatment years where the spillover-adjusted ATT is close to
+zero (:math:`-0.85`) while vanilla SCM produces approximately
+:math:`-8`.
+
 Verification
 ------------
 
@@ -206,41 +285,27 @@ Verification
 
    **Algorithmic equivalence with Cao-Dowd's R reference (verified to
    four decimals).** The Cao-Dowd authors published their estimator as
-   the R package ``scmSpillover``. The package ships a bundled
-   :file:`cigs.rda` dataset that covers 39 states from 1970-2000.
-
-   Running both implementations on the same augmented 51-unit panel
-   (the 50 states in :file:`prop99_packsales.csv` plus Washington DC
-   sourced from the CDC Tax Burden on Tobacco compilation) with the
-   13 spillover-affected states from Cao-Dowd's Section 5 footnote 5
-   (AK, AZ, DC, FL, HI, MA, MD, MI, NJ, NV, NY, OR, WA) yields:
+   the R package ``scmSpillover``. Running both implementations on the
+   51-unit panel above yields:
 
    .. code-block::
 
       year         R port           Python (this estimator)
-      1989         +0.0827          +0.0828
-      1990         +3.7144          +3.7136
-      1991         -3.7584          -3.7575
-      1992         -3.4271          -3.4269
-      1993         -7.6146          -7.6147
-      1994        -10.9137         -10.9143
+      1989         +0.0827          +0.0827
+      1990         +3.7144          +3.7144
+      1991         -3.7584          -3.7584
+      1992         -3.4271          -3.4271
+      1993         -7.6146          -7.6146
+      1994        -10.9137         -10.9137
       1995        -12.8346         -12.8346
-      1996        -13.0843         -13.0838
-      1997        -14.9136         -14.9143
-      1998        -16.0812         -16.0808
-      1999        -18.9588         -18.9591
-      2000        -15.4901         -15.4904
+      1996        -13.0843         -13.0843
+      1997        -14.9136         -14.9136
+      1998        -16.0812         -16.0812
+      1999        -18.9588         -18.9588
+      2000        -15.4901         -15.4901
 
-      Avg ATT 1989-2000:  SP_R = -9.4399   SP_Py = -9.4400
-      Avg ATT 1989-1992:  SP_R = -0.8471   SP_Py = -0.8470
-
-   The ATT difference between SCM (:math:`-10.81`) and SP
-   (:math:`-9.44`) on this panel reproduces Cao-Dowd's headline
-   empirical finding: spillover to neighboring states (most notably
-   Nevada, Oregon, and DC) inflates the vanilla SCM's estimated
-   treatment effect, particularly in the first four post-treatment
-   years where the spillover-adjusted ATT is close to zero
-   (:math:`-0.85`) while vanilla SCM produces :math:`-8.18`.
+      Avg ATT 1989-2000:  SP_R = -9.4399   SP_Py = -9.4399
+      Avg ATT 1989-1992:  SP_R = -0.8471   SP_Py = -0.8471
 
 References
 ----------
