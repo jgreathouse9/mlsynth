@@ -743,10 +743,10 @@ bottom of this section.
 The estimator under "SCM" is the **original Abadie 2010 simplex SCM
 without intercept** (matching the paper's comparator, not the
 intercept-shifted variant returned by ``res.att_scm``). The estimator
-under "SP" is the Cao-Dowd procedure invoked via mlsynth's internal
-``fit_leave_one_out_sc`` + ``sp_estimate`` helpers, bypassing the
-DataFrame-construction overhead of the public ``SPILLSYNTH`` API for
-speed in the inner loop.
+under "SP" is invoked through the **public** ``SPILLSYNTH(config).fit()``
+API, satisfying the Path-B contract requirement that the replication
+exercise the full config / panel-prep / estimation pipeline end-to-end
+on every Monte Carlo replication.
 
 Run the full grid with 1000 reps as in the paper::
 
@@ -809,7 +809,11 @@ treatment-effect hypothesis :math:`H_0: \alpha_1 = 0` under three test
 procedures (placebo, Andrews, SP) and three spillover scenarios. Table
 3 fixes :math:`\alpha_1 = 0` (so rejection rates measure **size**);
 Table 4 fixes :math:`\alpha_1 = 5` (so rejection rates measure
-**power**).
+**power**). On every replication the SP test (the procedure
+``mlsynth`` packages) is read off
+``SPILLSYNTH(config).fit().cd.treatment_test.reject_05``; the placebo
+and Andrews comparators reuse the same leave-one-out SCM artefacts
+that the public ``.fit()`` call exposes.
 
 .. literalinclude:: ../examples/spillsynth/replicate_cd_inference.py
    :language: python

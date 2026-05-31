@@ -45,10 +45,9 @@ from typing import Callable, List, Sequence, Tuple
 
 import cvxpy as cp
 import numpy as np
+import pandas as pd
 
-from mlsynth.utils.spillsynth_helpers.cd.scm_core import fit_leave_one_out_sc
-from mlsynth.utils.spillsynth_helpers.cd.estimation import build_M, sp_estimate
-from mlsynth.utils.spillsynth_helpers.setup import build_A_example3
+from mlsynth import SPILLSYNTH
 
 
 # ---------------------------------------------------------------------------
@@ -218,10 +217,39 @@ def _scenario_setup(N: int, scenario: str) -> Tuple[np.ndarray, np.ndarray]:
     return alpha, declared_idx
 
 
+def _panel_to_df(
+    Y: np.ndarray, T0: int,
+) -> "tuple[pd.DataFrame, list[str]]":
+    """Pack an ``(N, Ttot)`` outcome matrix into the long-form DataFrame
+    SPILLSYNTH consumes, with treatment indicator on row 0 from ``T0``.
+    """
+    N, Ttot = Y.shape
+    unit_labels = [f"u{i}" for i in range(N)]
+    rows = []
+    for i in range(N):
+        for t in range(Ttot):
+            rows.append({
+                "unit": unit_labels[i],
+                "year": t,
+                "y": float(Y[i, t]),
+                "treat": int(i == 0 and t >= T0),
+            })
+    return pd.DataFrame(rows), unit_labels
+
+
 def _one_rep(
     Y0: np.ndarray, alpha: np.ndarray, declared_idx: np.ndarray,
 ) -> Tuple[float, float]:
-    """One Monte Carlo replication. Returns ``(scm_bias, sp_bias)`` for unit 1."""
+    """One Monte Carlo replication. Returns ``(scm_bias, sp_bias)`` for unit 1.
+
+    **Path-B contract compliance.** The SP estimator is invoked through
+    the public ``SPILLSYNTH(config).fit()`` API so the entire
+    config-validation -> panel-prep -> estimation -> inference pipeline
+    is exercised end-to-end. The vanilla Abadie 2010 SCM column is
+    computed via a tiny independent helper (no intercept; this is the
+    paper's comparator and is NOT what mlsynth's ``res.att_scm``
+    returns, which is the Ferman-Pinto-demeaned variant).
+    """
     N, Ttot = Y0.shape
     T0 = Ttot - 1
     Y = Y0.copy()
@@ -230,18 +258,23 @@ def _one_rep(
     Y_post = Y[:, T0:]                                # (N, 1)
     y_treat_post = float(Y[0, -1])
 
-    # Abadie SCM (no intercept) on raw levels.
+    # Abadie SCM (no intercept) on raw levels -- paper's comparator.
     w_scm = vanilla_abadie_scm_weights(Y_pre[1:].T, Y_pre[0])
     cf_scm = float(Y_post[1:, 0] @ w_scm)
     scm_bias = (y_treat_post - cf_scm) - alpha[0]
 
-    # SP via Cao-Dowd eq. (5) with Example-3 A.
-    a, B = fit_leave_one_out_sc(Y_pre)
-    M = build_M(B)
-    A = build_A_example3(N, len(declared_idx))
-    _gamma, alpha_hat, _cond = sp_estimate(Y_post, a=a, B=B, M=M, A=A)
-    sp_bias = float(alpha_hat[0, 0]) - alpha[0]
-
+    # SP via the public estimator.
+    df, unit_labels = _panel_to_df(Y, T0=T0)
+    affected_labels = [unit_labels[i] for i in declared_idx]
+    res = SPILLSYNTH({
+        "df": df, "outcome": "y", "treat": "treat",
+        "unitid": "unit", "time": "year",
+        "method": "cd",
+        "affected_units": affected_labels,
+        "display_graphs": False,
+    }).fit()
+    # T1 = 1 by construction -- one post-period.
+    sp_bias = float(res.cd.alpha[0, 0]) - alpha[0]
     return scm_bias, sp_bias
 
 

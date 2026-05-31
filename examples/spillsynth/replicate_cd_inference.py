@@ -44,16 +44,12 @@ from typing import List, Sequence, Tuple
 
 import numpy as np
 
-from mlsynth.utils.spillsynth_helpers.cd.inference import (
-    G_matrix, compute_pre_residuals, p_test,
-)
-from mlsynth.utils.spillsynth_helpers.cd.scm_core import fit_leave_one_out_sc
-from mlsynth.utils.spillsynth_helpers.cd.estimation import build_M, sp_estimate
-from mlsynth.utils.spillsynth_helpers.setup import build_A_example3
+from mlsynth import SPILLSYNTH
 
-# Re-use the DGPs and scenario setup from the bias replication script.
+# Re-use the DGPs, scenario setup, and DataFrame packing from the bias
+# replication script.
 from examples.spillsynth.replicate_cd_tables import (
-    _affected_counts, dgp_stationary, loadings_stationary,
+    _affected_counts, _panel_to_df, dgp_stationary, loadings_stationary,
 )
 
 
@@ -68,55 +64,39 @@ DEFAULT_TS = (15, 50, 200)
 
 
 def _placebo_reject(
-    Y_pre: np.ndarray, Y_post: np.ndarray, a: np.ndarray, B: np.ndarray,
-    tau: float = 0.05,
+    a: np.ndarray, B: np.ndarray, Y_post_col: np.ndarray, tau: float = 0.05,
 ) -> bool:
     """Abadie-2010-style placebo test on the post-period residual.
 
-    Computes :math:`\\widehat u_{i, T+1} = y_{i, T+1} - (a_i + b_i' Y_{T+1})`
-    for every unit using its leave-one-out SCM fit, then rejects if the
-    treated unit's :math:`|\\widehat u_{1, T+1}|` is in the top :math:`\\tau`
-    of the across-unit distribution.
+    Uses the *same* leave-one-out SCM artefacts ``(a, B)`` that
+    ``SPILLSYNTH.fit()`` produced internally (read off ``res.cd.a`` /
+    ``res.cd.B``). Reject if the treated unit's :math:`|\\widehat u_{1,
+    T+1}|` is in the top :math:`\\tau` of the cross-unit distribution.
     """
-    N = Y_pre.shape[0]
-    # u_{i, T+1} = (I - B) Y_post - a, single column
-    u_post = (np.eye(N) - B) @ Y_post[:, 0] - a               # (N,)
+    N = B.shape[0]
+    u_post = (np.eye(N) - B) @ Y_post_col - a              # (N,)
     abs_u = np.abs(u_post)
     cutoff = np.quantile(abs_u, 1 - tau)
     return bool(abs_u[0] > cutoff)
 
 
 def _andrews_reject(
-    Y_pre: np.ndarray, Y_post: np.ndarray, a: np.ndarray, B: np.ndarray,
-    tau: float = 0.05,
+    a: np.ndarray, B: np.ndarray, Y_pre: np.ndarray,
+    Y_post_col: np.ndarray, tau: float = 0.05,
 ) -> bool:
     """Andrews-2003 P-test on the treated unit alone.
 
     Reference distribution: pre-period squared residuals of the treated
-    unit only, :math:`\\{\\widehat u_{1, t}^2\\}_{t=1}^T`.
+    unit, :math:`\\{\\widehat u_{1, t}^2\\}_{t=1}^T`, using
+    ``SPILLSYNTH.fit()``'s leave-one-out artefacts.
     """
-    N = Y_pre.shape[0]
-    u_pre = (np.eye(N) - B) @ Y_pre - a[:, None]              # (N, T0)
-    u_post = (np.eye(N) - B) @ Y_post[:, 0] - a               # (N,)
+    N = B.shape[0]
+    u_pre = (np.eye(N) - B) @ Y_pre - a[:, None]           # (N, T0)
+    u_post = (np.eye(N) - B) @ Y_post_col - a              # (N,)
     P_pre = u_pre[0] ** 2
     P_post = float(u_post[0] ** 2)
     cutoff = np.quantile(P_pre, 1 - tau)
     return bool(P_post > cutoff)
-
-
-def _sp_reject(
-    Y_pre: np.ndarray, Y_post: np.ndarray, a: np.ndarray, B: np.ndarray,
-    A: np.ndarray, alpha_hat: np.ndarray, tau: float = 0.05,
-) -> bool:
-    """Cao-Dowd Section 4.2 P-test for ``H_0: alpha_1(T+1) = 0``."""
-    N = Y_pre.shape[0]
-    U_pre = compute_pre_residuals(Y_pre, a, B)
-    G_hat = G_matrix(A, B)
-    e_treat = np.zeros((1, N)); e_treat[0, 0] = 1.0
-    res = p_test(
-        alpha_hat=alpha_hat, U_pre=U_pre, G_hat=G_hat, C=e_treat,
-    )
-    return bool(res.P_post[0] > np.quantile(res.P_pre, 1 - tau))
 
 
 # ---------------------------------------------------------------------------
@@ -127,22 +107,42 @@ def _sp_reject(
 def _one_rep_inference(
     Y0: np.ndarray, alpha: np.ndarray, declared_idx: np.ndarray,
 ) -> Tuple[bool, bool, bool]:
-    """One Monte Carlo replication. Returns (placebo, andrews, sp) reject flags."""
+    """One Monte Carlo replication. Returns (placebo, andrews, sp) reject flags.
+
+    **Path-B contract compliance.** The SP test (the one method that
+    the paper introduces and that ``mlsynth`` packages) is invoked
+    through ``SPILLSYNTH(config).fit()``: we read its reject decision
+    off ``res.cd.treatment_test.reject_05[0]``. The placebo and
+    Andrews 2003 tests are external comparators; they are computed
+    from the leave-one-out SCM artefacts ``res.cd.a`` and ``res.cd.B``
+    that the same public ``.fit()`` call exposes.
+    """
     N, Ttot = Y0.shape
     T0 = Ttot - 1
     Y = Y0.copy()
     Y[:, -1] = Y[:, -1] + alpha
-    Y_pre = Y[:, :T0]
-    Y_post = Y[:, T0:]
 
-    a, B = fit_leave_one_out_sc(Y_pre)
-    A = build_A_example3(N, len(declared_idx))
-    M = build_M(B)
-    _gamma, alpha_hat, _cond = sp_estimate(Y_post, a=a, B=B, M=M, A=A)
+    df, unit_labels = _panel_to_df(Y, T0=T0)
+    affected_labels = [unit_labels[i] for i in declared_idx]
+    res = SPILLSYNTH({
+        "df": df, "outcome": "y", "treat": "treat",
+        "unitid": "unit", "time": "year",
+        "method": "cd",
+        "affected_units": affected_labels,
+        "display_graphs": False,
+    }).fit()
 
-    placebo = _placebo_reject(Y_pre, Y_post, a, B)
-    andrews = _andrews_reject(Y_pre, Y_post, a, B)
-    sp = _sp_reject(Y_pre, Y_post, a, B, A, alpha_hat)
+    # SP test comes from the public estimator's inference output.
+    sp = bool(res.cd.treatment_test.reject_05[0])
+
+    # Placebo / Andrews comparators use the same SCM artefacts that
+    # SPILLSYNTH already computed (no shadow re-fit).
+    a = res.cd.a
+    B = res.cd.B
+    Y_pre = res.inputs.Y_pre
+    Y_post_col = res.inputs.Y_post[:, 0]
+    placebo = _placebo_reject(a, B, Y_post_col)
+    andrews = _andrews_reject(a, B, Y_pre, Y_post_col)
     return placebo, andrews, sp
 
 
