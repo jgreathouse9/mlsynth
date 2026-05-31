@@ -8,17 +8,16 @@ package that gives applied researchers and data scientists access to
 the modern synthetic-control literature under a single, unified API.
 You provide a long DataFrame and a configuration dictionary; the
 estimator returns a typed result object with the ATT, the
-counterfactual path, donor weights, fit statistics, and (where
-applicable) confidence or credible intervals -- ready for analysis
-or downstream plotting.
+counterfactual, donor weights, fit statistics, and (where
+applicable) confidence or credible intervals.
 
 At the time of writing, mlsynth ships more than thirty estimators
 spanning the full breadth of the synthetic-control literature, from
 the canonical Abadie-Diamond-Hainmueller method through Bayesian
-spike-and-slab variable selection, state-space time-aware control,
+spike-and-slab variable selection, state-space models,
 matrix completion, synthetic difference-in-differences for staggered
-adoption, instrumental synthetic IV, and synthetic-design methods for
-prospective experiments. Every estimator is implemented from its
+adoption, instrumental synthetic IV, synthetic-design methods for
+prospective experiments, and more. Every estimator is implemented from its
 original source paper and -- for the verified subset -- replicates
 the paper's published numbers in a dedicated *Verification* section.
 
@@ -34,13 +33,11 @@ per time period, with at minimum a unit identifier, a time index, an
 outcome column, and a binary treatment indicator. There is no
 ``Dataprep`` object to construct, no pivoting to wide form, no
 special-cased input for each method. The same DataFrame that fits a
-classical synthetic control will fit a Bayesian variant, a sequential
-SDiD, or a synthetic IV.
+:doc:`tssc` will fit :doc:`masc`.
 
 **2. One config dict, one ``.fit()`` call.**
 
-Estimators take a single configuration dictionary (or a typed Pydantic
-config object), and expose a single ``.fit()`` method that returns a
+Estimators take a single configuration dictionary and expose a single ``.fit()`` method that returns a
 frozen, typed result. There are no separate ``compute_weights`` /
 ``compute_counterfactual`` / ``compute_inference`` steps for the user
 to assemble -- the orchestration is the estimator's job.
@@ -65,7 +62,7 @@ below moves between vanilla Robust SCM, its convex variant from Dennis
 Shen's MIT master's thesis (`MIT DSpace
 <https://dspace.mit.edu/bitstream/handle/1721.1/115743/1036986794-MIT.pdf?sequence=1&isAllowed=y>`_),
 the clustered variant of `Rho et al. (2025)
-<https://arxiv.org/pdf/2503.21629>`_, and the Bayesian variant -- all
+<https://arxiv.org/pdf/2503.21629>`_, and `the Bayesian variant<https://jmlr.csail.mit.edu/papers/volume19/17-777/17-777.pdf>`_ -- all
 via the same :class:`~mlsynth.CLUSTERSC` class:
 
 .. code-block:: python
@@ -76,9 +73,9 @@ via the same :class:`~mlsynth.CLUSTERSC` class:
     url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
            "main/basedata/basque_data.csv")
     data = pd.read_csv(url)
-    base = {"df": data, "outcome": data.columns[2],
-            "treat": data.columns[-1], "unitid": data.columns[0],
-            "time": data.columns[1], "display_graphs": False}
+    base = {"df": data, "outcome": data.columns[3],
+            "treat": data.columns[-1], "unitid": data.columns[1],
+            "time": data.columns[2], "display_graphs": True}
 
     variants = [
         ("Vanilla RSC",   {**base, "method": "PCR", "objective": "OLS"}),
@@ -94,34 +91,19 @@ via the same :class:`~mlsynth.CLUSTERSC` class:
         print(f"{name:15} ATT = {res.att:+.3f}")
 
 Four estimators, one DataFrame, four lines of differences. The same
-pattern recurs throughout the library -- changing ``mode`` on
-:class:`~mlsynth.SIV` selects between the canonical SIV, its
-projected variant, and the ensemble blend; changing
-``weight_constraint`` on a synthetic-control estimator toggles
-between simplex and L1-ball regularisation; changing
-``inference_method`` switches between asymptotic and conformal
-inference.
+pattern recurs throughout the library, depending on the circumstance.
 
 The verification campaign
 -------------------------
 
-mlsynth's strongest claim is *reproducibility against the source
-paper*. Each verified estimator's documentation page contains a
+mlsynth, as much as possible, reproduces against the source
+paper. Each verified estimator's documentation page contains a
 replication section showing that the implementation matches one of
-the paper's headline numbers. **Twenty-nine of the thirty-three
-estimators currently carry a strong or solid verification
-receipt** -- spanning canonical workhorses, decomposition-first
-methods, every estimator that generalises the classical estimand
-or treatment, the full high-dimensional family, both time-aware
-state-space methods, three of the four staggered-adoption
-estimators, both missing-data methods, both endogeneity methods,
-and every experimental-design estimator.
-
-The campaign distinguishes between **Path A** (empirical replication
+the paper's headline numbers. We distinguish between **Path A** (empirical replication
 on the original authors' dataset, matching their published
 estimates) and **Path B** (Monte Carlo replication of the paper's
 simulation section). Where both paths are feasible, both are run;
-where the authors' data is not redistributable, Path B is used.
+where the authors' data is not redistributable/easily accessible, Path B is used.
 
 See :doc:`replications` for the catalogue of all current
 replications, with headline numbers and per-family coverage status.
@@ -146,37 +128,6 @@ Confirm the install::
 For an isolated environment, the standard
 ``python -m venv mlsynth_env && source mlsynth_env/bin/activate``
 pattern works as expected.
-
-Quick start
------------
-
-The original Abadie-Gardeazabal Basque Country study, end to end:
-
-.. code-block:: python
-
-   import pandas as pd
-   from mlsynth import FDID
-
-   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
-          "main/basedata/basque_data.csv")
-   data = pd.read_csv(url)
-
-   config = {
-       "df": data,
-       "outcome": data.columns[2],         # GDP per capita
-       "treat":   data.columns[-1],        # 1 in/after 1975 for Basque Country
-       "unitid":  data.columns[0],         # region name
-       "time":    data.columns[1],         # year
-       "display_graphs": True,
-       "counterfactual_color": ["red", "blue"],
-   }
-
-   results = FDID(config).fit()
-
-This estimates the causal impact of terrorist violence in the Basque
-Country in 1975 on real GDP per capita via Forward
-Difference-in-Differences -- greedy forward-step donor selection with
-a DiD fallback.
 
 For a fuller tour of which estimator fits which problem, see
 :doc:`choose`.
@@ -207,8 +158,8 @@ which units to treat, before any intervention takes place. See
 
 **High-dimensional donor pools.** When :math:`N \gg T_0` -- as
 arises with commodity-category panels, large product portfolios, or
-fine industry classifications -- the classical SC quadratic program
-loses its unique solution and Lasso-style alternatives over-select.
+fine industry classifications, or we have many covariates to choose from, the classical SC quadratic program
+loses its unique solution. Lasso-style alternatives sometimes over-select.
 :doc:`bvss`, :doc:`clustersc`, :doc:`mlsc`, :doc:`rescm`,
 :doc:`sparse_sc`, :doc:`fscm`, and :doc:`pda` each address this
 regime with a different selection strategy.
