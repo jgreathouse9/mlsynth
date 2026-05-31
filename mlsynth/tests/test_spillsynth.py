@@ -19,6 +19,8 @@ Layered per agents/agents_tests.md:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -1086,6 +1088,80 @@ class TestMultipleTreatedUnits:
         )
         with pytest.raises(MlsynthConfigError):
             SPILLSYNTH(_cfg(df, affected_units=["u1"]))
+
+
+class TestEmpiricalPathARegression:
+    """Path-A contract: pin paper numbers as a permanent regression check.
+
+    Drives the 51-unit Prop 99 + DC panel through the public
+    ``SPILLSYNTH(config).fit()`` API and asserts that the published
+    Cao-Dowd v3 values come back to four decimal places.
+
+    The data file (``basedata/prop99_with_dc.csv``) is the augmented
+    panel shipped with mlsynth -- 50 states from
+    ``prop99_packsales.csv`` plus Washington DC sourced from the CDC
+    Tax Burden on Tobacco compilation -- and the 13 spillover-affected
+    states are Cao-Dowd Section 5 footnote 5 (AK, AZ, DC, FL, HI, MA,
+    MD, MI, NJ, NV, NY, OR, WA).
+    """
+
+    PROP99_AFFECTED = [
+        "Alaska", "Arizona", "District of Columbia", "Florida", "Hawaii",
+        "Massachusetts", "Maryland", "Michigan", "New Jersey", "Nevada",
+        "New York", "Oregon", "Washington",
+    ]
+
+    @pytest.fixture(scope="class")
+    def prop99_fit(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        csv = repo_root / "basedata" / "prop99_with_dc.csv"
+        if not csv.exists():
+            pytest.skip(f"prop99_with_dc.csv not present at {csv}")
+        df = pd.read_csv(csv)
+        df = df[(df["year"] >= 1970) & (df["year"] <= 2000)].copy()
+        df["treat"] = (
+            (df["state"] == "California") & (df["year"] >= 1989)
+        ).astype(int)
+        return SPILLSYNTH({
+            "df": df, "outcome": "cigsale", "treat": "treat",
+            "unitid": "state", "time": "year",
+            "method": "cd",
+            "affected_units": self.PROP99_AFFECTED,
+            "display_graphs": False,
+        }).fit()
+
+    def test_att_sp_matches_paper_four_decimals(self, prop99_fit):
+        # Paper's headline figure for Cao-Dowd v3 Section 6.
+        assert prop99_fit.att == pytest.approx(-9.4399, abs=1e-4)
+
+    def test_att_scm_matches_paper_four_decimals(self, prop99_fit):
+        assert prop99_fit.att_scm == pytest.approx(-10.8120, abs=1e-4)
+
+    def test_per_year_att_sp_matches_paper(self, prop99_fit):
+        # v3 Figure 4(b) annotations, year by year.
+        expected = {
+            1989: +0.0827,  1990: +3.7144,  1991: -3.7584,  1992: -3.4271,
+            1993: -7.6146,  1994: -10.9137, 1995: -12.8346, 1996: -13.0843,
+            1997: -14.9136, 1998: -16.0812, 1999: -18.9588, 2000: -15.4901,
+        }
+        post_years = sorted(prop99_fit.inputs.post_time.tolist())
+        alpha_treated = prop99_fit.cd.alpha[0]
+        for year, expected_val in expected.items():
+            idx = post_years.index(year)
+            assert alpha_treated[idx] == pytest.approx(expected_val, abs=1e-4), (
+                f"{year}: expected {expected_val}, got {alpha_treated[idx]}"
+            )
+
+    def test_pure_donor_alphabar_matches_figure_3a(self, prop99_fit):
+        # Cao-Dowd v3 Figure 3(a) annotation: alpha_bar = 17.07 is the
+        # smallest worst-case missed spillover capable of invalidating
+        # the largest observed ATT, under p = 1.
+        pds = prop99_fit.cd.pure_donor_sensitivity
+        assert pds is not None
+        alpha_max = float(prop99_fit.cd.alpha[0].max())
+        c_sp_p1 = float(pds.w_sp[:1].sum())
+        ratio = alpha_max / c_sp_p1
+        assert ratio == pytest.approx(17.07, abs=0.01)
 
 
 # ----------------------------------------------------------------------

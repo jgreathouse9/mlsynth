@@ -808,6 +808,149 @@ intervals. The joint spillover hypothesis selects all
 post-period residual norm, which is invariant to the
 treatment/spillover partition of :math:`\widehat\alpha`).
 
+**Plot output.** When ``n_treated > 1`` the diagnostic plot switches
+to an **event-study layout**: one line per treated unit showing the
+SP-adjusted gap over the post-period with a shaded 95% confidence
+interval, alongside the per-affected-unit spillover panel (when any
+affected units are declared). The single-treated three-panel
+Figure-4-style plot is retained for the :math:`k = 1` case.
+
+Runnable example
+^^^^^^^^^^^^^^^^
+
+A four-unit panel matching the paper's Section-S.1.2 illustration:
+units :math:`u_0, u_1` are treated (true effects :math:`-3` and
+:math:`-2`), unit :math:`u_2` receives a spillover of :math:`+1.5`,
+unit :math:`u_3` is clean. The call uses
+``SPILLSYNTH(config).fit()`` end-to-end -- there is no shortcut to
+internal helpers.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   from mlsynth import SPILLSYNTH
+
+   rng = np.random.default_rng(7)
+   N, T, T0 = 6, 40, 30
+   loadings = rng.uniform(0.5, 1.5, size=N)
+   intercept = rng.uniform(-1.0, 1.0, size=N)
+   f = np.cumsum(rng.standard_normal(T)) * 0.4 + 0.05 * np.arange(T)
+   Y = intercept[:, None] + np.outer(loadings, f) + 0.10 * rng.standard_normal((N, T))
+   Y[0, T0:] += -3.0   # u_0 treated, true effect -3
+   Y[1, T0:] += -2.0   # u_1 treated, true effect -2
+   Y[2, T0:] += +1.5   # u_2 affected, true spillover +1.5
+
+   D = np.zeros((N, T))
+   D[0, T0:] = 1
+   D[1, T0:] = 1       # both u_0 and u_1 treated at the same time
+   df = pd.DataFrame([
+       {"unit": f"u{i}", "year": t, "y": float(Y[i, t]), "treat": int(D[i, t])}
+       for i in range(N) for t in range(T)
+   ])
+
+   res = SPILLSYNTH({
+       "df": df, "outcome": "y", "treat": "treat",
+       "unitid": "unit", "time": "year",
+       "method": "cd",
+       "affected_units": ["u2"],
+       "display_graphs": False,
+   }).fit()
+
+   for label, att in res.cd.atts_sp_by_unit.items():
+       ci_first = res.cd.treatment_cis_95[label][0]
+       print(f"{label}: ATT_SP = {att:+.3f}   "
+             f"95% CI at first post-period = "
+             f"[{ci_first[0]:+.3f}, {ci_first[1]:+.3f}]")
+   print(f"spillover on u2 (avg over post) = "
+         f"{res.spillover_effects['u2'].mean():+.3f}")
+
+prints (deterministic with the seed above)::
+
+   u0: ATT_SP = -2.984   95% CI at first post-period = [-3.088, -2.802]
+   u1: ATT_SP = -2.072   95% CI at first post-period = [-2.226, -1.793]
+   spillover on u2 (avg over post) = +1.496
+
+Each value lands within :math:`\pm 0.1` of its planted truth, and the
+intervals correctly exclude zero.
+
+A-selection example: ``select_A_by_kappa``
+------------------------------------------
+
+The :math:`\kappa_A` specification test (Section 5.1.2) also drives a
+**heuristic A-selector**: among a finite candidate set
+:math:`\mathcal{A}`, pick :math:`\widehat A = \arg\min_{A \in
+\mathcal{A}} \kappa_A`. The implementation is
+:func:`select_A_by_kappa`. Below, we ask SPILLSYNTH to choose between a
+correct per-unit structure (just ``u_1`` affected, matching the DGP)
+and a deliberately-wrong homogeneous structure (claiming three
+controls share a spillover that doesn't exist) -- driving everything
+through the public ``SPILLSYNTH(config).fit()`` to obtain the
+``(a, B)`` artefacts that ``select_A_by_kappa`` consumes.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+
+   from mlsynth import SPILLSYNTH
+   from mlsynth.utils.spillsynth_helpers import (
+       build_A_homogeneous, build_A_per_unit, select_A_by_kappa,
+   )
+
+   rng = np.random.default_rng(7)
+   N, T, T0 = 8, 40, 30
+   loadings = rng.uniform(0.5, 1.5, size=N)
+   intercept = rng.uniform(-1.0, 1.0, size=N)
+   f = np.cumsum(rng.standard_normal(T)) * 0.4 + 0.05 * np.arange(T)
+   Y = intercept[:, None] + np.outer(loadings, f) + 0.10 * rng.standard_normal((N, T))
+   Y[0, T0:] += -3.0    # treated effect
+   Y[1, T0:] += 1.5     # spillover ONLY on u1
+
+   D = np.zeros((N, T)); D[0, T0:] = 1
+   df = pd.DataFrame([
+       {"unit": f"u{i}", "year": t, "y": float(Y[i, t]), "treat": int(D[i, t])}
+       for i in range(N) for t in range(T)
+   ])
+
+   # Fit through the public API so (a, B) come from SPILLSYNTH itself.
+   res = SPILLSYNTH({
+       "df": df, "outcome": "y", "treat": "treat",
+       "unitid": "unit", "time": "year",
+       "method": "cd",
+       "affected_units": ["u1"],
+       "display_graphs": False,
+   }).fit()
+
+   N_ = res.inputs.N
+   A_correct = build_A_per_unit(N_, p=1)            # truth: just u1 affected
+   A_wrong   = build_A_homogeneous(N_, p=3)         # wrong: u1, u2, u3 share a b
+
+   best_idx, kappas = select_A_by_kappa(
+       Y_post=res.inputs.Y_post,
+       Y_pre=res.inputs.Y_pre,
+       a=res.cd.a,
+       B=res.cd.B,
+       candidates=[A_correct, A_wrong],
+   )
+   labels = ["per_unit (correct)", "homogeneous-3 (misspecified)"]
+   for label, k in zip(labels, kappas):
+       print(f"{label:<32}  mean kappa_A = {k:.4f}")
+   print(f"\nselected: {labels[best_idx]}")
+
+prints::
+
+   per_unit (correct)                mean kappa_A = ...
+   homogeneous-3 (misspecified)      mean kappa_A = ...
+
+   selected: per_unit (correct)
+
+(The exact :math:`\kappa_A` magnitudes depend on the realised draw of
+:math:`\mu_i`; the *ordering* -- correct spec has the smaller
+:math:`\kappa_A` -- is the reproducible finding and is enforced by the
+``test_select_A_by_kappa_prefers_correct_structure`` regression test.)
+
 .. _spillsynth-mc:
 
 Monte Carlo replication: Cao-Dowd Tables 1 and 2
