@@ -67,11 +67,11 @@ def _aggregate_covariates(
     return X_treated, X_donors
 
 
-def _cv_for_m(
+def _build_sc_cache(
+    *,
     Y_treated: np.ndarray,
     Y_donors: np.ndarray,
     treatment_period: int,
-    m: int,
     set_f: Sequence[int],
     fold_weights: np.ndarray,
     forecast_minlength: int,
@@ -82,46 +82,25 @@ def _cv_for_m(
     covariate_names: Sequence[Any] = (),
     time_index: Optional[np.ndarray] = None,
     covariate_windows: Optional[Dict[Any, Tuple[Any, Any]]] = None,
-) -> Tuple[float, float, np.ndarray]:
-    """Run rolling-origin CV at a single ``m`` and return ``(cv, phi, by_fold)``.
+) -> "list":
+    """Pre-compute per-fold SC weights and forecast vectors.
 
-    For each fold ``f`` in ``set_f``:
-      1. Fit SC and matching on outcome rows ``1..f``.
-      2. Forecast at periods ``f + forecast.minlength`` through
-         ``min(f + forecast.maxlength, treatment-1)``.
-      3. Stack the forecast vectors across folds.
-
-    Then solve eq. (15) of Kellogg et al. (2021) analytically for ``phi``
-    and report the implied weighted CV error.
-
-    Parameters mirror the R reference's ``cv_masc`` call. Periods are
-    0-indexed inside; ``treatment_period`` is the 1-indexed first
-    treated period (matches R's ``treatment``).
+    Returns a list of ``(Y0_pre, YJ_pre, Y0_post, YJ_post, Y_sc_post, obj_w)``
+    tuples, one per *usable* fold (folds whose forecast window is empty are
+    dropped).  Running this once -- rather than once per ``m`` -- is the
+    key CV speedup when ``cov_*_panel`` is set and ``sc_simplex_weights``
+    delegates to the bilevel V solver.
     """
-    Y_sc_stack = []
-    Y_match_stack = []
-    Y_treated_stack = []
-    obj_weight_stack = []
-    forecast_periods_per_fold = []
-
-    # Cache per-fold SC and match weights so we can refit the CV error
-    # by fold once phi is known.
-    fold_records = []
-
+    cache = []
     for fold_idx, f in enumerate(set_f):
-        # Forecast window: f+forecast.minlength to f+forecast.maxlength,
-        # capped at treatment_period - 1 (R's `treatment - 1`). All are
-        # 1-indexed in R; subtract 1 for 0-indexed Python slicing.
         post_start = f + forecast_minlength
         post_end = min(f + forecast_maxlength, treatment_period - 1)
         if post_start > post_end:
             continue
-        # Convert to 0-indexed [post_start_idx, post_end_idx + 1) slice.
-        idx_pre = slice(0, f)  # rows 1..f in R -> 0..f-1 in Python
+        idx_pre = slice(0, f)
         idx_post = slice(post_start - 1, post_end)
         Y0_pre = Y_treated[idx_pre]
         YJ_pre = Y_donors[idx_pre]
-        w_match = nearest_neighbor_weights(Y0_pre, YJ_pre, m)
         X_treated, X_donors = _aggregate_covariates(
             cov_treated_panel, cov_donors_panel, covariate_names,
             time_index, pre_end_period=f,
@@ -132,19 +111,52 @@ def _cv_for_m(
             X_treated=X_treated, X_donors=X_donors,
             solver=solver,
         )
-
         Y0_post = Y_treated[idx_post]
         YJ_post = Y_donors[idx_post]
         Y_sc_fold = YJ_post @ w_sc
-        Y_match_fold = YJ_post @ w_match
-
         n_per = Y0_post.shape[0]
         obj_w = np.full(n_per, fold_weights[fold_idx] / n_per)
+        cache.append((Y0_pre, YJ_pre, Y0_post, YJ_post, Y_sc_fold, obj_w))
+    return cache
+
+
+def _cv_for_m(
+    Y_treated: np.ndarray,
+    Y_donors: np.ndarray,
+    treatment_period: int,
+    m: int,
+    set_f: Sequence[int],
+    fold_weights: np.ndarray,
+    forecast_minlength: int,
+    forecast_maxlength: int,
+    solver: Optional[str],
+    sc_cache: Sequence[
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+    ],
+) -> Tuple[float, float, np.ndarray]:
+    """Run rolling-origin CV at a single ``m`` and return ``(cv, phi, by_fold)``.
+
+    For each fold the cached tuple is
+    ``(Y0_pre, YJ_pre, Y0_post, YJ_post, Y_sc_post, obj_w)``: the pre-period
+    blocks the match needs, the post-period blocks the forecast needs, the
+    fold's SC forecast vector (independent of ``m``) and its objective
+    weights. Pre-computing this once per fold in ``cross_validate`` is the
+    whole point of the cache.
+    """
+    Y_sc_stack = []
+    Y_match_stack = []
+    Y_treated_stack = []
+    obj_weight_stack = []
+    fold_records = []
+
+    for (Y0_pre, YJ_pre, Y0_post, YJ_post, Y_sc_fold, obj_w) in sc_cache:
+        w_match = nearest_neighbor_weights(Y0_pre, YJ_pre, m)
+        Y_match_fold = YJ_post @ w_match
+
         Y_sc_stack.append(Y_sc_fold)
         Y_match_stack.append(Y_match_fold)
         Y_treated_stack.append(Y0_post)
         obj_weight_stack.append(obj_w)
-        forecast_periods_per_fold.append(n_per)
         fold_records.append((Y0_post, Y_match_fold, Y_sc_fold))
 
     Y_sc_v = np.concatenate(Y_sc_stack)
@@ -224,17 +236,34 @@ def cross_validate(
             )
         fold_weights = fold_weights / fold_weights.sum()
 
+    # Pre-build the per-fold SC cache once. The SC fit (and per-fold
+    # covariate aggregation) depends only on the fold cut ``f``, not on
+    # ``m``; computing it inside the ``m_grid`` loop was an O(|m_grid|)
+    # waste — the dominant cost when covariates trigger the bilevel V
+    # solver.
+    sc_cache = _build_sc_cache(
+        Y_treated=Y_treated,
+        Y_donors=Y_donors,
+        treatment_period=treatment_period,
+        set_f=set_f,
+        fold_weights=fold_weights,
+        forecast_minlength=forecast_minlength,
+        forecast_maxlength=forecast_maxlength,
+        solver=solver,
+        cov_treated_panel=cov_treated_panel,
+        cov_donors_panel=cov_donors_panel,
+        covariate_names=covariate_names,
+        time_index=time_index,
+        covariate_windows=covariate_windows,
+    )
+
     cv_grid = np.zeros((len(m_grid), 3))
     by_fold_per_m = []
     for idx, m in enumerate(m_grid):
         cv, phi, by_fold = _cv_for_m(
             Y_treated, Y_donors, treatment_period, m, set_f,
             fold_weights, forecast_minlength, forecast_maxlength, solver,
-            cov_treated_panel=cov_treated_panel,
-            cov_donors_panel=cov_donors_panel,
-            covariate_names=covariate_names,
-            time_index=time_index,
-            covariate_windows=covariate_windows,
+            sc_cache=sc_cache,
         )
         cv_grid[idx] = [m, phi, cv]
         by_fold_per_m.append(by_fold)
