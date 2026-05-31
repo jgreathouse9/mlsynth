@@ -134,6 +134,278 @@ pre-window :math:`T_0`, and the target must have a non-vanishing pre-period
 signal. The Monte Carlo below shows the CI's coverage degrade exactly when
 :math:`T_1` is pushed too large.
 
+When the assumptions bind: practical diagnostics
+------------------------------------------------
+
+Assumptions 1-8 are stated above in their structural form. Here is what each
+looks like in a real dataset, and what to check in the SI fit object before
+trusting an arm-level counterfactual.
+
+(a) **SUTVA / no spillovers / no carry-over (A1).** SI assumes each unit's
+    post-period outcome under :math:`d` is a function of :math:`d` only --
+    no influence from other units' interventions, no dynamic effect from
+    pre-period exposure.
+
+    *Plausibly violated when* the interventions are geographically or
+    socially adjacent (state-level tobacco programs whose advertising
+    crosses borders; vertically linked markets), or when treatment has a
+    persistent effect that bleeds into the post-window. *Diagnostic*:
+    re-run SI dropping donors that are geographic / network neighbours of
+    treated units; large changes in an arm's counterfactual flag
+    interference. For genuine spillovers switch to :doc:`spillsynth` or
+    :doc:`spsydid`; for dynamics switch to :doc:`tasc`/:doc:`dscar`.
+
+(b) **Factor invariance of unit loadings across interventions (A2 -- the
+    SI assumption).** Each unit's :math:`v_i` is the same whether observed
+    under control or under :math:`d`. SI's transfer step is precisely the
+    statement that weights learned on pre-period **control** data work to
+    impute post-period outcomes under :math:`d`.
+
+    *Plausibly violated when* the intervention *changes who the donors
+    are*: a tax raises the price elasticity itself for tax-state
+    consumers, a marketing program builds new audience segments inside
+    program states. Once :math:`v_i` shifts after :math:`T_0`, the
+    pre-period weights are stale. *Diagnostic*: this is the **silent**
+    failure -- a pre-fit can look excellent while the counterfactual is
+    biased, because the pre-data is all under control. The empirical
+    cross-check (Section 6.2 of the paper) is to hold out a slice of the
+    donor pool's *post-period under d* outcomes and verify the
+    pre-period weights also reproduce those; ``SI.fit`` exposes the
+    per-arm validation coverage (e.g. 26/38, 6/7, 3/5 in the Prop 99
+    case study). Low validation coverage for an arm is the only honest
+    flag for an A2 failure on that arm.
+
+(c) **Low-rank donor structure (A3).** The donor pre-matrix is
+    approximately low-rank, so the spectral truncation kept by
+    Gavish-Donoho separates signal from noise.
+
+    *Plausibly violated when* the spectrum decays slowly (no clear gap),
+    or when individual donors carry idiosyncratic noise comparable to
+    the signal. *Diagnostic*: print
+    ``arm.singular_values`` (or recompute the SVD of the donor
+    pre-matrix) and look for a sharp gap; a slow decay means the
+    Gavish-Donoho cut is somewhere in the noise floor. If
+    ``rank_method="donoho"`` keeps ``k`` close to ``min(T0, N_d)``, the
+    low-rank story has failed and SI-PCR is essentially OLS on the donor
+    columns.
+
+(d) **Span condition (A4).** The focal unit's :math:`v_i` lies in the
+    span of the donor pool's loadings under :math:`d`.
+
+    *Plausibly violated when* the focal unit is structurally different
+    from every donor under intervention :math:`d` -- California (a
+    coastal mega-state) against a donor pool that happens to be small
+    interior states. *Diagnostic*: inspect the per-arm pre-period RMSE
+    of :math:`Y_{\text{pre}, i}` against :math:`Y_{\text{pre}, I(d)}
+    \hat w`; a visibly poor pre-fit on a particular arm means that
+    arm's span condition is failing. This is the **loud** failure mode
+    -- it shows up directly in pre-fit residuals.
+
+(e) **Homoskedastic noise (A5).** Only the variance estimate
+    :math:`\hat\sigma^2` and hence the CI width depend on this; the
+    point estimator is unaffected.
+
+    *Plausibly violated when* donor variance is heavily heterogeneous
+    (a quiet donor next to a noisy one). *Diagnostic*: per-donor
+    pre-period residual variance; if it spans an order of magnitude,
+    treat the CI as approximate. Switching to ``variance="time_iv"`` or
+    ``"double"`` (the default) is more robust than the main-text
+    ``"units"`` estimate.
+
+(f) **Rate condition on** :math:`T_1` **vs.** :math:`T_0` **(A6-8).**
+    Theorem 2 needs :math:`T_1` *small* relative to :math:`T_0` and
+    factors that stay bounded. The note further below shows coverage
+    collapsing from 93% to 52% when the post-window is pushed and
+    factors are nonstationary.
+
+    *Plausibly violated when* you want to track an effect over many
+    post-periods (multi-year follow-up after a one-shot policy change),
+    or when factors trend like a random walk (financial / business-cycle
+    panels). *Diagnostic*: refit with the post-window cropped to the
+    first few periods; if the counterfactual changes materially, the
+    long-horizon CI was not protected by Theorem 2. Pair this with
+    :doc:`sbc` (a stationary-cycle estimator) if the factor
+    nonstationarity is what you suspect.
+
+Graphical demonstration: span condition vs. factor invariance
+-------------------------------------------------------------
+
+The decisive distinction in practice is between A4 (the **span condition**,
+which fails *loudly* -- you see it in a poor pre-fit) and A2 (the **cross-
+intervention factor invariance**, which fails *silently* -- pre-fit looks
+fine but the post-period counterfactual is wrong). The block below
+generates a rank-:math:`r = 2` panel and overlays SI's counterfactual on
+the true noiseless one in two regimes side-by-side, holding everything
+else fixed.
+
+.. code-block:: python
+
+   import numpy as np
+   import matplotlib.pyplot as plt
+   from mlsynth.utils.si_helpers.estimation import bias_corrected_fit
+
+   N, T0, T1, r, sigma = 12, 80, 20, 2, 0.5
+   T = T0 + T1
+   rng = np.random.default_rng(0)
+
+   # Shared time factors. The intervention's effect is a post-period shift in u_t.
+   U_ctrl = rng.normal(0.0, 1.0, (T, r))
+   U_d = U_ctrl.copy()
+   U_d[T0:] += np.array([0.0, 5.0])
+   V = rng.normal(0.0, 1.0, (N, r))         # donor loadings (unit factors)
+
+   def fit_panel(v_target_pre, v_target_post, V_donor, seed):
+       """One SI fit. v_target_pre / v_target_post are the focal unit's
+       loading under control (pre-period) and under intervention d (post)."""
+       gen = np.random.default_rng(seed)
+       pre_donor   = U_ctrl[:T0] @ V_donor.T + sigma * gen.standard_normal((T0, N - 1))
+       pre_target  = U_ctrl[:T0] @ v_target_pre + sigma * gen.standard_normal(T0)
+       post_donor  = U_d[T0:] @ V_donor.T + sigma * gen.standard_normal((T1, N - 1))
+       omega, w, _ = bias_corrected_fit(pre_donor, pre_target, rank=r)
+       pre_fit     = pre_donor[:, omega] @ w
+       cf          = post_donor[:, omega] @ w
+       truth       = U_d[T0:] @ v_target_post   # noiseless cf under d
+       return pre_target, pre_fit, cf, truth
+
+   v_in_span = 0.5 * V[1] + 0.5 * V[2]      # focal loading inside donor span
+
+   # Regime A: A2 and A4 both hold.
+   regime_A = fit_panel(v_in_span, v_in_span, V[1:], seed=1)
+
+   # Regime B: A2 violated -- focal unit's loading SHIFTS under d.
+   # (Donors still satisfy A2; only the focal unit changes between
+   # pre-control and post-d. This is the structural identifying failure.)
+   v_target_under_d = v_in_span + np.array([1.5, -1.5])
+   regime_B = fit_panel(v_in_span, v_target_under_d, V[1:], seed=2)
+
+   # Regime C: A4 violated -- focal loading far outside donor span.
+   v_out_span = np.array([4.0, -4.0])
+   regime_C = fit_panel(v_out_span, v_out_span, V[1:], seed=3)
+
+   fig, ax = plt.subplots(1, 3, figsize=(15, 4), sharex=True)
+   t_pre, t_post = np.arange(T0), np.arange(T0, T)
+   titles = [
+       "A2 & A4 hold:\nSI cf hugs truth",
+       "A2 violated (silent):\npre-fit OK, cf badly biased",
+       "A4 violated (loud):\npre-fit poor -- visible flag",
+   ]
+   for a, (pre_t, pre_f, cf, truth), title in zip(ax, [regime_A, regime_B, regime_C], titles):
+       a.plot(t_pre, pre_t, "k", lw=1.0, alpha=0.6, label="focal (observed)")
+       a.plot(t_pre, pre_f, "C0--", lw=1.2, label="SI pre-fit")
+       a.plot(t_post, truth, "k", lw=1.8, label="true cf under d")
+       a.plot(t_post, cf, "C3", lw=1.8, label="SI cf under d")
+       a.axvline(T0, color="gray", ls=":")
+       a.set_title(title); a.set_xlabel("time")
+       pre_rmse = float(np.sqrt(((pre_t - pre_f) ** 2).mean()))
+       post_err = float(np.abs(cf - truth).mean())
+       a.text(0.02, 0.97,
+              f"pre RMSE        = {pre_rmse:.2f}\npost |cf-truth| = {post_err:.2f}",
+              transform=a.transAxes, va="top", fontsize=9, family="monospace",
+              bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.7"))
+   ax[0].set_ylabel("Y")
+   ax[0].legend(loc="lower left", fontsize=8)
+   plt.tight_layout(); plt.show()
+
+Representative output (seeds fixed in the snippet)::
+
+   Regime A (assumptions hold):  pre RMSE = 0.53   post |cf - truth| = 0.24
+   Regime B (A2 violated):       pre RMSE = 0.55   post |cf - truth| = 7.46
+   Regime C (A4 violated):       pre RMSE = 1.07   post |cf - truth| = 1.03
+
+The three panels read as follows.
+
+* **Left (assumptions hold).** Pre-fit is tight and the SI counterfactual
+  sits on top of the truth in the post-period; the mean absolute gap is at
+  the noise floor.
+* **Middle (A2 violated -- silent).** The focal unit's loading
+  :math:`v_i` *changes* between the pre-period (under control) and the
+  post-period (under :math:`d`). Pre-fit is **just as tight as in
+  Regime A** (pre RMSE 0.55 vs 0.53) -- the pre-data is all under control,
+  so the shift in the focal unit's loading is invisible to it. But the
+  weights learned on pre-control data target the *wrong* loading for the
+  post-d projection, and the SI counterfactual misses the truth by an
+  order of magnitude (post error ~7.5 vs noise floor ~0.5). *Nothing in
+  the pre-period fit warns of this*. The only practical defence is the
+  arm-level validation-coverage check the case study uses: hold out part
+  of the donor pool's post-period under :math:`d` and verify that the
+  pre-period weights reproduce it. Low validation coverage for an arm =
+  A2 failure on that arm.
+* **Right (A4 violated -- loud).** The focal unit's loading is
+  structurally outside the donor span. Pre-fit residuals are visibly
+  large already (pre RMSE 1.07, twice the noise floor), and the
+  post-period counterfactual is correspondingly wrong. This failure
+  mode is detectable from pre-data alone, so it is the safer one.
+
+The take-away: a tight pre-period fit is **necessary but not sufficient**
+for trusting an SI counterfactual on a given arm. Always pair it with
+arm-level validation coverage before reading off post-period effects.
+
+When **not** to use SI
+----------------------
+
+* **You only need a single counterfactual against control.** SI's whole point
+  is comparing a focal unit's counterfactual across *several* alternative
+  interventions. If you only need the status-quo counterfactual (the
+  classical SC question), :doc:`tssc`, :doc:`fdid`, :doc:`scm`, or
+  :doc:`fma` are simpler and have stronger small-:math:`T_0` properties.
+
+* **Donor pool for an arm is too small for the rank.** SI's bias-corrected
+  inference requires :math:`N_d > k` (and ideally :math:`N_d` somewhat
+  bigger than the selected rank). With three or four donors per arm and
+  a Gavish-Donoho rank near that, the rank-complete subset
+  :math:`\Omega` is the entire donor set and the variance is unstable.
+  Either pool arms (broader policy categories), prune the rank by
+  hand (``rank_method="fixed"``), or step down to a single-arm SC.
+
+* **Spillovers across treatment arms.** Interventions whose effect
+  propagates across units (a tobacco program's media campaign reaching
+  tax-only states, a marketing intervention shared via social graph)
+  break A1 at the inter-arm boundary, not just within an arm. SI cannot
+  fix this; use :doc:`spillsynth` or :doc:`spsydid` and accept that
+  identification is now at the aggregate (not per-arm) level.
+
+* **Dynamic / carry-over treatment effects.** SI's tensor model is
+  static: :math:`u_t(d)` depends on :math:`d` and :math:`t` but the
+  treatment has no within-unit dynamics. Persistent effects (a tax that
+  trains consumers over time) or treatment-effect dynamics on the
+  treated belong in :doc:`tasc` (state-space) or :doc:`dscar`
+  (autoregressive treated process).
+
+* **Staggered adoption with a wide reporting window.** SI's framing
+  treats each donor as observed under a *single* intervention
+  throughout the post-period; the paper and ``mlsynth`` approximate
+  staggered designs with a common short post-window (1999-2002 in the
+  Prop 99 case). If your post-window must span many years of
+  cumulative adoption -- some donors enter the intervention years
+  apart -- SI's identification gradually erodes. Use the staggered
+  SC variants in :doc:`fect` or :doc:`sdid` instead.
+
+* **No low-rank factor structure.** When the donor spectrum has no
+  clear gap (e.g. each donor genuinely idiosyncratic), the
+  Gavish-Donoho cut keeps too many components and SI-PCR essentially
+  fits OLS. In that regime a covariate-balancing estimator
+  (:doc:`microsynth` if you have unit-level data, a balancing-aware
+  aggregate alternative otherwise) is closer to the truth than
+  forcing a low-rank fit.
+
+* **Continuous or multi-valued treatment.** SI partitions units into
+  arms by discrete intervention label :math:`d`. Continuous dose
+  (minimum wage, ad spend, drug dosage) needs the GSC framework in
+  :doc:`ctsc`.
+
+* **Long post-window with nonstationary factors.** As the note below
+  shows, coverage collapses (~93% → ~52%) when :math:`T_1` grows and
+  factors drift like a random walk. If your application requires
+  many-period post-windows on trending series, either crop the
+  post-window for inference and report the rest as descriptive, or
+  switch to a stationary-cycle approach (:doc:`sbc`).
+
+* **You need per-period or per-unit causal estimates inside an arm.**
+  SI delivers the *focal unit's* counterfactual under each
+  intervention, not unit-specific effects across the donor pool. For
+  heterogeneous treatment effects across donors within an arm, use
+  :doc:`ctsc` (which estimates unit-specific slopes).
+
 Mathematical Formulation
 ------------------------
 
