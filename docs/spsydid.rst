@@ -316,6 +316,90 @@ of :math:`\tau_s = 1.0` per unit of exposure. SpSyDiD with the same
    print(f"mean post-period exposure on treated union = "
          f"{res.metadata['mean_exposure_post_treated']:.3f}")
 
+.. _spsydid-verification:
+
+Verification (Path-B Monte Carlo)
+---------------------------------
+
+Serenini & Masek (2024) include an empirical example (the Arizona
+2007 LAWA effect on noncitizen Hispanic share, Tables 8-11) but do
+**not** release the CPS panel used to construct it -- their public
+replication repo
+(https://github.com/renanserenini/spatial_SDID) ships only the
+simulation code and a BLS unemployment panel for two Monte Carlo
+exercises. We therefore satisfy the Path-B contract by reproducing
+those two simulation findings against the authors' own driver
+(`functions_ssdid.py` in their repo), invoking
+``SpSyDiD(config).fit()`` end-to-end on every replication.
+
+The reference panels and adjacency matrices ship with mlsynth in
+``basedata/``:
+
+* ``state_unemployment.csv`` -- BLS monthly state unemployment 1976-2014.
+* ``US_no_islands_matrix.gal`` -- queen-contiguity W for the 49
+  contiguous states.
+* ``spsydid_bls_county_subset.csv`` -- the BLS county-employment slice
+  (2002-2004, states WY/OR/PA/AL) used in the county-level MC.
+* ``spsydid_county_matrices.pkl`` -- per-state county adjacency
+  matrices.
+
+State-level Monte Carlo (40 rolling-window replications)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Reproduces ``State_Level_Simulations.ipynb``: at each 3-year window
+starting in 1975..2014, treat Arkansas (FIPS 5) only and inject
+:math:`\text{ATT} = 25\%` of mean unemployment plus
+:math:`\rho = 0.8` spillover via the queen-contiguity W. We compare
+the authors' reference algorithm against ``SpSyDiD(config).fit()`` on
+**the same 40 panels** to test for per-rep agreement.
+
+.. code-block:: text
+
+                          ref-mean    ref-sd    mlsynth-mean    mlsynth-sd
+   ATT bias               +0.0187    0.3204         +0.0189        0.3229
+   rho bias (tau_s/ATT)   +0.0596    0.9228         +0.0669        0.9965
+
+   per-rep correlation:  ATT 0.9917      rho 0.9948
+
+Both estimators recover the paper's headline finding: the **mean ATT
+bias is essentially zero** (~0.019 against an ATT magnitude of ~1.5
+percentage points). Per-replication, the two implementations agree to
+~0.02 on every panel realisation; the small residual is the
+unit-weight assignment for affected rows
+(mlsynth: :math:`1/N_{sp}`; reference: mean of treated-unit SDID
+weights). Both choices are valid downstream of the SDID weight QPs.
+
+The driver is :file:`examples/spsydid/replicate_state_level_mc.py`;
+run with ``python -m examples.spsydid.replicate_state_level_mc
+--reps 40``.
+
+County-level Monte Carlo (4 states x 200 reps)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Reproduces ``Monte_Carlo_Simulations.ipynb``: for each of WY, OR, PA,
+AL, randomly draw 10% of counties as directly treated (multiple
+treated units per rep), inject :math:`\text{ATT} = -25\%` of mean
+unemployment plus :math:`\rho = 0.5` spillover, fit
+``SpSyDiD(config).fit()``, repeat. The four states span 23-67
+counties, so the test is whether the SUTVA correction works across
+panel sizes.
+
+.. code-block:: text
+
+   state  #counties  #treated   ATT bias mean   (sd)    AITE bias mean   (sd)
+   WY        23         2          -0.003     0.260         -0.018     0.143
+   OR        36         4          -0.023     0.225         -0.022     0.183
+   PA        67         7          +0.034     0.246         +0.062     0.127
+   AL        67         7          +0.028     0.228         -0.000     0.139
+
+In every cell the absolute mean ATT bias is below 0.04 against an ATT
+magnitude of ~-1.5 -- the spatial-DGP-induced bias of plain SDID is
+cleanly removed by the SpSyDiD correction at the county scale.
+
+The driver is :file:`examples/spsydid/replicate_county_level_mc.py`;
+run with ``python -m examples.spsydid.replicate_county_level_mc
+--reps 200``.
+
 References
 ----------
 

@@ -11,6 +11,8 @@ Layered per agents/agents_tests.md:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -288,3 +290,67 @@ def test_weights_results_exposed(grid_panel):
                    "display_graphs": False}).fit()
     assert isinstance(res.weights, WeightsResults)
     assert "time_weights" in res.weights.summary_stats
+
+
+# ----------------------------------------------------------------------
+# Path-B replication: pin Serenini & Masek (2024) headline Monte Carlo
+# numbers as a permanent regression check. Drives through the public
+# ``SpSyDiD(config).fit()`` API.
+# ----------------------------------------------------------------------
+class TestPathBReplication:
+    """Pin the headline findings of the authors' simulation studies."""
+
+    @pytest.fixture(scope="class")
+    def state_level_result(self):
+        try:
+            import libpysal                              # noqa: F401
+        except ImportError:
+            pytest.skip("libpysal not installed; state-level MC needs it.")
+        base = Path(__file__).resolve().parents[2] / "basedata"
+        if not (base / "state_unemployment.csv").exists():
+            pytest.skip("state_unemployment.csv not present.")
+        if not (base / "US_no_islands_matrix.gal").exists():
+            pytest.skip("US_no_islands_matrix.gal not present.")
+        from examples.spsydid.replicate_state_level_mc import run_state_level_mc
+        return run_state_level_mc(reps=40, rho=0.8, treated_fips=5, seed=0)
+
+    def test_state_level_mean_att_bias_near_zero(self, state_level_result):
+        # Authors' reference (their algorithm, same DGP): mean ATT bias = +0.0187.
+        # mlsynth (public API, same DGP) should agree within MC noise.
+        assert state_level_result["n_reps"] == 40
+        assert state_level_result["att_bias_mean"] == pytest.approx(0.019, abs=0.01)
+        # SD is comparable to the authors' 0.32 +/- a bit.
+        assert state_level_result["att_bias_sd"] == pytest.approx(0.33, abs=0.05)
+
+    def test_state_level_rho_bias_bounded(self, state_level_result):
+        # The rho bias is noisier (heavy-tailed), but should stay sub-unity in mean.
+        assert abs(state_level_result["rho_bias_mean"]) < 0.3
+
+    @pytest.fixture(scope="class")
+    def county_level_result(self):
+        base = Path(__file__).resolve().parents[2] / "basedata"
+        for f in ("spsydid_bls_county_subset.csv", "spsydid_county_matrices.pkl"):
+            if not (base / f).exists():
+                pytest.skip(f"{f} not present.")
+        from examples.spsydid.replicate_county_level_mc import run_county_level_mc
+        # 50 reps is plenty to see the headline (bias mean ~0); 200 in docs.
+        return run_county_level_mc(reps=50, rho=0.5, seed=123)
+
+    def test_county_level_all_states_unbiased(self, county_level_result):
+        results, _ = county_level_result
+        # Headline: across every state, |ATT bias mean| < 0.1 against an
+        # ATT magnitude of ~1.5 pp. The notebook uses 1000 reps; we use 50
+        # so tolerances are loose but the qualitative finding holds.
+        assert set(results.keys()) >= {"WY", "OR", "PA", "AL"}
+        for state, r in results.items():
+            assert abs(r["att_bias_mean"]) < 0.1, (
+                f"{state}: ATT bias mean = {r['att_bias_mean']:+.4f} "
+                f"(magnitude expected near zero)"
+            )
+
+    def test_county_level_aite_bias_small(self, county_level_result):
+        results, _ = county_level_result
+        for state, r in results.items():
+            assert abs(r["aite_bias_mean"]) < 0.15, (
+                f"{state}: AITE bias mean = {r['aite_bias_mean']:+.4f}"
+            )
