@@ -1,19 +1,20 @@
 name: Unzip File
-description: Unzip a specified archive
 
-inputs:
-  zip-file:
-    description: Path to the zip file
-    required: true
+on:
+  workflow_dispatch:
+    inputs:
+      filename:
+        description: "ZIP file to unzip"
+        required: true
+        type: string
 
-  destination:
-    description: Destination directory
-    required: false
-    default: .
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
 
-runs:
-  using: composite
-  steps:
-    - shell: bash
-      run: |
-        unzip "${{ inputs.zip-file }}" -d "${{ inputs.destination }}"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip file
+        run: |
+          unzip "${{ github.event.inputs.filename }}" -d extracted
