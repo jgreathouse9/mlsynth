@@ -28,6 +28,7 @@ from .estimators.sparse_sc import SparseSC
 from .estimators.microsynth import MicroSynth
 from .estimators.siv import SIV
 from .estimators.dsc import DSC
+from .estimators.dscar import DSCAR
 from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
 from .estimators.spillsynth import SPILLSYNTH
@@ -81,6 +82,7 @@ __all__ = [
     "DSC",
     "SpSyDiD",
     "ISCM",
+    "DSCAR",
     "SPILLSYNTH",
     "CTSC",
     "SNN",

@@ -184,6 +184,7 @@ headline numbers.
 
    tasc
    fma
+   dscar
 
 .. toctree::
    :hidden:
