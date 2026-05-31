@@ -137,6 +137,205 @@ required covariates: prior-engagement metrics, device platform,
 audience-segment / persona membership, geo, demographics, frequency
 exposure to parallel campaigns, time-of-day patterns.
 
+Selection-on-observables is the headline assumption, but in a Snap-style
+ad-attribution deployment several others are doing silent work. Each is
+listed here together with the realistic failure mode you would see in a
+marketing-science setting and a diagnostic that flags it.
+
+(a) **Selection-on-observables on every conversion-predictive feature.**
+    The covariate vector :math:`X` must contain every signal the bidder /
+    targeting model conditions on *that also predicts conversion*. If a
+    targeting feature is missing, MicroSynth's reweighting closes balance
+    only on the features you gave it and leaves selection bias on the
+    one you did not.
+
+    *Plausibly violated when* the bidder optimises against a model that
+    uses features the analyst does not have access to -- on-device
+    signals, third-party audience segments, latent embeddings,
+    in-market scoring. *Diagnostic*: probe the **unobserved-intent
+    residual** by regressing post-period conversion on the residual of
+    a saw-ad model that conditions on :math:`X`; a non-zero coefficient
+    is unobserved confounding that MicroSynth cannot remove. The
+    existing "When Balancing Is Not Enough" section below makes this
+    concrete: when intent is latent, the as-treated MicroSynth ATT
+    overstates the per-exposure effect by ~29% even with all SMDs
+    below 1e-3.
+
+(b) **SUTVA at the user level (no network spillovers in conversion).**
+    The synthetic-control framing treats each user's potential outcome
+    as a function of *their own* exposure only. Exposed users
+    influencing unexposed users (a friend talks about the ad, an
+    organic post amplifies the campaign) breaks the comparison: the
+    control pool itself has been partially treated.
+
+    *Plausibly violated when* the campaign is viral or social by
+    design -- influencer-led launches, group-chat-shareable AR lenses,
+    referral mechanics. *Diagnostic*: split controls by social
+    distance to the exposed cohort (e.g. friends-of-treated vs.
+    network-distant controls) and refit; a non-trivial gap between the
+    two ATTs is a SUTVA failure. For genuinely spillover-prone
+    designs, switch to a spillover-aware aggregate estimator
+    (:doc:`spillsynth`, :doc:`spsydid`).
+
+(c) **Overlap: the treated covariate mean lies in the convex hull of
+    the controls.**
+    The primal QP enforces :math:`X_C^{\!\top} w = \bar X_T` with
+    :math:`w` on the simplex. There is a feasible solution if and only
+    if :math:`\bar X_T` is in the convex hull of the rows of
+    :math:`X_C`; if not, no reweighting can balance every constraint
+    and the dual still returns a vector, but the residual imbalance is
+    real.
+
+    *Plausibly violated when* the campaign targeted a covariate cell
+    that the control pool barely contains -- a brand-new
+    audience-segment launch, a country where the ad ran but very few
+    organic users live, an iOS-only push with mostly Android in the
+    control pool. *Diagnostic*: read
+    :py:attr:`MicroSynthResults.design.feasibility_message` and the
+    per-covariate ``smd_after``; if the feasibility flag is False or
+    any SMD exceeds ``balance_tol``, the hull condition is failing.
+    The fix is to widen the control pool (drop sub-population
+    filters), drop a covariate that is genuinely outside support, or
+    accept the residual imbalance and discuss its sign.
+
+(d) **Linear functional form (or sufficient basis expansion) of the
+    outcome in** :math:`X`.
+    Balancing only the *first moments* of :math:`X` gives an unbiased
+    ATT when the conditional expectation
+    :math:`\mathbb{E}[Y(0) \mid X]` is linear in :math:`X`. If the
+    expectation is nonlinear (e.g. age enters as a smooth bump rather
+    than a slope), first-moment balance is not enough -- the doubly
+    robust property of the balancing approach (Lin et al. 2023) only
+    holds under linearity in *one* of the outcome or selection models.
+
+    *Plausibly violated when* engagement metrics enter non-linearly
+    (saturation effects, threshold heaps in prior-engagement). *
+    Diagnostic*: add quadratic terms and selected interactions to
+    ``covariates`` and rerun -- if the ATT moves materially, the
+    linear specification was binding. The KDD paper (Section 4)
+    explicitly recommends including higher-order moments of skewed
+    user-engagement covariates for exactly this reason.
+
+(e) **Pre-period parallel mean for the rebalanced control group.**
+    Because the constraints are *contemporaneous* moment balance, the
+    counterfactual at :math:`t > T_0` is trustworthy only if the
+    rebalanced controls would have moved in parallel with the treated
+    group absent treatment. The covariates should therefore include
+    pre-period outcome levels (the Roanoke / Snap recipe: include
+    pre-intervention outcome trajectories as constraint moments).
+
+    *Plausibly violated when* the analyst forgot to include
+    pre-period outcomes in the constraint set, or when there is a
+    secular trend in the treated pool's outcome that no covariate
+    captures. *Diagnostic*: plot
+    :py:attr:`MicroSynthResults.gap_trajectory` over the pre-period
+    (include enough pre-periods to see a trend) -- a non-flat pre-period
+    gap is a parallel-trends violation. Robbins, Saunders &
+    Kilmer (2017) build the constraint set explicitly out of all
+    pre-period outcome-by-time cells for this reason.
+
+(f) **Stable covariates over the analysis window (no compositional
+    drift).**
+    The primal solves a single :math:`w` and applies it to every
+    post-period. Implicit: the donor pool's covariate vector is
+    sufficient to characterise it across :math:`[t = 0, T]`.
+
+    *Plausibly violated when* the user base churns mid-campaign (new
+    cohorts join, old cohorts age out), or when a covariate itself
+    shifts after :math:`T_0` (e.g. ``country_tier`` re-classification,
+    persona-segment redefinition). *Diagnostic*: rebuild :math:`X` on
+    the post-period sample only, recompute :math:`\bar X` for the
+    rebalanced controls, and check that ``smd_after`` is still tight;
+    drift shows up as post-period SMDs that have crept above the
+    pre-period tolerance.
+
+(g) **Treatment indicator is the actually-realised exposure, used
+    consistently with the estimand.**
+    MicroSynth identifies the ATT on the **actually-exposed** group
+    when ``treat`` is the impression column. If you instead use the
+    assignment column, you get an ITT under balancing on :math:`X`.
+    Mixing the two -- naming an assignment column ``treat`` but
+    interpreting the answer per-exposure -- is a specification error,
+    not an assumption failure of the method.
+
+    *Plausibly violated when* the team operationalises "treated" as
+    "assigned" because that is what the experimentation platform
+    logs, but reports per-exposure lift. *Diagnostic*: always sanity
+    check the printed treated-fraction against the impression log;
+    if they disagree, the wrong column was passed.
+
+When **not** to use MicroSynth
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Clean randomised AB test with full compliance.** MicroSynth's whole
+  selling point is removing observational selection bias. If the
+  experimentation platform delivered a non-contaminated holdout and
+  exposure compliance is near-complete, a plain difference of means is
+  both unbiased and lower-variance. MicroSynth then *adds* variance
+  (the bootstrap, the constraint set) without buying identification.
+
+* **Confounding is dominated by unobserved features (latent intent).**
+  This is the boundary case spelled out below in "When Balancing Is
+  Not Enough". When holdout leakage is driven by an in-market signal
+  the analyst does not have, MicroSynth zeros out SMDs on every
+  observed covariate and still returns a biased ATT. Stay on the
+  randomised arms -- report ITT under MicroSynth balancing for
+  precision, and divide by the compliance gap to get a covariate-
+  balanced CACE / Wald (the section below shows the full recipe).
+
+* **Aggregate region-level data, single treated unit.** A one-state,
+  one-policy DMI-style design is what classical aggregate SC was
+  built for. MicroSynth's dual is :math:`(d + 1)`-dimensional but the
+  primal must have many controls; with a handful of aggregate donors
+  the QP degenerates and the convex-hull / overlap argument is
+  exactly the classical SC argument. Use :doc:`scm`, :doc:`tssc`,
+  :doc:`fdid`, or :doc:`fma` instead.
+
+* **The distribution of the outcome is the object of interest.**
+  MicroSynth balances means (or moments you specify) and returns a
+  scalar ATT. If the question is "does the campaign compress the
+  lower tail of session length?" or "what is the QTE at the 90th
+  percentile of basket size?", switch to :doc:`dsc` -- the
+  Wasserstein-barycenter machinery is designed exactly for that.
+
+* **The treatment is continuous or multi-valued (ad dose).** MicroSynth
+  encodes a binary saw-ad / not-saw-ad column. Multi-valued exposure
+  (one impression vs ten vs a hundred), spend dose, or auction price
+  needs the continuous-treatment framework in :doc:`ctsc`.
+
+* **Spillovers / interference within the user graph.** SUTVA at the
+  user level is a hard assumption; viral and social-by-design
+  campaigns violate it. Covariate balancing on the user pool does
+  nothing about spillovers. Switch to a spillover-aware design
+  (:doc:`spillsynth`, :doc:`spsydid`) and accept that you are now
+  identifying an aggregate quantity, not a user-level lift.
+
+* **Convex-hull condition fails on the targeting axis.** If the
+  campaign was narrowly targeted -- an iOS-only push to a brand-new
+  audience segment with almost no organic match in the control pool --
+  ``feasibility_message`` will fire and the residual SMDs will be
+  visibly above tolerance. There is no balancing fix here: either
+  widen the control pool (relax the segment filter, pool across
+  countries), drop the constraint that is outside support, or
+  acknowledge the residual imbalance in the writeup.
+
+* **You have billions of users and a single-machine budget.** The
+  in-memory dual scales as :math:`O(N d K)`; at Snap-scale this is a
+  cluster job, not a workstation job. Switch to the distributed
+  DistEB / DistMS variants in Lin et al. (2023), which are designed
+  to run as MapReduce gradient steps over PySpark.
+
+* **Tiny treated cohort (handful of users) with many covariates.**
+  With :math:`n_T` small, :math:`\bar X_T` is itself noisy, the
+  balance constraints are noisy targets, and the bootstrap CI widens
+  to uselessness. Aggregate the treated cohort up to a meaningful
+  unit (campaign-level, segment-level) and run an aggregate SC, or
+  prune covariates to those with credible cross-validated predictive
+  signal.
+
+
+
+
 Diagnostics
 -----------
 
