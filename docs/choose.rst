@@ -12,9 +12,7 @@ branch -- a ladder that runs from the easy, canonical case to the
 specialised, harder ones.
 
 Answer each question **yes** or **no**. A *yes* sends you to a method (or a
-short list); a *no* moves you to the next question. It complements
-:doc:`choose`, which is the catalogue grouped by family -- use this page to
-*narrow*, ``choose`` to *browse*.
+short list); a *no* moves you to the next question.
 
 Reason forward: data, then estimand, then assumptions
 -----------------------------------------------------
@@ -22,11 +20,7 @@ Reason forward: data, then estimand, then assumptions
 Before you open this tree, adopt the discipline that Baker, Callaway,
 Cunningham, Goodman-Bacon and Sant'Anna call **forward engineering**
 (*Difference-in-Differences Designs: A Practitioner's Guide*, 2025,
-`arXiv:2503.13323 <https://arxiv.org/abs/2503.13323>`_; see also Roth,
-Sant'Anna, Bilinski & Poe, *JEL* 2025). The temptation is to
-**reverse-engineer**: reach for a method because it sounds powerful or
-modern, run it, and only then back out what it must have been assuming.
-Forward engineering goes the other way -- and it is the right way:
+`arXiv:2503.13323 <https://arxiv.org/abs/2503.13323>`_). The temptation many analysts face is to **reverse-engineer**: reach for a method because it sounds powerful or modern, run it, and only then back out later after they discover their assumptions were incorrect. Forward engineering goes the other way -- and it is the right way:
 
 #. **What state are your data in?** Take honest stock first: panel or a
    single series, how many treated units and whether they adopt at the same
@@ -34,35 +28,29 @@ Forward engineering goes the other way -- and it is the right way:
    versus the number of donors (:math:`N` vs :math:`T_0`), missing cells,
    stationarity, plausible spillovers, the presence of covariates or an
    instrument.
-#. **What estimand can those data actually support?** Fix the *target
+#. **Given a data structure, what estimand can those data actually support?** Fix the *target
    parameter* before the estimator -- a mean ATT, a population ATE, a
-   per-arm contrast, a quantile / distributional effect. Do not aim at a
+   per-arm contrast, a quantile / distributional effect. **Do not** aim at a
    parameter your design cannot identify just because a method will return
    a number for it.
 #. **Which identifying assumptions are most defensible** for that estimand,
    given that data state? Parallel trends? The convex-hull /
    no-extrapolation condition? No interference (SUTVA)? Exogeneity
    conditional on the latent factors? Proxy or instrument validity?
-   *Then* choose the method whose assumptions you can actually defend.
+   *Then*, and only then, choose the method whose assumptions you can actually defend.
 
-The questions below operationalize exactly that order -- data state, then
-estimand, then assumptions. But one caveat matters more than any single
+The questions below operationalize exactly that order as best as possible -- data state, then estimand, then assumptions. But one caveat matters more than any single
 gate: **this tree routes you to a method whose assumptions *match* your
-answers; it does not *verify* those assumptions for you.** Each estimator
-encodes technical conditions a one-line summary cannot capture. Follow the
-link at every leaf and **read the original paper** for the precise
-assumptions, the inference theory, and the documented failure modes. Treat
-no method as infallible: every estimate here is conditional on assumptions
+answers; it does not *verify* those assumptions for you.**
+
+Each estimator encodes technical conditions a one-line summary cannot capture. Follow the
+link at every leaf and **read the original paper** for the precise assumptions, the inference theory, and the documented failure modes. Treat no method as infallible: every estimate here is conditional on assumptions
 that are *your* job to defend, not the software's.
 
 .. note::
 
    The gates are a guide, not a strict partition: several methods answer
-   more than one question, and a real problem can trip two at once (a big
-   donor pool *and* a nonstationary outcome). When two leaves both look
-   right, fit both -- mlsynth's single
-   ``df / outcome / treat / unitid / time`` API makes that a one-line
-   change -- and treat disagreement as diagnostic.
+   more than one question, and a real problem can trip two at once.
 
 At a glance
 -----------
