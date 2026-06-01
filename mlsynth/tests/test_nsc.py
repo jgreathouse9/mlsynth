@@ -267,7 +267,8 @@ class TestEstimator:
         """The legacy ``target='treated'`` CV mode (training error on the
         treated unit's pretreatment fit) was removed when the CV
         objective was made R-faithful: the only supported target is
-        ``'controls'``, which scores held-out post-period MSPE."""
+        ``'controls'``, which scores held-out post-period MSPE.
+        """
         df, _ = panel
         with pytest.raises(MlsynthConfigError):
             NSC({
