@@ -464,6 +464,259 @@ in half (2.11 → 1.08, ATT moving from −15.5 to −17.7);
 default of 4) with ATT moving from −12.8 to −16.6. Both ATTs land
 in the canonical SCM / RSC range of −19 to −24.
 
+When the assumptions bind: practical diagnostics
+-------------------------------------------------
+
+Assumptions 1-4 above (Agarwal et al. 2021, transcribed in the
+PCR-SC family) are written as structural conditions. Here is how
+each shows up in real data and what to check in the
+:py:class:`CLUSTERSCResults` container before trusting the
+counterfactual.
+
+(a) **Low-rank latent-factor signal (A1).** The donor pool's
+    untreated mean :math:`M` is approximately low rank. If the
+    panel is genuinely full-rank or the spectrum decays slowly,
+    HSVT throws away signal and the OLS step over-fits whatever
+    is left.
+
+    *Plausibly violated when* donor series are idiosyncratic in a
+    way that no factor model can absorb -- think 200 firm-level
+    time series where each firm has its own unrelated business
+    cycle. *Diagnostic*: compute the spectral-energy share of the
+    top-:math:`r` singular values of the column-centred donor
+    matrix; if you need :math:`r \ge \min(T_0, J) / 2` to capture
+    :math:`90\%` of the energy, the low-rank story is failing.
+    On the Prop 99 panel the top-1 singular value carries
+    :math:`\approx 99\%` of the energy -- the exact regime where
+    PCR-SC dominates. When the spectrum decays slowly, fall back
+    to canonical SC (:doc:`scm`, :doc:`tssc`) or to a
+    balancing-aware estimator (:doc:`microsynth` for unit-level
+    data; :doc:`fma` for factor-model-aware estimation).
+
+(b) **Error-in-variables donors (A2).** Donor entries are
+    noisy / partially-observed views of the signal. The HSVT step
+    is precisely what restores consistency when this assumption
+    holds. The condition fails *softly* when the noise is sparse
+    and heavy-tailed instead of Gaussian, *hard* when missingness
+    is non-random (donor entries missing **because** the donor
+    deviates from the signal).
+
+    *Plausibly violated when* you have a panel with structural
+    outliers (a donor with a one-time policy shock spike) rather
+    than i.i.d. Gaussian noise. *Diagnostic*: residualise each
+    donor against the rank-:math:`r` HSVT reconstruction and
+    histogram the residuals; sparse heavy tails are a red flag.
+    The fix is the **RPCA-SC family** -- robust :math:`L + S`
+    decomposition explicitly separates the low-rank signal from
+    the sparse outliers, so heavy-tailed donor noise is absorbed
+    into :math:`S` rather than contaminating :math:`L`.
+
+(c) **Approximate linear SC (A3).** The treated signal lies
+    (approximately) in the span of the denoised donor signals.
+    PCR-SC uses unconstrained OLS so this relaxes the canonical
+    convex-hull restriction -- but the model-mismatch term
+    :math:`\phi_t` (the gap between the true treated mean and the
+    closest linear combination of donor signals) still bounds the
+    finite-sample error.
+
+    *Plausibly violated when* the treated unit is structurally
+    outside the donor pool -- coastal vs. interior states, a
+    tech-led economy with only commodity-led donors. *Diagnostic*:
+    inspect ``res.pcr.pre_rmse`` against the donor noise floor
+    (the mean leave-one-out pre-RMSE across donors). If treated
+    pre-RMSE is substantially higher than the donor noise floor,
+    the mismatch :math:`\phi_t` is large and PCR-SC's
+    unbiasedness argument breaks. For the structurally outside-
+    hull case, switch to :doc:`iscm` (whose A2(b) mechanism
+    identifies the effect through donors that use the treated
+    unit as a *donor*).
+
+(d) **Independent noise sources (A4).** Response noise, donor
+    noise, and the missingness pattern are mutually independent.
+    The PCR-SC consistency results assume the missingness pattern
+    is data-independent.
+
+    *Plausibly violated when* donor observations are missing
+    **because** of the outcome value (e.g. countries stopping
+    reporting GDP during recessions). *Diagnostic*: cross-tabulate
+    missingness with the pre-period outcome quantiles; if missing
+    entries are concentrated in the tails, the assumption fails.
+    Multiple imputation pre-step or a missing-data-aware estimator
+    is the fix; mlsynth's :doc:`snn` is built for missingness-
+    informative panels.
+
+(e) **Cluster structure (Rho et al. 2025, ClusterSC-specific).**
+    The donor pool decomposes into latent subgroups distinguishable
+    on the right-singular-vector embedding. Clustering only helps
+    if such subgroups actually exist and the silhouette statistic
+    can find them.
+
+    *Plausibly violated when* the donor pool is genuinely
+    homogeneous -- a tight set of comparable units already
+    pre-screened by the analyst. *Diagnostic*: read
+    ``res.pcr.metadata['k_clusters']``; if the silhouette picks
+    :math:`k = 1`, clustering adds no value and you should set
+    ``clustering=False`` to use the full pool. If :math:`k > 1`
+    is picked but the post-fit ATT moves substantially when you
+    flip ``clustering`` off and on, the cluster structure is
+    *spurious* (cluster boundaries are within the noise floor)
+    and the un-clustered fit is the more honest one.
+
+(f) **Functional smoothness (Bayani 2021, RPCA-SC-specific).**
+    Pre-period trajectories admit a parsimonious FPCA basis. If
+    trajectories are dominated by high-frequency jagged noise the
+    cubic-spline FPCA pre-step throws away most of the signal.
+
+    *Plausibly violated when* the outcome is noisy at the
+    observation frequency (daily stock prices, hourly sensor
+    readings). *Diagnostic*: read
+    ``res.rpca.metadata['fpca_components']``; if the silhouette
+    or cumulative-variance step keeps a large number of FPC
+    components, the smoothness assumption is failing. Aggregate
+    to a coarser time grid (weekly, daily) before refitting, or
+    move to a stationary-cycle estimator (:doc:`sbc`) that
+    handles unsmoothed series natively.
+
+(g) **NNLS-friendly truth (Bayani 2021, RPCA-SC-specific).**
+    RPCA-SC ends with a non-negative least-squares step. If the
+    true counterfactual is best represented as an *extrapolation*
+    (some donor weights would naturally be negative), NNLS
+    cannot reach it.
+
+    *Plausibly violated when* the treated unit is at the edge of
+    the donor distribution and the un-clustered PCR-SC OLS fit
+    returns substantial negative weights. *Diagnostic*: refit
+    with PCR-SC + OLS (``method="pcr"``, ``pcr_objective="OLS"``)
+    and inspect the weight vector. If many large negative weights
+    appear, the convex-combination restriction is binding and
+    RPCA-SC is throwing away identification.
+
+When to use PCR-SC, RPCA-SC, or neither
+---------------------------------------
+
+The four papers behind CLUSTERSC chip at different parts of the
+canonical SC pipeline. The decision logic for picking among them:
+
+**Reach for PCR-SC + clustering (the CLUSTERSC default) when:**
+
+* The donor pool is **large and noisy** (:math:`J \gtrsim T_0`,
+  disaggregated panels with hundreds of donors), and the donor
+  matrix has a clear low-rank spectrum. This is the Rho et al.
+  (2025) regime -- the empirical case studies are individual-
+  level health records and disaggregated economic panels.
+* The treated unit comes from a **plausible subgroup** of the
+  donor pool that you cannot easily isolate by hand (similar
+  patient phenotype, similar state-economy composition). The
+  silhouette-driven :math:`k`-means step formalises the
+  subgroup decision.
+* You're willing to **let weights be negative** in the
+  un-clustered OLS solve (Assumption 3 above) for tighter
+  pre-fit and lower bias -- and you accept that "California =
+  +0.4 Utah +0.3 Montana -0.1 Tennessee" is a defensible weight
+  story for your application.
+
+**Reach for PCR-SC without clustering (i.e., classic Amjad-Shah-Shen
+RSC) when:**
+
+* You have a **moderate-size donor pool** that you have already
+  pre-screened, and you mostly want the HSVT denoising step to
+  protect against donor-matrix noise / missingness. Pre-screening
+  has done the work that clustering would do.
+* You want the **Shen-Ding-Sekhon-Yu (2023) closed-form CIs**.
+  These are wired in for ``pcr_objective="OLS"`` and give you
+  proper frequentist HZ/VT/DR-source standard errors without a
+  bootstrap; the Bayesian path delivers credible bands.
+* The empirical setting is one of the **canonical aggregate SC
+  case studies** (Prop 99, Basque, etc.) where the donor pool is
+  small (J ≤ 40) and a hand-picked subgroup already exists.
+
+**Reach for RPCA-SC when:**
+
+* The donor matrix has **sparse heavy-tailed outliers** rather
+  than uniform Gaussian noise -- a few donors with one-time
+  policy shocks, structural breaks, or recording errors. The
+  :math:`L + S` decomposition explicitly absorbs these into
+  :math:`S`, leaving a clean :math:`L` for the weight fit.
+  PCR-SC's HSVT is an :math:`L_2`-based denoiser and is
+  *less* robust to this exact regime.
+* Pre-period trajectories are **smooth functional curves**
+  (annual GDP, monthly population) where the FPCA basis is a
+  natural language for the donor pool. RPCA-SC's Step 1 was
+  built for this.
+* You want **non-negative interpretable weights** -- the NNLS
+  step at the end produces a sparse convex-combination story
+  similar to canonical SC, while still benefiting from the
+  robust-PCA denoising. The German-reunification application
+  is the canonical case (Norway 0.48, France 0.35, New Zealand
+  0.30, Austria 0.02).
+* You want **Cattaneo-Feng-Titiunik (2021) prediction intervals**
+  -- mlsynth's CFT port runs on RPCA-SC, providing in-sample
+  bootstrap + Hoeffding out-of-sample bands.
+
+**Use PCR-SC over RPCA-SC when:**
+
+* The noise is Gaussian / sub-Gaussian (PCR-SC's HSVT is
+  optimal under this), the donor matrix is high-dimensional
+  (clustering helps), and you want negative weights / closed-
+  form Shen CIs.
+* You need speed -- PCR-SC is **one SVD + one OLS**, while
+  RPCA-SC's PCP is an ADMM loop and HQF is an iterative
+  factorisation. Differences are small on Prop99-size panels;
+  they bite on disaggregated panels with thousands of donors.
+
+**Use RPCA-SC over PCR-SC when:**
+
+* The donor matrix has visible sparse outliers (one or two
+  donors with a single shock period that would dominate the
+  HSVT spectrum). RPCA's :math:`L + S` decomposition is built
+  for exactly that pattern.
+* Trajectories are smooth and you want the **donor-pool
+  reduction** that FPCA + :math:`k`-means delivers ahead of
+  the weight fit (this is what selects the 11-economy
+  West-Germany cluster from the 17-country OECD pool).
+* You want a **non-negative interpretable** weight vector for
+  policy storytelling.
+
+**Do not use either family when:**
+
+* **The donor matrix has no low-rank structure.** Both PCR-SC
+  and RPCA-SC depend on this. With high-dimensional donor
+  pools where the spectrum decays slowly, switch to a
+  balancing-aware estimator (:doc:`microsynth` if you have
+  user-level data; :doc:`fma` if a factor-model fit is
+  defensible).
+* **The treated unit is structurally outside the donor convex
+  hull** in a way that no linear combination can capture --
+  even with negative weights, the pre-RMSE stays large. Switch
+  to :doc:`iscm`, whose A2(b) mechanism identifies the effect
+  through donors that use the treated unit as a positive-
+  weight donor in their own synthetic controls.
+* **Distributional questions** (Lorenz curves, QTEs, tail
+  changes). PCR-SC and RPCA-SC target the mean ATT. Use
+  :doc:`dsc` instead.
+* **Continuous or multi-valued treatment.** The CLUSTERSC
+  pipeline encodes a single binary treatment indicator.
+  Continuous dose belongs in :doc:`ctsc`.
+* **Spillovers / interference across donors.** The low-rank
+  signal model assumes donors are untreated and independent of
+  the treatment of unit 1. Spillovers break this; use
+  :doc:`spillsynth` or :doc:`spsydid`.
+* **Tiny donor pool** (:math:`J \le 10`) and a tight canonical-
+  SC pre-fit. The denoising and clustering machinery is
+  overkill; both add variance without identification gain.
+  Use :doc:`scm`, :doc:`tssc`, or :doc:`fdid`.
+* **Staggered adoption with a long mixed-treatment pre-period.**
+  CLUSTERSC assumes a common pre-period free of treatment.
+  Use :doc:`fect` or :doc:`sdid`.
+* **You need the donor weight vector to be a single sparse
+  convex combination** as the headline story (and you're not
+  willing to use RPCA-SC's NNLS variant). The PCR-SC
+  default is the unrestricted OLS solve; the SIMPLEX
+  variant re-imposes the convex hull at the cost of the
+  denoising-bias gain. If the sparse convex combination is
+  the deliverable, :doc:`scm` or :doc:`tssc` are the more
+  honest default.
+
 Inference
 ^^^^^^^^^
 
