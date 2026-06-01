@@ -175,6 +175,7 @@ headline numbers.
    mlsc
    fscm
    masc
+   msqrt
    tascm
    sparse_sc
    pda
