@@ -339,6 +339,319 @@ Choosing among the three
      - post HAC only (sample splitting)
      - large pool; predictive ensemble; cheap; honest post-selection inference
 
+
+
+Shared assumptions across the PDA class
+---------------------------------------
+
+The three estimators (``l2``, ``lasso``, ``fs``) differ in how they
+fit :math:`\boldsymbol\beta`, but they share the same identifying
+stack. Stated formally:
+
+**A1 (Latent factor model for untreated outcomes).** All
+:math:`N + 1` units share at most :math:`q` common latent factors,
+
+.. math::
+
+   y_{jt}^0 \;=\; \mu_j \;+\; \boldsymbol\lambda_j' \mathbf f_t
+              \;+\; u_{jt},
+   \qquad j \in \{0\} \cup \mathcal N, \;\; t \in \mathcal T,
+
+with :math:`\mathbb E[\mathbf f_t u_{jt}] = 0`. This is the
+*shared model* underlying HCW (Hsiao-Ching-Wan 2012), Li-Bell
+(2017), Shi-Huang (2023), and Shi-Wang (l2). The factor structure
+is what licenses the linear projection of the treated unit's
+untreated outcome on the controls' outcomes,
+
+.. math::
+
+   y_{0t} \;=\; \alpha^0 \;+\; \mathbf x_t' \boldsymbol\beta^0
+              \;+\; \epsilon_t,
+   \qquad \mathbb E[\mathbf x_t \epsilon_t] = \mathbf 0,
+
+with :math:`\boldsymbol\beta^0 = \boldsymbol\Omega^{-1}
+\boldsymbol\Lambda (\boldsymbol\Lambda' \boldsymbol\Omega^{-1}
+\boldsymbol\Lambda + \mathbf I_q)^{-1} \boldsymbol\lambda_0`.
+
+**A2 (Single treated unit, sharp absorbing aggregate-level
+treatment).** Unit :math:`j = 0` is the only treated unit;
+treatment turns on at :math:`T_1 + 1` and stays on. Donors are
+untreated throughout (no interference). The original HCW /
+Li-Bell / Shi-Huang theorems are stated for this single-treated
+case. (The l2-relaxation paper Section 4.4 sketches a
+multiple-treated-units extension with a short post-window; the
+mlsynth implementation tracks the single-treated form.)
+
+**A3 (Weak temporal dependence).** The series
+:math:`(\mathbf x_t, y_{0t})` are :math:`\rho`-mixing or strong-
+mixing with at-least-geometric decay (the exact rate varies by
+variant):
+
+* Li-Bell A6: :math:`w_t = (\tilde y_t', \epsilon_{1t})` is a
+  weakly stationary :math:`\rho`-mixing process with
+  :math:`\rho(\tau) = O(\lambda^\tau)`.
+* Shi-Huang A4: strong (:math:`\alpha`-) mixing with geometric
+  decay, so a Berry-Esseen bound for heterogeneous time series
+  applies.
+* Shi-Wang A3-A4: time-series weak dependence at the
+  :math:`O_p(T_1^{-1/2})` and :math:`O_p(\sqrt{\log N / (N \wedge
+  T_1)})` rates for the sample moments.
+
+This is what makes pre-period sample moments converge at the
+high-dimensional rate and -- crucially -- what makes the
+pre-period and post-period **asymptotically independent**, which
+is the engine behind fs-PDA's sample-splitting inference and the
+two-term HAC variance in l2 / lasso.
+
+**A4 (Sample-size regime).** :math:`N \to \infty`,
+:math:`T_1 = T_1(N) \to \infty` deterministically with
+:math:`\log N / T_1 \to 0`, :math:`T_2 \to \infty` with
+:math:`\log N / T_2 \to 0`. :math:`N` may exceed :math:`T_1`,
+which is the entire point of the high-dimensional PDA literature.
+Li-Bell's A7 additionally posits
+:math:`\eta = \lim T_2 / T_1 \in [0, \infty)`, which determines
+whether the first-stage variance term :math:`\hat\Sigma_1`
+matters.
+
+**A5 (Donor pool regularity).** The controls' Gram matrix has
+enough variation:
+
+* For ``lasso`` (Li-Bell A2): :math:`\mathrm{Rank}(\tilde B) = K`
+  -- removing the first row of the loading matrix leaves
+  full-rank factor variation; :math:`E[x_t x_t']` is invertible
+  on the active set.
+* For ``fs`` (Shi-Huang A1): a **sparse Riesz / restricted
+  eigenvalue** condition -- the minimum eigenvalue of the
+  population Gram matrix over any :math:`u`-unit subset
+  (:math:`u \le (1 + \delta_1) R`) is bounded below. The paper
+  shows this is a *natural implication* of the latent factor
+  model, not an ad-hoc lasso-style assumption.
+* For ``l2`` (Shi-Wang A1-A2): factor strength
+  :math:`\xi_N = \phi_{\min}(\boldsymbol\Lambda' \boldsymbol\Lambda
+  / N)` may vanish (weak factors allowed); the idiosyncratic
+  covariance has eigenvalues bounded in
+  :math:`[\underline\sigma^2, \overline\sigma^2]`.
+
+**A6 (Variant-specific structure of** :math:`\boldsymbol\beta^0`
+**).**
+
+* ``lasso``: **sparse** :math:`\boldsymbol\beta^0` -- only
+  :math:`m = o(T_1)` of its components are non-zero.
+* ``l2``: **dense** :math:`\boldsymbol\beta^0` -- almost no
+  exact zeros (the factor projection gives every donor a
+  small-but-nonzero coefficient).
+* ``fs``: agnostic -- the inference is valid uniformly over a
+  class of DGPs that includes **both** dense and sparse
+  :math:`\boldsymbol\beta^0` (Theorem 1 in Shi-Huang).
+
+**A7 (Inferential regularity).** For all three, the post-period
+average effect :math:`\bar\Delta` has a CLT with HAC long-run
+variance consistently estimable by Newey-West. For ``l2`` and
+``lasso``, both the pre-period (first-stage) and post-period
+HAC variances enter; for ``fs``, sample-splitting absorbs the
+first-stage term and **only** the post-period HAC variance
+enters.
+
+When the assumptions bind: practical diagnostics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+(a) **Factor-driven DGP (A1).** PDA's whole identification story
+    rides on the latent factor structure. If the panel is not
+    well-described by a small number of common factors, the
+    linear-projection equation has a non-vanishing
+    :math:`\epsilon_t` term that the high-dimensional estimators
+    cannot remove.
+
+    *Plausibly violated when* donors are largely idiosyncratic
+    (each follows its own unrelated process), or when one or two
+    donors have a structural break that the factor model can't
+    absorb. *Diagnostic*: run an SVD on the donor pre-period
+    matrix; the top few singular values should carry the bulk of
+    the spectral energy. If the spectrum is flat-tailed (no
+    clear factor cutoff), the factor model fails and PDA's
+    linear-projection consistency is fragile. In that regime,
+    use a balancing-aware estimator (:doc:`microsynth` if you
+    have unit-level data) or stay with canonical SC.
+
+(b) **Single treated unit, absorbing aggregate-level treatment
+    (A2).** Multiple treated units, treatment that turns off, or
+    interference among donors break the framework.
+
+    *Plausibly violated when* the policy is rescinded mid-
+    sample, or when treated and donor states are spatially or
+    economically linked enough that the donors' untreated
+    trajectories shift. *Diagnostic*: the config validator
+    enforces single-cohort; the silent failure is treated-donor
+    spillover. Split donors by geographic / economic distance
+    to the treated unit and refit; large ATE shifts flag
+    interference. Use :doc:`spillsynth` or :doc:`spsydid` for
+    genuine spillovers, :doc:`fect` / :doc:`sdid` for
+    staggered designs.
+
+(c) **Weak temporal dependence (A3).** All three variants
+    assume mixing or :math:`\rho`-mixing pre-period series with
+    geometric decay. Unit-root outcomes, long-memory series, or
+    series with structural breaks fail this.
+
+    *Plausibly violated when* the outcome is a price level, a
+    cumulative quantity, or an undifferenced macroeconomic
+    series. *Diagnostic*: ADF / KPSS on the pre-period
+    residuals; non-stationarity flags A3 failure. The pre/post
+    asymptotic-independence story (which licenses fs-PDA's
+    sample-splitting inference) is then in question. First-
+    difference the outcome, or use :doc:`sbc` (a stationary-
+    cycle estimator) before PDA.
+
+(d) **Sample-size regime (A4).** PDA needs both :math:`T_1` and
+    :math:`T_2` growing with :math:`\log N` small relative to
+    each. A short post-period (:math:`T_2 \le 5`) breaks the
+    CLT on :math:`\bar\Delta`; a short pre-period
+    (:math:`T_1 \le 20`) breaks the moment-convergence rates.
+
+    *Plausibly violated when* the pre-period is short with many
+    donors. *Diagnostic*: compute
+    :math:`(\log N) / T_1` and :math:`(\log N) / T_2`; both
+    should be visibly below 1. If they are not, the asymptotic
+    approximation has not kicked in. Either lengthen the panel
+    (aggregate to a finer time grid), prune donors, or move to
+    :doc:`scm` / :doc:`tssc` / :doc:`fdid` which work with
+    shorter panels.
+
+(e) **Donor regularity (A5).** Each variant has its own
+    Gram-matrix / factor-strength condition. The practical
+    common failure is **near-collinear donors**: two donor
+    series that move together up to noise produce a near-
+    singular pre-period Gram matrix.
+
+    *Plausibly violated when* the donor pool contains
+    near-duplicates (two adjacent states with essentially
+    identical industry mix). *Diagnostic*: read the condition
+    number of :math:`\Gamma_{\mathcal T_1}(\mathbf x_t,
+    \mathbf x_t')`. A condition number above ~1e6 is a red
+    flag. For ``lasso`` and ``fs`` this manifests as selection
+    flipping between near-clones across seeds; for ``l2`` the
+    tau-validation curve gets noisy. Prune one of each clone
+    pair before refitting.
+
+(f) **Coefficient structure (A6) -- choosing the right variant.**
+    The biggest practitioner-side decision is whether to assume
+    sparse or dense :math:`\boldsymbol\beta^0`. Choosing wrong
+    pays a real cost: ``lasso`` on a dense truth over-selects
+    and inflates size (see the Path-B table above:
+    LASSO's size is 0.16-0.36 under the dense factor DGP, vs
+    ``fs``'s 0.05); ``l2`` on a sparse truth pays variance for
+    the dense fit it doesn't need.
+
+    *Diagnostic*: fit ``fs`` first -- it's valid in both
+    regimes per Shi-Huang Theorem 1, and the selected
+    :math:`\hat R` and per-step :math:`R^2` curve tell you
+    whether you're in a sparse (few donors carry the fit) or
+    dense (many donors add information) regime. Then run the
+    matched variant (``lasso`` if ``fs`` keeps a handful;
+    ``l2`` if ``fs`` keeps many).
+
+(g) **Inferential regularity (A7).** The HAC long-run variance
+    must be consistently estimable. With strong serial
+    correlation and a short post-period, the Bartlett /
+    Newey-West kernel needs more lags than the post-period
+    supports.
+
+    *Plausibly violated when* :math:`T_2 \le 8` *and* the
+    treatment-effect series is autocorrelated. *Diagnostic*:
+    plot the autocorrelation function of ``res.gap[-T2:]``; if
+    it stays high beyond :math:`\sqrt{T_2}` lags, the
+    Newey-West bandwidth choice is binding and the CI is
+    optimistic. Lengthen the post-window if you can, or report
+    bootstrap CIs alongside the HAC ones.
+
+When to use PDA -- and when not to
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Reach for PDA when:**
+
+* You have a **single treated unit, a moderate-to-large donor
+  pool** (:math:`N` comparable to or exceeding :math:`T_1`), and
+  a plausibly factor-driven panel. PDA was designed for exactly
+  this regime, and unlike canonical SCM, the projection has no
+  simplex / non-negativity constraint -- it can extrapolate
+  through negative coefficients on far donors when the factor
+  structure demands it.
+* You want **HAC-based, classical-statistics inference** on the
+  ATE with a closed-form normal-distribution test, not a
+  permutation or conformal procedure. PDA's CLT-based inference
+  is what makes it the closest synthetic-control cousin to
+  difference-in-differences from an inferential standpoint.
+* The treated unit's pre-trajectory **lies in the linear span**
+  (not necessarily convex hull) of the controls, so a
+  no-constraint linear projection makes sense. PDA cannot
+  recover an effect when the projection itself is impossible.
+* You're between **dense** (``l2``) and **sparse** (``lasso``)
+  regimes and want a **uniformly valid** test that doesn't
+  require choosing the right sparsity story -- run ``fs``.
+
+**Do not use PDA when:**
+
+* **You need convex (non-negative, sum-to-one) weights** as a
+  policy-interpretation deliverable. PDA's no-constraint
+  projection produces negative coefficients on far donors,
+  which is awkward to explain in many policy contexts. Use
+  :doc:`scm` / :doc:`tssc` (canonical SC) or :doc:`fscm`
+  (forward-selected SC with the simplex retained).
+* **The treated unit is structurally outside the donor span
+  (not just the convex hull).** PDA's linear projection cannot
+  reach a treated outcome that no linear combination of donor
+  outcomes can express. The pre-period RMSE stays large at
+  every PDA variant. Use :doc:`iscm`, whose A2(b) mechanism
+  identifies the effect through donors that use the treated
+  unit as a positive-weight donor in *their* synthetic
+  controls.
+* **Outcomes are non-stationary** (unit-root or trending
+  series). A3 fails and the pre/post asymptotic-independence
+  story breaks. First-difference the outcome (the
+  l2-relaxation paper's empirical PPI application does
+  exactly this), or use :doc:`sbc` (stationary-cycle
+  estimator).
+* **You have multiple treated units** with overlapping cohorts.
+  PDA's theorems (with the exception of the l2 relaxerm which does support multiple treated units but is not written yet) are written for the single-treated case. Use
+ :doc:`sdid` for staggered adoption.
+* **Spillovers across donors.** A2's no-interference clause
+  fails when donor states are economically linked to the
+  treated state. Use :doc:`spillsynth` or :doc:`spsydid`.
+* **Continuous or multi-valued treatment.** PDA encodes a
+  single binary intervention; continuous dose belongs in
+  :doc:`ctsc`.
+* **Distributional questions** (Lorenz curves, QTEs).
+  PDA targets the mean ATE through a Gaussian-likelihood
+  linear projection. Use :doc:`dsc` for distributional
+  effects.
+* **You need Bayesian posterior credible bands.** PDA returns
+  frequentist HAC-based CIs. For Bayesian inference and
+  posterior inclusion probabilities on donors, use
+  :doc:`bvss` (spike-and-slab with a soft simplex).
+* **Very short pre-period** :math:`(T_1 \le 15)` **with many
+  donors.** The high-dimensional approximation has not kicked
+  in; the selected :math:`\hat\beta` is noise. Use :doc:`scm`
+  / :doc:`tssc` / :doc:`fdid`, which work without
+  high-dimensional asymptotics.
+* **Very short post-period** :math:`(T_2 \le 5)`. The CLT on
+  :math:`\bar\Delta` is shaky; the HAC bandwidth choice
+  dominates the inference. Either accept a wider permutation
+  CI from :doc:`scm` / :doc:`tssc`, or move to the
+  l2-relaxation multiple-treated-units extension (Shi-Wang
+  Section 4.4) which is built for this regime.
+* **You want predictor-level matching (covariates +
+  pre-period outcomes), not outcome-only projection.** PDA's
+  workhorse projection is on **donor outcomes**, not on
+  predictor moments. Use :doc:`scm` / :doc:`tssc` /
+  :doc:`sparse_sc` (predictor selection with L1 penalty on the
+  V-weight matrix) for the predictor-matching setup.
+* **The factor model itself is the object of interest** (you
+  want to identify and interpret the factors). PDA is
+  agnostic to factor estimation -- the factor model only
+  motivates the linear projection, never enters the
+  estimator. Use :doc:`fma` (factor-model-aware estimator) if
+  recovering factors is the goal.
+
 Empirical Illustration: Hong Kong economic integration
 -------------------------------------------------------
 
