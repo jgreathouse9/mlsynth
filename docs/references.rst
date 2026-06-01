@@ -285,6 +285,18 @@ References
     "Spectral Regularization Algorithms for Learning Large Incomplete Matrices."
     *Journal of Machine Learning Research*, 11: 2287-2322, 2010.
 
+.. [MSQRT]
+    Shen, Zikai, Song, Xinkun, and Abadie, Alberto.
+    "Efficiently Learning Synthetic Control Models for High-dimensional Disaggregated Data."
+    *arXiv Working Paper*, 2510.22828, 2025.
+    URL: https://arxiv.org/abs/2510.22828
+
+.. [SCPI]
+    Cattaneo, Matias D., Feng, Yingjie, Palomba, Filippo, and Titiunik, Rocío.
+    "Uncertainty Quantification in Synthetic Controls with Staggered Treatment Adoption."
+    *Review of Economics and Statistics* (forthcoming); *arXiv Working Paper*, 2210.05026, 2025.
+    URL: https://arxiv.org/abs/2210.05026
+
 .. [SYNDES]
     Doudchenko, Nick, Khosravi, Khashayar, Pouget-Abadie, Jean, Lahaie, Sebastien,
     Lubin, Miles, Mirrokni, Vahab, Spiess, Jann, and Imbens, Guido.
