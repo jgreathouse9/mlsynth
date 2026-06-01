@@ -259,6 +259,305 @@ convex engine.
      - relaxation
      - SCM-relaxation, empirical-likelihood divergence.
 
+
+
+Shared assumptions across the RESCM class
+-----------------------------------------
+
+The penalized and relaxation branches differ in how they regularize
+the weights, but they share the same identifying stack. The
+shared structural conditions, consolidated from Wang-Xing-Ye
+(:math:`L_\infty` SCM) and Liao-Shi-Zheng (SCM-relaxation):
+
+**A1 (Linear factor model for untreated outcomes).** Each unit's
+untreated outcome obeys
+
+.. math::
+
+   y_{jt}^N \;=\; \boldsymbol\lambda_j' \mathbf f_t
+              \;+\; u_{jt},
+   \qquad j \in \{0\} \cup [J], \;\; t \in \mathcal T,
+
+with :math:`\mathbf f_t` an :math:`r`-vector of latent common
+factors, :math:`\boldsymbol\lambda_j` a unit-specific loading,
+and :math:`u_{jt}` a mean-zero idiosyncratic shock orthogonal to
+the factors. Both branches lean on this factor structure: it is
+what makes the treated unit's untreated outcome a (dense) linear
+combination of the donors' outcomes plus an orthogonal error.
+
+**A2 (Single treated unit, sharp absorbing treatment).** Unit
+:math:`j = 0` is the only treated unit; treatment turns on at
+:math:`T_0 + 1` and stays on. Donors are untreated throughout
+(no interference). Both papers' main theorems are stated for the
+single-treated case; multi-treated extensions exist
+(:doc:`fect` / :doc:`sdid` for staggered designs are the
+mlsynth alternatives).
+
+**A3 (Weak temporal dependence).** The errors :math:`u_{jt}`
+are mean-zero, weakly dependent (:math:`\alpha`-mixing or
+:math:`\rho`-mixing with summable autocovariances), and have
+bounded moments. This is what licenses the HAC long-run variance
+estimator and the sequential CLT for the post-period mean. The
+Wang-Xing-Ye theory explicitly accommodates stationary,
+trend-stationary, and unit-root non-stationary cases under
+exponential decay in correlation rates; the Liao-Shi-Zheng
+theory uses an :math:`\alpha`-mixing CLT.
+
+**A4 (High-dimensional sample-size regime).** :math:`T_0 \to
+\infty` and :math:`N` may grow (potentially :math:`N \gg T_0`),
+which is the entire point of regularizing toward a dense
+solution. The classical-SCM least-squares first-order condition
+:math:`\hat{\boldsymbol\Sigma} \boldsymbol\omega =
+\hat{\boldsymbol\Upsilon}` is under-determined once
+:math:`N \gtrsim T_0`; both branches restore well-posedness, but
+do so under the same growth regime.
+
+**A5 (Treated unit (approximately) in the convex hull of donor
+loadings).** The treated loading :math:`\boldsymbol\lambda_0` is
+spanned by the donor loadings up to an approximation error that
+the regularization tolerance (:math:`\lambda` for penalized,
+:math:`\eta` for relaxation) absorbs. *Remark.* If
+:math:`\boldsymbol\lambda_0` is structurally outside the donor
+hull -- even after relaxation -- both branches fail. Use
+:doc:`iscm`.
+
+**A6** (**Branch-specific regularization rate**).
+
+* For the **penalized branch** (Wang-Xing-Ye): the penalty
+  strength :math:`\lambda` and (when applicable) the mixing
+  :math:`\alpha` are chosen so the weight estimator is
+  consistent for its population target. In mlsynth both are
+  selected by K-fold cross-validation on the pre-period.
+* For the **relaxation branch** (Liao-Shi-Zheng): the
+  tolerance :math:`\eta` (selected by validation) shrinks at a
+  rate that makes the relaxed first-order condition
+  asymptotically equivalent to the oracle moment condition;
+  Theorem 1 of the paper gives the precise rate.
+
+**A7 (Latent group structure -- relaxation branch only).** The
+donor loadings :math:`\boldsymbol\lambda_j` fall into :math:`K`
+latent groups; both :math:`K` and the factor count :math:`r` may
+diverge, regardless of their relative order. Under this
+structure the relaxation branch's divergence-minimizing weight
+asymptotically recovers **equal weights within groups** --
+Liao-Shi-Zheng's interpretable "transparent solution" that
+classical SCM's arbitrary tie-break does not deliver. *Remark.*
+Without latent groups the relaxation still produces a valid
+counterfactual; the within-group-equal-weight interpretation is
+the bonus that group structure buys.
+
+**A8 (Strictly convex divergence -- relaxation branch only).**
+The divergence :math:`D` is strictly convex on the simplex
+(squared :math:`\ell_2`, entropy, empirical likelihood, or any
+GEL-class function with non-negative support and restricted
+strong convexity). Strict convexity is what makes the relaxed
+feasible set have a **unique** minimizer -- this is the
+well-posedness fix that distinguishes RESCM-relaxation from
+classical SCM in the under-determined regime.
+
+When the assumptions bind: practical diagnostics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+(a) **Latent factor model (A1).** Both branches lean on the
+    factor structure. If the panel is not well-described by a
+    small number of common factors, the linear-combination
+    representation has a non-vanishing residual the
+    regularization cannot remove.
+
+    *Plausibly violated when* donors are largely idiosyncratic
+    (unrelated processes), or when a donor has a one-time
+    structural break that no factor model absorbs.
+    *Diagnostic*: SVD of the pre-period donor matrix should
+    show a clear factor cutoff (top few singular values
+    carrying most of the energy). A flat-tailed spectrum flags
+    A1 failure; in that regime, switch to balancing-aware
+    estimators (:doc:`microsynth` for unit-level data) or stay
+    with canonical :doc:`scm` (which does not lean as hard on
+    A1).
+
+(b) **Weak temporal dependence (A3).** The HAC long-run variance
+    estimator needs mixing with at-least-summable
+    autocovariances. Strong serial correlation, long-memory
+    series, or non-stationarity break this.
+
+    *Plausibly violated when* outcomes are price levels or
+    cumulative quantities. *Diagnostic*: ADF/KPSS on the
+    pre-period residuals; non-stationarity flags A3 failure.
+    For unit-root outcomes the Wang-Xing-Ye theory still goes
+    through under exponential correlation decay, but the
+    finite-sample HAC variance is often optimistic.
+    First-difference before fitting, or use :doc:`sbc`
+    (stationary-cycle estimator).
+
+(c) **Sample-size regime (A4).** Both branches' asymptotics
+    require :math:`T_0` large. The Verification section's
+    Monte Carlo documents what happens at :math:`T_0 < N`: the
+    point estimate is unbiased and powerful, but the analytic
+    two-term variance over-rejects (the normal approximation
+    has not kicked in).
+
+    *Plausibly violated when* :math:`T_0 \le N` or
+    :math:`T_0 < 50`-ish. *Diagnostic*: read ``res.pre_rmse``
+    against the donor noise floor (the mean leave-one-out
+    pre-RMSE across donors); if treated pre-RMSE is much
+    smaller, the estimator is over-fitting and
+    :math:`\hat\rho^2_{(1)}` understates uncertainty. Report
+    a placebo / conformal CI (e.g. via :doc:`scm` with
+    permutation inference) alongside the analytic CI.
+
+(d) **Treated unit in donor convex hull (A5).** Both branches
+    keep the simplex (or shrink toward the simplex). If the
+    treated unit's loading is structurally outside the donor
+    hull, the regularization tolerance :math:`\eta` /
+    :math:`\lambda` cannot bridge it.
+
+    *Plausibly violated when* the treated unit is qualitatively
+    different from every donor (a coastal mega-state against
+    only interior states; a tech-led economy against
+    commodity-led donors). *Diagnostic*: read ``res.pre_rmse``
+    on the un-regularized ``SC`` corner and on the most-
+    regularized variant in your run. If both stay high, the
+    hull condition is failing. Switch to :doc:`iscm` (which
+    identifies the effect even when the treated unit is
+    outside the hull) or :doc:`nsc` (which drops the simplex
+    to allow negative-weight extrapolation).
+
+(e) **Regularization rate (A6) -- choosing :math:`\lambda` /
+    :math:`\eta`.** Cross-validation can be noisy on a short
+    pre-period; the selected hyperparameter is then noise and
+    the implied counterfactual flips with the seed.
+
+    *Plausibly violated when* :math:`T_0 \le 20`. *Diagnostic*:
+    re-run with different ``cv_folds`` or different
+    train/validation splits; if the selected :math:`\lambda`
+    /:math:`\eta` and the implied ATT move substantially, the
+    CV is not informative. Either fix :math:`\lambda` at a
+    domain-informed value via the explicit knobs, or fall back
+    to canonical :doc:`scm` / :doc:`tssc` which do not need
+    CV at all.
+
+(f) **Latent group structure (A7 -- relaxation only).** The
+    within-group-equal-weights interpretation requires that
+    donors actually fall into groups on their loadings.
+
+    *Plausibly violated when* donor loadings are continuously
+    distributed without natural clusters. *Diagnostic*: inspect
+    the empirical CDF of ``res.fits["RELAX_ENTROPY"].donor_weights``;
+    a multi-modal CDF supports the group structure, a smooth
+    CDF means the group story is rhetorical rather than real.
+    If groups are not present, prefer ``RELAX_L2`` (which
+    targets minimum-norm weights, no group assumption needed).
+
+(g) **Choice of divergence (A8 -- relaxation only).** The three
+    divergences encode different priors: :math:`\ell_2`
+    minimum-norm (defensive default), entropy /
+    maximum-entropy (closest-to-uniform), empirical likelihood
+    (GEL-optimal). Each is valid; the choice is a modeling
+    decision.
+
+    *Practical rule of thumb*: ``RELAX_L2`` for a defensible
+    default; ``RELAX_ENTROPY`` when the policy story is "the
+    counterfactual should be close to a uniform average of
+    donors"; ``RELAX_EL`` when the inferential framework is
+    explicitly GEL-based and you want the maximum-likelihood
+    interpretation. The three rarely disagree by more than
+    Monte-Carlo noise on well-behaved panels.
+
+When to use RESCM -- and when not to
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Reach for RESCM when:**
+
+* You have a **single treated unit and a large donor pool**
+  (:math:`N` comparable to or exceeding :math:`T_0`), and a
+  factor-driven panel where many donors plausibly carry
+  signal. Classical SCM concentrates weight on a few donors;
+  the dense-shrinkage variants in RESCM diversify prediction
+  risk across the pool.
+* You want a **stable, dense counterfactual** that does not
+  hinge on one or two donors -- exactly the "denser weighting
+  philosophy" both papers advocate. The :math:`\ell_\infty`
+  penalty caps the largest weight; the relaxation branch
+  spreads weight by minimizing a strictly-convex divergence
+  on the simplex.
+* You want a **one-stop interface** to compare classical SCM,
+  Lasso-SC, Ridge-SC, elastic-net SCM, :math:`L_\infty`-SCM,
+  and three relaxation variants on the same panel. The
+  ``methods`` argument selects estimators by name; each maps
+  to one call of the same convex engine.
+* You want **HAC-based, classical-statistics inference**
+  (Li 2020 two-term standard errors) on the ATE rather than a
+  permutation or conformal procedure. Note the
+  finite-sample-inference caveat below.
+
+**Do not use RESCM when:**
+
+* **You need sparse, hand-interpretable weights** as the
+  headline deliverable. Both branches actively shrink toward
+  dense solutions; that is the design choice. If the policy
+  story has to be "California ≈ Utah + Montana + Nevada", run
+  canonical :doc:`scm` / :doc:`tssc`, or :doc:`fscm`
+  (forward-selected SC with the simplex retained) for a
+  sparse-by-construction donor set.
+* **The treated unit is structurally outside the donor hull.**
+  Both branches keep (or shrink toward) the simplex. Pre-RMSE
+  stays high at every regularization level. Use :doc:`iscm`
+  (identifies the effect through donors that use the treated
+  unit as a positive-weight donor in their own synthetic
+  controls) or :doc:`nsc` (drops the simplex restriction).
+* **Very short pre-period** :math:`(T_0 < N)`. The Path-B
+  Monte Carlo in the Verification section above documents
+  the over-rejection: the analytic two-term variance has not
+  kicked in. Either lengthen the pre-period (aggregate to a
+  finer time grid), prune donors, or report a placebo /
+  conformal CI alongside.
+* **Non-stationary or unit-root outcomes.** A3's mixing
+  assumption strains here; the Wang-Xing-Ye theory accommodates
+  unit-root cases under exponential correlation decay, but the
+  HAC variance is often optimistic in finite samples.
+  First-difference, or use :doc:`sbc`.
+* **You have multiple treated units / staggered adoption.**
+  RESCM's theory is built for a single treated unit. Use
+  :doc:`fect` or :doc:`sdid` for staggered designs.
+* **Spillovers across donors.** A2's no-interference clause
+  fails; the factor model's orthogonality breaks. Use
+  :doc:`spillsynth` or :doc:`spsydid`.
+* **Continuous or multi-valued treatment.** RESCM encodes a
+  single binary intervention; continuous dose belongs in
+  :doc:`ctsc`.
+* **Distributional questions** (Lorenz curves, QTEs, tail
+  effects). RESCM targets the mean ATE through a Gaussian-
+  likelihood linear projection. Use :doc:`dsc` for
+  distributional effects.
+* **You need Bayesian posterior credible bands.** RESCM
+  returns frequentist HAC-based CIs and a single point
+  estimate per corner. For posterior inclusion probabilities
+  and credible bands on donor weights, use :doc:`bvss`
+  (spike-and-slab with a soft simplex -- the natural Bayesian
+  analogue of the dense-vs-sparse trade-off the RESCM family
+  addresses frequentistically).
+* **You want predictor-level (covariate + lagged-outcome)
+  matching** rather than outcome-only matching. RESCM's
+  workhorse projection is on donor outcomes; for
+  predictor-matching with L1 sparsity on the
+  predictor-weight matrix, use :doc:`sparse_sc`.
+* **You want the factor model itself** (the loadings and
+  factors) **estimated and reported**. RESCM is agnostic to
+  factor estimation -- the factor model only motivates the
+  linear projection and never enters the estimator. For
+  factor-aware estimators that surface :math:`\hat F` and
+  :math:`\hat\Lambda`, use :doc:`fma` or :doc:`clustersc`
+  (which exposes the HSVT rank in its results).
+* **Donor selection is the bottleneck, not weight
+  shrinkage.** If you have a small number of donors and want
+  to *select* the best subset rather than spread weight
+  across a wide pool, use :doc:`fscm` (forward selection on
+  donor units) or :doc:`pda` with ``methods=["fs"]``
+  (forward-selected PDA with sample-splitting inference).
+
+
+
+
 Inference
 ---------
 
