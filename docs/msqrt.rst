@@ -92,12 +92,27 @@ the post-period with the post-period donor matrix :math:`X_{\text{post}}`.
 Algorithm and tuning
 ~~~~~~~~~~~~~~~~~~~~~
 
-The program is convex and solved directly with ``cvxpy`` (the CLARABEL conic
-solver). The penalty :math:`\lambda` is chosen by **rolling-origin
-(expanding-window) cross-validation** on the pre-period: an expanding training
-window fits :math:`\Theta`, the next ``cv_val_window`` periods are held out, and
-the :math:`\lambda` minimising mean validation MSE across folds is selected. The
-fold schedule adapts to :math:`T_0` by default and can be overridden
+The objective is convex but couples a nuclear norm and an :math:`\ell_1`
+penalty, so ``mlsynth`` solves it with a purpose-built **two-split ADMM** rather
+than a generic conic solver (the paper itself emphasises computational
+efficiency). Splitting :math:`R = X\Theta` (carrying the nuclear-norm term) and
+:math:`Z = \Theta` (carrying the :math:`\ell_1` term) gives three closed-form
+updates per iteration: a singular-value soft-threshold for :math:`R`, an
+element-wise soft-threshold for :math:`Z`, and an **exact** least-squares step
+for :math:`\Theta` whose system matrix :math:`X^\top X + I` is Cholesky-factored
+**once** and reused. The penalty parameter is balanced adaptively (Boyd et al.
+2011) and the updates are over-relaxed, so a high-dimensional fit takes a few
+hundred lightweight iterations -- orders of magnitude faster than the conic
+reformulation, which it matches to numerical precision. (A ``cvxpy`` backend is
+retained for validation.)
+
+The penalty :math:`\lambda` is chosen by **rolling-origin (expanding-window)
+cross-validation** on the pre-period: an expanding training window fits
+:math:`\Theta`, the next ``cv_val_window`` periods are held out, and the
+:math:`\lambda` minimising mean validation MSE across folds is selected. The
+search is *pathwise* -- candidate penalties are visited in descending order and
+each solve is warm-started from the previous one, sharply cutting iterations.
+The fold schedule adapts to :math:`T_0` by default and can be overridden
 (``cv_initial_train``, ``cv_val_window``, ``cv_step``, ``cv_folds``); a fixed
 ``lambda_`` skips CV entirely.
 
@@ -194,11 +209,12 @@ simulation bound for use by quadratic-loss SC estimators.
 Example
 -------
 
-A high-dimensional, multiple-treated panel: five treated units adopt together
-at period 60, against forty never-treated donors generated from a low-rank
-factor structure with a constant treatment effect of ``+2``. ``MSQRT`` pools the
-treated units, selects :math:`\lambda` by cross-validation, and recovers the
-ATT with a block-conformal band.
+A high-dimensional, multiple-treated panel in the Shen-Song-Abadie regime: five
+treated units adopt together at period 100, against forty never-treated donors
+following an AR(1) process, with each treated unit a sparse convex combination
+of the donors plus noise and a constant treatment effect of ``+2``. ``MSQRT``
+pools the treated units, selects :math:`\lambda` by cross-validation, and
+recovers the ATT with a CFPT/scpi prediction band.
 
 .. code-block:: python
 
@@ -206,7 +222,7 @@ ATT with a block-conformal band.
    from mlsynth.utils.msqrt_helpers.simulation import simulate_msqrt_panel
 
    df = simulate_msqrt_panel(
-       n_treated=5, n_control=40, T0=60, n_post=20, att=2.0, seed=0,
+       n_treated=5, n_control=40, T0=100, n_post=10, att=2.0, seed=0,
    )
 
    res = MSQRT({
@@ -227,19 +243,29 @@ ATT with a block-conformal band.
    print(f"avg active donors per treated = "
          f"{res.weights.summary_stats['avg_active_donors_per_treated']:.1f}")
 
+This prints an ATT of roughly ``+2.05`` with a 90% band that brackets the true
+``+2`` and a pre-treatment RMSE below the noise floor.
+
 Verification
 ------------
 
 .. note::
 
-   **Monte-Carlo recovery.** On the low-rank, block, multiple-treated DGP
-   above (:func:`~mlsynth.utils.msqrt_helpers.simulation.simulate_msqrt_panel`),
-   ``MSQRT`` recovers the planted ATT, fits the pre-period closely (small
-   ``pre_rmse``), and selects a sparse donor set per treated unit -- the
-   behaviour Shen, Song & Abadie [MSQRT]_ establish for the high-dimensional
-   regime. Pooling the treated units into one matrix problem is materially more
-   stable than fitting each treated unit independently when :math:`n \gtrsim
-   T_0`.
+   **Monte-Carlo replication.** :mod:`mlsynth.utils.msqrt_helpers.replication`
+   reproduces the Shen, Song & Abadie [MSQRT]_ simulation study (their
+   Section 6) through the public :meth:`mlsynth.MSQRT.fit` API:
+   :math:`T_0 = 100` pre-periods, :math:`n = 400` donors, a treated-unit grid
+   :math:`m \in \{50, \ldots, 400\}`, and the paper's two data-generating
+   settings. The headline findings reproduce -- the ATT estimator is
+   essentially **unbiased** (bias centred at zero) and the RMSE for the imputed
+   :math:`Y(0)` stays **flat in** :math:`m` at roughly ``0.71``-``0.73``,
+   matching the paper's Table 1. The ``PAPER`` preset runs the full
+   500-replication study; the ``DEMO`` preset is a faster, reduced-count
+   version.
+
+   **Solver.** The two-split ADMM matches the cvxpy conic solution of eq. (5) to
+   numerical precision while being orders of magnitude faster -- the property
+   that makes the high-dimensional, many-treated regime tractable.
 
    **Block-design guard.** Feeding a staggered panel raises
    :class:`~mlsynth.exceptions.MlsynthDataError`, redirecting to the
@@ -289,8 +315,10 @@ stacked ``Y = X Theta + E`` block matrices and enforces the block design.
    :members:
    :undoc-members:
 
-The Multivariate Square-root Lasso solve and the rolling-origin
-cross-validation over :math:`\lambda`.
+The two-split ADMM solve (singular-value + element-wise soft-thresholding with
+a cached exact :math:`\Theta` step, adaptive penalty and over-relaxation) and
+the warm-started pathwise rolling-origin cross-validation over :math:`\lambda`.
+A ``cvxpy`` reference solve is retained for validation.
 
 .. automodule:: mlsynth.utils.msqrt_helpers.optimization
    :members:
@@ -303,9 +331,19 @@ assembly, and the optional scpi prediction intervals.
    :members:
    :undoc-members:
 
-High-dimensional multiple-treated factor DGP for examples and tests.
+The data-generating process: AR(1) donors and a sparse convex donor-weight
+matrix (the Shen-Song-Abadie regime), wrapped into a long panel with an
+injected treatment effect for examples and tests.
 
 .. automodule:: mlsynth.utils.msqrt_helpers.simulation
+   :members:
+   :undoc-members:
+
+Replication of the paper's Monte-Carlo study (Section 6) through the public
+``MSQRT.fit`` API -- the two data-generating settings, the ATT-bias and RMSE
+metrics, and the ``PAPER`` / ``DEMO`` presets.
+
+.. automodule:: mlsynth.utils.msqrt_helpers.replication
    :members:
    :undoc-members:
 

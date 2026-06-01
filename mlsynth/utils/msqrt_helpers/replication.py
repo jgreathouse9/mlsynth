@@ -38,35 +38,13 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+# Shared DGP building blocks (single canonical home in :mod:`.simulation`).
+from .simulation import ar1_panel, random_theta
+
 
 # ---------------------------------------------------------------------------
 # Data-generating process
 # ---------------------------------------------------------------------------
-
-def ar1_panel(n: int, T: int, rng: np.random.Generator, *, burn: int = 50) -> np.ndarray:
-    """AR(1) panel, time-major ``(T, n)``: ``Y_t = 0.1 c + 0.9 Y_{t-1} + Z``."""
-    c = (np.arange(n) % 10 + 1).astype(float)          # c_i in {1, ..., 10}
-    Y = np.zeros((n, T + burn))
-    Y[:, 0] = c                                        # start at stationary mean
-    for t in range(1, T + burn):
-        Y[:, t] = 0.1 * c + 0.9 * Y[:, t - 1] + rng.normal(size=n)
-    return Y[:, burn:].T                               # drop burn-in -> (T, n)
-
-
-def random_theta(n: int, m: int, s: int, rng: np.random.Generator) -> np.ndarray:
-    """Random ``(n, m)`` weight matrix with ``s`` total non-zeros, columns sum to 1."""
-    Theta = np.zeros((n, m))
-    # Spread s non-zeros across columns as evenly as possible (>= 1 each).
-    base, extra = divmod(s, m)
-    per_col = np.full(m, base, dtype=int)
-    per_col[:extra] += 1
-    per_col = np.clip(per_col, 1, n)
-    for j in range(m):
-        idx = rng.choice(n, size=int(per_col[j]), replace=False)
-        w = rng.random(int(per_col[j]))
-        Theta[idx, j] = w / w.sum()                    # column sums to 1
-    return Theta
-
 
 def simulate_shen2025(setting: int, m: int, *, n: int, T0: int, T1: int,
                       s: int, sigma: float, rng: np.random.Generator):
