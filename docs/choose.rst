@@ -1,287 +1,348 @@
-Choose an estimator
-===================
+A practitioner's decision tree
+==============================
 
 .. currentmodule:: mlsynth
 
-mlsynth ships dozens of synthetic-control estimators because there is
-no single "right" one. Each makes different trade-offs in bias,
-variance, computational cost, and the assumptions it imposes on the
-data. This page is a guide to which estimator fits your problem.
+mlsynth ships dozens of estimators because **each one is a named answer to
+a specific complication** that breaks the method before it. The trick to
+not drowning is to **start with the simplest credible method and escalate
+only when a concrete complication forces you to.** That is exactly how this
+page is organised: a few identification gates first, then -- within each
+branch -- a ladder that runs from the easy, canonical case to the
+specialised, harder ones.
 
-Two top-level questions determine the family you should be looking
-at:
+Answer each question **yes** or **no**. A *yes* sends you to a method (or a
+short list); a *no* moves you to the next question. It complements
+:doc:`choose`, which is the catalogue grouped by family -- use this page to
+*narrow*, ``choose`` to *browse*.
 
-1. Are you doing **observational causal inference** -- you already
-   have a panel and you want an ATT estimate?
-2. Or are you doing **experimental design** -- you are deciding which
-   units to assign treatment to, in order to maximise statistical
-   power or pre-treatment balance for a *prospective* experiment?
+.. note::
 
-These are fundamentally different problems with different APIs in
-mlsynth. The observational side splits into nine sub-families, each
-designed for a specific complication that classical SC cannot handle
-on its own.
+   The gates are a guide, not a strict partition: several methods answer
+   more than one question, and a real problem can trip two at once (a big
+   donor pool *and* a nonstationary outcome). When two leaves both look
+   right, fit both -- mlsynth's single
+   ``df / outcome / treat / unitid / time`` API makes that a one-line
+   change -- and treat disagreement as diagnostic.
 
-Observational methods
----------------------
+At a glance
+-----------
 
-Canonical workhorses
-^^^^^^^^^^^^^^^^^^^^
+::
 
-The "single treated unit, sharp intervention, scalar ATT, raw outcome
-series" case. Start here unless you know your problem has a
-complication that pushes you elsewhere.
+   GATE 0 — Identification pre-screen (answer these first)
+   ────────────────────────────────────────────────────────
+   Are you DESIGNING the experiment (treatment not yet assigned)?  ── yes ─► PART 3
+   Is assignment RANDOMIZED?                  ── yes, many small units ─► difference-in-means
+                                              └─ yes, few large units  ─► MUSC
+   Do CONTROL UNITS exist at all?             ── no (everyone treated) ─► SHC
+   Is treatment ENDOGENOUS (SC can't absorb)? ── have an instrument    ─► SIV
+                                              └─ have proxies / NCs     ─► PROXIMAL
+   Do parallel trends hold AND fixed-T/large-N? ── yes ─► plain Difference-in-Differences
+                                                              (you may not need SC)
+   …otherwise:  HOW MANY TREATED UNITS?  ── one ─► PART 1   └─ more than one ─► PART 2
 
-* :doc:`tssc` -- Two-Step SC with a *formal pre-trends test*. Fits the
-  full SC family (SC, MSCa, MSCb, MSCc) and uses a subsampling test
-  to pick the variant the data supports. Subsampling confidence
-  intervals.
-* :doc:`fdid` -- Forward Difference-in-Differences. Greedy
-  forward-step donor selection with a DiD safety net if SC's
-  parallel-trends assumption fails.
+   PART 1 — ONE treated unit   (easy ───────────────────────► hard)
+   ─────────────────────────────────────────────────────────────────
+   Start:  FDID   (or TSSC for a formal pre-trends test)
+     ↓ then escalate ONLY if one of these is true:
+   Spillovers onto donors (SUTVA)?      ─► SPILLSYNTH · SpSyDiD (spatial) · ISCM (outside hull)
+   Nonstationary / spurious trend?      ─► SBC · HSC
+   Time-varying dynamics / heavy noise? ─► TASC · DSCAR · FMA
+   Nonlinear outcome surface?           ─► NSC
+   Donor pool N ≳ T0 (overfitting)?     ─► CLUSTERSC · SparseSC · PDA · RESCM · FSCM · BVSS
+   Missing cells in the panel?          ─► SNN · MCNNM
+   Different ESTIMAND / treatment type? ─► DSC (dist.) · CTSC (dose) · SCMO (multi-outcome) · SI (arms)
 
-Decomposition-first SC
-^^^^^^^^^^^^^^^^^^^^^^
+   PART 2 — MANY treated units   (easy ─────────────────────► hard)
+   ─────────────────────────────────────────────────────────────────
+   Same adoption time?  ─► SDID            (micro units ─► MicroSynth; two-level ─► MLSC)
+   Staggered (different times)?  ─► SDID
+     + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
+     + spillovers                        ─► SpSyDiD
+     + missing cells / gaps              ─► MCNNM
 
-These estimators do not fit on the raw outcome series. They first
-*decompose* the panel into a trend, a cycle, or a spectral component
-and apply SC to only one piece. This makes them robust to
-nonstationarity and spurious trends that fool classical SC.
-
-* :doc:`sbc` -- Synthetic Business Cycle. Splits the outcome via a
-  Hamilton filter into trend + cycle, then matches the cycle. Built
-  for macro panels with strong but non-causal trends.
-* :doc:`hsc` -- Harmonic SC. Soft, data-driven allocation between
-  matching on *levels* and matching on *differences* in a spectral
-  sense; robust to mixed I(0) / I(1) donors.
-
-Generalising the estimand, treatment, or unit
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Classical SC assumes one binary treatment, one outcome, a scalar ATT,
-and a unit at the aggregate level. Each of the estimators below relaxes
-*one* of those four constraints.
-
-* :doc:`scmo` -- *Multiple outcomes.* Common SC weights balanced
-  across a domain of related outcome series simultaneously.
-* :doc:`ctsc` -- *Continuous treatment.* Generalised SC for
-  continuous- or multi-valued treatment intensity, with interactive
-  fixed effects and unit-specific slopes.
-* :doc:`dsc` -- *Distributional ATT.* Targets the full counterfactual
-  outcome *distribution* (2-Wasserstein barycenter), not just its
-  mean.
-* :doc:`si` -- *Multiple treatment arms.* Counterfactuals for several
-  distinct interventions at once via a tensor-factor structure.
-* :doc:`microsynth` -- *Fine-grained / individual-level units.*
-  User-level balancing SC that reweights millions of control
-  individuals to match treated-group covariate moments.
-
-Relaxing the convex hull
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-Classical SC weights live on the simplex, which means the synthetic
-control is a *convex combination* of donors. If the treated unit's
-outcomes lie outside the donors' convex hull -- as they often do for
-outliers like Hong Kong's GDP in the late 1990s -- the simplex is too
-restrictive. These estimators relax it in different ways.
-
-* :doc:`iscm` -- Imperfect SC. Builds a synthetic control for *every*
-  unit and uses moment conditions that are valid even under
-  transitory shocks with nonzero asymptotic variance, then weighs
-  units by the appropriateness of their own synthetic controls.
-* :doc:`nsc` -- Nonlinear SC. Affine (signed) weights with an
-  elastic-net penalty that adapts to nonlinear outcome surfaces.
-
-High-dimensional donor pools
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When the number of donors :math:`N` is comparable to or larger than
-the number of pre-periods :math:`T_0`, the classical quadratic
-program loses its unique solution and Lasso-style alternatives tend
-to over-select. The estimators below handle the high-dimensional
-regime in different ways.
-
-* :doc:`bvss` -- Bayesian spike-and-slab variable selection with a
-  *soft* simplex constraint. The posterior of :math:`\tau` tells you
-  whether the simplex should bind.
-* :doc:`clustersc` -- Cluster-then-pool SC. Groups similar donors
-  with k-means or robust PCA before weighting; tolerant to noise and
-  outliers.
-* :doc:`mlsc` -- Multi-level SC. Hierarchical penalty shrinks
-  disaggregate weights toward the classical SC solution.
-* :doc:`fscm` -- Forward-selected SC. Bilevel optimisation picking
-  both the donor count and their weights.
-* :doc:`sparse_sc` -- Sparse SC. Explicit L1 sparsity penalty on
-  predictor weights.
-* :doc:`pda` -- Panel Data Approach. Forward selection or
-  L2-relaxation / Lasso on the donor regression.
-* :doc:`rescm` -- Relaxed SC. Unified convex program nesting
-  classical SC, L-infinity SC, and equal-weights.
-
-Time-aware and latent-factor models
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Classical SC is permutation-invariant in time -- shuffling
-pre-treatment dates does not change the fit. When the data carry
-strong, persistent latent factors that evolve in time, that
-information is wasted. The estimators here model the temporal
-dynamics explicitly without first decomposing the series.
-
-* :doc:`tasc` -- Time-Aware SC. Linear-Gaussian state-space model
-  fitted with EM (Kalman filter + RTS smoother). Robust under high
-  observation noise; provides posterior credible bands.
-* :doc:`fma` -- Factor Model Approach. Principal-component extraction
-  from the donor panel with a formal residual-bootstrap test.
-
-* :doc:`dscar` -- Dynamic SC for Auto-Regressive processes
-  (Zheng & Chen 2024). **Time-varying weights**: a fresh
-  empirical-likelihood weight problem is solved at every post-period,
-  matching on the current covariate state and the recursively-updated
-  lagged outcome. Suits high-:math:`N` / moderate-:math:`T` panels
-  with strongly autocorrelated outcomes (e.g., hourly pollutant
-  monitoring stations, daily prices, weekly sales).
-
-Staggered adoption and multiple cohorts
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When multiple treated units adopt at *different* times, the single-
-treated-unit framework breaks down. These estimators aggregate
-cohort-level effects and produce event-study (per-event-time) ATTs
-with appropriate inference.
-
-* :doc:`sdid` -- Synthetic Difference-in-Differences. Doubly weighted
-  by unit *and* time weights; robust when parallel trends or exact
-  matching fail.
-* :doc:`seq_sdid` -- Sequential SDiD for staggered adoption.
-  Cohort-level aggregates with sequential imputation and bootstrap
-  CIs.
-* :doc:`ppscm` -- Partially-Pooled SC. Interpolates between separate
-  per-cohort fits and a single fully-pooled SC.
+   PART 3 — DESIGNING an experiment   (by what you care about)
+   ─────────────────────────────────────────────────────────────────
+   Care only about the ATT (effect on the treated)? ─► SYNDES · SPCD · weakly-targeted MAREX
+   Care about the ATE (population effect)?           ─► MAREX · LEXSCM
+   Must EVERY unit be treated or control (no pure donors), geo? ─► PANGEO (supergeo)
 
 
-Spillover-aware (SUTVA violation)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Gate 0 — Identification pre-screen
+----------------------------------
 
-These estimators relax the Stable Unit Treatment Value Assumption on
-the donor pool: classical SC assumes the donors are unaffected by the
-treatment, which fails when geographic / institutional proximity
-causes the treatment to leak. Both methods below disentangle direct
-effects on the treated unit from indirect effects on
-spillover-exposed donors.
+These come first because they decide whether synthetic control is even the
+right family. Get one wrong and no amount of donor weighting saves you.
 
-* :doc:`spsydid` -- Spatial Synthetic-DiD (Serenini & Masek 2024).
-  Extends SDiD with a single spillover-exposure regressor built from
-  a user-supplied row-standardised spatial weight matrix
-  :math:`W`. Use when spillovers decay with a known spatial structure
-  and pooling them buys efficiency.
-* :doc:`spillsynth` -- Spillover-aware SCM (Cao & Dowd 2023). Encodes
-  the spillover structure in an A-matrix (per-unit, homogeneous, or
-  distance-decay) and recovers per-affected-unit spillover effects
-  jointly with the treatment effect via a closed-form solution. Ships
-  with the Cao-Dowd P-test, signed CIs, the :math:`\kappa_A`
-  specification test, pure-donor sensitivity, and a GMM-efficient
-  variant. Use when the spillover set is enumerable and per-unit
-  effects matter.
+**Q0.1 · Are you designing the experiment?** Has the treatment *not yet*
+been assigned, and you are choosing whom to treat?
 
-Missing data and matrix completion
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+* **Yes** -- jump to **Part 3** (experimental design).
+* **No** -- the treatment already happened; continue.
 
-When the outcome panel has missing cells -- staggered adoption with
-gaps, unbalanced panels, MNAR data -- treat the imputation of the
-treated counterfactual as a low-rank matrix-completion problem.
+**Q0.2 · Is assignment randomized (or as-good-as-random)?**
 
-* :doc:`mcnnm` -- Matrix Completion with Nuclear-Norm Minimisation.
-  Imputes missing outcomes via nuclear-norm-regularised low-rank
-  recovery; handles both single and staggered treatment.
-* :doc:`snn` -- Synthetic Nearest Neighbours. Causal MC under MNAR
-  via principal component regression on anchor blocks.
+* **Yes, and you have many small exchangeable units** -- you do not need
+  synthetic control; a **difference-in-means** (or a regression with
+  controls) is unbiased.
+* **Yes, but only one or a few large aggregate units** (markets, states) --
+  a single random draw can still leave baselines far apart. :doc:`musc`
+  makes the effect *finite-sample unbiased under random assignment* and is
+  the only estimator here with an *unbiased finite-sample variance* and
+  exact randomization intervals.
+* **No** -- continue.
 
-Identification under endogeneity
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**Q0.3 · Do control units exist at all?**
 
-Classical SC assumes the treatment is exogenous conditional on the
-factor structure. When that fails -- the treatment is endogenous,
-the instrument is only conditionally valid, or unmeasured
-confounders break the SC identification -- you need an estimator
-that uses an *external* identification source.
+* **No -- every unit is treated** (a nationwide policy, a global shock like
+  COVID-19), so there is no donor pool -- :doc:`shc` rebuilds the
+  comparison from **overlapping historical blocks of the treated unit's own
+  series**.
+* **Yes** -- continue.
 
-* :doc:`siv` -- Synthetic IV. SC-debias the (outcome, treatment,
-  instrument) triple before running 2SLS; only the instrument needs
-  to be *partially* valid (orthogonal conditional on the factors).
-* :doc:`proximal` -- Proximal SC. Splits controls into donors and
-  *proxies* (negative controls) to instrument latent confounders.
+**Q0.4 · Is the treatment endogenous in a way SC cannot absorb?** This is
+the home of the **proximal** methods: they are fundamentally tools for
+**unmeasured confounding / endogeneity**, not for any particular outcome
+shape. The danger is selection on *time-varying* unobservables -- the
+pre-fit can look perfect and the ATT still be biased.
 
-Experimental design
--------------------
+* **You have a (partially valid) instrument** -- a shift-share, a tariff
+  schedule, a supply shock -- :doc:`siv` SC-debiases the (outcome,
+  treatment, instrument) triple, then runs 2SLS; the instrument need only
+  be valid *conditional on the factors*.
+* **You have valid proxies / negative controls** -- extra controls
+  associated with the latent confounder but with no direct path to the
+  outcome -- :doc:`proximal` instruments the confounder via GMM (and also
+  covers the single-proxy, doubly-robust, and surrogate variants).
+* **Neither -- selection is on the latent factors only** (SC's standard
+  premise) -- continue.
 
-These estimators target a fundamentally different problem: the
-treatment has *not yet been assigned*. You are deciding which units
-to treat, which to use as controls, or how to compose synthetic
-comparison groups, in order to maximise the statistical precision
-of the planned experiment. They share a design-stage API (often
-``MAREXConfig``-based) and return assignments, not ATTs.
+**Q0.5 · Do parallel trends hold, and are you in a fixed-T / large-N
+regime?**
 
-* :doc:`lexscm` -- Lexicographic SC. Chooses which units to treat to
-  jointly maximise validity (balance) and statistical power.
-* :doc:`marex` -- Matrix Exclusion. Picks treatment / control
-  assignments to minimise pre-experiment imbalance.
-* :doc:`syndes` -- Synthetic Design. Mixed-integer program jointly
-  optimising treatment assignment *and* synthetic weights for
-  minimum estimator MSE.
-* :doc:`pangeo` -- Parallel-Trends Supergeo Design. Chooses geos and
-  forms composite supergeos to maximise pre-period trajectory
-  parallelism (geo-experiment setting).
-* :doc:`spcd` -- Synthetic Principal Component Design. Spectral
-  phase-synchronisation for treatment assignment with optimal
-  precision.
+* **Yes** -- you may not need synthetic control at all: plain
+  **difference-in-differences** is simpler and more powerful (see Roth,
+  Sant'Anna, Bilinski & Poe, *J. Economic Literature* 2025,
+  `10.1257/jel.20251650 <https://doi.org/10.1257/jel.20251650>`_). The
+  nearest in-library options are :doc:`sdid` (which degenerates toward DiD)
+  or :doc:`fdid` if parallel trends holds only for a *subset* of donors.
+* **No** -- you are in SCM territory. Ask the master question:
 
-By inference type
------------------
+**Q0.6 · How many treated units?**
 
-A cross-cutting view: which estimators give you which kind of
-uncertainty quantification?
+* **One** -- go to **Part 1**.
+* **More than one** -- go to **Part 2**.
 
-**Frequentist confidence intervals.** :doc:`tssc` (subsampling),
-:doc:`fdid` (Wald-style), :doc:`sdid` and :doc:`seq_sdid`
-(bootstrap), :doc:`fma` (residual bootstrap), :doc:`siv` (asymptotic
-IV sandwich or split-conformal), :doc:`spillsynth` (Cao-Dowd
-end-of-sample P-test, signed CIs via test inversion, and a
-:math:`\kappa_A` specification test for the chosen A-matrix).
+Part 1 — A single treated unit
+------------------------------
 
-**Bayesian credible intervals.** :doc:`bvss` (spike-and-slab
-posterior), :doc:`tasc` (Kalman posterior bands).
+Begin with the **simplest** method that could work and escalate only when a
+named complication applies.
 
-**Conformal / model-free.** :doc:`siv` with ``inference_method =
-"conformal"``; :doc:`proximal` for proximal causal inference under
-unmeasured confounding.
+Start here
+^^^^^^^^^^
 
-**Placebo-based standard errors.** :doc:`dscar` (normalised placebo
-SE: re-fit the dynamic estimator on random control-only "treated"
-draws, then rescale to match the observed-treated variance scale).
+With one treated unit, a sharp intervention, and a scalar ATT, start with
+**:doc:`fdid`** -- Forward DiD greedily selects the donors that share the
+treated trend, needs no convex-hull assumption, and gives valid inference
+even under nonstationarity, all with one estimated parameter. If you would
+rather **formally test** the SC pre-trends assumption and let the data pick
+the SC/MSC variant, use **:doc:`tssc`**. If neither of the escalations
+below applies, you are done.
 
-**Per-event-time ATTs (event study).** :doc:`seq_sdid`,
-:doc:`spsydid`, :doc:`ppscm`; :doc:`spillsynth` (per-treated event-
-study plot when ``n_treated > 1``, with shaded 95% CIs from signed
-test inversion).
+Now walk the escalations, easy to hard:
 
+**Q1.1 · Are your donors contaminated by the treatment (SUTVA / spillovers)?**
 
-Still not sure?
----------------
+* **No** -- next question.
+* **Yes, spatial with a known weight matrix W** -- :doc:`spsydid`.
+* **Yes, an enumerable per-unit spillover set** -- :doc:`spillsynth`.
+* **Yes, and the treated unit sits outside the donor hull** (but is itself a
+  useful donor for others) -- :doc:`iscm`.
 
-* If your panel looks like the canonical Abadie-Diamond-Hainmueller
-  Proposition 99 study -- one treated state, dozens of donor states,
-  decades of pre-treatment data -- start with :doc:`fdid`. If the forward parallel pre-trend assumption is not valid, switch to :doc:`tssc`.
-* If your :math:`N / T_0` ratio is large or you suspect the simplex
-  constraint is too restrictive, start with :doc:`bvss`. Its
-  *Verification* section reproduces Xu & Zhou's China anti-corruption
-  ATT to three decimals.
-* If your outcome series carries a strong trend that is not the
-  causal signal you are after, start with :doc:`sbc` or :doc:`hsc`
-  -- they decompose first and match on the cyclical component only.
-* If your application has an obvious instrument (a shift-share, a
-  tariff schedule, a supply shock), start with :doc:`siv`.
-* If you are designing a prospective experiment (deciding which
-  geos to treat), start with :doc:`syndes` or :doc:`pangeo`.
+**Q1.2 · Is the treated unit outside the donors' convex hull** even without
+spillovers (a true outlier)?
 
-When in doubt, fit two or three estimators and compare. mlsynth's
-single long-DataFrame API makes that cheap to do.
+* **No** -- next question.
+* **Yes** -- relax the simplex: :doc:`nsc` (affine weights), :doc:`rescm`
+  (penalised / :math:`L_\infty`), or the unconstrained :doc:`pda`.
+
+**Q1.3 · Is the outcome nonstationary**, so a tight pre-fit might be a
+*spurious* trend match?
+
+* **No** -- next question.
+* **Yes** -- decompose first: :doc:`sbc` (Hamilton trend/cycle split, match
+  the cycle) or :doc:`hsc` (soft levels-vs-differences allocation).
+
+**Q1.4 · Are there persistent latent factors / time-varying dynamics /
+heavy observation noise?**
+
+* **No** -- next question.
+* **Yes** -- :doc:`tasc` (time-aware state-space; uses the *ordering* of
+  pre-periods), :doc:`fma` (PC factors with a residual-bootstrap test), or
+  :doc:`dscar` (time-varying weights for strongly autocorrelated panels
+  with time-varying confounders).
+
+**Q1.5 · Is the untreated outcome a nonlinear function of the predictors?**
+
+* **No** -- next question.
+* **Yes** -- :doc:`nsc`.
+
+**Q1.6 · Is the donor pool large relative to the pre-period (N ≳ T0)?**
+This is the most common reason to leave the workhorses: unrestricted fits
+**overfit** the pre-period and predict the post-period worse.
+
+* **No** -- next question.
+* **Yes** -- escalate, roughly easiest first: :doc:`fscm` (tune the donor
+  *count*), :doc:`sparse_sc` (L1 predictor selection), :doc:`pda`
+  (L2-relaxation / Lasso / forward), :doc:`rescm` (one program from simplex
+  SC to :math:`L_\infty` to DiD), :doc:`clustersc` (denoise + cluster
+  donors), or :doc:`bvss` (Bayesian spike-and-slab with a soft simplex).
+
+**Q1.7 · Are there missing cells in the panel?**
+
+* **No** -- next question.
+* **Yes, informative (MNAR) with a fully observed anchor block** --
+  :doc:`snn`.
+* **Yes, arbitrary sparse / low-rank** -- :doc:`mcnnm`.
+
+**Q1.8 · Is your estimand or treatment non-standard** (not a scalar mean
+ATT for one binary treatment)?
+
+* **No** -- you are done; use the *Start here* method.
+* **The whole distribution** (quantiles, Lorenz, tails) -- :doc:`dsc`.
+* **A continuous or multi-valued dose** with no clean control -- :doc:`ctsc`.
+* **Several related outcomes** (helps most with a short pre-period) --
+  :doc:`scmo`.
+* **Several distinct intervention arms** to compare -- :doc:`si`.
+
+.. tip::
+
+   Two single-unit specialists answer "how do I want to *defend* the
+   workhorse fit" rather than a data complication: :doc:`masc` blends
+   nearest-neighbour matching with SC to trade off their opposite biases,
+   and :doc:`musc` gives design-based unbiasedness if you will treat *which*
+   unit was treated as random.
+
+Part 2 — Many treated units
+---------------------------
+
+Again, simplest first. The base case for multiple treated units is
+**:doc:`sdid`** -- Synthetic Difference-in-Differences, doubly weighted by
+unit *and* time weights -- which works whether adoption is simultaneous or
+staggered and degrades gracefully when parallel trends or exact matching
+fail. Escalate from there.
+
+**Q2.1 · Do all treated units adopt at the same time?**
+
+* **Yes** -- :doc:`sdid` is the base case. If the units are
+  **individual/micro-level** (thousands–millions), use :doc:`microsynth`;
+  if treatment is assigned at a **coarse level but outcomes are observed at
+  a finer level** (state policy, county outcomes), use :doc:`mlsc`.
+* **No -- adoption is staggered** -- continue.
+
+**Q2.2 · Staggered: do you just want the overall / event-study ATT?**
+
+* **Yes, just staggered** -- :doc:`sdid` (per-cohort + aggregate) is the
+  simplest. If you want **partial pooling** across cohorts or **oracle
+  efficiency** under interactive fixed effects, escalate to :doc:`ppscm`
+  or :doc:`seq_sdid`.
+* **Staggered *and* spillovers** onto donors -- :doc:`spsydid`.
+* **Staggered *and* missing cells / gaps** -- :doc:`mcnnm` (matrix
+  completion handles staggered missingness natively).
+
+Part 3 — Designing an experiment
+--------------------------------
+
+You are choosing *whom* to treat, not estimating an effect; these return
+**assignments and power/MDE curves**, not ATTs. Order by **what estimand
+you care about**, easiest target first.
+
+**Q3.1 · Do you only care about the ATT** (the effect on the treated
+units)?
+
+* **Yes** -- :doc:`syndes` (a MIP that minimises the *ATT estimator's* MSE,
+  exactly :math:`K` treated) or :doc:`spcd` (a fast spectral
+  phase-synchronisation design). A **weakly-targeted** :doc:`marex` design
+  can also be pointed at the treated set if you want a convex design that
+  leans ATT-ward.
+
+**Q3.2 · Do you care about the population ATE** (a population-level
+contrast, not just the treated)?
+
+* **Yes** -- base :doc:`marex` matches synthetic-treated and
+  synthetic-control units to *population* predictor means; :doc:`lexscm`
+  adds an explicit power / minimum-detectable-effect report (validity
+  *then* power) and budget/cost constraints when only a subset is eligible.
+
+**Q3.3 · Must every unit end up either treated or control -- no pure-donor
+pool left over -- as in a geo roll-out?**
+
+* **Yes** -- :doc:`pangeo` groups geos into balanced **supergeos**, trims
+  no unit, and matches on the full pre-period **trajectory** for a
+  downstream difference-in-differences read.
+
+Failure-mode index
+------------------
+
+A reverse lookup: the symptom, and the method named for it.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 42 58
+
+   * - Complication
+     - Reach for
+   * - No control group (everyone treated)
+     - :doc:`shc`
+   * - Randomized, few large units
+     - :doc:`musc`
+   * - Endogenous treatment, have an instrument
+     - :doc:`siv`
+   * - Endogenous treatment, have proxies / negative controls
+     - :doc:`proximal`
+   * - Parallel trends holds (fixed-T, large-N)
+     - difference-in-differences (off-ramp); :doc:`sdid`, :doc:`fdid`
+   * - **Single treated unit, no complications**
+     - :doc:`fdid`, :doc:`tssc`
+   * - Spillovers onto donors (SUTVA), spatial
+     - :doc:`spsydid`
+   * - Spillovers onto donors, enumerable per-unit
+     - :doc:`spillsynth`
+   * - Treated unit outside the donor convex hull
+     - :doc:`iscm`, :doc:`nsc`, :doc:`rescm`, :doc:`pda`
+   * - Nonstationary / spurious-trend matching
+     - :doc:`sbc`, :doc:`hsc`
+   * - Time-varying dynamics / persistent factors / noise
+     - :doc:`tasc`, :doc:`fma`, :doc:`dscar`
+   * - Nonlinear outcome surface
+     - :doc:`nsc`
+   * - Donor pool large vs pre-period (N ≳ T0)
+     - :doc:`fscm`, :doc:`sparse_sc`, :doc:`pda`, :doc:`rescm`, :doc:`clustersc`, :doc:`bvss`
+   * - Missing cells, MNAR
+     - :doc:`snn`, :doc:`mcnnm`
+   * - Distributional estimand (QTE, Lorenz, tails)
+     - :doc:`dsc`
+   * - Continuous / multi-valued treatment
+     - :doc:`ctsc`
+   * - Several related outcomes / short pre-period
+     - :doc:`scmo`
+   * - Several distinct intervention arms
+     - :doc:`si`
+   * - Want a matching + SC blend / design-based unbiasedness
+     - :doc:`masc`, :doc:`musc`
+   * - Many treated, same time
+     - :doc:`sdid`, :doc:`microsynth`, :doc:`mlsc`
+   * - Many treated, staggered adoption
+     - :doc:`sdid`, :doc:`ppscm`, :doc:`seq_sdid`, :doc:`mcnnm`
+   * - Designing for the ATT
+     - :doc:`syndes`, :doc:`spcd`, :doc:`marex`
+   * - Designing for the ATE
+     - :doc:`marex`, :doc:`lexscm`
+   * - Designing a geo roll-out (no pure donors)
+     - :doc:`pangeo`
+
+When in doubt, fit two or three of the candidate methods and compare the
+counterfactuals and ATTs. Disagreement is itself diagnostic: it usually
+means one of the gates above is binding harder than you thought.
