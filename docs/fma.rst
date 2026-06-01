@@ -35,6 +35,187 @@ parallel; the user picks any subset via
   :math:`\widehat{ATT}_t` CIs.
 * ``"placebo"`` -- Web Appendix G control-as-pseudo-treated band.
 
+
+Factor Model Approach (FMA)
+===========================
+
+.. currentmodule:: mlsynth
+
+When to Use This Method
+-----------------------
+
+Quasi-experiments are the bread and butter of marketing causal inference:
+a policy or firm decision switches on for one unit (a state legalises
+recreational marijuana, a digitally native retailer opens a physical
+showroom in Brooklyn) and you want the sales effect against a pool of
+untreated cities, stores, or categories. The two reflexive choices each
+strain in this setting:
+
+* **Difference-in-differences (DiD)** assumes the time effect is the
+  *same* for the treated unit and every control -- the parallel-trends
+  assumption. Marketing panels (sales, share, macro series) rarely
+  oblige: different markets ride different seasonal, regional, and
+  business-cycle waves. When that homogeneity fails, DiD carries a large
+  estimation bias that does **not** shrink as the panel grows -- in Li
+  and Sonnier's own MSE comparison it is so biased they drop it from the
+  table.
+* **Synthetic control (SC)** relaxes that by weighting controls on the
+  simplex (nonnegative, sum-to-one, no intercept), which pins the
+  counterfactual *inside the convex hull* of the controls. That is a
+  feature when the treated unit is "surrounded" by donors and you want an
+  interpretable convex-combination weight story, but a bug when the
+  treated unit sits **outside** the donor range, and SC has **no
+  inference theory** when controls are many and the data are
+  non-stationary of unknown form.
+
+The **factor model approach** (FMA) of Li and Sonnier ([FMA]_) targets
+exactly the regime SC and DiD struggle with: **many control units, time
+effects that differ across units, a treated path that may lie outside the
+donor range, and a need for honest confidence intervals.** Instead of
+weighting the controls directly, it first **projects the control panel
+onto a small set of latent factors** (interactive fixed effects:
+:math:`y^0_{it} = \lambda_i' F_t + e_{it}`), then regresses the treated
+unit's pre-period outcome on those factors with **no constraint** on the
+loadings. Three properties follow, and they are the reasons to reach for
+it:
+
+1. **Heterogeneous time effects.** The interactive
+   :math:`\lambda_i' F_t` structure nests two-way fixed effects (DiD) as
+   the special case :math:`\lambda_i = (\xi_i, 1)'`,
+   :math:`F_t = (1, \delta_t)'`, and also absorbs unit-specific trends
+   and cross-sectional dependence. You are not betting on a common shock.
+2. **The counterfactual can leave the donor hull.** Because the loadings
+   are unrestricted (no nonnegativity, no sum-to-one, no zero intercept),
+   FMA fits treated units whose level or trajectory is outside the range
+   of every control -- the case SC structurally cannot represent.
+3. **Robust to a large, growing donor pool.** Unconstrained regression on
+   the raw controls (the Hsiao-Ching-Wan approach) overfits and breaks
+   down once :math:`N_{co}` approaches or exceeds :math:`T_1`. FMA's
+   dimension reduction sidesteps this: it *benefits* from more controls
+   (they sharpen the factor estimates) rather than being destabilised by
+   them. The same single factor extraction also scales cheaply to **many
+   treated units** and staggered timing, since it is done once.
+
+The paper's headline contribution is the fourth reason: **valid,
+computationally cheap inference**. FMA delivers a closed-form normal
+confidence interval for the ATT (Theorems 3.1 / 3.3) that is valid for
+**both stationary and non-stationary data** and -- critically --
+**accommodates treated and control units with different error
+variances**. The previously standard Xu (2017) bootstrap assumes
+:math:`\sigma^2_{\text{tr}} = \sigma^2_{\text{co}}`; when that fails (the
+norm for non-randomised quasi-experiments) it over- or under-covers
+badly, while permutation/placebo tests need an analogous symmetry. In the
+California beer application the estimated variance ratio is
+:math:`\hat\sigma^2_{\text{tr}} / \hat\sigma^2_{\text{co}} \approx 37`, so
+the bootstrap interval comes out less than half its honest width. FMA's
+normal interval needs no such assumption and no resampling loop.
+
+Factor projection vs. donor weighting
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Every synthetic-control-family estimator answers *what reproduces the
+treated unit's untreated path?* FMA's structural bet is distinctive:
+
+   **The controls' untreated outcomes share a low-dimensional latent
+   factor structure; estimate those factors, then load the treated unit
+   onto them without constraint.**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 24 24 24
+
+   * -
+     - DiD
+     - Synthetic control
+     - Factor model (FMA)
+   * - **Comparison built from**
+     - all controls, equal weight
+     - all controls, simplex weights
+     - latent factors of the controls
+   * - **Time effects**
+     - homogeneous (common shock)
+     - implicit via weights
+     - heterogeneous :math:`\lambda_i' F_t`
+   * - **Counterfactual outside donor hull**
+     - allowed
+     - **no** -- convex hull
+     - **yes** -- unrestricted loadings
+   * - **Many controls** (:math:`N_{co} \gtrsim T_1`)
+     - bias does not shrink
+     - overfits if restrictions relaxed
+     - *benefits* -- sharper factors
+   * - **Inference, non-stationary data**
+     - standard
+     - none available
+     - normal CI (Thm 3.1 / 3.3)
+   * - **Unequal treated/control variance**
+     - n/a
+     - placebo needs symmetry
+     - handled directly
+
+Reach for FMA when
+^^^^^^^^^^^^^^^^^^
+
+* You have a **single treated unit** (or a handful, or many -- the factor
+  step generalises) and a **large control pool**, especially
+  :math:`N_{co}` large relative to the pre-period :math:`T_1`, where
+  unrestricted regression on raw donors would overfit.
+* The outcome is plausibly driven by a **few common latent factors** --
+  regional sales, market share, macro-linked categories -- so the control
+  matrix is approximately low-rank. This is what the factor projection
+  exploits.
+* You expect **heterogeneous time dynamics** across units (different
+  seasonality, trends, cross-sectional dependence) that violate DiD's
+  parallel-trends assumption.
+* The treated unit's level or trajectory may sit **outside the range of
+  the controls**, so SC's convex-hull restriction would distort the fit.
+* You need **formal inference** -- a hypothesis test or confidence
+  interval for the ATT -- and you cannot defend the equal-variance
+  assumption behind the Xu (2017) bootstrap or the symmetry behind
+  permutation/placebo tests. FMA's normal CI is valid under unequal
+  variances and under non-stationarity, and it is far cheaper than
+  resampling.
+* You have enough data for the asymptotics: the paper's simulations show
+  the normal CI is reliable for :math:`N_{co} \ge 30` and
+  :math:`T_1 \ge 30` (at :math:`T_2 = 20`). For smaller panels the paper
+  suggests a :math:`t_{T_1 - (N_{co} + 1)}` reference distribution, which
+  ``mlsynth`` does not yet expose; treat the normal CI cautiously there.
+
+Do not use FMA when
+^^^^^^^^^^^^^^^^^^^
+
+* **The control matrix has no low-rank / factor structure.** FMA, like
+  the PCA-based estimators in :doc:`clustersc`, leans entirely on a few
+  factors explaining the controls. If the spectrum decays slowly, the
+  factors are noise; prefer a balancing estimator (:doc:`microsynth` for
+  user-level data) or a selection estimator (:doc:`fdid`).
+* **A sparse, interpretable convex-combination weight is the
+  deliverable.** FMA's loadings are unconstrained and not a "California =
+  0.4 Utah + 0.3 Montana" story. If policy storytelling needs nonnegative
+  donor weights that sum to one, use :doc:`tssc`, :doc:`fdid`, or classic
+  SC.
+* **The donor pool is tiny** (:math:`N_{co} \le 10`) **with a clean
+  canonical SC fit.** Factor extraction adds variance without
+  identification gain; :doc:`tssc` or :doc:`fdid` are more honest, and
+  :doc:`tssc` will even *test* whether SC's restrictions are needed.
+* **The sample is very small** (:math:`N_{co}, T_1 \approx 20`). The
+  normal approximation degrades and the recommended :math:`t`-correction
+  is not wired into the public API.
+* **You want efficiency from the treated unit's own pre-history with many
+  treated units.** Factors are estimated from controls only; the
+  efficiency loss is negligible for a single treated unit but grows with
+  :math:`N_{tr}` (paper, footnote 3).
+* **Distributional questions** (quantile effects, Lorenz/tail changes).
+  FMA targets the mean ATT; use :doc:`dsc`.
+* **Continuous or multi-valued treatment**, or **spillovers/interference**
+  across units. FMA encodes a single binary intervention and assumes the
+  controls are untreated; use :doc:`ctsc` for dose response and
+  :doc:`spillsynth` / :doc:`spsydid` under interference.
+
+
+
+
+
 Mathematical Formulation
 ------------------------
 
