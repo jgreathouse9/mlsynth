@@ -14,6 +14,7 @@ from .estimators.masc import MASC                              # noqa: F401
 from .estimators.shc import SHC # Check
 from .estimators.laxscm import RESCM # Check
 from .estimators.scexp import MAREX
+from .estimators.msqrt import MSQRT
 from .estimators.lexscm import LEXSCM
 from .estimators.syndes import SYNDES
 from .utils.syndes_helpers.power import SYNDESPower, power_analysis
@@ -71,6 +72,7 @@ __all__ = [
     "TASC",
     "SBC", "BVSS",
     "MLSC",
+    "MSQRT",
     "SequentialSDID",
     "PPSCM",
     "SparseSC",
