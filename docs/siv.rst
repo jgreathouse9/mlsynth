@@ -43,6 +43,36 @@ residual factor structure, so the instrument's *partial validity*
    Donor units are *all* untreated units in the panel; there is no
    single "treated unit" in the SC sense.
 
+For higher-noise or weak-instrument regimes, SIV also exposes the paper's
+**ensemble** (doubly-robust) estimator and a **permutation** inference
+procedure that is exactly valid in small samples. Gulek and Vives
+recommend four diagnostics, all surfaced by the estimator: (1) the
+instrument is not weak *after* debiasing, (2) good pre-treatment fit, (3) a
+back-test that the fit is not overfitting idiosyncratic noise, and (4)
+dense synthetic-control weights (no single donor dominating).
+
+Do not use SIV when
+^^^^^^^^^^^^^^^^^^^
+
+* **You have no instrument.** SIV's whole point is to rescue an IV under
+  factor confounding. With no instrument, estimate the counterfactual
+  directly with a factor-model or synthetic-control method (:doc:`fma`,
+  :doc:`fdid`, :doc:`mcnnm`).
+* **Treatment is exogenous given the factor structure** (no simultaneity /
+  reverse causality). Then a plain synthetic-control or factor estimator
+  already identifies the effect; the 2SLS machinery only adds variance.
+* **Confounding is purely additive** (:math:`c_i + d_t`). Two-way
+  fixed-effects 2SLS already absorbs it; SIV's interactive-factor debiasing
+  is unnecessary.
+* **There is no clean pre-period** in which neither the instrument nor the
+  treatment has activated. SIV fits each unit's factor loadings on that
+  window; without it the debiasing step is not identified.
+* **The instrument is weak after debiasing** (diagnostic 1 fails). The
+  debiased 2SLS is then unreliable -- no synthetic step repairs a weak
+  instrument.
+* **Distributional** questions (quantiles, tails) -- SIV targets a 2SLS
+  coefficient; use :doc:`dsc` for distributional effects.
+
 Notation
 --------
 

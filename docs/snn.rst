@@ -79,6 +79,55 @@ The general matrix-completion engine is exposed directly as
 completion (e.g. recommender systems): pass a matrix with ``NaN`` for
 missing entries.
 
+When to Use This Method
+-----------------------
+
+SNN's distinctive bet is about *why* data are missing. Classical matrix
+completion -- and the nuclear-norm estimator in :doc:`mcnnm` -- assumes the
+observed cells are a structured but ultimately exogenous sample of the
+matrix. SNN instead targets **missing not at random (MNAR)**: the very
+event of observing a cell is correlated with its value (a horror-averse
+user never rates horror films; a region adopts a policy *because* of where
+its outcomes are heading). Under MNAR, MCAR-based completion is biased, and
+SNN's per-entry nearest-neighbour + PCR construction restores entry-wise
+consistency and asymptotic normality.
+
+Reach for SNN when
+^^^^^^^^^^^^^^^^^^
+
+* **Missingness is informative.** Whether a cell is observed depends on its
+  own (latent) value -- recommender ratings, self-selected program
+  adoption, instrument-driven attrition.
+* **The observed cells contain a large fully observed anchor block.** Panel
+  causal designs supply this naturally: a control block observed
+  throughout, with treated units missing only their post-treatment
+  :math:`Y(0)`. This block structure is what lets SNN find anchor rows and
+  columns per entry.
+* **Arbitrary / block-structured missingness**, including **staggered
+  adoption**, where different units are missing different post-periods and
+  no single fixed treated/donor split applies (SNN generalises
+  :class:`mlsynth.SI` to this case).
+* You want **general (non-causal) MNAR matrix completion** -- e.g. a
+  recommender matrix -- via :func:`mlsynth.utils.snn_helpers.snn_complete`.
+
+Do not use SNN when
+^^^^^^^^^^^^^^^^^^^
+
+* **No large fully observed submatrix exists.** SNN's anchor step needs a
+  dense observed block; if missingness is heavy and scattered with no such
+  block, prefer the nuclear-norm estimator :doc:`mcnnm`, which regularises
+  the whole matrix rather than imputing entry-by-entry.
+* **The design is a simple single-treated block with a clean pre-period**
+  and you want classic interpretable donor weights, closed-form CIs, or a
+  convex-combination story. Use :doc:`si`, :doc:`tssc`, or :doc:`scmo`;
+  per-entry anchoring is unnecessary machinery there.
+* **Spillovers violate SUTVA** on the control block -- use :doc:`spsydid`
+  or :doc:`spillsynth`.
+* **Continuous or multi-valued treatment** -- SNN imputes an untreated
+  potential-outcome matrix under a binary mask; dose response belongs in
+  :doc:`ctsc`.
+* **Distributional** questions (quantiles, tails) -- use :doc:`dsc`.
+
 Core API
 --------
 

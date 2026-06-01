@@ -27,6 +27,29 @@ latent structure than assume which comparison (units vs. periods) is the right
 one. The cost is that the estimand is a low-rank *imputation* rather than an
 interpretable set of donor weights.
 
+Do not use MCNNM when
+~~~~~~~~~~~~~~~~~~~~~~
+
+* **An interpretable donor-weight story is the deliverable.** MC-NNM
+  imputes a low-rank matrix; it does not hand you a sparse "California =
+  0.4 Utah + 0.3 Montana" convex combination. If the weights *are* the
+  result, use :doc:`tssc`, :doc:`scmo`, or :doc:`fdid`.
+* **There is no low-rank structure.** The nuclear-norm regularization is
+  only useful when the control matrix is approximately low rank plus noise.
+  With a slowly-decaying spectrum, prefer a balancing estimator
+  (:doc:`microsynth`) or a selection estimator (:doc:`fdid`).
+* **Missingness is informative (MNAR / self-masking)** -- the probability a
+  cell is observed depends on its own value, as in recommender systems.
+  MC-NNM assumes a structured-but-exogenous missingness pattern; use
+  :doc:`snn`, which is built for missing-not-at-random data.
+* **Spillovers contaminate the control block** (SUTVA fails). The low-rank
+  signal model treats controls as untreated; use :doc:`spsydid` or
+  :doc:`spillsynth`.
+* **Treatment is endogenous and you have an instrument.** MC-NNM imputes
+  :math:`Y(0)` but does not break simultaneity; use :doc:`siv`.
+* **Distributional** questions (quantiles, tails) -- MC-NNM targets the mean
+  ATT; use :doc:`dsc`.
+
 Notation
 --------
 
