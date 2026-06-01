@@ -7,33 +7,9 @@ synthetic-control-based experimental design**. It bundles over 20 modern estimat
 under a single typed `Config` / `.fit()` / typed-results interface, so swapping
 between, say, Forward DiD, TASC, and SPCD is a one-line change.
 
-Documentation: <https://mlsynth.readthedocs.io/> · Landing page:
-<https://jgreathouse9.github.io/mlsynth/webdir/mlsynthlanding.html>
+[Documentation](https://mlsynth.readthedocs.io/)
 
 ---
-
-## Why `mlsynth`
-
-The synthetic control literature has fragmented across econometrics, statistics,
-marketing science, and machine learning. Reference implementations are scattered
-across paper-supplemental GitHub repositories in heterogeneous languages and
-with idiosyncratic APIs, so comparing several methods on a single panel
-typically means translating four or five codebases into a common shape before
-any analysis begins. `mlsynth` removes that translation cost.
-
-Three things distinguish it from other SCM libraries. First, **breadth**: it
-covers regularized variants of the canonical convex-hull estimator (ridge-
-augmented, $L_\infty$, low-rank, and Bayesian shrinkage), methods in which the
-donor pool is chosen explicitly rather than implicitly through convex weighting
-(forward selection, clustering, proximal identification, matrix completion),
-and synthetic-control-based experimental design. Second, **a uniform API**:
-every estimator takes a Pydantic-validated config and returns a typed dataclass
-of results. Third,
-**experimental design as a first-class concern**: `SCDI`, `MAREX`, `LEXSCM`,
-and `SPCD` jointly optimize *which* units to treat with minimum detectable
-effect (MDE) analysis and, in the case of `LEXSCM`, explicit unit-level cost
-and budget constraints solved by branch-and-bound. This last capability is
-largely unavailable in other SCM packages.
 
 ## Install
 
@@ -91,52 +67,68 @@ change.
 
 ## Estimators
 
+`mlsynth` implements 38 estimator classes spanning the full synthetic-control landscape. Several classes expose multiple methods through one configuration (e.g. `PDA` covers three norm choices; `RESCM` covers relaxed- and $L_\infty$-balanced variants; `PROXIMAL` dispatches six proximal estimators).
+
 | Estimator | Reference | Class |
 |---|---|---|
-| [L1PDA](https://doi.org/10.1016/j.jeconom.2016.01.011) | Li & Bell (2017), *Journal of Econometrics* 197(1):65–75 | `PDA` |
-| [Forward-Selected Panel Data Approach](https://doi.org/10.1016/j.jeconom.2021.04.009) | Shi & Huang (2023), *Journal of Econometrics* 234(2):512–535 | `PDA` |
-| [L2-Relaxation for Economic Prediction](https://doi.org/10.13140/RG.2.2.11670.97609) | Shi & Wang (2024) | `PDA` |
-| [Synthetic Control Method (vanilla SCM)](https://doi.org/10.1198/jasa.2009.ap08746) | Abadie, Diamond, Hainmueller (2010), *JASA* 105(490):493–505 | `TSSC` |
+| **— Canonical & convex-hull —** | | |
+| [Synthetic Control Method (vanilla SCM)](https://doi.org/10.1198/jasa.2009.ap08746) | Abadie, Diamond & Hainmueller (2010), *JASA* 105(490):493–505 | `TSSC` |
 | [Two-Step Synthetic Control](https://doi.org/10.1287/mnsc.2023.4878) | Li & Shankar (2024), *Management Science* 70(6):3734–3755 | `TSSC` |
+| Modified Unbiased Synthetic Control | Bottmer, Imbens, Spiess & Warnick (2024), *JBES* 42(2):762–773 | `MUSC` |
+| Matching & Synthetic Control (MASC) | Kellogg, Mogstad, Pouliot & Torgovitsky (2021), *JASA* | `MASC` |
+| **— Donor selection / forward —** | | |
 | [Forward Difference-in-Differences](https://doi.org/10.1287/mksc.2022.0212) | Li (2024), *Marketing Science* 43(2):267–279 | `FDID` |
-| [Factor Model Approach](https://doi.org/10.1177/00222437221137533) | Li & Sonnier (2023), *JMR* 60(3) | `FMA` |
-| [Optimal Initial Donor Selection for SCM](https://doi.org/10.1016/j.econlet.2024.111976) | Cerulli (2024), *Economics Letters* 244:111976 | `FSCM` |
-| [Principal Component Regression](https://doi.org/10.1080/01621459.2021.1928513) | Agarwal et al. (2021), *JASA* 116(536):1731–1745 | `CLUSTERSC` |
+| [Optimal Initial Donor Selection (FSCM)](https://doi.org/10.1016/j.econlet.2024.111976) | Cerulli (2024), *Economics Letters* 244:111976 | `FSCM` |
+| Panel Data Approach (HCW) | Hsiao, Ching & Wan (2012), *J. Applied Econometrics* | `PDA` |
+| [L1-PDA](https://doi.org/10.1016/j.jeconom.2016.01.011) | Li & Bell (2017), *J. Econometrics* 197(1):65–75 | `PDA` |
+| [Forward-Selected Panel Data Approach](https://doi.org/10.1016/j.jeconom.2021.04.009) | Shi & Huang (2023), *J. Econometrics* 234(2):512–535 | `PDA` |
+| [L2-Relaxation](https://doi.org/10.13140/RG.2.2.11670.97609) | Shi & Wang (2024) | `PDA` |
+| **— High-dimensional / robust / relaxed-hull —** | | |
+| [Principal Component Regression SC](https://doi.org/10.1080/01621459.2021.1928513) | Agarwal et al. (2021), *JASA* 116(536); Amjad, Shah & Shen (2018) | `CLUSTERSC` |
 | [Robust PCA Synthetic Control](https://academicworks.cuny.edu/gc_etds/4984) | Bayani (2022), CUNY Academic Works | `CLUSTERSC` |
-| [CLUSTERSC](https://doi.org/10.48550/arXiv.2503.21629) | Rho, Tang, Bergam, Cummings, Misra (2024), arXiv:2503.21629 | `CLUSTERSC` |
-| [SCM with Nonlinear Outcomes](https://arxiv.org/abs/2306.01967) | Tian (2023), arXiv:2306.01967 | `NSC` |
-| [Proximal SCM Framework](https://arxiv.org/abs/2108.13935) | Shi, Li, Miao, Hu, Tchetgen Tchetgen (2023), arXiv:2108.13935 | `PROXIMAL` |
-| [Proximal Causal Inference for SCM (Surrogates)](https://arxiv.org/abs/2308.09527) | Liu, Tchetgen Tchetgen, Varjão (2023), arXiv:2308.09527 | `PROXIMAL` |
-| [SCM with Multiple Outcomes](https://arxiv.org/abs/2304.02272) | Tian, Lee, Panchenko (2023), arXiv:2304.02272 | `SCMO` |
-| [Synthetic Difference-in-Differences](https://www.aeaweb.org/articles?id=10.1257/aer.20190159) | Arkhangelsky et al. (2021), *AER* 111(12):4088–4118 | `SDID` |
-| [Synthetic Historical Control](https://ssrn.com/abstract=4995085) | Chen, Yang, Yang (2024), SSRN | `SHC` |
-| [Synthetic Regressing Control](https://arxiv.org/abs/2306.02584) | — | `SRC` |
-| [Synthetic Interventions](https://arxiv.org/abs/2006.07691) | Agarwal, Shah, Shen (2020), arXiv:2006.07691 | `SI` |
-| [Relaxed Balanced Synthetic Control](https://arxiv.org/abs/2508.01793) | Liao, Shi, Zheng (2025), arXiv:2508.01793 | `RESCM` |
-| [$L_\infty$ Synthetic Control](https://arxiv.org/abs/2510.26053) | Wang, Xing, Ye (2025), arXiv:2510.26053 | `RESCM` |
+| [CLUSTERSC (donor clustering)](https://arxiv.org/abs/2503.21629) | Rho, Tang, Bergam, Cummings & Misra (2024), arXiv:2503.21629 | `CLUSTERSC` |
+| Sparse Synthetic Control (L1 predictor selection) | Vives-i-Bastida (2023), *Predictor Selection for Synthetic Controls* | `SparseSC` |
+| [Relaxed Balanced Synthetic Control](https://arxiv.org/abs/2508.01793) | Liao, Shi & Zheng (2025), arXiv:2508.01793 | `RESCM` |
+| [$L_\infty$ Synthetic Control](https://arxiv.org/abs/2510.26053) | Wang, Xing & Ye (2025), arXiv:2510.26053 | `RESCM` |
+| **— Factor / time-series / Bayesian —** | | |
+| [Factor Model Approach](https://doi.org/10.1177/00222437221137533) | Li & Sonnier (2023), *JMR* 60(3):449–472 | `FMA` |
+| Harmonic Synthetic Control | Liu & Xu (2026), *The Harmonic Synthetic Control Method* | `HSC` |
+| [Time-Aware Synthetic Control](https://arxiv.org/abs/2601.03099) | Rho, Illick, Narasipura, Abadie, Hsu & Misra (2026), arXiv:2601.03099 | `TASC` |
+| [Synthetic Business Cycle](https://arxiv.org/abs/2505.22388) | Shi, Xi & Xie (2025), arXiv:2505.22388 | `SBC` |
 | [Bayesian SC with Soft Simplex Constraint](https://arxiv.org/abs/2503.06454) | Xu & Zhou (2025), arXiv:2503.06454 | `BVSS` |
-| [Time-Aware Synthetic Control](https://arxiv.org/abs/2601.03099) | Rho, Illick, Narasipura, Abadie, Hsu, Misra (2026), arXiv:2601.03099 | `TASC` |
-| [Synthetic Business Cycle](https://arxiv.org/abs/2505.22388) | Shi, Xi, Xie (2025), arXiv:2505.22388 | `SBC` |
-| [Synthetic Controls for Experimental Design](https://arxiv.org/abs/2108.02196) | Abadie & Zhao (2025), arXiv:2108.02196 | `SCDI` |
-| [Lexicographic Synthetic Control](https://economics.mit.edu/sites/default/files/2026-02/Synthetic%20Controls%20for%20Experimental%20Design%20Feb%202026.pdf) | Vives-i-Bastida (2022) | `LEXSCM` |
-| [Synthetic Principal Component Design](https://arxiv.org/abs/2211.15241) | Lu, Li, Ying, Blanchet (2022), arXiv:2211.15241 | `SPCD` |
-| [Synthetic Experimental Design](https://arxiv.org/abs/2108.02196) | Abadie & Zhao (2025), arXiv:2108.02196 | `MAREX` |
-
-Several entries share a class because the underlying estimator generalizes
-several methods through a single configuration (`PDA` covers three norm
-choices, `RESCM` covers relaxation- and $L_\infty$-balanced variants, and so
-on).
-
-## Inference and design tools
-
-Beyond point estimates, `mlsynth` ships three families of inference: moving-block conformal prediction intervals for `SPCD` and
-`LEXSCM`; and posterior credible intervals for the Bayesian and state-space
-estimators (`BVSS`, `TASC`).
-
-For experimental design, `SCDI`, `SPCD`,
-`LEXSCM`, and `MAREX` jointly select treated units and donor weights, and
-expose pre-experiment minimum-detectable-effect curves so power can be
-evaluated before the experiment is run.
+| [Dynamic SC for Auto-Regressive Processes](https://doi.org/10.1093/jrsssb/qkad103) | Zheng & Chen (2024), *JRSS-B* 86(1):155–176 | `DSCAR` |
+| **— SDID family / staggered adoption —** | | |
+| [Synthetic Difference-in-Differences](https://doi.org/10.1257/aer.20190159) | Arkhangelsky, Athey, Hirshberg, Imbens & Wager (2021), *AER* 111(12):4088–4118 | `SDID` |
+| [Sequential Synthetic Difference-in-Differences](https://arxiv.org/abs/2404.00164) | Arkhangelsky & Samkov (2025), arXiv:2404.00164 | `SequentialSDID` |
+| [Partially Pooled SCM (staggered)](https://doi.org/10.1111/rssb.12448) | Ben-Michael, Feller & Rothstein (2022), *JRSS-B* 84(2):351–381 | `PPSCM` |
+| **— Spillover / interference (SUTVA) —** | | |
+| [SCM with Spillover Effects](https://arxiv.org/abs/1902.07343) | Cao & Dowd (2023) | `SPILLSYNTH` |
+| Spatial Synthetic Difference-in-Differences | Serenini & Masek (2024), SSRN 4736857 | `SpSyDiD` |
+| Imperfect Synthetic Controls | Powell (2026), *J. Applied Econometrics* 41(3):253–264 | `ISCM` |
+| **— Multiple outcomes / interventions / proximal —** | | |
+| [SCM with Multiple Outcomes](https://arxiv.org/abs/2304.02272) | Tian, Lee & Panchenko (2023), arXiv:2304.02272 | `SCMO` |
+| [Synthetic Interventions](https://arxiv.org/abs/2006.07691) | Agarwal, Shah & Shen (2026), *Operations Research* | `SI` |
+| [Proximal SCM Framework](https://arxiv.org/abs/2108.13935) | Shi, Li, Miao, Hu & Tchetgen Tchetgen (2023), arXiv:2108.13935 | `PROXIMAL` |
+| [Proximal SC with Surrogates](https://arxiv.org/abs/2308.09527) | Liu, Tchetgen Tchetgen & Varjão (2023), arXiv:2308.09527 | `PROXIMAL` |
+| [Single Proxy Synthetic Control](https://doi.org/10.1515/jci-2023-0079) | Park & Tchetgen Tchetgen (2025), *J. Causal Inference* | `PROXIMAL` |
+| [Doubly Robust Proximal Synthetic Controls](https://doi.org/10.1093/biomtc/ujae055) | Qiu, Shi, Miao, Dobriban & Tchetgen Tchetgen (2024), *Biometrics* 80(2) | `PROXIMAL` |
+| **— Matrix completion / missing data —** | | |
+| [Matrix Completion with Nuclear Norm Minimization](https://arxiv.org/abs/1710.10251) | Athey, Bayati, Doudchenko, Imbens & Khosravi (2021), *JASA* 116(536) | `MCNNM` |
+| [Synthetic Nearest Neighbors / Causal Matrix Completion](https://arxiv.org/abs/2109.15154) | Agarwal, Dahleh, Shah & Shen (2021), arXiv:2109.15154 | `SNN` |
+| **— Distributional / nonlinear / continuous / IV / micro —** | | |
+| [Distributional Synthetic Controls](https://doi.org/10.3982/ECTA18260) | Gunsilius (2023), *Econometrica* 91(3):1105–1117 | `DSC` |
+| [SCM with Nonlinear Outcomes](https://arxiv.org/abs/2306.01967) | Tian (2023), arXiv:2306.01967 | `NSC` |
+| Continuous-Treatment Synthetic Control | Powell (2022), *JBES* 40(3):1302–1314 | `CTSC` |
+| Synthetic IV Estimation in Panels | Gulek & Vives-i-Bastida (2024), Job Market Paper | `SIV` |
+| Micro-level Balancing Synthetic Control | Robbins & Davenport (2021) | `MicroSynth` |
+| Synthetic Control with Disaggregated Data | Bottmer (2026), Stanford job-market paper | `MLSC` |
+| [Synthetic Historical Control](https://ssrn.com/abstract=4995085) | Chen, Yang & Yang (2024), SSRN 4995085 | `SHC` |
+| **— Experimental design —** | | |
+| [Synthetic Controls for Experimental Design](https://arxiv.org/abs/2108.02196) | Abadie & Zhao (2026) | `MAREX` |
+| Synthetic Design (optimization approach) | Doudchenko, Khosravi, Pouget-Abadie, Lahaie, Lubin, Mirrokni, Spiess & Imbens (2021) | `SYNDES` |
+| Lexicographic Synthetic Control (validity → power) | Abadie & Zhao (2026); Vives-i-Bastida (2022) | `LEXSCM` |
+| [Synthetic Principal Component Design](https://arxiv.org/abs/2211.15241) | Lu, Li, Ying & Blanchet (2022), arXiv:2211.15241 | `SPCD` |
+| Parallel-Trends Supergeo Design | `mlsynth` (PANGEO), extending Supergeo Design — Chen, Doudchenko, Jiang, Stein & Ying (2023) | `PANGEO` |
 
 ## Contributing
 
