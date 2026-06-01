@@ -17,18 +17,76 @@ by the spillover, and the resulting ATT is biased.
 Currently ships ``method="cd"`` (Cao & Dowd 2023), with additional
 methods to follow under the same dispatcher.
 
-When to use SPILLSYNTH
-^^^^^^^^^^^^^^^^^^^^^^^
+When to Use This Method
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Classical SCM is *particularly* fragile to spillovers because its weights
+actively select the controls most correlated with the treated unit -- and
+those are often exactly the units the treatment leaks into. When
+California raises cigarette taxes, sales shift to Nevada; if Nevada carries
+heavy synthetic-control weight, the counterfactual is contaminated and the
+ATT is biased, sometimes by *more* than a naive difference-in-differences
+would be (Cao & Dowd, Section 6).
+
+The reflexive fix is the **pure-donor method**: drop every control you
+think is contaminated and fit SCM on the survivors. Cao & Dowd argue this
+is often the wrong trade:
+
+* In many panels **most or all controls are exposed** (geographically
+  aggregated data), so there is no clean donor pool left to drop to.
+* Contaminated units are frequently the **most informative** donors;
+  discarding them loses efficiency.
+* Using fewer controls **widens the worst-case bias** when the spillover
+  structure is misspecified -- the pure-donor estimator has a larger
+  identified set.
+
+SPILLSYNTH (``method="cd"``, Cao & Dowd 2023) instead keeps *all* units and
+estimates the **direct treatment effect and the spillover effects jointly**
+under an assumed, contextually-motivated spillover structure
+(matrix :math:`A`, linear in unknown parameters). It is asymptotically
+unbiased for both, supplies an end-of-sample-instability (:math:`P`-test)
+inference procedure that also blunts the selection-into-treatment threat to
+ordinary placebo tests, and ships a misspecification test (the
+:math:`\kappa_A`-statistic) for the structure you assumed. It covers
+multiple treated units / post-periods and both stationary and cointegrated
+factor models.
+
+Reach for SPILLSYNTH when
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * You have **geographic or institutional reasons** to suspect specific
   control units are exposed to spillover (e.g. neighboring states for
   a tax change, neighboring firms for a procurement rule, partner
   countries for a sanctions regime).
-* You can **enumerate** the potentially-affected units before fitting.
-  The estimator does not discover them; it estimates the size of each
-  declared unit's spillover effect jointly with the treatment effect.
-* You have a **moderate pre-period** (paper sims use :math:`T_0 \geq 15`)
-  so the leave-one-out SCM fits are well-estimated.
+* You can **specify the spillover structure** :math:`A` from contextual
+  knowledge before fitting. The estimator does not discover the affected
+  units; it estimates the size of each declared unit's spillover effect
+  jointly with the treatment effect.
+* **Many or all controls are contaminated**, so simply dropping the
+  affected units (the pure-donor route) is impractical or wastes too much
+  information.
+* You have a **moderate-to-long pre-period** (paper sims use
+  :math:`T_0 \geq 15`) -- the asymptotics are large-:math:`T`, fixed number
+  of controls -- so the leave-one-out SCM fits are well-estimated.
+
+Do not use SPILLSYNTH when
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **SUTVA credibly holds** (no spillover). The extra spillover parameters
+  only add variance; use classic SC (:doc:`tssc`, :doc:`scmo`,
+  :doc:`clustersc`).
+* **You cannot defend a spillover structure** :math:`A`. The estimator
+  assumes :math:`A` is known; a badly misspecified structure biases both
+  effects (the :math:`\kappa_A` test mitigates but does not remove this).
+  If only a *few* units are contaminated and droppable, the pure-donor
+  approach on a pruned pool (classic SC) is the simpler honest choice.
+* **Spillovers decay with a known spatial weighting and you want a
+  DiD-style objective** -- :doc:`spsydid` pools them through a spatial
+  weight matrix in a synthetic difference-in-differences fit.
+* **The pre-period is short.** The leave-one-out SCM fits underpinning
+  Assumption 1(a)-(c) are then noisy; a factor-model estimator
+  (:doc:`fma`) may be more stable.
+* **Distributional** questions (quantiles, tails) -- use :doc:`dsc`.
 
 .. note::
 

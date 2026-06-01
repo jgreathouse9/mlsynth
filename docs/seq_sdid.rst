@@ -38,6 +38,70 @@ from the canonical SDID estimator already in :mod:`mlsynth`:
   \tau_{a, k}^{\,SSDiD}` so subsequent ``(a', k')`` steps see an imputed
   panel free of treatment contamination.
 
+When to Use This Estimator
+--------------------------
+
+Event studies with **staggered adoption** -- units switching on at
+different dates -- are the workhorse design of applied micro. The modern
+estimators built for them (Callaway & Sant'Anna 2020, de Chaisemartin &
+d'Haultfœuille 2020, Sun & Abraham 2020, Borusyak et al. 2024) fixed the
+*heterogeneous-effects* bug in two-way fixed effects, but they still rest
+on **parallel trends**: absent treatment, treated and comparison cohorts
+would have moved together. When unobserved **interactive fixed effects**
+(latent unit factors loading on latent time factors) drive selection into
+treatment, parallel trends fails and those estimators are biased --
+exactly the regime Sequential SDiD (Arkhangelsky & Samkov 2025) targets.
+
+Its bet is to *model* the confounder. Within a linear interactive-fixed-
+effects model, Sequential SDiD is proven **asymptotically equivalent to
+the infeasible oracle OLS** that knows the latent factors (Prop. 3.1).
+That equivalence buys three things at once: robustness to parallel-trends
+violations of the IFE type, **asymptotic normality with standard
+inference**, and the first formal **efficiency** guarantee for an SC-type
+estimator. The sequential imputation -- estimate the earliest cohort,
+subtract its effect, reuse the cleaned panel for later cohorts -- gives a
+*cohesive* analysis of the whole event study, in contrast to per-cohort SC
+methods (:doc:`ppscm`, Cattaneo et al. 2021) that treat each adoption
+cohort as a separate problem.
+
+Reach for Sequential SDiD when
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* You have a **staggered-adoption event study** and you suspect
+  **parallel trends fails** because of unobserved confounders that look
+  like interactive fixed effects (selection on latent trends, not just
+  levels).
+* Adoption **cohorts are reasonably large.** The method averages outcomes
+  within each cohort and leans on a law of large numbers to kill
+  idiosyncratic noise; this is the estimator's core requirement and its
+  main limitation.
+* You want **valid, standard inference** (asymptotic normality) and a
+  defensible **efficiency** claim, plus a dynamic **event-study path** of
+  cohort-by-horizon effects.
+* You are in the **fixed-:math:`T`, large-:math:`N`** regime typical of
+  county/firm/individual panels aggregated into a handful of adoption
+  cohorts.
+
+Do not use Sequential SDiD when
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Cohorts are small** (few units per adoption date, or single-unit
+  cohorts). The within-cohort averaging has nothing to average and the
+  oracle equivalence does not engage. Use :doc:`ppscm`, whose partial
+  pooling is designed for noisy per-unit cohort fits, or canonical
+  :doc:`sdid` per cohort.
+* **There is a single treated unit or one common adoption time.** The
+  sequential cascade has nothing to cascade; use canonical :doc:`sdid`
+  (many units, one time) or classic SC (:doc:`tssc`, :doc:`fdid`,
+  :doc:`scmo`) for a single unit.
+* **Parallel trends is credible** and you want the simplest transparent
+  thing. Standard staggered-DiD (Callaway-Sant'Anna and relatives) is
+  fine; on the Bailey-Goodman-Bacon application where PT holds, Sequential
+  SDiD merely reproduces standard DiD.
+* **SUTVA is violated by spillovers** onto the comparison cohorts -- use
+  :doc:`spsydid` or :doc:`spillsynth`.
+* **Distributional** questions (quantiles, tails) -- use :doc:`dsc`.
+
 Mathematical Formulation
 ------------------------
 
