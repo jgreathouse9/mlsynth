@@ -3,50 +3,255 @@ Matching and Synthetic Control (MASC)
 
 .. currentmodule:: mlsynth
 
-When to Use This Estimator
---------------------------
+Assumptions (Kellogg-Mogstad-Pouliot-Torgovitsky 2021)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The synthetic control estimator (SCE) of Abadie and Gardeazabal [ABADIE2003]_
-and Abadie, Diamond and Hainmueller [ABADIE2010]_ builds the treated unit's
-counterfactual as a convex combination of donor units. By construction it
-controls **extrapolation bias** -- the counterfactual cannot fall outside the
-convex hull of the donors -- at the cost of **interpolation bias** when the
-conditional mean of the outcome is non-linear in the pre-treatment
-characteristics. Matching estimators have the opposite profile: by using only
-the donor closest to the treated unit they avoid interpolation, but happily
-extrapolate when no good donor exists. The two biases are *complementary*.
+MASC inherits the formal identification stack of any causal SC
+estimator (paper Section 2.1) and adds the structural conditions
+needed for model averaging to make sense. Listed in the paper's
+order:
 
-``MASC`` exploits that complementarity. Kellogg, Mogstad, Pouliot &
-Torgovitsky [KMPT2021]_ propose a **model-averaging** estimator that takes a
-convex combination of the SCE weight vector and a nearest-neighbour weight
-vector, with the two tuning parameters -- the number of neighbours
-:math:`m` and the averaging weight :math:`\varphi` -- selected jointly by
-**rolling-origin cross-validation**. The :math:`\varphi`-search has a
-closed-form (Kellogg et al., eq. 15), so the CV grid is one-dimensional in
-:math:`m`.
+**A1 (Selection on observables -- paper Assumption 1).** For
+:math:`x` in the supports of both :math:`X_i \mid D_i = 0` and
+:math:`X_i \mid D_i = 1`,
 
-The estimator is the right tool when:
+.. math::
 
-* you have a single treated unit and a sizeable donor pool;
-* the conditional mean of the outcome is plausibly non-linear in the
-  pre-treatment covariates (so an SCE alone may interpolate badly), **and**
-* you also worry that no single donor is close enough to extrapolate from
-  (so pure matching alone may extrapolate badly).
+   \mathbb{E}[Y_{it}(0) \mid D_i = 1, X_i = x]
+   \;=\; \mathbb{E}[Y_{it}(0) \mid D_i = 0, X_i = x]
+   \quad \text{for all } t \ge t^\star.
 
-When SCE achieves a tight pre-period fit and out-of-sample CV doesn't favour
-mixing in any matching, MASC reduces to pure SCE (:math:`\varphi = 0`). When
-SCE pre-fit is poor, the CV pulls :math:`\varphi` toward 1. In intermediate
-regimes the model average dominates either pure estimator.
+This is the standard mean-independence statement (ignorable
+treatment assignment / unconfoundedness / selection on observables)
+applied to the SC framework. Together with A2 it makes the
+post-treatment conditional mean of untreated outcomes for the
+treated unit identifiable from donor outcomes.
 
-**Use cases.** In *marketing science* MASC is useful when the treated brand or
-market has both close competitors (favouring matching) and a wider set of
-plausibly-correlated brands (favouring SCE) -- a campaign rolled out in a
-single DMA where one or two control DMAs look very similar but the broader
-market also moves coherently. In *policy evaluation* MASC fits the canonical
-Abadie--Gardeazabal use case of comparative case studies with idiosyncratic
-shocks (Basque Country and Spanish terrorism, Andersson's Swedish carbon tax,
-California Proposition 99) where neither pure SCE nor pure matching is
-unambiguously preferred.
+**A2 (Overlap -- paper Assumption 2).** The support of
+:math:`X_i \mid D_i = 1` is contained in the support of
+:math:`X_i \mid D_i = 0`. In a comparative case study with a
+single treated unit (the paper's focus), this reduces to "for
+almost every covariate value the treated unit takes, there exists
+*some* donor with similar covariates". With one treated unit,
+overlap fails fully only if the treated unit is an outlier on
+every donor covariate.
+
+**A3 (Lipschitz conditional mean).** The conditional mean
+:math:`\gamma_t(x) = \mathbb{E}[Y_{it}(0) \mid D_i = 0, X_i = x]`
+is Lipschitz in :math:`x` with constant :math:`c`. Used (paper
+Section 2.2) to bound both bias components,
+
+.. math::
+
+   |\text{ExtBias}(w)| \;\le\; c \, \bigl\| x_1 - \textstyle\sum_i w_i x_i \bigr\|
+   \;\equiv\; c \cdot \text{Ext}(w),
+   \qquad
+   |\text{IntBias}(w)| \;\le\; c \, \textstyle\sum_i w_i \|x_1 - x_i\|
+   \;\equiv\; c \cdot \text{Int}(w).
+
+These two bounds are the heart of the MASC argument: the SC
+estimator minimises :math:`\text{Ext}(w)` (and lives at zero
+extrapolation when :math:`x_1` is in the donor hull), while
+matching minimises :math:`\text{Int}(w)` (and lives at zero
+interpolation by using only the nearest neighbours). When
+:math:`\gamma_t` is approximately linear in :math:`x`, the
+interpolation bound is vacuous and SC dominates; when no donor is
+close, the extrapolation bound is large and matching does worse.
+
+**A4 (Complementarity -- the substantive premise of model
+averaging).** Both biases are plausibly relevant in the
+application: :math:`\gamma_t` is non-linear enough that SC alone
+interpolates badly, *and* no single donor is close enough that
+matching alone extrapolates badly. *Remark.* This is the paper's
+central conjecture for why model averaging helps. When either
+bias is absent the data-driven CV will pick
+:math:`\hat\varphi \in \{0, 1\}` and MASC degenerates to a
+boundary estimator -- a feature, not a bug.
+
+**A5 (Rolling-origin stability).** The relationship between
+treated and donor outcomes is stable across the late-pre-period
+folds *and* across the pre/post boundary, so that one-step-ahead
+forecast accuracy on the training-set tail is informative about
+post-treatment forecast accuracy. *Remark.* This is the SC
+identification premise restricted to the fold horizon. Without
+it the CV criterion is uninformative about the post-period and
+:math:`\hat\varphi` reflects only pre-period drift.
+
+**A6 (Quadratic-in-**:math:`\varphi` **closed form).** The CV
+criterion :math:`Q(m, \varphi)` is quadratic in :math:`\varphi`
+with positive semi-definite Hessian, so the unconstrained
+optimum is unique and the constrained optimum on :math:`[0, 1]`
+is its clip. *Remark.* Mechanical; the joint :math:`(m, \varphi)`
+search reduces to a one-dimensional sweep over :math:`m`. Held
+by construction.
+
+When the assumptions bind: practical diagnostics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+(a) **Selection on observables (A1).** Like every regression /
+    SC / matching estimator, MASC assumes that the only
+    systematic difference between treated and donor post-period
+    outcomes is captured by the observed pretreatment
+    covariates :math:`X_i`. If a confounder is missing from
+    :math:`X_i`, MASC's counterfactual is biased *regardless*
+    of how the CV picks :math:`(\hat m, \hat \varphi)`.
+
+    *Plausibly violated when* a known driver of the outcome is
+    omitted from ``covariates`` -- a state's industry mix in a
+    labour-market study, an audience segment in a marketing
+    study. *Diagnostic*: re-fit with one omitted covariate at a
+    time and check whether ``res.att`` moves; large movements
+    flag a missing confounder. There is no within-MASC fix;
+    the cure is to include the missing covariate, or accept
+    selection-on-observables is failing for this application.
+
+(b) **Overlap (A2).** With one treated unit, full overlap
+    failure means the treated covariates lie outside the donor
+    convex hull on at least one dimension.
+
+    *Plausibly violated when* the treated unit is structurally
+    extreme on a known covariate (Hong Kong's GDP level vs
+    other Asian regions; California's population vs interior
+    states). *Diagnostic*: at the SC limit (:math:`\varphi = 0`)
+    the pre-period RMSE will be elevated *and* the implied SC
+    weights will concentrate on a few donors with substantial
+    covariate gaps. If ``res.fit.pre_rmse`` stays large *and*
+    matching (:math:`\varphi = 1`) does even worse, both
+    components of the model average are failing for the same
+    reason. Switch to :doc:`iscm` (which identifies the effect
+    even when the treated unit is outside the hull) or
+    :doc:`nsc` (which drops the simplex restriction so SC
+    weights can extrapolate by going negative on far donors).
+
+(c) **Lipschitz conditional mean (A3).** The Lipschitz constant
+    controls *how much* extrapolation / interpolation bias the
+    two component estimators incur. If :math:`\gamma_t` has a
+    sharp kink or threshold in :math:`x`, the bounds are loose
+    and MASC's CV-driven mix can be unstable.
+
+    *Plausibly violated when* the outcome is a step function
+    (regulatory threshold), has a kink (minimum-wage bunching),
+    or saturates near a ceiling. *Diagnostic*: plot the per-fold
+    one-step-ahead forecast errors of the pure SC and pure
+    matching arms (``res.cv_diagnostics`` exposes both); if the
+    two error series are highly correlated across folds, the
+    averaging gain is small and MASC reduces to either
+    boundary.
+
+(d) **Complementarity / both biases bind (A4).** If only one
+    bias matters, MASC's CV will sit at :math:`\hat\varphi
+    \in \{0, 1\}` and the model average adds variance without
+    bias improvement.
+
+    *Plausibly violated when* the SC pre-fit is already tight
+    (:math:`\gamma_t` is approximately linear in :math:`x` on
+    the donor support) or no donor is remotely close (matching
+    alone extrapolates badly across the board). *Diagnostic*:
+    read ``res.phi_hat``. If it is essentially 0 or 1 across
+    multiple seeds / fold configurations, the MASC machinery
+    is over-engineered for this application and the
+    corresponding pure estimator is the better default --
+    :doc:`scm` / :doc:`tssc` for the :math:`\varphi = 0`
+    regime, a nearest-neighbour matching estimator outside
+    mlsynth for the :math:`\varphi = 1` regime.
+
+(e) **Rolling-origin stability (A5).** The CV-selected
+    :math:`(\hat m, \hat \varphi)` is only as informative as
+    the late-pre-period is representative of the post-period.
+
+    *Plausibly violated when* a structural break (regime
+    change, pandemic, financial crisis) sits inside the pre-
+    period close to :math:`t^\star`. *Diagnostic*: inspect the
+    per-fold forecast errors; if they trend sharply over the
+    fold index, the late-pre-period is not exchangeable with
+    the early one and the CV is mostly fitting that trend.
+    Either trim the pre-period to a regime-stable window or
+    move to a stationary-cycle estimator (:doc:`sbc`).
+
+(f) **Multiple treated units.** The paper's setup is one
+    treated unit. With multiple treated, the SC step's
+    non-uniqueness problem (which the penalised-SC of Abadie &
+    L'Hour 2020 was built for) propagates into MASC's mix.
+    *Plausibly violated when* you have several treated units
+    on the same cohort. *Diagnostic*: MASC's headline numbers
+    will be sensitive to which treated unit you single out as
+    "the" treated; if so, use :doc:`scm` paired with the
+    penalised variant, or :doc:`fect` for staggered designs.
+
+When to use MASC -- and when not to
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Reach for MASC when:**
+
+* You have **a single treated unit and a moderate-to-large
+  donor pool** with non-trivial heterogeneity across donors.
+  Comparative case studies in policy evaluation (Basque
+  terrorism, Prop 99, German reunification) are the canonical
+  setting.
+* The conditional mean of the outcome is **plausibly
+  non-linear** in the pre-treatment covariates -- so pure SC's
+  interpolation bias is a real risk -- *and* you also suspect
+  **no donor is close enough** to extrapolate from -- so pure
+  matching's extrapolation bias is also a real risk. When
+  both worries are alive, MASC's :math:`\hat\varphi` trades
+  them off in a data-driven way.
+* You can't decide a priori whether SC or matching is more
+  appropriate. The CV gives you a defensible answer rather
+  than the practitioner's eyeball "I'll use SC because that's
+  what the paper said".
+* The pre-period is **long enough for rolling-origin
+  cross-validation** to discriminate the two biases (KMPT
+  Section 5 uses 20 pre-treatment years on Basque; mlsynth's
+  ``min_preperiods`` defaults to 5 as a hard floor, but
+  pre-periods around 10+ are where CV becomes informative).
+
+**Do not use MASC when:**
+
+* **Either bias dominates.** If ``res.phi_hat`` is essentially
+  0 or 1 across seeds, MASC adds variance without bias
+  improvement. At :math:`\hat\varphi \approx 0` reach for
+  :doc:`scm` / :doc:`tssc` (or :doc:`fscm` for selective donor
+  pruning); at :math:`\hat\varphi \approx 1` reach for a
+  dedicated nearest-neighbour matching estimator.
+* **The treated unit is structurally outside the donor convex
+  hull.** Both component estimators fail (A2). Use
+  :doc:`iscm` (identifies the effect via donors that use the
+  treated unit as a positive-weight donor) or :doc:`nsc`
+  (drops the simplex restriction to extrapolate by negative
+  weights).
+* **You need posterior credible bands** on the weights / ATT.
+  MASC returns point estimates plus a CV criterion. For full
+  Bayesian inference, use :doc:`bvss` (spike-and-slab
+  variable selection with a soft simplex).
+* **The pre-period is very short** (:math:`T_1 < 10`-ish).
+  Rolling-origin CV has too few folds to discriminate
+  :math:`(m, \varphi)`; the selected mix is noise. Use
+  :doc:`scm` / :doc:`tssc` / :doc:`fdid` (which work without
+  CV) instead.
+* **Multiple treated units.** MASC's identification story
+  uses a single treated unit. For staggered or many-treated
+  designs, use :doc:`fect` or :doc:`sdid`. (The paper's
+  Section 2.7 notes one *could* average a matching and
+  penalised-SC pair across treated units, mirroring MASC, but
+  this is not in the mlsynth implementation and demands additional econometric theory.)
+* **Structural break inside the pre-period.** A5 fails; the
+  CV is fitting the break instead of the post-period mix.
+  Trim to a stable window or use :doc:`sbc`.
+* **You need a single sparse interpretable weight vector** as
+  the policy-story deliverable. MASC's output is a *mixture*
+  of SC weights and matching weights; both can be sparse on
+  their own, but the mixed vector is generically less sparse
+  than either component. If the headline must be "California
+  ≈ Utah + Montana + Nevada", run :doc:`scm` alongside.
+* **Distributional questions** (Lorenz curves, QTEs, tail
+  effects). MASC targets the mean ATT. Use :doc:`dsc`.
+* **Continuous or multi-valued treatment.** MASC encodes a
+  single binary intervention. Continuous dose belongs in
+  :doc:`ctsc`.
+* **Spillovers across donors.** Both component estimators
+  inherit SUTVA at the donor level. Use :doc:`spillsynth` or
+  :doc:`spsydid`.
+
 
 Notation
 --------
@@ -128,29 +333,6 @@ Holding :math:`m` fixed, the first-order condition gives the closed form
 reproducing eq. 15 of Kellogg et al. (2021). The selected
 :math:`\hat m = \operatorname*{argmin}_m Q(m,\hat\varphi(m))` is then plugged
 in and final weights are refitted on the full pre-period.
-
-**Assumptions / Remarks.**
-
-*Assumption 1 (complementarity).* The conditional mean of the outcome is
-non-linear in the predictors -- so that pure SCE is susceptible to
-interpolation bias -- *and* no single donor is identical to the treated
-unit on those predictors -- so pure matching is susceptible to extrapolation
-bias. *Remark.* This is the paper's central premise. When either bias is
-absent the model average degenerates to one of the boundary estimators and
-the CV will pick :math:`\hat\varphi \in \{0, 1\}` accordingly.
-
-*Assumption 2 (rolling-origin stability).* The relationship between treated
-and donor outcomes is stable across the late-pre-period folds and the
-post-period -- so that out-of-sample forecast accuracy on the training-set
-tail is informative about post-treatment forecast accuracy. *Remark.* This
-is the SCE identification premise restricted to the fold horizon. Without
-it the CV criterion is uninformative about the post-period.
-
-*Assumption 3 (analytic-:math:`\varphi` validity).* The CV criterion is
-quadratic in :math:`\varphi` with positive semi-definite Hessian, so
-restricting to the interval :math:`[0, 1]` recovers the constrained
-optimum. *Remark.* This is mechanical and lets the joint :math:`(m,\varphi)`
-search reduce to a one-dimensional sweep over :math:`m`.
 
 Empirical Illustration: Basque Country and Spanish Terrorism
 -----------------------------------------------------------------
