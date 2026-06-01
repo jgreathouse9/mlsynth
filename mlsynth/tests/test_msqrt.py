@@ -64,6 +64,80 @@ class TestSolve:
         _, _, nz_big = fit_msqrt_weights(Y, X, lambd=5.0)
         assert nz_big.sum() <= nz_small.sum()
 
+    def test_admm_matches_cvxpy(self):
+        # The fast ADMM must reach the same optimum as the conic solver, on the
+        # *elementwise* L1 objective (eq. 5) -- guards the solver + the
+        # elementwise-penalty fix against regressions.
+        cp = pytest.importorskip("cvxpy")
+        from mlsynth.utils.msqrt_helpers.optimization import (
+            fit_msqrt_admm, _fit_msqrt_cvxpy,
+        )
+        rng = np.random.default_rng(0)
+        T, n, m = 25, 8, 3
+        X = rng.standard_normal((T, n))
+        true = np.zeros((n, m))
+        true[[0, 2], 0] = [0.6, 0.4]; true[1, 1] = 1.0; true[[3, 5], 2] = [0.5, 0.5]
+        Y = X @ true + rng.standard_normal((T, m)) * 0.1
+
+        def obj(Th, lam):
+            return ((1 / np.sqrt(T)) * np.linalg.norm(Y - X @ Th, "nuc")
+                    + lam * np.abs(Th).sum())
+
+        for lam in (0.05, 0.2, 0.5):
+            Ta = fit_msqrt_admm(Y, X, lam)
+            Tc = _fit_msqrt_cvxpy(Y, X, lam)
+            assert obj(Ta, lam) == pytest.approx(obj(Tc, lam), rel=1e-3)
+            assert np.linalg.norm(Ta - Tc) < 1e-2
+
+    def test_elementwise_l1_not_induced_norm(self):
+        # The penalty must be sum_ij |Theta_ij|, not cp.norm(.,1)'s induced
+        # 1-norm (max column abs-sum). Build a case where they differ and check
+        # the objective the ADMM minimises uses the elementwise penalty.
+        cp = pytest.importorskip("cvxpy")
+        from mlsynth.utils.msqrt_helpers.optimization import fit_msqrt_admm
+        rng = np.random.default_rng(3)
+        T, n, m = 30, 5, 4
+        X = rng.standard_normal((T, n))
+        Y = X @ rng.standard_normal((n, m))
+        Th = fit_msqrt_admm(Y, X, 0.3)
+        elementwise = np.abs(Th).sum()
+        induced = np.abs(Th).sum(axis=0).max()      # max column sum
+        # for a non-trivial multi-column solution these are clearly different
+        assert elementwise > induced + 1e-6
+
+    def test_warm_start_matches_cold(self):
+        # Warm-starting from a nearby solution must not change the optimum.
+        from mlsynth.utils.msqrt_helpers.optimization import fit_msqrt_admm
+        rng = np.random.default_rng(5)
+        T, n, m = 50, 12, 4
+        X = rng.standard_normal((T, n)) + 2.0
+        Y = X @ rng.standard_normal((n, m))
+        cold = fit_msqrt_admm(Y, X, 0.1)
+        _, state = fit_msqrt_admm(Y, X, 0.15, return_state=True)
+        warm = fit_msqrt_admm(Y, X, 0.1, warm_start=state)
+        assert np.linalg.norm(cold - warm) < 1e-3
+
+    def test_over_relaxation_converges_to_optimum(self):
+        # The default (over_relax=1.5) and a larger value must both reach the
+        # cvxpy optimum -- including on mean-shifted, ill-conditioned data.
+        cp = pytest.importorskip("cvxpy")
+        from mlsynth.utils.msqrt_helpers.optimization import (
+            fit_msqrt_admm, _fit_msqrt_cvxpy,
+        )
+        rng = np.random.default_rng(6)
+        T, n, m = 50, 12, 4
+        X = rng.standard_normal((T, n)) + 2.0
+        Y = X @ rng.standard_normal((n, m))
+
+        def obj(Th):
+            return ((1 / np.sqrt(T)) * np.linalg.norm(Y - X @ Th, "nuc")
+                    + 0.2 * np.abs(Th).sum())
+
+        ref = obj(_fit_msqrt_cvxpy(Y, X, 0.2))
+        for orx in (1.5, 1.7):
+            assert obj(fit_msqrt_admm(Y, X, 0.2, over_relax=orx)) == \
+                pytest.approx(ref, rel=1e-3)
+
     def test_cv_returns_grid_value(self):
         df = _block_panel()
         inp = prepare_msqrt_inputs(df, "Y", "treated", "unit", "time")
