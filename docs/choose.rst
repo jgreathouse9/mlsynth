@@ -149,11 +149,9 @@ pre-fit can look perfect and the ATT still be biased.
 regime?**
 
 * **Yes** -- you may not need synthetic control at all: plain
-  **difference-in-differences** is simpler and more powerful (see Roth,
-  Sant'Anna, Bilinski & Poe, *J. Economic Literature* 2025,
-  `10.1257/jel.20251650 <https://doi.org/10.1257/jel.20251650>`_). The
-  nearest in-library options are :doc:`sdid` (which degenerates toward DiD)
-  or :doc:`fdid` if parallel trends holds only for a *subset* of donors.
+  **difference-in-differences** is simpler and more powerful. The
+  nearest in-library options are :doc:`sdid`
+  or :doc:`seq_sdid`.
 * **No** -- you are in SCM territory. Ask the master question:
 
 **Q0.6 · How many treated units?**
@@ -173,9 +171,7 @@ Start here
 With one treated unit, a sharp intervention, and a scalar ATT, start with
 **:doc:`fdid`** -- Forward DiD greedily selects the donors that share the
 treated trend, needs no convex-hull assumption, and gives valid inference
-even under nonstationarity, all with one estimated parameter. If you would
-rather **formally test** the SC pre-trends assumption and let the data pick
-the SC/MSC variant, use **:doc:`tssc`**. If neither of the escalations
+even under nonstationarity, all with one estimated parameter. If the Forward Parallel Trends Assumption does not hold, use **:doc:`tssc`**. If neither of the escalations
 below applies, you are done.
 
 Now walk the escalations, easy to hard:
@@ -196,7 +192,7 @@ spillovers (a true outlier)?
   (penalised / :math:`L_\infty`), or the unconstrained :doc:`pda`.
 
 **Q1.3 · Is the outcome nonstationary**, so a tight pre-fit might be a
-*spurious* trend match?
+*spurious* match?
 
 * **No** -- next question.
 * **Yes** -- decompose first: :doc:`sbc` (Hamilton trend/cycle split, match
@@ -206,8 +202,7 @@ spillovers (a true outlier)?
 heavy observation noise?**
 
 * **No** -- next question.
-* **Yes** -- :doc:`tasc` (time-aware state-space; uses the *ordering* of
-  pre-periods), :doc:`fma` (PC factors with a residual-bootstrap test), or
+* **Yes** -- :doc:`tasc` (time-aware state-space model), :doc:`fma` (PC factors with a residual-bootstrap test), or
   :doc:`dscar` (time-varying weights for strongly autocorrelated panels
   with time-varying confounders).
 
@@ -216,13 +211,13 @@ heavy observation noise?**
 * **No** -- next question.
 * **Yes** -- :doc:`nsc`.
 
-**Q1.6 · Is the donor pool large relative to the pre-period (N ≳ T0)?**
-This is the most common reason to leave the workhorses: unrestricted fits
+**Q1.6 · Is the donor pool large relative to the pre-period (N >> T0)?**
+This is the most common reason to leave the standard workhorses: unrestricted fits
 **overfit** the pre-period and predict the post-period worse.
 
 * **No** -- next question.
 * **Yes** -- escalate, roughly easiest first: :doc:`fscm` (tune the donor
-  *count*), :doc:`sparse_sc` (L1 predictor selection), :doc:`pda`
+  *count*), :doc:`sparse_sc` (L1 predictor/covariate selection), :doc:`pda`
   (L2-relaxation / Lasso / forward), :doc:`rescm` (one program from simplex
   SC to :math:`L_\infty` to DiD), :doc:`clustersc` (denoise + cluster
   donors), or :doc:`bvss` (Bayesian spike-and-slab with a soft simplex).
@@ -234,7 +229,7 @@ This is the most common reason to leave the workhorses: unrestricted fits
   :doc:`snn`.
 * **Yes, arbitrary sparse / low-rank** -- :doc:`mcnnm`.
 
-**Q1.8 · Is your estimand or treatment non-standard** (not a scalar mean
+**Q1.8 · Is your estimand or treatment effect non-standard** (not a scalar mean
 ATT for one binary treatment)?
 
 * **No** -- you are done; use the *Start here* method.
@@ -253,17 +248,10 @@ treated unit, so the fit blends dissimilar units?
   matching** with the SC simplex and chooses the mix that minimises
   estimated bias, directly targeting interpolation bias.
 
-.. note::
-
-   If your assignment was effectively **random**, you are not really in the
-   single-unit observational ladder at all -- :doc:`musc` (Gate 0.2) is the
-   design-based estimator built for that case, with finite-sample
-   unbiasedness and exact randomization intervals.
-
 Part 2 — Many treated units
 ---------------------------
 
-Again, simplest first. The base case for multiple treated units is
+The base case for multiple treated units is
 **:doc:`sdid`** -- Synthetic Difference-in-Differences, doubly weighted by
 unit *and* time weights -- which works whether adoption is simultaneous or
 staggered and degrades gracefully when parallel trends or exact matching
