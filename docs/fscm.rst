@@ -138,28 +138,73 @@ validation score is the RMSPE of those one-step forecasts. Every late
 pre-period period serves as a test point, using the data more efficiently than
 a single cut.
 
-**Assumptions / Remarks.**
+Assumptions (forward convex hull + selection consistency)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-*Assumption 1 (bias--variance trade-off in the donor count).* The out-of-sample
-prediction error of the synthetic control is non-monotone in the number of
-donors: it falls as relevant donors are added, then rises as weakly-correlated
-donors inflate variance. *Remark.* This is the paper's central conjecture and
-the reason the donor count is tunable at all -- if more donors always helped out
-of sample, the full pool would be optimal and there would be nothing to select.
+FSCM relaxes canonical SCM's "the full donor pool must contain a
+convex-hull match for the treated unit" to the much weaker "*some*
+subset does," and the forward-stepwise selector is the device that
+finds it. The four assumptions that make the selector behave:
 
-*Assumption 2 (stable pre/post relationship).* The weights that reproduce the
-treated unit on the test window also reproduce it post-treatment, i.e. the
-donor--treated relationship is stable across the pre/post boundary (the standard
-SCM identification premise). *Remark.* This is what licenses using
-**pre-period** out-of-sample fit (the test window) as a stand-in for
-**post-period** predictive accuracy, which is never observed for the treated
-counterfactual.
+**A1 (forward convex-hull condition -- the identifying premise).**
+There exists a non-empty subset :math:`U^* \subseteq \mathcal{N}`
+and simplex weights :math:`\omega^* \in \Delta_{U^*}` such that the
+treated unit's pre-period trajectory is (approximately) reproduced
+by the corresponding donor combination,
 
-*Assumption 3 (greedy adequacy).* Forward stepwise selection recovers a donor
-set whose out-of-sample fit is close to the best subset of that size. *Remark.*
-Greedy selection is not guaranteed to find the global best subset, but it costs
-:math:`1 + J(J+1)/2` fits versus :math:`2^J` for exhaustive search -- the
-practical price of feasibility in large pools.
+.. math::
+
+   y_{0t} \;\approx\; \sum_{j \in U^*} \omega_j^*\, y_{jt}
+   \quad \text{for all } t \in \mathcal{T}_1.
+
+The classical SCM hull condition is the special case
+:math:`U^* = \mathcal{N}`; FSCM operates whenever **some** subset
+(potentially a small one) supplies the hull. **If no subset of
+controls can form a convex hull around the target, FSCM cannot be
+used** -- and no amount of forward stepwise will rescue it. The
+diagnostic is the lower envelope of in-sample RMSPE across the
+nested models :math:`\{U_k\}`: if it never falls below the noise
+floor at any size, A1 is failing.
+
+**A2 (stable pre/post relationship).** The weights that reproduce
+the treated unit on the pre-period also reproduce its untreated
+trajectory on the post-period -- the standard SCM identification
+premise carried through to the selected subset. *Remark.* This is
+what licenses using **pre-period** out-of-sample fit (the
+cross-validation test window) as a stand-in for **post-period**
+predictive accuracy of the counterfactual, which is never
+observed.
+
+**A3 (forward-stepwise selection consistency).** Under regularity
+conditions on the donor pool and the pre-period length (Shi &
+Huang 2023, Theorem 1) [fsPDA], the forward stepwise selection rule
+recovers the oracle donor set wpa1:
+
+.. math::
+
+   \mathbb{P}\bigl( U_{k^*} = U^* \bigr) \;\longrightarrow\; 1
+   \qquad \text{as } T_1 \to \infty.
+
+*Remark.* This is the **wpa1 selection-consistency** property
+that distinguishes FSCM from heuristic donor pre-screening:
+greedy forward steps are not just computationally tractable
+(:math:`1 + J(J+1)/2` fits vs. the exhaustive :math:`2^J`), they
+asymptotically pick the *right* subset. The regularity conditions
+follow Shi & Huang and assume bounded donor signals, mixing
+shocks within units, and a signal-strength condition on the
+oracle weights (no donor in :math:`U^*` carries vanishing weight
+in :math:`\omega^*`).
+
+**A4 (informative cross-validation split).** The pre-period is
+long enough, and the donor / treated dynamics stable enough
+across the split, that the test-RMSPE on the held-out interval
+is a consistent estimate of out-of-sample prediction error.
+*Remark.* mlsynth's expanding-window scheme expects the late
+pre-period to resemble the post-period in distribution; if the
+panel has a structural break inside the pre-window (a global
+financial crisis, a regime change), this assumption fails and the
+selected :math:`k^*` will reflect the break, not the donor pool.
+
 
 Empirical Illustration: California's Proposition 99
 ---------------------------------------------------
