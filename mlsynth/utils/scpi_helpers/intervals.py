@@ -35,7 +35,8 @@ def _half(sigma: float, alpha: float) -> float:
 def _band(predictand, label, point, mu, sigma, alpha) -> SCPIBand:
     """One out-of-sample band: recentre by ``mu`` and add the concentration
     half-width. ``M_out = mu - h``, ``Mbar_out = mu + h``; interval is
-    ``[point - Mbar_out, point - M_out]``."""
+    ``[point - Mbar_out, point - M_out]``.
+    """
     h = _half(sigma, alpha)
     m_out, mbar_out = mu - h, mu + h
     return SCPIBand(
