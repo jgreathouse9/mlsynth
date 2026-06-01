@@ -21,6 +21,50 @@ between the two, choosing :math:`\nu` to balance overall and unit-level
 imbalance. ``time_cohort=True`` collapses units sharing an adoption time into a
 single fully-pooled cohort (one synthetic control per cohort).
 
+The problem PPSCM solves is that the two reflexive extensions of SCM to
+staggered adoption are each flawed. **Separate SCM** (fit a synthetic
+control per treated unit, then average -- common practice) requires a good
+synthetic control for *every* treated unit, which often fails, and its
+strong per-unit fits can still leave the *average* poorly matched, biasing
+the ATT. **Pooled SCM** (match the average treated unit) nails the average
+fit but can fit individual units badly, biasing unit-level effects and the
+average when the data-generating process drifts over time. Ben-Michael,
+Feller and Rothstein bound the estimation error by *both* the average
+imbalance and the per-unit imbalances, and partially pooled SCM minimises a
+weighted combination of the two -- the regime where neither extreme is
+trustworthy.
+
+Reach for PPSCM when
+^^^^^^^^^^^^^^^^^^^^^
+
+* Several units are treated at **different adoption times**, with a pool of
+  never-treated (or not-yet-treated) comparison units.
+* You want an **ATT over relative time** (an event-study path), pooling
+  information across cohorts rather than trusting each cohort's own fit.
+* **No single donor mix matches every treated unit**, so separate SCM
+  leaves you with unreliable per-unit fits -- the partial-pooling dial lets
+  the average fit borrow strength without abandoning unit-level fit.
+* You want an estimator that **nests** the familiar special cases (separate
+  and fully pooled SCM) and a principled way to choose between them.
+
+Do not use PPSCM when
+^^^^^^^^^^^^^^^^^^^^^^
+
+* **All treated units adopt at the same time** (a single cohort). The
+  staggered machinery is unnecessary; use classic SC (:doc:`tssc`,
+  :doc:`fdid`) or, for many treated units at one time, :doc:`sdid`.
+* **You are willing to assume parallel trends after weighting** and want
+  the DiD-flavoured double weighting / time weights. :doc:`sdid` (and, for
+  efficiency under interactive fixed effects, :doc:`seq_sdid`) is the more
+  natural home; PPSCM is a *synthetic-control* estimator, not a
+  difference-in-differences one.
+* **Spillovers violate SUTVA** across the donor pool -- use :doc:`spsydid`.
+* **The treated paths lie outside the donor convex hull / the donor pool is
+  large and noisy.** Partial pooling cannot manufacture a hull that does
+  not contain the treated units; a factor-model (:doc:`fma`) or low-rank
+  (:doc:`clustersc`, :doc:`mcnnm`) approach is better.
+* **Distributional** effects (quantiles, tails) -- use :doc:`dsc`.
+
 Notation
 --------
 

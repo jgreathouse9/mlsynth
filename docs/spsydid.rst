@@ -43,13 +43,39 @@ When :math:`W = 0` (no spatial structure) or no donor has any treated
 neighbour, SpSyDiD numerically reduces to plain SDID with
 :math:`\widehat \tau_s = 0`.
 
-When to use SpSyDiD instead of plain SDID
------------------------------------------
+When to Use This Method
+-----------------------
+
+Every difference-based estimator -- DiD, synthetic control, and plain
+:doc:`sdid` -- rests on **SUTVA**: a control unit's outcome is unaffected
+by anyone else's treatment. Geography routinely breaks this. When a policy
+in the treated region leaks to its neighbours, those neighbours are exactly
+the units a synthetic control wants to lean on, and the leakage corrupts
+the comparison. Serenini & Masek (2024) make the bias explicit:
+
+* **Spillovers onto units *inside* the donor pool** bias and render
+  **inconsistent** the standard SDID ATT -- the synthetic control is built
+  from partially-treated donors, so the "untreated" benchmark is itself
+  moving with the treatment.
+* **Spillovers *outside* the donor pool** leave the ATT identifiable but
+  make the population **ATE** unidentified, because the indirect effect on
+  exposed-but-excluded units is never measured.
+
+SpSyDiD targets this regime directly. It adds a single **spatial exposure
+term** :math:`(WD)_{it} = \sum_j w_{ij} D_{jt}` to the doubly-weighted SDID
+regression, so the estimator returns *two* numbers: the direct ATT
+:math:`\hat\tau` (same form as SDID) and the per-exposure indirect
+coefficient :math:`\hat\tau_s`. The population ATE then follows from
+:math:`\widehat{ATE} = \hat\tau\,(1 + \overline{WD})` (eq. 14). Relative to
+the older Spatial DiD of Delgado & Florax (2015), the synthetic weighting
+sharpens identification of the **indirect** effect while keeping SDID's
+robustness for the **direct** effect.
 
 Reach for SpSyDiD whenever there is a plausible mechanism for the
 treatment to *leak* from the directly-treated units to a subset of
-the donor pool through spatial or structural proximity. Typical
-examples:
+the donor pool through spatial or structural proximity, **and** you can
+supply a credible row-standardised weight matrix :math:`W` encoding that
+proximity. Typical examples:
 
 * **Immigration policy with cross-border relocation.** Arizona's
   2007 LAWA legislation directly affected Arizona's noncitizen
@@ -64,9 +90,30 @@ examples:
   DMA boundaries.
 * **Vaccine mandates** with cross-state mobility effects.
 
-If you suspect spillovers but cannot disentangle direct vs indirect
-effects, SpSyDiD is the right tool. If you have no spillover concern
-(SUTVA holds), plain SDID is faster and more parsimonious.
+Do not use SpSyDiD when
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **SUTVA holds / there is no spillover concern.** With :math:`W = 0` or no
+  treated neighbours, SpSyDiD reduces numerically to plain :doc:`sdid` with
+  :math:`\hat\tau_s = 0`; the extra exposure column just adds noise. Use
+  :doc:`sdid` -- it is faster and more parsimonious.
+* **You cannot defend a spatial weight matrix.** The whole identification
+  of :math:`\hat\tau_s` runs through :math:`W`. If proximity is not the
+  spillover channel (e.g., interference flows through an unobserved social
+  or supply-chain network you cannot encode), a misspecified :math:`W`
+  buys biased indirect effects; consider :doc:`spillsynth`, which models
+  spillover through donor membership rather than a fixed geographic kernel.
+* **Interference is global or non-local.** SpSyDiD assumes exposure is a
+  *local*, distance-decaying function of neighbours' treatment. General
+  equilibrium effects that hit every unit equally are absorbed into the
+  time effects and cannot be separated.
+* **You only need the direct ATT and the donor pool is clean.** If the
+  spillover-affected units can simply be *dropped* from the donor pool and
+  the indirect effect is not of interest, plain :doc:`sdid` on the pruned
+  pool is the simpler honest choice.
+* **Distributional questions** (quantiles, tails) -- use :doc:`dsc`; or a
+  **single treated unit with no spatial structure** -- use :doc:`tssc` /
+  :doc:`fdid`.
 
 Mathematical Formulation
 ------------------------

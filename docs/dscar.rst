@@ -29,22 +29,151 @@ The acronym ``DSCAR`` is used in mlsynth to distinguish this estimator
 from the **Distributional Synthetic Control** of Gunsilius (2023),
 which ships under :class:`mlsynth.DSC`.
 
-When to use DSCAR
------------------
+When to Use This Method
+-----------------------
 
-Reach for DSCAR when:
+The motivating problem in Zheng & Chen (2024) is an **air-pollution
+alert**: a city authority orders mandatory emission cuts when bad air is
+forecast, and you want to know whether the alert actually lowered
+pollution at the affected monitoring stations. Three features of that
+data break the classical synthetic-control toolkit, and they recur far
+beyond air quality -- in marketing panels from wearables and loyalty
+apps, in clinical monitoring, in any micro-level spatio-temporal study:
 
-* The outcome you care about has **strong autocorrelation** (hourly
-  pollutant concentrations, daily prices, weekly sales), AND
-* You have **time-varying covariates** that you'd like to match on
-  period-by-period, AND
-* You're in the high-:math:`N` / moderate-:math:`T` regime that suits
-  micro-panel data (e.g., 50-100 monitoring stations × 50-100 hours).
+* **Time-varying confounders.** The thing that drives the outcome
+  (meteorology for pollution, weather/promotions for sales, vitals for
+  health) *moves every period*. Classical SC matches on time-*invariant*
+  covariates plus the whole pre-treatment outcome trajectory; it has no
+  natural way to match a confounder that is a different value at every
+  :math:`t`.
+* **Autoregressive outcomes.** Hourly pollutant concentrations, daily
+  prices, and weekly sales carry the previous period forward
+  (:math:`Y_{it}(0) = \delta_t + \beta_t' X_{it} + \rho_t Y_{i,t-1}(0) +
+  \varepsilon_{it}`). The lagged outcome is itself a confounder that has
+  to be matched.
+* **Many units, short panel, spatial dependence.** Micro-level studies
+  have *lots* of units (dozens to hundreds of stations) observed over a
+  *short* window, and neighbouring units' shocks are correlated. Classical
+  SC's consistency needs the pre-period :math:`T_0 \to \infty`; here
+  :math:`T_0` is small and what grows is the number of units.
 
-If your panel has a single treated unit with no covariates and a long
-pre-period, classical :class:`TSSC` / :class:`SCMO` will be faster and
-simpler. DSCAR's per-period EL refinement is the right tool when the
-covariate trajectories matter as much as the outcome trajectory.
+DSCAR (Zheng & Chen's Dynamic Synthetic Control) is built for exactly
+this regime. Instead of one fixed weight vector matched on the full
+:math:`(p + T_0)`-dimensional pre-trajectory, it constructs a **fresh
+weight vector at every post-period** that matches only the *current*
+confounder state and *one* lagged outcome -- a :math:`(p+1)`-dimensional
+match. Two consequences follow, and they are the reasons to reach for it:
+
+1. **Matching becomes feasible.** A low-dimensional per-period match is
+   far easier to satisfy *exactly* than SC's full-trajectory match; the
+   paper proves the exact match is attained with probability approaching
+   one. The weights are pinned down by **empirical-likelihood**
+   maximisation (:math:`\max \prod_i w_{it}` under the matching
+   constraints), which guarantees a **unique** solution and lets the
+   authors characterise the weights' asymptotic order -- the lever behind
+   the consistency proof.
+2. **The asymptotics run in :math:`N`, not :math:`T_0`.** :math:`\hat\tau_t`
+   is consistent as :math:`N_{tr}, N_{co} \to \infty` with :math:`T`
+   *fixed*, in marked contrast to Abadie et al. (2010), which needs
+   :math:`T_0 \to \infty`. This is what makes DSCAR a *micro-data*
+   estimator: it naturally handles **multiple treated units** sharing a
+   common intervention time and **spatially dependent** outcomes and
+   errors.
+
+DSCAR also turns the unconfoundedness assumption from an article of faith
+into something **testable**. Because :math:`Y_{it} = Y_{it}(0)` for every
+unit before treatment, you can run the estimator on the pre-period and
+check whether the pseudo-effects are zero (Section 3.1; with an FDR
+correction across periods). A non-zero pre-period effect flags a
+misspecified model -- a cue to change covariates or add higher-order
+lags. For post-period significance, the paper supplies a **normalised
+placebo test** that rescales each control's placebo path, addressing the
+asymmetry that ordinary placebo tests ignore when treated and control
+units have different error variances.
+
+Dynamic per-period matching vs. fixed-trajectory SC
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Both methods build a counterfactual from a weighted average of controls;
+the difference is *what* gets matched and *when*.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * -
+     - Classical SC (ADH 2010)
+     - DSCAR (Zheng & Chen 2024)
+   * - **Weights**
+     - one vector, constant in time
+     - re-solved every post-period
+   * - **Match target**
+     - time-invariant covariates + full :math:`T_0` outcome path
+     - current confounder state + one lagged outcome
+   * - **Confounders**
+     - time-invariant
+     - **time-varying**
+   * - **Outcome model**
+     - factor model :math:`\lambda_t' \xi_i`
+     - **autoregressive** :math:`\rho_t Y_{i,t-1}`
+   * - **Treated units**
+     - typically one
+     - **many**, common timing
+   * - **Cross-unit dependence**
+     - independent donors
+     - **spatial dependence allowed**
+   * - **Consistency regime**
+     - :math:`T_0 \to \infty`
+     - :math:`N_{tr}, N_{co} \to \infty`, :math:`T` fixed
+   * - **Weight solver**
+     - quadratic program (may be non-unique)
+     - empirical likelihood (**unique**)
+
+Reach for DSCAR when
+^^^^^^^^^^^^^^^^^^^^^
+
+* The outcome is **strongly autocorrelated** -- hourly pollutant
+  concentrations, daily prices, weekly sales -- so an AR(1) (or AR(:math:`k`))
+  structure is a defensible model of the untreated path.
+* You have **time-varying covariates** you want to match period-by-period,
+  not a static covariate snapshot.
+* You are in the **high-:math:`N`, moderate-:math:`T`** micro-panel regime
+  (e.g., 50-100 monitoring stations or stores × 50-100 periods), possibly
+  with **many treated units** that all switch at a common time.
+* Outcomes and shocks are **spatially dependent** across units (nearby
+  stations, neighbouring stores) -- DSCAR's theory accommodates this where
+  classic placebo inference does not.
+* You want to **test unconfoundedness / model specification** on the
+  pre-period rather than assume it, and you want a placebo test that is
+  **normalised** to handle treated/control variance asymmetry.
+
+Do not use DSCAR when
+^^^^^^^^^^^^^^^^^^^^^^
+
+* You have a **single treated aggregate unit, a long pre-period, and no
+  time-varying confounders** -- the canonical Prop 99 / Basque setting.
+  Classic SC and its mlsynth refinements (:doc:`tssc`, :doc:`scmo`,
+  :doc:`fdid`) are faster, simpler, and give an interpretable convex-weight
+  story. DSCAR's per-period EL refinement is overkill when the covariate
+  trajectory does not matter.
+* The outcome is **not autoregressive** and has **no time-varying
+  confounders**. The AR matching constraint (2.9) buys you nothing; use a
+  factor-model estimator (:doc:`fma`) or classic SC.
+* The **panel is small in :math:`N`** (a handful of units). DSCAR's
+  consistency runs in :math:`N`; with few units the asymptotics do not
+  engage and the per-period match is noisy. Prefer :doc:`tssc` or
+  :doc:`fdid`, whose theory tolerates a long-:math:`T_0`, small-:math:`N`
+  panel.
+* **The treatment moves the confounders** (Assumption 3 is violated --
+  e.g., the alert itself changes the meteorology you match on). DSCAR is
+  then biased; you need a method that models the confounder response, or a
+  proximal/IV design (:doc:`proximal`, :doc:`siv`).
+* You need **distributional** effects (quantiles, Lorenz, tails) rather
+  than the mean ATT -- use :doc:`dsc` (Distributional Synthetic Control),
+  which ships separately as :class:`mlsynth.DSC`.
+* There is **interference between treated and control units** beyond the
+  modelled spatial error dependence (treatment spillovers onto the donor
+  pool). Use :doc:`spillsynth` or :doc:`spsydid`.
 
 Method
 ------

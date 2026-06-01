@@ -8,11 +8,6 @@ References
 .. [LASSOPDA] Li, Kathleen T., and David R. Bell. *"Estimation of Average Treatment Effects with Panel Data: Asymptotic Theory and Implementation."* J. Econom., vol. 197, no. 1, March 2017, pp. 65–75. https://doi.org/10.1016/j.jeconom.2016.01.011.
 
 
-.. [FMA]
-    Li, Kathleen T. and Sonnier, Garrett P.
-    "Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings."
-    *Journal of Marketing Research*, 60(3): 449-472, 2023.
-    DOI: https://doi.org/10.1177/00222437221137533
 
 .. [Amjad2018] Amjad, Muhammad, Devavrat Shah, and Dennis Shen. *"Robust Synthetic Control."* Journal of Machine Learning Research, vol. 19, no. 1, 2018, pp. 802–852.
 
@@ -110,8 +105,14 @@ References
     *Management Science*, 70(6): 3734-3747, 2024. 
     DOI: https://doi.org/10.1287/mnsc.2023.4878
 
+.. [FMA]
+    Li, Kathleen T. and Sonnier, Garrett P.
+    "Statistical Inference for the Factor Model Approach to Estimate Causal Effects in Quasi-Experimental Settings."
+    *Journal of Marketing Research*, 60(3): 449-472, 2023.
+    DOI: https://doi.org/10.1177/00222437221137533
+
 .. [BECKER20181]
-    Becker, Martin and Klößner, Stefan. 
+    Becker, Martin and Klößner, Stefan.
     "Fast and reliable computation of generalized synthetic controls." 
     *Econometrics and Statistics*, 5: 1-19, 2018. 
     DOI: https://doi.org/10.1016/j.ecosta.2017.08.002

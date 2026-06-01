@@ -3,44 +3,6 @@ Factor Model Approach (FMA)
 
 .. currentmodule:: mlsynth
 
-Overview
---------
-
-FMA implements Li, K. T., & Sonnier, G. P. (2023). *"Statistical
-Inference for the Factor Model Approach to Estimate Causal Effects in
-Quasi-Experimental Settings."* Journal of Marketing Research,
-60(3):449-472. The estimator constructs a counterfactual for a single
-treated unit by
-
-1. extracting **principal-component factors** from the control panel
-   (with the number of factors chosen by the paper's modified Bai-Ng
-   criterion for stationary outcomes or Bai (2004) IPC1 for non-
-   stationary outcomes);
-2. **projecting** the treated unit's pre-treatment outcomes onto a
-   constant plus the factors via OLS to recover the loading
-   :math:`\hat\lambda_1`;
-3. forming the counterfactual :math:`\hat y^0_{1, t} = \tilde F_t' \hat\lambda_1`
-   for every period; the ATT is the mean post-treatment gap.
-
-The paper's distinctive contribution is **valid statistical inference
-for the ATT**. FMA in :mod:`mlsynth` exposes three procedures in
-parallel; the user picks any subset via
-:py:attr:`FMAConfig.inference_methods`:
-
-* ``"asymptotic"`` (default) -- Theorem 3.1 (stationary) /
-  Theorem 3.3 (non-stationary) normal CI for the ATT, built from the
-  variance decomposition :math:`\widehat \Omega = \widehat \Omega_1
-  + \widehat \Omega_2`.
-* ``"bootstrap"`` -- Web Appendix F residual bootstrap for per-period
-  :math:`\widehat{ATT}_t` CIs.
-* ``"placebo"`` -- Web Appendix G control-as-pseudo-treated band.
-
-
-Factor Model Approach (FMA)
-===========================
-
-.. currentmodule:: mlsynth
-
 When to Use This Method
 -----------------------
 
@@ -212,9 +174,37 @@ Do not use FMA when
   controls are untreated; use :doc:`ctsc` for dose response and
   :doc:`spillsynth` / :doc:`spsydid` under interference.
 
+Overview
+--------
 
+FMA implements Li, K. T., & Sonnier, G. P. (2023). *"Statistical
+Inference for the Factor Model Approach to Estimate Causal Effects in
+Quasi-Experimental Settings."* Journal of Marketing Research,
+60(3):449-472. The estimator constructs a counterfactual for a single
+treated unit by
 
+1. extracting **principal-component factors** from the control panel
+   (with the number of factors chosen by the paper's modified Bai-Ng
+   criterion for stationary outcomes or Bai (2004) IPC1 for non-
+   stationary outcomes);
+2. **projecting** the treated unit's pre-treatment outcomes onto a
+   constant plus the factors via OLS to recover the loading
+   :math:`\hat\lambda_1`;
+3. forming the counterfactual :math:`\hat y^0_{1, t} = \tilde F_t' \hat\lambda_1`
+   for every period; the ATT is the mean post-treatment gap.
 
+The paper's distinctive contribution is **valid statistical inference
+for the ATT**. FMA in :mod:`mlsynth` exposes three procedures in
+parallel; the user picks any subset via
+:py:attr:`FMAConfig.inference_methods`:
+
+* ``"asymptotic"`` (default) -- Theorem 3.1 (stationary) /
+  Theorem 3.3 (non-stationary) normal CI for the ATT, built from the
+  variance decomposition :math:`\widehat \Omega = \widehat \Omega_1
+  + \widehat \Omega_2`.
+* ``"bootstrap"`` -- Web Appendix F residual bootstrap for per-period
+  :math:`\widehat{ATT}_t` CIs.
+* ``"placebo"`` -- Web Appendix G control-as-pseudo-treated band.
 
 Mathematical Formulation
 ------------------------

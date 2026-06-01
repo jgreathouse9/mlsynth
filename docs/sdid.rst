@@ -57,6 +57,34 @@ post-period. Reach for SDID when:
    *worsen* precision relative to plain DiD. SDID helps most when there is
    real structure (trends, levels) for the weights to exploit.
 
+Do not use SDID when
+^^^^^^^^^^^^^^^^^^^^^
+
+* **Spillovers / interference contaminate the donor pool.** SDID assumes
+  the controls are untreated and unaffected by the treatment (SUTVA). If
+  treatment leaks to neighbours -- cross-border shopping, migration,
+  geographic advertising -- the weighted controls are biased. Use
+  :doc:`spsydid`, which separates the direct ATT from the spillover term.
+* **Staggered adoption where you want partial pooling or an interactive
+  fixed-effects guarantee.** SDID runs per cohort and averages, which is
+  fine for an overall ATT, but it does not *pool* information across
+  cohorts the way :doc:`ppscm` does, nor does it give the oracle-OLS
+  efficiency of :doc:`seq_sdid`. Prefer those when cohorts are many and
+  individual cohort fits are noisy.
+* **The treated unit sits far outside the donor convex hull / the donor
+  pool is huge and noisy.** SDID's unit weights are non-negative and
+  (softly) sum-constrained; a treated path no linear convex combination
+  can parallel will fit poorly. A factor-model estimator (:doc:`fma`) or a
+  low-rank/denoising approach (:doc:`clustersc`, :doc:`mcnnm`) is better
+  suited there.
+* **A single treated unit, short panel, and you want the interpretable
+  sparse convex-weight story** as the deliverable. Classic SC and its
+  refinements (:doc:`tssc`, :doc:`fdid`, :doc:`scmo`) are more transparent;
+  SDID's double weighting buys little when there is only one treated unit
+  and no time structure for the time weights to exploit.
+* **Distributional questions** (quantile effects, Lorenz, tails). SDID
+  targets the mean ATT; use :doc:`dsc`.
+
 What SDID Does in Practice
 --------------------------
 
