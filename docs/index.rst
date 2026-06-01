@@ -86,9 +86,10 @@ mlsynth builds on top of `numpy <https://numpy.org/>`_,
 `statsmodels <https://www.statsmodels.org/>`_; convex programs are routed
 through cvxpy's solver stack.
 
-**Not sure which estimator to use?** Head to :doc:`choose` for a guided
-pick by treatment design, data shape, and the kind of inference you
-need.
+**Not sure which estimator to use?** Walk the :doc:`decisiontree` -- a
+sequence of identification and design questions that funnels you from
+"what kind of problem do I have?" down to one or two methods -- or browse
+:doc:`choose` for the catalogue grouped by family.
 
 **Community.**
 
@@ -130,6 +131,7 @@ headline numbers.
 
    about
    choose
+   decisiontree
    replications
    references
 
