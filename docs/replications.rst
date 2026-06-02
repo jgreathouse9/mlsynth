@@ -11,8 +11,8 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Twenty-nine of the
-thirty-three estimators are currently fully verified, three carry
+This page catalogues those replications. Thirty of the
+thirty-four estimators are currently fully verified, three carry
 partial replications (one-draw illustrations or empirical
 applications without an explicit number-match), and one has no
 replication content yet.
@@ -203,6 +203,12 @@ Staggered adoption
   partially pooled SC. **Cross-validation:** matched end-to-end
   to the ``augsynth`` R-package vignette (:math:`\nu = 0.2607`,
   average ATT :math:`= -0.011`) to four decimals.
+* :doc:`ssc` -- Cao, Lu & Wu (2026) staggered synthetic control.
+  **Path B:** the paper's staggered AR(1)-factor DGP (Section 3)
+  -- the event-time ATT path :math:`\tau = 1 + e` is recovered
+  (increasing in event time, overall ATT positive and significant
+  under the Andrews end-of-sample test), using all units (including
+  not-yet-treated) as donors.
 
 .. _replications-missing:
 
@@ -314,9 +320,9 @@ Coverage summary
      - 2
      - Complete (FMA, TASC)
    * - Staggered adoption
-     - 3
      - 4
-     - SDID, SpSyDiD, PPSCM ✓; SEQ_SDID queued
+     - 5
+     - SDID, SpSyDiD, PPSCM, SSC ✓; SEQ_SDID queued
    * - Missing data
      - 2
      - 2
@@ -330,7 +336,7 @@ Coverage summary
      - 5
      - Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)
 
-Of mlsynth's 33 estimators, 29 (88%) carry a strong or solid
+Of mlsynth's 34 estimators, 30 (88%) carry a strong or solid
 replication against their source paper or against an
 authoritative reference implementation. ISCM, NSC, and
 SPARSE_SC carry partial replications -- one-draw illustrations

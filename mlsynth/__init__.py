@@ -15,6 +15,7 @@ from .estimators.shc import SHC # Check
 from .estimators.laxscm import RESCM # Check
 from .estimators.scexp import MAREX
 from .estimators.msqrt import MSQRT
+from .estimators.ssc import SSC
 from .estimators.lexscm import LEXSCM
 from .estimators.syndes import SYNDES
 from .utils.syndes_helpers.power import SYNDESPower, power_analysis
@@ -73,6 +74,7 @@ __all__ = [
     "SBC", "BVSS",
     "MLSC",
     "MSQRT",
+    "SSC",
     "SequentialSDID",
     "PPSCM",
     "SparseSC",

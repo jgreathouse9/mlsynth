@@ -166,13 +166,6 @@ headline numbers.
    iscm
    nsc
 
-
-.. toctree::
-   :hidden:
-   :caption: Observational: No Donors
-
-   shc
-
 .. toctree::
    :hidden:
    :caption: Observational: high-dimensional donors
@@ -203,6 +196,7 @@ headline numbers.
    sdid
    seq_sdid
    ppscm
+   ssc
 
 .. toctree::
    :hidden:

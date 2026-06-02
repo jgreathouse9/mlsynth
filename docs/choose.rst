@@ -86,6 +86,7 @@ At a glance
    Same adoption time?  ─► SDID            (micro units ─► MicroSynth; two-level ─► MLSC)
    Staggered (different times)?  ─► SDID
      + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
+     + long pre-period, few never-treated, event study ─► SSC
      + spillovers                        ─► SpSyDiD
      + missing cells / gaps              ─► MCNNM
 
@@ -271,6 +272,12 @@ fail. Escalate from there.
   simplest. If you want **partial pooling** across cohorts or **oracle
   efficiency** under interactive fixed effects, escalate to :doc:`ppscm`
   or :doc:`seq_sdid`.
+* **Staggered, long pre-period, few/no never-treated units, and you want an
+  event study without parallel trends** -- :doc:`ssc` (Staggered Synthetic
+  Control). It builds each unit's synthetic control from **all other units**
+  (not-yet-treated included), so it needs no never-treated pool, and gives
+  event-time ATTs with Andrews end-of-sample inference. Best with a long
+  pre-period (large :math:`T`, moderate :math:`N`).
 * **Staggered *and* spillovers** onto donors -- :doc:`spsydid`.
 * **Staggered *and* missing cells / gaps** -- :doc:`mcnnm` (matrix
   completion handles staggered missingness natively).
@@ -359,6 +366,8 @@ A reverse lookup: the symptom, and the method named for it.
      - :doc:`sdid`, :doc:`microsynth`, :doc:`mlsc`
    * - Many treated, staggered adoption
      - :doc:`sdid`, :doc:`ppscm`, :doc:`seq_sdid`, :doc:`mcnnm`
+   * - Staggered, long pre-period, few never-treated (event study)
+     - :doc:`ssc`
    * - Designing for the ATT
      - :doc:`syndes`, :doc:`spcd`, :doc:`marex`
    * - Designing for the ATE

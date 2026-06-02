@@ -297,6 +297,11 @@ References
     *Review of Economics and Statistics* (forthcoming); *arXiv Working Paper*, 2210.05026, 2025.
     URL: https://arxiv.org/abs/2210.05026
 
+.. [SSC]
+    Cao, Jianfei, Lu, Shirley, and Wu, Hang.
+    "Synthetic Control Inference for Staggered Adoption."
+    *The Econometrics Journal* (forthcoming), 2026.
+
 .. [SYNDES]
     Doudchenko, Nick, Khosravi, Khashayar, Pouget-Abadie, Jean, Lahaie, Sebastien,
     Lubin, Miles, Mirrokni, Vahab, Spiess, Jann, and Imbens, Guido.
