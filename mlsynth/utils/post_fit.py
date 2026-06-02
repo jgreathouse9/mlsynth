@@ -570,15 +570,19 @@ def compute_power_analysis(
     z_p = float(norm.ppf(power_target))
     factor = z_a + z_p
 
-    # Estimate noise scale from the blank period when available; fall back
-    # to the pre / fit window otherwise. Both windows are zero-mean under H0
-    # so std() is the right estimator.
+    # Power analysis is a DESIGN quantity and must never depend on post-period
+    # data being present. The "placebo" window -- periods on which the weights
+    # were NOT learned -- is the blank/holdout window when present, else the
+    # fit/pre window. BOTH the noise scale and the percentage baseline are taken
+    # from this same placebo window, so the MDE is well-defined and identical
+    # whether or not a post period exists (in design-only mode the blank periods
+    # play the role of the post period). Both windows are zero-mean under H0 so
+    # std() is the right noise estimator.
     if post_fit.n_blank > 0:
-        placebo = post_fit.gap_series[post_fit.n_fit:
-                                       post_fit.n_fit + post_fit.n_blank]
+        placebo_slice = slice(post_fit.n_fit, post_fit.n_fit + post_fit.n_blank)
     else:
-        placebo = post_fit.gap_series[:post_fit.n_fit]
-    placebo = np.asarray(placebo, dtype=float)
+        placebo_slice = slice(0, post_fit.n_fit)
+    placebo = np.asarray(post_fit.gap_series[placebo_slice], dtype=float)
     if placebo.size < 2 or not np.isfinite(placebo).all():
         sigma_placebo = float("nan")
         rho = 0.0
@@ -586,14 +590,13 @@ def compute_power_analysis(
         sigma_placebo = float(placebo.std(ddof=1))
         rho = _ar1_rho(placebo)
 
-    # Baseline for percentage scaling (mean of control on post window).
-    if post_fit.n_post > 0:
-        post_end = post_fit.n_fit + post_fit.n_blank + post_fit.n_post
-        baseline = float(post_fit.control_series[
-            post_fit.n_fit + post_fit.n_blank: post_end
-        ].mean())
-    else:
-        baseline = float("nan")
+    # Baseline for percentage scaling: mean of the synthetic control over the
+    # SAME placebo window (an untreated outcome level, computed without any
+    # post-period data).
+    baseline_vals = np.asarray(post_fit.control_series[placebo_slice], dtype=float)
+    baseline = (float(baseline_vals.mean())
+                if baseline_vals.size and np.isfinite(baseline_vals).all()
+                else float("nan"))
 
     # Default horizon grid: 1, 2, ..., max(n_post, 12), tagged with the
     # realised horizon if it isn't already in the grid.

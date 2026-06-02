@@ -484,6 +484,22 @@ class TestLEXSCMEstimator:
         assert result is not None
         assert hasattr(result, "best_candidate")
 
+    def test_design_only_power_has_finite_percentage_mde(self, panel_no_post):
+        # Power analysis must not require post-period data: a design-only run
+        # (no post_col) reports a finite absolute AND percentage MDE, with the
+        # baseline taken from the held-out blank window (the placebo "post").
+        est = LEXSCM({
+            "df": panel_no_post, "outcome": "y", "unitid": "unitid",
+            "time": "time", "candidate_col": "candidate", "m": 2,
+            "top_K": 3, "n_sims": 50, "verbose": False,
+        })
+        result = est.fit()
+        assert result.time.n_post == 0
+        pw = result.post_fit.power
+        assert np.isfinite(pw.baseline)
+        assert np.isfinite(pw.headline.mde_absolute)
+        assert np.isfinite(pw.headline.mde_pct)
+
     def test_fit_with_cost_budget(self, panel_df):
         est = LEXSCM({
             "df": panel_df, "outcome": "y", "unitid": "unitid",

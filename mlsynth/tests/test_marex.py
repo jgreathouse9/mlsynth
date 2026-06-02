@@ -1221,21 +1221,24 @@ class TestPostFitEdges:
         assert out.serial_correlation >= -1 and out.serial_correlation <= 1
 
     def test_power_analysis_zero_post_window(self):
-        # n_post == 0 ⇒ baseline is NaN (line 596), mde_pct is NaN.
+        # Power analysis must NOT depend on post-period data. With n_post == 0
+        # the baseline is taken from the placebo (here the fit) window, so it is
+        # finite and mde_pct is well-defined -- computed without any post data.
         from mlsynth.utils.post_fit import (
             SyntheticControlPostFit, compute_power_analysis as _pa,
         )
         rng = np.random.default_rng(2)
         T_fit = 12
-        t = rng.normal(size=T_fit)
-        c = rng.normal(size=T_fit)
+        c = 100.0 + rng.normal(size=T_fit)          # clear nonzero outcome level
+        t = c + rng.normal(scale=0.1, size=T_fit)
         pf = SyntheticControlPostFit(
             treated_series=t, control_series=c, gap_series=t - c,
             n_fit=T_fit, n_blank=0, n_post=0,
         )
         out = _pa(pf)
-        assert np.isnan(out.baseline)
-        assert np.isnan(out.headline.mde_pct)
+        assert np.isfinite(out.baseline) and abs(out.baseline - 100.0) < 5.0
+        assert np.isfinite(out.headline.mde_absolute)
+        assert np.isfinite(out.headline.mde_pct)
 
     def test_power_analysis_explicit_post_grid(self):
         from mlsynth.utils.post_fit import (
