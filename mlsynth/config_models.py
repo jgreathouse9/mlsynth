@@ -1496,13 +1496,19 @@ class SPOTSYNTHConfig(BaseEstimatorConfig):
         keeps donors whose realised post-intervention value falls inside the
         ``ppi`` posterior predictive interval (controls the false-positive rate);
         ``all`` keeps every donor (the unscreened baseline).
-    forecast : {"lag", "loo"}
-        Forecast anchor for the screen. ``lag`` (paper Algorithm 1) forecasts the
-        first post-intervention point from the last clean pre-intervention
-        cross-section -- robust even when most donors are invalid. ``loo`` is a
-        leave-one-out variant that scores the mean post-period deviation from the
-        other donors' common-factor forecast -- suited to single-contaminant
-        panels whose treatment effect builds slowly.
+    forecast : {"loo", "lag"}
+        Forecast anchor for the screen. ``loo`` (default) is the leave-one-out
+        anchor: each donor's whole post-intervention trajectory is forecast from
+        the *other* donors' common factors and scored by the mean absolute
+        deviation. It is robust to the *onset speed* of the spillover (it detects
+        gradually-arriving contamination that the first-post-point misses) and is
+        the right choice whenever the donor pool is mostly valid -- the typical
+        applied setting. ``lag`` is the paper's literal Algorithm 1: forecast the
+        *first* post-intervention point from the last clean pre-intervention
+        cross-section. It is the correct anchor only in the paper's stress regime
+        -- a *mostly-invalid* donor pool with a *sharp* (immediate) spillover --
+        where ``loo`` inverts because the contaminated majority defines the
+        "consensus". See the forecast-anchor discussion in the estimator docs.
     n_donors : int, optional
         Number of donors to keep under ``S1`` (default: half the pool).
     ppi : float
@@ -1516,9 +1522,12 @@ class SPOTSYNTHConfig(BaseEstimatorConfig):
         Synthetic-control weight model. ``bayes`` (default) is the authors'
         Bayesian simplex SC -- weights with a ``Dirichlet(dirichlet_alpha)``
         prior, a half-normal prior on the residual sd, pre-period standardisation
-        of target and donors, and 95% posterior-predictive credible intervals.
-        ``frequentist`` is a fast simplex least-squares point estimate (no
-        intervals), useful for large simulations.
+        of target and donors, and 95% posterior-predictive credible intervals --
+        fit with NumPyro's NUTS (the same Hamiltonian-Monte-Carlo family as the
+        authors' Stan). It requires the optional ``numpyro`` package.
+        ``frequentist`` is a fast, dependency-free simplex least-squares point
+        estimate (no intervals), useful for large simulations or when NumPyro is
+        unavailable.
     dirichlet_alpha : float
         Dirichlet concentration on the donor weights (paper uses 0.4; ``< 1``
         favours sparse weights).
@@ -1536,8 +1545,10 @@ class SPOTSYNTHConfig(BaseEstimatorConfig):
 
     selection: Literal["S1", "S2", "all"] = Field(
         default="S1", description="Donor-selection rule (S1, S2, or all).")
-    forecast: Literal["lag", "loo"] = Field(
-        default="lag", description="Forecast anchor (lag = Algorithm 1, or loo).")
+    forecast: Literal["loo", "lag"] = Field(
+        default="loo",
+        description="Forecast anchor: loo (default, onset-robust) or lag "
+                    "(paper Algorithm 1, for mostly-invalid sharp-spillover pools).")
     n_donors: Optional[int] = Field(
         default=None, ge=1, description="Number of donors to keep under S1.")
     ppi: float = Field(
@@ -1548,7 +1559,8 @@ class SPOTSYNTHConfig(BaseEstimatorConfig):
     time_average: Optional[int] = Field(
         default=None, ge=1, description="Bucket width for time-averaging (lag).")
     inference: Literal["bayes", "frequentist"] = Field(
-        default="bayes", description="SC weight model (Bayesian Dirichlet or simplex LS).")
+        default="bayes",
+        description="SC weight model (bayes = NumPyro NUTS, or frequentist simplex LS).")
     dirichlet_alpha: float = Field(
         default=0.4, gt=0.0, description="Dirichlet concentration on donor weights.")
     ci_level: float = Field(

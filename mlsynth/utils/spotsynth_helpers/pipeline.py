@@ -15,7 +15,7 @@ def run_spotsynth(
     inputs: SpotSynthInputs,
     *,
     selection: str = "S1",
-    forecast: str = "lag",
+    forecast: str = "loo",
     n_donors=None,
     ppi: float = 0.8,
     n_factors: int = 5,
@@ -24,7 +24,7 @@ def run_spotsynth(
     dirichlet_alpha: float = 0.4,
     ci_level: float = 0.95,
     n_samples: int = 4000,
-    n_warmup: int = 2000,
+    n_warmup: int = 1000,
     debias: bool = False,
     seed: int = 0,
 ) -> SpotSynthResults:
@@ -34,8 +34,8 @@ def run_spotsynth(
     ------
     1. Spillover screen (Algorithm 1) over the donor pool -> valid-donor subset.
     2. Synthetic control on the selected donors: the authors' Bayesian Dirichlet
-       simplex SC (``inference="bayes"``, with credible intervals) or a fast
-       frequentist simplex (``inference="frequentist"``).
+       simplex SC fit with NumPyro NUTS (``inference="bayes"``, with credible
+       intervals) or a fast frequentist simplex (``inference="frequentist"``).
     3. ATT as the mean post-intervention gap; an unscreened (``All``) ATT is
        reported alongside for comparison.
     4. Optionally, the proximal (two-stage / GMM) debiased ATT using the

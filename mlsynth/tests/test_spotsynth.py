@@ -76,6 +76,28 @@ class TestScreen:
                               selection="S1", forecast="loo", n_donors=n)
         assert "proxy" in sc.excluded_names
 
+    def test_loo_is_onset_robust_lag_is_not(self):
+        # Valid-majority, GRADUAL onset: loo keeps power, first-post-point lag
+        # decays toward chance. (Reproduces the power-analysis headline.)
+        from mlsynth.utils.spotsynth_helpers import run_forecast_power_analysis
+        res = run_forecast_power_analysis(
+            n_donors=40, T0=50, n_post=24, invalid_fracs=(0.3,), ramps=(24,),
+            n_reps=8, n_factors=8, verbose=False)
+        cell = res[(0.3, 24)]
+        assert cell["loo"] > 0.8          # onset-robust
+        assert cell["loo"] > cell["lag"] + 0.2
+
+    def test_loo_inverts_under_invalid_majority(self):
+        # 80% invalid (paper's regime): loo inverts (flags the valid donors),
+        # so the package pins 'lag' there. This guards that documented limit.
+        from mlsynth.utils.spotsynth_helpers import run_forecast_power_analysis
+        res = run_forecast_power_analysis(
+            n_donors=40, T0=50, n_post=24, invalid_fracs=(0.8,), ramps=(1,),
+            n_reps=8, n_factors=8, verbose=False)
+        cell = res[(0.8, 1)]
+        assert cell["loo"] < 0.3          # inverted
+        assert cell["lag"] > 0.6          # lag retains power for sharp onsets
+
     def test_all_selection_keeps_everyone(self):
         df, _ = simulate_spillover_panel(n_donors=30, T0=40, n_post=10, seed=1)
         inp = prepare_spotsynth_inputs(df, "Y", "treated", "unit", "time")
@@ -156,7 +178,9 @@ class TestIntegration:
                 sorted(df.loc[df.unit != "target", "unit"].unique()), valid) if ok]
             dfv = df[df.unit.isin(vnames)]
             validb.append(SPOTSYNTH({**cfg, "df": dfv, "selection": "all"}).fit().att)
-            s1b.append(SPOTSYNTH({**cfg, "selection": "S1", "n_donors": 12}).fit().att)
+            # 80%-invalid regime -> the paper's 'lag' anchor (loo inverts here)
+            s1b.append(SPOTSYNTH({**cfg, "selection": "S1", "n_donors": 12,
+                                  "forecast": "lag"}).fit().att)
         all_bias = np.mean(allb) - tau
         valid_bias = np.mean(validb) - tau
         s1_bias = np.mean(s1b) - tau
@@ -171,7 +195,9 @@ class TestIntegration:
 
 class TestBayesAndDebias:
     def test_bayesian_sc_recovers_att_with_ci(self):
-        # Dirichlet simplex SC recovers a planted effect; CrI brackets it.
+        # Dirichlet simplex SC (NumPyro NUTS) recovers a planted effect; CrI
+        # brackets it. Skipped if numpyro is not installed.
+        pytest.importorskip("numpyro")
         rng = np.random.default_rng(0)
         T, T0, n = 40, 30, 6
         f = np.cumsum(rng.normal(0, 1, (T, 3)), axis=0)
@@ -180,28 +206,47 @@ class TestBayesAndDebias:
         beta = np.array([0.4, 0.3, 0.3, 0, 0, 0])
         y = D @ beta + rng.normal(0, 0.2, T)
         y[T0:] += -5.0
-        fit = bayesian_simplex_sc(y, D, T0, alpha=0.4, n_samples=3000,
-                                  n_warmup=1500, seed=0)
-        assert fit.weights == pytest.approx(np.ones(n), abs=1.0)  # finite, on simplex
-        assert abs(fit.weights.sum() - 1.0) < 1e-6
+        fit = bayesian_simplex_sc(y, D, T0, alpha=0.4, n_samples=2000,
+                                  n_warmup=1000, seed=0)
+        assert abs(fit.weights.sum() - 1.0) < 1e-6   # on the simplex
         assert fit.att == pytest.approx(-5.0, abs=1.0)
         lo, hi = fit.att_ci
         assert lo < fit.att < hi
-        assert 0.1 < fit.accept_beta < 0.9      # sampler mixing
+        assert fit.accept_prob > 0.5                  # NUTS adapted
 
     def test_bayesian_fit_through_estimator(self):
+        pytest.importorskip("numpyro")
         df, _ = simulate_spillover_panel(n_donors=30, T0=40, n_post=10,
                                          sigma_x=0.3, seed=1)
         res = SPOTSYNTH({"df": df, "outcome": "Y", "treat": "treated",
                          "unitid": "unit", "time": "time", "selection": "S1",
-                         "n_donors": 10, "inference": "bayes", "n_samples": 1500,
-                         "n_warmup": 800, "display_graphs": False}).fit()
+                         "n_donors": 10, "inference": "bayes", "n_samples": 1000,
+                         "n_warmup": 600, "display_graphs": False}).fit()
         assert res.inference == "bayes"
         assert res.att_ci is not None and res.att_ci[0] < res.att_ci[1]
         assert res.counterfactual_lower is not None
         assert res.counterfactual_lower.shape == res.counterfactual.shape
-        # band brackets the point counterfactual
         assert np.all(res.counterfactual_lower <= res.counterfactual_upper + 1e-9)
+
+    def test_replicate_basque_returns_full_diagnostics(self):
+        # The real-data replications return ATTs, weights, pre-treatment fit,
+        # and the selection -- on the third (Basque) panel, via loo + NUTS.
+        import pathlib
+        pytest.importorskip("numpyro")
+        from mlsynth.utils.spotsynth_helpers import replicate_basque_spillover
+        path = (pathlib.Path(__file__).resolve().parents[2]
+                / "basedata" / "basque_data.csv")
+        if not path.exists():
+            pytest.skip("basque_data.csv not available")
+        r = replicate_basque_spillover(str(path), verbose=False)
+        for key in ("oracle_att", "contaminated_att", "screened_att", "att_ci",
+                    "pre_rmse", "donor_weights", "selected_donors",
+                    "excluded_donors", "synthetic_donor_excluded", "results"):
+            assert key in r
+        assert r["synthetic_donor_excluded"] is True       # loo flags the proxy
+        assert isinstance(r["donor_weights"], dict) and r["donor_weights"]
+        assert abs(sum(r["donor_weights"].values()) - 1.0) < 0.05
+        assert r["pre_rmse"] >= 0.0
 
     def test_proximal_debias_reduces_eiv_bias(self):
         # Noisy-proxy donors -> attenuation bias; 2SLS with extra proxies helps.

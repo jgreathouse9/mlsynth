@@ -22,11 +22,13 @@ assumptions that make synthetic control non-parametrically identified
 (invariant causal mechanisms and proxy completeness), a valid donor's
 post-intervention value is **forecastable from pre-intervention donor
 data**. SPOTSYNTH turns this into a practical screen: for each candidate
-donor, fit a forecast on pre-intervention data, predict the donor's
-first post-intervention value, and flag the donor if the realised value
+donor, forecast its untreated post-intervention path from donor data the
+intervention has not touched, and flag the donor if its realised path
 departs from the forecast. A forecast failure means the donor was hit by
 a spillover (or its latent distribution shifted) -- either way it is
-excluded. The surviving donors feed the authors' **Bayesian Dirichlet
+excluded. (Two forecast anchors implement this -- a leave-one-out anchor,
+the default, and the paper's first-post-point anchor; the
+:ref:`forecast-anchor section <spotsynth-anchors>` explains when to use each.) The surviving donors feed the authors' **Bayesian Dirichlet
 simplex** synthetic control (a :math:`\mathrm{Dirichlet}(0.4)` prior on
 the weights, a half-normal prior on the residual scale, pre-period
 standardisation, and 95% posterior-predictive credible intervals). The
@@ -164,26 +166,96 @@ encoding that :math:`h_i` is time-independent. The two selection rules are
    \qquad
    S2:\ x_i^{T_0} \in \text{the } \phi\text{-PPI}.
 
-Why the lag matters (and a leave-one-out variant)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _spotsynth-anchors:
 
-The forecast is anchored to the **last clean pre-intervention
-cross-section**. This is what lets the screen work even when *most*
-donors are invalid: at :math:`T_0` the lagged predictors are
-pre-intervention (spillover-free), so the forecast predicts each donor's
-untreated value, and an instantaneous spillover surfaces as a large
-error. This is the default, ``forecast="lag"``.
+Choosing the forecast anchor: ``loo`` (default) vs ``lag``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-mlsynth adds a second anchor, ``forecast="loo"``, for the case of a
-*single* contaminating donor whose effect builds **gradually** (so the
-gap at the very first post-period is near zero). It forecasts each
-donor's whole post-intervention trajectory from the *other* donors'
-common factors and ranks by the mean absolute deviation -- a
-contaminated noisy-proxy donor, carrying the treated unit's slow-building
-effect, departs from the valid majority over the post-period. Use
-``"lag"`` for the many-invalid / sharp-effect regime (and the
-simulation), ``"loo"`` for the single-contaminant / gradual-effect regime
-(e.g. the German reunification demonstration below).
+The screen needs a forecast of each donor's untreated post-intervention path
+to test against. mlsynth offers two anchors, and the choice between them is the
+single most consequential setting on the estimator.
+
+**The paper's anchor (``lag``)** is Algorithm 1 to the letter: forecast only
+the *first* post-intervention point, from the last clean pre-intervention
+cross-section. At :math:`T_0` the lagged predictors are spillover-free, so the
+forecast predicts the untreated value and the spillover surfaces as the error.
+This works even when *most* donors are contaminated (the lag is anchored to
+clean pre-data, not to the donor consensus) -- but it carries a hidden
+assumption: that the spillover is **sharp**, i.e. present at full magnitude by
+:math:`T_0`. The paper's own spillover model bakes this in (the donor error mean
+jumps from 0 to :math:`\tau_{x_i}` at :math:`T_0` and stays there). If the
+spillover instead **builds gradually** -- the realistic case for diffusion,
+adoption, or accumulation -- then :math:`\tau_{x_i}^{T_0} \approx 0`, the
+first-post-point error is ~0, and the screen is blind by construction. (Testing
+later periods does not rescue it: their lags are themselves contaminated, so a
+one-step-lagged forecast then sees only the period-to-period *increment* of the
+spillover, which is small for a gradual ramp.)
+
+**The default anchor (``loo``)** removes that fragility. It forecasts each
+donor's *whole* post-intervention trajectory from the **other donors' common
+factors** (leave-one-out) and ranks by the mean absolute deviation. Because it
+differences out the common factor and accumulates evidence over the entire
+post-period, a contaminated donor's divergence is detectable **regardless of how
+gradually it arrives**. Its one requirement is a **valid majority** -- the other
+donors must be mostly clean, so they form a trustworthy reference. That is the
+normal applied situation (a handful of suspect donors in a large pool).
+
+**Power analysis.** :func:`~mlsynth.utils.spotsynth_helpers.run_forecast_power_analysis`
+reproduces the comparison: detection AUC (probability an invalid donor scores
+more anomalous than a valid one; 1 = perfect, 0.5 = none, ``< 0.5`` = inverted)
+as the spillover onset sweeps sharp → gradual, at two contamination levels:
+
+.. list-table:: Detection AUC by anchor, onset, and contamination
+   :header-rows: 1
+   :widths: 26 18 18 18
+
+   * - regime
+     - onset
+     - ``lag``
+     - ``loo``
+   * - valid majority (30% invalid)
+     - sharp
+     - 0.61
+     - **0.96**
+   * - valid majority (30% invalid)
+     - gradual
+     - 0.49
+     - **0.92**
+   * - invalid majority (80%)
+     - sharp
+     - **0.61**
+     - 0.00 (inverted)
+   * - invalid majority (80%)
+     - gradual
+     - 0.49
+     - 0.02 (inverted)
+
+reproduced by:
+
+.. code-block:: python
+
+   from mlsynth.utils.spotsynth_helpers import run_forecast_power_analysis
+   run_forecast_power_analysis(invalid_fracs=(0.3, 0.8), ramps=(1, 6, 24))
+
+The reading is clean: **``loo`` dominates the applied (valid-majority) regime and
+is robust to onset speed; ``lag`` only has power for sharp onsets and only earns
+its keep in the paper's mostly-invalid stress regime, where ``loo`` inverts**
+(the contaminated majority becomes the "consensus", so the screen flags the
+*valid* donors). The remaining cell -- gradual onset *and* invalid majority --
+is the honest limit: no forecast screen separates signal from a contaminated
+consensus that creeps in slowly.
+
+**A note on CUSUM.** A cumulative-sum statistic on the lagged residuals can
+rescue ``lag`` on individual gradual real panels (it telescopes the increments
+back into the level), but the power analysis disqualifies it as a general
+default: in the shared-factor DGP it is swamped by the common innovation and
+falls below chance. ``loo`` is the robust generalization, so it -- not CUSUM --
+is the default.
+
+**Recommendation.** Use the default ``loo`` for applied work. Switch to ``lag``
+only when you have prior reason to believe a *large fraction* of the pool is
+contaminated *and* the spillover is abrupt -- e.g. the paper's simulation, which
+this package pins to ``lag`` for exactly that reason.
 
 Time averaging
 ^^^^^^^^^^^^^^
@@ -222,17 +294,32 @@ Abadie-Diamond-Hainmueller non-negativity / sum-to-one restriction. 95%
 percentiles of the posterior predictive distribution.
 
 This posterior has no closed form (a Dirichlet prior is not conjugate to a
-Gaussian likelihood under the simplex constraint). mlsynth draws from it with a
-self-contained, dependency-free Metropolis-Hastings sampler -- a Dirichlet
-random-walk proposal on :math:`\beta` in the native simplex space (so no
-change-of-variables Jacobian is needed) and a log-random-walk on
-:math:`\sigma_y`, with both proposal scales adapted to a healthy acceptance
-rate during warm-up. The posterior is low-dimensional (one weight per selected
-donor) and smooth, so the sampler mixes well; the donor-collinearity that makes
-individual weights weakly identified leaves the ATT/counterfactual functional
-sharply identified. Set :py:attr:`SPOTSYNTHConfig.inference` to ``"frequentist"``
-for a fast simplex least-squares point estimate (no intervals) when running
-large simulations; the donor-*selection* bias pattern is identical either way.
+Gaussian likelihood under the simplex constraint). The authors fit it in Stan
+(Hamiltonian Monte Carlo / NUTS), which is proprietary and was not shared with
+us; mlsynth fits the **identical model with NumPyro's NUTS** -- the same HMC
+family -- so it reproduces their estimation procedure as closely as an
+open-source tool can. NumPyro is an optional dependency: set
+:py:attr:`SPOTSYNTHConfig.inference` to ``"frequentist"`` for a fast,
+dependency-free simplex least-squares point estimate (no intervals) when running
+large simulations or when NumPyro is unavailable -- the donor-*selection* bias
+pattern is identical either way.
+
+.. note::
+
+   **On validating this SC model.** Because the authors' Stan was unavailable, we
+   implemented the model from the *published specification* (the p.12 equations
+   above) rather than from their code, and validated our NUTS fit against
+   **exact grid quadrature** of the posterior -- ground truth, not another
+   sampler. On 2- and 3-donor problems the posterior means of the weights and of
+   :math:`\sigma_y` match the deterministic numerical integral to
+   :math:`\le 10^{-3}` (weights) and :math:`\le 10^{-4}` (:math:`\sigma_y`). That
+   establishes our code correctly samples the stated model. It does *not* and
+   cannot establish that the authors' Stan matches their published equations in
+   every undocumented detail -- the irreducible limitation when reference code is
+   withheld. The paper's headline contribution -- the donor-selection screen
+   (Algorithm 1) -- is fully specified independently of the SC solver, and is what
+   the Path-B (Figure 2) and Path-A (Figure 6) reproductions below exercise
+   through ``.fit()``.
 
 Assumptions
 -----------
@@ -345,11 +432,12 @@ When to use SPOTSYNTH (and when not to)
   sensitivity bounds on the bias from selection errors, rather than an ad
   hoc "drop the weird-looking donor" rule.
 
-**Use** ``forecast="lag"`` **(default) when** the donor pool may contain
-*many* contaminated donors and/or the spillover is roughly contemporaneous
-with the intervention. **Use** ``forecast="loo"`` **when** you suspect a
-*single* contaminant whose influence builds gradually over the
-post-period.
+**Use the default** ``forecast="loo"`` **for applied work** -- a mostly-valid
+donor pool with a contaminant whose effect may arrive at any speed (it is
+onset-robust and dominates this regime). **Switch to** ``forecast="lag"``
+**only when** you have prior reason to believe a *large fraction* of the pool is
+contaminated *and* the spillover is abrupt, the one regime where ``loo`` inverts
+(see the forecast-anchor power analysis above).
 
 **Do not use SPOTSYNTH when:**
 
@@ -435,7 +523,9 @@ treated unit, a pool of 60 donors of which 80% carry a :math:`-2`
 spillover, the ``S1`` screen keeping the 12 most-forecastable donors, and
 the authors' Bayesian Dirichlet SC (default) returning a 95% credible
 interval. The proximal (GMM) debiased ATT is requested with
-``debias=True``.
+``debias=True``. Because this is the *mostly-invalid* regime, the example
+sets ``forecast="lag"`` (the default ``loo`` inverts when contaminated
+donors are the majority -- see the forecast-anchor discussion).
 
 .. code-block:: python
 
@@ -481,6 +571,15 @@ the *valid* donors is unbiased; and the ``S1`` / ``S2`` screens recover
 most of that gap, degrading as the donor noise grows toward the spillover
 magnitude.
 
+.. note::
+
+   This study is the paper's **mostly-invalid** regime (80% of donors
+   contaminated, with a sharp spillover), so it pins ``forecast="lag"``. The
+   package default ``loo`` provably *inverts* here (the contaminated majority
+   defines the consensus) -- this is the one regime where ``lag`` is the correct
+   anchor, and it is exactly why the paper uses the first-post-point screen. See
+   the forecast-anchor power analysis above.
+
 .. code-block:: python
 
    from mlsynth.utils.spotsynth_helpers import (
@@ -520,7 +619,8 @@ excludes it, restoring the canonical effect. Both demos run through
 ``SPOTSYNTH.fit()``.
 
 California tobacco control (Figure 6b). The 39-state Abadie panel plus the
-planted donor; ``S1`` keeps 30 donors with the lagged forecast.
+planted donor; ``S1`` keeps 30 donors with the default leave-one-out forecast
+(one contaminant in a mostly-valid pool -- the regime ``loo`` is built for).
 
 .. code-block:: python
 
@@ -544,8 +644,9 @@ planted donor; ``S1`` keeps 30 donors with the lagged forecast.
    res = SPOTSYNTH({
        "df": df_contam, "outcome": "cigsale", "treat": "treated",
        "unitid": "state", "time": "year",
-       "selection": "S1", "forecast": "lag", "n_donors": 30,
-       "inference": "bayes",     # Dirichlet(0.4) Bayesian simplex SC (default)
+       "selection": "S1", "n_donors": 30,
+       # forecast="loo" is the default; inference="bayes" is the default
+       # (Dirichlet(0.4) Bayesian simplex SC).
        "display_graphs": False,
    }).fit()
 
@@ -559,33 +660,61 @@ planted donor; ``S1`` keeps 30 donors with the lagged forecast.
 prints::
 
    contaminated (all donors) ATT = -1.43
-   screened ATT                  = -20.68
-   95% credible interval         = [-23.28, -18.19]
+   screened ATT                  = -22.87
+   95% credible interval         = [-26.61, -18.73]
    planted donor excluded?       = True
 
 The contaminated pool gives a near-zero effect (the synthetic donor
 hijacks the SC); the screen excludes it and the Bayesian Dirichlet SC
 recovers the canonical :math:`\approx -20` packs-per-capita effect, with a
-credible interval that brackets it. The one-call convenience
-wrappers :func:`~mlsynth.utils.spotsynth_helpers.replicate_prop99_spillover`
-and :func:`~mlsynth.utils.spotsynth_helpers.replicate_germany_spillover`
-reproduce both Figure 6 panels (California, and German reunification with
-``forecast="loo"`` since its effect builds gradually):
+credible interval that brackets it.
+
+:func:`~mlsynth.utils.spotsynth_helpers.replicate_all_spillover` runs all
+three real panels at once -- California (Figure 6b), German reunification
+(Figure 6a), and, as an additional robustness check *not* in the paper, the
+Basque Country (Abadie & Gardeazabal 2003, ETA terrorism 1975). All use the
+default ``forecast="loo"`` (each is a single contaminant in a mostly-valid
+pool) and the Bayesian Dirichlet SC, and each returns the full set of standard
+outputs -- oracle / contaminated / screened ATTs, the 95% credible interval,
+the pre-treatment RMSE, the SC donor weights, and the selected / excluded donor
+sets:
 
 .. code-block:: python
 
-   from mlsynth.utils.spotsynth_helpers import (
-       replicate_prop99_spillover, replicate_germany_spillover,
-   )
-   replicate_prop99_spillover()    # California tobacco control (Figure 6b)
-   replicate_germany_spillover()   # German reunification    (Figure 6a)
+   from mlsynth.utils.spotsynth_helpers import replicate_all_spillover
+   results = replicate_all_spillover()
+
+   # each entry carries the standard diagnostics, e.g. for California:
+   ca = results["prop99"]
+   print(ca["screened_att"], ca["att_ci"], ca["pre_rmse"])
+   print(ca["donor_weights"])           # {donor: weight} for the screened SC
+   print(ca["synthetic_donor_excluded"])
 
 prints::
 
-   Prop 99 (California): oracle ATT=-19.51  contaminated=-1.43  screened=-20.68  95% CrI=(-23.28, -18.19)  synthetic-donor excluded=True
-   Reunification (Germany): oracle ATT=-1297.48  contaminated=-166.86  screened=-1431.27  95% CrI=(-1562.10, -1327.83)  synthetic-donor excluded=True
+   Prop 99 (California):
+     oracle ATT=-19.514  contaminated=-1.434  screened ATT=-22.871  95% CrI=(-26.61, -18.73)
+     pre-treatment RMSE=2.544  donors kept=30/39  synthetic donor excluded=True
+     top SC weights: Nevada=0.28  New Hampshire=0.24  Delaware=0.06
+   Reunification (Germany):
+     oracle ATT=-1297.477  contaminated=-166.863  screened ATT=-1489.345  95% CrI=(-1672.92, -1314.43)
+     pre-treatment RMSE=55.629  donors kept=12/17  synthetic donor excluded=True
+     top SC weights: Austria=0.30  USA=0.28  Italy=0.22
+   Basque Country (ETA):
+     oracle ATT=-0.692  contaminated=-0.379  screened ATT=-0.795  95% CrI=(-1.03, -0.60)
+     pre-treatment RMSE=0.087  donors kept=12/17  synthetic donor excluded=True
+     top SC weights: Cataluna=0.34  Aragon=0.17  Madrid (Comunidad De)=0.10
 
-In both cases the planted invalid donor is flagged and excluded, and the
-Bayesian Dirichlet SC restores the large effect the contamination had
-masked, with a 95% posterior-predictive credible interval (the shaded
-bands of the paper's Figure 6).
+   Summary (loo forecast, Bayesian Dirichlet SC):
+   panel                       oracle    contam   screened  pre-RMSE  synth excl
+   Prop 99 (California)       -19.514    -1.434    -22.871     2.544  True
+   Reunification (Germany)  -1297.477  -166.863  -1489.345    55.629  True
+   Basque Country (ETA)        -0.692    -0.379     -0.795     0.087  True
+
+In all three the planted invalid donor is flagged and excluded, the Bayesian
+Dirichlet SC restores the effect the contamination had masked (with a 95%
+posterior-predictive credible interval), and the recovered donor weights match
+the canonical SC literature -- Austria/USA for West Germany, Cataluna for the
+Basque Country. The Basque effect builds gradually, so it is exactly the case
+the ``loo`` anchor is designed for (the first-post-point ``lag`` anchor fails on
+it; see the forecast-anchor discussion).

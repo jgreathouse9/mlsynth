@@ -12,15 +12,20 @@ Two forecast anchors are provided. Both normalise each donor to zero mean and
 unit standard deviation over the pre-intervention window (Algorithm 1, step 1),
 optionally on time-averaged ("bucketed") data (Section 3.2.1; Figure 3).
 
-* ``"lag"`` -- the paper's Algorithm 1. Fit the forecast :math:`\\hat h_i` on
-  *lagged* donor data over pre-intervention transitions, then predict the first
-  post-intervention point from the last (clean) pre-intervention cross-section.
-  Because the forecast is anchored to pre-treatment data it stays uncontaminated
-  even when most donors are invalid -- the regime of the paper's simulation.
-* ``"loo"`` -- a leave-one-out variant for gradual effects. Predict each donor's
-  whole post-intervention trajectory from the *other* donors' common factors and
-  rank by the mean absolute deviation. Suited to single-contaminant panels whose
-  treatment effect builds slowly (so the first post-period gap is near zero).
+* ``"loo"`` (default) -- a leave-one-out anchor. Predict each donor's *whole*
+  post-intervention trajectory from the *other* donors' common factors and rank
+  by the mean absolute deviation. It differences out the common factor and
+  accumulates evidence over the post-period, so it detects contamination
+  regardless of how *gradually* the spillover arrives -- but it needs a valid
+  *majority* (the other donors form the reference). This is the right anchor for
+  applied work (a few suspect donors in a mostly-valid pool) and is onset-robust.
+* ``"lag"`` -- the paper's Algorithm 1. Fit the forecast on *lagged* donor data
+  over pre-intervention transitions, then predict the *first* post-intervention
+  point from the last (clean) pre-intervention cross-section. Anchored to clean
+  pre-data, it survives a *mostly-invalid* pool -- but it assumes a *sharp*
+  spillover (present at full size by the first post-period) and is blind to
+  gradual onsets. Use it only in the paper's mostly-invalid / sharp regime, where
+  ``loo`` inverts. See ``run_forecast_power_analysis`` for the power comparison.
 """
 
 from __future__ import annotations
@@ -61,8 +66,7 @@ def _factor_design(L: np.ndarray, n_factors: int) -> Tuple[np.ndarray, np.ndarra
 def _forecast_loo(Z: np.ndarray, pre: np.ndarray, post: np.ndarray, *,
                   n_factors: int) -> Tuple[np.ndarray, np.ndarray]:
     """Leave-one-out variant: mean absolute post-period deviation from the
-    common-factor forecast built on the *other* donors.
-    """
+    common-factor forecast built on the *other* donors."""
     T, n = Z.shape
     A = np.zeros(n)
     resid_sd = np.zeros(n)
@@ -88,7 +92,7 @@ def spillover_screen(
     donor_names,
     *,
     selection: str = "S1",
-    forecast: str = "lag",
+    forecast: str = "loo",
     n_donors=None,
     ppi: float = 0.8,
     n_factors: int = 5,
@@ -108,8 +112,9 @@ def spillover_screen(
         ``S1`` keeps the ``n_donors`` donors with the smallest forecast error;
         ``S2`` keeps the donors whose realised value lies inside the ``ppi``
         posterior predictive interval; ``all`` keeps every donor (the baseline).
-    forecast : {"lag", "loo"}
-        Forecast anchor (see module docstring).
+    forecast : {"loo", "lag"}
+        Forecast anchor (default ``"loo"``; see module docstring). Use ``"lag"``
+        only for the mostly-invalid / sharp-spillover regime.
     n_donors : int, optional
         Number of donors to retain under ``S1`` (default: half the pool,
         minimum 2).

@@ -25,6 +25,7 @@ def simulate_spillover_panel(
     frac_invalid: float = 0.8,
     tau: float = 2.0,
     spillover: float = -2.0,
+    spillover_ramp: int = 1,
     sigma_u: float = 1.0,
     sigma_delta: float = 0.1,
     sigma_y: float = 0.1,
@@ -60,6 +61,11 @@ def simulate_spillover_panel(
         Fraction of donors hit by the spillover effect (0.8 in the paper).
     tau, spillover : float
         Treatment effect on the target and spillover effect on invalid donors.
+    spillover_ramp : int
+        Onset speed of the donor spillover: ``1`` is a sharp/immediate level
+        shift (the paper's DGP); larger values ramp the spillover linearly to its
+        final level over that many post-periods (a gradual onset), holding the
+        final level fixed. Used to study detection power vs onset speed.
     sigma_u, sigma_delta, sigma_y : float
         Latent-level, slope, and target-noise standard deviations.
     seed : int
@@ -91,11 +97,22 @@ def simulate_spillover_panel(
     signal = u.sum(axis=1)
     y = rng.normal(signal + tau * I, sigma_y)
 
+    # Spillover onset profile: ``spillover_ramp`` controls how fast the donor
+    # spillover reaches its final level (1 = sharp/immediate, larger = gradual
+    # ramp over that many post-periods). Holds the final level fixed.
+    ramp = np.zeros(T)
+    n_post_eff = T - T0
+    if spillover_ramp <= 1:
+        ramp[T0:] = 1.0
+    else:
+        prof = np.minimum(1.0, (np.arange(n_post_eff) + 1) / float(spillover_ramp))
+        ramp[T0:] = prof
+
     invalid = np.zeros(n_donors, dtype=bool)
     invalid[: int(round(frac_invalid * n_donors))] = True
     rng.shuffle(invalid)
     X = np.column_stack([
-        rng.normal(signal + (spillover if invalid[i] else 0.0) * I, sigma_x)
+        rng.normal(signal + (spillover * ramp if invalid[i] else 0.0), sigma_x)
         for i in range(n_donors)
     ])
 

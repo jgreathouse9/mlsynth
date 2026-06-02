@@ -32,8 +32,11 @@ from .replication import (
     DEMO,
     PAPER,
     SpotSimConfig,
+    replicate_all_spillover,
+    replicate_basque_spillover,
     replicate_germany_spillover,
     replicate_prop99_spillover,
+    run_forecast_power_analysis,
     run_spotsynth_simulation,
 )
 from .sc import simplex_weights
@@ -54,8 +57,11 @@ __all__ = [
     "SpotSynthInputs",
     "SpotSynthResults",
     "prepare_spotsynth_inputs",
+    "replicate_all_spillover",
+    "replicate_basque_spillover",
     "replicate_germany_spillover",
     "replicate_prop99_spillover",
+    "run_forecast_power_analysis",
     "run_spotsynth",
     "run_spotsynth_simulation",
     "simplex_weights",

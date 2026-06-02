@@ -57,3 +57,4 @@ def simplex_weights(y: np.ndarray, D: np.ndarray, T0: int) -> Tuple[np.ndarray, 
     if s > 0:
         weights = weights / s
     return weights, D @ weights
+
