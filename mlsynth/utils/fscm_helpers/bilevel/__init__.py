@@ -12,12 +12,15 @@ Two interchangeable backends are available via ``solve_bilevel(..., method=)``:
   corner search with an early optimality certificate.
 * ``"mscmt"`` -- Becker & Kloessner (2018): global differential-evolution
   search over ``log10(V)`` (the MSCMT outer optimisation).
+* ``"penalized"`` -- Abadie & L'Hour (2021): pairwise-penalized estimator with
+  leave-one-out ``lambda`` selection and an optional bias correction.
 """
 
 from .structure import BilevelProblem, BilevelSolution
 from .simplex import project_simplex, simplex_lstsq, mspe
 from .solver import solve_bilevel, lower_level_weights
 from .mscmt import solve_mscmt
+from .penalized import bias_corrected_gaps, penalized_weights, solve_penalized
 
 __all__ = [
     "BilevelProblem",
@@ -27,5 +30,8 @@ __all__ = [
     "mspe",
     "solve_bilevel",
     "solve_mscmt",
+    "solve_penalized",
+    "penalized_weights",
+    "bias_corrected_gaps",
     "lower_level_weights",
 ]

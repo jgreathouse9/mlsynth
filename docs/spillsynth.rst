@@ -1220,10 +1220,29 @@ donor weights :math:`W`. The bilevel *backend* is the user's choice via
 
 * ``"malo"`` (default) -- Malo et al. (2024) staged corner search;
 * ``"mscmt"`` -- Becker & Kloessner (2018) global differential-evolution
-  search over :math:`\log_{10} V` (the MSCMT outer optimisation).
+  search over :math:`\log_{10} V` (the MSCMT outer optimisation);
+* ``"penalized"`` -- Abadie & L'Hour (2021): fixes :math:`\Gamma = I` and adds
+  a pairwise matching penalty, choosing :math:`\lambda` by cross-validation
+  (treated pre-intervention holdout by default; donor leave-one-out optional).
+  Unlike the first two it has no predictor-weight :math:`V` to identify, so it
+  returns a **unique, sparse** synthetic control -- the principled resolution
+  of the malo/mscmt non-uniqueness that arises when the treated unit lies
+  inside the donor convex hull on the matching variables.
+
+When ``malo`` and ``mscmt`` disagree, it is a diagnostic that the predictors
+are (near-)perfectly matchable and therefore not identifying; trust the
+pre-treatment RMSPE and prefer the lower one (or the ``penalized`` backend,
+which removes the ambiguity by construction).
+
+Setting ``bias_correct=True`` additionally applies the Abadie-L'Hour bias
+correction (eq. 7): a ridge regression of the outcome on the covariates
+removes the part of each gap attributable to residual covariate imbalance. It
+helps when the covariates genuinely explain the outcome and should be left off
+otherwise (a weak-covariate regression injects noise), which is why it
+defaults to ``False``.
 
 With no ``covariates`` the method matches on pre-treatment outcomes only
-(``bilevel_solver`` is then ignored).
+(``bilevel_solver`` and ``bias_correct`` are then ignored).
 
 Worked example: German reunification
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

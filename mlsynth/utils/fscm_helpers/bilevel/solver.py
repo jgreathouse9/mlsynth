@@ -9,10 +9,15 @@ Two interchangeable backends solve the same optimistic bilevel program
   (the optimum is typically a corner found in the early stages).
 * ``"mscmt"`` -- Becker & Kloessner (2018): a global differential-evolution
   search over ``log10(V)`` with the simplex inner solve (:mod:`mscmt`).
+* ``"penalized"`` -- Abadie & L'Hour (2021): fixes ``Gamma = I`` and adds a
+  pairwise matching penalty, with ``lambda`` chosen by leave-one-out CV. It
+  yields a unique, sparse ``W`` (:mod:`penalized`), sidestepping the ``V``
+  non-identification that makes malo and mscmt disagree.
 
-Both share the Section 3.1 / MSCMT Eq. 13 global-optimum certificate and the
-same lower bound, so they agree exactly whenever the unconstrained outcome
-optimum is predictor-feasible; they differ when the optimal ``V`` is interior.
+The first two share the Section 3.1 / MSCMT Eq. 13 global-optimum certificate
+and the same lower bound, so they agree exactly whenever the unconstrained
+outcome optimum is predictor-feasible; they differ when the optimal ``V`` is
+interior. The penalized backend resolves that ambiguity by construction.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from __future__ import annotations
 import numpy as np
 
 from .mscmt import solve_mscmt
+from .penalized import solve_penalized
 from .simplex import mspe
 from .stages import (
     _lower_level_weights,
@@ -48,16 +54,19 @@ def solve_bilevel(
     ----------
     prob : BilevelProblem
         Outcome and predictor matrices.
-    method : {"malo", "mscmt"}
+    method : {"malo", "mscmt", "penalized"}
         Which backend to use. ``"malo"`` (default) runs the staged corner
         search; ``"mscmt"`` runs the global differential-evolution outer
-        search. The default preserves the historical behaviour of every
-        existing caller.
+        search; ``"penalized"`` runs the Abadie-L'Hour penalized estimator
+        with leave-one-out ``lambda`` selection. The default preserves the
+        historical behaviour of every existing caller.
     **kwargs
         Backend-specific options. For ``"malo"``: ``feas_tol``,
         ``eps_corner``, ``refine``, ``refine_gap_tol``. For ``"mscmt"``:
         ``lb``, ``maxiter``, ``popsize``, ``tol``, ``seed``, ``polish``,
-        ``feas_tol`` (see :func:`mlsynth.utils.fscm_helpers.bilevel.mscmt.solve_mscmt`).
+        ``feas_tol``. For ``"penalized"``: ``lam`` (default ``"loo"``),
+        ``lam_grid``, ``max_iter``, ``tol`` (see
+        :func:`mlsynth.utils.fscm_helpers.bilevel.penalized.solve_penalized`).
 
     Returns
     -------
@@ -66,10 +75,12 @@ def solve_bilevel(
     method = str(method).lower()
     if method == "mscmt":
         return solve_mscmt(prob, **kwargs)
+    if method == "penalized":
+        return solve_penalized(prob, **kwargs)
     if method == "malo":
         return _solve_malo(prob, **kwargs)
     raise ValueError(
-        f"Unknown bilevel method {method!r}; expected 'malo' or 'mscmt'."
+        f"Unknown bilevel method {method!r}; expected 'malo', 'mscmt' or 'penalized'."
     )
 
 

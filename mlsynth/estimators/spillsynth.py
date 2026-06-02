@@ -83,6 +83,7 @@ class SPILLSYNTH:
         self.solver = config.solver
         self.covariates = list(config.covariates) if config.covariates else None
         self.bilevel_solver: str = getattr(config, "bilevel_solver", "malo")
+        self.bias_correct: bool = getattr(config, "bias_correct", False)
         self.display_graphs: bool = config.display_graphs
         self.save = config.save
         self.counterfactual_color = config.counterfactual_color
@@ -120,7 +121,8 @@ class SPILLSYNTH:
                     inputs=inputs, method="cd", cd=fit,
                 )
             elif self.method == "iscm":
-                fit = run_iscm(inputs, bilevel_solver=self.bilevel_solver)
+                fit = run_iscm(inputs, bilevel_solver=self.bilevel_solver,
+                               bias_correct=self.bias_correct)
                 results = SpillSynthResults(
                     inputs=inputs, method="iscm", iscm=fit,
                 )

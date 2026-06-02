@@ -18,7 +18,8 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from ...fscm_helpers.bilevel import BilevelProblem, simplex_lstsq, solve_bilevel
+from ...fscm_helpers.bilevel import (
+    BilevelProblem, bias_corrected_gaps, simplex_lstsq, solve_bilevel)
 
 
 def _standardize(P_target: np.ndarray, P_donors: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -39,8 +40,16 @@ def build_unit_sc(
     predictors: Optional[np.ndarray] = None,
     predictor_names: Optional[List] = None,
     solver: str = "malo",
+    bias_correct: bool = False,
 ):
     """Synthetic control for ``target_idx`` built from donors ``donor_idx``.
+
+    Parameters
+    ----------
+    bias_correct : bool
+        If True (and covariates are supplied), apply the Abadie-L'Hour bias
+        correction to the gap, removing the part attributable to residual
+        covariate imbalance.
 
     Returns
     -------
@@ -49,9 +58,10 @@ def build_unit_sc(
     cf : np.ndarray
         Full-length synthetic counterfactual ``(T,)``.
     gap : np.ndarray
-        ``Y[target] - cf`` over all periods ``(T,)``.
+        ``Y[target] - cf`` over all periods ``(T,)`` (bias-corrected if
+        requested).
     pre_rmspe : float
-        Root mean squared pre-treatment fit error.
+        Root mean squared pre-treatment fit error (of the reported gap).
     sol : BilevelSolution or None
         The bilevel solution (covariate mode) or ``None`` (outcome-only).
     """
@@ -61,6 +71,7 @@ def build_unit_sc(
     if predictors is None:
         w = simplex_lstsq(Y0[:T0], y1[:T0])
         sol = None
+        gap = y1 - Y0 @ w
     else:
         X1, X0 = _standardize(predictors[target_idx], predictors[donor_idx].T)
         prob = BilevelProblem(
@@ -69,8 +80,11 @@ def build_unit_sc(
         )
         sol = solve_bilevel(prob, method=solver)
         w = sol.W
+        if bias_correct:
+            gap = bias_corrected_gaps(w, X1, X0, y1, Y0)
+        else:
+            gap = y1 - Y0 @ w
 
-    cf = Y0 @ w
-    gap = y1 - cf
+    cf = y1 - gap
     pre_rmspe = float(np.sqrt(np.mean(gap[:T0] ** 2)))
     return w, cf, gap, pre_rmspe, sol

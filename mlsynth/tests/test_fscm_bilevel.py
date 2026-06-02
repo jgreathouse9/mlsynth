@@ -169,3 +169,70 @@ def test_mscmt_deterministic_with_seed():
     s2 = solve_bilevel(prob, method="mscmt", seed=3, maxiter=40)
     np.testing.assert_allclose(s1.W, s2.W)
     np.testing.assert_allclose(s1.V, s2.V)
+
+
+# --------------------------------------------------------------------------- #
+# penalized backend (Abadie & L'Hour 2021)
+# --------------------------------------------------------------------------- #
+from mlsynth.utils.fscm_helpers.bilevel import (  # noqa: E402
+    bias_corrected_gaps, solve_penalized,
+)
+
+
+def _toy_prob(seed=0, T=18, J=8, K=3):
+    rng = np.random.default_rng(seed)
+    Y0 = np.cumsum(rng.normal(size=(T, J)), axis=0) + 5.0
+    w = rng.dirichlet(np.ones(J))
+    y1 = Y0 @ w + rng.normal(scale=0.1, size=T)
+    X0 = rng.normal(size=(K, J))
+    X1 = X0 @ w
+    return BilevelProblem(y1_pre=y1, Y0_pre=Y0, X1=X1, X0=X0)
+
+
+def test_penalized_on_simplex_and_unique():
+    prob = _toy_prob()
+    s1 = solve_bilevel(prob, method="penalized", lam=0.1)
+    s2 = solve_bilevel(prob, method="penalized", lam=0.1)
+    assert s1.stage == "penalized"
+    assert s1.W.sum() == pytest.approx(1.0, abs=1e-6)
+    assert np.all(s1.W >= -1e-9)
+    # lambda > 0 => unique => deterministic across runs (Theorem 1).
+    np.testing.assert_allclose(s1.W, s2.W, atol=1e-7)
+
+
+def test_penalized_larger_lambda_is_sparser():
+    prob = _toy_prob(seed=2)
+    nnz_small = solve_bilevel(prob, method="penalized", lam=1e-3).metadata["n_nonzero"]
+    nnz_large = solve_bilevel(prob, method="penalized", lam=10.0).metadata["n_nonzero"]
+    assert nnz_large <= nnz_small
+
+
+def test_penalized_cv_selectors_run():
+    prob = _toy_prob(seed=4)
+    for cv in ("holdout", "loo"):
+        s = solve_bilevel(prob, method="penalized", lam="cv", cv=cv)
+        assert s.metadata["lambda_selected_by"] == cv
+        assert s.metadata["lambda"] > 0
+        assert s.W.sum() == pytest.approx(1.0, abs=1e-6)
+
+
+def test_penalized_unknown_cv_raises():
+    prob = _toy_prob()
+    with pytest.raises(ValueError, match="holdout|loo"):
+        solve_bilevel(prob, method="penalized", lam="cv", cv="nope")
+
+
+def test_bias_correction_removes_bias_when_covariates_informative():
+    # Outcome is generated *from* the covariates -> the bias correction should
+    # collapse the gap of a deliberately imbalanced weight vector toward 0.
+    rng = np.random.default_rng(0)
+    J, T, K = 12, 20, 3
+    X0 = rng.normal(size=(K, J))
+    beta = np.array([3.0, -2.0, 1.0])
+    Y0 = (X0.T @ beta)[None, :] + rng.normal(scale=0.05, size=(T, J))
+    X1 = rng.normal(size=K)
+    y1 = (X1 @ beta) + rng.normal(scale=0.05, size=T)
+    w = np.full(J, 1.0 / J)                       # imbalanced on purpose
+    raw = np.abs(y1 - Y0 @ w).mean()
+    bc = np.abs(bias_corrected_gaps(w, X1, X0, y1, Y0, ridge=1e-3)).mean()
+    assert bc < 0.5 * raw                          # correction removes most of the bias

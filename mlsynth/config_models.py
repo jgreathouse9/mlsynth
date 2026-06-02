@@ -1804,12 +1804,23 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
                     "bilevel predictor-matching solver. When None, the "
                     "inclusive SCM matches on pre-treatment outcomes only.",
     )
-    bilevel_solver: Literal["malo", "mscmt"] = Field(
+    bilevel_solver: Literal["malo", "mscmt", "penalized"] = Field(
         default="malo",
         description="(method='iscm' with covariates) Bilevel backend for "
                     "predictor matching: 'malo' (Malo et al. 2024 corner "
-                    "search) or 'mscmt' (Becker-Kloessner 2018 global "
-                    "differential-evolution search).",
+                    "search), 'mscmt' (Becker-Kloessner 2018 global "
+                    "differential-evolution search), or 'penalized' "
+                    "(Abadie-L'Hour 2021 pairwise-penalized estimator with "
+                    "leave-out lambda selection -- a unique, sparse solution).",
+    )
+    bias_correct: bool = Field(
+        default=False,
+        description="(method='iscm') Apply the Abadie-L'Hour (2021) bias "
+                    "correction to each unit's synthetic-control gap, removing "
+                    "the part attributable to residual covariate imbalance via "
+                    "a ridge regression of the outcome on the covariates. "
+                    "Requires 'covariates'; most useful when the covariates "
+                    "genuinely explain the outcome.",
     )
     affected_units: Optional[List[Any]] = Field(
         default=None,

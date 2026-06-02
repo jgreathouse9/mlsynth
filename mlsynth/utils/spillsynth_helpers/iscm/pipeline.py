@@ -22,7 +22,8 @@ from .system import build_omega, solve_inclusive
 from .weights import build_unit_sc
 
 
-def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo") -> ISCMFit:
+def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
+             bias_correct: bool = False) -> ISCMFit:
     """Run inclusive SCM and assemble an :class:`ISCMFit`.
 
     Parameters
@@ -30,9 +31,12 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo") -> ISCMF
     inputs : SpillSynthInputs
         Preprocessed panel (row 0 treated, rows ``1 .. p`` affected). The
         affected set ``S`` is the treated unit plus the ``p`` affected units.
-    bilevel_solver : {"malo", "mscmt"}
+    bilevel_solver : {"malo", "mscmt", "penalized"}
         Bilevel backend for covariate matching. Ignored (no predictor block)
         in outcome-only mode.
+    bias_correct : bool
+        If True (and covariates supplied), apply the Abadie-L'Hour bias
+        correction to each unit's gap before the inclusive Omega-correction.
     """
     Y, T0, N, p = inputs.Y, inputs.T0, inputs.N, inputs.p
     P = inputs.predictors
@@ -55,6 +59,7 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo") -> ISCMF
         w, cf, gap, pre_rmspe, sol = build_unit_sc(
             i, donor_idx, Y, T0,
             predictors=P, predictor_names=pnames, solver=bilevel_solver,
+            bias_correct=bias_correct,
         )
         gaps[si] = gap
         # weight that each *other* affected-set unit receives in unit i's SC
@@ -85,6 +90,7 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo") -> ISCMF
         _, _, _, pre_rmspe_restr, _ = build_unit_sc(
             0, clean_idx, Y, T0,
             predictors=P, predictor_names=pnames, solver=bilevel_solver,
+            bias_correct=bias_correct,
         )
     else:
         pre_rmspe_restr = np.nan
