@@ -20,11 +20,13 @@ Module layout:
 * :mod:`.pipeline` -- :func:`run_ssc` orchestration.
 * :mod:`.plotter` -- event-study chart.
 * :mod:`.simulation` -- staggered factor-model DGP.
+* :mod:`.replication` -- Path-B replication of the paper's Section 3 study.
 """
 
 from __future__ import annotations
 
 from .pipeline import run_ssc
+from .replication import run_ssc_simulation
 from .setup import prepare_ssc_inputs
 from .simulation import simulate_ssc_panel
 from .structures import SSCBand, SSCInference, SSCInputs, SSCResults
@@ -37,6 +39,7 @@ __all__ = [
     "SSCResults",
     "prepare_ssc_inputs",
     "run_ssc",
+    "run_ssc_simulation",
     "simulate_ssc_panel",
     "synthetic_control_batch",
 ]

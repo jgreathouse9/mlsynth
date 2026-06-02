@@ -118,6 +118,19 @@ class TestIntegration:
         assert res.effects.shape == (20, 6)
         assert np.isfinite(res.effects).sum() == res.metadata["K"]
 
+    def test_simulation_study_runs(self):
+        # Path-B replication harness: returns event-time RMSE per (r, T0) cell.
+        from mlsynth.utils.ssc_helpers.replication import (
+            run_ssc_simulation, SSCSimConfig,
+        )
+        cfg = SSCSimConfig(n_units=12, n_never=3, S=5, n_factors=2,
+                           T0_grid=[30], n_reps=3)
+        out = run_ssc_simulation(cfg, seed=0, verbose=False)
+        assert (2, 30) in out                      # keyed by (r, T0)
+        rmse = out[(2, 30)]
+        assert len(rmse) > 0
+        assert all(v >= 0 for v in rmse.values())  # RMSEs are non-negative
+
     def test_inference_off(self):
         df = _panel(n_units=12, n_never=3, T0=40, S=5)
         res = SSC({"df": df, "outcome": "Y", "treat": "treated",
