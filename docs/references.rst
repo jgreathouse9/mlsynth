@@ -300,7 +300,7 @@ References
 .. [SSC]
     Cao, Jianfei, Lu, Shirley, and Wu, Hang.
     "Synthetic Control Inference for Staggered Adoption."
-    *The Econometrics Journal* (forthcoming), 2026.
+    *The Econometrics Journal* (forthcoming), 2026. URL: https://doi.org/10.1093/ectj/utag015
 
 .. [SYNDES]
     Doudchenko, Nick, Khosravi, Khashayar, Pouget-Abadie, Jean, Lahaie, Sebastien,
