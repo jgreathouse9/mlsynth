@@ -447,6 +447,31 @@ class TestLEXSCMEstimator:
         assert hasattr(result, "all_candidates")
         assert hasattr(result, "summary")
 
+    def test_covariates_match_only_not_in_rmse(self, panel_df):
+        # Covariates are for MATCHING only: their values must never enter any
+        # reported RMSE. A wildly off-scale time-varying covariate must (a)
+        # collapse to a single row, and (b) leave the reported pre-fit RMSE /
+        # imbalance in the OUTCOME scale -- if covariate values leaked into the
+        # RMSE, a ~1e6 covariate would blow these up by orders of magnitude.
+        df = panel_df.copy()
+        rng = np.random.default_rng(0)
+        # time-varying covariate on a huge scale (~1e6), unrelated to outcome
+        df["bigcov"] = 1e6 + 1e5 * rng.standard_normal(len(df))
+        est = LEXSCM({
+            "df": df, "outcome": "y", "unitid": "unitid", "time": "time",
+            "candidate_col": "candidate", "m": 2, "post_col": "post",
+            "top_K": 3, "n_sims": 30, "covariates": ["bigcov"], "verbose": False,
+        })
+        result = est.fit()
+        # (a) one collapsed covariate row, not a full trajectory
+        assert est.Z.shape[0] == 1
+        L = result.best_candidate.losses
+        # (b) every reported RMSE / NMSE stays in outcome scale (y ~ 100), not 1e6
+        for val in (L.rmse_sc_E, L.rmse_pop_E, L.rmse_sc_B, L.rmse_pop_B,
+                    L.nmse_E, L.nmse_B):
+            assert np.isfinite(val) and val < 50.0
+        assert float(result.summary.iloc[0]["imbalance"]) < 50.0
+
     def test_fit_design_only_no_post(self, panel_no_post):
         est = LEXSCM({
             "df": panel_no_post, "outcome": "y", "unitid": "unitid",
@@ -866,8 +891,10 @@ class TestFastScmSetupEdges:
         assert post.empty
 
     def test_build_Z_matrix_invariant_and_variant(self):
-        # Build a panel with one invariant and one varying covariate so the
-        # collapse + full-time-series branches both fire.
+        # Build a panel with one invariant and one varying covariate. BOTH are
+        # collapsed to a single row: the invariant to its value, the variant to
+        # its time mean -- so each covariate contributes one matching row and
+        # never dominates by trajectory length.
         df = pd.DataFrame({
             "unit": ["u0"] * 3 + ["u1"] * 3,
             "time": [0, 1, 2, 0, 1, 2],
@@ -879,8 +906,11 @@ class TestFastScmSetupEdges:
         Z = build_Z_matrix(df, covariates=["share", "promo"], time="time",
                            unitid="unit", unit_index=idx)
         assert Z is not None
-        # 1 row (invariant share) + 3 rows (variant promo) = 4 rows
-        assert Z.shape == (4, 2)
+        # 1 row (share value) + 1 row (promo time-mean) = 2 rows
+        assert Z.shape == (2, 2)
+        # invariant covariate keeps its value; variant collapses to the mean
+        assert np.allclose(Z[0], [0.4, 0.6])
+        assert np.allclose(Z[1], [1.0 / 3.0, 2.0 / 3.0])
 
     def test_build_Z_matrix_none(self):
         assert build_Z_matrix(pd.DataFrame(), covariates=None,

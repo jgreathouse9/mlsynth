@@ -135,6 +135,14 @@ def evaluate_candidates(
         synth_control = X @ v
         effects = synth_treated - synth_control
 
+        # Covariates enter the design as extra rows of X (rows >= n_outcome_rows)
+        # and are used in the weight-solve QP for *matching only*. All reported
+        # fit metrics (RMSE / NMSE / residuals) must be computed over the OUTCOME
+        # rows of the estimation block alone -- covariate values never enter an
+        # RMSE in any form; their balance is reported separately as SMD.
+        n_outcome_rows = Y.shape[0]
+        E_out = E_idx[E_idx < n_outcome_rows]
+
         def _rmse(a, b, idx):
             return float(np.sqrt(np.mean((a[idx] - b[idx]) ** 2)))
 
@@ -145,10 +153,10 @@ def evaluate_candidates(
             std_t = np.maximum(np.std(X[period_idx], axis=1, ddof=1), 1e-8)
             return float(np.mean(((synth_p - targ_p) / std_t) ** 2))
 
-        rmse_sc_E = _rmse(synth_treated, synth_control, E_idx)
+        rmse_sc_E = _rmse(synth_treated, synth_control, E_out)
         rmse_sc_B = _rmse(synth_treated, synth_control, B_idx)
 
-        rmse_pop_E = _rmse(synth_treated, target, E_idx)
+        rmse_pop_E = _rmse(synth_treated, target, E_out)
         rmse_pop_B = _rmse(synth_treated, target, B_idx)
 
         candidate = SEDCandidate(
@@ -166,13 +174,13 @@ def evaluate_candidates(
                 synthetic_treated=synth_treated.copy(),
                 synthetic_control=synth_control.copy(),
                 effects=effects.copy(),
-                residuals_E=effects[E_idx].copy(),
+                residuals_E=effects[E_out].copy(),
                 residuals_B=effects[B_idx].copy(),
             ),
 
             losses=Losses(
                 loss_E=float(sol.loss),
-                nmse_E=_nmse(E_idx),
+                nmse_E=_nmse(E_out),
                 nmse_B=_nmse(B_idx),
 
                 rmse_sc_E=rmse_sc_E,

@@ -165,13 +165,16 @@ def build_Z_matrix(working_df, covariates, time, unitid, unit_index):
             # This ensures this covariate has the same 'weight' as one year of outcomes
             cov_data = cov_wide.iloc[0:1, :].to_numpy(dtype=float)
         else:
-            # Keep the full time-series (Time x Units)
-            # Use this for variables like annual unemployment rates
-            cov_data = cov_wide.to_numpy(dtype=float)
+            # Time-varying covariate: collapse to its pre-period time MEAN, a
+            # single (1 x Units) row. Each covariate then contributes exactly one
+            # matching row -- the same weight as one year of outcomes -- rather
+            # than its full T-row trajectory, which would otherwise dominate the
+            # match (and any metric computed over it) by sheer row count.
+            cov_data = cov_wide.mean(axis=0).to_numpy(dtype=float).reshape(1, -1)
 
         covariate_list.append(cov_data)
 
-    # Stack vertically: total rows will be (Num_Invariant + (Num_Variant * T))
+    # Stack vertically: exactly one row per covariate (invariant value or mean).
     return np.vstack(covariate_list)
 
 def build_f_vector(working_df, weight_col, unitid, unit_index):

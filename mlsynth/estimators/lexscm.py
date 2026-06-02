@@ -412,7 +412,11 @@ class LEXSCM:
                 design_id=c.identification.tuple_id,
                 indices=list(c.identification.treated_idx),
                 labels=getattr(sol, "labels", []),
-                imbalance=float(np.sqrt(max(c.losses.loss_E, 0.0))),
+                # Outcome-only pre-fit imbalance: the QP weight-solve matches on
+                # outcomes + covariates, but the reported/selection imbalance is
+                # the synthetic-control RMSE over the OUTCOME estimation rows only
+                # (covariates never enter an RMSE; their balance is the SMD).
+                imbalance=float(c.losses.rmse_sc_E),
                 mde_sd=mde_sd,
                 mde_abs=mde_abs,
                 mde_feasible=bool(np.isfinite(mde_sd)),

@@ -234,8 +234,11 @@ def test_build_z_matrix_stacking(panel_df):
 
     Z = setup.build_Z_matrix(pre, ["z1", "z2"], "time", "unit", unit_idx)
 
-    # 2 covariates stacked vertically → 2 * 2 time periods = 4 rows
-    assert Z.shape == (4, 2)
+    # Each (time-varying) covariate collapses to its pre-period time mean → one
+    # row per covariate, two units (A, B): z1 mean = [20, 30], z2 mean = [.2, .3]
+    assert Z.shape == (2, 2)
+    assert np.allclose(Z[0], [20.0, 30.0])
+    assert np.allclose(Z[1], [0.2, 0.3])
 
 
 def test_split_periods_no_post():
