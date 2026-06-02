@@ -149,6 +149,17 @@ headline numbers.
    sbc
    hsc
 
+
+
+.. toctree::
+   :hidden:
+   :caption: Observational: No Donors
+
+   shc
+
+
+
+
 .. toctree::
    :hidden:
    :caption: Observational: generalised estimand / treatment / unit
