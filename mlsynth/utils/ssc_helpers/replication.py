@@ -32,9 +32,10 @@ reduced-count version that reproduces the qualitative pattern.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional, Union
 
 import numpy as np
+import pandas as pd
 
 from .simulation import simulate_ssc_panel
 
@@ -115,5 +116,102 @@ def run_ssc_simulation(cfg: SSCSimConfig = DEMO, *, n_factors=None,
     return out
 
 
+# ---------------------------------------------------------------------------
+# Path-A replication: the Guanajuato police-reform empirical application
+# (Cao, Lu & Wu 2026, Section 4; data from Alcocer 2024, Harvard Dataverse).
+# ---------------------------------------------------------------------------
+
+#: Raw-data URL prefix for the datasets shipped in ``basedata/``.
+GUANAJUATO_URL = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+                  "main/basedata/")
+
+#: For each outcome: which file, the panel columns, and the sample window the
+#: paper uses (``(unit, time, treat, window_query)``; ``window_query`` is a
+#: ``DataFrame.query`` string, or ``None`` for the full panel).
+GUANAJUATO_SPEC = {
+    "hom_all_rate":          ("crime",  "idunico", "time", "Policial", "time < 253"),
+    "hom_ym_rate":           ("crime",  "idunico", "time", "Policial", "time < 253"),
+    "theft_violent_rate":    ("crime",  "idunico", "time", "Policial", "time >= 133"),
+    "theft_nonviolent_rate": ("crime",  "idunico", "time", "Policial", "time >= 133"),
+    "presence_strength":     ("cartel", "idunico", "Year", "policial", None),
+    "co_num":                ("cartel", "idunico", "Year", "policial", None),
+    "war":                   ("cartel", "idunico", "Year", "policial", None),
+}
+
+
+def replicate_guanajuato(
+    crime: Union[str, pd.DataFrame, None] = None,
+    cartel: Union[str, pd.DataFrame, None] = None,
+    *,
+    outcomes: Optional[List[str]] = None,
+    alpha: float = 0.05,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Replicate the Guanajuato police-reform application (Path A).
+
+    Runs :class:`mlsynth.SSC` on each of the seven outcomes -- homicide and
+    theft rates (monthly) and cartel measures (annual) -- using the paper's
+    sample windows, and returns the event-time ATTs with their end-of-sample
+    bands. Reproduces the authors' reference estimates to ``~1e-4`` (homicide,
+    theft) / ``~1e-3`` (cartel).
+
+    Parameters
+    ----------
+    crime, cartel : str or pandas.DataFrame, optional
+        The monthly crime panel and annual cartel panel, or paths/URLs to them.
+        Default downloads ``guanajuato_crime_ssc.csv`` / ``guanajuato_cartel_ssc.csv``
+        from the ``mlsynth`` ``basedata/`` directory.
+    outcomes : list of str, optional
+        Which outcomes to estimate (default all seven).
+    alpha : float
+        Two-sided level for the end-of-sample bands.
+    verbose : bool
+        Print a per-outcome summary line.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Tidy long table with columns ``outcome``, ``event_time`` (1-based, as in
+        the paper), ``att``, ``ci_lower``, ``ci_upper``, ``T0``, ``S``.
+    """
+    from ...estimators.ssc import SSC
+
+    if crime is None:
+        crime = GUANAJUATO_URL + "guanajuato_crime_ssc.csv"
+    if cartel is None:
+        cartel = GUANAJUATO_URL + "guanajuato_cartel_ssc.csv"
+    frames = {
+        "crime": pd.read_csv(crime) if isinstance(crime, str) else crime.copy(),
+        "cartel": pd.read_csv(cartel) if isinstance(cartel, str) else cartel.copy(),
+    }
+
+    rows = []
+    for outcome in (outcomes or list(GUANAJUATO_SPEC)):
+        which, unit, time, treat, window = GUANAJUATO_SPEC[outcome]
+        df = frames[which]
+        if window is not None:
+            df = df.query(window)
+        df = df[[unit, time, treat, outcome]].copy()
+        df[outcome] = pd.to_numeric(df[outcome], errors="coerce")
+        res = SSC({"df": df, "outcome": outcome, "treat": treat,
+                   "unitid": unit, "time": time,
+                   "inference": True, "alpha": alpha,
+                   "display_graphs": False}).fit()
+        for e in sorted(res.event_att):
+            band = res.event_bands.get(e)
+            rows.append({
+                "outcome": outcome, "event_time": e + 1,   # 1-based, paper convention
+                "att": res.event_att[e],
+                "ci_lower": band.lower if band else float("nan"),
+                "ci_upper": band.upper if band else float("nan"),
+                "T0": res.inputs.T0, "S": res.inputs.S,
+            })
+        if verbose:
+            print(f"{outcome:>22}: T0={res.inputs.T0:>3} S={res.inputs.S:>2} "
+                  f"K={res.metadata['K']:>4}  ATT^e_1 = {res.event_att[0]:+.4f}")
+    return pd.DataFrame(rows)
+
+
 if __name__ == "__main__":
     run_ssc_simulation(DEMO)
+    replicate_guanajuato()

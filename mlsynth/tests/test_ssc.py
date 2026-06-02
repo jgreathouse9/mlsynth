@@ -137,6 +137,29 @@ class TestIntegration:
         assert len(rmse) > 0
         assert all(v >= 0 for v in rmse.values())  # RMSEs are non-negative
 
+    def test_guanajuato_empirical_replication(self):
+        # Path-A: reproduce the paper's cartel-outcome estimates from the
+        # shipped basedata files (fast outcomes only). Skip if data absent.
+        import pathlib
+        base = pathlib.Path(__file__).resolve().parents[2] / "basedata"
+        crime = base / "guanajuato_crime_ssc.csv"
+        cartel = base / "guanajuato_cartel_ssc.csv"
+        ref = base / "guanajuato_ssc_reference.csv"
+        if not (crime.exists() and cartel.exists() and ref.exists()):
+            pytest.skip("Guanajuato basedata not present")
+        from mlsynth.utils.ssc_helpers import replicate_guanajuato
+        out = replicate_guanajuato(str(crime), str(cartel),
+                                   outcomes=["war", "presence_strength"],
+                                   verbose=False)
+        r = pd.read_csv(ref, encoding="latin-1")
+        errs = []
+        for _, row in out.iterrows():
+            rr = r[(r["outcome"] == row["outcome"]) &
+                   (r["event time"] == row["event_time"])]
+            if len(rr):
+                errs.append(abs(row["att"] - rr["att estimate"].values[0]))
+        assert max(errs) < 5e-3          # matches authors' reference
+
     def test_inference_off(self):
         df = _panel(n_units=12, n_never=3, T0=40, S=5)
         res = SSC({"df": df, "outcome": "Y", "treat": "treated",

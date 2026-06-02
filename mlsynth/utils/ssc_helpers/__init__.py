@@ -26,7 +26,7 @@ Module layout:
 from __future__ import annotations
 
 from .pipeline import run_ssc
-from .replication import run_ssc_simulation
+from .replication import replicate_guanajuato, run_ssc_simulation
 from .setup import prepare_ssc_inputs
 from .simulation import simulate_ssc_panel
 from .structures import SSCBand, SSCInference, SSCInputs, SSCResults
@@ -38,6 +38,7 @@ __all__ = [
     "SSCInputs",
     "SSCResults",
     "prepare_ssc_inputs",
+    "replicate_guanajuato",
     "run_ssc",
     "run_ssc_simulation",
     "simulate_ssc_panel",

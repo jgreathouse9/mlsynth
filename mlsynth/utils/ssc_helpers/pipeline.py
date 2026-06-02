@@ -94,11 +94,20 @@ def run_ssc(inputs: SSCInputs, *, inference: bool = True,
     inf = SSCInference("andrews_eos", float(alpha),
                        int(max(0, T0 - S))) if inference else None
 
+    # Assumption 2.1 (invertibility) diagnostic: smallest eigenvalue of the
+    # design Gram sum_s A_s' M A_s (the paper's Table 1). A value near zero
+    # signals a near-singular, numerically unstable problem.
+    try:
+        gram_min_eig = float(np.linalg.eigvalsh(gram).min())
+    except np.linalg.LinAlgError:
+        gram_min_eig = float("nan")
+
     metadata = {
         "N": N, "T0": T0, "S": S, "K": K,
         "n_treated": int(inputs.treated_idx.size),
         "n_never_treated": int(N - inputs.treated_idx.size),
         "n_adoption_times": int(len(set(inputs.adoption[inputs.treated_idx].tolist()))),
+        "gram_min_eigenvalue": gram_min_eig,
         "estimator": "SSC",
     }
     return SSCResults(

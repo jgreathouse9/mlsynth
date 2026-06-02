@@ -115,6 +115,82 @@ the prediction error the test has asymptotically correct size as
 point estimate plus the placebo distribution's quantiles) and a two-sided
 p-value, on :class:`~mlsynth.utils.ssc_helpers.structures.SSCBand`.
 
+Assumptions and econometric theory
+-----------------------------------
+
+SSC is a **large-:math:`T`, fixed-:math:`N`-and-:math:`S`** method. The
+individual effects :math:`\tau_{i,t}` are **not point-identified** (there are
+more unknowns than the data can pin down); the payoff is that any aggregate
+:math:`\gamma = L\tau` is *asymptotically unbiased* and admits valid inference
+as the pre-period lengthens.
+
+*Setup (SUTVA, no anticipation).* Potential outcomes follow a Rubin model in
+which (i) a unit stays treated once treated (absorbing), (ii) a unit's outcome
+depends only on its own treatment status and timing -- **no interference /
+spillovers across units** -- and (iii) pre-adoption outcomes equal the
+never-treated potential outcome (**no anticipation**).
+
+*Assumption 2.1 (invertibility).* :math:`\sum_{s=1}^{S} A_s' M A_s` is
+invertible, with :math:`M = (I-B)'(I-B)`. *Remark.* This is the key identifying
+condition: it makes the linear map from the post-treatment prediction errors to
+:math:`\tau` full rank, so the estimator (eq. 2.4) is well defined. It fails
+only in degenerate cases -- a "disconnected treated cohort" whose units lie in
+one another's convex hull -- and staggered timing typically *bridges* cohorts
+and restores it. The smallest eigenvalue of the sample
+:math:`\sum_s A_s'\widehat M A_s` is a practical diagnostic (the paper's
+Table 1); ``mlsynth`` reports it as ``results.metadata["gram_min_eigenvalue"]``.
+
+*Assumption 2.2 (stationary prediction error; consistent weights).* The
+prediction error :math:`u_{i,t} = y_{i,t}(\infty) - (a_i + Y_t(\infty)'b_i)` is
+strictly stationary with mean zero, and the synthetic-control weights converge
+(:math:`\widehat a \to a`, :math:`\widehat B \to B`). *Remark.* The authors show
+this holds when the untreated outcomes share **stationary or cointegrated**
+common factors -- the cointegrating relationship is exactly what lets a *stable*
+cross-sectional synthetic control exist with a stationary remainder, which is
+why a long, well-behaved pre-period matters.
+
+*Assumption 2.3 (ergodicity; regularity for inference).* :math:`\{u_t\}` is
+ergodic with finite second moment, a normalising sequence controls the
+regressors, the weight estimates converge uniformly across the placebo windows,
+and the test statistic's distribution is continuous and increasing at its
+:math:`(1-\alpha)` quantile. *Remark.* These are the conditions under which the
+pre-treatment placebo windows are a valid stand-in for the post-treatment
+sampling distribution of the estimator.
+
+**Theorem 2.1 (asymptotic unbiasedness).** Under Assumptions 2.1--2.2, as
+:math:`T \to \infty`,
+
+.. math::
+
+   \widehat\gamma - (\gamma + L V_T) \xrightarrow{p} 0,
+   \qquad \mathbb{E}[L V_T] = 0,
+
+so :math:`\widehat\gamma` -- and, by Corollary 2.1, the event-time ATT
+:math:`\widehat{\mathrm{ATT}}^e_s = l_s'\widehat\tau` -- is an asymptotically
+unbiased estimator of its target *without* point-identifying the individual
+effects. (The remaining :math:`L V_T` term is mean-zero estimation noise that
+the inference procedure quantifies.)
+
+**Theorem 2.2 (valid end-of-sample inference).** Under Assumptions 2.1--2.3 and
+the null :math:`H_0: C\tau = d`, the Andrews test has asymptotically correct
+size,
+
+.. math::
+
+   \Pr\!\bigl(\widehat P > \widehat q_{1-\alpha}\bigr) \to \alpha
+   \quad\text{as } T \to \infty,
+
+and confidence regions are obtained by inverting the test. The result holds for
+both *sharp* nulls (e.g. a single :math:`\mathrm{ATT}^e_s = 0`) and *non-sharp*
+nulls (restrictions on aggregates), which is what makes it suited to
+policy-relevant hypotheses under staggered adoption.
+
+*Why large-:math:`T`.* The leverage comes entirely from the long pre-period: it
+identifies the synthetic-control weights and supplies the placebo windows that
+calibrate inference. This is why SSC fits high-frequency aggregate outcomes
+(monthly, weekly) with a moderate number of units -- and why it is **not** for
+short panels.
+
 Example
 -------
 
@@ -144,6 +220,32 @@ with end-of-sample bands and reports the overall ATT.
        b = res.event_bands[e]
        print(f"  event time {e}: {b.point:+.3f}  [{b.lower:+.3f}, {b.upper:+.3f}]"
              f"  (true {1.0 + e:.0f})")
+
+Empirical replication (Guanajuato police reform)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The package ships the paper's Section 4 data (Alcocer 2024, Harvard Dataverse)
+in ``basedata/`` and a one-call routine that runs ``SSC`` on all seven outcomes
+with the paper's sample windows:
+
+.. code-block:: python
+
+   from mlsynth.utils.ssc_helpers import replicate_guanajuato
+
+   # downloads guanajuato_crime_ssc.csv / guanajuato_cartel_ssc.csv from basedata/
+   table = replicate_guanajuato()        # tidy event-time ATTs + bands, all outcomes
+   print(table.head())
+
+   # or point at local copies / a subset of outcomes:
+   table = replicate_guanajuato(
+       "basedata/guanajuato_crime_ssc.csv",
+       "basedata/guanajuato_cartel_ssc.csv",
+       outcomes=["hom_all_rate", "war"],
+   )
+
+The returned event-time ATTs match the authors' reference
+(``basedata/guanajuato_ssc_reference.csv``) to about :math:`10^{-4}` for the
+homicide and theft rates and :math:`10^{-3}` for the cartel outcomes.
 
 Verification
 ------------
