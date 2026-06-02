@@ -1792,9 +1792,24 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
     Pretreatment Fit.* Quantitative Economics, 12(4), 1197-1221.
     """
 
-    method: Literal["cd"] = Field(
+    method: Literal["cd", "iscm"] = Field(
         default="cd",
-        description="Spillover-aware SCM method. 'cd' = Cao & Dowd (2023).",
+        description="Spillover-aware SCM method. 'cd' = Cao & Dowd (2023); "
+                    "'iscm' = inclusive SCM (Di Stefano & Mellace 2024).",
+    )
+    covariates: Optional[List[str]] = Field(
+        default=None,
+        description="(method='iscm' only) Covariate columns to match on, "
+                    "averaged over the pre-treatment period and fed to the "
+                    "bilevel predictor-matching solver. When None, the "
+                    "inclusive SCM matches on pre-treatment outcomes only.",
+    )
+    bilevel_solver: Literal["malo", "mscmt"] = Field(
+        default="malo",
+        description="(method='iscm' with covariates) Bilevel backend for "
+                    "predictor matching: 'malo' (Malo et al. 2024 corner "
+                    "search) or 'mscmt' (Becker-Kloessner 2018 global "
+                    "differential-evolution search).",
     )
     affected_units: Optional[List[Any]] = Field(
         default=None,

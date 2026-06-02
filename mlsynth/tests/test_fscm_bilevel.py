@@ -114,3 +114,58 @@ def test_bilevel_deterministic():
     s1, s2 = solve_bilevel(prob), solve_bilevel(prob)
     np.testing.assert_allclose(s1.V, s2.V)
     np.testing.assert_allclose(s1.W, s2.W)
+
+
+# --------------------------------------------------------------------------- #
+# method dispatch: malo (default) vs mscmt
+# --------------------------------------------------------------------------- #
+def test_unknown_method_raises():
+    prob = BilevelProblem(
+        y1_pre=np.zeros(3), Y0_pre=np.eye(3)[:, :2],
+        X1=np.zeros(1), X0=np.zeros((1, 2)),
+    )
+    with pytest.raises(ValueError, match="malo|mscmt"):
+        solve_bilevel(prob, method="not-a-method")
+
+
+def test_mscmt_backend_on_simplex_and_bounded():
+    rng = np.random.default_rng(5)
+    Y0 = rng.normal(size=(12, 6)); y1 = rng.normal(size=12)
+    X0 = rng.normal(size=(3, 6)); X1 = rng.normal(size=3)
+    sol = solve_bilevel(
+        BilevelProblem(y1_pre=y1, Y0_pre=Y0, X1=X1, X0=X0),
+        method="mscmt", maxiter=50, seed=0,
+    )
+    assert isinstance(sol, BilevelSolution)
+    assert sol.stage in ("mscmt", "mscmt-feasible")
+    assert sol.W.sum() == pytest.approx(1.0, abs=1e-6)
+    assert sol.V.sum() == pytest.approx(1.0, abs=1e-6)
+    assert np.all(sol.W >= -1e-9)
+    assert sol.upper_loss >= sol.lower_bound - 1e-6
+
+
+def test_mscmt_matches_malo_on_feasible_certificate():
+    # When the unconstrained outcome optimum is predictor-feasible, both
+    # backends return the exact global solution and must agree.
+    Y0 = np.array([[1.0, 3.0], [2.0, 0.0], [0.0, 4.0]])
+    w_true = np.array([0.5, 0.5])
+    y1 = Y0 @ w_true
+    X0 = np.array([[10.0, 20.0]])
+    X1 = X0 @ w_true
+    prob = BilevelProblem(y1_pre=y1, Y0_pre=Y0, X1=X1, X0=X0)
+    s_malo = solve_bilevel(prob, method="malo")
+    s_msc = solve_bilevel(prob, method="mscmt")
+    assert s_malo.stage == "unconstrained"
+    assert s_msc.stage == "mscmt-feasible"
+    np.testing.assert_allclose(s_malo.W, s_msc.W, atol=1e-3)
+
+
+def test_mscmt_deterministic_with_seed():
+    rng = np.random.default_rng(11)
+    Y0 = rng.normal(size=(14, 7)); y1 = rng.normal(size=14)
+    X0 = rng.normal(size=(4, 7)); X1 = rng.normal(size=4)
+    prob = BilevelProblem(y1_pre=y1, Y0_pre=Y0, X1=X1, X0=X0)
+    s1 = solve_bilevel(prob, method="mscmt", seed=3, maxiter=40)
+    s2 = solve_bilevel(prob, method="mscmt", seed=3, maxiter=40)
+    np.testing.assert_allclose(s1.W, s2.W)
+    np.testing.assert_allclose(s1.V, s2.V)

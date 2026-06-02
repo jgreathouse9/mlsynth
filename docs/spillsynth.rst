@@ -1168,6 +1168,106 @@ Two caveats on the cell-level numbers:
    :math:`(1-\tau)`-quantile rule. Either convention preserves the
    qualitative finding (placebo has near-zero power under spillover).
 
+Method: ``method='iscm'`` -- Di Stefano & Mellace (2024)
+-------------------------------------------------------
+
+The **inclusive synthetic control method** attacks the same problem as
+Cao-Dowd from a different angle. The conventional spillover-robust recipe
+is to *drop* the contaminated neighbours (the "pure-donor" method); the
+inclusive method instead **keeps them in the donor pool** and removes the
+bias their inclusion causes by solving a small linear system.
+
+The idea
+^^^^^^^^
+
+Suppose the treated unit and a set of :math:`p` *potentially affected*
+control units (the affected set :math:`S`, of size :math:`m = 1 + p`) are
+each exposed to the intervention -- the treated directly, the others via
+spillover. Build a synthetic control for **every** unit in :math:`S`, each
+fit with all other units (including the *other* affected units) in its
+donor pool. Under a good pre-fit, the observed post-treatment gap for
+affected unit :math:`i` mixes its own effect with the effects of the
+affected units it borrows from:
+
+.. math::
+
+   \mathrm{gap}_i(t) = \theta_i(t) - \sum_{k \in S,\, k \neq i}
+   w_i^{(k)} \, \theta_k(t),
+
+where :math:`w_i^{(k)}` is the weight affected unit :math:`k` receives in
+unit :math:`i`'s synthetic control. Stacking the :math:`m` equations gives
+:math:`\Omega\,\theta(t) = \mathrm{gap}(t)` with :math:`\Omega_{ii} = 1`
+and :math:`\Omega_{ik} = -w_i^{(k)}`. Inverting :math:`\Omega` de-
+contaminates the gaps into the true treated-unit effect :math:`\theta_1`
+and the spillover effects :math:`\theta_2, \dots, \theta_m`. For the
+leading :math:`m = 2` case (treated + one affected neighbour with
+cross-weights :math:`w` and :math:`\ell`) this is the closed form
+
+.. math::
+
+   \theta_1(t) = \frac{\mathrm{gap}_1(t) + w\,\mathrm{gap}_2(t)}
+                       {1 - w\,\ell}.
+
+Covariates and the solver choice
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Each unit's synthetic control may match on **covariates** (``covariates=``)
+exactly as in Abadie's specification: the covariates are averaged over the
+pre-treatment period and fed to the FSCM/MASC **bilevel** predictor-matching
+solver, which jointly optimizes the predictor weights :math:`V` with the
+donor weights :math:`W`. The bilevel *backend* is the user's choice via
+``bilevel_solver``:
+
+* ``"malo"`` (default) -- Malo et al. (2024) staged corner search;
+* ``"mscmt"`` -- Becker & Kloessner (2018) global differential-evolution
+  search over :math:`\log_{10} V` (the MSCMT outer optimisation).
+
+With no ``covariates`` the method matches on pre-treatment outcomes only
+(``bilevel_solver`` is then ignored).
+
+Worked example: German reunification
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+West Germany is the treated unit (reunification, 1990); Austria is the
+classic *affected* neighbour. Declaring Austria affected and running the
+inclusive method keeps it in the donor pool and corrects for the spillover:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SPILLSYNTH
+
+   d = pd.read_stata("basedata/repgermany.dta")
+   d = d[["country", "year", "gdp", "trade", "infrate",
+          "industry", "schooling", "invest80"]].copy()
+   d["treat"] = ((d.country == "West Germany") & (d.year >= 1990)).astype(int)
+
+   res = SPILLSYNTH({
+       "df": d, "outcome": "gdp", "treat": "treat",
+       "unitid": "country", "time": "year",
+       "method": "iscm", "affected_units": ["Austria"],
+       # optional covariate matching + solver choice:
+       "covariates": ["trade", "infrate", "industry", "schooling", "invest80"],
+       "bilevel_solver": "malo",      # or "mscmt"
+       "display_graphs": False,
+   }).fit()
+
+   print(res.att)              # inclusive (de-contaminated) ATT on West Germany
+   print(res.att_scm)          # naive SCM ATT (no correction)
+   print(res.iscm.cross_weights)        # {'Austria in West Germany': ~0.33, ...}
+   print(res.iscm.omega_det)            # determinant of Omega (~0.90)
+   print(res.iscm.spillover_att)        # post-period spillover on Austria
+
+Outcome-only, this reproduces the paper's neighbourhood: Austria receives
+``~0.33`` weight in synthetic West Germany and West Germany ``~0.32`` in
+synthetic Austria, :math:`\det\Omega \approx 0.90`, and keeping Austria in
+the pool tightens West Germany's pre-treatment fit (lower RMSPE than the
+exclude-Austria restricted fit). The inclusive ATT is more negative than
+the naive gap, because the naive synthetic borrows from a *contaminated*
+Austria. ``res.iscm`` exposes the full :class:`ISCMFit` -- the
+:math:`\theta` matrix, :math:`\Omega`, cross-weights, donor weights,
+predictor weights (covariate mode), and the inclusive-vs-restricted pre-fit.
+
 References
 ----------
 
@@ -1178,8 +1278,18 @@ Statistical Association* 105(490):493-505.
 Andrews, D. W. K. (2003). "End-of-Sample Instability Tests."
 *Econometrica* 71(6):1661-1694.
 
+Becker, M., & Kloessner, S. (2018). "Fast and reliable computation of
+generalized synthetic controls." *Econometrics and Statistics* 5:1-19.
+
 Cao, J., & Dowd, C. (2023). "Estimation and Inference for Synthetic
 Control Methods with Spillover Effects." Working paper.
 
+Di Stefano, R., & Mellace, G. (2024). "The inclusive synthetic control
+method." Working paper.
+
 Ferman, B., & Pinto, C. (2021). "Synthetic Controls with Imperfect
 Pretreatment Fit." *Quantitative Economics* 12(4):1197-1221.
+
+Malo, P., Eskelinen, J., Zhou, X., & Kuosmanen, T. (2024). "Computing
+Synthetic Controls Using Bilevel Optimization." *Computational
+Economics* 64:1113-1136.

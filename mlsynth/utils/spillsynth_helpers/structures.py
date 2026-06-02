@@ -98,6 +98,11 @@ class SpillSynthInputs:
     spillover_structure: str = "per_unit"
     treated_labels: Tuple[Any, ...] = ()
     n_treated: int = 1
+    # Optional per-unit predictor block (pre-period covariate aggregates),
+    # shape ``(N, K)`` in the same row order as ``Y``. Used by the ``iscm``
+    # method for covariate matching; ``None`` for outcome-only matching.
+    predictors: Optional[np.ndarray] = None
+    predictor_names: Tuple[Any, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -222,6 +227,100 @@ class CDFit:
 
 
 @dataclass(frozen=True)
+class ISCMFit:
+    """Inclusive SCM (Di Stefano & Mellace 2024) per-method fit artifacts.
+
+    A synthetic control is built for the treated unit *and* each affected
+    unit, every fit keeping the other affected units in its donor pool. The
+    weight each affected unit receives in another's synthetic control forms
+    the cross-weight system ``Omega`` (eq. 6); inverting it de-contaminates
+    the observed gaps into the true treated-unit effect and the spillover
+    effects on the affected units.
+
+    Parameters
+    ----------
+    att : float
+        Inclusive (de-contaminated) ATT on the treated unit, post-period mean.
+    att_scm : float
+        Naive SCM ATT for the treated unit (affected units left in the donor
+        pool without correction) -- the contaminated comparison.
+    gap : np.ndarray
+        Per-period inclusive treatment effect on the treated unit, shape
+        ``(T1,)`` (row 0 of ``theta``).
+    gap_scm : np.ndarray
+        Per-period naive SCM gap on the treated unit, shape ``(T1,)``.
+    counterfactual : np.ndarray
+        Inclusive post-period counterfactual for the treated unit, shape
+        ``(T1,)`` (observed minus inclusive effect).
+    counterfactual_scm : np.ndarray
+        Naive SCM post-period counterfactual for the treated unit.
+    theta : np.ndarray
+        De-contaminated effects for the affected set, shape ``(m, T1)`` with
+        ``m = 1 + p``; row 0 is the treated unit, rows ``1 .. p`` the
+        affected units (aligned with ``affected_labels``).
+    omega : np.ndarray
+        ``(m, m)`` cross-weight system matrix (unit diagonal, ``-w`` off).
+    omega_det : float
+        Determinant of ``omega``.
+    cross_weights : Dict[str, float]
+        Human-readable cross-weights between treated and affected units.
+    weight_matrix : np.ndarray
+        ``(m, N)`` donor-weight rows for the affected set (each unit's
+        synthetic control over all other units).
+    donor_weights : Dict[Any, float]
+        Treated unit's synthetic-control donor weights (label -> weight).
+    pre_rmspe : float
+        Treated unit's pre-treatment RMSPE (inclusive donor pool).
+    pre_rmspe_restricted : float
+        Treated unit's pre-treatment RMSPE with the affected units *excluded*
+        from the donor pool (the cost of the conventional exclude strategy).
+    spillover_panel : Dict[Any, np.ndarray]
+        Per-affected-unit de-contaminated spillover trajectory ``theta_k(t)``.
+    spillover_att : Dict[Any, float]
+        Per-affected-unit post-period mean spillover effect.
+    bilevel_solver : str
+        Bilevel backend used for covariate matching (``"malo"`` / ``"mscmt"``)
+        or ``"outcome-only"`` when no covariates were supplied.
+    predictor_weights : Optional[Dict[Any, float]]
+        Treated unit's optimized predictor weights ``V`` (covariate mode).
+    """
+
+    att: float
+    att_scm: float
+    gap: np.ndarray
+    gap_scm: np.ndarray
+    counterfactual: np.ndarray
+    counterfactual_scm: np.ndarray
+    theta: np.ndarray
+    omega: np.ndarray
+    omega_det: float
+    cross_weights: Dict[str, float]
+    weight_matrix: np.ndarray
+    donor_weights: Dict[Any, float]
+    pre_rmspe: float
+    pre_rmspe_restricted: float
+    spillover_panel: Dict[Any, np.ndarray] = field(default_factory=dict)
+    spillover_att: Dict[Any, float] = field(default_factory=dict)
+    bilevel_solver: str = "outcome-only"
+    predictor_weights: Optional[Dict[Any, float]] = None
+
+    # SP-dialect aliases so the shared plotter (written for the Cao-Dowd
+    # "spillover-adjusted" naming) consumes an ISCMFit unchanged. The
+    # inclusive effect IS the spillover-adjusted effect.
+    @property
+    def att_sp(self) -> float:
+        return self.att
+
+    @property
+    def gap_sp(self) -> np.ndarray:
+        return self.gap
+
+    @property
+    def counterfactual_sp(self) -> np.ndarray:
+        return self.counterfactual
+
+
+@dataclass(frozen=True)
 class SpillSynthResults:
     """Top-level SPILLSYNTH result container.
 
@@ -231,31 +330,41 @@ class SpillSynthResults:
         The preprocessed panel and spillover structure.
     cd : Optional[CDFit]
         Fit artifacts for the Cao-Dowd method, when ``method='cd'``.
+    iscm : Optional[ISCMFit]
+        Fit artifacts for the inclusive SCM method, when ``method='iscm'``.
     method : str
-        Method string used (``'cd'`` for now).
+        Method string used (``'cd'`` or ``'iscm'``).
     """
 
     inputs: SpillSynthInputs
     method: str
     cd: Optional[CDFit] = None
+    iscm: Optional["ISCMFit"] = None
 
     # ------------------------------------------------------------------
     # Convenience accessors (route to the active method's fit).
     # ------------------------------------------------------------------
     @property
-    def _active(self) -> CDFit:
+    def _active(self):
         if self.method == "cd":
             if self.cd is None:
                 raise AttributeError(
                     "SPILLSYNTH method='cd' but no Cao-Dowd fit present."
                 )
             return self.cd
+        if self.method == "iscm":
+            if self.iscm is None:
+                raise AttributeError(
+                    "SPILLSYNTH method='iscm' but no inclusive-SCM fit present."
+                )
+            return self.iscm
         raise AttributeError(f"Unknown SPILLSYNTH method {self.method!r}.")
 
     @property
     def att(self) -> float:
         """Spillover-adjusted ATT on the treated unit (post-period mean)."""
-        return self._active.att_sp
+        f = self._active
+        return f.att if self.method == "iscm" else f.att_sp
 
     @property
     def att_scm(self) -> float:
@@ -265,7 +374,8 @@ class SpillSynthResults:
     @property
     def gap(self) -> np.ndarray:
         """Per-period spillover-adjusted treatment effect on the treated unit."""
-        return self._active.gap_sp
+        f = self._active
+        return f.gap if self.method == "iscm" else f.gap_sp
 
     @property
     def gap_scm(self) -> np.ndarray:
@@ -275,7 +385,8 @@ class SpillSynthResults:
     @property
     def counterfactual(self) -> np.ndarray:
         """Spillover-adjusted post-period counterfactual for the treated unit."""
-        return self._active.counterfactual_sp
+        f = self._active
+        return f.counterfactual if self.method == "iscm" else f.counterfactual_sp
 
     @property
     def counterfactual_scm(self) -> np.ndarray:

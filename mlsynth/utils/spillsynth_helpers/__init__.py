@@ -14,15 +14,17 @@ from .cd.inference import (
     signed_ci,
 )
 from .cd.sensitivity import PureDonorSensitivity, pure_donor_sensitivity
+from .iscm import build_omega, build_unit_sc, run_iscm, solve_inclusive
 from .plotter import plot_spillsynth
 from .setup import (
     build_A_distance_decay, build_A_example3, build_A_homogeneous,
     build_A_per_unit, prepare_spillsynth_inputs,
 )
-from .structures import CDFit, SpillSynthInputs, SpillSynthResults
+from .structures import CDFit, ISCMFit, SpillSynthInputs, SpillSynthResults
 
 __all__ = [
     "CDFit",
+    "ISCMFit",
     "KappaATestResult",
     "PTestResult",
     "PureDonorSensitivity",
@@ -32,12 +34,16 @@ __all__ = [
     "build_A_example3",
     "build_A_homogeneous",
     "build_A_per_unit",
+    "build_omega",
+    "build_unit_sc",
     "kappa_A_test",
     "p_test",
     "plot_spillsynth",
     "prepare_spillsynth_inputs",
     "pure_donor_sensitivity",
     "run_cd",
+    "run_iscm",
     "select_A_by_kappa",
     "signed_ci",
+    "solve_inclusive",
 ]

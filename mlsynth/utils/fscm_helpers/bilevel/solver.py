@@ -1,16 +1,25 @@
-"""Driver for the Malo et al. (2024) bilevel SCM algorithm.
+"""Driver for the bilevel SCM solver.
 
-Composes the three stages into a single solve, short-circuiting as soon as an
-optimal solution is certified (as the paper recommends -- the optimum is
-typically a corner found in the early stages).
+Two interchangeable backends solve the same optimistic bilevel program
+(minimise pre-treatment outcome fit, subject to ``W`` minimising the
+``V``-weighted predictor discrepancy on the donor simplex):
+
+* ``"malo"`` (default) -- Malo et al. (2024): the staged corner search of
+  :mod:`stages`, short-circuiting as soon as an optimal solution is certified
+  (the optimum is typically a corner found in the early stages).
+* ``"mscmt"`` -- Becker & Kloessner (2018): a global differential-evolution
+  search over ``log10(V)`` with the simplex inner solve (:mod:`mscmt`).
+
+Both share the Section 3.1 / MSCMT Eq. 13 global-optimum certificate and the
+same lower bound, so they agree exactly whenever the unconstrained outcome
+optimum is predictor-feasible; they differ when the optimal ``V`` is interior.
 """
 
 from __future__ import annotations
 
-from typing import Optional
-
 import numpy as np
 
+from .mscmt import solve_mscmt
 from .simplex import mspe
 from .stages import (
     _lower_level_weights,
@@ -30,12 +39,49 @@ def _weighted_predictor_loss(prob: BilevelProblem, V: np.ndarray, W: np.ndarray)
 def solve_bilevel(
     prob: BilevelProblem,
     *,
+    method: str = "malo",
+    **kwargs,
+) -> BilevelSolution:
+    """Solve the bilevel SCM problem (Eq. 6-7), dispatching on ``method``.
+
+    Parameters
+    ----------
+    prob : BilevelProblem
+        Outcome and predictor matrices.
+    method : {"malo", "mscmt"}
+        Which backend to use. ``"malo"`` (default) runs the staged corner
+        search; ``"mscmt"`` runs the global differential-evolution outer
+        search. The default preserves the historical behaviour of every
+        existing caller.
+    **kwargs
+        Backend-specific options. For ``"malo"``: ``feas_tol``,
+        ``eps_corner``, ``refine``, ``refine_gap_tol``. For ``"mscmt"``:
+        ``lb``, ``maxiter``, ``popsize``, ``tol``, ``seed``, ``polish``,
+        ``feas_tol`` (see :func:`mlsynth.utils.fscm_helpers.bilevel.mscmt.solve_mscmt`).
+
+    Returns
+    -------
+    BilevelSolution
+    """
+    method = str(method).lower()
+    if method == "mscmt":
+        return solve_mscmt(prob, **kwargs)
+    if method == "malo":
+        return _solve_malo(prob, **kwargs)
+    raise ValueError(
+        f"Unknown bilevel method {method!r}; expected 'malo' or 'mscmt'."
+    )
+
+
+def _solve_malo(
+    prob: BilevelProblem,
+    *,
     feas_tol: float = 1e-8,
     eps_corner: float = 1e-6,
     refine: bool = True,
     refine_gap_tol: float = 1e-3,
 ) -> BilevelSolution:
-    """Solve the bilevel SCM problem (Eq. 6-7).
+    """Malo et al. (2024) staged corner-search backend.
 
     Parameters
     ----------

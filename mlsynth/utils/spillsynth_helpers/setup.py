@@ -27,7 +27,7 @@ test scripts; it now resolves to :func:`build_A_per_unit` (v3 Example 1
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -198,6 +198,7 @@ def prepare_spillsynth_inputs(
     affected_units: Optional[Sequence[Any]] = None,
     spillover_structure: str = "per_unit",
     unit_distances: Optional[Dict[Any, float]] = None,
+    covariates: Optional[Sequence[str]] = None,
 ) -> SpillSynthInputs:
     """Reshape a long-format panel into the inputs SPILLSYNTH expects.
 
@@ -228,7 +229,8 @@ def prepare_spillsynth_inputs(
     -------
     SpillSynthInputs
     """
-    for col in (outcome, treat, unitid, time):
+    cov_list = list(covariates or [])
+    for col in (outcome, treat, unitid, time, *cov_list):
         if col not in df.columns:
             raise MlsynthDataError(
                 f"SPILLSYNTH: required column {col!r} not in df.columns."
@@ -240,6 +242,9 @@ def prepare_spillsynth_inputs(
             f"Choose from {SPILLOVER_STRUCTURES}."
         )
 
+    # Retain covariate columns (in original df) for the predictor block;
+    # the outcome reshape below works on a slimmed copy.
+    cov_source = df[[unitid, time, *cov_list]].copy() if cov_list else None
     df = df[[unitid, time, outcome, treat]].copy()
     df = df.dropna(subset=[outcome])
     if df.empty:
@@ -355,6 +360,30 @@ def prepare_spillsynth_inputs(
         )
         A = build_A_distance_decay(decay, n_treated=n_treated)
 
+    # Optional per-unit predictor block: pre-treatment mean of each covariate,
+    # in the same row order as Y (treated, affected, clean). Covariates with
+    # scattered missing pre-period cells are aggregated with ``nanmean``.
+    predictors = None
+    predictor_names: Tuple[Any, ...] = ()
+    if cov_source is not None:
+        cutoff = np.asarray(Ywide_ordered.index)[T0]
+        pre_cov = cov_source[cov_source[time] < cutoff]
+        rows = []
+        for u in units:
+            sub = pre_cov[pre_cov[unitid] == u]
+            vec = []
+            for c in cov_list:
+                vals = sub[c].to_numpy(dtype=float)
+                if vals.size == 0 or np.all(np.isnan(vals)):
+                    raise MlsynthDataError(
+                        f"SPILLSYNTH: covariate {c!r} is entirely missing in "
+                        f"the pre-period for unit {u!r}."
+                    )
+                vec.append(float(np.nanmean(vals)))
+            rows.append(vec)
+        predictors = np.asarray(rows, dtype=float)
+        predictor_names = tuple(cov_list)
+
     return SpillSynthInputs(
         Y=Y, Y_pre=Y_pre, Y_post=Y_post, A=A,
         treated_label=treated_labels[0],
@@ -367,4 +396,5 @@ def prepare_spillsynth_inputs(
         post_time=np.asarray(Ywide_ordered.index)[T0:],
         N=N, T=T, T0=T0, T1=T1, p=p,
         spillover_structure=spillover_structure,
+        predictors=predictors, predictor_names=predictor_names,
     )
