@@ -225,31 +225,64 @@ Empirical replication (Guanajuato police reform)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The package ships the paper's Section 4 data (Alcocer 2024, Harvard Dataverse)
-in ``basedata/`` and a one-call routine that runs ``SSC`` on all seven outcomes
-with the paper's sample windows:
+and the authors' reference estimates in ``basedata/``. The block below is
+**copy-paste runnable after a fresh install** -- it pulls the panels straight
+from the ``basedata/`` raw URL, fits ``SSC`` through the public API, and checks
+every estimate against the authors' published table:
 
 .. code-block:: python
 
+   import pandas as pd
+   from mlsynth import SSC
+
+   BASE = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/"
+
+   # --- One outcome, directly through the public API ----------------------
+   # Homicide rate: monthly panel, the paper's sample window (time < 253).
+   crime = pd.read_csv(BASE + "guanajuato_crime_ssc.csv").query("time < 253")
+   res = SSC({"df": crime[["idunico", "time", "Policial", "hom_all_rate"]],
+              "outcome": "hom_all_rate", "treat": "Policial",
+              "unitid": "idunico", "time": "time",
+              "inference": True, "alpha": 0.05, "display_graphs": False}).fit()
+   print("homicide ATT^e_1 =", round(res.event_att[0], 4), " (paper: 0.0743)")
+
+   # --- All seven outcomes vs the authors' reference table ----------------
    from mlsynth.utils.ssc_helpers import replicate_guanajuato
+   est = replicate_guanajuato(verbose=False)        # downloads both panels from basedata/
+   ref = pd.read_csv(BASE + "guanajuato_ssc_reference.csv").rename(
+       columns={"event time": "event_time", "att estimate": "ref_att"})
+   m = est.merge(ref[["outcome", "event_time", "ref_att"]],
+                 on=["outcome", "event_time"])
+   m["abs_diff"] = (m["att"] - m["ref_att"]).abs()
+   print("\nmax |mlsynth - paper| ATT, per outcome (", len(m), "cells):")
+   print(m.groupby("outcome")["abs_diff"].max().round(6).to_string())
 
-   # downloads guanajuato_crime_ssc.csv / guanajuato_cartel_ssc.csv from basedata/
-   table = replicate_guanajuato()        # tidy event-time ATTs + bands, all outcomes
-   print(table.head())
+prints::
 
-   # or point at local copies / a subset of outcomes:
-   table = replicate_guanajuato(
-       "basedata/guanajuato_crime_ssc.csv",
-       "basedata/guanajuato_cartel_ssc.csv",
-       outcomes=["hom_all_rate", "war"],
-   )
+   homicide ATT^e_1 = 0.0743  (paper: 0.0743)
 
-The returned event-time ATTs match the authors' reference
-(`basedata/guanajuato_ssc_reference.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/guanajuato_ssc_reference.csv>`_)
-to about :math:`10^{-4}` for the homicide and theft rates and :math:`10^{-3}`
-for the cartel outcomes. The data live at
-`basedata/guanajuato_crime_ssc.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/guanajuato_crime_ssc.csv>`_
+   max |mlsynth - paper| ATT, per outcome ( 357 cells):
+   outcome
+   co_num                   0.001015
+   hom_all_rate             0.000187
+   hom_ym_rate              0.000097
+   presence_strength        0.000046
+   theft_nonviolent_rate    0.000016
+   theft_violent_rate       0.000149
+   war                      0.000081
+
+Every one of the 357 reference cells (seven outcomes x their event-time paths)
+is reproduced: the homicide and theft rates match the authors' table to about
+:math:`10^{-4}`, and the short annual cartel outcomes to :math:`10^{-3}` (the
+residual is the simplex-weight solver -- cvxpy here vs. the reference's
+``fmincon``). The confidence bands match where the reference has them (present
+for homicide and the cartel outcomes; ``NaN`` for theft, where :math:`T_0 < S`
+leaves no pre-treatment placebo window). The reference table itself is shipped
+at `basedata/guanajuato_ssc_reference.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/guanajuato_ssc_reference.csv>`_,
+and the two panels at
+`guanajuato_crime_ssc.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/guanajuato_crime_ssc.csv>`_
 and
-`basedata/guanajuato_cartel_ssc.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/guanajuato_cartel_ssc.csv>`_.
+`guanajuato_cartel_ssc.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/guanajuato_cartel_ssc.csv>`_.
 
 Simulation study (Path B)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -267,7 +300,13 @@ event-time RMSE per ``(r, T0)`` cell (the paper's Figure 1):
    # fast, reduced-count preset (use PAPER for the exact N=33, 1000-rep study)
    rmse = run_ssc_simulation(SSCSimConfig(n_units=20, n_never=4, S=6,
                                           n_factors=2, T0_grid=[42], n_reps=20))
-   # -> {(r, T0): {event_time e: RMSE_e}};  RMSE rises with event time, as in Fig. 1
+   for cell, by_event in rmse.items():
+       print(cell, {e: round(v, 3) for e, v in sorted(by_event.items())})
+
+prints (Monte-Carlo values vary by seed/preset, but the *pattern* -- event-time
+RMSE rising with the horizon, as in the paper's Figure 1 -- is stable)::
+
+   (2, 42) {0: 0.37, 1: 0.416, 2: 0.547, 3: 0.552, 4: 0.907, 5: 0.991}
 
 Verification
 ------------
