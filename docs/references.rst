@@ -302,6 +302,11 @@ References
     "Synthetic Control Inference for Staggered Adoption."
     *The Econometrics Journal* (forthcoming), 2026. URL: https://doi.org/10.1093/ectj/utag015
 
+.. [RMSI]
+    Agarwal, Anish, Choi, Jungjun, and Yuan, Ming.
+    "Robust Matrix Estimation with Side Information."
+    *arXiv Working Paper*, 2603.24833, 2026. URL: https://arxiv.org/abs/2603.24833
+
 .. [SYNDES]
     Doudchenko, Nick, Khosravi, Khashayar, Pouget-Abadie, Jean, Lahaie, Sebastien,
     Lubin, Miles, Mirrokni, Vahab, Spiess, Jann, and Imbens, Guido.

@@ -218,6 +218,7 @@ headline numbers.
 
    mcnnm
    snn
+   rmsi
 
 .. toctree::
    :hidden:

@@ -244,8 +244,30 @@ with the paper's sample windows:
    )
 
 The returned event-time ATTs match the authors' reference
-(``basedata/guanajuato_ssc_reference.csv``) to about :math:`10^{-4}` for the
-homicide and theft rates and :math:`10^{-3}` for the cartel outcomes.
+(`basedata/guanajuato_ssc_reference.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/guanajuato_ssc_reference.csv>`_)
+to about :math:`10^{-4}` for the homicide and theft rates and :math:`10^{-3}`
+for the cartel outcomes. The data live at
+`basedata/guanajuato_crime_ssc.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/guanajuato_crime_ssc.csv>`_
+and
+`basedata/guanajuato_cartel_ssc.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/guanajuato_cartel_ssc.csv>`_.
+
+Simulation study (Path B)
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The paper's Section 3 Monte Carlo is reproduced through the same public API.
+``run_ssc_simulation`` simulates the staggered factor DGP and returns SSC's
+event-time RMSE per ``(r, T0)`` cell (the paper's Figure 1):
+
+.. code-block:: python
+
+   from mlsynth.utils.ssc_helpers.replication import (
+       run_ssc_simulation, SSCSimConfig, PAPER,
+   )
+
+   # fast, reduced-count preset (use PAPER for the exact N=33, 1000-rep study)
+   rmse = run_ssc_simulation(SSCSimConfig(n_units=20, n_never=4, S=6,
+                                          n_factors=2, T0_grid=[42], n_reps=20))
+   # -> {(r, T0): {event_time e: RMSE_e}};  RMSE rises with event time, as in Fig. 1
 
 Verification
 ------------

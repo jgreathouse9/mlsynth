@@ -229,6 +229,10 @@ This is the most common reason to leave the standard workhorses: unrestricted fi
 * **Yes, informative (MNAR) with a fully observed anchor block** --
   :doc:`snn`.
 * **Yes, arbitrary sparse / low-rank** -- :doc:`mcnnm`.
+* **Block-missing (treated cells), and you have unit/time covariates** --
+  :doc:`rmsi` exploits side information on both margins (a four-component
+  sieve + nuclear-norm completion) to impute the treated counterfactual; it
+  reduces to a low-rank completion when the covariates are uninformative.
 
 **Q1.8 · Is your estimand or treatment effect non-standard** (not a scalar mean
 ATT for one binary treatment)?
@@ -352,6 +356,8 @@ A reverse lookup: the symptom, and the method named for it.
      - :doc:`fscm`, :doc:`sparse_sc`, :doc:`pda`, :doc:`rescm`, :doc:`clustersc`, :doc:`bvss`
    * - Missing cells, MNAR
      - :doc:`snn`, :doc:`mcnnm`
+   * - Block-missing with unit/time covariates (side information)
+     - :doc:`rmsi`
    * - Distributional estimand (QTE, Lorenz, tails)
      - :doc:`dsc`
    * - Continuous / multi-valued treatment

@@ -11,8 +11,8 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Thirty of the
-thirty-four estimators are currently fully verified, three carry
+This page catalogues those replications. Thirty-one of the
+thirty-five estimators are currently fully verified, three carry
 partial replications (one-draw illustrations or empirical
 applications without an explicit number-match), and one has no
 replication content yet.
@@ -229,6 +229,14 @@ Missing data
   :math:`\widehat{\mathrm{ATT}} \approx -19` packs/capita,
   matching the Abadie-Diamond-Hainmueller (2010) reference
   baseline.
+* :doc:`rmsi` -- Agarwal, Choi & Yuan (2026) robust matrix
+  estimation with side information. **Path A:** Proposition 99
+  with the Abadie covariates as side information --
+  :math:`\widehat{\mathrm{ATT}} \approx -21` packs/capita
+  (widening to :math:`\approx -32` by 2000), matching the ADH
+  baseline. **Path B:** the paper's four-component MNAR Monte
+  Carlo (Section 5.1) -- RMSI's missing-block AMSE is lower than
+  the no-side-information baseline, the paper's central finding.
 
 .. _replications-endogeneity:
 
@@ -328,9 +336,9 @@ Coverage summary
      - 5
      - SDID, SpSyDiD, PPSCM, SSC ✓; SEQ_SDID queued
    * - Missing data
-     - 2
-     - 2
-     - Complete (MCNNM, SNN)
+     - 3
+     - 3
+     - Complete (MCNNM, SNN, RMSI)
    * - Identification under endogeneity
      - 2
      - 2
@@ -340,7 +348,7 @@ Coverage summary
      - 5
      - Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)
 
-Of mlsynth's 34 estimators, 30 (88%) carry a strong or solid
+Of mlsynth's 35 estimators, 31 (89%) carry a strong or solid
 replication against their source paper or against an
 authoritative reference implementation. ISCM, NSC, and
 SPARSE_SC carry partial replications -- one-draw illustrations
