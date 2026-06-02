@@ -49,6 +49,7 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo") -> ISCMF
     treated_w = None
     treated_sol = None
     treated_pre_rmspe = np.nan
+    treated_synthetic_pre = None
     for si, i in enumerate(S):
         donor_idx = np.array([j for j in range(N) if j != i])
         w, cf, gap, pre_rmspe, sol = build_unit_sc(
@@ -65,6 +66,7 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo") -> ISCMF
             treated_w = dict(zip([names[j] for j in donor_idx], w))
             treated_sol = sol
             treated_pre_rmspe = pre_rmspe
+            treated_synthetic_pre = cf[:T0]
 
     # --- de-contaminate via the cross-weight system -------------------------
     omega = build_omega(cross)
@@ -120,4 +122,5 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo") -> ISCMF
         spillover_att=spillover_att,
         bilevel_solver=solver_label,
         predictor_weights=predictor_weights,
+        treated_synthetic_pre=treated_synthetic_pre,
     )

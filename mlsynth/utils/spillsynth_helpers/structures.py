@@ -303,6 +303,11 @@ class ISCMFit:
     spillover_att: Dict[Any, float] = field(default_factory=dict)
     bilevel_solver: str = "outcome-only"
     predictor_weights: Optional[Dict[Any, float]] = None
+    # Treated unit's pre-period synthetic path, shape ``(T0,)``. The shared
+    # plotter needs the pre-period synthetic to draw the counterfactual; the
+    # inclusive method has no Cao-Dowd ``a``/``B`` artifacts, so it is stored
+    # directly.
+    treated_synthetic_pre: Optional[np.ndarray] = None
 
     # SP-dialect aliases so the shared plotter (written for the Cao-Dowd
     # "spillover-adjusted" naming) consumes an ISCMFit unchanged. The
