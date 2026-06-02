@@ -92,7 +92,7 @@ def run_ssc(inputs: SSCInputs, *, inference: bool = True,
         event_bands = {}
 
     inf = SSCInference("andrews_eos", float(alpha),
-                       int(T0 - S)) if inference else None
+                       int(max(0, T0 - S))) if inference else None
 
     metadata = {
         "N": N, "T0": T0, "S": S, "K": K,

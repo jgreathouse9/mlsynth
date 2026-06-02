@@ -204,11 +204,15 @@ Staggered adoption
   to the ``augsynth`` R-package vignette (:math:`\nu = 0.2607`,
   average ATT :math:`= -0.011`) to four decimals.
 * :doc:`ssc` -- Cao, Lu & Wu (2026) staggered synthetic control.
-  **Path B:** the paper's staggered AR(1)-factor DGP (Section 3)
-  -- the event-time ATT path :math:`\tau = 1 + e` is recovered
-  (increasing in event time, overall ATT positive and significant
-  under the Andrews end-of-sample test), using all units (including
-  not-yet-treated) as donors.
+  **Path A:** the Guanajuato police-reform application (Section 4;
+  :math:`N = 33`, 10 staggered adopters) -- event-time ATT estimates
+  match the authors' reference output for all seven outcomes, to
+  :math:`\approx 10^{-4}` for the homicide (:math:`T_0 = 174`) and
+  theft rates and :math:`\approx 10^{-3}` for the annual cartel
+  outcomes, with end-of-sample bands present/``NaN`` exactly as in
+  the reference. **Path B:** the paper's staggered AR(1)-factor DGP
+  (Section 3) -- the event-time ATT path :math:`\tau = 1 + e` is
+  recovered, using all units (including not-yet-treated) as donors.
 
 .. _replications-missing:
 

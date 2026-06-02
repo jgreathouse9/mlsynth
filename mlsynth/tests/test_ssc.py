@@ -87,11 +87,17 @@ class TestIngestion:
         with pytest.raises(MlsynthDataError):
             prepare_ssc_inputs(df, "Y", "treated", "unit", "time")
 
-    def test_needs_pre_exceeding_post(self):
-        # T0 must exceed S for the end-of-sample windows.
-        df = _panel(n_units=8, n_never=2, T0=4, S=6)
-        with pytest.raises(MlsynthDataError):
-            prepare_ssc_inputs(df, "Y", "treated", "unit", "time")
+    def test_short_pre_period_point_only(self):
+        # When T0 <= S there are no end-of-sample placebo windows: point
+        # estimates are still produced, but the bands are NaN (as in the
+        # paper's theft application).
+        df = _panel(n_units=8, n_never=2, T0=6, S=8)
+        res = SSC({"df": df, "outcome": "Y", "treat": "treated",
+                   "unitid": "unit", "time": "time",
+                   "inference": True, "display_graphs": False}).fit()
+        assert np.isfinite(res.att)                 # point estimate exists
+        assert np.isnan(res.att_band.lower)         # band undefined
+        assert res.inference.n_placebo == 0
 
 
 # ----------------------------------------------------------------------

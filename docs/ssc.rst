@@ -168,6 +168,18 @@ Verification
    1,000-replication configuration; the ``DEMO`` preset is a faster,
    reduced-count version that reproduces the qualitative pattern.
 
+   **Path A replication of the empirical application (Section 4).** Running
+   ``SSC`` on the paper's Guanajuato police-reform data (Alcocer 2024;
+   :math:`N = 33` municipalities, :math:`10` staggered adopters) reproduces the
+   authors' reference event-time ATT estimates for all seven outcomes -- the
+   long-pre-period homicide rates (:math:`T_0 = 174`, :math:`S = 78`) and theft
+   rates (:math:`T_0 = 42`) to about :math:`10^{-4}`, and the short annual cartel
+   outcomes (:math:`T_0 = 15`) to about :math:`10^{-3}` (the residual is the
+   simplex-weight solver, cvxpy here vs. the reference's ``fmincon``). The bands
+   are reported exactly where the reference has them: present for homicide and
+   the cartel outcomes, and ``NaN`` for theft, where :math:`T_0 < S` leaves no
+   pre-treatment placebo window.
+
    **Inference.** The end-of-sample band is calibrated on pre-treatment
    residual windows, so coverage does not require point-identification of the
    individual effects -- only stationarity of the prediction error.

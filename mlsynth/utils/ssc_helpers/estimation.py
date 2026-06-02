@@ -110,12 +110,17 @@ def placebo_windows(gram: np.ndarray, A: np.ndarray, B_hat: np.ndarray,
     N = residuals.shape[0]
     S = A.shape[2]
     ImB = np.eye(N) - B_hat
-    n_windows = T0 - S
+    n_windows = max(0, T0 - S)        # empty when T0 <= S (no placebo windows)
     V = np.zeros((gram.shape[0], n_windows))
+    if n_windows == 0:
+        return V
+    # The Gram is fixed across windows: factor (pseudo-invert) it once.
+    gram_pinv = np.linalg.pinv(gram)
+    ImB_T = ImB.T
+    AtImB = [A[:, :, s].T @ ImB_T for s in range(S)]   # reused each window
     for w, t in enumerate(range(1, n_windows + 1)):
-        rhs = sum(A[:, :, s].T @ ImB.T @ residuals[:, t + s]
-                  for s in range(S))
-        V[:, w] = _solve(gram, rhs)
+        rhs = sum(AtImB[s] @ residuals[:, t + s] for s in range(S))
+        V[:, w] = gram_pinv @ rhs
     return V
 
 
@@ -124,15 +129,26 @@ def aggregate(L: np.ndarray, tau: np.ndarray, V: np.ndarray,
     """Aggregate ``tau`` by ``L`` and attach the end-of-sample band + p-value.
 
     The placebo draws ``L V`` are (asymptotically) mean-zero replicates of the
-    estimator's error; the band is ``point + [q_{alpha/2}, q_{1-alpha/2}]`` of
-    that distribution and the two-sided p-value for ``H0: L tau = 0`` is the
-    share of placebo draws at least as large in magnitude as the point estimate.
+    estimator's error ``L\tau_hat - L\tau``, so inverting gives the band
+    ``[point - q_{1-alpha/2}, point - q_{alpha/2}]`` (Cao, Lu & Wu 2026; the
+    reference implementation's ``att - ub`` / ``att - lb``). The two-sided
+    p-value for ``H0: L tau = 0`` is the share of placebo draws at least as
+    large in magnitude as the point estimate.
     """
     point = float(np.ravel(np.asarray(L) @ tau)[0])
+    if V is None or V.shape[1] == 0:
+        # No pre-treatment placebo windows (T0 <= S): point estimate only.
+        return SSCBand(label=label, point=point, lower=float("nan"),
+                       upper=float("nan"), p_value=float("nan"),
+                       n_cells=int(n_cells))
     null = np.asarray(L @ V, dtype=float).ravel()
-    lo = point + float(np.quantile(null, alpha / 2.0))
-    hi = point + float(np.quantile(null, 1.0 - alpha / 2.0))
-    p = float(np.mean(np.abs(null) >= abs(point))) if null.size else float("nan")
+    # "hazen" plotting positions ((i-0.5)/n) match MATLAB's `quantile`, the
+    # reference implementation's convention.
+    q_lo = float(np.quantile(null, alpha / 2.0, method="hazen"))
+    q_hi = float(np.quantile(null, 1.0 - alpha / 2.0, method="hazen"))
+    lo = point - q_hi
+    hi = point - q_lo
+    p = float(np.mean(np.abs(null) >= abs(point)))
     return SSCBand(label=label, point=point, lower=lo, upper=hi,
                    p_value=p, n_cells=int(n_cells))
 

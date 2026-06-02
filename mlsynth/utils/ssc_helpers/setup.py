@@ -56,11 +56,9 @@ def prepare_ssc_inputs(
         raise MlsynthDataError("SSC needs at least 2 clean pre-treatment periods.")
     if S < 1:
         raise MlsynthDataError("SSC needs at least 1 post-treatment period.")
-    if T0 - S < 1:
-        raise MlsynthDataError(
-            f"SSC inference needs T0 > S (clean pre-periods exceeding post "
-            f"periods); got T0={T0}, S={S}. Provide a longer pre-period."
-        )
+    # Note: end-of-sample inference additionally needs T0 > S (so at least one
+    # pre-treatment placebo window exists). When T0 <= S the point estimates are
+    # still computed but the bands are NaN (matching the reference).
 
     # Absorbing-treatment check + per-unit adoption time.
     adoption = np.full(N, -1, dtype=int)
