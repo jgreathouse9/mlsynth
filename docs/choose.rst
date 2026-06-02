@@ -73,7 +73,7 @@ At a glance
    ─────────────────────────────────────────────────────────────────
    Start:  FDID   (or TSSC for a formal pre-trends test)
      ↓ then escalate ONLY if one of these is true:
-   Spillovers onto donors (SUTVA)?      ─► SPILLSYNTH · SpSyDiD (spatial) · ISCM (outside hull)
+   Spillovers onto donors (SUTVA)?      ─► SPILLSYNTH · SpSyDiD (spatial) · SPOTSYNTH (unknown which) · ISCM (outside hull)
    Nonstationary / spurious trend?      ─► SBC · HSC
    Time-varying dynamics / heavy noise? ─► TASC · DSCAR · FMA
    Nonlinear outcome surface?           ─► NSC
@@ -182,6 +182,10 @@ Now walk the escalations, easy to hard:
 * **No** -- next question.
 * **Yes, spatial with a known weight matrix W** -- :doc:`spsydid`.
 * **Yes, an enumerable per-unit spillover set** -- :doc:`spillsynth`.
+* **You don't know which donors are contaminated** (a large pool, no a-priori
+  validity knowledge, or a suspiciously-good-match donor) -- :doc:`spotsynth`,
+  which screens each donor by a pre-intervention forecast test and excludes the
+  ones that fail it.
 * **Yes, and the treated unit sits outside the donor hull** (but is itself a
   useful donor for others) -- :doc:`iscm`.
 
@@ -344,6 +348,8 @@ A reverse lookup: the symptom, and the method named for it.
      - :doc:`spsydid`
    * - Spillovers onto donors, enumerable per-unit
      - :doc:`spillsynth`
+   * - Contaminated donors unknown / large pool to screen
+     - :doc:`spotsynth`
    * - Treated unit outside the donor convex hull
      - :doc:`iscm`, :doc:`nsc`, :doc:`rescm`, :doc:`pda`
    * - Nonstationary / spurious-trend matching

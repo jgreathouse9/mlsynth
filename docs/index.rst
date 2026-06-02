@@ -116,8 +116,8 @@ list of contributors.
 
 **News.**
 
-The verification campaign now covers twenty-nine of the
-thirty-three estimators in mlsynth -- each auditing its
+The verification campaign now covers thirty-two of the
+thirty-six estimators in mlsynth -- each auditing its
 implementation against its source paper, either by reproducing an
 empirical Table value on the authors' own data ("Path A") or by
 reproducing a Monte Carlo from the paper's simulation section
@@ -211,6 +211,7 @@ headline numbers.
 
    spsydid
    spillsynth
+   spotsynth
 
 .. toctree::
    :hidden:

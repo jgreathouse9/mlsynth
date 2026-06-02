@@ -307,6 +307,12 @@ References
     "Robust Matrix Estimation with Side Information."
     *arXiv Working Paper*, 2603.24833, 2026. URL: https://arxiv.org/abs/2603.24833
 
+.. [SPOTSYNTH]
+    O'Riordan, Michael, and Gilligan-Lee, Ciarán M.
+    "Spillover Detection for Donor Selection in Synthetic Control Models."
+    *Journal of Causal Inference* 13(1):20240036, 2025.
+    URL: https://doi.org/10.1515/jci-2024-0036
+
 .. [SYNDES]
     Doudchenko, Nick, Khosravi, Khashayar, Pouget-Abadie, Jean, Lahaie, Sebastien,
     Lubin, Miles, Mirrokni, Vahab, Spiess, Jann, and Imbens, Guido.

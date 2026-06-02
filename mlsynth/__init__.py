@@ -17,6 +17,7 @@ from .estimators.scexp import MAREX
 from .estimators.msqrt import MSQRT
 from .estimators.ssc import SSC
 from .estimators.rmsi import RMSI
+from .estimators.spotsynth import SPOTSYNTH
 from .estimators.lexscm import LEXSCM
 from .estimators.syndes import SYNDES
 from .utils.syndes_helpers.power import SYNDESPower, power_analysis
@@ -77,6 +78,7 @@ __all__ = [
     "MSQRT",
     "SSC",
     "RMSI",
+    "SPOTSYNTH",
     "SequentialSDID",
     "PPSCM",
     "SparseSC",

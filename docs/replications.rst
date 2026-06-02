@@ -11,8 +11,8 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Thirty-one of the
-thirty-five estimators are currently fully verified, three carry
+This page catalogues those replications. Thirty-two of the
+thirty-six estimators are currently fully verified, three carry
 partial replications (one-draw illustrations or empirical
 applications without an explicit number-match), and one has no
 replication content yet.
@@ -199,6 +199,16 @@ Staggered adoption
   with 6 treated units and planted spillover-exposure effects --
   :math:`\widehat{\tau} \approx 2.0`,
   :math:`\widehat{\tau}_s \approx 1.0`, both recovered.
+* :doc:`spotsynth` -- O'Riordan & Gilligan-Lee (2025) spillover
+  detection for donor selection. **Path B:** the Figure 2 bias study
+  on the Appendix B DGP -- a synthetic control on all donors is biased
+  (:math:`\approx +1.6`), one on valid donors is unbiased, and the S1 /
+  S2 screens recover most of the gap, degrading with noise. **Path A
+  (semi-synthetic):** the Figure 6 demonstrations -- a planted
+  noisy-proxy donor that biases California tobacco (:math:`-1.4` vs the
+  canonical :math:`-20.5`) and German reunification toward zero is
+  flagged and excluded, restoring the effect; both run through
+  ``SPOTSYNTH.fit()``.
 * :doc:`ppscm` -- Ben-Michael, Feller & Rothstein (2022)
   partially pooled SC. **Cross-validation:** matched end-to-end
   to the ``augsynth`` R-package vignette (:math:`\nu = 0.2607`,
@@ -335,6 +345,10 @@ Coverage summary
      - 4
      - 5
      - SDID, SpSyDiD, PPSCM, SSC ✓; SEQ_SDID queued
+   * - Spillover-aware (donor screening)
+     - 1
+     - 1
+     - Complete (SPOTSYNTH; SpSyDiD counted under staggered)
    * - Missing data
      - 3
      - 3
@@ -348,7 +362,7 @@ Coverage summary
      - 5
      - Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)
 
-Of mlsynth's 35 estimators, 31 (89%) carry a strong or solid
+Of mlsynth's 36 estimators, 32 (89%) carry a strong or solid
 replication against their source paper or against an
 authoritative reference implementation. ISCM, NSC, and
 SPARSE_SC carry partial replications -- one-draw illustrations
