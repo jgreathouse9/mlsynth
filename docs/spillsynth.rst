@@ -1208,6 +1208,127 @@ cross-weights :math:`w` and :math:`\ell`) this is the closed form
    \theta_1(t) = \frac{\mathrm{gap}_1(t) + w\,\mathrm{gap}_2(t)}
                        {1 - w\,\ell}.
 
+Assumptions
+^^^^^^^^^^^
+
+The inclusive method rests on five conditions.
+
+* **(A1) Additive treatment/spillover.** For every unit :math:`i` and
+  post-period :math:`t`, the observed outcome decomposes as
+  :math:`Y_{it} = Y_{it}^N + \theta_i(t)`, with :math:`Y_{it}^N` the
+  untreated potential outcome and :math:`\theta_i(t)` the (treatment or
+  spillover) effect, :math:`\theta_j = 0` for clean controls. The effect is
+  additive and does not feed back into the donors' untreated paths.
+* **(A2) Valid synthetic controls for the whole affected set.** Each unit in
+  :math:`S` -- the treated unit *and every affected unit* -- admits simplex
+  weights over the remaining units that reproduce its untreated potential
+  outcome, :math:`\sum_j w_i^{(j)} Y_{jt}^N = Y_{it}^N` in expectation (the
+  usual SCM / factor-model condition). This is the standard SCM assumption,
+  now required of every affected unit, not only the treated one.
+* **(A3) Correctly specified affected set.** :math:`S` is known, and every
+  control outside :math:`S` is genuinely unaffected
+  (:math:`\theta_j = 0`). The clean controls supply the uncontaminated
+  identifying variation. As in Cao-Dowd, a conservative researcher errs
+  toward a *larger* :math:`S` -- if in doubt, include the unit.
+* **(A4) Invertible cross-weight system.** :math:`\Omega` is non-singular,
+  :math:`\det\Omega \neq 0`. For :math:`m=2` this is :math:`1 - w\ell \neq
+  0`: the treated and affected unit must not load on each other so heavily
+  that the system collapses.
+* **(A5) Good pre-treatment fit.** The synthetic controls track each unit's
+  pre-period path, so post-period gaps reflect effects, not fit error (the
+  usual SCM requirement; under imperfect fit the Ferman-Pinto / demeaning
+  caveats apply).
+
+Identification and econometric theory
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Write the observed gap for affected unit :math:`i` as
+:math:`\mathrm{gap}_i(t) = Y_{it} - \sum_j w_i^{(j)} Y_{jt}` and split the
+donors into clean controls (:math:`\theta = 0`) and the *other* affected
+units. Under (A1)-(A2) the clean part cancels
+(:math:`\sum_j w_i^{(j)} Y_{jt}^N \approx Y_{it}^N`), leaving precisely
+
+.. math::
+
+   \mathrm{gap}_i(t) = \theta_i(t) - \sum_{k \in S,\, k \neq i}
+   w_i^{(k)}\,\theta_k(t).
+
+Each affected unit's gap is its *own* effect minus a weighted sum of the
+effects of the affected units it borrows from. Stacking the :math:`m`
+equations gives :math:`\Omega\,\theta(t) = \mathrm{gap}(t)`, where the clean
+controls anchor the untreated potential outcomes and only the affected units
+contaminate one another, so :math:`\Omega` is exactly the :math:`m \times m`
+matrix of self-loadings (:math:`1`) and cross-loadings (:math:`-w_i^{(k)}`).
+Under (A4), :math:`\theta(t) = \Omega^{-1}\mathrm{gap}(t)` is identified; the
+paper solves it by Cramer's rule (the :math:`m=1` closed form above is the
+:math:`2\times2` special case).
+
+The point is that the naive SCM gap on the treated unit silently absorbs the
+bias term :math:`\sum_k w_1^{(k)}\theta_k(t)` -- the spillovers it borrows
+from the affected donors -- and would equal :math:`\theta_1` only if those
+donors carried zero weight. The inclusive inversion removes exactly that
+term. Asymptotically (growing pre-period, factor-model donors) the SC weights
+are consistent and :math:`\widehat\theta` is asymptotically unbiased for the
+true effects -- the same large-:math:`T_0` logic as standard SCM, applied to
+the whole affected set jointly rather than to the treated unit alone.
+
+The implementation exposes :math:`\det\Omega` as the key diagnostic. Values
+near zero warn that the cross-weights are near-degenerate (the affected unit
+and the treated are near-mutual nearest neighbours), so the inverse amplifies
+noise; values near one mean little cross-contamination and a mild correction.
+The inclusive-vs-restricted pre-RMSPE (``pre_rmspe`` vs
+``pre_rmspe_restricted``) quantifies the fit gained by *keeping* the affected
+units in the pool rather than dropping them.
+
+Inference
+^^^^^^^^^
+
+The shipped estimator returns point estimates -- the de-contaminated effect
+path :math:`\theta_1` and the per-affected-unit spillovers
+:math:`\theta_2,\dots,\theta_m`. For uncertainty, use the standard SCM
+placebo / permutation machinery (in-space placebos across the clean
+controls), reading the inclusive ATT against the placebo distribution;
+:math:`\det\Omega` and the inclusive-vs-restricted pre-RMSPE are the
+method-specific diagnostics. Unlike the Cao-Dowd path -- which ships the
+end-of-sample :math:`P`-test and the :math:`\kappa_A` specification test --
+the inclusive path does not yet carry a bespoke inference procedure (a
+planned addition).
+
+When to use: inclusive SCM vs. (and alongside) Cao-Dowd
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Both methods keep the contaminated neighbours and correct for spillover, but
+they buy identification differently.
+
+* **Cao-Dowd (``method='cd'``)** imposes a *parametric spillover structure*
+  -- the :math:`A`-matrix (per-unit, homogeneous, distance-decay) -- and
+  recovers the treatment and spillover coefficients jointly from all units'
+  demeaned-SCM residuals, with formal inference (:math:`P`-test) and a
+  misspecification test (:math:`\kappa_A`). Prefer it when (a) domain
+  knowledge *shapes* the spillover (geography, networks), (b) *many* units are
+  affected, so a low-dimensional :math:`A` is more parsimonious than inverting
+  a large :math:`\Omega`, (c) you need calibrated :math:`p`-values and a
+  specification test, or (d) the affected units cannot themselves be well
+  synthesized.
+
+* **Inclusive SCM (``method='iscm'``)** imposes *no parametric spillover form*:
+  it lets the data's own cross-weights define the contamination and inverts
+  them. Prefer it when (a) each affected unit *can* be given a good synthetic
+  control (it lies in the donor hull), (b) you are unwilling to commit to an
+  :math:`A`-matrix and would rather the mixing be estimated, (c) the affected
+  set is *small*, so :math:`\Omega` is small and safely invertible, or (d) you
+  want the per-affected-unit spillover effects as a transparent by-product of
+  one linear solve.
+
+The two rest on *different* assumptions -- a correctly specified spillover
+structure (Cao-Dowd) versus an invertible cross-weight system and
+synthesizable affected units (inclusive) -- which makes them natural
+**robustness companions**. Run both: agreement is reassuring, and
+disagreement localizes the load-bearing assumption (the :math:`A`-matrix, or
+the :math:`\Omega`-invertibility / affected-unit fit). When the spillover's
+shape is unknown, the inclusive method is the lighter-assumption default;
+when the shape is known and inference matters, Cao-Dowd is the sharper tool.
+
 Covariates and the solver choice
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1243,6 +1364,54 @@ defaults to ``False``.
 
 With no ``covariates`` the method matches on pre-treatment outcomes only
 (``bilevel_solver`` and ``bias_correct`` are then ignored).
+
+The penalized inclusive SCM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The inclusive correction inherits whatever non-uniqueness the per-unit
+synthetic controls have. The cross-weights :math:`w_i^{(k)}` *are* the
+off-diagonal of :math:`\Omega`, so if the donor weights are not pinned down
+-- the malo/mscmt situation, where the treated and affected units lie inside
+the donor hull on the matching variables -- then neither is :math:`\Omega`,
+and neither is :math:`\theta`. The Abadie-L'Hour penalized backend
+(``bilevel_solver='penalized'``) fixes this at the source: with
+:math:`\lambda > 0` each unit's synthetic
+control is *unique and sparse* (Abadie-L'Hour Theorem 1), so :math:`\Omega`
+-- and hence :math:`\theta` -- is well-defined regardless of solver.
+
+Penalization interacts with the inclusive correction in a specific,
+instructive way. The penalty pulls each unit's synthetic toward its
+*closest* donors in the matching space; for a treated unit the closest unit
+is very often exactly the affected neighbour (Austria for West Germany).
+Raising :math:`\lambda` therefore *increases* the cross-weight :math:`w` the
+affected unit receives, which (i) sparsifies and lowers interpolation bias,
+as ALH intend, but (ii) drives :math:`\det\Omega = 1 - w\ell` toward zero,
+making the inclusive correction larger and eventually ill-posed.
+Penalization and inclusion are thus **complementary but opposed at the
+margin**: the penalty reduces interpolation bias by leaning on the close
+(affected) neighbour, and the :math:`\Omega`-inversion is precisely what
+removes the spillover bias that leaning introduces -- up to the point where
+the cross-loading makes the system singular. In practice, choose
+:math:`\lambda` with the built-in cross-validation (treated holdout by
+default) and watch :math:`\det\Omega`: if it collapses toward zero the
+penalty is over-loading the affected unit and :math:`\lambda` should be
+reduced (or the unit's affected status reconsidered). As
+:math:`\lambda \to 0` the penalized backend reproduces the unpenalized
+inclusive solution (the minimum-compound-discrepancy synthetic among all
+perfect-fit weights); as :math:`\lambda \to \infty` it degenerates to
+nearest-neighbour, which for a treated/affected pair drives :math:`w \to 1`
+and breaks invertibility.
+
+The optional **bias correction** (``bias_correct=True``) is ALH's second
+ingredient. After the (penalized or unpenalized) weights are formed, it
+regresses each unit's outcome on the covariates and subtracts the part of the
+gap explained by residual covariate imbalance (eq. 7), with a ridge to keep
+the regression stable. It composes cleanly with the :math:`\Omega`-inversion
+-- correct each unit's gap first, then de-contaminate -- and is most valuable
+when the covariates genuinely predict the outcome. On covariates that do not
+(the German GDP example, where the five economic predictors leave GDP largely
+unexplained), the regression is uninformative and the correction injects
+noise, which is why it defaults to off.
 
 Worked example: German reunification
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1293,6 +1462,10 @@ References
 Abadie, A., Diamond, A., & Hainmueller, J. (2010). "Synthetic Control
 Methods for Comparative Case Studies." *Journal of the American
 Statistical Association* 105(490):493-505.
+
+Abadie, A., & L'Hour, J. (2021). "A Penalized Synthetic Control Estimator
+for Disaggregated Data." *Journal of the American Statistical Association*
+116(536):1817-1834.
 
 Andrews, D. W. K. (2003). "End-of-Sample Instability Tests."
 *Econometrica* 71(6):1661-1694.
