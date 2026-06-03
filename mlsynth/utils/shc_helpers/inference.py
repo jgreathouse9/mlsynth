@@ -9,12 +9,13 @@ plot.
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Sequence, Tuple
 
 from scipy.optimize import lsq_linear
 import numpy as np
 
 from .structures import SHCDesign, SHCInference, SHCInputs
+from ...exceptions import MlsynthConfigError, MlsynthDataError
 
 
 def ag_conformal(
