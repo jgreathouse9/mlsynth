@@ -1456,6 +1456,140 @@ Austria. ``res.iscm`` exposes the full :class:`ISCMFit` -- the
 :math:`\theta` matrix, :math:`\Omega`, cross-weights, donor weights,
 predictor weights (covariate mode), and the inclusive-vs-restricted pre-fit.
 
+
+
+Method: ``method='grossi'`` -- Grossi et al. (2025)
+--------------------------------------------------
+
+Grossi, Mariani, Mattei, Lattarulo & Oener (2025, *JRSS-A*) estimate direct
+*and* spillover effects under **partial interference** -- the third spillover
+philosophy in SPILLSYNTH, and the polar opposite of the inclusive method.
+Where ``iscm`` keeps the contaminated neighbours in the donor pool and
+algebraically corrects, ``grossi`` **drops the treated unit's whole cluster**
+from the pool and rebuilds the counterfactual from the *far* (clean) controls
+only.
+
+The idea
+^^^^^^^^
+
+The units are partitioned into clusters (neighbourhoods). The treated unit
+sits in cluster 1 together with its potentially-affected cluster-mates (the
+``affected_units``); the remaining clusters are clean controls. Under partial
+interference, build a penalized synthetic control -- from the clean controls
+*only* -- for the treated unit **and** for each cluster-mate:
+
+* the treated unit's gap is the **direct effect** (paper eq. 3.4),
+  :math:`\widehat\tau_{1,t} = Y_{1,t} - \sum_{j \in \text{clean}}
+  \widehat\omega_j^{(1)} Y_{j,t}`;
+* each cluster-mate's gap is a **spillover effect**, averaged into the average
+  spillover (eq. 3.5),
+  :math:`\widehat\delta_t = \frac{1}{N_1-1}\sum_{i \in \mathcal N_1\setminus\{1\}}
+  \big(Y_{i,t} - \sum_{j} \widehat\omega_j^{(i)} Y_{j,t}\big)`.
+
+The synthetic controls use the **penalized SCG estimator** (Abadie-L'Hour
+2021, the ``penalized`` backend) -- which is why that backend had to exist
+first -- with :math:`\lambda` chosen by cross-validation.
+
+Assumptions
+^^^^^^^^^^^
+
+* **(G1) Partial interference** (Sobel 2006; paper Assumption 1).
+  Interference occurs only *within* a unit's cluster, never between clusters.
+  This is what makes the far clusters clean controls and is the method's
+  load-bearing assumption -- it must be defensible from the geography /
+  network of the application.
+* **(G2) Correctly partitioned clusters.** The treated unit's cluster (its
+  affected mates) is correctly identified; every other cluster is genuinely
+  unexposed.
+* **(G3) Valid penalized SC from clean controls.** Each treated-cluster unit
+  admits a good penalized synthetic control built from the clean controls
+  (the stable cross-cluster relationship of the paper's Section 3.3, points
+  (a)-(b): a common structural process, no idiosyncratic structural shocks
+  over the sample).
+* **(G4) Consistency / no anticipation** (standard SCM).
+
+Identification and econometric theory
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Partial interference (G1) means the clean controls' outcomes do not depend on
+the treated cluster's treatment, so their weighted average is an unbiased
+imputation of the *untreated* potential outcome for any treated-cluster unit
+-- including the affected mates, whose treated outcome differs from it
+precisely by the spillover. The direct and average spillover estimands are
+then simple gaps against these far-control synthetics (eqs. 3.4-3.5). Because
+the affected neighbours are *excluded* from the donor pool, no contamination
+can leak into the counterfactual -- the bias the naive SCM and the inclusive
+method must respectively ignore or undo is structurally absent here. The
+price is fit: dropping the treated unit's closest donors (its own
+neighbourhood) typically *raises* the pre-treatment RMSPE relative to keeping
+them. The penalized estimator's pairwise penalty mitigates the resulting
+interpolation bias by leaning on the closest *clean* controls.
+
+Inference
+^^^^^^^^^
+
+``grossi`` ships the paper's residual-resampling procedure (Section 3.3) with
+pivotal bias-corrected confidence intervals (eqs. 3.6-3.7), via ``n_boot``.
+Each clean control is fit from the *other* clean controls to obtain a residual
+vector; the residual vectors are resampled with replacement to form pseudo
+control outcomes; each treated-cluster unit's synthetic control is re-fit
+against the pseudo controls (with :math:`\lambda` fixed at its observed value,
+for speed); and per-period bias-corrected pivotal intervals are formed for the
+direct effect and the average spillover. Inference is available for the
+``penalized`` backend and outcome-only matching; ``n_boot=0`` (default) skips
+it. ``ci_level`` defaults to the paper's 0.90.
+
+When to use: ``grossi`` vs ``iscm`` vs ``cd``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+All three keep the analysis honest about spillover; they differ in *what they
+do with the contaminated neighbours*:
+
+* **``cd`` (Cao-Dowd)** -- keep them, impose a parametric spillover structure
+  (the :math:`A`-matrix), recover everything jointly with formal inference.
+* **``iscm`` (Di Stefano-Mellace)** -- keep them, invert the data's own
+  cross-weights (no parametric structure, but needs an invertible
+  :math:`\Omega`).
+* **``grossi``** -- *drop* them, and identify off a **partial-interference**
+  cluster structure using the far controls.
+
+Prefer ``grossi`` when you have a credible **cluster/neighbourhood structure**
+(geography, administrative units) that makes partial interference defensible,
+and enough clean controls in other clusters to build a good synthetic. It is
+the cleanest identification when those conditions hold -- no contamination by
+construction -- at the cost of pre-treatment fit. Prefer ``iscm``/``cd`` when
+the affected units are too valuable as donors to discard, or when no clean
+cross-cluster pool exists. Because the three rest on different assumptions
+(parametric structure / invertible cross-weights / partial interference) they
+**bracket** the answer: running all three is a strong robustness exercise.
+
+Worked example: West Germany (partial interference)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Treating Austria as West Germany's only exposed cluster-mate, and every other
+country as a clean control:
+
+.. code-block:: python
+
+   res = SPILLSYNTH({
+       "df": d, "outcome": "gdp", "treat": "treat",
+       "unitid": "country", "time": "year",
+       "method": "grossi", "affected_units": ["Austria"],
+       "n_boot": 400, "ci_level": 0.90, "display_graphs": False,
+   }).fit()
+
+   print(res.att)                       # direct ATT on West Germany
+   print(res.grossi.spillover_att)      # spillover on Austria
+   print(res.grossi.direct_ci)          # per-period 90% CI (eq. 3.6)
+
+On the German panel this gives a *larger* direct effect than the inclusive
+method (around :math:`-1600` vs :math:`-1370`): excluding Austria -- itself
+depressed by the spillover -- removes the downward drag a contaminated donor
+would impose on the counterfactual. The direct effect's 90% interval excludes
+zero; the average spillover's does not (one neighbour, a wide clean pool),
+matching the paper's pattern that direct effects are sharper than spillovers.
+
+
 References
 ----------
 
