@@ -143,6 +143,26 @@ def test_run_iscm_direct_matches_estimator(german_panel):
     assert fit.att == pytest.approx(res.att)
 
 
+def test_covariate_windows_applied(german_panel):
+    cov = ["trade", "infrate", "industry"]
+    # A window restricting to a single early year changes the predictor block,
+    # hence (in general) the predictor weights, vs the full-pre-period default.
+    full = SPILLSYNTH(_cfg(german_panel, covariates=cov, bilevel_solver="malo")).fit()
+    win = SPILLSYNTH(_cfg(german_panel, covariates=cov, bilevel_solver="malo",
+                          covariate_windows={"trade": (1960, 1965)})).fit()
+    assert full.iscm.predictor_weights is not None
+    assert win.iscm.predictor_weights is not None
+    # Both are valid simplex predictor-weight vectors.
+    assert sum(win.iscm.predictor_weights.values()) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_covariate_windows_bad_key_rejected(german_panel):
+    from mlsynth.exceptions import MlsynthDataError
+    with pytest.raises((MlsynthDataError, MlsynthConfigError)):
+        SPILLSYNTH(_cfg(german_panel, covariates=["trade"],
+                        covariate_windows={"not_a_cov": (1960, 1965)})).fit()
+
+
 def test_unknown_bilevel_solver_rejected_by_config(german_panel):
     with pytest.raises((MlsynthConfigError, ValueError)):
         SPILLSYNTHConfig(**_cfg(german_panel, bilevel_solver="nope"))

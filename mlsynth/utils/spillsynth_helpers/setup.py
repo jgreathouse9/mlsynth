@@ -199,6 +199,7 @@ def prepare_spillsynth_inputs(
     spillover_structure: str = "per_unit",
     unit_distances: Optional[Dict[Any, float]] = None,
     covariates: Optional[Sequence[str]] = None,
+    covariate_windows: Optional[Dict[Any, Any]] = None,
 ) -> SpillSynthInputs:
     """Reshape a long-format panel into the inputs SPILLSYNTH expects.
 
@@ -360,24 +361,38 @@ def prepare_spillsynth_inputs(
         )
         A = build_A_distance_decay(decay, n_treated=n_treated)
 
-    # Optional per-unit predictor block: pre-treatment mean of each covariate,
-    # in the same row order as Y (treated, affected, clean). Covariates with
-    # scattered missing pre-period cells are aggregated with ``nanmean``.
+    # Optional per-unit predictor block: each covariate averaged over its
+    # window, in the same row order as Y (treated, affected, clean). By default
+    # a covariate is averaged over the whole pre-treatment period; an entry in
+    # ``covariate_windows`` overrides this with an inclusive ``(start, end)``
+    # range of time labels (Abadie's special-predictor spec). Covariates with
+    # scattered missing cells are aggregated with ``nanmean``.
+    windows = dict(covariate_windows or {})
+    bad = [c for c in windows if c not in cov_list]
+    if bad:
+        raise MlsynthDataError(
+            f"SPILLSYNTH: covariate_windows keys {bad} are not in covariates."
+        )
     predictors = None
     predictor_names: Tuple[Any, ...] = ()
     if cov_source is not None:
         cutoff = np.asarray(Ywide_ordered.index)[T0]
-        pre_cov = cov_source[cov_source[time] < cutoff]
         rows = []
         for u in units:
-            sub = pre_cov[pre_cov[unitid] == u]
+            sub = cov_source[cov_source[unitid] == u]
+            st = sub[time].to_numpy()
             vec = []
             for c in cov_list:
-                vals = sub[c].to_numpy(dtype=float)
+                if c in windows:
+                    lo, hi = windows[c]
+                    mask = (st >= lo) & (st <= hi)
+                else:
+                    mask = st < cutoff
+                vals = sub[c].to_numpy(dtype=float)[mask]
                 if vals.size == 0 or np.all(np.isnan(vals)):
                     raise MlsynthDataError(
-                        f"SPILLSYNTH: covariate {c!r} is entirely missing in "
-                        f"the pre-period for unit {u!r}."
+                        f"SPILLSYNTH: covariate {c!r} has no observations in its "
+                        f"window for unit {u!r}."
                     )
                 vec.append(float(np.nanmean(vals)))
             rows.append(vec)

@@ -1818,6 +1818,14 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
                     "(Abadie-L'Hour 2021 pairwise-penalized estimator with "
                     "leave-out lambda selection -- a unique, sparse solution).",
     )
+    covariate_windows: Optional[Dict[Any, Any]] = Field(
+        default=None,
+        description="(method='iscm'/'grossi') Per-covariate averaging window as "
+                    "an inclusive (start, end) range of time labels, e.g. "
+                    "{'invest': (1964, 1969), 'popdens': (1969, 1969)} "
+                    "(Abadie's special-predictor spec). Covariates not listed "
+                    "are averaged over the full pre-treatment period.",
+    )
     bias_correct: bool = Field(
         default=False,
         description="(method='iscm'/'grossi') Apply the Abadie-L'Hour (2021) "

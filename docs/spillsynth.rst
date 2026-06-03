@@ -1456,7 +1456,97 @@ Austria. ``res.iscm`` exposes the full :class:`ISCMFit` -- the
 :math:`\theta` matrix, :math:`\Omega`, cross-weights, donor weights,
 predictor weights (covariate mode), and the inclusive-vs-restricted pre-fit.
 
+Second example: the Basque Country, with Abadie-Gardeazabal covariates
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+The Basque Country (ETA terrorism) is the other canonical synthetic-control
+case. Suppose we suspect spillover onto the geographically adjacent regions
+**Navarra, La Rioja, Castile y Leon and Cantabria**, and we want to match on
+Abadie & Gardeazabal's original economic predictors with their specific lag
+windows. ``covariate_windows`` supplies those windows (an inclusive
+``(start, end)`` per covariate; covariates not listed are averaged over the
+whole pre-period), exactly mirroring Abadie's special-predictor spec:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SPILLSYNTH
+
+   d = pd.read_csv("basedata/basque_data.csv")
+   AG = ["sec.agriculture", "sec.energy", "sec.industry", "sec.construction",
+         "sec.services.venta", "sec.services.nonventa",
+         "school.illit", "school.prim", "school.med", "school.high",
+         "popdens", "invest"]
+   windows = {**{c: (1961, 1969) for c in AG[:6]},          # sectors
+              **{c: (1964, 1969) for c in AG[6:10] + ["invest"]},  # schooling, invest
+              "popdens": (1969, 1969)}
+   affected = ["Navarra (Comunidad Foral De)", "Rioja (La)",
+               "Castilla Y Leon", "Cantabria"]
+
+   d["treat"] = ((d.regionname == "Basque Country (Pais Vasco)")
+                 & (d.year >= 1975)).astype(int)
+   res = SPILLSYNTH({
+       "df": d, "outcome": "gdpcap", "treat": "treat",
+       "unitid": "regionname", "time": "year",
+       "method": "iscm", "affected_units": affected,
+       "covariates": AG, "covariate_windows": windows,
+       "bilevel_solver": "malo", "display_graphs": False,
+   }).fit()
+   print(res.att)            # inclusive direct effect on the Basque Country
+
+(``gdpcap`` is the outcome -- matched over the whole pre-period in the upper
+level -- so it does not appear among the covariates; Abadie's ``gdpcap``
+special predictors are subsumed by that richer outcome match.)
+
+The estimate is strikingly stable across the assumed onset year and the
+bilevel backend (per-capita GDP, 1986 USD thousands):
+
+.. list-table:: Inclusive Basque effect (AG covariates + windows, 4 affected)
+   :header-rows: 1
+
+   * - onset
+     - backend
+     - ATT (inclusive)
+     - ATT (naive)
+     - :math:`\det\Omega`
+     - pre-RMSPE
+   * - 1973
+     - malo
+     - :math:`-0.672`
+     - :math:`-0.682`
+     - 0.851
+     - 0.083
+   * - 1973
+     - mscmt
+     - :math:`-0.651`
+     - :math:`-0.651`
+     - 0.257
+     - 0.083
+   * - 1975
+     - malo
+     - :math:`-0.676`
+     - :math:`-0.697`
+     - 0.922
+     - 0.085
+   * - 1975
+     - mscmt
+     - :math:`-0.692`
+     - :math:`-0.692`
+     - 0.084
+     - 0.084
+
+Two lessons. First, the **inclusive correction barely moves the treated
+effect** here (inclusive :math:`\approx` naive in every row): the Basque
+Country is a rich industrial region whose synthetic leans on Cataluna and
+Madrid, so the four poorer neighbours receive near-zero donor weight and there
+is little contamination to undo (contrast West Germany, where Austria is a
+heavy donor and the correction bites). The cross-weight system is essentially
+a diagnostic that *confirms* those regions are not load-bearing donors.
+Second, the result is robust to the malo/mscmt choice **once the predictors
+are rich enough to bind** -- with only a few weak covariates mscmt's global
+``V`` search collapses to a corner (a badly-fitting single-predictor
+solution); with the full AG block it agrees with malo at :math:`\approx
+-0.68`. As always, read the ``pre_rmspe`` column as the referee.
 
 Method: ``method='grossi'`` -- Grossi et al. (2025)
 --------------------------------------------------
@@ -1589,7 +1679,6 @@ would impose on the counterfactual. The direct effect's 90% interval excludes
 zero; the average spillover's does not (one neighbour, a wide clean pool),
 matching the paper's pattern that direct effects are sharper than spillovers.
 
-
 References
 ----------
 
@@ -1615,6 +1704,11 @@ method." Working paper.
 
 Ferman, B., & Pinto, C. (2021). "Synthetic Controls with Imperfect
 Pretreatment Fit." *Quantitative Economics* 12(4):1197-1221.
+
+Grossi, G., Mariani, M., Mattei, A., Lattarulo, P., & Oener, O. (2025).
+"Direct and spillover effects of a new tramway line on the commercial
+vitality of peripheral streets: a synthetic-control approach." *Journal of
+the Royal Statistical Society Series A* 188(1):223-240.
 
 Malo, P., Eskelinen, J., Zhou, X., & Kuosmanen, T. (2024). "Computing
 Synthetic Controls Using Bilevel Optimization." *Computational

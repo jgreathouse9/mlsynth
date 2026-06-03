@@ -83,6 +83,7 @@ class SPILLSYNTH:
         self.weighting: str = getattr(config, "weighting", "identity")
         self.solver = config.solver
         self.covariates = list(config.covariates) if config.covariates else None
+        self.covariate_windows = getattr(config, "covariate_windows", None)
         self.bilevel_solver: str = getattr(config, "bilevel_solver", "malo")
         self.bias_correct: bool = getattr(config, "bias_correct", False)
         self.n_boot: int = getattr(config, "n_boot", 0)
@@ -108,6 +109,7 @@ class SPILLSYNTH:
                 spillover_structure=self.spillover_structure,
                 unit_distances=self.unit_distances,
                 covariates=self.covariates,
+                covariate_windows=self.covariate_windows,
             )
         except MlsynthDataError:
             raise
