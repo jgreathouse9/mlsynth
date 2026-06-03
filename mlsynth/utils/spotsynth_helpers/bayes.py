@@ -94,20 +94,9 @@ def bayesian_simplex_sc(
     MlsynthEstimationError
         If NumPyro / JAX are not installed.
     """
-    try:
-        import os
-        os.environ.setdefault("JAX_PLATFORMS", "cpu")
-        import jax
-        import jax.numpy as jnp
-        import numpyro
-        import numpyro.distributions as dist
-        from numpyro.infer import MCMC, NUTS
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise MlsynthEstimationError(
-            "inference='bayes' requires NumPyro (pip install numpyro). "
-            "Use inference='frequentist' for the dependency-free simplex SC."
-        ) from exc
-
+    # Validate inputs BEFORE requiring the optional NumPyro dependency, so the
+    # data-shape / finiteness guards raise identically whether or not NumPyro is
+    # installed (the sampler is never reached on bad input).
     y = np.asarray(y, dtype=float)
     D = np.asarray(D, dtype=float)
     if D.ndim != 2:
@@ -123,6 +112,20 @@ def bayesian_simplex_sc(
             f"T0 must satisfy 0 < T0 < T (T={D.shape[0]}); got T0={T0}.")
     if not (np.all(np.isfinite(y)) and np.all(np.isfinite(D))):
         raise MlsynthDataError("y or D contains non-finite values.")
+
+    try:
+        import os
+        os.environ.setdefault("JAX_PLATFORMS", "cpu")
+        import jax
+        import jax.numpy as jnp
+        import numpyro
+        import numpyro.distributions as dist
+        from numpyro.infer import MCMC, NUTS
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise MlsynthEstimationError(
+            "inference='bayes' requires NumPyro (pip install numpyro). "
+            "Use inference='frequentist' for the dependency-free simplex SC."
+        ) from exc
 
     T, n = D.shape
     mu_y = y[:T0].mean()

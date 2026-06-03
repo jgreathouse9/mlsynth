@@ -28,18 +28,20 @@ from ....exceptions import MlsynthEstimationError
 
 _M_RIDGE = 1e-8
 
-# Above this condition number, A' M A is numerically singular and the
+# Above this condition number, A' M A is numerically degenerate and the
 # Cao-Dowd identification requirement (Assumption 1(d)) is effectively
 # violated -- the inverse blows up small residual noise into the effect
-# estimates. We warn (opt-in) rather than hard-fail because the inverse
-# still returns a (numerically dubious) answer.
-_COND_WARN = 1e10
+# estimates. At cond > 1e8 roughly half of float64's ~16 significant digits
+# are already lost, so we warn (opt-in) rather than hard-fail because some
+# LAPACK builds still return a (numerically dubious) inverse instead of
+# raising. Whether the solve raises or merely warns is platform-dependent;
+# both outcomes flag the same near-non-identification.
+_COND_WARN = 1e8
 
 
 def _invert_AMA(AMA: np.ndarray, *, label: str, warn: bool) -> Tuple[np.ndarray, float]:
     """Invert ``A' M A`` with a clear error on singularity and an optional
-    ill-conditioning warning. Returns ``(inverse, condition_number)``.
-    """
+    ill-conditioning warning. Returns ``(inverse, condition_number)``."""
     cond = float(np.linalg.cond(AMA))
     try:
         inv = np.linalg.inv(AMA)
