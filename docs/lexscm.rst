@@ -173,10 +173,63 @@ donors**, and :math:`\sqrt{L(S)}` is the achieved imbalance of
 Assumption 1. Stage 1 returns the ``top_K`` sets of smallest :math:`L(S)`,
 subject to the budget below.
 
-The inner simplex quadratic program is solved by an **Away-step
-Frank-Wolfe** routine (pure NumPy), batched so thousands of candidate
-tuples are scored in one vectorized sweep; the returned designs are then
-re-solved to tight tolerance.
+How a single tuple is built: the inner simplex QP
+"""""""""""""""""""""""""""""""""""""""""""""""""
+
+"Building" a tuple :math:`S` means solving its inner problem
+:math:`\min_{w \in \Delta(S)} w^\top G_{SS}\, w` for the **optimal
+treatment weights** :math:`w(S)`; the synthetic treated unit is then
+:math:`\sum_{j \in S} w_j(S)\, X_j` and the design's achieved imbalance is
+:math:`\sqrt{w(S)^\top G_{SS}\, w(S)}`. This convex quadratic program over
+the probability simplex is solved by an **Away-step Frank-Wolfe (AFW)**
+routine in pure NumPy (``_afw_single``), chosen because every iterate stays
+exactly on the simplex (no projection step) and the *away* move removes the
+zig-zagging that plain Frank-Wolfe suffers near a face-constrained optimum
+-- so the support of :math:`w` (which donors carry positive weight) sharpens
+in a handful of iterations.
+
+Write :math:`Q = G_{SS}`, :math:`f(w) = w^\top Q w`,
+:math:`\nabla f(w) = 2 Q w`. From a vertex start
+:math:`w^{(0)} = e_{\arg\min_i Q_{ii}}` (the single donor closest to the
+target), each iteration:
+
+#. **Pick two vertices.** The Frank-Wolfe vertex
+   :math:`s = \arg\min_i [\nabla f(w)]_i` and the away vertex
+   :math:`a = \arg\max_{i \in \operatorname{supp}(w)} [\nabla f(w)]_i` --
+   the currently active donor the gradient most wants to shed.
+#. **Choose the direction.** Compare the FW direction
+   :math:`d_{\mathrm{FW}} = e_s - w` against the away direction
+   :math:`d_{\mathrm{AW}} = w - e_a` by :math:`\langle \nabla f, d\rangle`
+   and take whichever descends more. The away step's maximal feasible
+   length is :math:`\gamma_{\max} = w_a / (1 - w_a)`; the FW step caps at
+   :math:`1`.
+#. **Exact line search.** Because :math:`f` is quadratic the optimal step
+   along :math:`d` is closed-form,
+
+   .. math::
+
+      \gamma^\star = \operatorname{clip}\!\Bigl(
+        -\frac{w^\top Q d}{d^\top Q d},\; 0,\; \gamma_{\max}\Bigr),
+
+   then :math:`w \leftarrow w + \gamma^\star d`, dropping :math:`a` from the
+   active set when a full away step empties it.
+#. **Certified lower bound.** The Frank-Wolfe gap gives a running lower
+   bound :math:`f(w) + \min_i[\nabla f(w)]_i - \nabla f(w)^\top w \le
+   f(w^\star)` on the tuple's true minimal loss; iteration stops once the
+   duality gap :math:`\nabla f(w)^\top w - \min_i[\nabla f(w)]_i` drops
+   below ``tol``.
+
+**Two-pass precision.** Scoring every candidate tuple to convergence would
+be wasteful, so Stage 1 runs AFW at two fidelities. A **vectorized
+batched** AFW (``_afw_batched``, ``iters=80``, all :math:`m \times m`
+problems advanced together with ``einsum``) ranks thousands of tuples in
+one sweep; only the surviving ``top_K`` are **re-solved** by the scalar
+``_afw_single`` at ``iters=600``, ``tol=1e-14`` to pin :math:`w(S)` and the
+loss to full precision. Each returned
+:class:`~mlsynth.utils.fast_scm_helpers.lexsearch.TreatedDesign` then
+carries its ``indices``, the high-precision ``weights`` :math:`w(S)`,
+``loss`` :math:`= L(S)`, ``imbalance`` :math:`= \sqrt{L(S)}`,
+``total_cost``, and a label-keyed ``weight_dict``.
 
 Why a search and not a full enumeration or an exact MIP
 """""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -233,6 +286,33 @@ that the incumbent is the global optimum. (A convex hull lower bound is
 *also* reported, but only as advisory information -- for the reason above
 it is :math:`\approx 0` and is deliberately **not** turned into an
 optimality gap.)
+
+Building tuples in the heuristic regime
+"""""""""""""""""""""""""""""""""""""""
+
+When :math:`\binom{M}{m}` exceeds ``enumerate_max`` the same per-tuple QP is
+reused, but the *set* of tuples scored is grown adaptively by a multi-start
+local search (``_local_search``):
+
+* **Seeding.** :math:`2 \times` ``n_starts`` seeds: the ``n_starts`` units
+  with the smallest :math:`G_{jj}` (single donors already nearest the
+  population centroid -- the cheapest places to start near balance) plus
+  ``n_starts`` uniformly random units for diversity.
+* **Greedy construction.** From a seed, repeatedly add the candidate that
+  most lowers the batched loss of the partial tuple until :math:`|S| = m`,
+  skipping any addition that would breach the budget.
+* **Best-improvement descent.** Score the full **1-swap** neighbourhood
+  (replace one member with one non-member), move to the steepest improving
+  swap, and repeat to a local optimum.
+* **Basin-hopping kicks.** Perturb the incumbent with a random **2-swap**
+  ``kick`` and re-descend, keeping the better basin; repeated ``n_kicks``
+  (4) times per start.
+
+Every distinct tuple ever scored is cached, and the global ``top_K`` of
+that cache is returned and re-solved to full precision exactly as in the
+exact path. The ``consensus`` block -- how many independent starts' final
+optima coincide with the incumbent -- is the confidence diagnostic that
+stands in for the absent MIP gap.
 
 Budget constraints
 """"""""""""""""""
@@ -293,75 +373,131 @@ power stages around it changed.
 Stage 3 -- Power analysis (minimum detectable effect)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Stage 3 asks: *how large must a treatment effect be for this design to
-detect it?* The answer is computed at each horizon :math:`h` in
-``n_post_grid`` (default :math:`h = 2, \dots, 8`) from the placebo
-residuals, using one consistent resampling model for both the null and the
-alternative.
+Stage 3 asks: *how large must a sustained treatment effect be for this
+design to detect it?* The answer is a **minimum-detectable-effect (MDE)
+curve over post-treatment horizon lengths**, computed entirely from the
+Stage 2 placebo residuals with one consistent resampling model for both the
+null and the alternative.
 
-**Moving-block resampling.** Let :math:`\sigma` be the standard deviation
-of the placebo residual pool. To build a horizon-:math:`h` window we
-sample contiguous blocks of length :math:`\ell \approx L^{1/3}` (where
-:math:`L` is the residual series length) with wraparound and concatenate
-them to length :math:`h`. This preserves the within-series autocorrelation
-of the gap process (Assumption 3). When several placebo series are
-supplied (the candidate's blank gaps plus donor-unit placebo gaps), each
-draw first picks a series at random, reproducing the cross-unit placebo
+What "at each horizon" means -- and what it does not
+""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+The curve is indexed by the **length** :math:`h` of the post-treatment
+window (``n_post_grid``, default :math:`h = 2, \dots, 8`), *not* by calendar
+period. There is no "MDE at period :math:`t = 91`". Instead, for each
+candidate duration :math:`h`, the analysis *manufactures* many synthetic
+:math:`h`-long gap windows by resampling the placebo residuals and asks what
+constant effect a window of that length could detect. Reading the curve as
+:math:`h` grows tells you how detectability improves the longer the
+experiment runs.
+
+Moving-block resampling
+"""""""""""""""""""""""
+
+Let the placebo pool be one or more residual series -- the chosen design's
+blank-window gaps :math:`e_B`, optionally pooled with donor-unit placebo
+gaps. The scale :math:`\sigma` is the standard deviation of the **pooled**
+residuals (all series concatenated, ``ddof=1``, floored at
+:math:`10^{-12}`). The block length defaults to
+
+.. math::
+
+   \ell = \max\!\bigl(1,\ \min(h,\ \operatorname{round}(\tilde L^{1/3}))\bigr),
+
+where :math:`\tilde L` is the **median** series length: floored at 1, and
+**capped at the horizon** :math:`h` so a block never exceeds the window it
+fills. To draw one length-:math:`h` window
+(:func:`~mlsynth.utils.fast_scm_helpers.lexpower.block_resample_windows`):
+pick a placebo series uniformly at random, then repeatedly cut contiguous
+blocks of length :math:`\ell` from a random offset **with wraparound**
+(``np.take(..., mode="wrap")``), concatenate them, and truncate to
+:math:`h`. Wrapping preserves the within-series autocorrelation
+(Assumption 3); the random series choice reproduces the cross-unit placebo
 distribution.
 
-**Test statistic and critical value.** The statistic is the mean absolute
-gap over the window,
+Test statistic and critical value
+"""""""""""""""""""""""""""""""""
+
+The statistic is the mean absolute gap over the window,
 
 .. math::
 
    S(e) = \frac{1}{h} \sum_{t=1}^{h} \lvert e_t \rvert .
 
-Resampling :math:`n_\text{null}` placebo windows gives the null
-distribution; its :math:`(1 - \alpha)` quantile is the critical value
-:math:`c_\alpha`.
+Resampling :math:`n_\text{null}` (default 4000) placebo windows gives the
+null distribution; its :math:`(1 - \alpha)` **empirical quantile** is the
+critical value :math:`c_\alpha`.
 
-**Power and the MDE.** The power of a constant additive effect
-:math:`\tau` is estimated by resampling the *same* residual structure,
-adding the shift, and measuring exceedances,
+Power, the effect grid, and the MDE
+"""""""""""""""""""""""""""""""""""
+
+A treatment effect is modelled as a **constant additive shift** :math:`\tau`
+applied to *every* point of a resampled window -- the homogeneous-effect
+working assumption behind the MDE. Its power is estimated from a **fresh**
+draw of :math:`n_\text{power}` (default 2000) windows (same residual model,
+new randomness), so the null and the alternative differ only by the shift:
 
 .. math::
 
    \operatorname{power}(\tau)
-     = \Pr\bigl[\, S(e + \tau) \ge c_\alpha \,\bigr],
+     = \Pr\bigl[\, S(e + \tau) \ge c_\alpha \,\bigr]
+     \approx \frac{1}{n_\text{power}}
+       \sum_{b} \mathbf{1}\!\bigl\{ S(e^{(b)} + \tau) \ge c_\alpha \bigr\}.
 
-so the null and the alternative share one residual model -- they differ
-only by the location shift :math:`\tau`. The **minimum detectable effect**
-is the smallest effect reaching the target power,
+The effect is swept on a grid of :math:`n_\text{grid} = 64` points in
+**standard-deviation units**, :math:`\tau / \sigma \in [0, \texttt{max\_sd}]`
+(default cap :math:`8`). The search walks the grid until
+:math:`\operatorname{power}(\tau)` first reaches ``power_target``, then
+**linearly interpolates** between the last sub-threshold point
+:math:`(g_0, p_0)` and the crossing point :math:`(g, p)` for a finer value:
 
 .. math::
 
-   \mathrm{MDE}(h) = \min\bigl\{\tau \ge 0 :
-                     \operatorname{power}(\tau) \ge \texttt{power\_target}\bigr\},
+   \frac{\mathrm{MDE}(h)}{\sigma}
+     = g_0 + (\texttt{power\_target} - p_0)\,\frac{g - g_0}{p - p_0} .
 
-found on an adaptive grid in standard-deviation units
-:math:`\tau / \sigma \in [0, \texttt{max\_sd}]` (default cap :math:`8`),
-with linear interpolation for a finer value. The MDE is reported both in
-**effect-size units** (``mde_sd`` :math:`= \mathrm{MDE}/\sigma`) and in
-**outcome units** (``mde_abs`` :math:`= \mathrm{MDE}`); if the target power
-is never reached within the grid the horizon returns :math:`\infty`
-(infeasible).
+If the grid is exhausted without reaching the target, the horizon is
+**infeasible** and returns :math:`\infty`.
 
-Reporting the MDE in standard-deviation units -- rather than relative to a
-fitted outcome level -- is both the natural effect-size scale (matching
-Vives-i-Bastida's "detect effects larger than :math:`0.1` s.d."
-convention) and numerically robust: there is no division by a fragile mean,
-so zero-mean or near-zero outcomes do not blow the calculation up.
+Three reported scales
+"""""""""""""""""""""
 
-**Detectability curve and horizon collapse.** Sweeping the horizon grid
-yields the detectability curve :math:`h \mapsto \mathrm{MDE}(h)`. The
-estimator collapses it to a single representative MDE per the
+Each horizon reports the MDE on three scales:
+
+* ``mde_sd`` :math:`= \mathrm{MDE}(h)/\sigma` -- **effect-size units**, the
+  primary scale (matching Vives-i-Bastida's "detect effects larger than
+  :math:`0.1` s.d." convention) and numerically robust: nothing is divided
+  by a fragile mean, so zero-mean or near-zero outcomes cannot blow the
+  calculation up;
+* ``mde_abs`` :math:`= \mathrm{MDE}(h)` -- **outcome units**;
+* ``mde_pct`` -- the **manager-facing percentage**,
+  :math:`100 \cdot \mathrm{MDE}(h) / \lvert\text{baseline}\rvert`, where the
+  baseline is the counterfactual level over the *matching* window,
+  :math:`\text{baseline} = \operatorname{mean}\bigl(\texttt{synthetic\_treated}
+  [-h:]\bigr)`. This is **guarded**: when
+  :math:`\lvert\text{baseline}\rvert` falls below a floor (default one
+  :math:`\sigma`) the percentage is returned as ``NaN`` *deliberately*, so a
+  near-zero or sign-flipping level cannot manufacture a spurious "we can
+  detect a 0.3% effect."
+
+Detectability curve and horizon collapse
+""""""""""""""""""""""""""""""""""""""""
+
+:func:`~mlsynth.utils.fast_scm_helpers.lexpower.detectability_curve` sweeps
+the horizon grid and returns ``curve_sd``
+(:math:`h \mapsto \mathrm{MDE}(h)/\sigma`), ``curve_pct`` (the percentage
+curve), the per-horizon ``details``, and ``min_horizon_mde_le_0p1sd`` -- the
+shortest horizon whose MDE falls to :math:`0.1\sigma`, a quick read on how
+long the experiment must run to clear the conventional effect-size bar.
+Stage 4 then collapses the curve to a single representative MDE per the
 ``mde_horizon`` setting:
 
 * ``"late"`` (default) -- the MDE at the **longest** horizon; the
   conservative choice for a sustained-exposure experiment.
-* ``"early_min"`` -- the **smallest** MDE across horizons (most
+* ``"early_min"`` -- the **smallest** MDE across feasible horizons (most
   optimistic detectability).
-* ``"early_mean"`` -- the **mean** MDE across feasible horizons.
+* ``"early_mean"`` -- the **mean** MDE across feasible horizons (the
+  percentage averaged only over horizons where it is defined).
 
 Stage 4 -- Final recommendation (lexicographic selection)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -405,6 +541,89 @@ exposed for transparency), a ``status``, a human-readable
   the power caveat is flagged (the pipeline degrades gracefully rather than
   crashing);
 * ``EMPTY`` -- no candidate designs were supplied.
+
+Worked numeric walkthrough
+--------------------------
+
+To make the two core mechanisms concrete, here is a single tuple built and
+powered end to end on a deliberately tiny panel (:math:`T_0 = 6` pre-period
+rows, :math:`J = 5` units, treat :math:`m = 2`). Every number below is the
+actual helper output, not an illustration.
+
+Building the tuple (Stage 1)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+After :math:`f`-centring and row-standardising the predictors, the Gram
+matrix's diagonal -- each unit's squared distance to the population centroid
+-- is
+
+.. math::
+
+   \operatorname{diag}(G) = (5.77,\ 3.64,\ 6.08,\ 6.27,\ 8.24).
+
+Unit 1 (0-indexed) sits closest to the target, so it seeds the AFW vertex
+start. With :math:`\binom{5}{2} = 10` the search **enumerates exactly**
+(status ``OPTIMAL``, 10 subsets scored). The winning tuple is
+:math:`S = \{0, 1\}`, and its inner simplex QP returns treatment weights
+
+.. math::
+
+   w(S) = (0.4098,\ 0.5902), \qquad
+   L(S) = w^\top G_{SS}\, w = 1.6481, \qquad
+   \sqrt{L(S)} = 1.2838 .
+
+The standalone high-precision re-solve reproduces this loss with a
+Frank-Wolfe lower bound equal to it to :math:`10^{-6}` -- the QP is at its
+certified optimum. The synthetic treated unit is
+:math:`0.41\,X_0 + 0.59\,X_1`, and :math:`1.2838` is the achieved imbalance
+on which the bias bound (Assumption 1-2) is conditional.
+
+Powering the design (Stage 3)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Take this design's blank-window placebo gaps to be a length-:math:`L = 24`
+series with :math:`\sigma = 0.8695`. The auto block length is
+:math:`\ell = \min\bigl(h, \operatorname{round}(24^{1/3})\bigr) =
+\min(h, 3)`, so at :math:`h = 2` it is capped to :math:`2` and at
+:math:`h \ge 3` it is :math:`3`. With a counterfactual level of
+:math:`\text{baseline} = 12.0`, the per-horizon MDE is:
+
+.. list-table::
+   :header-rows: 1
+
+   * - :math:`h`
+     - :math:`\ell`
+     - :math:`c_\alpha`
+     - ``mde_sd``
+     - ``mde_abs``
+     - ``mde_pct``
+   * - 2
+     - 2
+     - 1.245
+     - 2.037
+     - 1.771
+     - 14.8%
+   * - 4
+     - 3
+     - 1.108
+     - 1.672
+     - 1.454
+     - 12.1%
+   * - 8
+     - 3
+     - 0.981
+     - 1.282
+     - 1.115
+     - 9.3%
+
+Reading down the table *is* the detectability curve: as the horizon
+lengthens, averaging over more periods shrinks both the critical value
+:math:`c_\alpha` and the MDE, so a sustained effect of
+:math:`\approx 9\%` of the counterfactual becomes detectable by
+:math:`h = 8`, versus :math:`\approx 15\%` at :math:`h = 2`. Under
+``mde_horizon="late"`` Stage 4 carries the :math:`h = 8` row
+(``mde_sd`` :math:`= 1.28`) as this design's power score; under
+``"early_min"`` it would carry the smallest feasible ``mde_sd``.
 
 Standardized Post-Fit and Power Analysis
 ----------------------------------------
