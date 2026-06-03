@@ -22,6 +22,7 @@ setup(
         "matplotlib>=3.7.0",
         "scipy>=1.10.0",
         "scikit-learn>=1.3.0",
+        "numpyro",
         "scikit-optimize>=0.9.0",
         "statsmodels>=0.14.0",
         "cvxpy>=1.4.0",
