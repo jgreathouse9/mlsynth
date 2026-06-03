@@ -326,6 +326,88 @@ class ISCMFit:
 
 
 @dataclass(frozen=True)
+class GrossiFit:
+    """Grossi et al. (2025) direct + spillover effects under partial interference.
+
+    Under partial interference (interference only within the treated unit's
+    cluster/neighbourhood), the treated unit *and* its potentially-affected
+    cluster-mates are each given a penalized synthetic control built from the
+    **far/clean controls only** (units in other clusters). The treated unit's
+    gap is the direct effect (eq. 3.4); each cluster-mate's gap is a spillover
+    effect, averaged into the average spillover (eq. 3.5).
+
+    Attributes
+    ----------
+    direct_att : float
+        Direct ATT on the treated unit (post-period mean).
+    att_scm : float
+        Naive SCM ATT using **all** controls (incl. the affected units) -- the
+        contaminated comparison the partial-interference design avoids.
+    gap : np.ndarray
+        Per-period direct effect on the treated unit, shape ``(T1,)``.
+    gap_scm : np.ndarray
+        Per-period naive SCM gap (all controls).
+    counterfactual, counterfactual_scm : np.ndarray
+        Post-period counterfactuals (partial-interference and naive).
+    avg_spillover_att : float
+        Average spillover ATT across the cluster-mates (post-period mean).
+    avg_spillover_gap : np.ndarray
+        Per-period average spillover effect, shape ``(T1,)``.
+    spillover_panel : dict
+        Per-affected-unit spillover trajectory, shape ``(T1,)`` each.
+    spillover_att : dict
+        Per-affected-unit post-period mean spillover.
+    direct_pre_rmspe : float
+        Treated unit's pre-treatment RMSPE (far-control synthetic).
+    donor_weights : dict
+        Treated unit's synthetic-control weights over the clean controls.
+    treated_synthetic_pre : np.ndarray
+        Treated unit's pre-period synthetic path, shape ``(T0,)``.
+    n_clean : int
+        Number of clean (far) control units used as donors.
+    lam : float
+        Penalty selected for the treated unit's penalized SC.
+    direct_ci, avg_spillover_ci : np.ndarray, optional
+        ``(T1, 2)`` pivotal bias-corrected CIs from residual resampling
+        (eq. 3.6-3.7); ``None`` when ``n_boot=0``.
+    bilevel_solver : str
+        Backend used (``"penalized"`` by default).
+    """
+
+    direct_att: float
+    att_scm: float
+    gap: np.ndarray
+    gap_scm: np.ndarray
+    counterfactual: np.ndarray
+    counterfactual_scm: np.ndarray
+    avg_spillover_att: float
+    avg_spillover_gap: np.ndarray
+    spillover_panel: Dict[Any, np.ndarray]
+    spillover_att: Dict[Any, float]
+    direct_pre_rmspe: float
+    donor_weights: Dict[Any, float]
+    treated_synthetic_pre: np.ndarray
+    n_clean: int
+    lam: float
+    direct_ci: Optional[np.ndarray] = None
+    avg_spillover_ci: Optional[np.ndarray] = None
+    bilevel_solver: str = "penalized"
+
+    # SP-dialect aliases for the shared plotter.
+    @property
+    def att_sp(self) -> float:
+        return self.direct_att
+
+    @property
+    def gap_sp(self) -> np.ndarray:
+        return self.gap
+
+    @property
+    def counterfactual_sp(self) -> np.ndarray:
+        return self.counterfactual
+
+
+@dataclass(frozen=True)
 class SpillSynthResults:
     """Top-level SPILLSYNTH result container.
 
@@ -337,14 +419,18 @@ class SpillSynthResults:
         Fit artifacts for the Cao-Dowd method, when ``method='cd'``.
     iscm : Optional[ISCMFit]
         Fit artifacts for the inclusive SCM method, when ``method='iscm'``.
+    grossi : Optional[GrossiFit]
+        Fit artifacts for the Grossi et al. (2025) partial-interference
+        method, when ``method='grossi'``.
     method : str
-        Method string used (``'cd'`` or ``'iscm'``).
+        Method string used (``'cd'``, ``'iscm'`` or ``'grossi'``).
     """
 
     inputs: SpillSynthInputs
     method: str
     cd: Optional[CDFit] = None
     iscm: Optional["ISCMFit"] = None
+    grossi: Optional["GrossiFit"] = None
 
     # ------------------------------------------------------------------
     # Convenience accessors (route to the active method's fit).
@@ -363,13 +449,23 @@ class SpillSynthResults:
                     "SPILLSYNTH method='iscm' but no inclusive-SCM fit present."
                 )
             return self.iscm
+        if self.method == "grossi":
+            if self.grossi is None:
+                raise AttributeError(
+                    "SPILLSYNTH method='grossi' but no partial-interference fit present."
+                )
+            return self.grossi
         raise AttributeError(f"Unknown SPILLSYNTH method {self.method!r}.")
 
     @property
     def att(self) -> float:
-        """Spillover-adjusted ATT on the treated unit (post-period mean)."""
+        """Spillover-adjusted / direct ATT on the treated unit (post-period mean)."""
         f = self._active
-        return f.att if self.method == "iscm" else f.att_sp
+        if self.method == "iscm":
+            return f.att
+        if self.method == "grossi":
+            return f.direct_att
+        return f.att_sp
 
     @property
     def att_scm(self) -> float:

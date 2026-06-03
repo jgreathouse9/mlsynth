@@ -1792,10 +1792,15 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
     Pretreatment Fit.* Quantitative Economics, 12(4), 1197-1221.
     """
 
-    method: Literal["cd", "iscm"] = Field(
+    method: Literal["cd", "iscm", "grossi"] = Field(
         default="cd",
         description="Spillover-aware SCM method. 'cd' = Cao & Dowd (2023); "
-                    "'iscm' = inclusive SCM (Di Stefano & Mellace 2024).",
+                    "'iscm' = inclusive SCM (Di Stefano & Mellace 2024); "
+                    "'grossi' = Grossi et al. (2025) direct + spillover effects "
+                    "under partial interference (penalized SC on far controls). "
+                    "For 'grossi', affected_units lists the treated unit's "
+                    "cluster-mates (excluded from the donor pool, given "
+                    "spillover effects).",
     )
     covariates: Optional[List[str]] = Field(
         default=None,

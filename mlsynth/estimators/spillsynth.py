@@ -34,6 +34,7 @@ from ..exceptions import (
 )
 from ..utils.datautils import balance
 from ..utils.spillsynth_helpers.cd import run_cd
+from ..utils.spillsynth_helpers.grossi import run_grossi
 from ..utils.spillsynth_helpers.iscm import run_iscm
 from ..utils.spillsynth_helpers.plotter import plot_spillsynth
 from ..utils.spillsynth_helpers.setup import prepare_spillsynth_inputs
@@ -125,6 +126,15 @@ class SPILLSYNTH:
                                bias_correct=self.bias_correct)
                 results = SpillSynthResults(
                     inputs=inputs, method="iscm", iscm=fit,
+                )
+            elif self.method == "grossi":
+                # The paper's estimator is the penalized SCG; use it unless the
+                # user explicitly picked another backend.
+                gsolver = "penalized" if self.bilevel_solver == "malo" else self.bilevel_solver
+                fit = run_grossi(inputs, bilevel_solver=gsolver,
+                                 bias_correct=self.bias_correct)
+                results = SpillSynthResults(
+                    inputs=inputs, method="grossi", grossi=fit,
                 )
             else:                                            # pragma: no cover
                 raise MlsynthConfigError(
