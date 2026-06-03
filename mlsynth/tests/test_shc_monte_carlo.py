@@ -39,7 +39,7 @@ def test_monte_carlo_basic_structure():
 
 
 def test_k_grid_filters_values_above_n():
-    """k values exceeding n are dropped before fitting."""
+    """K values exceeding n are dropped before fitting."""
     out = monte_carlo_shc(
         n_reps=1, m=_M, h=_H, n=_N, P=10.0, sigma=0.1,
         k_grid=(1, _N, _N + 100), seed=0,

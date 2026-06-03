@@ -229,7 +229,7 @@ def test_plotting_plotting_error_propagates(monkeypatch):
 
 
 def test_setup_data_error_propagates():
-    """m too large for the pre-period -> MlsynthDataError from setup, re-raised."""
+    """M too large for the pre-period -> MlsynthDataError from setup, re-raised."""
     df = _panel(T0=8, n_post=2)
     with pytest.raises(MlsynthDataError):
         SHC(_base_config(df, m=8)).fit()
