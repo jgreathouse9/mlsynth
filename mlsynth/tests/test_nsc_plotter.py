@@ -97,7 +97,7 @@ def test_plot_nsc_no_ci():
 
 
 def test_plot_nsc_mismatched_time_labels():
-    """time_labels size != T falls back to arange; axvline still in range."""
+    """Time_labels size != T falls back to arange; axvline still in range."""
     inputs = _make_inputs(T=6, T0=3, time_labels=np.arange(2))
     plot_nsc(_make_results(inputs=inputs))
 
@@ -109,7 +109,7 @@ def test_plot_nsc_t0_out_of_range():
 
 
 def test_plot_nsc_show_raises(monkeypatch):
-    """plt.show raising is wrapped in MlsynthPlottingError."""
+    """Plt.show raising is wrapped in MlsynthPlottingError."""
 
     def _boom():
         raise RuntimeError("no backend")

@@ -54,7 +54,7 @@ def _make_results(unit_att=None, contribution=None, inference=None, N=4):
 
 
 def test_plot_iscm_show_no_inference():
-    """save=False, no inference -> show branch, no CI span."""
+    """Save=False, no inference -> show branch, no CI span."""
     plot_iscm(_make_results(), save=False)
 
 

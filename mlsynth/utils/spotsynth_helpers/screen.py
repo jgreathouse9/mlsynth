@@ -68,7 +68,8 @@ def _factor_design(L: np.ndarray, n_factors: int) -> Tuple[np.ndarray, np.ndarra
 def _forecast_loo(Z: np.ndarray, pre: np.ndarray, post: np.ndarray, *,
                   n_factors: int) -> Tuple[np.ndarray, np.ndarray]:
     """Leave-one-out variant: mean absolute post-period deviation from the
-    common-factor forecast built on the *other* donors."""
+    common-factor forecast built on the *other* donors.
+    """
     T, n = Z.shape
     A = np.zeros(n)
     resid_sd = np.zeros(n)

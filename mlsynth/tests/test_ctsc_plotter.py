@@ -53,7 +53,7 @@ def _make_results(K=2, inference=None, treatment_names=None):
 
 
 def test_plot_ctsc_show_no_inference():
-    """save=False, no inference -> show branch, no CI band, no p-value."""
+    """Save=False, no inference -> show branch, no CI band, no p-value."""
     plot_ctsc(_make_results(), save=False)
 
 

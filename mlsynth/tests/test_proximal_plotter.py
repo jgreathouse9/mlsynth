@@ -92,7 +92,7 @@ def test_plot_proximal_unknown_method_style():
 
 
 def test_plot_proximal_mismatched_time_labels():
-    """time_labels size != T falls back to arange and skips the axvline."""
+    """Time_labels size != T falls back to arange and skips the axvline."""
     # Wrong-length labels trigger the `t = np.arange(T)` branch.
     inputs = _make_inputs(T=6, T0=3, time_labels=np.arange(3))
     plot_proximal(_make_results(["PI"], inputs=inputs))
@@ -105,7 +105,7 @@ def test_plot_proximal_t0_out_of_range():
 
 
 def test_plot_proximal_show_raises(monkeypatch):
-    """plt.show raising is wrapped in MlsynthPlottingError."""
+    """Plt.show raising is wrapped in MlsynthPlottingError."""
 
     def _boom():
         raise RuntimeError("backend down")

@@ -67,14 +67,14 @@ def test_plot_dsc_show():
 
 
 def test_plot_dsc_save_bool(monkeypatch, tmp_path):
-    """save=True uses the default filename and appends .png; lands in tmp."""
+    """Save=True uses the default filename and appends .png; lands in tmp."""
     monkeypatch.chdir(tmp_path)
     plot_dsc(_make_results(), save=True)
     assert (tmp_path / "DSC_qte.png").exists()
 
 
 def test_plot_dsc_save_str_with_ext(monkeypatch, tmp_path):
-    """save as a string with extension keeps the given name."""
+    """Save as a string with extension keeps the given name."""
     monkeypatch.chdir(tmp_path)
     fname = str(tmp_path / "my_dsc.png")
     plot_dsc(_make_results(), save=fname, outcome_label="Y")
@@ -82,7 +82,7 @@ def test_plot_dsc_save_str_with_ext(monkeypatch, tmp_path):
 
 
 def test_plot_dsc_save_str_no_ext(monkeypatch, tmp_path):
-    """save as a string without extension appends .png."""
+    """Save as a string without extension appends .png."""
     monkeypatch.chdir(tmp_path)
     plot_dsc(_make_results(att=-0.25), save="noext")
     assert (tmp_path / "noext.png").exists()
