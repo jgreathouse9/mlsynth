@@ -27,12 +27,16 @@ does not change the optimum.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 from scipy.optimize import nnls
 
 from .simplex import mspe
-from .stages import unconstrained_feasibility
+from .stages import unconstrained_feasibility, warn_on_gap
 from .structure import BilevelProblem, BilevelSolution
+
+_GAP_WARN_FACTOR = 10.0
 
 # Big-M penalty enforcing the simplex equality 1'W = 1 inside the NNLS solve.
 _BIG_M = 1e6
@@ -70,6 +74,7 @@ def solve_mscmt(
     seed: int = 0,
     polish: bool = True,
     feas_tol: float = 1e-8,
+    gap_warn_factor: float = _GAP_WARN_FACTOR,
 ) -> BilevelSolution:
     """Solve the bilevel SCM problem by global outer search (MSCMT style).
 
@@ -98,6 +103,11 @@ def solve_mscmt(
     from scipy.optimize import differential_evolution
 
     K = prob.n_predictors
+    if K == 0:
+        raise ValueError(
+            "mscmt backend needs at least one predictor; for outcome-only "
+            "matching use the penalized backend."
+        )
 
     # Fast exact exit: the unconstrained outcome optimum is the global bilevel
     # solution whenever it is predictor-feasible (Malo Section 3.1 == MSCMT
@@ -116,8 +126,10 @@ def solve_mscmt(
     if K == 1:
         V = np.array([1.0])
         W = _inner_weights(prob, V)
+        upper = mspe(prob.y1_pre, prob.Y0_pre, W)
+        warn_on_gap(float(upper - lower_bound), lower_bound, gap_warn_factor)
         return BilevelSolution(
-            V=V, W=W, upper_loss=mspe(prob.y1_pre, prob.Y0_pre, W),
+            V=V, W=W, upper_loss=upper,
             lower_loss=float(np.sum(V * (prob.X1 - prob.X0 @ W) ** 2)),
             lower_bound=lower_bound, stage="mscmt", iterations=0,
             metadata={"backend": "mscmt"},
@@ -146,11 +158,20 @@ def solve_mscmt(
         outer, bounds, init=init, maxiter=maxiter, tol=tol,
         mutation=(0.3, 1.2), recombination=0.9, polish=polish, seed=seed,
     )
+    if not res.success:
+        warnings.warn(
+            f"mscmt differential evolution did not converge (maxiter={maxiter}): "
+            f"{res.message}. Returned predictor weights may be sub-optimal; "
+            f"consider increasing maxiter.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     V_raw = np.power(10.0, res.x)
     W = _inner_weights(prob, V_raw)
     V = V_raw / V_raw.sum()  # report on the simplex (objective is scale-free)
     upper = mspe(prob.y1_pre, prob.Y0_pre, W)
+    warn_on_gap(float(upper - lower_bound), lower_bound, gap_warn_factor)
     return BilevelSolution(
         V=V, W=W, upper_loss=float(upper),
         lower_loss=float(np.sum(V_raw * (prob.X1 - prob.X0 @ W) ** 2)),

@@ -32,6 +32,7 @@ from .stages import (
     corner_solutions,
     tykhonov_refine,
     unconstrained_feasibility,
+    warn_on_gap,
 )
 from .structure import BilevelProblem, BilevelSolution
 
@@ -84,6 +85,9 @@ def solve_bilevel(
     )
 
 
+_GAP_WARN_FACTOR = 10.0
+
+
 def _solve_malo(
     prob: BilevelProblem,
     *,
@@ -91,6 +95,7 @@ def _solve_malo(
     eps_corner: float = 1e-6,
     refine: bool = True,
     refine_gap_tol: float = 1e-3,
+    gap_warn_factor: float = _GAP_WARN_FACTOR,
 ) -> BilevelSolution:
     """Malo et al. (2024) staged corner-search backend.
 
@@ -108,7 +113,17 @@ def _solve_malo(
         Skip refinement if the corner gap above the lower bound is below this
         fraction of the lower bound (the paper notes corners are usually
         optimal, so refinement rarely fires).
+    gap_warn_factor : float
+        Emit a :class:`RuntimeWarning` when the predictor-constrained outcome
+        loss exceeds the unconstrained outcome lower bound by more than this
+        factor -- a sign the predictors are weakly matchable / the predictor
+        weights ``V`` are poorly identified. Set to ``np.inf`` to silence.
     """
+    if prob.n_predictors == 0:
+        raise ValueError(
+            "malo backend needs at least one predictor; for outcome-only "
+            "matching use the penalized backend."
+        )
     # Stage 1: unconstrained feasibility (Section 3.1).
     W_unc, V_unc, lower_bound, is_optimal = unconstrained_feasibility(prob, feas_tol=feas_tol)
     if is_optimal:
@@ -131,6 +146,8 @@ def _solve_malo(
         if upper_r < upper_best:
             V_best, W_best, upper_best, stage = V_r, W_r, upper_r, "tykhonov"
 
+    gap = float(upper_best - lower_bound)
+    warn_on_gap(gap, lower_bound, gap_warn_factor, stacklevel=3)
     return BilevelSolution(
         V=V_best, W=W_best,
         upper_loss=float(upper_best),
@@ -139,7 +156,8 @@ def _solve_malo(
         metadata={
             "corner_losses": [float(x) for x in corner_losses],
             "unconstrained_upper": float(mspe(prob.y1_pre, prob.Y0_pre, W_unc)),
-            "gap": float(upper_best - lower_bound),
+            "gap": gap,
+            "relative_gap": gap / max(abs(lower_bound), 1e-12),
         },
     )
 

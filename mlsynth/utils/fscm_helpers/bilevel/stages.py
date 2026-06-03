@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import List, Tuple
 
 import numpy as np
@@ -21,6 +22,25 @@ from .simplex import mspe, project_simplex, simplex_lstsq
 from .structure import BilevelProblem
 
 _EPS = 1e-12
+
+
+def warn_on_gap(gap: float, lower_bound: float, factor: float,
+                *, stacklevel: int = 2) -> None:
+    """Warn when the bilevel optimality gap is a large multiple of the bound.
+
+    A large gap means the predictor-constrained fit is far worse than the best
+    achievable outcome fit -- i.e. the predictors are hard to match on the donor
+    simplex and the predictor weights ``V`` are weakly identified (the pathology
+    behind diverging malo/mscmt estimates). Only fires for a non-trivial bound.
+    """
+    if lower_bound > 1e-9 and gap / lower_bound > factor:
+        warnings.warn(
+            f"bilevel optimality gap is {gap / lower_bound:.1f}x the outcome "
+            f"lower bound: the predictors are weakly matchable and V is poorly "
+            f"identified; treat the predictor weighting with caution.",
+            RuntimeWarning,
+            stacklevel=stacklevel,
+        )
 
 
 def _basis_vector(k: int, K: int) -> np.ndarray:
@@ -53,7 +73,7 @@ def unconstrained_feasibility(
     is the basis vector on the best-matched predictor; if that predictor's
     discrepancy is ~0, ``W_unc`` is the global bilevel solution.
     """
-    W_unc = simplex_lstsq(prob.Y0_pre, prob.y1_pre)
+    W_unc = simplex_lstsq(prob.Y0_pre, prob.y1_pre, warn=True)
     lower_bound = mspe(prob.y1_pre, prob.Y0_pre, W_unc)
 
     resid = prob.X1 - prob.X0 @ W_unc            # (K,)

@@ -12,6 +12,8 @@ Lipschitz constant.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 _EPS = 1e-12
@@ -23,6 +25,8 @@ def project_simplex(v: np.ndarray, z: float = 1.0) -> np.ndarray:
     Uses the exact sort-based algorithm (Held, Wolfe & Crowder 1974; Duchi et
     al. 2008): :math:`O(n \\log n)` and exact.
     """
+    if z <= 0:
+        raise ValueError(f"simplex radius z must be positive, got {z}.")
     v = np.asarray(v, dtype=float)
     n = v.size
     if n == 1:
@@ -65,6 +69,7 @@ def simplex_lstsq(
     *,
     max_iter: int = 2000,
     tol: float = 1e-9,
+    warn: bool = False,
 ) -> np.ndarray:
     """Minimize ``||A w - b||^2`` over the probability simplex via FISTA.
 
@@ -76,6 +81,10 @@ def simplex_lstsq(
         Target vector, shape ``(m,)``.
     max_iter, tol : int, float
         Stopping controls.
+    warn : bool
+        If ``True``, emit a :class:`RuntimeWarning` when ``max_iter`` is
+        exhausted before the step norm falls below ``tol`` (i.e. FISTA did not
+        converge). Off by default so the inner-loop callers stay silent.
 
     Returns
     -------
@@ -102,6 +111,13 @@ def simplex_lstsq(
         if np.linalg.norm(w_new - w) < tol:
             return w_new
         w, t = w_new, t_new
+    if warn:
+        warnings.warn(
+            f"simplex_lstsq did not converge within max_iter={max_iter} "
+            f"(tol={tol}); returned weights may be sub-optimal.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     return w
 
 

@@ -20,6 +20,8 @@ from typing import Any, Dict, List
 
 import numpy as np
 
+from ....exceptions import MlsynthDataError
+
 
 @dataclass(frozen=True)
 class BilevelProblem:
@@ -38,6 +40,13 @@ class BilevelProblem:
         Donor predictor matrix, shape ``(K, J)`` -- ``X_0``.
     predictor_names : list
         Labels of the ``K`` predictors, for provenance.
+
+    Raises
+    ------
+    MlsynthDataError
+        If the arrays are non-finite, wrongly dimensioned, mutually
+        inconsistent in shape, or carry no donors. ``K == 0`` (no predictors)
+        is permitted -- only the predictor-free penalized backend accepts it.
     """
 
     y1_pre: np.ndarray
@@ -45,6 +54,50 @@ class BilevelProblem:
     X1: np.ndarray
     X0: np.ndarray
     predictor_names: List[Any] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        # Coerce to float ndarrays so downstream linear algebra is well-defined
+        # and finiteness checks are meaningful (frozen dataclass -> setattr hack).
+        for name in ("y1_pre", "Y0_pre", "X1", "X0"):
+            object.__setattr__(self, name, np.asarray(getattr(self, name), dtype=float))
+
+        y1, Y0, X1, X0 = self.y1_pre, self.Y0_pre, self.X1, self.X0
+
+        if y1.ndim != 1:
+            raise MlsynthDataError(f"y1_pre must be 1-D (Tpre,), got shape {y1.shape}.")
+        if Y0.ndim != 2:
+            raise MlsynthDataError(f"Y0_pre must be 2-D (Tpre, J), got shape {Y0.shape}.")
+        if X1.ndim != 1:
+            raise MlsynthDataError(f"X1 must be 1-D (K,), got shape {X1.shape}.")
+        if X0.ndim != 2:
+            raise MlsynthDataError(f"X0 must be 2-D (K, J), got shape {X0.shape}.")
+
+        Tpre, J, K = y1.shape[0], Y0.shape[1], X1.shape[0]
+        if Tpre < 1:
+            raise MlsynthDataError("y1_pre must have at least one pre-period.")
+        if J < 1:
+            raise MlsynthDataError("Y0_pre must have at least one donor column.")
+        if Y0.shape[0] != Tpre:
+            raise MlsynthDataError(
+                f"y1_pre/Y0_pre period mismatch: y1_pre has {Tpre} rows, "
+                f"Y0_pre has {Y0.shape[0]}."
+            )
+        if X0.shape[0] != K:
+            raise MlsynthDataError(
+                f"X1/X0 predictor mismatch: X1 has {K} entries, X0 has {X0.shape[0]} rows."
+            )
+        if X0.shape[1] != J:
+            raise MlsynthDataError(
+                f"X0/Y0_pre donor mismatch: X0 has {X0.shape[1]} columns, "
+                f"Y0_pre has {J} donors."
+            )
+        if self.predictor_names and len(self.predictor_names) != K:
+            raise MlsynthDataError(
+                f"predictor_names has {len(self.predictor_names)} labels for {K} predictors."
+            )
+        for name, arr in (("y1_pre", y1), ("Y0_pre", Y0), ("X1", X1), ("X0", X0)):
+            if arr.size and not np.all(np.isfinite(arr)):
+                raise MlsynthDataError(f"{name} contains NaN or infinite values.")
 
     @property
     def n_donors(self) -> int:

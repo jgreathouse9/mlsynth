@@ -39,6 +39,7 @@ Disaggregated Data. Journal of the American Statistical Association,
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional, Sequence
 
 import numpy as np
@@ -47,6 +48,10 @@ from .simplex import mspe, project_simplex, simplex_lstsq
 from .structure import BilevelProblem, BilevelSolution
 
 _EPS = 1e-12
+
+# CV needs at least this many pre-periods so the train/validation split is
+# non-degenerate (a single training period cannot identify donor weights).
+_MIN_CV_TPRE = 4
 
 
 def _spectral_radius(Q: np.ndarray, iters: int = 40) -> float:
@@ -70,10 +75,12 @@ def _spectral_radius(Q: np.ndarray, iters: int = 40) -> float:
 
 
 def _simplex_qp(Q: np.ndarray, c: np.ndarray, *, max_iter: int = 2000,
-                tol: float = 1e-9) -> np.ndarray:
+                tol: float = 1e-9, warn: bool = False) -> np.ndarray:
     """Minimize ``w' Q w + c' w`` over the probability simplex via FISTA.
 
-    ``Q`` must be symmetric positive semidefinite (here ``Q = X0' X0``).
+    ``Q`` must be symmetric positive semidefinite (here ``Q = X0' X0``). If
+    ``warn`` and the iteration limit is hit before the step norm meets ``tol``,
+    a :class:`RuntimeWarning` is emitted.
     """
     n = Q.shape[0]
     if n == 1:
@@ -91,11 +98,19 @@ def _simplex_qp(Q: np.ndarray, c: np.ndarray, *, max_iter: int = 2000,
         if np.linalg.norm(w_new - w) < tol:
             return w_new
         w, t = w_new, t_new
+    if warn:
+        warnings.warn(
+            f"penalized simplex QP did not converge within max_iter={max_iter} "
+            f"(tol={tol}); returned weights may be sub-optimal.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     return w
 
 
 def penalized_weights(X1: np.ndarray, X0: np.ndarray, lam: float, *,
-                      max_iter: int = 2000, tol: float = 1e-9) -> np.ndarray:
+                      max_iter: int = 2000, tol: float = 1e-9,
+                      warn: bool = False) -> np.ndarray:
     """Penalized synthetic-control weights (eq. 5) for one target.
 
     Parameters
@@ -108,13 +123,22 @@ def penalized_weights(X1: np.ndarray, X0: np.ndarray, lam: float, *,
         Penalty ``lambda >= 0``. ``lambda > 0`` guarantees a unique, sparse
         solution; ``lambda -> 0`` is the (possibly non-unique) pure synthetic
         control; large ``lambda`` approaches nearest-neighbour matching.
+    warn : bool
+        Forwarded to the inner QP: warn on non-convergence.
+
+    Raises
+    ------
+    ValueError
+        If ``lam < 0`` (a negative penalty makes the objective non-convex).
     """
+    if lam < 0:
+        raise ValueError(f"penalty lambda must be non-negative, got {lam}.")
     X1 = np.asarray(X1, dtype=float)
     X0 = np.asarray(X0, dtype=float)
     Q = X0.T @ X0
     d2 = np.sum((X1[:, None] - X0) ** 2, axis=0)        # pairwise discrepancies
     c = -2.0 * (X0.T @ X1) + float(lam) * d2
-    return _simplex_qp(Q, c, max_iter=max_iter, tol=tol)
+    return _simplex_qp(Q, c, max_iter=max_iter, tol=tol, warn=warn)
 
 
 def _build_block(prob: BilevelProblem, periods: slice, use_outcomes: bool,
@@ -255,19 +279,36 @@ def solve_penalized(
         selector = {"holdout": _holdout_cv_lambda, "loo": _loo_cv_lambda}.get(cv)
         if selector is None:
             raise ValueError(f"Unknown cv selector {cv!r}; expected 'holdout' or 'loo'.")
+        if prob.Tpre < _MIN_CV_TPRE:
+            raise ValueError(
+                f"cv='{cv}' needs at least {_MIN_CV_TPRE} pre-periods to form a "
+                f"non-degenerate split, got Tpre={prob.Tpre}; pass a fixed numeric "
+                f"lam instead."
+            )
         lam_val, cv_curve = selector(
             prob, lam_grid, use_outcomes=use_outcomes, use_predictors=use_predictors,
             train_frac=train_frac, max_iter=max_iter, tol=tol)
         selected_by = cv
+        # A boundary selection means the optimum likely lies outside the grid.
+        if lam_grid.size > 1 and (
+            lam_val <= lam_grid.min() + _EPS or lam_val >= lam_grid.max() - _EPS
+        ):
+            warnings.warn(
+                f"CV selected lambda={lam_val:g} at the edge of lam_grid "
+                f"[{lam_grid.min():g}, {lam_grid.max():g}]; the optimum may lie "
+                f"outside the grid -- consider widening it.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
     else:
         lam_val, cv_curve, selected_by = float(lam), None, "fixed"
 
     # Final weights: match on the full pre-period block.
     m1, M0 = _build_block(prob, slice(0, prob.Tpre), use_outcomes, use_predictors)
-    W = penalized_weights(m1, M0, lam_val, max_iter=max_iter, tol=tol)
+    W = penalized_weights(m1, M0, lam_val, max_iter=max_iter, tol=tol, warn=True)
     V = np.full(max(prob.n_predictors, 1), 1.0 / max(prob.n_predictors, 1))  # Gamma = I
 
-    W_unc = simplex_lstsq(prob.Y0_pre, prob.y1_pre)
+    W_unc = simplex_lstsq(prob.Y0_pre, prob.y1_pre, warn=True)
     lower_bound = mspe(prob.y1_pre, prob.Y0_pre, W_unc)
     upper = mspe(prob.y1_pre, prob.Y0_pre, W)
     lower_loss = float(np.sum((prob.X1 - prob.X0 @ W) ** 2)) if prob.n_predictors else 0.0
