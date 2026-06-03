@@ -66,7 +66,7 @@ def MH_tau(
     Returns
     -------
     float
-        \\tau value after the ``nrep``th step.
+        \\tau value after the final (``nrep``-th) step.
     """
 
     tau_M = np.empty(nrep)

@@ -333,7 +333,7 @@ When to use ISCM -- and when not to
 * **The treated unit is well inside the hull** and the canonical
   SCM pre-fit is tight. ISCM adds estimation noise from the
   per-unit decomposition and the :math:`a_i` weighting machinery
-  for no identification gain. Use :doc:`scm`, :doc:`tssc`, or
+  for no identification gain. Use *canonical SCM*, :doc:`tssc`, or
   :doc:`fdid` -- they have stronger small-sample guarantees in
   the happy case.
 * **Contemporaneous national-level shocks** are part of the DGP
@@ -367,13 +367,13 @@ When to use ISCM -- and when not to
   a common pre-period free of treatment. If donors adopt the
   policy at different times across a long window, drop late
   adopters or use a staggered SC variant
-  (:doc:`fect`, :doc:`sdid`).
+  (*FECT*, :doc:`sdid`).
 * **You need a sparse, interpretable single weight vector.**
   ISCM returns per-unit weights for *all* units (one synthetic
   control per unit) and aggregates them via :math:`a_i`. If the
   policy story you need is "this single state is a convex
   combination of these four donors", report the canonical SC
-  weight vector alongside ISCM, or use :doc:`scm` / :doc:`tssc`
+  weight vector alongside ISCM, or use *canonical SCM* / :doc:`tssc`
   whose output IS a single sparse weight vector.
 
 Empirical: Wisconsin's 48-h handgun waiting-period repeal

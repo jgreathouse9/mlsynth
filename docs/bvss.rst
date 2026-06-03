@@ -485,7 +485,7 @@ When to use BVSS -- and when not to
   states and a tight pre-fit on the canonical SCM, BVSS's
   per-pair Gibbs sampler is overkill; the spike-and-slab
   uncertainty just propagates noise that the data does not
-  actually contain. Use :doc:`scm`, :doc:`tssc`, or :doc:`fdid`.
+  actually contain. Use *canonical SCM*, :doc:`tssc`, or :doc:`fdid`.
 * **Treated unit is severely outside the donor hull.** BVSS's
   soft simplex *can* relax (:math:`\tau` learns), but the
   posterior weights are still anchored to the simplex prior.
@@ -501,7 +501,7 @@ When to use BVSS -- and when not to
   ~10 minutes for 1000 iterations on commodity hardware; for
   large grid searches or batch processing across many
   policy-evaluation cells, an optimisation-based estimator
-  (:doc:`scm`, :doc:`tssc`, :doc:`fdid`) is the right default.
+  (*canonical SCM*, :doc:`tssc`, :doc:`fdid`) is the right default.
 * **Outcomes with hard floors or ceilings, counts, or heavy
   tails.** A4's Gaussian-likelihood / :math:`\beta`-min
   argument breaks. Pre-process (log, difference, Winsorise)
@@ -523,7 +523,7 @@ When to use BVSS -- and when not to
   policy storytelling.** BVSS returns *posterior expected*
   weights -- a Bayesian model average. If the goal is the
   canonical "California = 0.385 Utah + 0.271 Montana + 0.186
-  Nevada + ..." story, run :doc:`scm` alongside and report
+  Nevada + ..." story, run *canonical SCM* alongside and report
   both. The inclusion probabilities from BVSS sit at a
   different rhetorical altitude.
 

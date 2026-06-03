@@ -336,10 +336,12 @@ def select_treated_designs(
 
     Returns
     -------
-    dict with
-        "top_designs" : list[TreatedDesign] sorted by imbalance.
-        "stats"       : diagnostics, incl. whether the result is the exact
-                        global top-K and the achieved-imbalance range.
+    dict
+        Dictionary with::
+
+            "top_designs" : list[TreatedDesign] sorted by imbalance.
+            "stats"       : diagnostics, incl. whether the result is the exact
+                            global top-K and the achieved-imbalance range.
     """
     t0 = time.time()
     G = np.asarray(G, dtype=float)

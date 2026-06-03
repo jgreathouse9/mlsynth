@@ -56,12 +56,13 @@ def ag_conformal(
     -------
     Tuple[np.ndarray, np.ndarray]
         A tuple containing:
+
         - lower_bounds_full_series : np.ndarray
-            Lower bounds of the prediction intervals. Shape (T_pre + T_post,).
-            The first T_pre elements are filled with `pad_value`.
+          Lower bounds of the prediction intervals. Shape (T_pre + T_post,).
+          The first T_pre elements are filled with `pad_value`.
         - upper_bounds_full_series : np.ndarray
-            Upper bounds of the prediction intervals. Shape (T_pre + T_post,).
-            The first T_pre elements are filled with `pad_value`.
+          Upper bounds of the prediction intervals. Shape (T_pre + T_post,).
+          The first T_pre elements are filled with `pad_value`.
 
     Raises
     ------

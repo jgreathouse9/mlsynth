@@ -20,6 +20,8 @@ def VM(gamma_vec: np.ndarray, tau: float, Gram: np.ndarray) -> np.ndarray:
 
     Implements Eq. (5):
 
+    .. math::
+
         V_{\\gamma, \\tau} = X_\\gamma^T X_\\gamma + \\tau^{-1} I.
 
     Parameters
@@ -55,9 +57,13 @@ def RSS(
 
     Uses
 
+    .. math::
+
         \\Sigma_{\\gamma, \\tau} = I - X_\\gamma V_{\\gamma, \\tau}^{-1} X_\\gamma^T,
 
     so that
+
+    .. math::
 
         z^T \\Sigma_{\\gamma, \\tau} z = z^T z - (X_\\gamma^T z)^T V^{-1} (X_\\gamma^T z).
     """
@@ -109,12 +115,14 @@ def AM(
     on the structure of ``gamma`` for the :math:`\\alpha = 1` case
     (Lemma S2 + Eq. (2) of the paper):
 
+    .. math::
+
         \\log A_1(\\gamma, \\tau)
             = |\\gamma| \\log \\theta + (N - |\\gamma|) \\log (1 - \\theta)
               + \\log (|\\gamma| - 1)!
               - \\tfrac{1}{2} \\log \\det V_{\\gamma, \\tau}.
 
-    The ``-\\tfrac{|\\gamma|}{2} \\log \\tau`` term is handled separately
+    The :math:`-\\tfrac{|\\gamma|}{2} \\log \\tau` term is handled separately
     inside :func:`loglike`.
     """
 
@@ -137,6 +145,8 @@ def loglike(
     """Log of the marginal likelihood ``p(y | \\gamma, \\mu_\\gamma, \\tau, \\phi)``.
 
     Implements Eq. (4) of the paper:
+
+    .. math::
 
         \\log p(y \\mid \\gamma, \\mu_\\gamma, \\tau, \\phi)
             = \\tfrac{M}{2} \\log \\phi

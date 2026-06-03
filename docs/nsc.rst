@@ -312,7 +312,7 @@ When to use NSC -- and when not to
 * **You need genuinely sparse, non-negative weights.** NSC's whole
   premise is dropping non-negativity. If the policy story is
   "California is a convex combination of these four states", use
-  :doc:`scm` or :doc:`tssc` -- NSC's negative weights are an
+  *canonical SCM* or :doc:`tssc` -- NSC's negative weights are an
   identification gain but a rhetorical loss.
 * **Very small donor pool** (:math:`J \le 10` or so). Theorem 2
   fails, the leave-one-control inference becomes unstable, and the

@@ -1,6 +1,6 @@
 """Spec-driven construction of the SCMO matching matrix ``Z`` (pure NumPy).
 
-A *spec* describes how to assemble the columns of ``Z`` from a long panel:
+A *spec* describes how to assemble the columns of ``Z`` from a long panel::
 
     spec = {
         "year": 1989,                       # int, or list[int] to stack periods

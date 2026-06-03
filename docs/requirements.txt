@@ -1,9 +1,11 @@
 # Sphinx dependencies
-sphinx
-sphinx-book-theme
-sphinxcontrib-bibtex<2.0.0
-sphinx-copybutton
-sphinx-gallery
+# Pin to known-good ranges: Sphinx 9 currently breaks the build, and the
+# extensions below need a modern Sphinx (and a modern sphinxcontrib-bibtex).
+sphinx>=7,<9
+sphinx-book-theme>=1.1
+sphinxcontrib-bibtex>=2.5
+sphinx-copybutton>=0.5
+sphinx-gallery>=0.15
 
 pandas
 numpy
@@ -14,4 +16,4 @@ cvxpy
 screenot
 statsmodels
 patsy
-git+https://github.com/jgreathouse9/mlsynth.git
+.

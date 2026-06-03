@@ -2,7 +2,7 @@
 
 Implements the synthetic-paths construction and treatment-effect
 formula at the bottom of Algorithm 1 (page 7) and the bottom of
-Algorithm 2 (page 13):
+Algorithm 2 (page 13)::
 
     Treat Unit i if  gamma(i) = -sgn(sum_j gamma(j))            (minority rule)
 
@@ -133,7 +133,7 @@ def compute_att_and_fit(
     """Compute SPCD's ATT and pre/post fit RMSEs.
 
     Implements the ``tau_hat`` formula at the bottom of Algorithm 1
-    (page 7) of the paper, averaged over the post-treatment horizon:
+    (page 7) of the paper, averaged over the post-treatment horizon::
 
         ATT = (1/S) sum_{t=T+1..T+S} (
                 sum_{gamma(i)=+1} w(i) Y_{i,t}

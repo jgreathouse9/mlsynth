@@ -129,6 +129,7 @@ def prenorm(input_array: np.ndarray, target: float = 100) -> np.ndarray:
     input_array : np.ndarray
         Input array to be normalized. Can be 1-dimensional (vector) or
         2-dimensional (matrix).
+
         - If 1D, shape (T,): Normalization is based on the last element `input_array[-1]`.
         - If 2D, shape (T, N): Normalization is performed column-wise, based
           on the elements of the last row `input_array[-1, :]`. Each column `input_array[:, j]` is
@@ -236,10 +237,11 @@ def ssdid_w(
     -------
     Tuple[np.ndarray, float]
         A tuple containing:
+
         - optimal_donor_weights : np.ndarray
-            The optimal donor weights, shape (J,). These weights sum to 1. (Formerly `omega`)
+          The optimal donor weights, shape (J,). These weights sum to 1. (Formerly `omega`)
         - optimal_intercept : float
-            The optimal intercept term. (Formerly `omega_0`)
+          The optimal intercept term. (Formerly `omega_0`)
 
     Raises
     ------
@@ -401,10 +403,11 @@ def ssdid_lambda(
     -------
     Tuple[np.ndarray, float]
         A tuple containing:
+
         - optimal_time_weights : np.ndarray
-            The optimal time weights, shape (num_pre_treatment_periods_for_lambda,). These weights sum to 1. (Formerly `lambda_val`)
+          The optimal time weights, shape (num_pre_treatment_periods_for_lambda,). These weights sum to 1. (Formerly `lambda_val`)
         - optimal_intercept : float
-            The optimal intercept term. (Formerly `lambda_0_val`)
+          The optimal intercept term. (Formerly `lambda_0_val`)
 
     Raises
     ------

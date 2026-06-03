@@ -189,12 +189,12 @@ Setting ``inference=True`` returns a
 :class:`~mlsynth.utils.scpi_helpers.structures.SCPIResults` with the four
 ``scpi`` **predictands**, each with its own band:
 
-* ``taua`` -- **T**ime-**a**veraged **u**nit-**a**veraged: the overall ATT.
-* ``tsua`` -- **T**ime-**s**pecific **u**nit-**a**veraged: ``{period: band}``,
+* ``taua`` -- **T**\ ime-**a**\ veraged **u**\ nit-**a**\ veraged: the overall ATT.
+* ``tsua`` -- **T**\ ime-**s**\ pecific **u**\ nit-**a**\ veraged: ``{period: band}``,
   the average effect across treated units at each post-period.
-* ``taus`` -- **T**ime-**a**veraged **u**nit-**s**pecific: ``{unit: band}``,
+* ``taus`` -- **T**\ ime-**a**\ veraged **u**\ nit-**s**\ pecific: ``{unit: band}``,
   each treated unit's effect averaged over the post-window.
-* ``tsus`` -- **T**ime-**s**pecific **u**nit-**s**pecific:
+* ``tsus`` -- **T**\ ime-**s**\ pecific **u**\ nit-**s**\ pecific:
   ``{(unit, period): band}``, the per-cell effect.
 
 plus ``simultaneous`` -- TSUS bands widened (Bonferroni over the post-periods)

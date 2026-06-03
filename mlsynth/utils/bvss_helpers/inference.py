@@ -1,7 +1,7 @@
 """Counterfactual paths, credible bands, and ATT inference for BVS-SS.
 
 Given posterior samples ``\\mu^{(t)}`` from the Gibbs sampler, the
-counterfactual treated outcome at every period is
+counterfactual treated outcome at every period is::
 
     Y_hat^{(0)}_t  =  X_demean_t \\mu^{(t)}  +  mean_Y,
 
@@ -9,7 +9,7 @@ where ``mean_Y`` is the pre-treatment mean of the treated outcome (the
 sampler operates on demeaned data; we add the mean back to recover the
 original outcome scale).
 
-The post-treatment ATT for each draw is
+The post-treatment ATT for each draw is::
 
     ATT^{(t)}  =  (1 / T_post) \\sum_{t > T_0}
                        (Y^{(1)}_t  -  Y_hat^{(0), (t)}_t)

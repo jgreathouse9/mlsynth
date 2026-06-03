@@ -346,7 +346,7 @@ When **not** to use SI
 * **You only need a single counterfactual against control.** SI's whole point
   is comparing a focal unit's counterfactual across *several* alternative
   interventions. If you only need the status-quo counterfactual (the
-  classical SC question), :doc:`tssc`, :doc:`fdid`, :doc:`scm`, or
+  classical SC question), :doc:`tssc`, :doc:`fdid`, *canonical SCM*, or
   :doc:`fma` are simpler and have stronger small-:math:`T_0` properties.
 
 * **Donor pool for an arm is too small for the rank.** SI's bias-corrected
@@ -378,7 +378,7 @@ When **not** to use SI
   Prop 99 case). If your post-window must span many years of
   cumulative adoption -- some donors enter the intervention years
   apart -- SI's identification gradually erodes. Use the staggered
-  SC variants in :doc:`fect` or :doc:`sdid` instead.
+  SC variants in *FECT* or :doc:`sdid` instead.
 
 * **No low-rank factor structure.** When the donor spectrum has no
   clear gap (e.g. each donor genuinely idiosyncratic), the

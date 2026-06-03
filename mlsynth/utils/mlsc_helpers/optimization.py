@@ -1,6 +1,6 @@
 """MlSC QP solver.
 
-Solves Equation 5.2 of Bottmer (2025):
+Solves Equation 5.2 of Bottmer (2025)::
 
     min over omega in R^M
         || Y_agg_treated_pre  -  X_disagg_pre @ omega ||^2

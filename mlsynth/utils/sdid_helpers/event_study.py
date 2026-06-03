@@ -50,29 +50,30 @@ def estimate_event_study_sdid(
     -------
     Dict[str, Any]
         A dictionary containing various estimates:
+
         - "tau_a_ell" : Dict[int, Dict[str, Any]]
-            Per-cohort detailed results. Keys are cohort adoption periods.
-            Values are dictionaries from `estimate_cohort_sdid_effects`.
+          Per-cohort detailed results. Keys are cohort adoption periods.
+          Values are dictionaries from `estimate_cohort_sdid_effects`.
         - "tau_ell" : Dict[float, float]
-            Pooled event-time effects (weighted average across cohorts).
-            Keys are event times `ell`, values are the pooled effect estimates.
+          Pooled event-time effects (weighted average across cohorts).
+          Keys are event times `ell`, values are the pooled effect estimates.
         - "att" : float
-            Overall Average Treatment Effect on Treated, aggregated across all
-            cohorts and post-treatment periods.
+          Overall Average Treatment Effect on Treated, aggregated across all
+          cohorts and post-treatment periods.
         - "att_se" : float
-            Standard error for the overall ATT, estimated via placebo inference.
+          Standard error for the overall ATT, estimated via placebo inference.
         - "att_ci" : List[float]
-            95% Confidence interval [lower, upper] for the overall ATT.
+          95% Confidence interval [lower, upper] for the overall ATT.
         - "cohort_estimates" : Dict[int, Dict[str, Any]]
-            Per-cohort summary statistics. Keys are cohort adoption periods.
-            Values are dicts with "att", "att_se", "att_ci", and "event_estimates"
-            (a dict of event_time -> {tau, se, ci}).
+          Per-cohort summary statistics. Keys are cohort adoption periods.
+          Values are dicts with "att", "att_se", "att_ci", and "event_estimates"
+          (a dict of event_time -> {tau, se, ci}).
         - "pooled_estimates" : Dict[float, Dict[str, Any]]
-            Pooled event-time estimates with SE and CI. Keys are event times `ell`.
-            Values are dicts with "tau", "se", "ci".
+          Pooled event-time estimates with SE and CI. Keys are event times `ell`.
+          Values are dicts with "tau", "se", "ci".
         - "placebo_att_values" : List[float]
-            List of ATT values obtained from each placebo iteration. Useful for
-            diagnostics or alternative inference methods.
+          List of ATT values obtained from each placebo iteration. Useful for
+          diagnostics or alternative inference methods.
 
     Examples
     --------

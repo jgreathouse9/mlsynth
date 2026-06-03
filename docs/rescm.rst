@@ -290,7 +290,7 @@ combination of the donors' outcomes plus an orthogonal error.
 :math:`T_0 + 1` and stays on. Donors are untreated throughout
 (no interference). Both papers' main theorems are stated for the
 single-treated case; multi-treated extensions exist
-(:doc:`fect` / :doc:`sdid` for staggered designs are the
+(*FECT* / :doc:`sdid` for staggered designs are the
 mlsynth alternatives).
 
 **A3 (Weak temporal dependence).** The errors :math:`u_{jt}`
@@ -372,7 +372,7 @@ When the assumptions bind: practical diagnostics
     carrying most of the energy). A flat-tailed spectrum flags
     A1 failure; in that regime, switch to balancing-aware
     estimators (:doc:`microsynth` for unit-level data) or stay
-    with canonical :doc:`scm` (which does not lean as hard on
+    with *canonical SCM* (which does not lean as hard on
     A1).
 
 (b) **Weak temporal dependence (A3).** The HAC long-run variance
@@ -402,7 +402,7 @@ When the assumptions bind: practical diagnostics
     pre-RMSE across donors); if treated pre-RMSE is much
     smaller, the estimator is over-fitting and
     :math:`\hat\rho^2_{(1)}` understates uncertainty. Report
-    a placebo / conformal CI (e.g. via :doc:`scm` with
+    a placebo / conformal CI (e.g. via *canonical SCM* with
     permutation inference) alongside the analytic CI.
 
 (d) **Treated unit in donor convex hull (A5).** Both branches
@@ -433,7 +433,7 @@ When the assumptions bind: practical diagnostics
     /:math:`\eta` and the implied ATT move substantially, the
     CV is not informative. Either fix :math:`\lambda` at a
     domain-informed value via the explicit knobs, or fall back
-    to canonical :doc:`scm` / :doc:`tssc` which do not need
+    to *canonical SCM* / :doc:`tssc` which do not need
     CV at all.
 
 (f) **Latent group structure (A7 -- relaxation only).** The
@@ -496,7 +496,7 @@ When to use RESCM -- and when not to
   headline deliverable. Both branches actively shrink toward
   dense solutions; that is the design choice. If the policy
   story has to be "California ≈ Utah + Montana + Nevada", run
-  canonical :doc:`scm` / :doc:`tssc`, or :doc:`fscm`
+  *canonical SCM* / :doc:`tssc`, or :doc:`fscm`
   (forward-selected SC with the simplex retained) for a
   sparse-by-construction donor set.
 * **The treated unit is structurally outside the donor hull.**
@@ -518,7 +518,7 @@ When to use RESCM -- and when not to
   First-difference, or use :doc:`sbc`.
 * **You have multiple treated units / staggered adoption.**
   RESCM's theory is built for a single treated unit. Use
-  :doc:`fect` or :doc:`sdid` for staggered designs.
+  *FECT* or :doc:`sdid` for staggered designs.
 * **Spillovers across donors.** A2's no-interference clause
   fails; the factor model's orthogonality breaks. Use
   :doc:`spillsynth` or :doc:`spsydid`.

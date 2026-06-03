@@ -1,4 +1,4 @@
-"""Web Appendix E Monte Carlo DGPs for the Forward DiD method.
+r"""Web Appendix E Monte Carlo DGPs for the Forward DiD method.
 
 Implements the four data-generating processes from Li, Shi & Huang (2023)
 Web Appendix E. Each draw produces one treated unit and ``N`` controls over
@@ -19,16 +19,13 @@ with :math:`v_{kt} \sim \mathcal{N}(0, 1)` and outcomes
    y_{it}   &= 1   + c_2 \mathbf{1}' f_t + \varepsilon_{it}  \quad i > N/2,
 
 where :math:`\varepsilon_{it} \sim \mathcal{N}(0, 1)`. The four DGPs vary
-:math:`(a_0, c_0, c_1, c_2)`:
+:math:`(a_0, c_0, c_1, c_2)`::
 
-==== =================
-DGP  :math:`(a_0, c_0, c_1, c_2)`
-==== =================
-1    ``(1, 1, 1, 1)`` — all controls match (DiD is applicable)
-2    ``(1, 1, 1, 2)`` — half the controls have mismatched loadings
-3    ``(2, 1, 1, 1)`` — treated has a different intercept
-4    ``(2, 1, 1, 2)`` — intercept *and* half-mismatched loadings
-==== =================
+    DGP  (a_0, c_0, c_1, c_2)
+    1    (1, 1, 1, 1) — all controls match (DiD is applicable)
+    2    (1, 1, 1, 2) — half the controls have mismatched loadings
+    3    (2, 1, 1, 1) — treated has a different intercept
+    4    (2, 1, 1, 2) — intercept and half-mismatched loadings
 
 True ATT is zero in every DGP (matching the paper's PMSE convention; the
 PMSE is invariant to a constant treatment effect).

@@ -38,7 +38,7 @@ def prepare_fscm_inputs(
     covariate_windows: Optional[Dict[str, Tuple[Any, Any]]] = None,
     match_periods: Optional[List[Any]] = None,
 ) -> FSCMInputs:
-    """Pivot the panel to NumPy, build ``IndexSet``es, split pre/post.
+    """Pivot the panel to NumPy, build ``IndexSet``\\ s, split pre/post.
 
     Covariate predictors are each averaged over an aggregation window (Abadie's
     specification): ``covariate_windows`` maps a covariate to an inclusive

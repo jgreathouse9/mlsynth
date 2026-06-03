@@ -260,7 +260,7 @@ When **not** to use DSC
   function. With one number per cell, the empirical quantile function
   collapses to a step at that single value and DSC reduces to classical
   synthetic control. Use the aggregate estimators -- :doc:`tssc`,
-  :doc:`scm`, :doc:`fma`, :doc:`clustersc` -- instead.
+  *canonical SCM*, :doc:`fma`, :doc:`clustersc` -- instead.
 
 * **The mean (or any single moment) is the genuine object of interest.**
   If the policy question is "did the average outcome change?" and there

@@ -35,13 +35,13 @@ def prepare_rescm_inputs(
     outcome: str,
     treat: str,
 ) -> RESCMInputs:
-    """Pivot the panel to NumPy, build ``IndexSet``es, split pre/post.
+    """Pivot the panel to NumPy, build ``IndexSet``\\ s, split pre/post.
 
     Returns
     -------
     RESCMInputs
         Pure-NumPy container: treated vector ``y`` (T,), donor matrix ``X``
-        (T, N), ``T0``, and unit/time :class:`IndexSet`es.
+        (T, N), ``T0``, and unit/time :class:`IndexSet`\\ s.
     """
     treated_unit, intervention_time = derive_treatment(df, unitid, time, treat)
 

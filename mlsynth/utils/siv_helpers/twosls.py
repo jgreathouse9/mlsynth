@@ -3,12 +3,12 @@
 The SIV paper considers three estimator variants once the SC step
 has produced ``\\tilde Y, \\tilde R, \\tilde Z``:
 
-* ``"siv"``   — fully debiased: ``\\hat\\theta = (\\sum \\tilde Z
-                   \\tilde R)^{-1} \\sum \\tilde Z \\tilde Y``.
-* ``"siv_z"`` — debiases only the instrument: ``(\\sum \\tilde Z R)^{-1}
-                   \\sum \\tilde Z Y``.
+* ``"siv"``   — fully debiased:
+  ``\\hat\\theta = (\\sum \\tilde Z \\tilde R)^{-1} \\sum \\tilde Z \\tilde Y``.
+* ``"siv_z"`` — debiases only the instrument:
+  ``(\\sum \\tilde Z R)^{-1} \\sum \\tilde Z Y``.
 * ``"siv_yr"`` — debiases only outcome and treatment, leaves Z raw:
-                   ``(\\sum Z \\tilde R)^{-1} \\sum Z \\tilde Y``.
+  ``(\\sum Z \\tilde R)^{-1} \\sum Z \\tilde Y``.
 
 The orchestrator always computes the canonical ``"siv"`` variant
 and additionally returns the others as diagnostic estimates for the

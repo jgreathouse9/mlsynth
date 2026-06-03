@@ -353,7 +353,7 @@ treatment indicator :math:`W_{sct}` is 1 iff :math:`s = 0` and
 :math:`t > T_0`, and once on it stays on. Equivalently defined at
 the aggregate level. Multiple treated aggregates are out of scope
 of the paper's main theory (the paper discusses staggered designs
-only as a future direction; mlsynth's :doc:`fect` / :doc:`sdid` are
+only as a future direction; mlsynth's *FECT* / :doc:`sdid` are
 the staggered-aware alternatives).
 
 **A3 (SUTVA at the disaggregate level).** No interference between
@@ -450,7 +450,7 @@ When the assumptions bind: practical diagnostics
     config validator enforces single-cohort by construction;
     if you have to silently coerce a staggered-adoption panel
     into a single cohort to get past validation, that is a
-    structural warning. Use :doc:`fect` / :doc:`sdid` for
+    structural warning. Use *FECT* / :doc:`sdid` for
     staggered adoption, :doc:`ctsc` for continuous dose.
 
 (c) **SUTVA at the disaggregate level (A3).** Disaggregate
@@ -560,11 +560,11 @@ When to use mlSC -- and when not to
 * **You only have aggregate-level data.** mlSC requires
   ``df_disagg`` with at least a handful of disaggregate units
   per donor aggregate. Without it, fall back to canonical
-  :doc:`scm` / :doc:`tssc` / :doc:`fdid`.
+  *canonical SCM* / :doc:`tssc` / :doc:`fdid`.
 * **Treatment is assigned at the disaggregate level.** The
   paper enforces aggregate-level assignment (A2); if the
   policy hits a single county rather than a whole state, you
-  want a disaggregate-target estimator (:doc:`scm`,
+  want a disaggregate-target estimator (*canonical SCM*,
   :doc:`microsynth` for individual-level treatment with
   covariate balancing).
 * **The aggregate outcome isn't a linear function of
@@ -595,7 +595,7 @@ When to use mlSC -- and when not to
   bookkeeping.
 * **Staggered adoption** across multiple aggregates.
   Single-cohort is the paper's main scope; for staggered
-  designs use :doc:`fect` or :doc:`sdid`.
+  designs use *FECT* or :doc:`sdid`.
 * **Spillovers within a donor aggregate.** A3 fails if
   counties within a donor state influence each other in a way
   the aggregation cannot wash out. Use :doc:`spillsynth` or

@@ -1,6 +1,6 @@
 """Step 2 of the SBC procedure: extrapolate the treated unit's trend.
 
-From Shi, Xi, Xie (2025), Section 3.1:
+From Shi, Xi, Xie (2025), Section 3.1::
 
     tau_hat_{1, t} = alpha_hat_{1, 0} + alpha_hat_{1, 1} Y_{1, t - h}
                    + ... + alpha_hat_{1, p} Y_{1, t - h - p + 1},

@@ -1,6 +1,6 @@
 """L-BFGS-B dual ascent for the MicroSynth QP.
 
-The primal is
+The primal is::
 
     min_w  (1/2) || w - 1/n_C ||^2
     s.t.   X_C^T w = x_bar_T          (d balancing constraints)

@@ -1,19 +1,19 @@
 """CV-blended ensemble of the SIV and projected estimators.
 
-Section 5.1 of Gulek and Vives-i-Bastida (2024) constructs
+Section 5.1 of Gulek and Vives-i-Bastida (2024) constructs::
 
     \\hat\\theta^E(\\alpha) = \\alpha \\hat\\theta^{SIV}
                             + (1 - \\alpha) \\hat\\theta^P,
 
 with ``\\alpha`` picked on a held-out validation block by minimising
-the MSE of the convex combination of debiased outcomes:
+the MSE of the convex combination of debiased outcomes::
 
     \\alpha^* = \\arg\\min_{\\alpha \\in [0, 1]}
         \\frac{1}{J (T_0 - T_v)}
         \\|\\alpha \\tilde Y^{P, T_v} + (1 - \\alpha) \\tilde Y^{T_v}\\|^2_2
 
 evaluated over the validation block ``(T_v, T_0]``. With one
-scalar parameter on a compact interval the minimum is closed-form:
+scalar parameter on a compact interval the minimum is closed-form::
 
     Define a_t = \\tilde Y^P_{i,t} - \\tilde Y^{SIV}_{i,t},
            b_t = \\tilde Y^{SIV}_{i,t};

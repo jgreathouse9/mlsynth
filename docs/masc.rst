@@ -151,7 +151,7 @@ When the assumptions bind: practical diagnostics
     multiple seeds / fold configurations, the MASC machinery
     is over-engineered for this application and the
     corresponding pure estimator is the better default --
-    :doc:`scm` / :doc:`tssc` for the :math:`\varphi = 0`
+    *canonical SCM* / :doc:`tssc` for the :math:`\varphi = 0`
     regime, a nearest-neighbour matching estimator outside
     mlsynth for the :math:`\varphi = 1` regime.
 
@@ -175,8 +175,8 @@ When the assumptions bind: practical diagnostics
     *Plausibly violated when* you have several treated units
     on the same cohort. *Diagnostic*: MASC's headline numbers
     will be sensitive to which treated unit you single out as
-    "the" treated; if so, use :doc:`scm` paired with the
-    penalised variant, or :doc:`fect` for staggered designs.
+    "the" treated; if so, use *canonical SCM* paired with the
+    penalised variant, or *FECT* for staggered designs.
 
 When to use MASC -- and when not to
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -210,7 +210,7 @@ When to use MASC -- and when not to
 * **Either bias dominates.** If ``res.phi_hat`` is essentially
   0 or 1 across seeds, MASC adds variance without bias
   improvement. At :math:`\hat\varphi \approx 0` reach for
-  :doc:`scm` / :doc:`tssc` (or :doc:`fscm` for selective donor
+  *canonical SCM* / :doc:`tssc` (or :doc:`fscm` for selective donor
   pruning); at :math:`\hat\varphi \approx 1` reach for a
   dedicated nearest-neighbour matching estimator.
 * **The treated unit is structurally outside the donor convex
@@ -226,11 +226,11 @@ When to use MASC -- and when not to
 * **The pre-period is very short** (:math:`T_1 < 10`-ish).
   Rolling-origin CV has too few folds to discriminate
   :math:`(m, \varphi)`; the selected mix is noise. Use
-  :doc:`scm` / :doc:`tssc` / :doc:`fdid` (which work without
+  *canonical SCM* / :doc:`tssc` / :doc:`fdid` (which work without
   CV) instead.
 * **Multiple treated units.** MASC's identification story
   uses a single treated unit. For staggered or many-treated
-  designs, use :doc:`fect` or :doc:`sdid`. (The paper's
+  designs, use *FECT* or :doc:`sdid`. (The paper's
   Section 2.7 notes one *could* average a matching and
   penalised-SC pair across treated units, mirroring MASC, but
   this is not in the mlsynth implementation and demands additional econometric theory.)
@@ -242,7 +242,7 @@ When to use MASC -- and when not to
   of SC weights and matching weights; both can be sparse on
   their own, but the mixed vector is generically less sparse
   than either component. If the headline must be "California
-  ≈ Utah + Montana + Nevada", run :doc:`scm` alongside.
+  ≈ Utah + Montana + Nevada", run *canonical SCM* alongside.
 * **Distributional questions** (Lorenz curves, QTEs, tail
   effects). MASC targets the mean ATT. Use :doc:`dsc`.
 * **Continuous or multi-valued treatment.** MASC encodes a

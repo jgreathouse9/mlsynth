@@ -2,7 +2,7 @@
 
 Implements Eq. (6) of the paper (page 7), the convex quadratic program
 used by "Algorithm 1: Synthetic principal component Design" once the
-sign vector ``gamma`` is fixed by the iteration:
+sign vector ``gamma`` is fixed by the iteration::
 
     Eq. (6):
         min_{w_i >= 0}    (1/T) sum_t (

@@ -1,6 +1,6 @@
 """Hamilton (2018) filter for trend / cycle decomposition.
 
-Implements Eq. (2) of Shi, Xi, Xie (2025):
+Implements Eq. (2) of Shi, Xi, Xie (2025)::
 
     tau_t = alpha_0 + alpha_1 * Y_{t-h} + alpha_2 * Y_{t-h-1}
                     + ... + alpha_p * Y_{t-h-p+1}

@@ -60,7 +60,7 @@ def solve_unit_qp(
 ) -> Tuple[np.ndarray, float]:
     """Solve the Sequential SDiD unit-weight QP for one (a, k) step.
 
-    Optimization (paper Algorithm 1, line 5):
+    Optimization (paper Algorithm 1, line 5)::
 
         min over (omega, omega_0)
             sum_{l < a + k} (omega_0 + sum_j omega_j Y_{j, l} - Y_{a, l})^2
@@ -109,7 +109,7 @@ def solve_time_qp(
 ) -> Tuple[np.ndarray, float]:
     """Solve the Sequential SDiD time-weight QP for one (a, k) step.
 
-    Optimization (paper Algorithm 1, line 5):
+    Optimization (paper Algorithm 1, line 5)::
 
         min over (lambda, lambda_0)
             sum_{j > a} (lambda_0 + sum_l lambda_l Y_{j, l} - Y_{j, a + k})^2

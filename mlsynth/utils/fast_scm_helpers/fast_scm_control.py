@@ -78,19 +78,26 @@ def evaluate_candidates(
     Notes
     -----
     For each candidate subset:
-    1. Construct synthetic treated unit:
+
+    1. Construct synthetic treated unit::
+
         treated_vec_E = X_E[:, treated_idx] @ w
-    2. Solve for synthetic control weights `v`.
+
+    2. Solve for synthetic control weights ``v``.
     3. Compute full time-series:
-        - synthetic treated
-        - synthetic control
-        - treatment effects
+
+       - synthetic treated
+       - synthetic control
+       - treatment effects
+
     4. Evaluate fit using NMSE on estimation and validation periods.
 
     Additional Details
     ------------------
-    - Target series is defined as:
+    - Target series is defined as::
+
         target = X[:, :J] @ f[:J]
+
       (weighted average over outcome units).
     - Candidates with failed QP solves are skipped.
     - Results are packaged into structured SEDCandidate objects.

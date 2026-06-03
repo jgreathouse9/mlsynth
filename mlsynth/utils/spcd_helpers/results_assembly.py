@@ -3,7 +3,7 @@
 Packages an :class:`SPCDDesign` together with its preprocessed
 :class:`SPCDInputs` and optional inference / power outputs into the
 project's standardized result pydantic models defined in
-:mod:`mlsynth.config_models`:
+:mod:`mlsynth.config_models`::
 
     EffectsResults          : ATT (mean post-period synthetic gap)
     FitDiagnosticsResults   : pre/post RMSE of the synthetic gap +

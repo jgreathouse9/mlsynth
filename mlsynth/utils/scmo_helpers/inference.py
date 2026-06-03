@@ -7,7 +7,7 @@ test of Chernozhukov, Wuethrich & Zhu (2021) to multiple outcomes.
 For a constant-effect null ``H0: tau = tau0`` the synthetic-control weights do
 not depend on the post-period outcome (the matching matrix ``Z`` is built from
 pre-period information), so the adjusted residual is simply the gap shifted by
-``tau0`` in the post-period. The per-period test statistic is
+``tau0`` in the post-period. The per-period test statistic is::
 
     S_q(u_t) = ( (1/sqrt(K)) * sum_k |u_tk|^q )^{1/q},   default q = 1,
 

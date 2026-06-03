@@ -485,7 +485,7 @@ When the assumptions bind: practical diagnostics
     spillover. Split donors by geographic / economic distance
     to the treated unit and refit; large ATE shifts flag
     interference. Use :doc:`spillsynth` or :doc:`spsydid` for
-    genuine spillovers, :doc:`fect` / :doc:`sdid` for
+    genuine spillovers, *FECT* / :doc:`sdid` for
     staggered designs.
 
 (c) **Weak temporal dependence (A3).** All three variants
@@ -514,7 +514,7 @@ When the assumptions bind: practical diagnostics
     should be visibly below 1. If they are not, the asymptotic
     approximation has not kicked in. Either lengthen the panel
     (aggregate to a finer time grid), prune donors, or move to
-    :doc:`scm` / :doc:`tssc` / :doc:`fdid` which work with
+    *canonical SCM* / :doc:`tssc` / :doc:`fdid` which work with
     shorter panels.
 
 (e) **Donor regularity (A5).** Each variant has its own
@@ -595,7 +595,7 @@ When to use PDA -- and when not to
   policy-interpretation deliverable. PDA's no-constraint
   projection produces negative coefficients on far donors,
   which is awkward to explain in many policy contexts. Use
-  :doc:`scm` / :doc:`tssc` (canonical SC) or :doc:`fscm`
+  *canonical SCM* / :doc:`tssc` (canonical SC) or :doc:`fscm`
   (forward-selected SC with the simplex retained).
 * **The treated unit is structurally outside the donor span
   (not just the convex hull).** PDA's linear projection cannot
@@ -630,19 +630,19 @@ When to use PDA -- and when not to
   :doc:`bvss` (spike-and-slab with a soft simplex).
 * **Very short pre-period** :math:`(T_1 \le 15)` **with many
   donors.** The high-dimensional approximation has not kicked
-  in; the selected :math:`\hat\beta` is noise. Use :doc:`scm`
+  in; the selected :math:`\hat\beta` is noise. Use *canonical SCM*
   / :doc:`tssc` / :doc:`fdid`, which work without
   high-dimensional asymptotics.
 * **Very short post-period** :math:`(T_2 \le 5)`. The CLT on
   :math:`\bar\Delta` is shaky; the HAC bandwidth choice
   dominates the inference. Either accept a wider permutation
-  CI from :doc:`scm` / :doc:`tssc`, or move to the
+  CI from *canonical SCM* / :doc:`tssc`, or move to the
   l2-relaxation multiple-treated-units extension (Shi-Wang
   Section 4.4) which is built for this regime.
 * **You want predictor-level matching (covariates +
   pre-period outcomes), not outcome-only projection.** PDA's
   workhorse projection is on **donor outcomes**, not on
-  predictor moments. Use :doc:`scm` / :doc:`tssc` /
+  predictor moments. Use *canonical SCM* / :doc:`tssc` /
   :doc:`sparse_sc` (predictor selection with L1 penalty on the
   V-weight matrix) for the predictor-matching setup.
 * **The factor model itself is the object of interest** (you

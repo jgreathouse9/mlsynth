@@ -43,6 +43,7 @@ def estimate_placebo_variance(
     -------
     Dict[str, Any]
         Dictionary containing variance estimates and placebo ATT values:
+
         - "att_variance" (float): Variance of the overall ATT.
         - "cohort_variances" (Dict[int, float]): Variances of cohort-specific ATTs.
           Keys are cohort adoption periods.

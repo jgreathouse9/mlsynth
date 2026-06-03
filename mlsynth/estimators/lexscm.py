@@ -61,6 +61,67 @@ class LEXSCM:
 
         The following fields are supported:
 
+        **Required**
+
+        - ``df`` (pd.DataFrame): Panel dataset containing unit-level
+          observations over time.
+        - ``outcome`` (str): Name of the outcome variable.
+        - ``unitid`` (str): Column identifying observational units.
+        - ``time`` (str): Time index column.
+        - ``candidate_col`` (str): Boolean (0/1 or True/False) column
+          indicating units eligible for treatment assignment.
+        - ``m`` (int): Number of units selected per treated tuple.
+
+        **Identification / Design**
+
+        - ``post_col`` (str, optional): Indicator for post-treatment
+          period (0/1).
+        - ``frac_E`` (float): Fraction of pre-treatment period used for
+          estimation window E.
+        - ``unit_cost_col`` (str, optional): Per-unit treatment cost column
+          (must be constant within unit).
+        - ``budget`` (float, optional): Total budget constraint on selected
+          treated units.
+        - ``seed`` (int): Random seed for reproducibility.
+
+        **Synthetic Control Specification**
+
+        - ``weight_col`` (str, optional): Unit-level weights (e.g.,
+          population, revenue).
+        - ``covariates`` (list of str, optional): Covariates included in
+          synthetic control construction.
+        - ``lambda_penalty`` (float): Regularization penalty for control
+          mismatch in quadratic program.
+
+        **Search / Optimization Budget**
+
+        - ``top_K`` (int): Number of top candidate tuples returned by
+          branch-and-bound.
+        - ``top_P`` (int): Number of seed units used for BnB initialization.
+
+        **Inference / Power Analysis**
+
+        - ``alpha`` (float): Significance level for statistical testing.
+        - ``n_post_grid`` (list of int): Post-treatment horizons used for
+          MDE detectability curves.
+        - ``n_sims`` (int): Number of Monte Carlo simulations for null
+          distribution.
+        - ``post_imputation`` ({"mean", "max", "double_max"}): Method for
+          imputing post-treatment outcomes.
+        - ``test_statistic`` ({"mean_abs", "mean", "rms"}): Test statistic
+          used for treatment effect evaluation.
+        - ``delta`` (float): Absolute minimum detectable effect threshold.
+        - ``relative_delta`` (float, optional): Relative MDE threshold
+          (> 1.0).
+        - ``target_mde_horizon`` (str): Target horizon for MDE evaluation
+          (e.g., early_mde_avg).
+        - ``max_shortlist`` (int): Maximum number of candidate designs
+          retained after filtering.
+
+        **System / Logging**
+
+        - ``verbose`` (bool): If True, enables progress logging.
+
     Returns
     -------
     LEXSCM
@@ -86,77 +147,6 @@ class LEXSCM:
     - https://ivalua.cat/sites/default/files/2023-03/Vives-i-Bastida_2022_anon.pdf
       Provides a practical guide to synthetic experimental design in policy contexts,
       including inference and design trade-offs.
-
-        Required
-        --------
-        df : pd.DataFrame
-            Panel dataset containing unit-level observations over time.
-        outcome : str
-            Name of the outcome variable.
-        unitid : str
-            Column identifying observational units.
-        time : str
-            Time index column.
-        candidate_col : str
-            Boolean (0/1 or True/False) column indicating units eligible
-            for treatment assignment.
-        m : int
-            Number of units selected per treated tuple.
-
-        Identification / Design
-        -----------------------
-        post_col : str, optional
-            Indicator for post-treatment period (0/1).
-        frac_E : float
-            Fraction of pre-treatment period used for estimation window E.
-        unit_cost_col : str, optional
-            Per-unit treatment cost column (must be constant within unit).
-        budget : float, optional
-            Total budget constraint on selected treated units.
-        seed : int
-            Random seed for reproducibility.
-
-        Synthetic Control Specification
-        -------------------------------
-        weight_col : str, optional
-            Unit-level weights (e.g., population, revenue).
-        covariates : list of str, optional
-            Covariates included in synthetic control construction.
-        lambda_penalty : float
-            Regularization penalty for control mismatch in quadratic program.
-
-        Search / Optimization Budget
-        ----------------------------
-        top_K : int
-            Number of top candidate tuples returned by branch-and-bound.
-        top_P : int
-            Number of seed units used for BnB initialization.
-
-        Inference / Power Analysis
-        --------------------------
-        alpha : float
-            Significance level for statistical testing.
-        n_post_grid : list of int
-            Post-treatment horizons used for MDE detectability curves.
-        n_sims : int
-            Number of Monte Carlo simulations for null distribution.
-        post_imputation : {"mean", "max", "double_max"}
-            Method for imputing post-treatment outcomes.
-        test_statistic : {"mean_abs", "mean", "rms"}
-            Test statistic used for treatment effect evaluation.
-        delta : float
-            Absolute minimum detectable effect threshold.
-        relative_delta : float, optional
-            Relative MDE threshold (> 1.0).
-        target_mde_horizon : str
-            Target horizon for MDE evaluation (e.g., early_mde_avg).
-        max_shortlist : int
-            Maximum number of candidate designs retained after filtering.
-
-        System / Logging
-        ----------------
-        verbose : bool
-            If True, enables progress logging.
     """
 
     def __init__(self, config):

@@ -722,6 +722,7 @@ def proxy_dataprep(
 
     This function takes a long-format DataFrame and pivots it to create
     two wide-format matrices for a specified set of surrogate units:
+
     1.  A surrogate matrix (often denoted as `X` in models like ProximalSC),
         derived from variables specified by `proxy_variable_column_names_map['donorproxies']`.
     2.  A surrogate-proxy matrix (often denoted `Z1`), derived from variables

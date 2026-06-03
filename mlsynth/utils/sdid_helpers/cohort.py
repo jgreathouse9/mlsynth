@@ -56,24 +56,25 @@ def estimate_cohort_sdid_effects(
         typically a specific time period index (e.g., year).
     cohort_data_dict : Dict[str, Any]
         A dictionary containing data specific to the current cohort. Expected keys:
+
         - "y" : np.ndarray
-            Outcome matrix for treated units in this cohort.
-            Shape (total_time_periods, N_treated_cohort), where total_time_periods is the total number
-            of time periods in the panel, and N_treated_cohort is the number
-            of treated units in this specific cohort.
+          Outcome matrix for treated units in this cohort.
+          Shape (total_time_periods, N_treated_cohort), where total_time_periods is the total number
+          of time periods in the panel, and N_treated_cohort is the number
+          of treated units in this specific cohort.
         - "donor_matrix" : np.ndarray
-            Matrix of outcomes for all donor units available to this cohort.
-            Shape (total_time_periods, N_donors).
+          Matrix of outcomes for all donor units available to this cohort.
+          Shape (total_time_periods, N_donors).
         - "total_periods" : int
-            Total number of time periods (total_time_periods) in the panel.
+          Total number of time periods (total_time_periods) in the panel.
         - "pre_periods" : int
-            Number of pre-treatment periods (num_pre_treatment_periods_cohort) relative to this cohort's
-            adoption period `cohort_adoption_period`.
+          Number of pre-treatment periods (num_pre_treatment_periods_cohort) relative to this cohort's
+          adoption period `cohort_adoption_period`.
         - "post_periods" : int
-            Number of post-treatment periods (num_post_treatment_periods_cohort) relative to `cohort_adoption_period`.
+          Number of post-treatment periods (num_post_treatment_periods_cohort) relative to `cohort_adoption_period`.
         - "treated_indices" : List[int]
-            List of original indices identifying the treated units in this cohort.
-            Used to determine `N_treated_cohort`.
+          List of original indices identifying the treated units in this cohort.
+          Used to determine `N_treated_cohort`.
     pooled_event_time_effects_accumulator : DefaultDict[float, List[Tuple[int, float]]]
         A dictionary (typically `collections.defaultdict(list)`) that accumulates
         event-time effects across all cohorts.
@@ -86,34 +87,35 @@ def estimate_cohort_sdid_effects(
     -------
     Dict[str, Any]
         A dictionary containing detailed results for the processed cohort:
+
         - "effects" : np.ndarray
-            Array of (event_time, treatment_effect) pairs for all total_time_periods periods.
-            Shape (total_time_periods, 2).
+          Array of (event_time, treatment_effect) pairs for all total_time_periods periods.
+          Shape (total_time_periods, 2).
         - "pre_effects" : np.ndarray
-            Array of (event_time, treatment_effect) pairs for pre-intervention periods.
-            Shape (N_pre_effects, 2) or empty if no pre-effects.
+          Array of (event_time, treatment_effect) pairs for pre-intervention periods.
+          Shape (N_pre_effects, 2) or empty if no pre-effects.
         - "post_effects" : np.ndarray
-            Array of (event_time, treatment_effect) pairs for post-intervention
-            periods (including event time 0). Shape (N_post_effects, 2) or empty.
+          Array of (event_time, treatment_effect) pairs for post-intervention
+          periods (including event time 0). Shape (N_post_effects, 2) or empty.
         - "actual" : np.ndarray
-            Mean actual outcome trajectory for the treated units in this cohort.
-            Shape (total_time_periods,).
+          Mean actual outcome trajectory for the treated units in this cohort.
+          Shape (total_time_periods,).
         - "counterfactual" : np.ndarray
-            Raw synthetic control outcome trajectory (cohort_donor_outcomes_matrix @ optimal_unit_weights_vector).
-            Shape (total_time_periods,). Can contain NaNs if weights are not estimated.
+          Raw synthetic control outcome trajectory (cohort_donor_outcomes_matrix @ optimal_unit_weights_vector).
+          Shape (total_time_periods,). Can contain NaNs if weights are not estimated.
         - "fitted_counterfactual" : np.ndarray
-            Bias-corrected synthetic control outcome trajectory.
-            Shape (total_time_periods,). Can contain NaNs.
+          Bias-corrected synthetic control outcome trajectory.
+          Shape (total_time_periods,). Can contain NaNs.
         - "att" : float
-            Average Treatment Effect on the Treated (ATT) for this cohort,
-            averaged over its post-intervention periods. NaN if no post-periods
-            or if effects cannot be calculated.
+          Average Treatment Effect on the Treated (ATT) for this cohort,
+          averaged over its post-intervention periods. NaN if no post-periods
+          or if effects cannot be calculated.
         - "treatment_effects_series" : np.ndarray
-            Time series of treatment effects (actual - fitted_counterfactual)
-            for all total_time_periods periods. Shape (total_time_periods,).
+          Time series of treatment effects (actual - fitted_counterfactual)
+          for all total_time_periods periods. Shape (total_time_periods,).
         - "ell" : np.ndarray
-            Array of event times relative to this cohort's treatment start `cohort_adoption_period`.
-            Shape (total_time_periods,). For example, `ell = 0` corresponds to period `cohort_adoption_period`.
+          Array of event times relative to this cohort's treatment start `cohort_adoption_period`.
+          Shape (total_time_periods,). For example, `ell = 0` corresponds to period `cohort_adoption_period`.
 
     Examples
     --------

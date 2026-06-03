@@ -355,3 +355,18 @@ References
     in the United States."
     *American Economic Review*, 103(6): 2121-2168, 2013.
     DOI: https://doi.org/10.1257/aer.103.6.2121
+
+.. [LinfSC]
+    Wang, Xing, and Ye.
+    *"L-infinity-norm Synthetic Control."*
+    Working Paper. (Title, journal, year, and DOI to be completed.)
+
+.. [RelaxSC]
+    Liao, Shi, and Zheng.
+    *"Synthetic Control Relaxation."*
+    Working Paper. (Title, journal, year, and DOI to be completed.)
+
+.. [LiSCMN]
+    Li.
+    *"Synthetic Control Methods."*
+    Working Paper. (Authors, title, journal, year, and DOI to be completed.)

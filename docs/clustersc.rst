@@ -489,7 +489,7 @@ counterfactual.
     On the Prop 99 panel the top-1 singular value carries
     :math:`\approx 99\%` of the energy -- the exact regime where
     PCR-SC dominates. When the spectrum decays slowly, fall back
-    to canonical SC (:doc:`scm`, :doc:`tssc`) or to a
+    to canonical SC (*canonical SCM*, :doc:`tssc`) or to a
     balancing-aware estimator (:doc:`microsynth` for unit-level
     data; :doc:`fma` for factor-model-aware estimation).
 
@@ -704,17 +704,17 @@ RSC) when:**
 * **Tiny donor pool** (:math:`J \le 10`) and a tight canonical-
   SC pre-fit. The denoising and clustering machinery is
   overkill; both add variance without identification gain.
-  Use :doc:`scm`, :doc:`tssc`, or :doc:`fdid`.
+  Use *canonical SCM*, :doc:`tssc`, or :doc:`fdid`.
 * **Staggered adoption with a long mixed-treatment pre-period.**
   CLUSTERSC assumes a common pre-period free of treatment.
-  Use :doc:`fect` or :doc:`sdid`.
+  Use *FECT* or :doc:`sdid`.
 * **You need the donor weight vector to be a single sparse
   convex combination** as the headline story (and you're not
   willing to use RPCA-SC's NNLS variant). The PCR-SC
   default is the unrestricted OLS solve; the SIMPLEX
   variant re-imposes the convex hull at the cost of the
   denoising-bias gain. If the sparse convex combination is
-  the deliverable, :doc:`scm` or :doc:`tssc` are the more
+  the deliverable, *canonical SCM* or :doc:`tssc` are the more
   honest default.
 
 Inference

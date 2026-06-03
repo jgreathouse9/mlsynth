@@ -106,15 +106,17 @@ def compute_mde(
 
     Returns
     -------
-    dict with
-        mde_sd      : MDE in residual-standard-deviation units (np.inf if not
-                      reached within ``max_sd``).
-        mde_abs     : MDE in outcome units (= mde_sd * sigma).
-        sigma       : residual SD scale.
-        c_alpha     : critical value of the placebo null statistic.
-        power_at_mde: achieved power at the reported MDE.
-        feasible    : whether power_target was reached within max_sd.
-        curve       : list of (effect_sd, power) probed.
+    dict
+        Dictionary with::
+
+            mde_sd      : MDE in residual-standard-deviation units (np.inf if not
+                          reached within ``max_sd``).
+            mde_abs     : MDE in outcome units (= mde_sd * sigma).
+            sigma       : residual SD scale.
+            c_alpha     : critical value of the placebo null statistic.
+            power_at_mde: achieved power at the reported MDE.
+            feasible    : whether power_target was reached within max_sd.
+            curve       : list of (effect_sd, power) probed.
     """
     rng = np.random.default_rng(random_state)
     series = _as_series_list(noise_pool)

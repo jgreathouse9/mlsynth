@@ -23,7 +23,7 @@ def prepare_scmo_inputs(
     treated_unit: Any,
     intervention_time: Any,
 ) -> SCMOInputs:
-    """Pivot the panel to NumPy, build ``IndexSet``es and the matching matrix.
+    """Pivot the panel to NumPy, build ``IndexSet``\\ s and the matching matrix.
 
     Parameters
     ----------

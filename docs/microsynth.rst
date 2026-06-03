@@ -288,7 +288,7 @@ When **not** to use MicroSynth
   built for. MicroSynth's dual is :math:`(d + 1)`-dimensional but the
   primal must have many controls; with a handful of aggregate donors
   the QP degenerates and the convex-hull / overlap argument is
-  exactly the classical SC argument. Use :doc:`scm`, :doc:`tssc`,
+  exactly the classical SC argument. Use *canonical SCM*, :doc:`tssc`,
   :doc:`fdid`, or :doc:`fma` instead.
 
 * **The distribution of the outcome is the object of interest.**

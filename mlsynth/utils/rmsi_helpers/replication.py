@@ -102,8 +102,7 @@ def run_rmsi_simulation(cfg: RMSISimConfig = DEMO, *, seed: int = 0,
     Returns
     -------
     dict
-        ``{"rmsi": amse_side_info, "no_side_info": amse_baseline,
-           "rel_improvement": ...}``.
+        ``{"rmsi": amse_side_info, "no_side_info": amse_baseline, "rel_improvement": ...}``.
     """
     rng = np.random.default_rng(seed)
     miss_rows = np.arange(cfg.N0, cfg.N)

@@ -3,7 +3,7 @@
 Implements Section 3.2 of Li & Shankar (2023). The benchmark MSC(c)
 coefficient ``beta_hat_{MSC,T1}`` is computed on the full pre-treatment
 sample, then a subsampling-with-replacement procedure approximates the
-null distribution of the restriction test statistics:
+null distribution of the restriction test statistics::
 
     Step i.   For ``t = 1, ..., m`` draw ``(x_t*, y_{1t}*)`` with
               replacement from the ``T1`` pre-treatment observations.
