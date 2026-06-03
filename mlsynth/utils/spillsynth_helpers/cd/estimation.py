@@ -19,12 +19,44 @@ comparison without re-fitting.
 
 from __future__ import annotations
 
+import warnings
 from typing import Tuple
 
 import numpy as np
 
+from ....exceptions import MlsynthEstimationError
 
 _M_RIDGE = 1e-8
+
+# Above this condition number, A' M A is numerically singular and the
+# Cao-Dowd identification requirement (Assumption 1(d)) is effectively
+# violated -- the inverse blows up small residual noise into the effect
+# estimates. We warn (opt-in) rather than hard-fail because the inverse
+# still returns a (numerically dubious) answer.
+_COND_WARN = 1e10
+
+
+def _invert_AMA(AMA: np.ndarray, *, label: str, warn: bool) -> Tuple[np.ndarray, float]:
+    """Invert ``A' M A`` with a clear error on singularity and an optional
+    ill-conditioning warning. Returns ``(inverse, condition_number)``."""
+    cond = float(np.linalg.cond(AMA))
+    try:
+        inv = np.linalg.inv(AMA)
+    except np.linalg.LinAlgError as exc:
+        raise MlsynthEstimationError(
+            f"SPILLSYNTH/cd: {label} is singular (cond={cond:.3e}); the "
+            "spillover structure A is not identified (Cao-Dowd Assumption "
+            "1(d) fails). Declare fewer affected units or a lower-rank A."
+        ) from exc
+    if warn and cond > _COND_WARN:
+        warnings.warn(
+            f"SPILLSYNTH/cd: {label} is ill-conditioned (cond={cond:.3e} > "
+            f"{_COND_WARN:.0e}); the spillover estimates may be numerically "
+            "unstable (Cao-Dowd Assumption 1(d) near-violation).",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+    return inv, cond
 
 
 def build_M(B: np.ndarray) -> np.ndarray:
@@ -41,6 +73,7 @@ def sp_estimate(
     B: np.ndarray,
     M: np.ndarray,
     A: np.ndarray,
+    warn: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, float]:
     """Compute per-period spillover-adjusted effects.
 
@@ -69,8 +102,7 @@ def sp_estimate(
     N, T1 = Y_post.shape
     I_B = np.eye(N) - B
     AMA = A.T @ M @ A
-    cond_AMA = float(np.linalg.cond(AMA))
-    AMA_inv = np.linalg.inv(AMA)
+    AMA_inv, cond_AMA = _invert_AMA(AMA, label="A' M A", warn=warn)
     # Each column of Y_post is one Y_{T+1}; vectorise across periods.
     residual = I_B @ Y_post - a[:, None]                # (N, T1)
     gamma = AMA_inv @ (A.T @ I_B.T @ residual)           # (k, T1)
@@ -120,6 +152,7 @@ def sp_estimate_weighted(
     B: np.ndarray,
     A: np.ndarray,
     W: np.ndarray,
+    warn: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, float]:
     """Weighted Cao-Dowd estimator with a user-supplied weighting matrix.
 
@@ -169,8 +202,7 @@ def sp_estimate_weighted(
     I_B = np.eye(N) - B
     M_W = I_B.T @ W @ I_B
     AMA_W = A.T @ M_W @ A
-    cond_AMA_W = float(np.linalg.cond(AMA_W))
-    AMA_W_inv = np.linalg.inv(AMA_W)
+    AMA_W_inv, cond_AMA_W = _invert_AMA(AMA_W, label="A' M_W A", warn=warn)
     residual = I_B @ Y_post - a[:, None]                # (N, T1)
     gamma = AMA_W_inv @ (A.T @ I_B.T @ W @ residual)     # (k, T1)
     alpha = A @ gamma                                    # (N, T1)

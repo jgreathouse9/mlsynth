@@ -30,11 +30,13 @@ optionally on time-averaged ("bucketed") data (Section 3.2.1; Figure 3).
 
 from __future__ import annotations
 
+import warnings
 from typing import Tuple
 
 import numpy as np
 from scipy.stats import norm
 
+from ...exceptions import MlsynthDataError
 from .structures import SpilloverScreen
 
 
@@ -66,8 +68,7 @@ def _factor_design(L: np.ndarray, n_factors: int) -> Tuple[np.ndarray, np.ndarra
 def _forecast_loo(Z: np.ndarray, pre: np.ndarray, post: np.ndarray, *,
                   n_factors: int) -> Tuple[np.ndarray, np.ndarray]:
     """Leave-one-out variant: mean absolute post-period deviation from the
-    common-factor forecast built on the *other* donors.
-    """
+    common-factor forecast built on the *other* donors."""
     T, n = Z.shape
     A = np.zeros(n)
     resid_sd = np.zeros(n)
@@ -131,13 +132,38 @@ def spillover_screen(
     -------
     SpilloverScreen
     """
+    D = np.asarray(D, dtype=float)
+    if D.ndim != 2:
+        raise MlsynthDataError(
+            f"Donor matrix D must be 2-D (T, n_donors); got shape {D.shape}.")
     T, n = D.shape
+    if n < 1:
+        raise MlsynthDataError("Donor matrix D has no donor columns.")
+    if not (0 < T0 < T):
+        raise MlsynthDataError(
+            f"T0 must satisfy 0 < T0 < T (T={T}); got T0={T0}.")
+    if len(donor_names) != n:
+        raise MlsynthDataError(
+            f"donor_names has length {len(donor_names)} but D has {n} columns.")
+    if not np.all(np.isfinite(D)):
+        raise MlsynthDataError("Donor matrix D contains non-finite values.")
+    if selection not in ("S1", "S2", "all"):
+        raise ValueError(
+            f"Unknown selection {selection!r} (use 'S1', 'S2', or 'all').")
+
     post = np.arange(T) >= T0
     pre = ~post
     bucket = int(time_average) if time_average else 1
 
     mu = D[pre].mean(axis=0)
-    sd = D[pre].std(axis=0) + 1e-12
+    sd_raw = D[pre].std(axis=0)
+    if np.any(sd_raw <= 1e-12):
+        warnings.warn(
+            "One or more donors are (near-)constant over the pre-intervention "
+            "window; their standardised forecast errors are unreliable.",
+            RuntimeWarning, stacklevel=2,
+        )
+    sd = sd_raw + 1e-12
     Z = (D - mu) / sd
 
     if forecast == "lag":
@@ -157,6 +183,12 @@ def spillover_screen(
     elif selection == "S2":
         selected = np.where(inside)[0]
         if selected.size < 2:                      # fall back to S1 if PPI empties the pool
+            warnings.warn(
+                "S2 posterior-predictive screen retained fewer than 2 donors; "
+                "falling back to the S1 (smallest-error) rule. Consider raising "
+                "`ppi` or using selection='S1'.",
+                RuntimeWarning, stacklevel=2,
+            )
             k = _default_keep(n_donors, n)
             selected = order[:k]
     else:  # S1

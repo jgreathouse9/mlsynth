@@ -15,11 +15,19 @@ Pipeline:
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
+from ....exceptions import MlsynthEstimationError
 from ..structures import ISCMFit, SpillSynthInputs
 from .system import build_omega, solve_inclusive
 from .weights import build_unit_sc
+
+# Below this absolute determinant the cross-weight system Omega is
+# (near-)singular: the affected units borrow so heavily from one another
+# that the de-contamination Omega^{-1} amplifies estimation noise.
+_OMEGA_DET_WARN = 1e-6
 
 
 def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
@@ -76,6 +84,21 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
     # --- de-contaminate via the cross-weight system -------------------------
     omega = build_omega(cross)
     omega_det = float(np.linalg.det(omega))
+    if abs(omega_det) <= np.finfo(float).eps:
+        raise MlsynthEstimationError(
+            "SPILLSYNTH method='iscm': the cross-weight system Omega is "
+            f"singular (det={omega_det:.3e}); the affected units cannot be "
+            "de-contaminated. Drop a redundant affected unit or use "
+            "method='grossi'."
+        )
+    if abs(omega_det) < _OMEGA_DET_WARN:
+        warnings.warn(
+            "SPILLSYNTH method='iscm': the cross-weight system Omega is "
+            f"near-singular (det={omega_det:.3e}); the de-contaminated "
+            "spillover estimates may be numerically unstable.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     theta = solve_inclusive(omega, gaps[:, T0:])     # (m, T1)
 
     gap_incl = theta[0]
@@ -92,7 +115,20 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
             predictors=P, predictor_names=pnames, solver=bilevel_solver,
             bias_correct=bias_correct,
         )
-    else:
+    else:                                                  # pragma: no cover
+        # Unreachable through the public pipeline: "no clean controls"
+        # means every unit is in the affected set, in which case each
+        # unit's synthetic control is a convex combination of the others
+        # and the cross-weight system Omega is singular -- so the
+        # omega-singular guard above fires first. Kept as a defensive
+        # fallback for direct callers that bypass that guard.
+        warnings.warn(
+            "SPILLSYNTH method='iscm': every control is declared affected, "
+            "so there are no clean controls for the restricted-pool "
+            "comparison (pre_rmspe_restricted set to NaN).",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         pre_rmspe_restr = np.nan
 
     # --- cross-weight labels + spillover panel ------------------------------

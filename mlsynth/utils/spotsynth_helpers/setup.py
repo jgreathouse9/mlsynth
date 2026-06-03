@@ -28,6 +28,11 @@ def prepare_spotsynth_inputs(
         raise MlsynthDataError(f"Missing columns: {', '.join(sorted(missing))}.")
     if df[outcome].isna().any():
         raise MlsynthDataError("Outcome column contains NaN values.")
+    if df[treat].isna().any():
+        raise MlsynthDataError("Treatment column contains NaN values.")
+    if df.duplicated(subset=[unitid, time]).any():
+        raise MlsynthDataError(
+            "Panel has duplicate (unit, time) rows; aggregate or de-duplicate first.")
 
     time_labels = np.array(sorted(df[time].unique()))
     unit_names = sorted(df[unitid].unique())
@@ -58,11 +63,13 @@ def prepare_spotsynth_inputs(
     T0 = int(np.argmax(any_treated_at_t == 1))
     if T0 < 3:
         raise MlsynthDataError("SPOTSYNTH needs at least 3 pre-intervention periods.")
-    if Y.shape[1] - T0 < 1:
+    if Y.shape[1] - T0 < 1:  # pragma: no cover - unreachable: a non-earliest onset
+        # always leaves >= 1 post-period (earliest onset is rejected above).
         raise MlsynthDataError("SPOTSYNTH needs at least 1 post-intervention period.")
 
     donor_rows = [i for i in range(len(unit_names)) if i != ti]
-    if len(donor_rows) < 2:
+    if len(donor_rows) < 2:  # pragma: no cover - unreachable: the >=3-units guard
+        # above guarantees >= 2 donors once the single treated unit is removed.
         raise MlsynthDataError("SPOTSYNTH needs at least 2 donors.")
 
     y = Y[ti]

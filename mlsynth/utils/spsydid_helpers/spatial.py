@@ -9,11 +9,23 @@ dependency on ``libpysal``.
 
 from __future__ import annotations
 
+import warnings
 from typing import Dict, Iterable, List, Sequence
 
 import numpy as np
 
 from ...exceptions import MlsynthDataError
+
+
+def _require_finite_coords(coords: np.ndarray) -> None:
+    """Reject coordinate arrays containing NaN / Inf entries.
+
+    Non-finite coordinates silently propagate into the distance matrix
+    (producing ``nan`` / ``inf`` distances and a degenerate, often
+    all-zero, weight matrix), so guard at the boundary instead.
+    """
+    if not np.all(np.isfinite(coords)):
+        raise MlsynthDataError("coords must not contain NaN or Inf entries.")
 
 
 def validate_spatial_matrix(W: np.ndarray, n_units: int) -> np.ndarray:
@@ -44,18 +56,41 @@ def validate_spatial_matrix(W: np.ndarray, n_units: int) -> np.ndarray:
     return W
 
 
-def row_standardize(W: np.ndarray) -> np.ndarray:
+def row_standardize(W: np.ndarray, warn_isolated: bool = False) -> np.ndarray:
     """Divide each row of ``W`` by its row sum.
 
     Rows with zero sum (units with no neighbours) are left as zero. The
     paper's algorithm assumes row-standardised :math:`W` so the
     spillover term :math:`(WD)_{it} = \\sum_j w_{ij} D_{jt}` lies in
     :math:`[0, 1]`.
+
+    Parameters
+    ----------
+    W : np.ndarray
+        Non-negative weight matrix.
+    warn_isolated : bool
+        If True, emit a :class:`RuntimeWarning` when one or more rows
+        sum to zero (units with no spatial neighbours). Such units can
+        never be classified as spillover-exposed and contribute a
+        constant-zero exposure column, which is easy to miss. Off by
+        default to keep the low-level helper quiet; enabled at the
+        :func:`mlsynth.utils.spsydid_helpers.setup.prepare_spsydid_inputs`
+        boundary.
     """
     row_sums = W.sum(axis=1, keepdims=True)
+    isolated = row_sums.flatten() == 0
+    if warn_isolated and isolated.any():
+        n_iso = int(isolated.sum())
+        warnings.warn(
+            f"Spatial weight matrix has {n_iso} unit(s) with no neighbours "
+            "(zero row sum); these units have zero spillover exposure and "
+            "cannot be classified as indirectly treated.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     safe = np.where(row_sums > 0, row_sums, 1.0)
     out = W / safe
-    out[row_sums.flatten() == 0] = 0.0
+    out[isolated] = 0.0
     return out
 
 
@@ -80,6 +115,7 @@ def knn_weights(
     coords = np.asarray(coords, dtype=float)
     if coords.ndim != 2:
         raise MlsynthDataError("coords must be 2-D (N, d).")
+    _require_finite_coords(coords)
     N = coords.shape[0]
     if k < 1 or k >= N:
         raise MlsynthDataError(f"k must lie in [1, N-1]; got k={k} for N={N}.")
@@ -110,6 +146,7 @@ def inverse_distance_weights(
     coords = np.asarray(coords, dtype=float)
     if coords.ndim != 2:
         raise MlsynthDataError("coords must be 2-D (N, d).")
+    _require_finite_coords(coords)
     if power <= 0:
         raise MlsynthDataError("power must be positive.")
     N = coords.shape[0]

@@ -25,6 +25,8 @@ from typing import Tuple
 
 import numpy as np
 
+from ...exceptions import MlsynthDataError
+
 
 @dataclass(frozen=True)
 class ProximalDebiasFit:
@@ -77,6 +79,15 @@ def proximal_debias(
     those weights. With fewer excluded donors than kept donors the projection is
     rank-deficient and debiasing is skipped (the kept-donor fit is returned).
     """
+    y = np.asarray(y, dtype=float)
+    X_kept = np.asarray(X_kept, dtype=float)
+    Z_excluded = np.asarray(Z_excluded, dtype=float)
+    if X_kept.ndim != 2 or Z_excluded.ndim != 2:
+        raise MlsynthDataError("X_kept and Z_excluded must both be 2-D matrices.")
+    if not (0 < T0 < X_kept.shape[0]):
+        raise MlsynthDataError(
+            f"T0 must satisfy 0 < T0 < T (T={X_kept.shape[0]}); got T0={T0}.")
+
     T, k = X_kept.shape
     m = Z_excluded.shape[1]
     post = np.arange(T) >= T0

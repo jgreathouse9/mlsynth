@@ -67,6 +67,8 @@ def prepare_spsydid_inputs(
             )
     if df[outcome].isna().any():
         raise MlsynthDataError("Outcome column contains NaN values.")
+    if df[treat].isna().any():
+        raise MlsynthDataError("Treatment column contains NaN values.")
 
     if unit_order is None:
         unit_names: List = sorted(df[unitid].unique())
@@ -85,17 +87,33 @@ def prepare_spsydid_inputs(
     # Wide pivots: outcome and treatment.
     outcome_wide = df.pivot(index=unitid, columns=time, values=outcome)
     treat_wide = df.pivot(index=unitid, columns=time, values=treat)
-    if outcome_wide.shape != (N, T):
+    # A missing (unit, time) cell leaves a NaN in the pivot (the shape stays
+    # (N, T) because the index / columns come from the same unique values),
+    # so detect imbalance by checking for those gaps rather than by shape.
+    if (
+        outcome_wide.isna().to_numpy().any()
+        or treat_wide.isna().to_numpy().any()
+    ):
         raise MlsynthDataError(
             "Panel is not balanced -- some (unit, time) cells are missing."
         )
     outcome_wide = outcome_wide.loc[unit_names, time_labels].to_numpy(dtype=float)
     treat_wide = treat_wide.loc[unit_names, time_labels].to_numpy(dtype=float)
 
+    # Treatment must be a 0/1 indicator: non-binary values silently corrupt
+    # the partition (``treat > 0``) and push the exposure term (WD) outside
+    # the [0, 1] range the spillover coefficient is defined against.
+    unique_treat = np.unique(treat_wide)
+    if not np.all(np.isin(unique_treat, (0.0, 1.0))):
+        raise MlsynthDataError(
+            "Treatment column must be a binary 0/1 indicator; found values "
+            f"{unique_treat.tolist()}."
+        )
+
     # Validate + (optionally) row-standardise W.
     W = validate_spatial_matrix(spatial_matrix, n_units=N)
     if row_standardize_spatial:
-        W = row_standardize(W)
+        W = row_standardize(W, warn_isolated=True)
 
     # Spillover exposure (WD)_it = sum_j w_ij * D_jt.
     exposure = W @ treat_wide   # shape (N, T)
@@ -125,9 +143,14 @@ def prepare_spsydid_inputs(
             "Some unit is treated at the earliest period (no pre-period)."
         )
     T0 = int(np.argmax(any_treated_at_t)) if any_treated_at_t.any() else T
-    if T0 < 1:
+    # Defensive guards: by construction these are unreachable. ``T0 == 0``
+    # is already caught by the ``any_treated_at_t[0]`` check above, and
+    # ``T0 == T`` (no treated period) is impossible because the empty
+    # ``direct_idx`` guard fires first. Retained for safety against future
+    # refactors of the partition logic.
+    if T0 < 1:  # pragma: no cover
         raise MlsynthDataError("SpSyDiD requires at least one pre-period.")
-    if T - T0 < 1:
+    if T - T0 < 1:  # pragma: no cover
         raise MlsynthDataError("SpSyDiD requires at least one post-period.")
 
     return SpSyDiDInputs(

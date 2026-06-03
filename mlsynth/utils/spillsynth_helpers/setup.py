@@ -108,7 +108,9 @@ def build_A_distance_decay(
         b \\exp(-d_N))^\\prime`.
     """
     decay_weights = np.asarray(decay_weights, dtype=float).ravel()
-    if decay_weights.ndim != 1:
+    if decay_weights.ndim != 1:                              # pragma: no cover
+        # Unreachable: .ravel() above always yields a 1-D array. Kept as a
+        # defensive assertion in case the normalisation above ever changes.
         raise MlsynthDataError(
             "SPILLSYNTH: decay_weights must be a 1-D array."
         )
@@ -347,14 +349,19 @@ def prepare_spillsynth_inputs(
             f"SPILLSYNTH: need T0 >= 2 pre-periods to estimate SCM weights "
             f"(got T0={T0})."
         )
-    if T1 < 1:
+    if T1 < 1:                                               # pragma: no cover
+        # Unreachable via dataprep: a treated unit always has >= 1 treated
+        # (post) period, and a panel with zero pre-periods is rejected by
+        # dataprep upstream. Kept as a defensive guard for direct callers.
         raise MlsynthDataError("SPILLSYNTH: no post-treatment periods.")
 
     if spillover_structure == "per_unit":
         A = build_A_per_unit(N, p, n_treated=n_treated)
     elif spillover_structure == "homogeneous":
         A = build_A_homogeneous(N, p, n_treated=n_treated)
-    elif spillover_structure == "distance_decay":
+    elif spillover_structure == "distance_decay":  # pragma: no branch
+        # spillover_structure is validated to be one of the three known
+        # values above, so this elif is always True when reached.
         control_labels_in_order = units[n_treated:]
         decay = _decay_weights_for_panel(
             unit_distances, treated_labels, control_labels_in_order,

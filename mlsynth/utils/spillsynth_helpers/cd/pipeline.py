@@ -64,7 +64,7 @@ def run_cd(
     a, B = fit_leave_one_out_sc(inputs.Y_pre, solver=solver)
     M = build_M(B)
     gamma, alpha, cond_AMA = sp_estimate(
-        inputs.Y_post, a=a, B=B, M=M, A=inputs.A,
+        inputs.Y_post, a=a, B=B, M=M, A=inputs.A, warn=True,
     )
 
     n_treated = inputs.n_treated
@@ -157,7 +157,7 @@ def run_cd(
         Omega = estimate_omega_from_pre_residuals(inputs.Y_pre, a=a, B=B)
         W = np.linalg.inv(Omega)
         gamma_W, alpha_W, cond_AMA_W = sp_estimate_weighted(
-            inputs.Y_post, a=a, B=B, A=inputs.A, W=W,
+            inputs.Y_post, a=a, B=B, A=inputs.A, W=W, warn=True,
         )
         efficient_fit = {
             "gamma_W": gamma_W,

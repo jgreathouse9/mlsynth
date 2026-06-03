@@ -87,7 +87,9 @@ def _plot_single_treated(
 
     t = np.asarray(inputs.time_labels)
     t_post = np.asarray(inputs.post_time)
-    t_treat_cutoff = t[inputs.T0 - 1] if inputs.T0 >= 1 else None
+    # T0 >= 2 is enforced by prepare_spillsynth_inputs, so the cutoff is
+    # always defined; the ``else None`` fallback is defensive only.
+    t_treat_cutoff = t[inputs.T0 - 1] if inputs.T0 >= 1 else None  # pragma: no branch
 
     y_treated = inputs.Y[0]
     if results.method in ("iscm", "grossi"):
@@ -112,7 +114,7 @@ def _plot_single_treated(
             label="Vanilla SCM")
     ax.plot(t, sp_full, "-", color=sp_color, lw=2,
             label="Spillover-adjusted (SP)")
-    if t_treat_cutoff is not None:
+    if t_treat_cutoff is not None:  # pragma: no branch
         ax.axvline(t_treat_cutoff, color="grey", ls=":", alpha=0.7)
     ax.set_xlabel("time")
     ax.set_ylabel("outcome")
@@ -129,7 +131,7 @@ def _plot_single_treated(
     ax.plot(t_post, cd.gap_scm, "--", color=counterfactual_color, lw=2,
             label="Vanilla SCM (post)")
     ax.plot(t_post, cd.gap_sp, "-", color=sp_color, lw=2, label="SP (post)")
-    if t_treat_cutoff is not None:
+    if t_treat_cutoff is not None:  # pragma: no branch
         ax.axvline(t_treat_cutoff, color="grey", ls=":", alpha=0.7)
     ax.set_xlabel("time")
     ax.set_ylabel("treatment effect")
@@ -143,7 +145,7 @@ def _plot_single_treated(
         ax.axhline(0.0, color="grey", lw=0.8)
         for label, traj in cd.spillover_panel.items():
             ax.plot(t_post, traj, lw=1.5, label=str(label))
-        if t_treat_cutoff is not None:
+        if t_treat_cutoff is not None:  # pragma: no branch
             ax.axvline(t_treat_cutoff, color="grey", ls=":", alpha=0.7)
         ax.set_xlabel("time")
         ax.set_ylabel("spillover effect")
@@ -179,10 +181,6 @@ def _plot_event_study(
     cd = results._active
 
     t_post = np.asarray(inputs.post_time)
-    t_treat_cutoff = (
-        np.asarray(inputs.time_labels)[inputs.T0 - 1]
-        if inputs.T0 >= 1 else None
-    )
 
     if inputs.p > 0:
         fig, axes = plt.subplots(1, 2, figsize=(13, 4.8))
@@ -202,11 +200,8 @@ def _plot_event_study(
                    label=str(label))
         ax_es.fill_between(t_post, ci[:, 0], ci[:, 1],
                            color=c, alpha=0.2)
-    if t_treat_cutoff is not None and t_treat_cutoff < t_post[0]:
-        # Visual reminder of where the pre-period ends (only useful when
-        # we plot some pre-period context — here we only plot post, so
-        # the cutoff vertical is suppressed by the conditional).
-        pass
+    # (Event-study panels plot only the post-period, so no pre-period
+    # cutoff vertical is drawn.)
     ax_es.set_xlabel("time")
     ax_es.set_ylabel("treatment effect")
     ax_es.set_title(

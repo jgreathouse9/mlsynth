@@ -375,6 +375,6 @@ def replicate_all_spillover(*, verbose: bool = True) -> Dict[str, Dict]:
     return out
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - manual script entry point
     run_spotsynth_simulation(DEMO)
     replicate_all_spillover()

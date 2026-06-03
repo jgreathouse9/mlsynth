@@ -32,6 +32,8 @@ Implements Algorithm 1 of Serenini & Masek (2024):
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
@@ -135,11 +137,25 @@ def run_spsydid(inputs: SpSyDiDInputs) -> SpSyDiDResults:
     Xw = X * sqrt_w[:, None]
     Yw = flat_Y * sqrt_w
     try:
-        beta_hat, *_ = np.linalg.lstsq(Xw, Yw, rcond=None)
+        beta_hat, _residuals, rank, _sv = np.linalg.lstsq(Xw, Yw, rcond=None)
     except np.linalg.LinAlgError as exc:
         raise MlsynthEstimationError(
             f"SpSyDiD final WLS failed: {exc}"
         ) from exc
+
+    # A rank-deficient design means tau / tau_s are not separately
+    # identified (e.g. WD collinear with D, or zero-weight rows collapsing
+    # the effective rank). ``lstsq`` silently returns a minimum-norm
+    # solution, so flag it rather than report a spuriously precise estimate.
+    if rank < n_cols:
+        warnings.warn(
+            "SpSyDiD WLS design matrix is rank-deficient "
+            f"(rank {rank} < {n_cols} columns); the direct (tau) and "
+            "spillover (tau_s) coefficients may not be separately "
+            "identified and lstsq returned a minimum-norm solution.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     tau = float(beta_hat[-2])
     tau_s = float(beta_hat[-1])
