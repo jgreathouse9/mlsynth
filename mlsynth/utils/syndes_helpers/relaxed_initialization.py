@@ -58,6 +58,20 @@ def default_lambda(Y: np.ndarray) -> float:
     return float(np.mean(np.var(Y, axis=0)))
 
 
+def _reconstruction_error(Yc: np.ndarray, cols: list[int]) -> float:
+    """Frobenius reconstruction error of ``Yc`` projected onto columns ``cols``.
+
+    Returns ``inf`` for an empty column set (defensive: nothing to project on),
+    otherwise the residual norm of ``Yc`` after projecting onto the span of the
+    selected columns.
+    """
+    if len(cols) == 0:
+        return np.inf
+    B = Yc[:, cols]
+    proj = B @ np.linalg.pinv(B) @ Yc
+    return float(np.linalg.norm(Yc - proj, ord="fro"))
+
+
 def init_assignment(Y: np.ndarray, K: int) -> np.ndarray:
     """Greedy span-based initialization of the treatment assignment.
 
@@ -85,18 +99,11 @@ def init_assignment(Y: np.ndarray, K: int) -> np.ndarray:
     selected: list[int] = []
     remaining = list(range(N))
 
-    def reconstruction_error(cols: list[int]) -> float:
-        if len(cols) == 0:
-            return np.inf
-        B = Yc[:, cols]
-        proj = B @ np.linalg.pinv(B) @ Yc
-        return float(np.linalg.norm(Yc - proj, ord="fro"))
-
     for _ in range(K):
         best_i = None
         best_score = np.inf
         for i in remaining:
-            score = reconstruction_error(selected + [i])
+            score = _reconstruction_error(Yc, selected + [i])
             if score < best_score:
                 best_score = score
                 best_i = i
