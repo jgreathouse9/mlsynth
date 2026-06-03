@@ -29,7 +29,8 @@ class DesignMetrics:
     indices: List[int]
     imbalance: float                 # validity: ||Xbar - sum w_j X_j||
     mde_sd: float = np.inf           # power: MDE in residual-SD units (lower=better)
-    mde_abs: float = np.inf
+    mde_abs: float = np.inf          # power: MDE in outcome units
+    mde_pct: float = np.nan          # power: MDE as % of counterfactual level (NaN if level untrustworthy)
     mde_feasible: bool = False
     stability: float = np.nan        # e.g. nmse_B (out-of-sample fit; lower=better)
     total_cost: float = 0.0
@@ -110,6 +111,7 @@ def select_design(
         "imbalance": round(d.imbalance, 6),
         "mde_sd": (round(d.mde_sd, 4) if np.isfinite(d.mde_sd) else None),
         "mde_abs": (round(d.mde_abs, 4) if np.isfinite(d.mde_abs) else None),
+        "mde_pct": (round(d.mde_pct, 3) if np.isfinite(d.mde_pct) else None),
         "mde_feasible": d.mde_feasible,
         "stability": (round(d.stability, 6) if np.isfinite(d.stability) else None),
         "total_cost": round(d.total_cost, 4),
@@ -118,11 +120,19 @@ def select_design(
         "winner": d.design_id == winner.design_id,
     } for d in sorted(designs, key=lambda d: d.imbalance)]
 
+    # MDE line: SD always; absolute and (when the level is trustworthy)
+    # percentage in parentheses -- the manager-facing "Y% effect" figure.
+    if np.isfinite(winner.mde_abs):
+        mde_tail = f" ({winner.mde_abs:.4f} abs"
+        mde_tail += (f", {winner.mde_pct:.2f}% of counterfactual)"
+                     if np.isfinite(winner.mde_pct) else ")")
+    else:
+        mde_tail = " (not reached)"
     explanation = (
         f"--- DESIGN RECOMMENDATION: {winner.design_id} ---\n"
         f"Units: {winner.labels or winner.indices}\n"
         f"Imbalance: {winner.imbalance:.4f}  (best available {best_imb:.4f})\n"
-        f"MDE: {winner.mde_sd:.3f} s.d." + (f" ({winner.mde_abs:.4f} abs)\n" if np.isfinite(winner.mde_abs) else " (not reached)\n") +
+        f"MDE: {winner.mde_sd:.3f} s.d.{mde_tail}\n"
         f"Status: {status}\n{reason}"
     )
     return Recommendation(winner, shortlist, pareto, status, explanation, table)

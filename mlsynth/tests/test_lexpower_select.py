@@ -73,6 +73,57 @@ def test_huge_noise_marks_infeasible_not_crash():
     assert np.isfinite(r["c_alpha"])
 
 
+# ========================= percentage MDE =========================
+
+def test_mde_pct_matches_abs_over_baseline():
+    rng = np.random.default_rng(10)
+    pool = [rng.standard_normal(60) for _ in range(4)]   # sigma ~ 1
+    baseline = 100.0                                       # >> sigma -> trustworthy
+    r = compute_mde(pool, 6, baseline=baseline, random_state=2)
+    assert r["feasible"] and np.isfinite(r["mde_pct"])
+    assert r["baseline"] == baseline
+    assert abs(r["mde_pct"] - 100.0 * r["mde_abs"] / baseline) < 1e-9
+
+
+def test_mde_pct_nan_without_baseline():
+    rng = np.random.default_rng(11)
+    r = compute_mde([rng.standard_normal(60) for _ in range(4)], 6, random_state=2)
+    assert np.isnan(r["mde_pct"]) and np.isnan(r["baseline"])
+
+
+def test_mde_pct_guarded_for_near_zero_baseline():
+    # baseline below the default floor (one residual SD ~ 1) -> percentage withheld
+    rng = np.random.default_rng(12)
+    pool = [rng.standard_normal(60) for _ in range(4)]
+    r = compute_mde(pool, 6, baseline=0.2, random_state=2)
+    assert np.isnan(r["mde_pct"])           # not a trustworthy level -> NaN
+    assert np.isfinite(r["mde_abs"])        # absolute/SD metrics unaffected
+
+
+def test_baseline_floor_override_forces_percentage():
+    rng = np.random.default_rng(13)
+    pool = [rng.standard_normal(60) for _ in range(4)]
+    r = compute_mde(pool, 6, baseline=0.2, baseline_floor=1e-6, random_state=2)
+    assert np.isfinite(r["mde_pct"])
+    assert abs(r["mde_pct"] - 100.0 * r["mde_abs"] / 0.2) < 1e-9
+
+
+def test_detectability_curve_emits_pct():
+    rng = np.random.default_rng(14)
+    pool = [rng.standard_normal(80) for _ in range(5)]
+    level = np.full(40, 50.0)               # flat counterfactual level >> sigma
+    dc = detectability_curve(pool, [4, 8], baseline_series=level, random_state=3)
+    assert set(dc["curve_pct"]) == {4, 8}
+    for w in (4, 8):
+        d = dc["details"][w]
+        if d["feasible"]:
+            assert abs(dc["curve_pct"][w] - 100.0 * d["mde_abs"] / 50.0) < 1e-9
+    # no baseline_series -> percentages are NaN, SD curve still present
+    dc0 = detectability_curve(pool, [4, 8], random_state=3)
+    assert all(np.isnan(v) for v in dc0["curve_pct"].values())
+    assert np.isfinite(dc0["curve_sd"][8])
+
+
 # ============================== lexselect ==============================
 
 def _d(i, imb, mde, feas=True, stab=0.1, cost=0.0):

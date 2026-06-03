@@ -87,6 +87,8 @@ def compute_mde(
     max_sd: float = 8.0,
     n_grid: int = 64,
     random_state: int = 0,
+    baseline: Optional[float] = None,
+    baseline_floor: Optional[float] = None,
 ) -> Dict:
     """Minimum detectable (constant) effect at horizon ``n_post``.
 
@@ -103,6 +105,15 @@ def compute_mde(
         Moving-block length; default ~ L**(1/3).
     max_sd : float
         Largest effect (in residual-SD units) the adaptive grid will probe.
+    baseline : float, optional
+        Counterfactual outcome level the effect is expressed *relative to* (e.g.
+        ``mean(synthetic_treated[-n_post:])``).  When supplied, a percentage MDE
+        is reported -- the manager-facing "we can detect a Y% effect" number.
+    baseline_floor : float, optional
+        Minimum ``abs(baseline)`` for which a percentage is trustworthy; defaults
+        to one residual SD (``sigma``).  Below the floor ``mde_pct`` is ``NaN``,
+        deliberately, so zero-mean / sign-flipping outcomes cannot reproduce the
+        spurious blow-up that motivated dropping level-normalisation here.
 
     Returns
     -------
@@ -112,6 +123,9 @@ def compute_mde(
             mde_sd      : MDE in residual-standard-deviation units (np.inf if not
                           reached within ``max_sd``).
             mde_abs     : MDE in outcome units (= mde_sd * sigma).
+            mde_pct     : MDE as a percentage of ``baseline`` (NaN if no baseline
+                          was given or it falls below ``baseline_floor``).
+            baseline    : the level used for the percentage (NaN if none).
             sigma       : residual SD scale.
             c_alpha     : critical value of the placebo null statistic.
             power_at_mde: achieved power at the reported MDE.
@@ -121,8 +135,9 @@ def compute_mde(
     rng = np.random.default_rng(random_state)
     series = _as_series_list(noise_pool)
     if not series:
-        return {"mde_sd": np.inf, "mde_abs": np.inf, "sigma": np.nan,
-                "c_alpha": np.nan, "power_at_mde": 0.0, "feasible": False, "curve": []}
+        return {"mde_sd": np.inf, "mde_abs": np.inf, "mde_pct": np.nan,
+                "baseline": np.nan, "sigma": np.nan, "c_alpha": np.nan,
+                "power_at_mde": 0.0, "feasible": False, "curve": []}
 
     allvals = np.concatenate(series)
     sigma = float(np.std(allvals, ddof=1)) if allvals.size > 1 else float(np.std(allvals))
@@ -158,9 +173,24 @@ def compute_mde(
         prev = (g, p)
 
     feasible = np.isfinite(mde_sd)
+    mde_abs = float(mde_sd * sigma) if feasible else np.inf
+
+    # Optional percentage MDE: the absolute effect as a share of the
+    # counterfactual level.  Guarded -- reported only when the level is a stable,
+    # non-trivial magnitude (|baseline| above ``baseline_floor``, default one
+    # residual SD).  This keeps the manager-facing percentage out of the
+    # zero-mean/near-zero-baseline regime where it blows up and misleads.
+    mde_pct = np.nan
+    if baseline is not None and np.isfinite(baseline) and feasible:
+        floor = sigma if baseline_floor is None else float(baseline_floor)
+        if abs(baseline) > floor:
+            mde_pct = 100.0 * mde_abs / abs(baseline)
+
     return {
         "mde_sd": float(mde_sd),
-        "mde_abs": float(mde_sd * sigma) if feasible else np.inf,
+        "mde_abs": mde_abs,
+        "mde_pct": float(mde_pct),
+        "baseline": float(baseline) if baseline is not None else np.nan,
         "sigma": sigma,
         "c_alpha": c_alpha,
         "power_at_mde": power_at,
@@ -174,17 +204,31 @@ def compute_mde(
 # Detectability curve across horizons
 # ----------------------------------------------------------------------
 
-def detectability_curve(noise_pool, n_post_grid, **kw) -> Dict:
-    """MDE at each horizon in ``n_post_grid``; returns {'details', 'curve_sd'}."""
-    details, curve_sd = {}, {}
+def detectability_curve(noise_pool, n_post_grid, *, baseline_series=None, **kw) -> Dict:
+    """MDE at each horizon in ``n_post_grid``.
+
+    Returns ``{'details', 'curve_sd', 'curve_pct', ...}``.  If ``baseline_series``
+    (the synthetic-treated counterfactual level) is supplied, each horizon ``w``
+    also gets a percentage MDE relative to ``mean(baseline_series[-w:])`` -- the
+    level over the matching post window.  See :func:`compute_mde` for the guard
+    that returns ``NaN`` when that level is not a trustworthy magnitude.
+    """
+    details, curve_sd, curve_pct = {}, {}, {}
+    base = None if baseline_series is None else np.asarray(baseline_series, float).ravel()
     for w in n_post_grid:
-        r = compute_mde(noise_pool, w, **kw)
+        baseline = None
+        if base is not None and base.size:
+            k = min(int(w), base.size)
+            baseline = float(np.mean(base[-k:]))
+        r = compute_mde(noise_pool, w, baseline=baseline, **kw)
         details[w] = r
         curve_sd[w] = r["mde_sd"]
+        curve_pct[w] = r["mde_pct"]
     feas = [w for w, r in details.items() if r["feasible"]]
     return {
         "details": details,
         "curve_sd": curve_sd,
+        "curve_pct": curve_pct,
         "min_horizon_mde_le_0p1sd": next((w for w in sorted(feas)
                                           if details[w]["mde_sd"] <= 0.1), None),
     }

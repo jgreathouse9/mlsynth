@@ -625,13 +625,13 @@ class TestLEXSCMPostFitAndBranches:
 
     def test_representative_mde_no_finite(self, panel_df):
         # _representative_mde: a candidate whose detectability_curve has no
-        # finite mde_sd ⇒ early_min path returns (inf, inf) (line 235-236).
+        # finite mde_sd ⇒ early_min path returns (inf, inf, nan).
         est = LEXSCM({"df": panel_df, **self._est_kwargs("early_min")})
         # Forge a curve with no finite mde_sd values
         dc = {"details": {2: {"mde_sd": np.nan, "mde_abs": np.nan},
                           4: {"mde_sd": np.nan, "mde_abs": np.nan}}}
-        s, a = est._representative_mde(dc)
-        assert s == np.inf and a == np.inf
+        s, a, p = est._representative_mde(dc)
+        assert s == np.inf and a == np.inf and np.isnan(p)
 
     def test_invalid_config_raises_data_error(self, panel_df):
         # The estimator wraps pydantic ValidationError as MlsynthDataError.

@@ -209,27 +209,35 @@ class LEXSCM:
         self.verbose: bool = config.verbose
 
     def _representative_mde(self, dc: dict):
-        """Collapse a detectability curve to one (mde_sd, mde_abs) per `mde_horizon`.
+        """Collapse a curve to one (mde_sd, mde_abs, mde_pct) per `mde_horizon`.
 
         - "late"       : MDE at the longest horizon.
         - "early_min"  : smallest MDE across horizons (most optimistic).
         - "early_mean" : mean MDE across feasible horizons.
+
+        ``mde_pct`` is the percentage relative to the counterfactual level and may
+        be ``NaN`` when that level is not a trustworthy magnitude (see
+        :func:`~mlsynth.utils.fast_scm_helpers.lexpower.compute_mde`).
         """
         det = dc["details"]
         horizons = sorted(det.keys())
-        triples = [(w, det[w]["mde_sd"], det[w]["mde_abs"]) for w in horizons]
-        finite = [(w, s, a) for w, s, a in triples if np.isfinite(s)]
+        rows = [(w, det[w]["mde_sd"], det[w]["mde_abs"], det[w].get("mde_pct", np.nan))
+                for w in horizons]
+        finite = [(w, s, a, p) for w, s, a, p in rows if np.isfinite(s)]
         if self.target_mde_horizon == "late":
-            _, s, a = triples[-1]
-            return s, a
+            _, s, a, p = rows[-1]
+            return s, a, p
         if not finite:
-            return np.inf, np.inf
+            return np.inf, np.inf, np.nan
         if self.target_mde_horizon == "early_min":
-            _, s, a = min(finite, key=lambda x: x[1])
-            return s, a
-        # early_mean
-        return (float(np.mean([s for _, s, _ in finite])),
-                float(np.mean([a for _, _, a in finite])))
+            _, s, a, p = min(finite, key=lambda x: x[1])
+            return s, a, p
+        # early_mean (average over feasible horizons; percentage averaged only
+        # over horizons where it is defined)
+        pcts = [p for _, _, _, p in finite if np.isfinite(p)]
+        return (float(np.mean([s for _, s, _, _ in finite])),
+                float(np.mean([a for _, _, a, _ in finite])),
+                float(np.mean(pcts)) if pcts else np.nan)
 
     def fit(self, **kwargs) -> "LEXSCM":
         """
@@ -391,12 +399,13 @@ class LEXSCM:
             dc = detectability_curve(
                 np.asarray(c.predictions.residuals_B),
                 self.n_post_grid,
+                baseline_series=np.asarray(c.predictions.synthetic_treated),
                 alpha=self.alpha,
                 power_target=self.power_target,
                 random_state=self.seed,
             )
             c.mde_results = dc
-            mde_sd, mde_abs = self._representative_mde(dc)
+            mde_sd, mde_abs, mde_pct = self._representative_mde(dc)
             sol = c.identification.solution
             design_metrics.append(DesignMetrics(
                 design_id=c.identification.tuple_id,
@@ -409,6 +418,7 @@ class LEXSCM:
                 imbalance=float(c.losses.rmse_sc_E),
                 mde_sd=mde_sd,
                 mde_abs=mde_abs,
+                mde_pct=mde_pct,
                 mde_feasible=bool(np.isfinite(mde_sd)),
                 stability=float(c.losses.nmse_B),
                 total_cost=float(getattr(sol, "total_cost", 0.0)),
