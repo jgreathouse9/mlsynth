@@ -212,6 +212,6 @@ def replicate_guanajuato(
     return pd.DataFrame(rows)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - manual CLI entry point
     run_ssc_simulation(DEMO)
     replicate_guanajuato()

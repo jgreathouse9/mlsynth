@@ -182,6 +182,6 @@ def replicate_prop99(data: Union[str, pd.DataFrame, None] = None, *,
     return res
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - manual CLI entry point
     run_rmsi_simulation(DEMO)
     replicate_prop99("../../../basedata/P99data.csv")

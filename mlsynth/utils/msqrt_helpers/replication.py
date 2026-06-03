@@ -209,4 +209,4 @@ def run_msqrt_simulation(cfg: SimConfig = DEMO, *, settings=(1, 2),
 
 
 if __name__ == "__main__":
-    run_msqrt_simulation(DEMO)
+    run_msqrt_simulation(DEMO)  # pragma: no cover - CLI entry point, not imported
