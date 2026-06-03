@@ -28,10 +28,12 @@ import numpy as np
 from ....exceptions import MlsynthConfigError, MlsynthDataError
 from ..iscm.weights import build_unit_sc
 from ..structures import GrossiFit, SpillSynthInputs
+from .inference import residual_resampling
 
 
 def run_grossi(inputs: SpillSynthInputs, *, bilevel_solver: str = "penalized",
-               bias_correct: bool = False) -> GrossiFit:
+               bias_correct: bool = False, n_boot: int = 0,
+               ci_level: float = 0.90, seed: int = 0) -> GrossiFit:
     """Run the Grossi et al. partial-interference estimator.
 
     Parameters
@@ -44,6 +46,14 @@ def run_grossi(inputs: SpillSynthInputs, *, bilevel_solver: str = "penalized",
         clean controls. Defaults to ``"penalized"`` (the paper's estimator).
     bias_correct : bool
         Apply the Abadie-L'Hour bias correction to each gap (covariate mode).
+    n_boot : int
+        Number of residual-resampling draws for the pivotal bias-corrected
+        confidence intervals (eqs. 3.6-3.7). ``0`` (default) skips inference.
+        Supported for the penalized backend and outcome-only matching.
+    ci_level : float
+        Confidence level for the intervals (the paper uses 0.90).
+    seed : int
+        RNG seed for the resampling.
     """
     Y, T0, N, p = inputs.Y, inputs.T0, inputs.N, inputs.p
     if p < 1:
@@ -65,6 +75,7 @@ def run_grossi(inputs: SpillSynthInputs, *, bilevel_solver: str = "penalized",
 
     # Penalized SC for each cluster unit, built from the clean controls only.
     gaps_full = {}
+    lam_cluster: list = []
     treated_w = None
     treated_pre = None
     direct_pre_rmspe = float("nan")
@@ -75,6 +86,8 @@ def run_grossi(inputs: SpillSynthInputs, *, bilevel_solver: str = "penalized",
             solver=bilevel_solver, bias_correct=bias_correct,
         )
         gaps_full[i] = gap
+        lam_cluster.append(
+            float(sol.metadata.get("lambda", float("nan"))) if sol is not None else None)
         if i == 0:
             treated_w = dict(zip([names[j] for j in clean_idx], w))
             treated_pre = cf[:T0]
@@ -95,6 +108,21 @@ def run_grossi(inputs: SpillSynthInputs, *, bilevel_solver: str = "penalized",
     )
     gap_scm = gap_naive[T0:]
 
+    # Residual-resampling inference (penalized backend or outcome-only).
+    direct_ci = avg_spillover_ci = None
+    if n_boot > 0:
+        if P is not None and bilevel_solver != "penalized":
+            raise MlsynthConfigError(
+                "SPILLSYNTH method='grossi' inference (n_boot>0) is supported "
+                "for bilevel_solver='penalized' or outcome-only matching; got "
+                f"bilevel_solver={bilevel_solver!r} with covariates."
+            )
+        direct_ci, avg_spillover_ci = residual_resampling(
+            Y, T0, p, N, P, lam_cluster, n_boot=n_boot, ci_level=ci_level,
+            seed=seed, bias_correct=bias_correct,
+            direct_att=direct_gap, avg_spill_att=avg_spillover_gap,
+        )
+
     y_treated_post = Y[0, T0:]
     return GrossiFit(
         direct_att=float(np.mean(direct_gap)),
@@ -113,5 +141,7 @@ def run_grossi(inputs: SpillSynthInputs, *, bilevel_solver: str = "penalized",
         treated_synthetic_pre=treated_pre,
         n_clean=int(clean_idx.size),
         lam=lam,
+        direct_ci=direct_ci,
+        avg_spillover_ci=avg_spillover_ci,
         bilevel_solver=bilevel_solver,
     )

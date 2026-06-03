@@ -85,6 +85,9 @@ class SPILLSYNTH:
         self.covariates = list(config.covariates) if config.covariates else None
         self.bilevel_solver: str = getattr(config, "bilevel_solver", "malo")
         self.bias_correct: bool = getattr(config, "bias_correct", False)
+        self.n_boot: int = getattr(config, "n_boot", 0)
+        self.ci_level: float = getattr(config, "ci_level", 0.90)
+        self.seed: int = getattr(config, "seed", 0)
         self.display_graphs: bool = config.display_graphs
         self.save = config.save
         self.counterfactual_color = config.counterfactual_color
@@ -132,7 +135,9 @@ class SPILLSYNTH:
                 # user explicitly picked another backend.
                 gsolver = "penalized" if self.bilevel_solver == "malo" else self.bilevel_solver
                 fit = run_grossi(inputs, bilevel_solver=gsolver,
-                                 bias_correct=self.bias_correct)
+                                 bias_correct=self.bias_correct,
+                                 n_boot=self.n_boot, ci_level=self.ci_level,
+                                 seed=self.seed)
                 results = SpillSynthResults(
                     inputs=inputs, method="grossi", grossi=fit,
                 )

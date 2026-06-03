@@ -79,3 +79,22 @@ def test_run_grossi_direct_matches_estimator(german_panel):
     fit = run_grossi(inputs, bilevel_solver="penalized")
     res = SPILLSYNTH(_cfg(german_panel)).fit()
     assert fit.direct_att == pytest.approx(res.att)
+
+
+def test_grossi_inference_brackets_point_estimate(german_panel):
+    # Outcome-only with a small bootstrap for speed.
+    res = SPILLSYNTH(_cfg(german_panel, n_boot=30, ci_level=0.90, seed=1)).fit()
+    f = res.grossi
+    assert f.direct_ci is not None and f.direct_ci.shape == (f.gap.shape[0], 2)
+    assert f.avg_spillover_ci is not None
+    # Pivotal bias-corrected interval must bracket the per-period point.
+    lo, hi = f.direct_ci[:, 0], f.direct_ci[:, 1]
+    assert np.all(lo <= f.gap + 1e-6) and np.all(f.gap - 1e-6 <= hi)
+    assert np.all(lo <= hi)
+
+
+def test_grossi_inference_rejected_for_non_penalized_covariates(german_panel):
+    cov = ["trade", "infrate", "industry"]
+    with pytest.raises(MlsynthConfigError):
+        SPILLSYNTH(_cfg(german_panel, covariates=cov, bilevel_solver="mscmt",
+                        n_boot=10)).fit()

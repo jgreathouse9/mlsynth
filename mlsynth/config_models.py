@@ -1820,12 +1820,27 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
     )
     bias_correct: bool = Field(
         default=False,
-        description="(method='iscm') Apply the Abadie-L'Hour (2021) bias "
-                    "correction to each unit's synthetic-control gap, removing "
-                    "the part attributable to residual covariate imbalance via "
-                    "a ridge regression of the outcome on the covariates. "
-                    "Requires 'covariates'; most useful when the covariates "
-                    "genuinely explain the outcome.",
+        description="(method='iscm'/'grossi') Apply the Abadie-L'Hour (2021) "
+                    "bias correction to each unit's synthetic-control gap, "
+                    "removing the part attributable to residual covariate "
+                    "imbalance via a ridge regression of the outcome on the "
+                    "covariates. Requires 'covariates'; most useful when the "
+                    "covariates genuinely explain the outcome.",
+    )
+    n_boot: int = Field(
+        default=0, ge=0,
+        description="(method='grossi') Residual-resampling draws for the "
+                    "pivotal bias-corrected confidence intervals (Grossi et "
+                    "al. eqs. 3.6-3.7). 0 (default) skips inference.",
+    )
+    ci_level: float = Field(
+        default=0.90, gt=0.0, lt=1.0,
+        description="(method='grossi') Confidence level for the residual-"
+                    "resampling intervals. The paper uses 0.90.",
+    )
+    seed: int = Field(
+        default=0,
+        description="(method='grossi') RNG seed for residual resampling.",
     )
     affected_units: Optional[List[Any]] = Field(
         default=None,
