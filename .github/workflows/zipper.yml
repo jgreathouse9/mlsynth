@@ -1,45 +1,55 @@
 name: Unzip and Commit
 
 on:
-  workflow_dispatch:
-    inputs:
-      zip_path:
-        description: "Path to the zip file in the repo (relative to repo root)"
-        required: true
-      commit_message:
-        description: "Commit message"
-        required: true
+  push:
+    paths:
+      - '*.zip'
 
 jobs:
   unzip:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
           fetch-depth: 0
 
-      - name: Unzip bundle
+      - name: Find changed root zip files
+        id: zips
         run: |
-          test -f "${{ inputs.zip_path }}" || { echo "Zip not found: ${{ inputs.zip_path }}"; exit 1; }
-          unzip -o "${{ inputs.zip_path }}" -d .
+          ZIPS=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '^[^/]*\.zip$' || true)
 
-      - name: Remove zip
-        run: rm -f "${{ inputs.zip_path }}"
+          if [ -z "$ZIPS" ]; then
+            echo "No root zip files changed."
+            exit 0
+          fi
+
+          echo "zips<<EOF" >> $GITHUB_OUTPUT
+          echo "$ZIPS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Unzip bundles
+        run: |
+          while IFS= read -r ZIP; do
+            echo "Extracting $ZIP"
+            unzip -o "$ZIP" -d .
+            rm -f "$ZIP"
+          done <<< "${{ steps.zips.outputs.zips }}"
 
       - name: Commit and push
-        env:
-          COMMIT_MESSAGE: ${{ inputs.commit_message }}
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add -A
+
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
-          git commit -m "$COMMIT_MESSAGE"
-          git push origin HEAD:${{ github.ref_name }}
+
+          git commit -m "Auto-extract uploaded zip"
+          git push
