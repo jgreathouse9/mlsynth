@@ -74,6 +74,7 @@ def solve_mscmt(
     seed: int = 0,
     polish: bool = True,
     feas_tol: float = 1e-8,
+    canonical_v: bool = False,
     gap_warn_factor: float = _GAP_WARN_FACTOR,
 ) -> BilevelSolution:
     """Solve the bilevel SCM problem by global outer search (MSCMT style).
@@ -93,6 +94,16 @@ def solve_mscmt(
     feas_tol : float
         Tolerance for the shared Section 3.1 / MSCMT Eq. 13 feasibility
         certificate (fast exact exit).
+    canonical_v : bool
+        If ``True``, replace the raw optimiser ``V`` with the MSCMT
+        ``min.loss.w`` canonical predictor weights (see
+        :func:`mlsynth.utils.fscm_helpers.bilevel.determine_v.canonical_v`).
+        The predictor weights ``V`` are generically non-identified -- a whole
+        polytope reproduces the same ``W`` -- so the raw optimiser ``V`` is not
+        reproducible across runs/engines. Canonicalisation selects a unique,
+        reproducible representative; it does **not** change ``W`` or the
+        counterfactual. Falls back to the optimiser ``V`` if the canonical one
+        fails to certify. Default ``False`` (historical behaviour).
 
     Returns
     -------
@@ -172,14 +183,23 @@ def solve_mscmt(
     V = V_raw / V_raw.sum()  # report on the simplex (objective is scale-free)
     upper = mspe(prob.y1_pre, prob.Y0_pre, W)
     warn_on_gap(float(upper - lower_bound), lower_bound, gap_warn_factor)
+    v_method = "optimizer"
+    if canonical_v:
+        from .determine_v import canonical_v as _canonical_v
+        v_canon, ok = _canonical_v(prob, W, lb=lb)
+        if ok:
+            V, v_method = v_canon, "min.loss.w"
+        else:
+            v_method = "optimizer-fallback"
     return BilevelSolution(
         V=V, W=W, upper_loss=float(upper),
-        lower_loss=float(np.sum(V_raw * (prob.X1 - prob.X0 @ W) ** 2)),
+        lower_loss=float(np.sum((V * V_raw.sum()) * (prob.X1 - prob.X0 @ W) ** 2)),
         lower_bound=lower_bound, stage="mscmt", iterations=int(res.nit),
         metadata={
             "backend": "mscmt",
             "de_success": bool(res.success),
             "gap": float(upper - lower_bound),
             "lb": float(lb),
+            "v_method": v_method,
         },
     )

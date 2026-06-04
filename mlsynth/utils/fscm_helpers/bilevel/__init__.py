@@ -21,6 +21,7 @@ from .simplex import project_simplex, simplex_lstsq, mspe
 from .solver import solve_bilevel, lower_level_weights
 from .mscmt import solve_mscmt
 from .penalized import bias_corrected_gaps, penalized_weights, solve_penalized
+from .determine_v import canonical_v, check_v, kkt_matrix, min_loss_w_v
 
 __all__ = [
     "BilevelProblem",
@@ -34,4 +35,8 @@ __all__ = [
     "penalized_weights",
     "bias_corrected_gaps",
     "lower_level_weights",
+    "canonical_v",
+    "check_v",
+    "kkt_matrix",
+    "min_loss_w_v",
 ]
