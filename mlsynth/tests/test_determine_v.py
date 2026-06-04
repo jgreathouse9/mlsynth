@@ -8,8 +8,10 @@ import pytest
 from mlsynth.utils.fscm_helpers.bilevel import (
     BilevelProblem,
     canonical_v,
+    canonical_v_diagnostics,
     check_v,
     kkt_matrix,
+    max_order_v,
     min_loss_w_v,
     solve_bilevel,
 )
@@ -105,6 +107,72 @@ def test_canonical_v_returns_simplex_and_ok():
     assert ok
     assert v.sum() == pytest.approx(1.0)         # reported on the simplex
     assert np.all(v >= 0)
+
+
+def test_canonical_v_rejects_unknown_method():
+    prob = _problem()
+    W, _ = _W_for(prob)
+    with pytest.raises(ValueError, match="min.loss.w|max.order"):
+        canonical_v(prob, W, method="bogus")
+
+
+# --------------------------------------------------------------------------- #
+# max_order_v (leximin) + PUFAS
+# --------------------------------------------------------------------------- #
+def test_max_order_certifies():
+    prob = _problem(seed=10)
+    W, _ = _W_for(prob, seed=10)
+    v, unique = max_order_v(prob, W)
+    assert np.all(np.isfinite(v))
+    assert v.max() == pytest.approx(1.0)
+    assert isinstance(unique, bool)
+    assert check_v(prob, v, W)
+
+
+def test_max_order_lifts_the_floor_vs_min_loss():
+    # Leximin maximises the smallest weight, so its minimum should be >= the
+    # smallest *nonzero* weight that min.loss.w produces (it refuses to zero
+    # predictors the data don't force out).
+    prob = _problem(seed=11)
+    W, _ = _W_for(prob, seed=11)
+    v_min = min_loss_w_v(prob, W)
+    v_max, _ = max_order_v(prob, W)
+    assert v_max.min() >= v_min[v_min > 1e-6].min() - 1e-6
+
+
+def test_max_order_is_deterministic():
+    prob = _problem(seed=12)
+    W, _ = _W_for(prob, seed=12)
+    a, _ = max_order_v(prob, W)
+    b, _ = max_order_v(prob, W)
+    np.testing.assert_array_equal(a, b)
+
+
+def test_canonical_v_max_order_method():
+    prob = _problem(seed=13)
+    W, _ = _W_for(prob, seed=13)
+    v, ok = canonical_v(prob, W, method="max.order")
+    assert ok
+    assert v.sum() == pytest.approx(1.0)
+
+
+def test_canonical_v_diagnostics_structure():
+    prob = _problem(seed=14)
+    W, _ = _W_for(prob, seed=14)
+    d = canonical_v_diagnostics(prob, W)
+    assert set(d) == {"min.loss.w", "min.loss.w_ok", "max.order",
+                      "max.order_ok", "agreement"}
+    assert d["agreement"] >= 0.0
+
+
+def test_mscmt_max_order_metadata():
+    prob = _problem(seed=15)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sol = solve_bilevel(prob, method="mscmt", seed=0, maxiter=60,
+                            canonical_v="max.order")
+    assert sol.metadata["v_method"] in ("max.order", "optimizer-fallback")
+    assert "v_agreement" in sol.metadata
 
 
 # --------------------------------------------------------------------------- #

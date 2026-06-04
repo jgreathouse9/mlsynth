@@ -74,7 +74,7 @@ def solve_mscmt(
     seed: int = 0,
     polish: bool = True,
     feas_tol: float = 1e-8,
-    canonical_v: bool = False,
+    canonical_v=False,
     gap_warn_factor: float = _GAP_WARN_FACTOR,
 ) -> BilevelSolution:
     """Solve the bilevel SCM problem by global outer search (MSCMT style).
@@ -94,16 +94,20 @@ def solve_mscmt(
     feas_tol : float
         Tolerance for the shared Section 3.1 / MSCMT Eq. 13 feasibility
         certificate (fast exact exit).
-    canonical_v : bool
-        If ``True``, replace the raw optimiser ``V`` with the MSCMT
-        ``min.loss.w`` canonical predictor weights (see
+    canonical_v : bool or {"min.loss.w", "max.order"}
+        If truthy, replace the raw optimiser ``V`` with an MSCMT canonical
+        predictor-weight vector (see
         :func:`mlsynth.utils.fscm_helpers.bilevel.determine_v.canonical_v`).
-        The predictor weights ``V`` are generically non-identified -- a whole
-        polytope reproduces the same ``W`` -- so the raw optimiser ``V`` is not
+        ``True`` selects ``"min.loss.w"`` (predictor-loss-minimising, sparse);
+        ``"max.order"`` selects the leximin (balanced) vector. The predictor
+        weights ``V`` are generically non-identified -- a whole polytope
+        reproduces the same ``W`` -- so the raw optimiser ``V`` is not
         reproducible across runs/engines. Canonicalisation selects a unique,
         reproducible representative; it does **not** change ``W`` or the
         counterfactual. Falls back to the optimiser ``V`` if the canonical one
-        fails to certify. Default ``False`` (historical behaviour).
+        fails to certify. When enabled, ``metadata["v_agreement"]`` reports the
+        max gap between the two canonical choices (small = ``V`` well
+        identified). Default ``False`` (historical behaviour).
 
     Returns
     -------
@@ -184,13 +188,18 @@ def solve_mscmt(
     upper = mspe(prob.y1_pre, prob.Y0_pre, W)
     warn_on_gap(float(upper - lower_bound), lower_bound, gap_warn_factor)
     v_method = "optimizer"
+    meta_extra: dict = {}
     if canonical_v:
         from .determine_v import canonical_v as _canonical_v
-        v_canon, ok = _canonical_v(prob, W, lb=lb)
+        from .determine_v import canonical_v_diagnostics as _diag
+        requested = "min.loss.w" if canonical_v is True else str(canonical_v)
+        v_canon, ok = _canonical_v(prob, W, method=requested, lb=lb)
         if ok:
-            V, v_method = v_canon, "min.loss.w"
+            V, v_method = v_canon, requested
         else:
             v_method = "optimizer-fallback"
+        diag = _diag(prob, W, lb=lb)
+        meta_extra["v_agreement"] = diag["agreement"]   # min.loss.w vs max.order
     return BilevelSolution(
         V=V, W=W, upper_loss=float(upper),
         lower_loss=float(np.sum((V * V_raw.sum()) * (prob.X1 - prob.X0 @ W) ** 2)),
@@ -201,5 +210,6 @@ def solve_mscmt(
             "gap": float(upper - lower_bound),
             "lb": float(lb),
             "v_method": v_method,
+            **meta_extra,
         },
     )
