@@ -138,6 +138,7 @@ headline numbers.
    :hidden:
    :caption: Observational: canonical workhorses
 
+   vanillasc
    tssc
    fdid
 

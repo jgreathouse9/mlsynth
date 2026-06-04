@@ -35,6 +35,7 @@ from .estimators.dsc import DSC
 from .estimators.dscar import DSCAR
 from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
+from .estimators.vanillasc import VanillaSC
 from .estimators.spillsynth import SPILLSYNTH
 from .estimators.ctsc import CTSC
 from .estimators.snn import SNN
@@ -90,6 +91,7 @@ __all__ = [
     "DSC",
     "SpSyDiD",
     "ISCM",
+    "VanillaSC",
     "DSCAR",
     "SPILLSYNTH",
     "CTSC",
