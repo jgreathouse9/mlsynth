@@ -244,6 +244,69 @@ def test_vanillasc_scpi_inference_end_to_end():
     assert np.all(np.asarray(det["pi_lower"]) <= np.asarray(det["pi_upper"]) + 1e-6)
 
 
+def test_lto_helpers_match_paper():
+    """f / c(N, alpha) reproduce Lei-Sudijono (2025) reported values."""
+    from mlsynth.utils.vanillasc_helpers.lto import (
+        lto_powered_offset, lto_type_i_bound,
+    )
+    # paper: c(39, 0.02)=0.006, c(39, 0.05)=0.002, c(17, 0.05)=0.0125
+    assert abs(lto_powered_offset(39, 0.02) - 0.006) < 5e-4
+    assert abs(lto_powered_offset(39, 0.05) - 0.002) < 5e-4
+    assert abs(lto_powered_offset(17, 0.05) - 0.0125) < 5e-4
+    # discrete Type-I bound is floor(N f)/N and >= alpha by construction
+    assert lto_type_i_bound(39, 0.05) >= 0.05
+    assert 0.0 < lto_type_i_bound(17, 0.05) < 0.1
+
+
+def test_lto_placebo_module():
+    from mlsynth.utils.vanillasc_helpers.lto import lto_placebo_test
+    from mlsynth.utils.vanillasc_helpers import BilevelSCM
+    rng = np.random.default_rng(3)
+    T, T0, J = 24, 16, 7
+    Y0 = rng.normal(5, 1, size=(T, J))
+    w = np.zeros(J); w[[0, 2, 5]] = [0.5, 0.3, 0.2]
+    y = Y0 @ w + 0.05 * rng.normal(size=T)
+    y[T0:] -= 2.0                                    # planted effect
+    eng = BilevelSCM("outcome-only", seed=0)
+    out = lto_placebo_test(eng, y, Y0, T0, alpha=0.05, seed=0)
+    assert 0.0 <= out["p_value"] <= 1.0
+    assert out["n_pairs"] == J * (J - 1) // 2        # C(J, 2) pairs
+    assert out["N"] == J + 1
+    assert out["p_powered"] <= out["p_value"] + 1e-12
+    assert out["c"] > 0.0
+    assert out["type_i_bound"] >= 0.05
+    assert out["reject"] == (out["p_powered"] <= 0.05)
+
+
+def test_lto_requires_three_donors():
+    from mlsynth.utils.vanillasc_helpers.lto import lto_placebo_test
+    from mlsynth.utils.vanillasc_helpers import BilevelSCM
+    rng = np.random.default_rng(0)
+    Y0 = rng.normal(5, 1, size=(12, 2))
+    y = Y0 @ np.array([0.6, 0.4]) + 0.05 * rng.normal(size=12)
+    with pytest.raises(ValueError):
+        lto_placebo_test(BilevelSCM("outcome-only"), y, Y0, 8)
+
+
+def test_vanillasc_lto_inference_end_to_end():
+    df = _panel(seed=2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = VanillaSC({"df": df, "outcome": "y", "treat": "treated",
+                         "unitid": "unit", "time": "time",
+                         "backend": "outcome-only", "inference": "lto",
+                         "alpha": 0.05, "display_graphs": False}).fit()
+    inf = res.inference
+    assert inf is not None
+    assert "leave-two-out" in inf.method.lower()
+    assert 0.0 <= inf.p_value <= 1.0
+    det = inf.details
+    assert det["n_pairs"] == 7 * 6 // 2              # 7 donors -> C(7,2)
+    assert det["n_units"] == 8
+    assert det["p_powered"] <= inf.p_value + 1e-12
+    assert isinstance(det["reject_at_alpha"], bool)
+
+
 def test_vanillasc_accepts_config_object():
     df = _panel()
     cfg = VanillaSCConfig(df=df, outcome="y", treat="treated", unitid="unit",

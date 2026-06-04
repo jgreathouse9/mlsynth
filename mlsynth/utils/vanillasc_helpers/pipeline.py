@@ -177,6 +177,33 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
+    # Leave-Two-Out refined placebo test (Lei & Sudijono 2025).
+    if mode == "lto" and J >= 3 and gap[pre:].size:
+        from .lto import lto_placebo_test
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            lto = lto_placebo_test(
+                engine, y, Y0, pre, X1=X1, X0=X0, alpha=config.alpha,
+                max_pairs=config.lto_max_pairs, seed=config.seed,
+            )
+        inference = InferenceResults(
+            p_value=lto["p_value"],
+            method="leave-two-out refined placebo (Lei-Sudijono 2025)",
+            confidence_level=1.0 - config.alpha,
+            details={
+                "treated_rmspe_ratio": ratio_tr,
+                "p_powered": lto["p_powered"],
+                "powered_offset_c": lto["c"],
+                "type_i_bound": lto["type_i_bound"],
+                "reject_at_alpha": lto["reject"],
+                "n_pairs": lto["n_pairs"],
+                "treated_losses": lto["treated_losses"],
+                "n_units": lto["N"],
+                "alpha": lto["alpha"],
+                "subsampled": lto["subsampled"],
+            },
+        )
+
     # In-space placebo inference (Abadie): reassign treatment to each donor.
     if mode == "placebo" and J >= 2 and gap[pre:].size:
         ratios = []

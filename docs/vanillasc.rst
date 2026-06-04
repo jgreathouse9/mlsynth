@@ -172,6 +172,17 @@ Two inference modes are available via ``inference=``:
        error (see ``test_scpi_matches_reference_package``, which is skipped
        unless ``scpi_pkg`` happens to be installed).
 
+``"lto"`` -- leave-two-out refined placebo (Lei & Sudijono 2025)
+    A design-based randomization test that fixes the two structural weaknesses
+    of the ordinary placebo test -- its **coarse** :math:`\{1/N, 2/N, \dots\}`
+    grid and its **zero size when** :math:`\alpha < 1/N`. It replaces the "one
+    turn each" permutation with a *tournament over triples* and reports both a
+    naive p-value (``res.inference.p_value``) and a powered one
+    (``details["p_powered"]``), together with the Type-I bound and tournament
+    tallies. It shares the placebo test's assumptions but is far more powerful
+    in small donor pools. See *The leave-two-out refined placebo test* and the
+    two theory subsections below for the full treatment.
+
 How the SCPI machinery works (one fit)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -261,6 +272,157 @@ The pipeline fits the weights with the chosen backend and hands the resulting
   with lagged outcomes) the *point* counterfactual is still pinned, but the
   covariate-matched solution is fragile; the placebo test, which is exact for
   any backend, is the conservative cross-check.
+
+The leave-two-out (LTO) refined placebo test
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**What it is.** The ordinary placebo test (above) gives each of the :math:`N`
+units exactly one turn as the pseudo-treated unit and ranks the real treated
+unit's fit statistic against those :math:`N` values. That is its weakness: the
+p-value can only land on the grid :math:`\{1/N, 2/N, \dots, 1\}`, and at a
+conventional level like :math:`\alpha = 0.05` with a small donor pool the test
+is either coarse or -- when :math:`\alpha < 1/N` -- literally unable to reject
+(its size is zero). The Lei-Sudijono (2025) **leave-two-out** test keeps the
+same design-based logic but replaces the "one turn each" permutation with a
+**tournament over triples**. Think of every triple :math:`\{i, j, I\}` (two
+controls and the treated unit) as a match: leave all three out of the donor
+pool, build a synthetic control for each of them from the remaining
+:math:`N-3` units, score each by its post/pre RMSPE ratio, and the unit with
+the largest ratio "wins" the match. The treated unit *should* win often if the
+treatment had a real effect (a large post-period gap relative to a tight
+pre-period fit). The p-value is the fraction of matches the treated unit does
+**not** win,
+
+.. math::
+
+   p_{\mathrm{naive\text{-}LTO}}
+     = \frac{1}{(N-1)(N-2)} \sum_{i \neq j}
+       \mathbf{1}\bigl\{R_{i,j,I;I} \le \max(R_{i,j,I;i}, R_{i,j,I;j})\bigr\},
+
+where :math:`R_{i,j,I;k} = \lvert S_{\text{ratio-RMSPE}}(Y_k, \widehat Y_k)\rvert`
+is the score of unit :math:`k` when the pool excludes :math:`\{i, j, I\}`.
+Because there are :math:`\binom{N-1}{2}` matches rather than :math:`N`, the
+p-value lives on an :math:`O(N^2)`-fine grid -- the granularity problem
+disappears.
+
+**Two p-values.** ``res.inference.p_value`` is the *naive* LTO p-value above.
+``res.inference.details["p_powered"]`` is the *powered* variant
+:math:`p_{\mathrm{naive\text{-}LTO}} - c(N, \alpha) + \delta`, which shifts the
+naive value down by the largest amount the discrete Type-I bound allows
+(``powered_offset_c``), strictly increasing power. The powered value is a
+**decision rule tied to one** :math:`\alpha` -- reject when it is
+:math:`\le \alpha` (``reject_at_alpha``) -- not a general-purpose p-value, so do
+not compare it across levels or report it as "the" p-value.
+
+LTO: design-based assumptions and econometric theory
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The LTO test is **design-based**, not outcome-model-based: the potential
+outcomes are treated as fixed, and all randomness comes from *which unit got
+treated*. Its validity rests on two assumptions.
+
+* **Uniform assignment.** The treated index :math:`I` is uniformly distributed
+  over :math:`\{1, \dots, N\}` -- a priori, any unit was equally likely to be
+  the treated one. Under the null this makes the :math:`N` units *exchangeable*,
+  which is exactly what licenses the tournament. This holds **by construction**
+  in (cluster-)randomized experiments. In observational work it is a modelling
+  choice: it is most defensible when the treated unit is comparable to the
+  donors (often after covariate adjustment), and in quasi-experimental settings
+  -- e.g. natural disasters, where which locality is hit is plausibly close to
+  random over a small comparable region.
+* **Sharp null.** The hypothesis tested is Fisher's sharp null
+  :math:`H_0 : Y_{i,t}(1) = Y_{i,t}(0)` for all :math:`t > T_0` (no effect for
+  *any* unit in any post period), or a known-:math:`\tau` additive version
+  :math:`Y_{i,t}(1) = Y_{i,t}(0) + \tau_{i,t}`. Sharpness is what lets the test
+  impute every unit's counterfactual under the null and so run the tournament.
+
+Under these, the test has a **finite-sample Type-I error guarantee** (no
+large-:math:`N`, no long-:math:`T`, no asymptotics):
+
+.. math::
+
+   \mathbb{P}_{H_0}\!\left(p_{\mathrm{naive\text{-}LTO}} \le \alpha\right)
+     \le \frac{\lfloor N f(N, \alpha)\rfloor}{N},
+
+reported as ``type_i_bound``. This bound is **never worse** than the
+approximate-placebo bound :math:`(\lfloor N\alpha\rfloor + 1)/N`, and for the
+levels and sizes typical of SCM applications (:math:`\alpha \in \{0.01, 0.02\}`
+for :math:`6 < N < 200`; :math:`\alpha = 0.05` for most :math:`N`) it is
+*identical* to it -- so switching to LTO costs nothing in worst-case Type-I
+error. Crucially, the placebo bound is *tight* whereas the LTO bound generally
+is **not**: in practice the LTO test's actual Type-I error is often strictly
+below :math:`\alpha`, i.e. it can be **unconditionally valid** even when
+:math:`\alpha < 1/N`.
+
+Two further theoretical properties matter in practice:
+
+* **Consistency where the placebo test fails (Theorem 6.1).** When
+  :math:`\alpha < 1/N`, the LTO test is *uniformly consistent* -- its power goes
+  to 1 as the effect size grows. The approximate placebo test is **not**: in
+  this regime it can have essentially zero power no matter how large the true
+  effect (zero if :math:`N` is even, :math:`\le 1/N` if odd). This is the single
+  strongest reason to prefer LTO in small donor pools.
+* **Confidence regions.** Inverting the additive-:math:`\tau` test
+  (:math:`\{\theta : p_{\mathrm{naive\text{-}LTO}}(\theta) > \alpha\}`) yields a
+  region for the post-period effect path with guaranteed coverage
+  :math:`\ge 1 - \lfloor N f(N,\alpha)\rfloor / N`. (mlsynth currently reports
+  the p-values; the inversion is a straightforward extension.)
+
+Methodologically, the LTO test is a *new* kind of randomization inference: it
+generalises the Jackknife+ of Barber et al. (2021) (which leaves **one** point
+out and so still has :math:`1/N` granularity) and is distinct from classical
+permutation/rank inference. It also -- unlike most asymptotic SCM inference --
+does **not** simplify the synthetic-control construction: the full
+weight/predictor machinery (any ``VanillaSC`` backend) is re-run inside every
+match, so the test reflects the estimator you actually use.
+
+When the LTO assumptions are violated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The sharp null is testable and usually uncontroversial; the **uniform
+assignment** assumption is where care is needed.
+
+* **Selection on outcomes / non-comparable treated unit.** If the treated unit
+  was chosen *because* of its (anticipated) trajectory, or is structurally
+  unlike every donor, exchangeability fails and the Type-I guarantee no longer
+  holds. The usual remedy is to restore comparability through the
+  specification -- match on covariates, restrict the donor pool to genuinely
+  similar units -- before trusting any placebo-type p-value.
+* **Known non-uniform assignment.** When the treatment probabilities
+  :math:`\pi_k` are known or estimable (e.g. seismic risk for an
+  earthquake study), Lei-Sudijono give a *weighted* LTO p-value
+  :math:`p_{\text{w-LTO}}(\pi)` that reweights each match by
+  :math:`\pi_j\pi_k / ((1-\pi_I)^2 - \sum_{l\neq I}\pi_l^2)` and reduces to the
+  naive value when :math:`\pi_i \equiv 1/N`.
+* **Sensitivity analysis (the** :math:`\Gamma` **).** Rather than commit to
+  uniformity, one can ask *how far* from it the design could be before the
+  conclusion flips. Following Rosenbaum, constrain
+  :math:`\pi_i \in [\tfrac{1}{\Gamma N}, \tfrac{\Gamma}{N}]` and find the
+  smallest :math:`\Gamma \ge 1` at which the worst-case weighted p-value crosses
+  :math:`\alpha`. In the paper, Prop 99 tolerates :math:`\Gamma \approx 1.4`
+  (robust) while German reunification flips at only :math:`\Gamma \approx 1.1`
+  (fragile). The weighted p-value and :math:`\Gamma` search require solving a
+  non-convex (NP-hard) quadratic program and are **not yet implemented** in
+  ``VanillaSC``; the uniform-assignment naive/powered p-values are.
+
+Choosing among placebo, LTO, and SCPI
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Prefer **LTO over the ordinary placebo** whenever the donor pool is small --
+  especially in the :math:`\alpha < 1/N` regime (e.g. :math:`N \le 20` at
+  :math:`\alpha = 0.05`), where the placebo test cannot reject and LTO can. The
+  ``powered`` variant almost Pareto-improves the placebo: same worst-case
+  Type-I error, more power. Both share the *same assumptions*, so LTO is close
+  to a free upgrade.
+* Keep the **ordinary placebo** when you want the most familiar, widely-reported
+  statistic, when :math:`N` is large enough that granularity is a non-issue, or
+  as a cheap (:math:`O(N)` vs :math:`O(N^2)`) cross-check.
+* Reach for **SCPI** when the question is *how big* the effect is (a prediction
+  interval / confidence statement on the magnitude), not just *whether* there is
+  one. SCPI rests on different (model-based, conditional) foundations than the
+  design-based placebo/LTO tests, so the two are complementary: LTO answers
+  "is the treated unit special?" by randomization, SCPI quantifies the effect's
+  uncertainty.
 
 When to use it
 --------------
@@ -416,6 +578,10 @@ Engine
    :members:
    :undoc-members:
 
+.. automodule:: mlsynth.utils.vanillasc_helpers.lto
+   :members:
+   :undoc-members:
+
 SCPI prediction intervals
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -535,6 +701,110 @@ The per-period sequence is always in ``res.inference.details``; switching
 backend changes :math:`\widehat w` (and hence the centre and width of the band)
 but not the inference code path.
 
+Leave-two-out refined placebo test
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``inference="lto"`` for the Lei-Sudijono (2025) refined placebo test. It is
+a drop-in replacement for the ordinary placebo with a much finer p-value grid
+and valid rejections when :math:`\alpha < 1/N`.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import VanillaSC
+
+   d = pd.read_csv("basedata/augmented_cali_long.csv")
+   d["treated"] = ((d.state == "California") & (d.year >= 1989)).astype(int)
+
+   res = VanillaSC({
+       "df": d[["state", "year", "cigsale", "treated"]],
+       "outcome": "cigsale", "treat": "treated", "unitid": "state", "time": "year",
+       "backend": "outcome-only", "inference": "lto", "alpha": 0.05,
+       "display_graphs": False,
+   }).fit()
+
+   det = res.inference.details
+   print(res.inference.p_value)        # naive LTO p-value (703 pairs for N = 39)
+   print(det["p_powered"], det["powered_offset_c"])   # powered p-value at alpha
+   print(det["type_i_bound"], det["reject_at_alpha"])
+
+Empirical relations across the three studies
+""""""""""""""""""""""""""""""""""""""""""""
+
+Lei-Sudijono's Table 1 (their covariate-matched Synth specification,
+:math:`\alpha = 0.05`) lays out how the methods relate on the canonical
+datasets:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 14 14 14
+
+   * - quantity
+     - Prop 99
+     - Basque
+     - German
+   * - :math:`N`
+     - 39
+     - 17
+     - 17
+   * - :math:`p_{\text{app-placebo}}`
+     - 0.00
+     - 0.35
+     - 0.00
+   * - :math:`p_{\text{exact-placebo}}`
+     - 0.026
+     - 0.41
+     - 0.059
+   * - :math:`p_{\mathrm{naive\text{-}LTO}}`
+     - 0.024
+     - 0.67
+     - 0.042
+   * - :math:`p_{\mathrm{powered\text{-}LTO}}(\alpha)`
+     - 0.022
+     - 0.66
+     - 0.03
+   * - :math:`\Gamma_{\mathrm{LTO}}`
+     - 1.4
+     - NA
+     - 1.1
+
+Three relations are worth internalising:
+
+* **LTO can change the conclusion (German).** The exact placebo p-value of
+  0.059 does *not* reject at 0.05, but the naive LTO (0.042) and powered LTO
+  (0.03) both do. With only 16 donors the placebo grid is too coarse to resolve
+  a borderline effect; LTO's finer grid does. The small :math:`\Gamma = 1.1`,
+  though, warns that this significance is fragile to mild departures from
+  uniform assignment.
+* **LTO is not mechanically smaller (Basque).** Here LTO (0.67) is *larger*
+  than the placebo (0.41); nothing is significant by any method. The refinement
+  changes granularity, not direction -- it does not manufacture significance.
+  (Abadie-Gardeazabal's original Basque analysis dropped poorly-fitting
+  regions; LTO makes no such adjustment, which partly explains the larger
+  value.)
+* **LTO ≈ placebo when both already reject (Prop 99).** The two p-values
+  (0.024 vs 0.026) nearly coincide; the powered version (0.022) buys a little
+  extra margin, and :math:`\Gamma = 1.4` says the conclusion survives moderate
+  confounding.
+
+A note on specification and validation. The LTO p-value, like the ordinary
+placebo, is only as good as the synthetic-control fit it is built on. In
+mlsynth the ``f(N, \alpha)`` and powered-offset ``c(N, \alpha)`` functions
+reproduce the paper's reported values exactly (``c(39, 0.05) = 0.002``,
+``c(17, 0.05) = 0.0125``; see ``test_lto_helpers_match_paper``), and the
+covariate-matched ordinary placebo reproduces California's exact-placebo
+p-value (rank 1 of 39, :math:`p = 0.0256` vs the paper's 0.026). The *p-value
+itself* tracks the chosen specification: with the paper's covariate-matched
+Synth, California is the dominant unit and :math:`p_{\mathrm{naive\text{-}LTO}}
+\approx 0.024`, whereas the ``outcome-only`` fit -- where California is only
+rank 3 of 39 -- gives :math:`\approx 0.10`. Both are internally consistent with
+their respective ordinary placebo p-values; the covariate spec is what
+concentrates the effect on the treated unit, so choose the specification before
+reading the test. Because the cost is :math:`O(J^2)` engine fits, run the
+covariate-matched (``mscmt``) version on the smaller studies or cap pairs with
+``lto_max_pairs``; for the 38-donor Prop 99 panel the ``outcome-only`` LTO runs
+in well under two minutes.
+
 References
 ----------
 
@@ -555,6 +825,9 @@ for Disaggregated Data." *Journal of the American Statistical Association*
 
 Becker, M., & Kloessner, S. (2018). "Fast and Reliable Computation of
 Generalized Synthetic Controls." *Econometrics and Statistics* 5:1-19.
+
+Lei, L., & Sudijono, T. (2025). "Inference for Synthetic Controls via
+Refined Placebo Tests." *arXiv:2401.07152*.
 
 Malo, P., Eskelinen, J., Zhou, X., & Kuosmanen, T. (2024). "Computing
 Synthetic Controls Using Bilevel Optimization." *Computational Economics*

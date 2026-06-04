@@ -1785,13 +1785,16 @@ class VanillaSCConfig(BaseEstimatorConfig):
         RNG seed for the ``mscmt`` differential-evolution search.
     mscmt_maxiter, mscmt_popsize : int
         Differential-evolution budget for the ``mscmt`` backend.
-    inference : bool or {"placebo", "scpi"}
+    inference : bool or {"placebo", "scpi", "lto"}
         Inference method. ``True``/``"placebo"`` (default) runs Abadie in-space
         placebo inference (refit treating each donor as pseudo-treated; the
         p-value ranks the treated unit's post/pre RMSPE ratio). ``"scpi"`` runs
         Cattaneo-Feng-Titiunik (2021) prediction intervals (in-sample
         simulation + out-of-sample location-scale; exact for the simplex /
-        outcome-only synthetic control). ``False`` skips inference.
+        outcome-only synthetic control). ``"lto"`` runs the Lei-Sudijono (2025)
+        leave-two-out refined placebo test (O(J^2) reference comparisons; finer
+        granularity and non-zero size when ``alpha < 1/N``). ``False`` skips
+        inference.
     alpha : float
         Level. For placebo, the confidence statement; for SCPI, used as both
         the in-sample (alpha1) and out-of-sample (alpha2) levels, giving a
@@ -1800,6 +1803,11 @@ class VanillaSCConfig(BaseEstimatorConfig):
         Number of Gaussian draws for the SCPI in-sample simulation.
     scpi_e_method : {"gaussian", "empirical"}
         Out-of-sample location-scale tabulation for SCPI.
+    lto_max_pairs : int, optional
+        Cap on the number of donor pairs evaluated by the ``"lto"`` test
+        (deterministic subsample via ``seed``). ``None`` (default) uses all
+        ``J*(J-1)/2`` pairs; set a cap to keep the O(J^2) cost tractable with
+        slow backends.
     """
 
     backend: Literal["auto", "outcome-only", "malo", "mscmt", "penalized"] = Field(
@@ -1828,7 +1836,8 @@ class VanillaSCConfig(BaseEstimatorConfig):
     inference: Union[bool, str] = Field(
         default=True,
         description="Inference: True/'placebo' (in-space placebo), 'scpi' "
-                    "(Cattaneo-Feng-Titiunik prediction intervals), or False.",
+                    "(Cattaneo-Feng-Titiunik prediction intervals), 'lto' "
+                    "(Lei-Sudijono leave-two-out refined placebo), or False.",
     )
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
@@ -1841,6 +1850,10 @@ class VanillaSCConfig(BaseEstimatorConfig):
     scpi_e_method: Literal["gaussian", "empirical"] = Field(
         default="gaussian",
         description="SCPI out-of-sample location-scale tabulation.",
+    )
+    lto_max_pairs: Optional[int] = Field(
+        default=None, ge=1,
+        description="Cap on donor pairs for the 'lto' test (None -> all pairs).",
     )
 
 
