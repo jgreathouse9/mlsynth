@@ -20,7 +20,8 @@ from mlsynth.utils.fscm_helpers.bilevel.mscmt import _inner_weights
 
 def _problem(seed: int = 0, K: int = 6, J: int = 8, T: int = 14) -> BilevelProblem:
     """A bilevel problem whose donors are mildly collinear (so ``V`` is
-    non-identified) and whose inner optimum is sparse."""
+    non-identified) and whose inner optimum is sparse.
+    """
     rng = np.random.default_rng(seed)
     base = rng.normal(size=(K, 3))
     X0 = base @ rng.normal(size=(3, J)) + 0.1 * rng.normal(size=(K, J))  # near rank-3
@@ -32,7 +33,8 @@ def _problem(seed: int = 0, K: int = 6, J: int = 8, T: int = 14) -> BilevelProbl
 
 def _W_for(prob: BilevelProblem, seed: int = 0) -> np.ndarray:
     """A donor weight vector that is, by construction, the inner optimum for a
-    known ``V`` -- hence in the KKT polytope of some predictor weights."""
+    known ``V`` -- hence in the KKT polytope of some predictor weights.
+    """
     rng = np.random.default_rng(seed)
     V = rng.uniform(0.1, 1.0, size=prob.n_predictors)
     return _inner_weights(prob, V), V

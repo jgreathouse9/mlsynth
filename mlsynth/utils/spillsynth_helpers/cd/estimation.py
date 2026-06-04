@@ -41,7 +41,8 @@ _COND_WARN = 1e8
 
 def _invert_AMA(AMA: np.ndarray, *, label: str, warn: bool) -> Tuple[np.ndarray, float]:
     """Invert ``A' M A`` with a clear error on singularity and an optional
-    ill-conditioning warning. Returns ``(inverse, condition_number)``."""
+    ill-conditioning warning. Returns ``(inverse, condition_number)``.
+    """
     cond = float(np.linalg.cond(AMA))
     try:
         inv = np.linalg.inv(AMA)

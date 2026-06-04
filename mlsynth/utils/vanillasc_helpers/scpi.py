@@ -19,7 +19,7 @@ The counterfactual prediction band is assembled period-by-period as
 with the treatment-effect interval ``[Y_obs - cf_upper, Y_obs - cf_lower]``.
 
 In-sample component (``w_lb``/``w_ub``)
---------------------------------------
+---------------------------------------
 With ``Z = B`` (donor pre-outcomes), ``Q = Z'Z / T0`` and pre-period
 residuals ``u = A - B w_hat``, draw ``G* ~ N(0, Sigma)`` with
 ``Sigma = Z' diag(omega) Z / T0**2`` and ``omega_t = (T0/(T0-df)) (u_t -

@@ -126,7 +126,8 @@ def min_loss_w_v(
 
 def _kkt_band(prob: BilevelProblem, W: np.ndarray):
     """KKT polytope as ``A_ub v <= b_ub`` (stationarity band for active donors,
-    non-negativity band for inactive ones). Returns ``(M, A_ub, b_ub)``."""
+    non-negativity band for inactive ones). Returns ``(M, A_ub, b_ub)``.
+    """
     W = np.asarray(W, dtype=float).ravel()
     M = kkt_matrix(prob, W)
     active = W > 0
