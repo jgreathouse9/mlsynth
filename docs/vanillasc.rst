@@ -123,33 +123,54 @@ Two inference modes are available via ``inference=``:
        \widehat\tau_T - \tau_T = e_T - \mathbf{p}_T'(\widehat\beta - \beta_0),
 
     an out-of-sample shock :math:`e_T` plus an in-sample weight-estimation
-    error. The :math:`(1-\alpha_1-\alpha_2)` interval is
+    error. The counterfactual prediction band is assembled period-by-period as
+    :math:`[\,Y_{\text{fit}} + w_L + e_L,\; Y_{\text{fit}} + w_U + e_U\,]`,
+    and the treatment-effect interval is
+    :math:`[\,Y_{\text{obs}} - \text{cf}_U,\; Y_{\text{obs}} - \text{cf}_L\,]`.
 
-    .. math::
+    * **In-sample** (:math:`w_L`/:math:`w_U`): a simulation-based bound. With
+      :math:`Q = Z'Z/T_0` (donor pre-outcomes), :math:`\widehat\Sigma = Z'
+      \mathrm{diag}(\omega)\,Z / T_0^2` where :math:`\omega_t =
+      \tfrac{T_0}{T_0-\mathrm{df}}(u_t - E[u_t])^2` (HC1), and pre-period
+      residuals :math:`u = A - B\widehat w`, draw :math:`G^\star \sim
+      N(0,\widehat\Sigma)`. For each draw and predictor :math:`\mathbf{p}_T`,
+      solve over the *localised* simplex set
 
-       \bigl[\, \widehat\tau_T + M_{1,L} - M_{2,U},\;
-                \widehat\tau_T + M_{1,U} - M_{2,L} \,\bigr].
+      .. math::
 
-    * **In-sample** (:math:`M_1`): a simulation-based bound. With
-      :math:`Q = Z'Z` (donor pre-outcomes), :math:`\widehat\Sigma = Z'
-      \mathrm{diag}(\widehat{\mathrm{Var}}[u])\,Z` and pre-period residuals
-      :math:`u`, draw :math:`G^\star \sim N(0, \widehat\Sigma)` and, for each
-      draw, optimise :math:`\mathbf{p}_T'\delta` over the *localised*
-      constraint set subject to :math:`\delta'Q\delta - 2G^{\star\prime}\delta
-      \le 0`. The bounds are quantiles of the resulting infima/suprema. For the
-      simplex the localised set is the exact tangent cone at
-      :math:`\widehat w` (zero-weight donors may only increase).
-    * **Out-of-sample** (:math:`M_2`): a location-scale model,
-      :math:`e_T = E[e] + \sqrt{\mathrm{Var}[e]}\,\varepsilon`, with
-      Gaussian or empirical :math:`\varepsilon` quantiles estimated from the
-      pre-period residuals.
+         \min/\max\ \mathbf{p}_T'x \quad\text{s.t.}\quad
+         (x-\widehat w)'Q(x-\widehat w) - 2G^{\star\prime}(x-\widehat w) \le 0,\;
+         \textstyle\sum x = 1,\; x \ge \ell,
+
+      with :math:`\ell_j = \widehat w_j` if :math:`\widehat w_j < \rho` else
+      :math:`0`. The regularisation parameter :math:`\rho` is data-driven and
+      capped at :math:`\rho_{\max} = 0.2`; :math:`Q` is reduced via a
+      thresholded eigen-square-root so collinear (near-null) donor directions
+      are left unconstrained. :math:`w_L`/:math:`w_U` are the
+      :math:`\alpha_1/2` / :math:`1-\alpha_1/2` quantiles of
+      :math:`\mathbf{p}_T'(\widehat w - x)` across draws.
+    * **Out-of-sample** (:math:`e_L`/:math:`e_U`): a location-scale model,
+      :math:`e_T = E[e] + \sqrt{\mathrm{Var}[e]}\,\varepsilon`. The conditional
+      mean and a log-variance scale (capped by the residual IQR, Gaussian
+      :math:`\varepsilon`) are estimated by regressing :math:`u` on the
+      active-donor design; ``"ls"`` and ``"empirical"`` use standardized /
+      raw residual quantiles.
 
     ``VanillaSC`` returns the average-effect (ATT) interval in
     ``res.inference.ci_lower``/``ci_upper`` and the full per-period sequence
     (point effects, prediction intervals, counterfactual bands, and the
-    :math:`M_1`/:math:`M_2` components) in ``res.inference.details``. This
+    in-/out-of-sample components) in ``res.inference.details``. This
     implements the canonical simplex / outcome-only case; for covariate
     backends it uses the same outcome design and is approximate.
+
+    .. note::
+
+       This is a self-contained, **MIT-licensed** re-derivation of the
+       Cattaneo-Feng-Titiunik algorithm -- it does **not** import the GPL
+       reference package ``scpi``. It is validated to reproduce ``scpi``'s
+       ``CI_all_gaussian`` on the Proposition 99 panel to within Monte-Carlo
+       error (see ``test_scpi_matches_reference_package``, which is skipped
+       unless ``scpi_pkg`` happens to be installed).
 
 When to use it
 --------------

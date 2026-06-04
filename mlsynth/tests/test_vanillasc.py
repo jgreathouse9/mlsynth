@@ -1,5 +1,7 @@
 """Tests for the VanillaSC estimator and its bilevel engine."""
 
+import importlib.util
+import os
 import warnings
 
 import numpy as np
@@ -166,8 +168,62 @@ def test_scpi_intervals_module():
     assert np.all(r.lower <= r.tau + 1e-6) and np.all(r.tau - 1e-6 <= r.upper)
     assert np.all(np.isfinite(r.lower)) and np.all(np.isfinite(r.upper))
     assert np.all(r.M1_upper >= r.M1_lower - 1e-9)
-    assert r.M2_upper > r.M2_lower
+    assert np.all(np.asarray(r.M2_upper) >= np.asarray(r.M2_lower) - 1e-9)
+    assert np.asarray(r.M2_lower).shape == (T - T0,)
+    assert r.metadata["rho"] <= 0.2 + 1e-12        # scpi rho_max cap
     assert "att" in r.metadata and r.metadata["att_lower"] <= r.metadata["att_upper"]
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("scpi_pkg") is None,
+    reason="reference scpi_pkg not installed",
+)
+def test_scpi_matches_reference_package():
+    """Our from-scratch SCPI reproduces ``scpi_pkg``'s CI to MC error.
+
+    Validates the (MIT) re-derivation against the (GPL) reference on the
+    Proposition 99 California panel without importing it at runtime.
+    """
+    import cvxpy as cp
+    from mlsynth.utils.vanillasc_helpers.scpi import scpi_intervals
+    base = os.path.join(os.path.dirname(__file__), "..", "..", "basedata")
+    csv = os.path.join(base, "augmented_cali_long.csv")
+    if not os.path.exists(csv):
+        pytest.skip("California base data not available")
+    d = pd.read_csv(csv)[["state", "year", "cigsale"]]
+    treated = "California"
+    donors = [s for s in sorted(d.state.unique()) if s != treated]
+    pre = np.arange(1970, 1989); post = np.arange(1989, 2001)
+    cig = d.pivot_table(index="year", columns="state", values="cigsale")
+    yrs = np.concatenate([pre, post])
+    y = cig.loc[yrs, treated].to_numpy()
+    Y0 = cig.loc[yrs, donors].to_numpy()
+    T0 = len(pre)
+    w = cp.Variable(len(donors))
+    cp.Problem(cp.Minimize(cp.sum_squares(y[:T0] - Y0[:T0] @ w)),
+               [w >= 0, cp.sum(w) == 1]).solve(solver=cp.CLARABEL)
+    W = np.clip(np.asarray(w.value).ravel(), 0, None); W = W / W.sum()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ours = scpi_intervals(y, Y0, T0, W, sims=600, u_alpha=0.05,
+                              e_alpha=0.05, e_method="gaussian", seed=0)
+    from scpi_pkg.scdata import scdata
+    from scpi_pkg.scpi import scpi
+    prep = scdata(df=d[d.state.isin([treated, *donors])].copy(), id_var="state",
+                  time_var="year", outcome_var="cigsale", period_pre=pre,
+                  period_post=post, unit_tr=treated, unit_co=donors,
+                  features=["cigsale"], constant=False, cointegrated_data=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ref = scpi(prep, sims=600, w_constr={"name": "simplex"}, u_missp=True,
+                   u_order=1, u_lags=0, e_method="gaussian", e_order=1, e_lags=0,
+                   u_alpha=0.05, e_alpha=0.05, cores=1, verbose=False)
+    ci = np.asarray(ref.CI_all_gaussian, dtype=float)
+    obs = y[T0:]
+    ref_lo = obs - ci[:, 1]; ref_hi = obs - ci[:, 0]   # effect PI from cf band
+    # widths span ~25-45 units; MC error across independent RNG streams is ~1-2
+    assert np.max(np.abs(ours.lower - ref_lo)) < 2.5
+    assert np.max(np.abs(ours.upper - ref_hi)) < 2.5
 
 
 def test_vanillasc_scpi_inference_end_to_end():
