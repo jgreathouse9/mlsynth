@@ -172,6 +172,96 @@ Two inference modes are available via ``inference=``:
        error (see ``test_scpi_matches_reference_package``, which is skipped
        unless ``scpi_pkg`` happens to be installed).
 
+How the SCPI machinery works (one fit)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``scpi_intervals(y, Y0, pre, W, ...)`` takes the fitted donor weights
+:math:`\widehat w` (from *any* backend), the donor outcome matrix, and the
+number of pre-treatment periods, and runs the following steps. Let
+:math:`A = y_{1:T_0}` be the treated pre-outcomes, :math:`B = Y_{0,\,1:T_0}`
+the donor pre-outcomes, :math:`P` the donor post-outcomes, and
+:math:`u = A - B\widehat w` the pre-period residuals.
+
+1. **Degrees of freedom.** For the simplex, :math:`\mathrm{df} =
+   (\#\{\widehat w_j \neq 0\}) - 1`, giving the HC1 correction
+   :math:`\mathrm{vc} = T_0/(T_0-\mathrm{df})`.
+
+2. **Regularisation parameter** :math:`\rho`. The data-driven ``type-1`` value
+   :math:`\rho = \tfrac{\sigma_u}{\min_j \mathrm{sd}(B_j)}
+   \sqrt{\log(J)\, d_0 \log T_0}/\sqrt{T_0}`, capped at
+   :math:`\rho_{\max}=0.2` (with a fallback bump if it comes out below
+   :math:`0.001`). :math:`\rho` defines the "active" donor set
+   :math:`\{\,j : \widehat w_j > \rho\,\}`.
+
+3. **Conditional mean & variance.** Regress :math:`u` on the active-donor
+   design :math:`[\,B_{\cdot,\text{active}},\,\mathbf{1}\,]` to get
+   :math:`E[u]` (the ``u_missp`` step), then
+   :math:`\omega_t = \mathrm{vc}\,(u_t - E[u_t])^2`. Form
+   :math:`Q = B'B/T_0` and :math:`\widehat\Sigma = B'\mathrm{diag}(\omega)B/T_0^2`,
+   and its matrix square root :math:`\Sigma^{1/2}`.
+
+4. **Localised feasible set.** Lower bounds
+   :math:`\ell_j = \widehat w_j` if :math:`\widehat w_j < \rho` else :math:`0`
+   (near-binding donors are pinned at their tiny weight; active donors may move
+   down to zero). :math:`Q` is reduced by a thresholded eigen-square-root so the
+   near-null (collinear) directions are left unconstrained.
+
+5. **In-sample simulation.** For each of ``scpi_sims`` draws
+   :math:`G^\star = \Sigma^{1/2}\,z`, :math:`z\sim N(0,I)`, and each post
+   predictor :math:`\mathbf{p}_T`, solve the small conic program in
+   :math:`x` (donor weights) twice -- minimise and maximise
+   :math:`\mathbf{p}_T'x` subject to
+   :math:`(x-\widehat w)'Q(x-\widehat w) - 2G^{\star\prime}(x-\widehat w)\le 0`,
+   :math:`\sum x = 1`, :math:`x\ge\ell`. Record :math:`\mathbf{p}_T'(\widehat w
+   - x)` for each branch; :math:`w_L`/:math:`w_U` are the
+   :math:`\alpha_1/2` / :math:`1-\alpha_1/2` quantiles across draws.
+
+6. **Out-of-sample band.** From the location-scale model on :math:`u` get
+   :math:`e_L`/:math:`e_U` per post period (Section above).
+
+7. **Assemble.** Counterfactual band
+   :math:`[\,Y_{\text{fit}} + w_L + e_L,\; Y_{\text{fit}} + w_U + e_U\,]`,
+   effect interval :math:`[\,Y_{\text{obs}} - \text{cf}_U,\; Y_{\text{obs}} -
+   \text{cf}_L\,]`, and an ATT interval from an appended post-period-average
+   predictor row. An extra averaged row is carried through steps 5-6 so the ATT
+   interval uses the same simulation, not a naive average of the per-period
+   bounds.
+
+The result is an ``InferenceResults`` with ``ci_lower``/``ci_upper`` (the ATT
+interval), ``confidence_level`` :math:`= 1-2\alpha`, and a ``details`` dict
+holding the per-period ``periods``, ``tau``, ``pi_lower``/``pi_upper``,
+``counterfactual_lower``/``upper``, the ``in_sample_*`` (:math:`w_L,w_U`) and
+``out_of_sample_*`` (:math:`e_L,e_U`) components, ``sims`` and ``e_method``.
+
+Composing SCPI with the backends
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``backend`` (how :math:`W` is estimated) and ``inference`` (how uncertainty is
+quantified) are **orthogonal** -- any of the four backends pairs with any of
+the three inference modes:
+
+.. code-block:: python
+
+   VanillaSC({..., "backend": "mscmt", "inference": "scpi"}).fit()
+   VanillaSC({..., "backend": "malo",  "inference": "scpi"}).fit()
+
+The pipeline fits the weights with the chosen backend and hands the resulting
+``res.W`` to ``scpi_intervals``. Two things to keep in mind:
+
+* The in-sample simulation rebuilds :math:`Q` and :math:`\widehat\Sigma` from
+  the donor **pre-outcomes** :math:`B`, treating :math:`\widehat w` as simplex
+  weights. With **outcome-only** this is the exact Cattaneo-Feng-Titiunik
+  interval (the case validated against ``scpi``). With **mscmt**/**malo** the
+  weights were also shaped by the covariate predictors, so SCPI uses the
+  outcome design as a stand-in -- it is **approximate** for covariate backends.
+  The point effects, the ATT, and the out-of-sample band are unaffected; only
+  the in-sample :math:`w_L`/:math:`w_U` term carries the approximation.
+* Read the SCPI interval **alongside** :math:`\text{v\_agreement}`. When the
+  predictor weights are non-identified (``v_agreement`` near 1, e.g. Prop 99
+  with lagged outcomes) the *point* counterfactual is still pinned, but the
+  covariate-matched solution is fragile; the placebo test, which is exact for
+  any backend, is the conservative cross-check.
+
 When to use it
 --------------
 
@@ -330,9 +420,9 @@ SCPI prediction intervals
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To request Cattaneo-Feng-Titiunik prediction intervals instead of the placebo
-test, set ``inference="scpi"``. On Prop 99 this yields an ATT around
-:math:`-19` with a 90% prediction interval that excludes zero, and per-period
-intervals that widen as the post-period extends.
+test, set ``inference="scpi"``. On Prop 99 (outcome-only) this yields an ATT
+around :math:`-19` with a 90% prediction interval that excludes zero, and
+per-period intervals that widen as the post-period extends.
 
 .. code-block:: python
 
@@ -353,6 +443,97 @@ intervals that widen as the post-period extends.
    det = res.inference.details                              # per-period sequence
    for yr, lo, up in zip(det["periods"], det["pi_lower"], det["pi_upper"]):
        print(yr, round(lo, 1), round(up, 1))
+
+SCPI with the covariate backends (MSCMT and Malo)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The same ``inference="scpi"`` switch composes with the covariate-matching
+backends. Running each of the three canonical studies under both ``mscmt`` and
+``malo`` (``alpha=0.05`` -> 90% intervals, ``scpi_sims=200``, ``seed=1``) gives
+the table below. The ATT prediction interval **excludes zero in every case**,
+and the two backends agree to within Monte-Carlo / weight-choice differences --
+a useful robustness cross-check. Note the ``v_agreement`` column: for Prop 99
+and Germany under ``mscmt`` the predictor weights are non-identified
+(:math:`\approx 1`), so those intervals should be read with the caveat above.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 12 22 12 16
+
+   * - Study (backend)
+     - ATT
+     - ATT 90% PI
+     - v_agreement
+     - top donors
+   * - California (mscmt)
+     - :math:`-18.98`
+     - :math:`[-27.31,\,-5.28]`
+     - :math:`\approx 1` (fragile)
+     - Utah .34, Nevada .24, Montana .20
+   * - California (malo)
+     - :math:`-19.60`
+     - :math:`[-31.32,\,-3.27]`
+     - n/a
+     - Utah .38, Montana .25, Nevada .21
+   * - Germany (mscmt)
+     - :math:`-1396`
+     - :math:`[-2368,\,-949]`
+     - :math:`\approx 1` (fragile)
+     - Austria .40, Switz .16, USA .15
+   * - Germany (malo)
+     - :math:`-1306`
+     - :math:`[-2025,\,-521]`
+     - n/a
+     - USA .35, Austria .33, Switz .11
+   * - Basque (mscmt)
+     - :math:`-0.70`
+     - :math:`[-1.13,\,-0.32]`
+     - :math:`0.63`
+     - Cataluna .84, Madrid .16
+   * - Basque (malo)
+     - :math:`-0.63`
+     - :math:`[-1.14,\,-0.18]`
+     - :math:`\approx 0` (clean)
+     - Cataluna .47, Madrid .33
+
+The Basque case is the cleanest: with the special-predictor covariates,
+``malo`` returns a well-identified :math:`V` (``v_agreement`` :math:`\approx 0`)
+and ``mscmt`` recovers the published Cataluna/Madrid split, both with tight
+intervals that exclude zero. The early German post-years (1990-1992) are *not*
+significant under either backend -- the interval includes zero -- and only turn
+decisively negative later, exactly as the reunification narrative implies.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import VanillaSC
+
+   # --- California / Prop 99 (ADH 2010) ---
+   d = pd.read_csv("basedata/augmented_cali_long.csv")
+   for yr, col in [(1975, "cig_1975"), (1980, "cig_1980"), (1988, "cig_1988")]:
+       d[col] = d.state.map(d[d.year == yr].set_index("state").cigsale)
+   d["treated"] = ((d.state == "California") & (d.year >= 1989)).astype(int)
+   cov = ["p_cig", "pct15-24", "loginc", "pc_beer", "cig_1975", "cig_1980", "cig_1988"]
+   win = {"p_cig": (1980, 1988), "pct15-24": (1980, 1988),
+          "loginc": (1980, 1988), "pc_beer": (1984, 1988)}
+   common = dict(df=d, outcome="cigsale", treat="treated", unitid="state", time="year",
+                 covariates=cov, covariate_windows=win, inference="scpi",
+                 alpha=0.05, scpi_sims=200, seed=1, display_graphs=False)
+
+   mscmt = VanillaSC({**common, "backend": "mscmt", "canonical_v": "min.loss.w"}).fit()
+   malo  = VanillaSC({**common, "backend": "malo"}).fit()
+   for name, r in [("mscmt", mscmt), ("malo", malo)]:
+       i = r.inference
+       print(name, round(r.effects.att, 2), (round(i.ci_lower, 2), round(i.ci_upper, 2)),
+             "v_agreement=", r.weights.summary_stats.get("v_agreement"))
+
+   # --- German reunification (ADH 2015): outcome "gdp", same pattern ---
+   # --- Basque (AG 2003): outcome "gdpcap", special-predictor covariates ---
+   # (swap df/outcome/covariates; everything else is identical.)
+
+The per-period sequence is always in ``res.inference.details``; switching
+backend changes :math:`\widehat w` (and hence the centre and width of the band)
+but not the inference code path.
 
 References
 ----------
