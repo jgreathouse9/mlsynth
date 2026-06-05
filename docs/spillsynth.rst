@@ -352,6 +352,25 @@ Helper Modules
    :members:
    :undoc-members:
 
+SAR spillover subpackage (``method='sar'``) -- long-panel ingestion, the
+two-step horseshoe/SAR sampler, and the identification plug-ins.
+
+.. automodule:: mlsynth.utils.spillsynth_helpers.sar.setup
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.spillsynth_helpers.sar.sampler
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.spillsynth_helpers.sar.pipeline
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.spillsynth_helpers.sar.structures
+   :members:
+   :undoc-members:
+
 Example
 -------
 
@@ -1679,8 +1698,149 @@ would impose on the counterfactual. The direct effect's 90% interval excludes
 zero; the average spillover's does not (one neighbour, a wide clean pool),
 matching the paper's pattern that direct effects are sharper than spillovers.
 
+Method: ``method='sar'`` -- Sakaguchi & Tagawa (2026)
+-----------------------------------------------------
+
+The **spatial-autoregressive (SAR) Bayesian SCM** relaxes SUTVA from yet
+another angle. Where Cao-Dowd model spillover through a researcher-specified
+``A`` matrix and Grossi partition donors into near/far clusters, the SAR method
+posits a **spatial process on the control outcomes themselves**: a treatment on
+the treated unit propagates to the controls through a spatial-weight matrix, so
+the bias the spillover induces in ordinary SCM is identified and removed, *and*
+the spillover effect landing on each control unit is recovered as a parameter
+of interest.
+
+The model
+~~~~~~~~~
+
+For each period the untreated control outcomes follow a SAR panel,
+
+.. math::
+
+   \mathbf{Y}^c_t = \rho\,\bigl(\mathbf{w}\,Y_{0t} + \mathbf{W}\,\mathbf{Y}^c_t\bigr)
+       + \mathbf{X}_t\boldsymbol{\beta} + \mathbf{u}_t,
+
+with ``rho`` the spatial-autoregressive coefficient, ``w`` the
+treated-to-control spatial weights, ``W`` the control-to-control weights (both
+row-normalised), and ``u_t`` a latent-factor-plus-noise disturbance. Given the
+synthetic weights ``alpha`` (such that the treated unit's untreated outcome is
+``alpha' Y^c``) and ``rho``, the treatment effect on the treated unit and the
+spillover effects on the controls are identified in closed form (paper Theorems
+1-2):
+
+.. math::
+
+   \xi_{0t} = Y_{0t} - \boldsymbol{\alpha}^{\top}
+       \bigl(\mathbf{I} - \rho\,\mathbf{w}\boldsymbol{\alpha}^{\top} - \rho\mathbf{W}\bigr)^{-1}
+       \bigl((\mathbf{I} - \rho\mathbf{W})\mathbf{Y}^c_t - \rho\,\mathbf{w} Y_{0t}\bigr).
+
+When ``rho = 0`` this collapses **exactly** to Abadie's synthetic control, so
+the SAR method nests standard SCM as its no-spillover special case.
+
+Inference (two steps)
+~~~~~~~~~~~~~~~~~~~~~
+
+Estimation is Bayesian and proceeds in two steps (the joint posterior mixes
+poorly because of the ``rho * w alpha'`` interaction, so the authors -- and this
+port -- factor it):
+
+1. **Synthetic weights** ``alpha`` are drawn from a Bayesian **horseshoe**
+   regression of the treated unit's pre-treatment outcomes on the controls'
+   (strong shrinkage selects a sparse, relevant donor set).
+2. **Spatial parameter** ``rho`` is drawn from the SAR likelihood conditional on
+   ``alpha_hat`` by random-walk Metropolis (the ``log|I - rho A|`` Jacobian is
+   evaluated in :math:`O(N)` from the eigenvalues of ``A = W + w alpha'``),
+   alongside the innovation variance, an optional covariate coefficient
+   ``beta``, and an optional AR(1) latent-factor block.
+
+The treatment and spillover effects are then read off the identification
+formulae per posterior draw; the point estimate plugs in the posterior means
+``(alpha_hat, rho_hat)`` and the credible band sweeps ``rho`` with ``alpha``
+fixed at ``alpha_hat`` (the paper's convention). Because the post-treatment
+effects depend only on ``(alpha, rho)``, the factor and covariate blocks enter
+only the pre-treatment ``rho`` estimation.
+
+Spatial weights
+~~~~~~~~~~~~~~~
+
+The method requires a spatial-weight specification, supplied through
+``spatial_W`` (an ``N x N`` control-to-control matrix) and ``spatial_w`` (a
+length-``N`` treated-to-control vector). Both may be **labelled** ``pandas``
+objects (a ``DataFrame`` indexed by control-unit label and a ``Series`` keyed by
+label), which are aligned to the donor order automatically, or bare NumPy arrays
+already in control-label order. Typical choices: geographic contiguity (a 1 if
+two units share a border) for the California tobacco example, or normalised
+bilateral trade volume for the Sudan example. Both are row-normalised
+internally.
+
+When to use it
+~~~~~~~~~~~~~~
+
+Reach for ``method='sar'`` when (i) interference plausibly runs through a
+*known, dense* network (geography, trade, supply chains) rather than a small set
+of named neighbours; (ii) the spillover effects on the untreated units are
+themselves of interest; and (iii) you want Bayesian credible intervals from
+short pre-treatment panels. If instead only a handful of units are exposed and
+you can name them, ``method='cd'`` (free per-unit spillover coefficients) or
+``method='grossi'`` (near/far clusters) are more parsimonious.
+
+Example: California tobacco tax (Proposition 99)
+.................................................
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SPILLSYNTH
+
+   # long panel with columns: state, year, cigsale, retprice, treated
+   # W: contiguity matrix (DataFrame indexed by state); w: 1 for states
+   # bordering California (Series indexed by state).
+   res = SPILLSYNTH({
+       "df": panel, "outcome": "cigsale", "treat": "treated",
+       "unitid": "state", "time": "year",
+       "method": "sar",
+       "spatial_W": W_contiguity, "spatial_w": w_border,
+       "covariates": ["retprice"], "p_factors": 1,
+       "mcmc_iter": 20000, "mcmc_burn": 10000, "step_rho": 0.01,
+       "display_graphs": True,
+   }).fit()
+
+   print(f"rho posterior mean = {res.sar.rho_hat:+.3f} {res.sar.rho_ci}")
+   print(f"ATT (spillover-adjusted) = {res.att:+.2f}  vs SCM {res.att_scm:+.2f}")
+   # largest negative spillover (expect Nevada, California's neighbour)
+   sp = {k: v.mean() for k, v in res.spillover_effects.items()}
+   print(sorted(sp.items(), key=lambda kv: kv[1])[:3])
+
+The Sudan application is identical in shape: ``outcome="gdp_per_capita"``,
+``treat`` switching on in 2011, six World-Bank covariates, and ``spatial_W`` /
+``spatial_w`` built from normalised bilateral-trade volumes.
+
+Verification
+~~~~~~~~~~~~
+
+.. note::
+
+   **Reference cross-checks.** This port reproduces the authors' compiled
+   sampler on the well-identified cases: the simulation cell (``N=36``,
+   ``rho=-0.8``) recovers their bias/RMSE and ~95% coverage, and the **Sudan**
+   application matches the reported ``rho`` to three digits with a roughly
+   :math:`-9.5\%`-per-year GDP effect and the largest spillover on Egypt. The
+   **California** ``rho`` is *weakly identified* in the source data (the authors'
+   own posterior has an effective sample size around 44): the synthetic weights,
+   the spillover ranking (Nevada, then Idaho and Utah), and the larger-than-SCM
+   negative treatment effect reproduce, but the ``rho`` *level* is mode- and
+   chain-sensitive -- the authors' own released C++ returns a different ``rho``
+   at a standard seed. Treat California's ``rho`` magnitude as weakly identified,
+   not as a precise quantity.
+
 References
 ----------
+
+Sakaguchi, S., & Tagawa, H. (2026). "Identification and Bayesian Inference
+for Synthetic Control Methods with Spillover Effects." Working paper
+(arXiv:2408.00291).
+
+
 
 Abadie, A., Diamond, A., & Hainmueller, J. (2010). "Synthetic Control
 Methods for Comparative Case Studies." *Journal of the American

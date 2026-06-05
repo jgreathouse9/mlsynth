@@ -37,6 +37,8 @@ from ..utils.spillsynth_helpers.cd import run_cd
 from ..utils.spillsynth_helpers.grossi import run_grossi
 from ..utils.spillsynth_helpers.iscm import run_iscm
 from ..utils.spillsynth_helpers.plotter import plot_spillsynth
+from ..utils.spillsynth_helpers.sar.pipeline import run_sar
+from ..utils.spillsynth_helpers.sar.setup import prepare_sar_inputs
 from ..utils.spillsynth_helpers.setup import prepare_spillsynth_inputs
 from ..utils.spillsynth_helpers.structures import SpillSynthResults
 
@@ -89,6 +91,14 @@ class SPILLSYNTH:
         self.n_boot: int = getattr(config, "n_boot", 0)
         self.ci_level: float = getattr(config, "ci_level", 0.90)
         self.seed: int = getattr(config, "seed", 0)
+        # SAR (method='sar') fields
+        self.spatial_W = getattr(config, "spatial_W", None)
+        self.spatial_w = getattr(config, "spatial_w", None)
+        self.p_factors: int = getattr(config, "p_factors", 1)
+        self.mcmc_iter: int = getattr(config, "mcmc_iter", 6000)
+        self.mcmc_burn: int = getattr(config, "mcmc_burn", 2000)
+        self.step_rho: float = getattr(config, "step_rho", 0.02)
+        self.mcmc_seed: int = getattr(config, "mcmc_seed", 0)
         self.display_graphs: bool = config.display_graphs
         self.save = config.save
         self.counterfactual_color = config.counterfactual_color
@@ -99,18 +109,30 @@ class SPILLSYNTH:
 
         try:
             balance(self.df, self.unitid, self.time)
-            inputs = prepare_spillsynth_inputs(
-                df=self.df,
-                outcome=self.outcome,
-                treat=self.treat,
-                unitid=self.unitid,
-                time=self.time,
-                affected_units=self.affected_units,
-                spillover_structure=self.spillover_structure,
-                unit_distances=self.unit_distances,
-                covariates=self.covariates,
-                covariate_windows=self.covariate_windows,
-            )
+            if self.method == "sar":
+                inputs = prepare_sar_inputs(
+                    df=self.df,
+                    outcome=self.outcome,
+                    treat=self.treat,
+                    unitid=self.unitid,
+                    time=self.time,
+                    spatial_W=self.spatial_W,
+                    spatial_w=self.spatial_w,
+                    covariates=self.covariates,
+                )
+            else:
+                inputs = prepare_spillsynth_inputs(
+                    df=self.df,
+                    outcome=self.outcome,
+                    treat=self.treat,
+                    unitid=self.unitid,
+                    time=self.time,
+                    affected_units=self.affected_units,
+                    spillover_structure=self.spillover_structure,
+                    unit_distances=self.unit_distances,
+                    covariates=self.covariates,
+                    covariate_windows=self.covariate_windows,
+                )
         except MlsynthDataError:
             raise
         except Exception as exc:
@@ -142,6 +164,15 @@ class SPILLSYNTH:
                                  seed=self.seed)
                 results = SpillSynthResults(
                     inputs=inputs, method="grossi", grossi=fit,
+                )
+            elif self.method == "sar":
+                fit = run_sar(
+                    inputs, p_factors=self.p_factors, M=self.mcmc_iter,
+                    burn=self.mcmc_burn, step_rho=self.step_rho,
+                    seed=self.mcmc_seed, ci_level=self.ci_level,
+                )
+                results = SpillSynthResults(
+                    inputs=inputs, method="sar", sar=fit,
                 )
             else:                                            # pragma: no cover
                 raise MlsynthConfigError(

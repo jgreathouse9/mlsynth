@@ -1,7 +1,7 @@
 from typing import List, Optional, Any, Dict, Union, Literal
 import pandas as pd
 import numpy as np
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 import warnings
 
@@ -1347,6 +1347,67 @@ class MCNNMConfig(BaseEstimatorConfig):
         default=0, description="Seed for the CV fold assignment.")
 
 
+class DCConfig(BaseEstimatorConfig):
+    """Configuration for the de-biased convex (DC) estimator.
+
+    Farias, V., Li, A. & Peng, T. (2021), *"Learning Treatment Effects in
+    Panels with General Intervention Patterns"* (NeurIPS 2021). Jointly fits
+    a low-rank baseline ``M`` and treatment effect(s) ``tau`` to the observed
+    panel ``O = M + sum_k tau_k Z_k + E``, removes the nuclear-norm
+    regularisation bias from ``tau`` in closed form, and reports a sandwich
+    standard error. Unlike single-treated synthetic control, the DC method
+    admits *arbitrary* intervention patterns (block, staggered, on/off) and
+    inherits the standard ``df`` / ``outcome`` / ``treat`` / ``unitid`` /
+    ``time`` interface.
+
+    Parameters
+    ----------
+    suggest_r : int, optional
+        Fixed rank for the low-rank baseline ``M``. ``None`` (default) selects
+        it automatically from the spectrum of ``O``. **The auto-rank path is
+        the default, but it is fragile on small / single-treated panels** (a
+        level-dominated spectrum can collapse to rank 1 and inflate the ATT);
+        the estimator always reports the selected rank and the spectral energy
+        it retains, and warns on such panels.
+    spectrum_cut : float
+        Energy threshold for automatic rank selection: keep the leading
+        singular values that explain ``1 - spectrum_cut`` of the energy.
+        Default 0.002.
+    method : {"auto", "convex", "non-convex"}
+        Fitting branch. ``"convex"`` shrinks the nuclear-norm penalty until
+        the rank exceeds ``suggest_r`` then de-biases; ``"non-convex"``
+        hard-truncates to ``suggest_r``; ``"auto"`` (default) keeps whichever
+        attains the lower residual.
+    eps : float
+        ALS convergence tolerance. Default 1e-6.
+    alpha : float
+        Two-sided level for the sandwich confidence interval. Default 0.05.
+    """
+
+    suggest_r: Optional[int] = Field(
+        default=None, ge=1,
+        description="Fixed baseline rank; None selects it from the spectrum.")
+    spectrum_cut: float = Field(
+        default=0.002, gt=0.0, lt=1.0,
+        description="Energy threshold for automatic rank selection.")
+    method: str = Field(
+        default="auto",
+        description="Fitting branch: 'auto', 'convex' or 'non-convex'.")
+    eps: float = Field(
+        default=1e-6, gt=0.0, description="ALS convergence tolerance.")
+    alpha: float = Field(
+        default=0.05, gt=0.0, lt=1.0,
+        description="Two-sided level for the sandwich confidence interval.")
+
+    @field_validator("method")
+    @classmethod
+    def _check_method(cls, v: str) -> str:
+        if v not in ("auto", "convex", "non-convex"):
+            raise ValueError(
+                "method must be 'auto', 'convex' or 'non-convex'.")
+        return v
+
+
 class MSQRTConfig(BaseEstimatorConfig):
     """Configuration for the MSQRT estimator.
 
@@ -1896,15 +1957,52 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
     Pretreatment Fit.* Quantitative Economics, 12(4), 1197-1221.
     """
 
-    method: Literal["cd", "iscm", "grossi"] = Field(
+    method: Literal["cd", "iscm", "grossi", "sar"] = Field(
         default="cd",
         description="Spillover-aware SCM method. 'cd' = Cao & Dowd (2023); "
                     "'iscm' = inclusive SCM (Di Stefano & Mellace 2024); "
                     "'grossi' = Grossi et al. (2025) direct + spillover effects "
-                    "under partial interference (penalized SC on far controls). "
+                    "under partial interference (penalized SC on far controls); "
+                    "'sar' = Sakaguchi & Tagawa (2026) spatial-autoregressive "
+                    "Bayesian SCM (relaxes SUTVA via a SAR model on the control "
+                    "outcomes; needs spatial_W/spatial_w). "
                     "For 'grossi', affected_units lists the treated unit's "
                     "cluster-mates (excluded from the donor pool, given "
                     "spillover effects).",
+    )
+    spatial_W: Optional[Any] = Field(
+        default=None,
+        description="(method='sar') Control-to-control spatial-weight matrix. "
+                    "A labelled (N x N) pandas DataFrame indexed by control unit "
+                    "label (aligned automatically), or a bare N x N array in "
+                    "control-label order. Row-normalised internally.",
+    )
+    spatial_w: Optional[Any] = Field(
+        default=None,
+        description="(method='sar') Treated-to-control spatial-weight vector "
+                    "(length N): a pandas Series/DataFrame keyed by unit label, "
+                    "a dict, or a bare array in control-label order. Normalised "
+                    "to sum to one internally.",
+    )
+    p_factors: int = Field(
+        default=1, ge=0,
+        description="(method='sar') Number of AR(1) latent factors in the SAR "
+                    "panel model. 0 disables the factor block.",
+    )
+    mcmc_iter: int = Field(
+        default=6000, ge=2,
+        description="(method='sar') Total MCMC iterations per step.",
+    )
+    mcmc_burn: int = Field(
+        default=2000, ge=1,
+        description="(method='sar') Burn-in iterations per step.",
+    )
+    step_rho: float = Field(
+        default=0.02, gt=0.0,
+        description="(method='sar') Random-walk Metropolis step for rho.",
+    )
+    mcmc_seed: int = Field(
+        default=0, description="(method='sar') RNG seed for the sampler.",
     )
     covariates: Optional[List[str]] = Field(
         default=None,
@@ -2042,6 +2140,22 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
         if missing:
             raise MlsynthConfigError(
                 f"SPILLSYNTH: affected_units {missing} not in df[{unit_col!r}]."
+            )
+        return values
+
+    @model_validator(mode="after")
+    def _check_sar(cls, values: Any) -> Any:
+        if values.method != "sar":
+            return values
+        if values.spatial_W is None or values.spatial_w is None:
+            raise MlsynthConfigError(
+                "SPILLSYNTH: method='sar' requires both spatial_W (control-to-"
+                "control weight matrix) and spatial_w (treated-to-control weight "
+                "vector)."
+            )
+        if values.mcmc_burn >= values.mcmc_iter:
+            raise MlsynthConfigError(
+                "SPILLSYNTH: mcmc_burn must be smaller than mcmc_iter."
             )
         return values
 

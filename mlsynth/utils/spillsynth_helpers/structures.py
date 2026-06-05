@@ -27,6 +27,7 @@ import numpy as np
 if TYPE_CHECKING:
     from .cd.inference import KappaATestResult, PTestResult
     from .cd.sensitivity import PureDonorSensitivity
+    from .sar.structures import SARFit
 
 
 @dataclass(frozen=True)
@@ -431,6 +432,7 @@ class SpillSynthResults:
     cd: Optional[CDFit] = None
     iscm: Optional["ISCMFit"] = None
     grossi: Optional["GrossiFit"] = None
+    sar: Optional["SARFit"] = None
 
     # ------------------------------------------------------------------
     # Convenience accessors (route to the active method's fit).
@@ -455,6 +457,12 @@ class SpillSynthResults:
                     "SPILLSYNTH method='grossi' but no partial-interference fit present."
                 )
             return self.grossi
+        if self.method == "sar":
+            if self.sar is None:
+                raise AttributeError(
+                    "SPILLSYNTH method='sar' but no SAR spillover fit present."
+                )
+            return self.sar
         raise AttributeError(f"Unknown SPILLSYNTH method {self.method!r}.")
 
     @property

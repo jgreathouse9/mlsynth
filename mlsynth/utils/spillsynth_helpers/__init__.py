@@ -17,6 +17,9 @@ from .cd.sensitivity import PureDonorSensitivity, pure_donor_sensitivity
 from .grossi import run_grossi
 from .iscm import build_omega, build_unit_sc, run_iscm, solve_inclusive
 from .plotter import plot_spillsynth
+from .sar import (
+    SARFit, SARInputs, prepare_sar_inputs, run_sar,
+)
 from .setup import (
     build_A_distance_decay, build_A_example3, build_A_homogeneous,
     build_A_per_unit, prepare_spillsynth_inputs,
@@ -31,8 +34,12 @@ __all__ = [
     "KappaATestResult",
     "PTestResult",
     "PureDonorSensitivity",
+    "SARFit",
+    "SARInputs",
     "SpillSynthInputs",
     "SpillSynthResults",
+    "prepare_sar_inputs",
+    "run_sar",
     "build_A_distance_decay",
     "build_A_example3",
     "build_A_homogeneous",

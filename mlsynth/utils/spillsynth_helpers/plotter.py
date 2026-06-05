@@ -57,7 +57,11 @@ def plot_spillsynth(
     """
     try:
         inputs = results.inputs
-        if inputs.n_treated > 1:
+        if results.method == "sar":
+            _plot_sar(results, treated_color=treated_color,
+                      counterfactual_color=counterfactual_color,
+                      sp_color=sp_color, save=save)
+        elif inputs.n_treated > 1:
             _plot_event_study(results, save=save)
         else:
             _plot_single_treated(
@@ -234,6 +238,73 @@ def _plot_event_study(
     fig.tight_layout()
     if save:
         fig.savefig(save, bbox_inches="tight")
+        plt.close(fig)
+    else:
+        plt.show()
+
+
+def _plot_sar(
+    results: SpillSynthResults,
+    *,
+    treated_color: str,
+    counterfactual_color: str,
+    sp_color: str,
+    save: Optional[str],
+) -> None:
+    """Diagnostic panels for the SAR spillover SCM (``method='sar'``).
+
+    (a) treated trajectory with vanilla-SCM (rho=0) and spillover-adjusted
+    counterfactuals; (b) per-period treatment effects; (c) the largest
+    post-period spillover trajectories on the control units.
+    """
+    inputs = results.inputs
+    fit = results.sar
+    t = np.asarray(inputs.time_labels)
+    t_post = np.asarray(inputs.post_time)
+    T0 = inputs.T0
+    cutoff = t[T0 - 1]
+
+    y_treated = inputs.Y0
+    pre_fit = inputs.Yc[:T0] @ fit.alpha_hat           # shared pre-period synthetic
+    scm_full = np.concatenate([pre_fit, fit.counterfactual_scm])
+    sp_full = np.concatenate([pre_fit, fit.counterfactual_sp])
+
+    fig, axes = plt.subplots(1, 3, figsize=(15.5, 4.5))
+
+    ax = axes[0]
+    ax.plot(t, y_treated, color=treated_color, lw=2, label=str(inputs.treated_label))
+    ax.plot(t, scm_full, "--", color=counterfactual_color, lw=2, label="SCM (rho=0)")
+    ax.plot(t, sp_full, "-", color=sp_color, lw=2, label="SAR spillover-adjusted")
+    ax.axvline(cutoff, color="grey", ls=":", alpha=0.7)
+    ax.set_xlabel("time"); ax.set_ylabel("outcome")
+    ax.set_title(f"{inputs.treated_label}: actual vs counterfactuals")
+    ax.legend(loc="best"); ax.grid(alpha=0.2)
+
+    ax = axes[1]
+    ax.axhline(0.0, color="grey", lw=0.8)
+    ax.plot(t[:T0], y_treated[:T0] - pre_fit, "--", color=counterfactual_color,
+            alpha=0.6, lw=1.5, label="pre fit")
+    ax.plot(t_post, fit.gap_scm, "--", color=counterfactual_color, lw=2, label="SCM (post)")
+    ax.plot(t_post, fit.gap_sp, "-", color=sp_color, lw=2, label="SAR (post)")
+    ax.axvline(cutoff, color="grey", ls=":", alpha=0.7)
+    ax.set_xlabel("time"); ax.set_ylabel("treatment effect")
+    ax.set_title(f"Per-period gap (rho_hat={fit.rho_hat:+.2f})")
+    ax.legend(loc="best"); ax.grid(alpha=0.2)
+
+    ax = axes[2]
+    ax.axhline(0.0, color="grey", lw=0.8)
+    panel = fit.spillover_panel
+    means = {lab: float(np.mean(np.abs(v))) for lab, v in panel.items()}
+    top = sorted(means, key=means.get, reverse=True)[:6]
+    for lab in top:
+        ax.plot(t_post, panel[lab], lw=1.8, label=str(lab))
+    ax.set_xlabel("time"); ax.set_ylabel("spillover effect")
+    ax.set_title("Largest control spillovers")
+    ax.legend(loc="best", fontsize="small"); ax.grid(alpha=0.2)
+
+    fig.tight_layout()
+    if save:
+        fig.savefig(save, dpi=150, bbox_inches="tight")
         plt.close(fig)
     else:
         plt.show()
