@@ -90,16 +90,24 @@ class SARFit:
         Standard SCM ATT (the ``rho = 0`` special case).
     gap_sp, gap_scm : np.ndarray
         Per-post-period treatment effect, spillover-adjusted and SCM.
+    gap_ci : np.ndarray
+        Per-post-period credible band for the spillover-adjusted effect,
+        shape ``(T1, 2)`` (lower, upper) at level ``ci_level``.
     counterfactual_sp, counterfactual_scm : np.ndarray
         Post-period treated counterfactual under each model.
     spillover_panel : dict
         ``{control_label: per-post-period spillover effect}`` (posterior mean).
+    spillover_ci : dict
+        ``{control_label: (T1, 2) credible band}`` for each control's spillover.
     ate_ci : tuple of float
         Credible interval for the spillover-adjusted ATT (over the ``rho``
         posterior, ``alpha`` fixed at ``alpha_hat`` -- the paper's convention).
     rho_hat : float
     rho_ci : tuple of float
     rho_draws : np.ndarray
+    rho_ess : float
+        Effective sample size of the ``rho`` chain (MCMC convergence diagnostic;
+        a small value flags weak identification / poor mixing).
     sigma2_hat : float
     beta_hat : np.ndarray, optional
     alpha_hat : np.ndarray
@@ -116,13 +124,16 @@ class SARFit:
     att_scm: float
     gap_sp: np.ndarray
     gap_scm: np.ndarray
+    gap_ci: np.ndarray
     counterfactual_sp: np.ndarray
     counterfactual_scm: np.ndarray
     spillover_panel: Dict[Any, np.ndarray]
+    spillover_ci: Dict[Any, np.ndarray]
     ate_ci: Tuple[float, float]
     rho_hat: float
     rho_ci: Tuple[float, float]
     rho_draws: np.ndarray
+    rho_ess: float
     sigma2_hat: float
     alpha_hat: np.ndarray
     alpha_labels: Tuple[Any, ...]

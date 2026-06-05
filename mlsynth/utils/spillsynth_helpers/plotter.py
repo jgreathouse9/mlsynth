@@ -286,6 +286,10 @@ def _plot_sar(
             alpha=0.6, lw=1.5, label="pre fit")
     ax.plot(t_post, fit.gap_scm, "--", color=counterfactual_color, lw=2, label="SCM (post)")
     ax.plot(t_post, fit.gap_sp, "-", color=sp_color, lw=2, label="SAR (post)")
+    # posterior credible band on the spillover-adjusted effect
+    pct = int(round(100 * fit.ci_level))
+    ax.fill_between(t_post, fit.gap_ci[:, 0], fit.gap_ci[:, 1], color=sp_color,
+                    alpha=0.2, label=f"{pct}% credible band")
     ax.axvline(cutoff, color="grey", ls=":", alpha=0.7)
     ax.set_xlabel("time"); ax.set_ylabel("treatment effect")
     ax.set_title(f"Per-period gap (rho_hat={fit.rho_hat:+.2f})")
@@ -296,10 +300,15 @@ def _plot_sar(
     panel = fit.spillover_panel
     means = {lab: float(np.mean(np.abs(v))) for lab, v in panel.items()}
     top = sorted(means, key=means.get, reverse=True)[:6]
-    for lab in top:
-        ax.plot(t_post, panel[lab], lw=1.8, label=str(lab))
+    colours = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    for k, lab in enumerate(top):
+        c = colours[k % len(colours)]
+        ax.plot(t_post, panel[lab], lw=1.8, color=c, label=str(lab))
+        ci = fit.spillover_ci.get(lab)
+        if ci is not None:
+            ax.fill_between(t_post, ci[:, 0], ci[:, 1], color=c, alpha=0.15)
     ax.set_xlabel("time"); ax.set_ylabel("spillover effect")
-    ax.set_title("Largest control spillovers")
+    ax.set_title(f"Largest control spillovers ({pct}% bands)")
     ax.legend(loc="best", fontsize="small"); ax.grid(alpha=0.2)
 
     fig.tight_layout()

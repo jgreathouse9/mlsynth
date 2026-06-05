@@ -279,3 +279,34 @@ def spillover_effects(Y0, Yc, Wn, w, alpha_hat, rho):
     B = IN - rho * Wn
     cf = (Ainv @ (B @ Yc.T - rho * np.outer(w, Y0))).T
     return Yc - cf
+
+
+def effective_sample_size(x: np.ndarray) -> float:
+    """Effective sample size of an MCMC chain via the initial-positive-sequence
+    autocorrelation estimator (Geyer 1992). Returns ``len(x)`` for white noise
+    and shrinks toward 1 as the chain becomes sticky.
+    """
+    x = np.asarray(x, dtype=float)
+    n = x.size
+    if n < 4:
+        return float(n)
+    x = x - x.mean()
+    var = float(np.dot(x, x) / n)
+    if var <= 0:
+        return float(n)
+    # autocovariances via FFT
+    m = 1
+    while m < 2 * n:
+        m *= 2
+    f = np.fft.rfft(x, m)
+    acov = np.fft.irfft(f * np.conjugate(f), m)[:n].real / n
+    rho = acov / acov[0]
+    # initial positive sequence: sum paired autocorrelations until negative
+    s = 0.0
+    for k in range(1, n - 1, 2):
+        pair = rho[k] + rho[k + 1]
+        if pair <= 0:
+            break
+        s += pair
+    tau = 1.0 + 2.0 * s                              # integrated autocorr. time
+    return float(n / max(tau, 1.0))

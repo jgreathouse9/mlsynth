@@ -12,6 +12,7 @@ from __future__ import annotations
 import numpy as np
 
 from .sampler import (
+    effective_sample_size,
     hs_alpha_gibbs,
     sar_full_sampler,
     spillover_effects,
@@ -59,32 +60,46 @@ def run_sar(
     ycf_scm = Yc_post @ alpha_hat
     gap_scm = Y0_post - ycf_scm
 
-    # --- spillover panel + ATE band, swept over rho (alpha fixed) ---
+    # --- posterior draws of the effect paths, swept over rho (alpha fixed,
+    #     the paper's inference convention) -> point means + credible bands ---
     n_post = Y0_post.shape[0]
-    spill_sum = np.zeros((n_post, inputs.N))
-    ate_draws = np.empty(rho_draws.shape[0])
+    n_draws = rho_draws.shape[0]
+    gap_draws = np.empty((n_draws, n_post))               # treated effect path
+    spill_draws = np.empty((n_draws, n_post, inputs.N))   # per-control spillover
     for i, r in enumerate(rho_draws):
         cf = treated_counterfactual(Y0_post, Yc_post, Wn, wn, alpha_hat, r)
-        ate_draws[i] = float(np.mean(Y0_post - cf))
-        spill_sum += spillover_effects(Y0_post, Yc_post, Wn, wn, alpha_hat, r)
-    spill_mean = spill_sum / rho_draws.shape[0]
-    spillover_panel = {lab: spill_mean[:, j]
-                       for j, lab in enumerate(inputs.control_labels)}
-    ate_ci = (float(np.quantile(ate_draws, lo_q)),
-              float(np.quantile(ate_draws, hi_q)))
+        gap_draws[i] = Y0_post - cf
+        spill_draws[i] = spillover_effects(Y0_post, Yc_post, Wn, wn, alpha_hat, r)
+
+    ate_draws = gap_draws.mean(axis=1)
+    ate_ci = (float(np.quantile(ate_draws, lo_q)), float(np.quantile(ate_draws, hi_q)))
+    # per-period credible band for the treatment-effect path
+    gap_ci = np.column_stack([np.quantile(gap_draws, lo_q, axis=0),
+                              np.quantile(gap_draws, hi_q, axis=0)])
+    # spillover posterior means + per-period credible bands, per control
+    spill_mean = spill_draws.mean(axis=0)
+    spill_lo = np.quantile(spill_draws, lo_q, axis=0)
+    spill_hi = np.quantile(spill_draws, hi_q, axis=0)
+    spillover_panel, spillover_ci = {}, {}
+    for j, lab in enumerate(inputs.control_labels):
+        spillover_panel[lab] = spill_mean[:, j]
+        spillover_ci[lab] = np.column_stack([spill_lo[:, j], spill_hi[:, j]])
 
     return SARFit(
         att_sp=float(gap_sp.mean()),
         att_scm=float(gap_scm.mean()),
         gap_sp=gap_sp,
         gap_scm=gap_scm,
+        gap_ci=gap_ci,
         counterfactual_sp=ycf_sp,
         counterfactual_scm=ycf_scm,
         spillover_panel=spillover_panel,
+        spillover_ci=spillover_ci,
         ate_ci=ate_ci,
         rho_hat=rho_hat,
         rho_ci=(float(np.quantile(rho_draws, lo_q)), float(np.quantile(rho_draws, hi_q))),
         rho_draws=rho_draws,
+        rho_ess=effective_sample_size(rho_draws),
         sigma2_hat=float(sar["s2"].mean()),
         alpha_hat=alpha_hat,
         alpha_labels=inputs.control_labels,

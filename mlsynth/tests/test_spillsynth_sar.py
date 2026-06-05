@@ -87,6 +87,27 @@ def test_recovers_rho_and_att_under_spillover():
     assert res.sar.ate_ci[0] <= res.att <= res.sar.ate_ci[1]
 
 
+def test_inference_bands_and_diagnostics():
+    df, Wdf, wser, _ = _sar_panel(rho=0.6, seed=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = _fit(df, Wdf, wser, ci_level=0.9)
+    f = res.sar
+    T1 = res.gap.shape[0]
+    # per-period credible band: right shape, brackets the point path, ordered
+    assert f.gap_ci.shape == (T1, 2)
+    assert np.all(f.gap_ci[:, 0] <= f.gap_ci[:, 1])
+    assert np.all((f.gap_ci[:, 0] <= f.gap_sp) & (f.gap_sp <= f.gap_ci[:, 1]))
+    # ATT point sits inside its ATE credible interval
+    assert f.ate_ci[0] <= res.att <= f.ate_ci[1]
+    # every control has a spillover band of the right shape
+    assert len(f.spillover_ci) == 16
+    assert all(v.shape == (T1, 2) for v in f.spillover_ci.values())
+    # MCMC diagnostic: ESS positive and not exceeding the chain length
+    assert 0 < f.rho_ess <= len(f.rho_draws)
+    assert 0.0 <= f.acc_rho <= 1.0
+
+
 def test_rho_zero_reduces_to_scm():
     df, Wdf, wser, _ = _sar_panel(rho=0.0, seed=3)
     with warnings.catch_warnings():

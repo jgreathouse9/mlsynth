@@ -1710,6 +1710,21 @@ the bias the spillover induces in ordinary SCM is identified and removed, *and*
 the spillover effect landing on each control unit is recovered as a parameter
 of interest.
 
+.. note::
+
+   **Notation bridge.** The treated unit is index ``0`` and the ``N`` controls
+   are :math:`\mathcal{N} = \{1, \dots, N\}`; the pre-period is
+   :math:`\mathcal{T}_1` (length ``T0``) and the post-period
+   :math:`\mathcal{T}_2`. :math:`\mathbf{Y}^c_t \in \mathbb{R}^N` stacks the
+   control outcomes at ``t``; :math:`Y_{0t}` is the treated outcome.
+   :math:`\mathbf{W} \in \mathbb{R}^{N\times N}` is the (row-normalised)
+   control-to-control spatial-weight matrix and :math:`\mathbf{w}\in\mathbb{R}^N`
+   the treated-to-control weight vector; :math:`\boldsymbol{\alpha}` are the
+   synthetic-control weights, :math:`\rho` the spatial-autoregressive
+   coefficient, :math:`\mathbf{I}` the identity. The treatment effect on the
+   treated unit is :math:`\xi_{0t}` and the spillover effect on control ``i`` is
+   :math:`\xi_{it}`.
+
 The model
 ~~~~~~~~~
 
@@ -1737,6 +1752,70 @@ spillover effects on the controls are identified in closed form (paper Theorems
 When ``rho = 0`` this collapses **exactly** to Abadie's synthetic control, so
 the SAR method nests standard SCM as its no-spillover special case.
 
+Assumptions
+~~~~~~~~~~~
+
+Identification of :math:`\xi_{0t}` and :math:`\xi_{it}` rests on four
+assumptions (the paper's Assumptions 1-3 plus the standard no-anticipation /
+exogeneity conditions inherited from SCM). Each is paired with a remark on what
+it buys and when it is plausible.
+
+**Assumption 1 (Perfect pre-treatment fit).** There exist weights
+:math:`\boldsymbol{\alpha}\in\mathbb{R}^N` such that, in the absence of any
+treatment, the treated unit's outcome equals the weighted control average,
+:math:`Y_{0t}(0) = \sum_{i\in\mathcal{N}} \alpha_i\, Y_{it}(0)` almost surely
+for every ``t``.
+
+   *Remark.* This is the usual synthetic-control premise (Abadie et al. 2010):
+   the donor pool can reconstruct the treated unit's untreated path. It is the
+   condition the horseshoe Step-1 regression targets. It does **not** require
+   the weights to lie on the simplex -- the SAR estimator uses an unrestricted,
+   shrinkage-regularised :math:`\boldsymbol{\alpha}`, which is what lets it host
+   negative weights (e.g. the negative California donor) and short pre-periods.
+
+**Assumption 2 (Spillover runs through outcomes, not unobservables).** The
+disturbance :math:`\mathbf{u}_t` is unaffected by who is treated: any unit's
+*structural* error depends only on its own (always-zero, for controls)
+treatment status, so all cross-unit transmission flows through the SAR term
+:math:`\rho(\mathbf{w}Y_{0t} + \mathbf{W}\mathbf{Y}^c_t)`.
+
+   *Remark.* This is the substantive identifying restriction. It says
+   interference is *mediated by observed outcomes propagating along the spatial
+   network* -- a tax cuts California sales, which (through cross-border shopping)
+   move Nevada's sales -- rather than by an unobserved shock that happens to hit
+   treated and neighbours together. If a confounder drives both, ``rho`` would
+   absorb it and the spillover would be mis-attributed; choose
+   :math:`\mathbf{W}` to encode the *channel* you believe in (geography, trade).
+
+**Assumption 3 (Invertibility / no degenerate feedback).** The matrix
+:math:`\mathbf{I}_N - \rho\,\mathbf{w}\boldsymbol{\alpha}^{\top} - \rho\mathbf{W}`
+has full rank.
+
+   *Remark.* This guarantees the spatial system has a unique reduced form, so
+   the counterfactual :math:`\mathbf{Y}^c_t(0)` is well defined. It holds
+   automatically for :math:`|\rho|` below the spectral bound
+   :math:`1/\max_i|\lambda_i(\mathbf{W})|` (which, for a row-normalised
+   :math:`\mathbf{W}`, is 1); the sampler enforces :math:`|\rho| < 0.95` of that
+   bound, and ``rho_ci`` lets you check the posterior never approaches it. It is
+   *testable* given estimates of :math:`(\boldsymbol{\alpha}, \rho)`.
+
+**Assumption 4 (No anticipation / exogenous adoption).** Pre-treatment
+outcomes are untreated potential outcomes (treatment has no effect before
+:math:`\mathcal{T}_2`), and the adoption time is not chosen on the basis of the
+idiosyncratic shocks.
+
+   *Remark.* Standard SCM bookkeeping: it lets the pre-period pin down
+   :math:`(\boldsymbol{\alpha}, \rho)` cleanly. Violations (e.g. firms front-run
+   a pre-announced policy) bias the pre-period fit and hence every downstream
+   effect, exactly as in ordinary synthetic control.
+
+Because the post-treatment effects (the displayed :math:`\xi_{0t}` and the
+analogous :math:`\xi_{it}`) depend only on :math:`(\boldsymbol{\alpha}, \rho)`
+and the observed outcomes, the covariate coefficient
+:math:`\boldsymbol{\beta}` and the latent-factor block need not be estimated for
+the post-period -- they enter only the pre-treatment estimation of
+:math:`\rho`.
+
 Inference (two steps)
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -1759,6 +1838,33 @@ formulae per posterior draw; the point estimate plugs in the posterior means
 fixed at ``alpha_hat`` (the paper's convention). Because the post-treatment
 effects depend only on ``(alpha, rho)``, the factor and covariate blocks enter
 only the pre-treatment ``rho`` estimation.
+
+Credible intervals and diagnostics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Inference is fully Bayesian -- there is no asymptotic-normal plug-in to trust on
+short panels. Every reported uncertainty is a posterior quantile at level
+``ci_level`` (default 0.95), and the :class:`SARFit` carries:
+
+* ``rho_hat`` / ``rho_ci`` -- posterior mean and credible interval for the
+  spatial parameter. A ``rho_ci`` excluding zero is direct evidence of
+  spillover (SUTVA failure); a ``rho_ci`` hugging zero says ordinary SCM was
+  fine.
+* ``att_sp`` / ``ate_ci`` -- the spillover-adjusted ATT and its credible
+  interval, alongside ``att_scm`` (the ``rho = 0`` SCM comparison).
+* ``gap_sp`` / ``gap_ci`` -- the per-post-period treatment-effect path and its
+  ``(T1, 2)`` credible band (shaded in the centre plot panel).
+* ``spillover_panel`` / ``spillover_ci`` -- for each control unit, the
+  posterior-mean spillover trajectory and its ``(T1, 2)`` band; a control whose
+  band excludes zero is a unit the intervention measurably moved.
+* ``rho_ess`` / ``acc_rho`` -- **convergence diagnostics**: the effective sample
+  size of the ``rho`` chain (Geyer's initial-positive-sequence estimator) and
+  the Metropolis acceptance rate. A small ``rho_ess`` relative to the number of
+  draws flags weak identification or poor mixing -- the regime where ``rho``
+  should be read as imprecise (this is exactly what happens in the California
+  application; see *Verification*). Raise ``mcmc_iter`` / tune ``step_rho``
+  (target acceptance ~0.2-0.5) and inspect ``rho_ess`` before trusting a narrow
+  ``rho_ci``.
 
 Spatial weights
 ~~~~~~~~~~~~~~~
@@ -1784,36 +1890,178 @@ short pre-treatment panels. If instead only a handful of units are exposed and
 you can name them, ``method='cd'`` (free per-unit spillover coefficients) or
 ``method='grossi'`` (near/far clusters) are more parsimonious.
 
-Example: California tobacco tax (Proposition 99)
-.................................................
+A marketing example makes the regime concrete. Suppose a retailer cuts price
+(or launches a heavy ad burst) in **one designated market area (DMA)** and wants
+the causal lift on that market's sales. Ordinary geo synthetic control builds a
+"synthetic DMA" from untreated markets -- but if shoppers cross between adjacent
+DMAs, or the promotion shifts demand in neighbouring markets through a shared
+distribution or media footprint, those "control" markets are themselves
+contaminated, and the synthetic counterfactual is pulled toward the treated
+market's own shock. That biases the measured lift (typically *toward zero*, as
+in the simulation table below) and, just as importantly, *hides* the
+cannibalisation or halo landing on nearby markets. ``method='sar'`` with
+:math:`\mathbf{W}` set to DMA adjacency (or co-shopping / shared-media weights)
+de-biases the treated-market lift **and** returns a per-market spillover map --
+which neighbours lost sales to cross-border shopping, which gained from a halo.
+The same shape recurs for a bank rolling out a product in one region, a
+platform changing policy in one country, or a CPG running a trade promotion in
+one chain: a single treated unit, a dense economic network, and spillovers that
+are a nuisance to the headline estimate but a finding in their own right.
+
+Synthetic study (the paper's simulation)
+.........................................
+
+The authors' Monte Carlo design (Sakaguchi & Tagawa 2026, Section 5) places
+the ``N = r^2`` control units on a **rook (chessboard) lattice** and draws the
+control outcomes from a SAR panel with spatial parameter :math:`\rho`. The
+treated unit's untreated path is :math:`\boldsymbol{\alpha}^{\top}\mathbf{Y}^c`;
+in the post-period the treatment adds :math:`N(1,1)` noise. Sweeping
+:math:`\rho` shows the headline result: the spillover-adjusted SAR estimator
+recovers the true ATT at every :math:`\rho`, while ordinary SCM (the
+:math:`\rho = 0` special case) is biased increasingly as :math:`|\rho|` grows.
+The block below is fully self-contained -- copy, paste, run.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SPILLSYNTH
+
+   def rook_W(nr, nc):
+       """Row-normalised rook-lattice adjacency on an nr x nc board."""
+       N = nr * nc
+       W = np.zeros((N, N))
+       idx = lambda r, c: r * nc + c
+       for r in range(nr):
+           for c in range(nc):
+               i = idx(r, c)
+               if r > 0:      W[i, idx(r - 1, c)] = 1
+               if r < nr - 1: W[i, idx(r + 1, c)] = 1
+               if c > 0:      W[i, idx(r, c - 1)] = 1
+               if c < nc - 1: W[i, idx(r, c + 1)] = 1
+       rs = W.sum(1); rs[rs == 0] = 1
+       return W / rs
+
+   def simulate(rho, nr=6, nc=6, T=30, T0=20, sigma2=0.1, seed=0):
+       rng = np.random.default_rng(seed)
+       N = nr * nc
+       Wn = rook_W(nr, nc)
+       w = np.zeros(N); w[:4] = 1.0; wn = w / w.sum()   # treated borders units 1-4
+       alpha = np.zeros(N)                              # true synthetic weights
+       alpha[0] = 0.5; alpha[1] = -0.2; alpha[2:4] = 0.4; alpha[4:10] = 0.1 / 6
+       IN = np.eye(N)
+       Ainv  = np.linalg.inv(IN - rho * Wn - rho * np.outer(wn, alpha))
+       Apost = np.linalg.inv(IN - rho * Wn)
+       e = rng.normal(0, np.sqrt(sigma2), (T, N))
+       Yc0 = (Ainv @ e.T).T                             # untreated controls
+       Y00 = Yc0 @ alpha                                # treated untreated path
+       tau = rng.normal(1.0, 1.0, T - T0)               # post-period effect
+       Y0 = Y00.copy(); Y0[T0:] += tau
+       Yc = Yc0.copy()
+       for t in range(T0, T):                           # treated spills back
+           Yc[t] = Apost @ (rho * wn * Y0[t] + e[t])
+       labels = ["treated"] + [f"c{i}" for i in range(N)]
+       Ypanel = np.vstack([Y0[None, :], Yc.T])
+       df = pd.DataFrame(
+           [{"unit": labels[u], "year": t, "y": Ypanel[u, t],
+             "treated": int(u == 0 and t >= T0)}
+            for u in range(N + 1) for t in range(T)]
+       )
+       Wdf = pd.DataFrame(Wn, index=labels[1:], columns=labels[1:])
+       wser = pd.Series(wn, index=labels[1:])
+       return df, Wdf, wser, float(tau.mean())
+
+   print(f"{'rho':>6} {'true ATT':>9} {'SAR ATT':>9} {'SCM ATT':>9} {'rho_hat':>9}")
+   for rho in (-0.8, -0.3, 0.0, 0.3, 0.8):
+       df, Wdf, wser, true_att = simulate(rho, seed=1)
+       res = SPILLSYNTH({
+           "df": df, "outcome": "y", "treat": "treated",
+           "unitid": "unit", "time": "year", "method": "sar",
+           "spatial_W": Wdf, "spatial_w": wser, "p_factors": 0,
+           "mcmc_iter": 6000, "mcmc_burn": 2000, "step_rho": 0.05,
+           "mcmc_seed": 1, "display_graphs": False,
+       }).fit()
+       print(f"{rho:>6.1f} {true_att:>9.2f} {res.att:>9.2f} "
+             f"{res.att_scm:>9.2f} {res.sar.rho_hat:>9.3f}")
+
+This prints (one panel per ``rho``)::
+
+      rho  true ATT   SAR ATT   SCM ATT   rho_hat
+     -0.8      0.98      0.99      1.18    -0.799
+     -0.3      0.98      0.98      1.05    -0.318
+      0.0      0.98      0.97      0.98    -0.027
+      0.3      0.98      0.97      0.88     0.264
+      0.8      0.98      0.98      0.50     0.763
+
+The ``SAR ATT`` column tracks the truth across the whole grid and ``rho_hat``
+recovers the data-generating :math:`\rho`; ``SCM ATT`` drifts away from the
+truth as the spatial dependence strengthens -- exactly the bias the SAR model
+corrects.
+
+Empirical replication: California's Proposition 99
+...................................................
+
+The shipped panel (:file:`basedata/california_panel.csv`) and spatial weights
+(:file:`basedata/california_W_matrix.csv`, a state-by-state contiguity matrix,
+and :file:`basedata/california_w_vector.csv`, ``1`` for states bordering
+California) reproduce the paper's first application. The pre-period is
+1970-1988 and the post-period 1989-2000; retail price enters as a covariate and
+a single AR(1) latent factor absorbs the common trend.
 
 .. code-block:: python
 
    import pandas as pd
    from mlsynth import SPILLSYNTH
 
-   # long panel with columns: state, year, cigsale, retprice, treated
-   # W: contiguity matrix (DataFrame indexed by state); w: 1 for states
-   # bordering California (Series indexed by state).
+   # -----------------------
+   # GitHub file structure
+   # -----------------------
+   user = "jgreathouse9"
+   repo = "mlsynth"
+   branch = "main"
+   base_path = "basedata"
+
+   base_url = f"https://raw.githubusercontent.com/{user}/{repo}/refs/heads/{branch}/{base_path}/"
+
+   # -----------------------
+   # Data loading
+   # -----------------------
+   panel = pd.read_csv(base_url + "california_panel.csv")
+   W = pd.read_csv(base_url + "california_W_matrix.csv", index_col=0)
+   w = pd.read_csv(base_url + "california_w_vector.csv", index_col=0).squeeze()
+
+   # -----------------------
+   # Treatment definition
+   # -----------------------
+   panel["treated"] = (
+       (panel["state"] == "California") &
+       (panel["year"] >= 1989)
+   ).astype(int)
+
    res = SPILLSYNTH({
        "df": panel, "outcome": "cigsale", "treat": "treated",
        "unitid": "state", "time": "year",
        "method": "sar",
-       "spatial_W": W_contiguity, "spatial_w": w_border,
+       "spatial_W": W, "spatial_w": w,
        "covariates": ["retprice"], "p_factors": 1,
        "mcmc_iter": 20000, "mcmc_burn": 10000, "step_rho": 0.01,
        "display_graphs": True,
    }).fit()
 
    print(f"rho posterior mean = {res.sar.rho_hat:+.3f} {res.sar.rho_ci}")
-   print(f"ATT (spillover-adjusted) = {res.att:+.2f}  vs SCM {res.att_scm:+.2f}")
+   print(f"rho effective sample size = {res.sar.rho_ess:.0f}  "
+         f"(MCMC mixing; small => weakly identified)")
+   print(f"ATT (spillover-adjusted) = {res.att:+.2f} {res.sar.ate_ci}  "
+         f"vs SCM {res.att_scm:+.2f}")
    # largest negative spillover (expect Nevada, California's neighbour)
    sp = {k: v.mean() for k, v in res.spillover_effects.items()}
    print(sorted(sp.items(), key=lambda kv: kv[1])[:3])
 
-The Sudan application is identical in shape: ``outcome="gdp_per_capita"``,
-``treat`` switching on in 2011, six World-Bank covariates, and ``spatial_W`` /
-``spatial_w`` built from normalised bilateral-trade volumes.
+The Sudan application is identical in shape -- swap in
+:file:`basedata/sudan_panel.csv` with the GDP-per-capita outcome,
+``treat`` switching on in 2011, the six World-Bank covariates, and the
+trade-weighted :file:`basedata/sudan_W_matrix.csv` /
+:file:`basedata/sudan_w_vector.csv`.
 
 Verification
 ~~~~~~~~~~~~
