@@ -60,7 +60,7 @@ def _spectral_radius(Q: np.ndarray, iters: int = 40) -> float:
     rng = np.random.default_rng(0)
     x = rng.normal(size=n)
     nx = np.linalg.norm(x)
-    if nx < _EPS:
+    if nx < _EPS:  # pragma: no cover - a random Gaussian init vector is never exactly zero
         return 1.0
     x /= nx
     lam = 1.0
@@ -197,6 +197,52 @@ def _loo_cv_lambda(prob: BilevelProblem, lam_grid: np.ndarray, *,
     return float(lam_grid[int(np.argmin(cv_curve))]), cv_curve
 
 
+def _pensynth_lam_grid(prob: BilevelProblem, nlambda: int = 100) -> np.ndarray:
+    """van Kesteren's exponential lambda grid for ``cv_pensynth``.
+
+    Runs from ``1e-11`` to an empirical ``lmax`` at which the penalty reaches
+    the nearest-neighbour limit: ``lmax = sum_j |X1.X0_j| / ||X1 - X0_j||^2``
+    over the (standardised) covariates. Requires predictors.
+    """
+    m1, M0 = _build_block(prob, slice(0, prob.Tpre),
+                          use_outcomes=False, use_predictors=True)
+    d2 = np.sum((m1[:, None] - M0) ** 2, axis=0)
+    finite = d2 > _EPS
+    lmax = (float(np.sum(np.abs((m1 @ M0)[finite] / d2[finite])))
+            if finite.any() else 1.0)
+    lmax = max(lmax, 1e-9)
+    return np.exp(np.linspace(np.log(1e-11), np.log(lmax), nlambda))
+
+
+def _pensynth_cv_lambda(prob: BilevelProblem, lam_grid: np.ndarray, *,
+                        use_outcomes: bool, use_predictors: bool,
+                        train_frac: float, max_iter: int, tol: float):
+    """van Kesteren ``cv_pensynth``: fit on covariates, validate on outcomes.
+
+    Unlike the time-split ``holdout``/``loo`` selectors, there is no train/
+    validation split of the pre-period. For each ``lambda`` the donor weights
+    are formed purely from covariate balance (penalised), then scored by the
+    mean squared error on the *full* held-out pre-intervention outcome path.
+    This cross-fit (covariates -> outcomes) avoids the trend-extrapolation bias
+    that makes the time-split criteria over-penalise toward nearest-neighbour.
+    Requires covariate predictors; ``use_outcomes``/``train_frac`` are accepted
+    for a uniform selector signature but ignored. Returns ``(best, curve)``.
+    """
+    if prob.n_predictors == 0:
+        raise ValueError(
+            "cv='pensynth' needs covariate predictors (X) to match on; none "
+            "supplied. Use cv='holdout'/'loo' for outcome-path matching."
+        )
+    m1, M0 = _build_block(prob, slice(0, prob.Tpre),
+                          use_outcomes=False, use_predictors=True)
+    y1, Y0 = prob.y1_pre, prob.Y0_pre
+    cv_curve = np.full(len(lam_grid), np.inf)
+    for li, lam in enumerate(lam_grid):
+        w = penalized_weights(m1, M0, lam, max_iter=max_iter, tol=tol)
+        cv_curve[li] = float(np.mean((y1 - Y0 @ w) ** 2))
+    return float(lam_grid[int(np.argmin(cv_curve))]), cv_curve
+
+
 def _holdout_cv_lambda(prob: BilevelProblem, lam_grid: np.ndarray, *,
                        use_outcomes: bool, use_predictors: bool,
                        train_frac: float, max_iter: int, tol: float):
@@ -246,14 +292,19 @@ def solve_penalized(
     lam : float or "cv"
         Penalty. ``"cv"`` (default) selects ``lambda`` by cross-validation
         (the selector chosen by ``cv``); a float fixes it.
-    cv : {"holdout", "loo"}
+    cv : {"holdout", "loo", "pensynth"}
         Cross-validation selector used when ``lam="cv"``. ``"holdout"``
         (default) is the treated-unit pre-intervention holdout (Section 4.2),
         robust on trending panels; ``"loo"`` is the donor leave-one-out
         (Section 4.1), which can over-penalise toward nearest-neighbour when
-        the outcome trends.
+        the outcome trends. ``"pensynth"`` is van Kesteren's ``cv_pensynth``
+        criterion: fit the weights on the covariates and pick the ``lambda``
+        minimising MSE on the held-out pre-intervention outcome path (no
+        time-split); requires covariate predictors.
     lam_grid : sequence of float, optional
-        Candidate ``lambda`` values. Defaults to ``geomspace(1e-4, 1e2, 25)``.
+        Candidate ``lambda`` values. Defaults to ``geomspace(1e-4, 1e2, 25)``,
+        or van Kesteren's exponential ``1e-11 .. lmax`` grid when
+        ``cv="pensynth"``.
     use_outcomes, use_predictors : bool
         Whether to match on the pre-period outcome path and/or the covariate
         predictors. At least one must be true; both default to true.
@@ -271,15 +322,27 @@ def solve_penalized(
     """
     if not (use_outcomes or (use_predictors and prob.n_predictors > 0)):
         raise ValueError("penalized backend needs outcomes and/or predictors to match on.")
+    pensynth_mode = isinstance(lam, str) and cv == "pensynth"
+    if pensynth_mode and prob.n_predictors == 0:
+        raise ValueError(
+            "cv='pensynth' needs covariate predictors (X) to match on; none "
+            "supplied. Use cv='holdout'/'loo' for outcome-path matching."
+        )
     if lam_grid is None:
-        lam_grid = np.geomspace(1e-4, 1e2, 25)
+        lam_grid = (_pensynth_lam_grid(prob) if pensynth_mode
+                    else np.geomspace(1e-4, 1e2, 25))
     lam_grid = np.asarray(lam_grid, dtype=float)
 
     if isinstance(lam, str):
-        selector = {"holdout": _holdout_cv_lambda, "loo": _loo_cv_lambda}.get(cv)
+        selector = {"holdout": _holdout_cv_lambda, "loo": _loo_cv_lambda,
+                    "pensynth": _pensynth_cv_lambda}.get(cv)
         if selector is None:
-            raise ValueError(f"Unknown cv selector {cv!r}; expected 'holdout' or 'loo'.")
-        if prob.Tpre < _MIN_CV_TPRE:
+            raise ValueError(
+                f"Unknown cv selector {cv!r}; expected 'holdout', 'loo' or 'pensynth'."
+            )
+        # The time-split selectors need enough pre-periods to split; the
+        # pensynth cross-fit does not (it scores the whole pre-period path).
+        if cv in ("holdout", "loo") and prob.Tpre < _MIN_CV_TPRE:
             raise ValueError(
                 f"cv='{cv}' needs at least {_MIN_CV_TPRE} pre-periods to form a "
                 f"non-degenerate split, got Tpre={prob.Tpre}; pass a fixed numeric "
@@ -303,8 +366,12 @@ def solve_penalized(
     else:
         lam_val, cv_curve, selected_by = float(lam), None, "fixed"
 
-    # Final weights: match on the full pre-period block.
-    m1, M0 = _build_block(prob, slice(0, prob.Tpre), use_outcomes, use_predictors)
+    # Final weights: match on the full pre-period block. In pensynth mode the
+    # model is defined by covariate matching (the outcome path was the holdout),
+    # so the final fit uses predictors only -- consistent with the CV criterion.
+    fit_outcomes = False if pensynth_mode else use_outcomes
+    fit_predictors = True if pensynth_mode else use_predictors
+    m1, M0 = _build_block(prob, slice(0, prob.Tpre), fit_outcomes, fit_predictors)
     W = penalized_weights(m1, M0, lam_val, max_iter=max_iter, tol=tol, warn=True)
     V = np.full(max(prob.n_predictors, 1), 1.0 / max(prob.n_predictors, 1))  # Gamma = I
 
@@ -321,8 +388,10 @@ def solve_penalized(
             "lambda": lam_val,
             "lambda_selected_by": selected_by,
             "n_nonzero": int(np.sum(W > 1e-6)),
-            "matched_on": ("outcomes" if use_outcomes else "")
-                          + ("+predictors" if use_predictors and prob.n_predictors else ""),
+            "matched_on": "+".join(
+                ([("outcomes")] if fit_outcomes else [])
+                + (["predictors"] if fit_predictors and prob.n_predictors else [])
+            ),
             "cv_curve": None if cv_curve is None else [float(x) for x in cv_curve],
             "lam_grid": [float(x) for x in lam_grid],
         },

@@ -1916,6 +1916,13 @@ class VanillaSCConfig(BaseEstimatorConfig):
         default=None, ge=1,
         description="Cap on donor pairs for the 'lto' test (None -> all pairs).",
     )
+    penalized_cv: Literal["holdout", "loo", "pensynth"] = Field(
+        default="holdout",
+        description="Lambda selector for backend='penalized'. 'holdout'/'loo' "
+                    "are Abadie-L'Hour time-split criteria; 'pensynth' is van "
+                    "Kesteren's cv_pensynth (fit on covariates, validate on the "
+                    "held-out pre-period outcome path; needs covariates).",
+    )
 
 
 class SPILLSYNTHConfig(BaseEstimatorConfig):
@@ -2003,6 +2010,17 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
     )
     mcmc_seed: int = Field(
         default=0, description="(method='sar') RNG seed for the sampler.",
+    )
+    propagate_alpha: bool = Field(
+        default=True,
+        description="(method='sar') If True (default) the credible bands pair "
+                    "each rho draw with a synthetic-weight (alpha) draw, "
+                    "propagating posterior uncertainty in alpha -- the "
+                    "statistically correct interval that attains nominal "
+                    "coverage in simulation. If False, alpha is held at its "
+                    "posterior mean when sweeping rho (narrower bands; the "
+                    "authors' empirical convention). Point estimates are "
+                    "unaffected.",
     )
     covariates: Optional[List[str]] = Field(
         default=None,

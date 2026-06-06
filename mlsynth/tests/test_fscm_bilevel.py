@@ -209,16 +209,38 @@ def test_penalized_larger_lambda_is_sparser():
 
 def test_penalized_cv_selectors_run():
     prob = _toy_prob(seed=4)
-    for cv in ("holdout", "loo"):
+    for cv in ("holdout", "loo", "pensynth"):
         s = solve_bilevel(prob, method="penalized", lam="cv", cv=cv)
         assert s.metadata["lambda_selected_by"] == cv
         assert s.metadata["lambda"] > 0
         assert s.W.sum() == pytest.approx(1.0, abs=1e-6)
 
 
+def test_penalized_pensynth_cv_fits_on_covariates_only():
+    # van Kesteren cv_pensynth: weights formed from covariates, outcome path is
+    # the holdout -> the final model matches predictors only.
+    prob = _toy_prob(seed=4)
+    s = solve_bilevel(prob, method="penalized", lam="cv", cv="pensynth")
+    assert s.metadata["matched_on"] == "predictors"
+    assert s.metadata["cv_curve"] is not None
+    # pensynth builds its own 1e-11..lmax grid (100 points) by default
+    assert len(s.metadata["lam_grid"]) == 100
+
+
+def test_penalized_pensynth_cv_requires_predictors():
+    # No covariates -> pensynth has nothing to match on.
+    rng = np.random.default_rng(0)
+    Y0 = np.cumsum(rng.normal(size=(18, 6)), axis=0) + 5.0
+    w = rng.dirichlet(np.ones(6))
+    prob = _BP(y1_pre=Y0 @ w, Y0_pre=Y0, X1=np.zeros(0), X0=np.zeros((0, 6)))
+    assert prob.n_predictors == 0
+    with pytest.raises(ValueError, match="pensynth.*predictors|predictors.*none"):
+        solve_bilevel(prob, method="penalized", lam="cv", cv="pensynth")
+
+
 def test_penalized_unknown_cv_raises():
     prob = _toy_prob()
-    with pytest.raises(ValueError, match="holdout|loo"):
+    with pytest.raises(ValueError, match="holdout|loo|pensynth"):
         solve_bilevel(prob, method="penalized", lam="cv", cv="nope")
 
 

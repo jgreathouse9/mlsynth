@@ -67,6 +67,42 @@ def _scale_unit_variance(X: np.ndarray) -> np.ndarray:
     return X / sd
 
 
+def _covariate_balance(
+    pred_names: List[str], Xall: np.ndarray, W: np.ndarray
+) -> Dict[str, Any]:
+    """Abadie Table-1 style balance: treated vs synthetic vs donor average.
+
+    ``Xall`` is the raw (unscaled) ``(P, N)`` predictor-means matrix with the
+    treated unit in column 0 and donors (in ``W`` order) in columns ``1:``.
+    The synthetic value of each predictor is the donor-weighted mean; the donor
+    average is the unweighted mean across donors. All in the predictors' own
+    units, matching what practitioners report.
+    """
+    treated = Xall[:, 0]
+    donors = Xall[:, 1:]
+    w = np.asarray(W, dtype=float)
+    s = w.sum()
+    if abs(s) > _EPS:
+        w = w / s
+    synthetic = donors @ w
+    donor_avg = donors.mean(axis=1)
+
+    def mape(ref: np.ndarray) -> float:
+        denom = np.where(np.abs(treated) > _EPS, treated, np.nan)
+        return float(np.nanmean(np.abs((ref - treated) / denom)) * 100.0)
+
+    return {
+        "predictors": list(pred_names),
+        "treated": treated.tolist(),
+        "synthetic": synthetic.tolist(),
+        "donor_average": donor_avg.tolist(),
+        "mean_abs_pct_gap": {
+            "synthetic": mape(synthetic),
+            "donor_average": mape(donor_avg),
+        },
+    }
+
+
 def _rmspe_ratio(y: np.ndarray, cf: np.ndarray, pre: int) -> Tuple[float, float, float]:
     """(pre_rmspe, post_rmspe, ratio) for an outcome/counterfactual pair."""
     gap = y - cf
@@ -111,6 +147,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
 
     # Build predictor matrices (treated + donors, donor order matches Y0 columns).
     X1 = X0 = None
+    Xall = None
     pred_names: List[str] = []
     if covariates:
         pre_labels = list(time_labels[:pre])
@@ -128,6 +165,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         seed=config.seed,
         maxiter=config.mscmt_maxiter,
         popsize=config.mscmt_popsize,
+        cv=config.penalized_cv,
     )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -274,6 +312,10 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             "treated_name": treated_name,
             "pre_periods": pre,
             "solver_diagnostics": res.diagnostics,
+            "covariate_balance": (
+                _covariate_balance(pred_names, Xall, res.W)
+                if covariates and Xall is not None else None
+            ),
         },
     )
     return results

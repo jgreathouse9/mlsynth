@@ -38,7 +38,7 @@ _BACKENDS = ("auto", "outcome-only", "malo", "mscmt", "penalized")
 _SOLVER_KWARGS = {
     "mscmt": {"lb", "maxiter", "popsize", "tol", "seed", "polish", "feas_tol"},
     "malo": {"feas_tol", "eps_corner", "refine", "refine_gap_tol"},
-    "penalized": {"lam", "lam_grid", "max_iter", "tol"},
+    "penalized": {"lam", "cv", "lam_grid", "max_iter", "tol"},
 }
 _EPS = 1e-10
 
