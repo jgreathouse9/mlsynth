@@ -1,0 +1,70 @@
+# mlsynth
+
+> mlsynth is a strongly-typed Python library of synthetic-control and
+> difference-in-differences estimators for causal inference with panel data.
+> Every estimator exposes a Pydantic config and a `.fit()` that returns a
+> standardized results object. Most are validated against the source paper's
+> empirical result, Monte Carlo, or an authoritative reference implementation
+> (see the Replications page).
+
+## How to call any estimator
+
+    from mlsynth import <ESTIMATOR>
+    res = <ESTIMATOR>({"df": long_df, "outcome": "...", "treat": "...",
+                       "unitid": "...", "time": "...", "display_graphs": False}).fit()
+
+`df` is long-format (one row per unit-period); `treat` is a 0/1 indicator that
+is 1 for the treated unit in post-treatment periods. Results expose
+`.effects.att`, `.time_series`, `.inference`, etc. (see BaseEstimatorResults).
+
+## Docs
+- Full documentation: https://mlsynth.readthedocs.io
+- Replications catalogue: https://mlsynth.readthedocs.io/en/latest/replications.html
+
+## Estimators
+
+- **BVSS** — Bayesian Synthetic Control with a soft simplex constraint.  (config: BVSSConfig)
+- **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)
+- **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
+- **DC** — De-biased convex panel-regression estimator (Farias et al. 2021).  (config: DCConfig)
+- **DSC** — Distributional Synthetic Control estimator.  (config: DSCConfig)
+- **DSCAR** — Dynamic Synthetic Control for Auto-Regressive processes.  (config: DSCARConfig)
+- **FDID** — Forward Difference-in-Differences (FDID) estimator.  (config: FDIDConfig)
+- **FMA** — Factor Model Approach (Li & Sonnier 2023) estimator.  (config: FMAConfig)
+- **FSCM** — Forward-Selected Synthetic Control estimator.  (config: FSCMConfig)
+- **HSC** — Harmonic Synthetic Control (HSC) estimator.  (config: HSCConfig)
+- **ISCM** — Imperfect Synthetic Controls estimator.  (config: ISCMConfig)
+- **LEXSCM** — Lexicographic Synthetic Control (LEXSCM) estimator.  (config: LEXSCMConfig)
+- **MAREX** — Synthetic-control experimental design estimator (Abadie & Zhao 2026).  (config: MAREXConfig)
+- **MASC** — Matching and Synthetic Control estimator.  (config: MASCConfig)
+- **MCNNM** — Matrix Completion with Nuclear Norm Minimization estimator.  (config: MCNNMConfig)
+- **MLSC** — Multi-Level Synthetic Control (mlSC) estimator.  (config: MLSCConfig)
+- **MSQRT** — Multivariate Square-root Lasso Synthetic Control estimator.  (config: MSQRTConfig)
+- **MUSC** — Modified Unbiased Synthetic Control estimator.  (config: MUSCConfig)
+- **MicroSynth** — User-level balancing synthetic control estimator.  (config: MicroSynthConfig)
+- **NSC** — Nonlinear Synthetic Control (Tian 2023) estimator.  (config: NSCConfig)
+- **PANGEO** — Parallel-trends supergeo experimental design.  (config: PANGEOConfig)
+- **PDA** — Panel Data Approach estimator (l2 / LASSO / fs).  (config: PDAConfig)
+- **PPSCM** — Partially Pooled SCM estimator (augsynth::multisynth port).  (config: PPSCMConfig)
+- **PROXIMAL** — Proximal Inference (PROXIMAL) estimator.  (config: PROXIMALConfig)
+- **RESCM** — Relaxed/penalized synthetic-control estimator.  (config: RESCMConfig)
+- **RMSI** — Robust Matrix estimation with Side Information.  (config: RMSIConfig)
+- **SBC** — Synthetic Business Cycle (SBC) estimator.  (config: SBCConfig)
+- **SCMO** — Synthetic Control with Multiple Outcomes estimator.  (config: SCMOConfig)
+- **SDID** — Synthetic Difference-in-Differences estimator with event-study output.  (config: SDIDConfig)
+- **SHC** — Synthetic Historical Control (SHC) estimator.  (config: SHCConfig)
+- **SI** — Synthetic Interventions (SI) estimator.  (config: SIConfig)
+- **SIV** — Synthetic Instrumental Variables estimator.  (config: SIVConfig)
+- **SNN** — Synthetic Nearest Neighbors (causal matrix completion) estimator.  (config: SNNConfig)
+- **SPCD** — Synthetic Principal Component Design (SPCD) estimator.  (config: SPCDConfig)
+- **SPILLSYNTH** — Spillover-aware synthetic control estimator.  (config: SPILLSYNTHConfig)
+- **SPOTSYNTH** — Spillover-detecting synthetic control.  (config: SPOTSYNTHConfig)
+- **SSC** — Staggered Synthetic Control estimator.  (config: SSCConfig)
+- **SYNDES** — Synthetic Design (Doudchenko et al. 2021) estimator.  (config: SYNDESConfig)
+- **SYNDESPower** — Per-horizon MDE table for a fitted SYNDES design.
+- **SequentialSDID** — Sequential Synthetic Difference-in-Differences estimator.  (config: SequentialSDIDConfig)
+- **SpSyDiD** — Spatial Synthetic Difference-in-Differences estimator.  (config: SpSyDiDConfig)
+- **SparseSC** — L1-penalized Sparse Synthetic Control estimator.  (config: SparseSCConfig)
+- **TASC** — Time-Aware Synthetic Control (TASC) estimator.  (config: TASCConfig)
+- **TSSC** — Two-Step Synthetic Control (TSSC) estimator.  (config: TSSCConfig)
+- **VanillaSC** — Standard synthetic control estimator (bilevel engine).  (config: VanillaSCConfig)

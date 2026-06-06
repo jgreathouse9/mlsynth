@@ -1,0 +1,9 @@
+{
+  "_comment": "Merge this into .claude/settings.json to enable the plan-review gate. Optional.",
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "ExitPlanMode",
+        "hooks": [{ "type": "command", "command": ".claude/hooks/check-plan-review.sh" }] }
+    ]
+  }
+}
