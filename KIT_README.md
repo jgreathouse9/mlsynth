@@ -29,3 +29,16 @@ shipped `llms.txt` reflects your current 45 estimators).
 
 `MANIFEST.in` adds `mlsynth/guides/*.txt` as package data so `get_llm_guide()`
 works after `pip install` (you already have `include_package_data=True`).
+
+## Update — paper-review.md refined from live dry runs
+
+`.claude/commands/paper-review.md` now encodes three lessons from running it on
+six real papers:
+1. **Scope gate early** — panel vs cross-sectional; if it can't ride
+   `dataprep`/`BaseEstimatorResults` it's a scope-expansion decision, lean park.
+2. **Ground gap-vs-overlap with a grep**, then **adjudicate each hit with the
+   docstring/config** — distinguishing capability-overlap (pass), name/acronym
+   collision (still a gap, e.g. MASC), and genuine gap.
+3. **Flag any component with no Python reference** (e.g. MAVE) as a cost driver.
+Verdict vocabulary is now explicit: build-now / cheap-add / prototype-first /
+park / pass.
