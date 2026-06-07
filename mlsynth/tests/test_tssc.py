@@ -22,6 +22,7 @@ from dataclasses import FrozenInstanceError
 import numpy as np
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from mlsynth import TSSC
 from mlsynth.config_models import TSSCConfig
@@ -287,5 +288,7 @@ class TestImmutability:
         res = TSSC({"df": panel_df, "outcome": "y", "unitid": "unitid",
                     "time": "time", "treat": "treat", "draws": 80,
                     "seed": 0, "display_graphs": False}).fit()
-        with pytest.raises(FrozenInstanceError):
+        # TSSCResults is now a frozen Pydantic EffectResult; attribute
+        # assignment raises pydantic's ValidationError ("frozen_instance").
+        with pytest.raises(ValidationError):
             res.summary = None

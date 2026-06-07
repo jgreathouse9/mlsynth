@@ -21,8 +21,8 @@ from typing import List, Union
 
 import pandas as pd
 
-from ..config_models import FDIDConfig
 from ..exceptions import MlsynthEstimationError
+from ..utils.fdid_helpers.config import FDIDConfig
 from ..utils.fdid_helpers import (
     FDIDResults,
     assemble_fdid_results,
@@ -39,7 +39,7 @@ class FDID:
     ----------
     config : FDIDConfig or dict
         Validated configuration (or a compatible dictionary). See
-        :class:`mlsynth.config_models.FDIDConfig` for the available
+        :class:`mlsynth.utils.fdid_helpers.config.FDIDConfig` for the available
         fields (``df``, ``outcome``, ``treat``, ``unitid``, ``time``,
         ``display_graphs``, ``save``, ``counterfactual_color``,
         ``treated_color``, ``verbose``).

@@ -29,7 +29,6 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import TSSCConfig
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -37,6 +36,7 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.datautils import balance
+from ..utils.tssc_helpers.config import TSSCConfig
 from ..utils.tssc_helpers.estimation import fit_variant
 from ..utils.tssc_helpers.plotter import plot_tssc
 from ..utils.tssc_helpers.results_assembly import build_summary
@@ -51,7 +51,8 @@ class TSSC:
     Parameters
     ----------
     config : TSSCConfig or dict
-        Configuration object. See :class:`mlsynth.config_models.TSSCConfig`.
+        Configuration object. See
+        :class:`mlsynth.utils.tssc_helpers.config.TSSCConfig`.
 
     Returns
     -------

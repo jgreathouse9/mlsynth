@@ -25,12 +25,12 @@ imposed on ``beta``:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
+from pydantic import ConfigDict, model_validator
 
-if TYPE_CHECKING:
-    from ...config_models import BaseEstimatorResults
+from ...config_models import BaseEstimatorResults
 
 
 # Public (paper) method names.
@@ -186,9 +186,16 @@ class TSSCVariantFit:
     r2_pre: float
 
 
-@dataclass(frozen=True)
-class TSSCResults:
+class TSSCResults(BaseEstimatorResults):
     """Public ``TSSC.fit()`` return container.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational
+    report): besides the TSSC-specific fields below, it exposes the
+    standardized sub-models (``effects``, ``time_series``, ``weights``,
+    ``inference``, ``fit_diagnostics``, ``method_details``) -- lifted from
+    the recommended variant's ``summary`` -- and the flat accessors
+    ``att``/``att_ci``/``counterfactual``/``gap``/``donor_weights``/
+    ``pre_rmse``.
 
     Parameters
     ----------
@@ -202,10 +209,30 @@ class TSSCResults:
         Standardized result bundle for the recommended variant.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: TSSCInputs
     variants: Dict[str, TSSCVariantFit]
     selection: TSSCSelection
-    summary: Optional["BaseEstimatorResults"] = None
+    summary: Optional[BaseEstimatorResults] = None
+
+    @model_validator(mode="after")
+    def _populate_standard_submodels(self) -> "TSSCResults":
+        """Lift the recommended variant's standardized sub-models to the top
+        level so a TSSC result exposes the same surface as every other
+        EffectResult. Uses ``object.__setattr__`` because the model is
+        frozen."""
+        if self.effects is None and self.summary is not None:
+            for key in (
+                "effects",
+                "time_series",
+                "weights",
+                "inference",
+                "fit_diagnostics",
+                "method_details",
+            ):
+                object.__setattr__(self, key, getattr(self.summary, key))
+        return self
 
     @property
     def mode(self) -> str:

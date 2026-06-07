@@ -22,7 +22,8 @@ from __future__ import annotations
 
 from typing import Union
 
-from ..config_models import BaseEstimatorResults, VanillaSCConfig
+from ..config_models import BaseEstimatorResults
+from ..utils.vanillasc_helpers.config import VanillaSCConfig
 from ..exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError
 from ..utils.vanillasc_helpers.pipeline import run_vanillasc
 
@@ -38,7 +39,8 @@ class VanillaSC:
     Parameters
     ----------
     config : VanillaSCConfig or dict
-        Configuration. See :class:`mlsynth.config_models.VanillaSCConfig`.
+        Configuration. See
+        :class:`mlsynth.utils.vanillasc_helpers.config.VanillaSCConfig`.
 
     Examples
     --------

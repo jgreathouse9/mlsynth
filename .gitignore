@@ -14,3 +14,9 @@ dist/
 # Coverage files
 .coverage
 coverage.xml
+
+# Personal Claude Code overrides (not team-shared)
+.claude/settings.local.json
+
+# Stray plot artifact emitted by some tests
+y_lexplot.png

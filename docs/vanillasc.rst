@@ -460,7 +460,7 @@ Core API
 Configuration
 -------------
 
-.. autoclass:: mlsynth.config_models.VanillaSCConfig
+.. autoclass:: mlsynth.utils.vanillasc_helpers.config.VanillaSCConfig
    :members:
    :undoc-members:
 

@@ -266,26 +266,32 @@ Intermediate artifacts should remain interpretable and reusable.
 
 # Results Architecture
 
-Estimators should return typed structured result objects whenever possible.
+Estimators return one of **two** standardized, typed families — see
+**`agents_results.md`** for the full contract and the per-migration
+Definition of Done. In brief:
 
-Preferred result architecture:
-- `BaseEstimatorResults`
-- estimator-specific result structures
-- typed metadata containers
-- structured diagnostics
-- inference result objects
+- **Observational** estimators return an `EffectResult` (alias of
+  `BaseEstimatorResults`) or a frozen Pydantic subclass of it.
+- **Experimental / design** estimators return a `DesignResult`, whose
+  `report` is an `EffectResult`.
+
+Both subclass `MlsynthResult`. Result containers are **Pydantic models**
+(frozen where practical — freeze the leaf class, the shared base stays
+mutable); populate the standardized sub-models (`effects`, `time_series`,
+`weights`, `inference`, `fit_diagnostics`, `method_details`) and keep
+estimator-specific outputs as **typed fields** on the subclass. Nested helper
+containers (`FooInputs`, `FooMethodFit`) may remain frozen dataclasses.
 
 Avoid:
-- opaque nested dictionaries
+- opaque nested dictionaries as the public return
 - unnamed tuple returns
-- inconsistent field naming
+- inconsistent field naming for the same quantity
+- dumping typed outputs into `additional_outputs`
 
-Results should expose:
-- primary estimates
-- diagnostics
-- metadata
-- inference outputs
-- execution summaries
+Every result exposes:
+- primary estimates (flat `att`/`att_ci`/`counterfactual`/`gap`/
+  `donor_weights`/`pre_rmse` accessors)
+- diagnostics, metadata, inference outputs, execution summaries
 
 ---
 
