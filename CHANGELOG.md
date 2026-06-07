@@ -9,6 +9,19 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Changed
+- **RMSI migrated onto the two-family result contract.** `RMSI.fit()` now
+  returns `RMSIResults` as a frozen pydantic `EffectResult` with the
+  standardized sub-models populated from the treated aggregate paths
+  (`treated_mean` / `synthetic_mean`); `att` / `counterfactual` / `gap` /
+  `pre_rmse` resolve via the inherited accessors. **Breaking surface change
+  (matrix-completion convention):** `res.counterfactual` is now the **1-D
+  treated counterfactual path** (was the full `(N, T)` imputed matrix); the
+  matrix moved to `res.counterfactual_matrix`, and the per-cell `effects`
+  matrix moved to `res.effects_matrix` (the `effects` slot now holds the
+  standardized `EffectsResults`). RMSI is a matrix-completion method with no
+  donor weights, so `weights` records the method/rank. Mutating the frozen
+  result raises pydantic `ValidationError`. RMSI plots via `result.plot()` and
+  is pinned in `tests/test_result_contract.py`.
 - **SPOTSYNTH migrated onto the two-family result contract.** `SPOTSYNTH.fit()`
   now returns `SpotSynthResults` as a frozen pydantic `EffectResult`: it
   populates the standardized sub-models (`effects`, `time_series`, `weights`,

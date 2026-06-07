@@ -8,6 +8,8 @@ import numpy as np
 
 from .core import algorithm3
 from .structures import RMSIInputs, RMSIResults
+from ...config_models import WeightsResults
+from ..results_helpers import build_effect_submodels
 
 
 def run_rmsi(inputs: RMSIInputs, *, J: int = 2, rank: Optional[int] = None,
@@ -53,8 +55,27 @@ def run_rmsi(inputs: RMSIInputs, *, J: int = 2, rank: Optional[int] = None,
         "d_unit_cov": int(inputs.X.shape[1]), "d_time_cov": int(inputs.Z.shape[1]),
         "sieve_order": int(J), "estimator": "RMSI",
     }
+    # Standardized EffectResult sub-models from the treated aggregate paths.
+    # RMSI is a matrix-completion estimator (no donor weights); the weights
+    # slot records the method/rank so the standardized surface is populated.
+    submodels = build_effect_submodels(
+        observed_outcome=treated_mean,
+        counterfactual_outcome=synthetic_mean,
+        n_pre_periods=int(T0),
+        n_post_periods=int(T - T0),
+        time_periods=np.asarray(inputs.time_labels),
+        weights=WeightsResults(summary_stats={
+            "constraint": "matrix completion (no donor weights)",
+            "rank": int(used_rank),
+        }),
+        method_name="RMSI",
+        effects_overrides={"att": float(att)},
+        intervention_time=(inputs.time_labels[T0] if T0 < T
+                           else inputs.time_labels[-1]),
+    )
     return RMSIResults(
-        inputs=inputs, att=att, counterfactual=M_hat, effects=effects,
+        **submodels,
+        inputs=inputs, counterfactual_matrix=M_hat, effects_matrix=effects,
         att_by_period=att_by_period, treated_mean=treated_mean,
         synthetic_mean=synthetic_mean, rank=used_rank, metadata=metadata,
     )

@@ -47,7 +47,6 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.rmsi_helpers.pipeline import run_rmsi
-from ..utils.rmsi_helpers.plotter import plot_rmsi
 from ..utils.rmsi_helpers.setup import prepare_rmsi_inputs
 from ..utils.rmsi_helpers.structures import RMSIResults
 
@@ -94,17 +93,17 @@ class RMSI:
                 time_covariates=self.time_covariates,
             )
             results = run_rmsi(inputs, J=self.sieve_order, rank=self.rank)
+            # Attach plotting context so result.plot() is self-contained and
+            # styled from the (possibly nested) config; labels default to the
+            # column names when the user has not set them.
+            pc = self.config.resolved_plot()
+            if pc.xlabel is None:
+                pc.xlabel = self.time
+            if pc.ylabel is None:
+                pc.ylabel = self.outcome
+            object.__setattr__(results, "plot_config", pc)
             if self.display_graphs:
-                plot_rmsi(
-                    results,
-                    treated_color=self.treated_color,
-                    counterfactual_color=self.counterfactual_color,
-                    save=self.save,
-                    time_axis_label=self.time,
-                    treatment_label=self.treat,
-                    unit_label=self.unitid,
-                    outcome_label=self.outcome,
-                )
+                results.plot()
             return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
