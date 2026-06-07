@@ -279,7 +279,7 @@ def test_vanillasc_scpi_inference_end_to_end():
 
 
 def test_lto_helpers_match_paper():
-    """f / c(N, alpha) reproduce Lei-Sudijono (2025) reported values."""
+    """F / c(N, alpha) reproduce Lei-Sudijono (2025) reported values."""
     from mlsynth.utils.vanillasc_helpers.lto import (
         lto_powered_offset, lto_type_i_bound,
     )

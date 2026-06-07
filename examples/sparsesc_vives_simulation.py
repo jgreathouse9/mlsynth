@@ -44,7 +44,8 @@ from mlsynth.utils.fscm_helpers.bilevel.simplex import simplex_lstsq
 
 def scm_maha_w(X1, X0):
     """Standard SCM with the paper's fixed V = (X0' X0)^{-1} (full Mahalanobis).
-    Solve min_w (X1-X0 w)'V(X1-X0 w) on the simplex via V=LL', A=L'X0, b=L'X1."""
+    Solve min_w (X1-X0 w)'V(X1-X0 w) on the simplex via V=LL', A=L'X0, b=L'X1.
+    """
     K = X0.shape[0]
     G = X0 @ X0.T; G = 0.5 * (G + G.T)
     G += (1e-8 * np.trace(G) / max(K, 1)) * np.eye(K)

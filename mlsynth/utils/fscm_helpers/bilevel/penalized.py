@@ -198,7 +198,7 @@ def _loo_cv_lambda(prob: BilevelProblem, lam_grid: np.ndarray, *,
 
 
 def _pensynth_lam_grid(prob: BilevelProblem, nlambda: int = 100) -> np.ndarray:
-    """van Kesteren's exponential lambda grid for ``cv_pensynth``.
+    """Van Kesteren's exponential lambda grid for ``cv_pensynth``.
 
     Runs from ``1e-11`` to an empirical ``lmax`` at which the penalty reaches
     the nearest-neighbour limit: ``lmax = sum_j |X1.X0_j| / ||X1 - X0_j||^2``
@@ -217,7 +217,7 @@ def _pensynth_lam_grid(prob: BilevelProblem, nlambda: int = 100) -> np.ndarray:
 def _pensynth_cv_lambda(prob: BilevelProblem, lam_grid: np.ndarray, *,
                         use_outcomes: bool, use_predictors: bool,
                         train_frac: float, max_iter: int, tol: float):
-    """van Kesteren ``cv_pensynth``: fit on covariates, validate on outcomes.
+    """Van Kesteren ``cv_pensynth``: fit on covariates, validate on outcomes.
 
     Unlike the time-split ``holdout``/``loo`` selectors, there is no train/
     validation split of the pre-period. For each ``lambda`` the donor weights
