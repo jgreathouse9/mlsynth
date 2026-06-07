@@ -12,6 +12,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from pydantic import ConfigDict, Field as PydField
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -58,21 +61,28 @@ class RMSIInputs:
         return self.Y.shape[1]
 
 
-@dataclass(frozen=True)
-class RMSIResults:
+class RMSIResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.RMSI.fit`.
 
-    Attributes
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    in addition to the RMSI-specific fields below it exposes the standardized
+    sub-models (``effects``, ``time_series``, ``weights``, ``inference``,
+    ``fit_diagnostics``, ``method_details``) and the flat accessors ``att`` /
+    ``counterfactual`` / ``gap`` / ``pre_rmse``. The treated counterfactual path
+    (``res.counterfactual``) is the cross-treated-unit synthetic mean; the full
+    imputed ``(N, T)`` matrix lives in ``counterfactual_matrix``.
+
+    Parameters
     ----------
     inputs : RMSIInputs
-    att : float
-        Average treatment effect on the treated (mean post-period gap over
-        treated cells).
-    counterfactual : np.ndarray
+    counterfactual_matrix : np.ndarray
         Estimated untreated potential outcomes ``M_hat``, shape ``(N, T)``.
-    effects : np.ndarray
+        (Renamed from ``counterfactual``, which now returns the 1-D treated
+        path per the result contract.)
+    effects_matrix : np.ndarray
         Observed minus imputed on treated cells (NaN elsewhere), shape
-        ``(N, T)``.
+        ``(N, T)``. (Renamed from ``effects``, which is now the standardized
+        :class:`~mlsynth.config_models.EffectsResults` slot.)
     att_by_period : dict
         ``{time_label: ATT}`` over the post-treatment periods.
     treated_mean, synthetic_mean : np.ndarray
@@ -85,13 +95,14 @@ class RMSIResults:
     metadata : dict
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: RMSIInputs
-    att: float
-    counterfactual: np.ndarray
-    effects: np.ndarray
+    counterfactual_matrix: np.ndarray
+    effects_matrix: np.ndarray
     att_by_period: Dict[Any, float]
     treated_mean: np.ndarray
     synthetic_mean: np.ndarray
     rank: int
     components: Optional[Dict[str, np.ndarray]] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = PydField(default_factory=dict)

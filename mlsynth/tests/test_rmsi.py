@@ -19,6 +19,7 @@ import pathlib
 import numpy as np
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from mlsynth import RMSI
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
@@ -113,7 +114,8 @@ class TestIntegration:
                     "display_graphs": False}).fit()
         assert isinstance(res, RMSIResults)
         assert abs(res.att - 5.0) < 1.0
-        assert res.counterfactual.shape == (40, 31)
+        assert res.counterfactual_matrix.shape == (40, 31)
+        assert res.counterfactual.ndim == 1  # treated path (contract)
         assert res.rank >= 1
 
     def test_prop99_path_a(self):
@@ -147,8 +149,10 @@ class TestAPI:
         res = RMSI({"df": df, "outcome": "Y", "treat": "treated",
                     "unitid": "unit", "time": "time",
                     "unit_covariates": ["x0", "x1"], "display_graphs": False}).fit()
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            res.att = 0.0
+        # RMSIResults is now a frozen pydantic EffectResult; mutating a field
+        # raises pydantic's ValidationError (not FrozenInstanceError).
+        with pytest.raises(ValidationError):
+            res.rank = 0
 
     def test_bad_config_raises(self):
         df = simulate_rmsi_panel(n_units=12)
