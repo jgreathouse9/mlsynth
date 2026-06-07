@@ -1,87 +1,151 @@
-# AGENTS.md — Documentation Notation & Style (Future Direction)
+# AGENTS.md — Documentation Math Notation (canonical & binding)
 
-> **Status: aspirational / future flag.** This file records the intended
-> direction for `docs/*.rst` mathematical writing. It does **not** mandate
-> an immediate rewrite of existing pages. Apply incrementally: when you
-> touch a docs page for another reason, migrate it toward the conventions
-> below. New estimator docs should follow them from the start.
+> **Status: binding.** This is the single source of truth for mathematical
+> notation in `docs/*.rst`. It is **mandatory** for every new estimator page
+> and for any page you touch. Existing pages migrate **incrementally** — when
+> you edit a page for any reason, convert its symbols to this canon (symbols
+> only; never alter the content of a derivation). An agent should be able to
+> read any page without re-learning symbols.
 
-## Motivation
+## Why this exists
 
-mlsynth's docs have accreted **mixed mathematical notation** across pages
-(different symbols for the treated unit, the donor pool, pre/post periods,
-expectations, etc.). The goal is a **single, unified notation and writing
-style** across every estimator page, so a reader who learns the conventions
-once can read any page without re-learning symbols.
+mlsynth's docs accreted **mixed notation** across pages — different symbols for
+the treated unit, the donor pool, pre/post periods, the treatment effect — so
+each page made the reader start over. The fix is one symbol set, used
+everywhere. The canon below is **derived from the author's own writing** in the
+`qdocs` blog (<https://github.com/jgreathouse9/jgreathouse9.github.io>, e.g.
+`fscm.qmd`, `shc.qmd`, `scexp.qmd`), so the docs speak in the same voice as the
+blog posts that motivate them.
 
-## Gold-standard reference
+Two references, two roles:
 
-Adopt the notation and expository style of:
+* **Symbol canon → the `qdocs` blog** (the table below). When in doubt about a
+  symbol, match the blog.
+* **Expository structure → Shi & Huang (2023),** *"Forward-selected panel data
+  approach for program evaluation,"* J. Econometrics 234(2): a dedicated
+  Notation block up front, numbered Assumptions each paired with a Remark, and
+  motivating examples that frame *when* the method is the right tool.
 
-> Shi, Z., & Huang, J. (2023). "Forward-selected panel data approach for
-> program evaluation." *Journal of Econometrics*, 234(2), 512–535.
+## The notation canon
 
-Its strengths, which we want to emulate:
+### Typography
 
-1. A dedicated **Notations** paragraph that fixes every symbol convention
-   up front, before any model is introduced.
-2. **Numbered Assumptions** (Assumption 1, 2, …), each stated formally with
-   labelled sub-conditions (a)/(b)/(c), and **each paired with a Remark**
-   that explains the intuition — *why* the assumption is reasonable and
-   what it buys you.
-3. Motivating **Examples** placed early that frame *when* the method is the
-   right tool (e.g. "nearly 200 countries... how to deal with a much larger
-   pool of control units?").
+| Object | Convention | Example |
+| --- | --- | --- |
+| scalar | plain lowercase | `t`, `N`, `T_0`, `\lambda` |
+| vector | **bold lowercase** | `\mathbf{y}`, `\mathbf{w}` |
+| matrix | **bold uppercase** | `\mathbf{Y}_0`, `\mathbf{X}` |
+| set | calligraphic uppercase | `\mathcal{N}`, `\mathcal{T}` |
+| estimate / fitted value | hat | `\widehat{y}_{1t}`, `\widehat{\tau}` |
+| optimiser | star superscript | `\mathbf{w}^\ast` |
+| transformed series (smoothed, de-meaned, …) | tilde | `\widetilde{\mathbf{y}}` |
+| "is defined as" | `\coloneqq` (`:=`) | `\mathcal{T} \coloneqq \{1,\dots,T\}` |
 
-## Three directives for future docs work
+Operators and symbols: norms `\|\cdot\|_1`, `\|\cdot\|_2`, squared
+`\|\cdot\|_2^2`; non-negative reals `\mathbb{R}_{\ge 0}`; unit simplex
+`\Delta^{N_0} \coloneqq \{\mathbf{w}\in\mathbb{R}_{\ge 0}^{N_0} : \|\mathbf{w}\|_1 = 1\}`;
+`\operatorname*{argmin}` / `\operatorname*{argmax}`; indicator
+`\mathbf{1}\{\cdot\}`; standard-normal CDF `\Phi(\cdot)`; expectation
+`\mathbb{E}[\cdot]`; Moore–Penrose pseudoinverse `(\cdot)^{+}`.
 
-### 1. One unified notation across all pages
+### Units
 
-Fix a canonical symbol set and use it everywhere. Proposed canon, mirroring
-Shi & Huang:
+* `\mathcal{N} \coloneqq \{1,\dots,N\}` — all `N` units.
+* **The treated unit is `j = 1`.** (State it once: "Let `j = 1` denote the
+  treated unit.")
+* Donor pool `\mathcal{N}_0 \coloneqq \mathcal{N}\setminus\{1\}`, with
+  cardinality `N_0`. Generic unit index `j`.
 
-- **Typography.** Plain letter `x` = scalar; bold lowercase `x` = column
-  vector; bold uppercase `X` = matrix. `I` identity; `1{·}` indicator;
-  `Φ(·)` standard-normal CDF; `⌈·⌉`/`⌊·⌋` ceiling/floor; `(·)⁻`
-  Moore–Penrose pseudoinverse; `φ_min`/`φ_max` min/max eigenvalue;
-  `‖·‖₁`, `‖·‖₂` the L1/L2 norms; `x_U := (x_j)_{j∈U}` a subvector.
-- **Units.** `N+1` units indexed by `𝒩₀ := {0, 1, …, N}`; `j = 0` is the
-  treated unit; `𝒩 := {1, …, N}` indexes the `N` control/donor units.
-- **Potential outcomes.** `y⁰_{jt}`, `y¹_{jt}`; observed
-  `y_{jt} = y⁰_{jt}(1 − d_{jt}) + y¹_{jt} d_{jt}`, with treatment dummy
-  `d_{jt}`. Treatment effect `Δ_t`.
-- **Time.** Series on `{−T₁, …, −1, 0, 1, …, T₂}`; intervention at `t = 0`;
-  pre-period `𝒯₁ := {−T₁, …, −1}`, post-period `𝒯₂ := {1, …, T₂}`,
-  `𝒯 := 𝒯₁ ∪ 𝒯₂`.
-- **Expectations.** `E[x_t]` population; time-averaged population means
-  `ℰ₍₁₎[x_t] := T₁⁻¹ Σ_{t∈𝒯₁} E[x_t]` (pre) and `ℰ₍₂₎` (post); sample
-  means `𝔼₍₁₎[x_t] := T₁⁻¹ Σ_{t∈𝒯₁} x_t`, `𝔼₍₂₎` (post).
+### Time
 
-When a paper an estimator implements uses different symbols, translate into
-this canon in the docs (a short "notation bridge" note is fine), rather than
-importing yet another symbol set.
+* `t \in \mathcal{T} \coloneqq \{1,\dots,T\}` — **1-indexed**; the intervention
+  takes effect **after** period `T_0`.
+* Pre-period `\mathcal{T}_1 \coloneqq \{t\in\mathcal{T} : t \le T_0\}`,
+  so `|\mathcal{T}_1| = T_0`.
+* Post-period `\mathcal{T}_2 \coloneqq \{t\in\mathcal{T} : t > T_0\}`,
+  so `|\mathcal{T}_2| = T - T_0`.
 
-### 2. Notations block + Assumptions-with-Remarks
+  (Do **not** use a `t = 0`-centered axis. `T_0` is the canonical split point.)
 
-Every estimator docs page should carry:
+### Outcomes  (subscript order: **unit, then time** — `y_{jt}`)
 
-- A short **Notation** subsection (or reuse a shared one) before the model.
-- Identification / inference requirements written as **numbered, formal
-  Assumptions**, each immediately followed by a plain-language **Remark**
-  giving the intuition. Do not bury assumptions inside prose.
+* Observed scalar `y_{jt}`; treated series
+  `\mathbf{y}_1 = (y_{11},\dots,y_{1T})^\top \in \mathbb{R}^T`; donor series
+  `\mathbf{y}_j \in \mathbb{R}^T`.
+* Donor matrix `\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j\in\mathcal{N}_0}
+  \in \mathbb{R}^{T\times N_0}` (one column per donor).
+* Potential outcomes (Abadie superscripts): `y_{jt}^N` without the
+  intervention, `y_{jt}^I` under it; the observed outcome is
+  `y_{jt} = y_{jt}^N + \bigl(y_{jt}^I - y_{jt}^N\bigr)\,d_{jt}` with treatment
+  dummy `d_{jt}`.
 
-### 3. A "When to use this estimator" section
+### Weights, counterfactual, and effects
 
-Each page should include, near the top, the **author's argument for when
-the method is the right choice** — the regime it targets and what problem it
-solves better than the alternatives — framed like Shi & Huang's motivating
-Examples. State the *use case*, not just the mechanics, with reference to real life examples from business or marketing.. (This complements
-the existing one-draw Monte Carlo Example requirement in
-`agents_intro.md §5`.)
+* Donor weights `\mathbf{w} \in \mathbb{R}^{N_0}` (on the simplex `\Delta^{N_0}`
+  when constrained); optimiser `\mathbf{w}^\ast`.
+* Counterfactual / synthetic estimate
+  `\widehat{\mathbf{y}}_1 \coloneqq \mathbf{Y}_0\,\mathbf{w}^\ast`, with entries
+  `\widehat{y}_{1t}`.
+* Per-period treatment effect
+  `\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}` (it estimates
+  `y_{1t}^I - y_{1t}^N`).
+* **ATT** `\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t`.
+
+> **Docs ↔ code share one vocabulary.** `\tau_t` is exactly the `gap` and
+> `\widehat{\tau}` the `att` computed in `utils/effectutils.py` /
+> `results_helpers.build_effect_submodels`; pre/post fit are `rmse_pre` /
+> `rmse_post` (`utils/fitutils.py`). Write the math so the symbols name the
+> quantities the result object returns.
+
+### Weight constraints and penalties (the SC family)
+
+Most mlsynth estimators pick `\mathbf{w}` by a constrained / penalized program.
+Write it in this common shape so every weighting page reads alike:
+
+```
+\mathbf{w}^\ast \in \operatorname*{argmin}_{\mathbf{w}\in\mathcal{C}}
+   \; \mathcal{L}(\mathbf{Y}_0,\mathbf{y}_1,\mathbf{w}) + \mathcal{P}(\mathbf{w})
+   \quad\text{s.t.}\quad \mathcal{B}(\mathbf{Y}_0,\mathbf{y}_1,\mathbf{w}) \le \boldsymbol{\delta}
+```
+
+* fit loss `\mathcal{L}`, penalty `\mathcal{P}`, balance map `\mathcal{B}`;
+* feasible set `\mathcal{C}` with descriptive subscripts —
+  `\mathcal{C}_{\text{simplex}}`, `\mathcal{C}_{\text{nonneg}}`,
+  `\mathcal{C}_{\text{affine}}`, `\mathcal{C}_{\text{unit}}`,
+  `\mathcal{C}_{\text{unconstrained}}`;
+* regularization strength `\lambda \ge 0`, elastic-net mix `\alpha \in [0,1]`,
+  norm order `q \in \{2,\infty\}` in `\|\mathbf{w}\|_q`;
+* optional unpenalized intercept / level shift `b_0`, balance slack `\gamma`.
+
+> **Reserve `\tau` for the treatment effect.** `\tau_t` and `\widehat{\tau}`
+> always denote the effect. For a relaxation / balance tolerance use
+> `\boldsymbol{\delta}` (or `\varepsilon`), never `\tau` — this is the one clash
+> that recurs across the source posts, so fix it here.
+
+### The bridge rule
+
+When the implemented paper uses other symbols — Shi & Huang's `j = 0` treated
+unit and `t = 0`-centered time; Li (2024)'s `y_{tr,t}`; Abadie's `\mathbf{Y}_1`
+for the treated matrix — **translate into the canon** and, if helpful, add a
+one-line *notation bridge* ("Li's `y_{tr,t}` is our `y_{1t}`"). Never carry a
+second symbol set into the page.
+
+## Page requirements
+
+Every estimator page carries, in this order near the top:
+
+1. **"When to use this estimator"** — the author's argument for the regime it
+   targets and what it solves better than the alternatives, with a concrete
+   business/marketing example (cf. the one-draw Monte Carlo Example in
+   `agents_intro.md §5`).
+2. A **Notation** block fixing the page's symbols (reuse the canon; only define
+   what is genuinely page-specific) before any model is introduced.
+3. **Numbered Assumptions** (Assumption 1, 2, …) with labelled sub-conditions
+   (a)/(b)/(c), **each immediately followed by a Remark** giving the intuition.
+   Do not bury assumptions in prose.
 
 ## Scope reminder
 
-This is a style/notation unification effort, not a mathematical revision.
-Do not change the *content* of any derivation when migrating notation. When
-in doubt about the canonical symbol for a concept, prefer the Shi & Huang
-choice above.
+This is a notation/style contract, not a license to revise mathematics. When
+migrating a page, change *symbols only* — leave every derivation's content
+intact. When a symbol is genuinely ambiguous, match the `qdocs` blog.

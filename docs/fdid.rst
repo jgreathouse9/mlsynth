@@ -23,8 +23,8 @@ hatches each have a catch:
   form -- exactly the regime of most marketing and macro panels.
 * **The panel-data approach** of Hsiao, Ching and Wan ([HCW]_) and its
   forward-selected variant ([fsPDA]_) fit an unrestricted regression on the
-  controls. When the number of controls :math:`N` exceeds the number of
-  pre-treatment periods :math:`T_1` -- common in store/geo studies -- they
+  controls. When the number of donors :math:`N_0` exceeds the number of
+  pre-treatment periods :math:`T_0` -- common in store/geo studies -- they
   **overfit** in-sample and predict poorly out-of-sample.
 
 Forward DiD (Li [Li2024]_) targets precisely this regime: **many candidate
@@ -39,10 +39,10 @@ Li's own summary:
 
 1. It is a **flexible drop-in for DiD**, usable even when DiD's
    all-controls parallel trend is too restrictive.
-2. It accommodates **any number of controls**, including :math:`N > T_1`.
+2. It accommodates **any number of controls**, including :math:`N_0 > T_0`.
 3. There are **no overfitting concerns** -- one parameter after selection.
-4. It is **computationally cheap**: a greedy :math:`O(N^2)` search rather
-   than the :math:`2^N` subsets of the optimal procedure.
+4. It is **computationally cheap**: a greedy :math:`O(N_0^2)` search rather
+   than the :math:`2^{N_0}` subsets of the optimal procedure.
 5. It has **inference theory valid for stationary and non-stationary
    data**, which SC and HCW lack.
 
@@ -102,39 +102,44 @@ not as a new weighting scheme.
 Notation
 --------
 
-Index the units by :math:`j`, with :math:`j = 0` the single **treated**
-unit and :math:`\mathcal{N} = \{1, \ldots, N\}` the **control** units. A
-selected subset :math:`\mathcal{D} \subseteq \mathcal{N}` is the
-**comparison group**; write its equal-weighted average outcome as
+Index the units by :math:`j`. Let :math:`j = 1` be the single **treated**
+unit and :math:`\mathcal{N} \coloneqq \{1, \ldots, N\}` all units; the
+**donor pool** is :math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}`,
+with :math:`|\mathcal{N}_0| = N_0`. A selected subset
+:math:`\mathcal{D} \subseteq \mathcal{N}_0` is the **comparison group**;
+write its equal-weighted average outcome as
 
 .. math::
 
    \bar{y}_{\mathcal{D}, t} = \frac{1}{|\mathcal{D}|}
        \sum_{j \in \mathcal{D}} y_{jt}.
 
-Time runs over :math:`t \in \{1, \ldots, T\}`; the intervention starts at
-:math:`T_1 + 1`, giving a pre-period :math:`\mathcal{T}_1 = \{1, \ldots,
-T_1\}` and a post-period :math:`\mathcal{T}_2 = \{T_1 + 1, \ldots, T\}` of
-length :math:`T_2 = T - T_1`. Potential outcomes are :math:`y^0_{jt}`
-(untreated) and :math:`y^1_{jt}` (treated); we observe :math:`y_{0t} =
-y^0_{0t}` for :math:`t \in \mathcal{T}_1` and :math:`y_{0t} = y^1_{0t}` for
-:math:`t \in \mathcal{T}_2`. The estimand is the average treatment effect
-on the treated,
+Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \ldots, T\}`; the
+intervention takes effect after :math:`T_0`, giving a pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (so
+:math:`|\mathcal{T}_1| = T_0`) and a post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}` (so
+:math:`|\mathcal{T}_2| = T - T_0`). Potential outcomes are :math:`y_{jt}^N`
+(without the intervention) and :math:`y_{jt}^I` (under it); for the treated
+unit we observe :math:`y_{1t} = y_{1t}^N` on :math:`\mathcal{T}_1` and
+:math:`y_{1t} = y_{1t}^I` on :math:`\mathcal{T}_2`. The estimand is the
+average treatment effect on the treated,
 
 .. math::
 
-   \mathrm{ATT} = \frac{1}{T_2} \sum_{t \in \mathcal{T}_2}
-       \bigl(y^1_{0t} - y^0_{0t}\bigr).
+   \mathrm{ATT} = \frac{1}{|\mathcal{T}_2|} \sum_{t \in \mathcal{T}_2}
+       \bigl(y_{1t}^I - y_{1t}^N\bigr).
 
 .. admonition:: Notation bridge
 
    Li [Li2024]_ writes the treated outcome :math:`y_{tr,t}`, the selected
-   control set :math:`\mathcal{N}_{co}` with size :math:`N_{co}`, the
-   control average :math:`\bar{y}_{\mathcal{N}_{co}, t}`, the intercept
-   :math:`\alpha`, and :math:`T_1` / :math:`T_2` for the pre/post counts
-   (treatment at :math:`T_1 + 1`). We keep :math:`j = 0` for the treated
-   unit, :math:`\mathcal{D}` for the selected comparison group, and
-   :math:`\bar{y}_{\mathcal{D}, t}` for its average.
+   control set :math:`\mathcal{N}_{co}` of size :math:`N_{co}`, its average
+   :math:`\bar{y}_{\mathcal{N}_{co}, t}`, the intercept :math:`\alpha`, and
+   uses :math:`T_1` / :math:`T_2` for the pre/post sample sizes (treatment
+   at :math:`T_1 + 1`). In the mlsynth canon these become the treated unit
+   :math:`j = 1` (hence :math:`y_{1t}`), the comparison group
+   :math:`\mathcal{D} \subseteq \mathcal{N}_0` with average
+   :math:`\bar{y}_{\mathcal{D}, t}`, and the single split point :math:`T_0`.
 
 Mathematical Formulation
 ------------------------
@@ -148,11 +153,11 @@ constant level shift:
 
 .. math::
 
-   y^0_{0t} = \alpha + \bar{y}_{\mathcal{D}, t} + v_t,
+   y_{1t}^N = \alpha + \bar{y}_{\mathcal{D}, t} + v_t,
    \qquad t = 1, \ldots, T,
 
 with :math:`\alpha` an unknown intercept and :math:`v_t` a zero-mean,
-weakly dependent error. Crucially, :math:`y^0_{0t}` and
+weakly dependent error. Crucially, :math:`y_{1t}^N` and
 :math:`\bar{y}_{\mathcal{D}, t}` may each be **non-stationary** (trending)
 provided their *difference* is stationary -- this is the Forward DiD
 parallel-trends condition. The intercept is estimated by least squares on
@@ -160,22 +165,23 @@ the pre-period,
 
 .. math::
 
-   \hat{\alpha} = \frac{1}{T_1} \sum_{t \in \mathcal{T}_1}
-       \bigl(y_{0t} - \bar{y}_{\mathcal{D}, t}\bigr),
+   \widehat{\alpha} = \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
+       \bigl(y_{1t} - \bar{y}_{\mathcal{D}, t}\bigr),
 
 so the in-sample fit and out-of-sample counterfactual are
 
 .. math::
 
-   \hat{y}^0_{0t} = \hat{\alpha} + \bar{y}_{\mathcal{D}, t},
+   \widehat{y}_{1t} = \widehat{\alpha} + \bar{y}_{\mathcal{D}, t},
    \qquad t = 1, \ldots, T,
 
-and the ATT is the mean post-period gap
+and the per-period effect is :math:`\tau_t = y_{1t} - \widehat{y}_{1t}`,
+whose post-period average is the ATT,
 
 .. math::
 
-   \widehat{\mathrm{ATT}} = \frac{1}{T_2}
-       \sum_{t \in \mathcal{T}_2} \bigl(y_{0t} - \hat{y}^0_{0t}\bigr).
+   \widehat{\tau} = \frac{1}{|\mathcal{T}_2|}
+       \sum_{t \in \mathcal{T}_2} \bigl(y_{1t} - \widehat{y}_{1t}\bigr).
 
 Because the model has a single parameter, the pre-treatment fit quality is
 summarized by an :math:`R^2` (identical to the adjusted :math:`R^2`, since
@@ -183,35 +189,43 @@ there is only one regressor coefficient):
 
 .. math::
 
-   R^2_{\mathcal{D}} = 1 - \frac{\sum_{t \in \mathcal{T}_1} \hat{v}_t^2}
-       {\sum_{t \in \mathcal{T}_1} (y_{0t} - \bar{y}_0)^2},
-   \qquad \hat{v}_t = y_{0t} - \bar{y}_{\mathcal{D}, t} - \hat{\alpha},
+   R^2_{\mathcal{D}} = 1 - \frac{\sum_{t \in \mathcal{T}_1} \widehat{v}_t^2}
+       {\sum_{t \in \mathcal{T}_1} (y_{1t} - \bar{y}_1)^2},
+   \qquad \widehat{v}_t = y_{1t} - \bar{y}_{\mathcal{D}, t} - \widehat{\alpha},
 
-where :math:`\bar{y}_0` is the treated unit's pre-period mean.
+where :math:`\bar{y}_1` is the treated unit's pre-period mean.
+
+.. note::
+
+   :math:`\tau_t` and :math:`\widehat{\tau}` are exactly the ``gap`` and
+   ``att`` the result object returns (computed in
+   :mod:`mlsynth.utils.effectutils`), and the pre/post fit are ``rmse_pre`` /
+   ``rmse_post`` (:mod:`mlsynth.utils.fitutils`) -- the math here names the
+   quantities :meth:`mlsynth.FDID.fit` reports.
 
 The forward-selection algorithm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Maximizing :math:`R^2_{\mathcal{D}}` is equivalent to minimizing the
-pre-period residual variance :math:`T_1^{-1} \sum_{t \in \mathcal{T}_1}
-\hat{v}_t^2`. Forward DiD searches over comparison groups greedily:
+pre-period residual variance :math:`T_0^{-1} \sum_{t \in \mathcal{T}_1}
+\widehat{v}_t^2`. Forward DiD searches over comparison groups greedily:
 
-1. **Step 1.** For each single control :math:`i \in \mathcal{N}`, form the
+1. **Step 1.** For each single donor :math:`i \in \mathcal{N}_0`, form the
    one-unit comparison group and compute its pre-period :math:`R^2`. Keep
-   the best single control, :math:`\hat{c}_1`.
-2. **Step 2.** Add to :math:`\{\hat{c}_1\}` each of the remaining
-   :math:`N - 1` controls in turn; keep the two-unit group with the highest
+   the best single donor, :math:`\widehat{c}_1`.
+2. **Step 2.** Add to :math:`\{\widehat{c}_1\}` each of the remaining
+   :math:`N_0 - 1` donors in turn; keep the two-unit group with the highest
    :math:`R^2`.
-3. **Step 3.** Continue, adding one control at a time, until all :math:`N`
-   controls are in. This yields :math:`N` nested groups (sizes
-   :math:`1, 2, \ldots, N`); select the one,
-   :math:`\hat{\mathcal{D}} = \mathcal{N}_{co}`, with the largest
+3. **Step 3.** Continue, adding one donor at a time, until all
+   :math:`N_0` donors are in. This yields :math:`N_0` nested groups (sizes
+   :math:`1, 2, \ldots, N_0`); select the one,
+   :math:`\widehat{\mathcal{D}} = \mathcal{N}_{co}`, with the largest
    :math:`R^2`.
 
-The greedy search evaluates :math:`1 + 2 + \cdots + N = N(N+1)/2`
-sub-models rather than the :math:`2^N` of the exhaustive procedure (for
-:math:`N = 60`, that is 1,830 versus :math:`1.15 \times 10^{18}`). The
-final group :math:`\hat{\mathcal{D}}` is then plugged into the DiD formulas
+The greedy search evaluates :math:`1 + 2 + \cdots + N_0 = N_0(N_0+1)/2`
+sub-models rather than the :math:`2^{N_0}` of the exhaustive procedure (for
+:math:`N_0 = 60`, that is 1,830 versus :math:`1.15 \times 10^{18}`). The
+final group :math:`\widehat{\mathcal{D}}` is then plugged into the DiD formulas
 above for the ATT, its standard error, and the :math:`R^2`.
 
 How mlsynth computes this: incremental means and a batched :math:`R^2`
@@ -240,7 +254,7 @@ which is :math:`O(T)` rather than :math:`O(kT)`. This is
 (``current_mean + (control - current_mean) / (k + 1)``).
 
 **2. All candidate averages for a step are built in one matrix.** At step
-:math:`k`, let :math:`\mathbf{Y}_{\mathcal{R}} \in \mathbb{R}^{T_1 \times
+:math:`k`, let :math:`\mathbf{Y}_{\mathcal{R}} \in \mathbb{R}^{T_0 \times
 |\mathcal{R}|}` stack the *pre-period* columns of the remaining candidates
 :math:`\mathcal{R}`. Every candidate :math:`(k+1)`-average -- one per
 column -- is formed simultaneously by broadcasting the running pre-period
@@ -250,7 +264,7 @@ mean :math:`\mathbf{m}^{(k)}_{\mathcal{T}_1}`:
 
    \mathbf{M} = \frac{k\,\mathbf{m}^{(k)}_{\mathcal{T}_1}\mathbf{1}^\top
        + \mathbf{Y}_{\mathcal{R}}}{k + 1}
-   \in \mathbb{R}^{T_1 \times |\mathcal{R}|}.
+   \in \mathbb{R}^{T_0 \times |\mathcal{R}|}.
 
 In code this is the one line ``new_means = (current_mean_pre[:, None] * k +
 candidates) / (k + 1)`` inside
@@ -260,9 +274,9 @@ candidates) / (k + 1)`` inside
 products.** This is the step that removes the per-candidate regression
 entirely. Profiling out :math:`\alpha` from the DiD loss is exactly
 *centering*: the fitted residual for candidate column :math:`\ell` is
-:math:`\hat v_t = (y_{0t} - \bar y_0) - (M_{t\ell} - \bar M_\ell)`. Writing
-:math:`\tilde{\mathbf{y}} = \mathbf{y}_{0,\mathcal{T}_1} - \bar y_0`
-(precomputed once, with its norm :math:`\lVert\tilde{\mathbf{y}}\rVert^2 =
+:math:`\widehat{v}_t = (y_{1t} - \bar y_1) - (M_{t\ell} - \bar M_\ell)`. Writing
+:math:`\widetilde{\mathbf{y}} = \mathbf{y}_{1,\mathcal{T}_1} - \bar y_1`
+(precomputed once, with its norm :math:`\lVert\widetilde{\mathbf{y}}\rVert^2 =
 \mathrm{ss}_{\text{tot}}`), the residual sum of squares for *all*
 candidates is
 
@@ -270,20 +284,20 @@ candidates is
 
    \mathrm{SSR}_\ell = \mathrm{ss}_{\text{tot}}
        + \underbrace{\lVert \mathbf{M}_\ell - \bar M_\ell \rVert^2}_{\text{column SS}}
-       - 2\,\underbrace{\tilde{\mathbf{y}}^\top (\mathbf{M}_\ell - \bar M_\ell)}_{\text{one matrix--vector product}},
+       - 2\,\underbrace{\widetilde{\mathbf{y}}^\top (\mathbf{M}_\ell - \bar M_\ell)}_{\text{one matrix--vector product}},
    \qquad
    R^2_\ell = 1 - \frac{\mathrm{SSR}_\ell}{\mathrm{ss}_{\text{tot}}}.
 
 The cross term for the whole candidate set is the single matvec
-:math:`\tilde{\mathbf{y}}^\top(\mathbf{M} - \bar{\mathbf{M}})`; the column
+:math:`\widetilde{\mathbf{y}}^\top(\mathbf{M} - \bar{\mathbf{M}})`; the column
 sums of squares are one reduction. This is
 :func:`~mlsynth.utils.fdid_helpers.estimation._r2_batch` -- no candidate is
 ever regressed, and :math:`\alpha` is never explicitly solved during the
 search (it is recovered only once, for the winning group, in
 :func:`~mlsynth.utils.fdid_helpers.estimation.did_from_mean`).
 
-Taken together, a forward step costs :math:`O(T_1 |\mathcal{R}|)` and the
-entire search is :math:`O(T_1 N^2)`, with the inner loop expressed as a
+Taken together, a forward step costs :math:`O(T_0 |\mathcal{R}|)` and the
+entire search is :math:`O(T_0 N_0^2)`, with the inner loop expressed as a
 broadcast, a matrix--vector product, a column reduction, and an
 ``argmax`` -- no Python-level loop over candidates and no per-candidate
 solve. This is what lets the implementation run the selection over
@@ -294,8 +308,8 @@ Assumptions
 -----------
 
 **Assumption 1 (Forward DiD parallel trends).** There exists a subset
-:math:`\mathcal{D} \subseteq \mathcal{N}` and a constant :math:`\alpha`
-such that :math:`y^0_{0t} = \alpha + \bar{y}_{\mathcal{D}, t} + v_t` for all
+:math:`\mathcal{D} \subseteq \mathcal{N}_0` and a constant :math:`\alpha`
+such that :math:`y_{1t}^N = \alpha + \bar{y}_{\mathcal{D}, t} + v_t` for all
 :math:`t`, where :math:`v_t` is a weakly dependent process with zero mean
 and finite variance.
 
@@ -303,7 +317,7 @@ and finite variance.
 comparison group is **stable** across the pre- and post-periods up to a
 mean-zero shock. It is strictly weaker than DiD's requirement that *all*
 controls be parallel: it asks only that *some* equal-weighted subset be
-parallel. Both :math:`y^0_{0t}` and :math:`\bar{y}_{\mathcal{D}, t}` may
+parallel. Both :math:`y_{1t}^N` and :math:`\bar{y}_{\mathcal{D}, t}` may
 trend arbitrarily (even non-linearly), so long as their difference is
 trendless -- which is what makes the method valid under non-stationarity.
 
@@ -323,7 +337,7 @@ finite long-run variance.
 *Remark.* This is what delivers the asymptotic normality in Proposition
 2.1 below, and it holds for the broad class of stationary,
 weakly-dependent error processes -- it does **not** require :math:`v_t` to
-be i.i.d. or the levels :math:`y^0_{0t}` to be stationary.
+be i.i.d. or the levels :math:`y_{1t}^N` to be stationary.
 
 .. admonition:: When **not** to use Forward DiD
 
@@ -431,43 +445,44 @@ Inference
 ---------
 
 Because Forward DiD estimates a single parameter, its inference is the
-textbook DiD inference. Let :math:`\hat{\sigma}^2_{\mathcal{D}} = T_1^{-1}
-\sum_{t \in \mathcal{T}_1} \hat{v}_t^2` be the pre-period residual
+textbook DiD inference. Let :math:`\widehat{\sigma}^2_{\mathcal{D}} = T_0^{-1}
+\sum_{t \in \mathcal{T}_1} \widehat{v}_t^2` be the pre-period residual
 variance on the selected group. Li's Proposition 2.1 establishes
 
 .. math::
 
    \left| \Pr\!\left(
-       \frac{\sqrt{T_2}\,(\widehat{\mathrm{ATT}} - \mathrm{ATT})}
-            {\hat{\sigma}_{\mathcal{D}}} \le a \right) - \Phi(a) \right|
+       \frac{\sqrt{|\mathcal{T}_2|}\,(\widehat{\tau} - \mathrm{ATT})}
+            {\widehat{\sigma}_{\mathcal{D}}} \le a \right) - \Phi(a) \right|
    \to 0, \qquad a \in \mathbb{R},
 
-as :math:`T_1, T_2 \to \infty`, where :math:`\Phi` is the standard-normal
-CDF. mlsynth reports the **finite-sample** standard error that also carries
-the estimation error in :math:`\hat{\alpha}`:
+as :math:`T_0, |\mathcal{T}_2| \to \infty`, where :math:`\Phi` is the
+standard-normal CDF. mlsynth reports the **finite-sample** standard error
+that also carries the estimation error in :math:`\widehat{\alpha}`:
 
 .. math::
 
-   \mathrm{SE}(\widehat{\mathrm{ATT}}) =
-       \hat{\sigma}_{\mathcal{D}} \sqrt{\frac{1}{T_1} + \frac{1}{T_2}},
+   \mathrm{SE}(\widehat{\tau}) =
+       \widehat{\sigma}_{\mathcal{D}} \sqrt{\frac{1}{T_0} + \frac{1}{|\mathcal{T}_2|}},
 
-since :math:`\widehat{\mathrm{ATT}} - \mathrm{ATT} = -T_1^{-1}
-\sum_{\mathcal{T}_1} v_t + T_2^{-1} \sum_{\mathcal{T}_2} v_t` contributes
-one :math:`1/T_1` and one :math:`1/T_2` variance term. This collapses to
-Proposition 2.1's :math:`\hat{\sigma}_{\mathcal{D}} / \sqrt{T_2}` when
-:math:`T_1 \gg T_2`. The 95% Wald interval and two-sided p-value follow in
-the usual way.
+since :math:`\widehat{\tau} - \mathrm{ATT} = -T_0^{-1}
+\sum_{\mathcal{T}_1} v_t + |\mathcal{T}_2|^{-1} \sum_{\mathcal{T}_2} v_t`
+contributes one :math:`1/T_0` and one :math:`1/|\mathcal{T}_2|` variance
+term. This collapses to Proposition 2.1's
+:math:`\widehat{\sigma}_{\mathcal{D}} / \sqrt{|\mathcal{T}_2|}` when
+:math:`T_0 \gg |\mathcal{T}_2|`. The 95% Wald interval and two-sided
+p-value follow in the usual way.
 
 Consistency of the selection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Li also shows the *greedy* search recovers a *valid* comparison group.
 Under Assumption 1 and the appendix's regularity conditions, with
-:math:`N` fixed, the empirical forward selection selects (one of) the same
+:math:`N_0` fixed, the empirical forward selection selects (one of) the same
 subset(s) the infeasible procedure based on true error variances would
-select, with probability approaching one as :math:`T_1 \to \infty`
+select, with probability approaching one as :math:`T_0 \to \infty`
 (Proposition 2.2; Proposition D.1 handles ties). Proposition D.2 extends
-this to the case where :math:`N` grows with :math:`T_1` under a latent
+this to the case where :math:`N_0` grows with :math:`T_0` under a latent
 group structure. Intuitively, by the law of large numbers each step's
 empirical :math:`R^2` converges to its population value, so the greedy path
 tracks the population-optimal path.
@@ -475,61 +490,11 @@ tracks the population-optimal path.
 Example
 -------
 
-The block below is self-contained. It draws one panel from Li's Web
-Appendix E data-generating process (three common factors, 60 controls), in
-the configuration where **half the controls are the wrong comparison**:
-the treated unit and the first 30 controls load on the common factor with
-weight 1, while the last 30 load with weight 2 (Li's "DGP2"). The true ATT
-is zero. Forward DiD should select from the *matching* half and beat plain
-DiD, which is contaminated by the mismatched half.
-
-.. code-block:: python
-
-   import numpy as np
-   from mlsynth import FDID
-   from mlsynth.utils.fdid_helpers.simulation import simulate_fdid_sample
-
-   sample = simulate_fdid_sample(dgp=2, N=60, T1=24, T2=12,
-                                  rng=np.random.default_rng(0))
-
-   res = FDID({"df": sample.df, "outcome": "y", "treat": "treat",
-               "unitid": "unit", "time": "time",
-               "display_graphs": False}).fit()
-
-   sel = res.fdid.selected_names
-   matching = sum(int(s[1:]) < 60 // 2 for s in sel)
-   print(f"FDID: ATT={res.fdid.att:+.3f}  R2={res.fdid.r_squared:.3f}  "
-         f"selected {len(sel)} donors, {matching} from the matching group")
-   print(f"DID : ATT={res.did.att:+.3f}  R2={res.did.r_squared:.3f}  (all 60 donors)")
-
-A representative single draw prints::
-
-   FDID: ATT=-0.556  R2=0.918  selected 4 donors, 4 from the matching group
-   DID : ATT=-0.924  R2=0.632  (all 60 donors)
-
-Forward DiD picks **only** matching controls, lifting the pre-fit
-:math:`R^2` from 0.63 to 0.92 and landing closer to the true zero effect
-than DiD -- which is dragged off by the 30 mismatched controls it is forced
-to include. (A single draw is noisy; the averaged behaviour over many draws
-is in *Verification* below.)
-
-``res`` is an
-:class:`~mlsynth.utils.fdid_helpers.structures.FDIDResults`: ``res.fdid``
-and ``res.did`` are the two
-:class:`~mlsynth.utils.fdid_helpers.structures.FDIDMethodFit` objects, the
-convenience accessors (``res.att``, ``res.att_se``, ``res.counterfactual``,
-``res.donor_weights``) forward to the Forward DiD fit, and
-``res.att_by_method()`` / ``res.ci_by_method()`` return both side by side.
-
-Empirical Illustration: Hong Kong's economic integration
---------------------------------------------------------
-
-Forward DiD is the DiD analogue of the forward-selected panel-data approach
-([fsPDA]_), and it shines on exactly the data those methods target. We use
-the Hsiao, Ching and Wan ([HCW]_) panel of quarterly real-GDP growth for
-Hong Kong and 24 comparison economies, with Hong Kong's economic
-integration with mainland China as the intervention (44 pre-treatment
-quarters, 17 post).
+The block below fits Forward DiD on the Hsiao, Ching and Wan ([HCW]_) panel of
+quarterly real-GDP growth for Hong Kong and 24 comparison economies -- the
+canonical setting for the forward-selected panel-data approach ([fsPDA]_) that
+Forward DiD descends from -- with Hong Kong's economic integration with
+mainland China as the intervention (44 pre-treatment quarters, 17 post).
 
 .. code-block:: python
 
@@ -542,36 +507,38 @@ quarters, 17 post).
    res = FDID({"df": df, "outcome": "GDP", "treat": "Integration",
                "unitid": "Country", "time": "Time", "display_graphs": True}).fit()
 
-   print(f"FDID ATT {res.fdid.att:.4f}  SE {res.fdid.att_se:.4f}  "
-         f"R2 {res.fdid.r_squared:.3f}  ({len(res.fdid.selected_names)} of "
-         f"{res.inputs.n_donors} controls)")
-   print("selected:", res.fdid.selected_names)
-   print(f"DID  ATT {res.did.att:.4f}  SE {res.did.att_se:.4f}  R2 {res.did.r_squared:.3f}")
+   # Forward DiD fit and the all-controls DiD benchmark, side by side.
+   print(res.fdid.att, res.fdid.r_squared, res.fdid.selected_names)
+   print(res.did.att, res.did.r_squared)
 
-This prints::
+Forward DiD keeps a small, regionally sensible subset of Hong Kong's trading
+partners rather than averaging all 24 economies, so it tracks Hong Kong's
+pre-integration path far more closely (a higher pre-period :math:`R^2`) and
+estimates the post-integration GDP-growth effect more precisely than the
+all-controls DiD. The exact selected group and the cell-by-cell match to Li's
+released output are in :doc:`replications/fdid`.
 
-   FDID ATT 0.0254  SE 0.0046  R2 0.843  (9 of 24 controls)
-   selected: ['Philippines', 'Singapore', 'Thailand', 'Norway', 'Mexico',
-              'Korea', 'Indonesia', 'New Zealand', 'Malaysia']
-   DID  ATT 0.0317  SE 0.0082  R2 0.505
-
-Forward DiD keeps **9 of the 24** economies -- a regionally sensible mix of
-Hong Kong's trading partners -- and in doing so lifts the pre-intervention
-:math:`R^2` from 0.51 (all-controls DiD) to 0.84, roughly **halving the
-standard error**. The selected comparison group implies a post-integration
-GDP-growth effect of about +2.5 percentage points, more precisely estimated
-and better-fitting than the all-controls DiD's +3.2.
+``res`` is an
+:class:`~mlsynth.utils.fdid_helpers.structures.FDIDResults`: ``res.fdid``
+and ``res.did`` are the two
+:class:`~mlsynth.utils.fdid_helpers.structures.FDIDMethodFit` objects, the
+convenience accessors (``res.att``, ``res.att_se``, ``res.counterfactual``,
+``res.donor_weights``) forward to the Forward DiD fit, and
+``res.att_by_method()`` / ``res.ci_by_method()`` return both side by side.
 
 Verification
 ------------
 
-Forward DiD is validated by reproducing the paper's own Monte Carlo
-(Li 2024, Web Appendix E): the Table 5 PMSE grid reproduces cell by cell
-(e.g. cell :math:`(48, 24)` yields :math:`\mathrm{PMSE} = 0.084` against the
-paper's :math:`0.082`), confirming that Forward DiD pays only a small
-efficiency cost when ordinary DiD is valid and wins decisively when half the
-controls are mismatched. See the dedicated replication page,
-:doc:`replications/fdid`, for the full design, code, and cell-by-cell table.
+Forward DiD is validated on two fronts. **Path A** -- mlsynth reproduces the
+author's public Hong Kong GDP companion replication cell by cell (FDID ATT
+:math:`0.0254`, :math:`53.84\%`, pre-period :math:`R^2 = 0.843`, 9 of 24
+controls). **Path B** -- the paper's own Monte Carlo (Li 2024, Web Appendix E)
+reproduces cell by cell (e.g. cell :math:`(48, 24)` yields
+:math:`\mathrm{PMSE} = 0.084` against the paper's :math:`0.082`), confirming
+Forward DiD pays only a small efficiency cost when ordinary DiD is valid and
+wins decisively when half the controls are mismatched. See the dedicated
+replication page, :doc:`replications/fdid`, for the full design, code, and
+cell-by-cell tables.
 
 Core API
 --------

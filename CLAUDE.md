@@ -77,7 +77,8 @@ linked from the estimator page's short "Verification" pointer (see
 - One `docs/<name>.rst` per estimator: When-to-use → Notation → Assumptions
   (numbered, each with a Remark) → Inference/diagnostics → runnable Example →
   Verification pointer → Core API autodoc. Follow `agents/agents_docs.md`
-  (Shi–Huang notation canon).
+  — the **binding** math-notation canon (symbols derived from the `qdocs`
+  blog; Shi–Huang for expository structure).
 - Section underlines must be **≥** the title length (RST requirement).
 
 ## Git

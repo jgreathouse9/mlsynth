@@ -9,6 +9,17 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- **FDID validation (Path A + B), officially complete.** New
+  `benchmarks/cases/fdid_hongkong.py` reproduces Li (2024)'s public Hong Kong
+  GDP companion replication cell by cell (FDID ATT 0.0254 / 53.84% / pre-R² 0.843
+  / 9 of 24 controls; DID 0.0317 / 77.62% / 0.505), guarded in CI by
+  `tests/test_fdid_replication.py`; the Table 5 simulation (`fdid_table5.py`)
+  remains the Path B check. Replication page updated to document both.
+- **Vectorized metric primitives.** `utils/effectutils.py` (treatment effects)
+  and `utils/fitutils.py` (goodness-of-fit / loss) split the former
+  `effects.calculate` blob into bite-sized pure functions; `effects.calculate`
+  and the new `results_helpers.build_effect_submodels` compose them so every
+  estimator computes ATT/%ATT/gap/RMSE/R² from one consistent source.
 - **Two-family result contract.** A common `MlsynthResult` base with two faces:
   `EffectResult` (alias of `BaseEstimatorResults`, the observational report)
   and `DesignResult` (the research design, whose `report` is an

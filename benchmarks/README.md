@@ -21,6 +21,7 @@ Each estimator's replication follows one of three "paths" (same vocabulary as
       compare.py            # tolerance-based comparison + reporting
       cases/                # one module per benchmark (pure-Python where possible)
         fdid_table5.py      # Path B: Li (2024) Table 5 PMSE grid (no R needed)
+        fdid_hongkong.py    # Path A: Li (2024) Hong Kong GDP empirical (no R needed)
       R/                    # reference-implementation cross-checks
         requirements.R      # install the reference R packages
         synth_crosscheck.R  # run R's Synth on a dumped panel for cell-by-cell comparison

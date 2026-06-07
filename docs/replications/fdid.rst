@@ -6,28 +6,94 @@ FDID — Forward Difference-in-Differences (Li 2024)
 :Estimator: :doc:`../fdid` — :class:`mlsynth.FDID`
 :Source: Li, Kathleen T. (2024), *"Frontiers: A Simple Forward
    Difference-in-Differences Method,"* Marketing Science 43(2) [Li2024]_.
-:Replication type: **Path B** — reproduce the paper's own Monte Carlo
-   (Web Appendix E, Table 5).
-:Status: **Fully verified** — Table 5 reproduced cell by cell.
+:Replication type: **Path A** — the author's released public empirical
+   (Hong Kong GDP) reproduced cell by cell — **and Path B** — the paper's
+   own Monte Carlo (Web Appendix E, Table 5).
+:Status: **Fully verified** — empirical *and* simulation reproduced.
 
-Why Path B
-----------
+Validation strategy
+-------------------
 
-Li's headline empirical application — the effect of opening physical stores
-on an online-first retailer's city-level sales — runs on a **confidential
-retailer dataset** that cannot be redistributed, so it cannot be reproduced
-value-for-value. Per the project's replication contract
-(``agents/agents_estimators.md``), Forward DiD is therefore validated by
-reproducing the paper's **own simulation** instead, which is fully specified
-in the Web Appendix.
+Li's *headline* application — the effect of opening physical stores on an
+online-first retailer's city-level sales — runs on a **confidential retailer
+dataset** that cannot be redistributed. For context, that study reports a
+Forward DiD effect of opening a store in Atlanta of about **+$75,143 in
+monthly sales (an 86% lift, pre-period** :math:`R^2 = 0.76`\ **)**, with
+ordinary DiD and synthetic control — which fit Atlanta's steep pre-trend
+poorly — overstating it.
 
-For context, Li's confidential study reports a Forward DiD effect of opening a
-store in Atlanta of about **+$75,143 in monthly sales (an 86% lift,
-pre-period** :math:`R^2 = 0.76`\ **)**, with ordinary DiD and synthetic
-control — which fit Atlanta's steep pre-trend poorly — overstating it.
+That headline number cannot be checked value-for-value, but it does not have
+to be: alongside the paper the author released a **public companion
+replication** (MATLAB and R) on the Hsiao, Ching & Wan (2012) Hong Kong GDP
+panel, which mlsynth reproduces cell by cell (**Path A**). We *additionally*
+reproduce the paper's own Monte Carlo (**Path B**), which exercises the
+mismatched-control regimes a single empirical case cannot.
 
-The simulation design
----------------------
+Path A — Hong Kong GDP
+----------------------
+
+The author's public dataset (``basedata/HongKong.csv`` — Hong Kong plus 24
+OECD / Asian control economies over 61 quarters, with treatment, the
+political and economic integration with mainland China, beginning at quarter
+44 so :math:`T_1 = 44`) is the Hsiao, Ching & Wan (2012) panel.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import FDID
+
+   df = pd.read_csv("basedata/HongKong.csv")
+   res = FDID({"df": df, "outcome": "GDP", "treat": "Integration",
+               "unitid": "Country", "time": "Time",
+               "display_graphs": False, "verbose": False}).fit()
+   res.fdid.att, res.fdid.att_percent, res.fdid.r_squared, len(res.fdid.selected_names)
+
+Forward DiD selects **9 of the 24** controls and reproduces the author's
+released MATLAB/R output (``ForwardDID_Readme.txt``) cell by cell:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 18 18 18 18
+
+   * - Metric
+     - FDID (mlsynth)
+     - FDID (Li)
+     - DID (mlsynth)
+     - DID (Li)
+   * - ATT
+     - 0.0254
+     - 0.0254
+     - 0.0317
+     - 0.0317
+   * - % ATT
+     - 53.84
+     - 53.84
+     - 77.62
+     - 77.62
+   * - pre-period :math:`R^2`
+     - 0.843
+     - 0.843
+     - 0.505
+     - 0.505
+   * - controls used
+     - 9
+     - 9
+     - 24
+     - 24
+
+The 95% confidence interval ``(0.0163, 0.0345)`` and the standardized ATT
+(t-statistic) :math:`\approx 5.49` likewise match the released values.
+Forward DiD's far higher pre-period fit (:math:`R^2 = 0.84` versus DiD's
+:math:`0.50`) is the whole point: the all-controls average tracks Hong Kong's
+pre-integration path poorly, so plain DiD overstates the effect, while the
+forward search keeps only the 9 economies that co-move with Hong Kong.
+
+The durable check lives in ``benchmarks/cases/fdid_hongkong.py``::
+
+   python benchmarks/run_benchmarks.py --case fdid_hongkong
+
+Path B — the simulation design
+------------------------------
 
 The four DGPs and their factor structure are packaged in
 :func:`mlsynth.utils.fdid_helpers.simulation.simulate_fdid_sample`: three
