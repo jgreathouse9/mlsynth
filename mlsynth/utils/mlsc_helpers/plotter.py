@@ -26,7 +26,7 @@ def plot_mlsc(
     """Render the mlSC aggregate counterfactual against the observed series."""
 
     inputs = results.inputs
-    inference = results.inference
+    inference = results.paths
 
     if isinstance(counterfactual_color, str):
         cf_colors = [counterfactual_color]

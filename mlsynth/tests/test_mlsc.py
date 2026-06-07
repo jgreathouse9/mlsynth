@@ -34,7 +34,7 @@ import pandas as pd
 import pytest
 
 from mlsynth import MLSC
-from mlsynth.config_models import MLSCConfig
+from mlsynth.config_models import EffectResult, MLSCConfig, MlsynthResult
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.mlsc_helpers.penalty import build_block, build_penalty_matrix
 from mlsynth.utils.mlsc_helpers.setup import prepare_mlsc_inputs
@@ -393,8 +393,11 @@ class TestEstimatorIntegration:
     def test_counterfactual_length_matches_T(self):
         df_agg, df_disagg = _make_panel(T=30, T0=20)
         res = MLSC(_base_config(df_agg, df_disagg)).fit()
-        assert res.inference.counterfactual.shape == (30,)
-        assert res.inference.gap.shape == (30,)
+        assert res.paths.counterfactual.shape == (30,)
+        assert res.paths.gap.shape == (30,)
+        # standardized accessors expose the same series
+        assert res.counterfactual.shape == (30,)
+        assert res.gap.shape == (30,)
 
     def test_high_lambda_recovers_classical_sc_structure(self):
         # When lambda is enormous, within each aggregate block the
@@ -470,11 +473,33 @@ class TestPublicAPI:
         assert isinstance(res, MLSCResults)
         assert isinstance(res.inputs, MLSCInputs)
         assert isinstance(res.design, MLSCDesign)
-        assert isinstance(res.inference, MLSCInference)
+        assert isinstance(res.paths, MLSCInference)
         assert isinstance(res.att, float)
         assert isinstance(res.pre_rmse, float)
         assert isinstance(res.donor_weights, dict)
         assert isinstance(res.aggregate_donor_weights, dict)
+
+    def test_two_family_result_contract(self):
+        """MLSC conforms to the observational (EffectResult) contract.
+
+        MLSC takes a two-level panel, so it cannot join the single-df loop in
+        test_result_contract.py; pin the contract here instead.
+        """
+        df_agg, df_disagg = _make_panel()
+        res = MLSC(_base_config(df_agg, df_disagg)).fit()
+        assert isinstance(res, MlsynthResult)
+        assert isinstance(res, EffectResult)
+        # standardized sub-models populated
+        assert res.effects is not None and res.effects.att is not None
+        assert res.time_series is not None
+        assert res.time_series.counterfactual_outcome is not None
+        assert res.weights is not None
+        assert res.method_details is not None and res.method_details.method_name
+        # flat accessors resolve; donor weights served from the weights slot
+        assert res.att == pytest.approx(res.effects.att)
+        assert set(res.donor_weights.keys()) == set(res.inputs.disagg_labels)
+        # mlSC has no statistical inference
+        assert res.inference is None
 
     def test_design_object_has_diagnostics(self):
         df_agg, df_disagg = _make_panel()

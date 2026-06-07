@@ -7,9 +7,12 @@ columns = unit), matching ``datautils.dataprep``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
+from pydantic import ConfigDict, Field as PydField
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -138,9 +141,15 @@ class MLSCInference:
     gap: np.ndarray
 
 
-@dataclass(frozen=True)
-class MLSCResults:
+class MLSCResults(BaseEstimatorResults):
     """Public ``MLSC.fit()`` return container.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    in addition to the mlSC-specific fields below it exposes the standardized
+    sub-models (``effects``, ``time_series``, ``weights``, ``fit_diagnostics``,
+    ``method_details``) and the flat accessors ``att`` / ``counterfactual`` /
+    ``gap`` / ``pre_rmse`` / ``donor_weights``. mlSC has no statistical
+    inference (no SE/CI), so the ``inference`` slot is ``None``.
 
     Parameters
     ----------
@@ -148,26 +157,21 @@ class MLSCResults:
         Pre-processed two-level panel.
     design : MLSCDesign
         Optimization outputs and variance-decomposition diagnostics.
-    inference : MLSCInference
-        Counterfactual path and gap.
-    att : float
-        Mean post-period gap.
-    pre_rmse : float
-        Pre-period RMSE of the aggregate counterfactual against the observed
-        treated series.
-    donor_weights : dict
-        Mapping from disaggregate-unit label to its weight. Convenience view
-        of ``design.omega``.
+    paths : MLSCInference
+        Counterfactual path and gap. (Renamed from ``inference`` — it carries
+        the fitted series, not statistical inference, and the contract reserves
+        the ``inference`` slot for :class:`~mlsynth.config_models.InferenceResults`.
+        The same series are exposed flat as ``res.counterfactual`` / ``res.gap``.)
     aggregate_donor_weights : dict
         Mapping from aggregate-unit label to its implied weight
         ``w_s = sum_c omega_sc``. Convenience view of
-        ``design.aggregate_weights``.
+        ``design.aggregate_weights``. (The disaggregate ``donor_weights`` live
+        in the standardized ``weights`` slot, served by ``res.donor_weights``.)
     """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: MLSCInputs
     design: MLSCDesign
-    inference: MLSCInference
-    att: float
-    pre_rmse: float
-    donor_weights: dict
-    aggregate_donor_weights: dict
+    paths: MLSCInference
+    aggregate_donor_weights: Dict[Any, float]

@@ -9,6 +9,24 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Changed
+- **MLSC migrated onto the two-family result contract.** `MLSC.fit()` now
+  returns `MLSCResults` as a frozen pydantic `EffectResult` with the
+  standardized sub-models built from the aggregate treated series
+  (`observed = counterfactual + gap`, `T0` the adoption reference); `att` /
+  `counterfactual` / `gap` / `pre_rmse` / `donor_weights` resolve via the
+  inherited accessors, and the disaggregate donor weights live in the `weights`
+  slot (`aggregate_donor_weights` in `summary_stats`). mlSC has no statistical
+  inference, so the `inference` slot is `None`. **Breaking surface change:** the
+  old `res.inference` field (which carried the fitted *paths*, not statistical
+  inference — it clashed with the contract's `inference` slot) is renamed to
+  `res.paths` (still `.counterfactual` / `.gap`; the same series are exposed
+  flat as `res.counterfactual` / `res.gap`). The flat `att` / `pre_rmse` /
+  `donor_weights` fields are now inherited accessors. `design` and
+  `aggregate_donor_weights` remain typed fields. Plotting routes through
+  `result.plot()` (the `PlotConfig` is built from MLSCConfig's legacy color
+  fields, since `MLSCConfig` is a plain `BaseModel`). Conformance is pinned in
+  `test_mlsc.py::test_two_family_result_contract` (MLSC's two-level panel can't
+  join the single-df loop in `test_result_contract.py`).
 - **MCNNM migrated onto the two-family result contract.** `MCNNM.fit()` now
   returns `MCNNMResults` as a frozen pydantic `EffectResult` with the
   standardized sub-models built from the cross-treated-unit observed / imputed

@@ -25,10 +25,12 @@ from __future__ import annotations
 
 from typing import Any, Optional, Union
 
+import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import MLSCConfig
+from ..config_models import MLSCConfig, PlotConfig, WeightsResults
+from ..utils.results_helpers import build_effect_submodels
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -38,7 +40,6 @@ from ..exceptions import (
 from ..utils.mlsc_helpers.inference import counterfactual_path, summarize_effects
 from ..utils.mlsc_helpers.optimization import solve_mlsc
 from ..utils.mlsc_helpers.penalty import build_penalty_matrix
-from ..utils.mlsc_helpers.plotter import plot_mlsc
 from ..utils.mlsc_helpers.setup import prepare_mlsc_inputs
 from ..utils.mlsc_helpers.structures import MLSCDesign, MLSCResults
 from ..utils.mlsc_helpers.variance import (
@@ -177,8 +178,8 @@ class MLSC:
             solver_status=status,
         )
 
-        inference = counterfactual_path(inputs, omega)
-        att, pre_rmse = summarize_effects(inputs, inference)
+        paths = counterfactual_path(inputs, omega)
+        att, pre_rmse = summarize_effects(inputs, paths)
 
         donor_weights = {
             str(label): float(w)
@@ -189,28 +190,53 @@ class MLSC:
             for label, w in zip(inputs.agg_labels, aggregate_weights)
         }
 
+        # Standardized sub-models built from the aggregate treated series:
+        # observed = counterfactual + gap. mlSC has no statistical inference.
+        observed = np.asarray(paths.counterfactual) + np.asarray(paths.gap)
+        weights = WeightsResults(
+            donor_weights=donor_weights,
+            summary_stats={"aggregate_donor_weights": aggregate_donor_weights},
+        )
+        submodels = build_effect_submodels(
+            observed_outcome=observed,
+            counterfactual_outcome=np.asarray(paths.counterfactual),
+            n_pre_periods=int(inputs.T0),
+            n_post_periods=int(len(inputs.time_labels) - inputs.T0),
+            time_periods=np.asarray(inputs.time_labels),
+            weights=weights,
+            method_name="MLSC",
+            effects_overrides={"att": float(att)},
+            fit_overrides={"rmse_pre": float(pre_rmse)},
+            intervention_time=(inputs.time_labels[inputs.T0]
+                               if inputs.T0 < len(inputs.time_labels)
+                               else inputs.time_labels[-1]),
+        )
+
         results = MLSCResults(
+            **submodels,
             inputs=inputs,
             design=design,
-            inference=inference,
-            att=att,
-            pre_rmse=pre_rmse,
-            donor_weights=donor_weights,
+            paths=paths,
             aggregate_donor_weights=aggregate_donor_weights,
         )
 
+        # Standardized plotting (MLSCConfig is a plain BaseModel without
+        # resolved_plot(), so build the PlotConfig from its legacy fields).
+        cf_colors = ([self.counterfactual_color]
+                     if isinstance(self.counterfactual_color, str)
+                     else list(self.counterfactual_color))
+        pc = PlotConfig(
+            observed_color=self.treated_color,
+            counterfactual_colors=cf_colors,
+            xlabel=self.time,
+            ylabel=self.outcome,
+            display=self.display_graphs,
+            save=self.save,
+        )
+        object.__setattr__(results, "plot_config", pc)
         if self.display_graphs:
             try:
-                plot_mlsc(
-                    results=results,
-                    treated_color=self.treated_color,
-                    counterfactual_color=self.counterfactual_color,
-                    save=self.save,
-                    time_axis_label=self.time,
-                    outcome_label=self.outcome,
-                    treatment_label=self.treat,
-                    unit_label=self.unitid_agg,
-                )
+                results.plot()
             except MlsynthPlottingError:
                 raise
             except Exception as exc:
