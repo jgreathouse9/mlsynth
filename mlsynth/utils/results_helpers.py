@@ -1,8 +1,9 @@
-"""Shared helper for building standardized :class:`WeightsResults`.
+"""Shared helpers for building standardized result sub-models.
 
-Lets each estimator expose the donor weights underlying its counterfactual
-through the same pydantic model (no black boxes), with consistent summary
-statistics.
+Lets each estimator expose its counterfactual, weights, and treatment-effect
+metrics through the same pydantic models (no black boxes), computed from one
+consistent source so ATT / %ATT / gap / pre+post RMSE / R-squared are derived
+identically across every estimator.
 """
 
 from __future__ import annotations
@@ -11,7 +12,16 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from ..config_models import WeightsResults
+from . import effectutils as em
+from . import fitutils as fm
+from ..config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 
 
 def make_weights_results(
@@ -49,3 +59,117 @@ def make_weights_results(
     if extra:
         summary.update(extra)
     return WeightsResults(donor_weights=donor_weights, summary_stats=summary)
+
+
+def effect_metrics(
+    observed_outcome: np.ndarray,
+    counterfactual_outcome: np.ndarray,
+    n_pre_periods: int,
+    n_post_periods: int,
+) -> Dict[str, Any]:
+    """Canonical treatment-effect / fit metrics from two outcome paths.
+
+    The single source of truth for the series-derived quantities every
+    effect estimator reports, so they are computed identically everywhere:
+    ATT (mean post-period gap), percent ATT, the per-period gap, pre- and
+    post-period RMSE, and pre-period R-squared.
+
+    Parameters
+    ----------
+    observed_outcome, counterfactual_outcome : np.ndarray
+        Treated-unit observed and counterfactual paths over all ``T`` periods.
+    n_pre_periods, n_post_periods : int
+        Number of pre- and post-treatment periods (``T0`` and ``T1``).
+
+    Returns
+    -------
+    dict
+        ``att``, ``att_percent``, ``rmse_pre``, ``rmse_post``,
+        ``r_squared_pre`` (floats; ``nan`` where undefined) and ``gap``
+        (the full-length ``observed - counterfactual`` array).
+    """
+    obs = em._ravel(observed_outcome)
+    full_gap = em.gap(obs, counterfactual_outcome)
+    pre_gap, post_gap = em.split_pre_post(full_gap, n_pre_periods, n_post_periods)
+    obs_pre, _ = em.split_pre_post(obs, n_pre_periods, n_post_periods)
+    _, cf_post = em.split_pre_post(counterfactual_outcome, n_pre_periods, n_post_periods)
+
+    att_value = em.att(post_gap)
+    return {
+        "att": att_value,
+        "att_percent": em.percent_att(att_value, cf_post),
+        "rmse_pre": fm.rmse(pre_gap) if n_pre_periods > 0 else float("nan"),
+        "rmse_post": fm.rmse(post_gap) if n_post_periods > 0 else float("nan"),
+        "r_squared_pre": fm.r_squared(obs_pre, pre_gap) if n_pre_periods > 0 else float("nan"),
+        "gap": full_gap,
+    }
+
+
+def build_effect_submodels(
+    observed_outcome: np.ndarray,
+    counterfactual_outcome: np.ndarray,
+    n_pre_periods: int,
+    n_post_periods: int,
+    *,
+    time_periods: Optional[np.ndarray] = None,
+    weights: Optional[WeightsResults] = None,
+    inference: Optional[InferenceResults] = None,
+    method_name: Optional[str] = None,
+    is_recommended: bool = True,
+    att_std_err: Optional[float] = None,
+    effects_overrides: Optional[Dict[str, Any]] = None,
+    fit_overrides: Optional[Dict[str, Any]] = None,
+    additional_effects: Optional[Dict[str, Any]] = None,
+    additional_metrics: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Build the standardized EffectResult sub-models from two outcome paths.
+
+    Computes the series-derived metrics via :func:`effect_metrics` and maps
+    them into ``effects`` / ``time_series`` / ``fit_diagnostics``, attaching
+    the supplied ``weights`` / ``inference`` / ``method_details``. Returns a
+    ``{sub-model name: model}`` dict ready to splat onto a result container.
+
+    ``effects_overrides`` / ``fit_overrides`` let an estimator pin a value it
+    computes authoritatively (e.g. a method-specific ATT or R-squared) instead
+    of the canonical one, so validated numbers never drift.
+    """
+    m = effect_metrics(observed_outcome, counterfactual_outcome, n_pre_periods, n_post_periods)
+
+    effects_kwargs: Dict[str, Any] = {
+        "att": m["att"],
+        "att_percent": m["att_percent"],
+        "att_std_err": att_std_err,
+        "additional_effects": additional_effects,
+    }
+    if effects_overrides:
+        effects_kwargs.update(effects_overrides)
+
+    fit_kwargs: Dict[str, Any] = {
+        "rmse_pre": m["rmse_pre"],
+        "rmse_post": m["rmse_post"],
+        "r_squared_pre": m["r_squared_pre"],
+        "additional_metrics": additional_metrics,
+    }
+    if fit_overrides:
+        fit_kwargs.update(fit_overrides)
+
+    obs = np.asarray(observed_outcome, dtype=float).ravel()
+    submodels: Dict[str, Any] = {
+        "effects": EffectsResults(**effects_kwargs),
+        "time_series": TimeSeriesResults(
+            observed_outcome=obs,
+            counterfactual_outcome=np.asarray(counterfactual_outcome, dtype=float).ravel(),
+            estimated_gap=m["gap"],
+            time_periods=None if time_periods is None else np.asarray(time_periods),
+        ),
+        "fit_diagnostics": FitDiagnosticsResults(**fit_kwargs),
+    }
+    if weights is not None:
+        submodels["weights"] = weights
+    if inference is not None:
+        submodels["inference"] = inference
+    if method_name is not None:
+        submodels["method_details"] = MethodDetailsResults(
+            method_name=method_name, is_recommended=is_recommended
+        )
+    return submodels

@@ -31,13 +31,10 @@ from pydantic import ConfigDict, Field as PydField, model_validator
 
 from ...config_models import (
     BaseEstimatorResults,
-    EffectsResults,
-    FitDiagnosticsResults,
     InferenceResults,
-    MethodDetailsResults,
-    TimeSeriesResults,
     WeightsResults,
 )
+from ..results_helpers import build_effect_submodels
 
 
 # Public method names.
@@ -199,37 +196,39 @@ class FDIDResults(BaseEstimatorResults):
         """
         if self.effects is None:
             p = self._primary
-            derived = {
-                "effects": EffectsResults(
-                    att=float(p.att),
-                    att_percent=float(p.att_percent),
-                    att_std_err=float(p.att_se),
-                ),
-                "time_series": TimeSeriesResults(
-                    observed_outcome=np.asarray(self.inputs.y),
-                    counterfactual_outcome=np.asarray(p.counterfactual),
-                    estimated_gap=np.asarray(p.gap),
-                    time_periods=np.asarray(self.inputs.time_labels),
-                ),
-                "weights": WeightsResults(
+            derived = build_effect_submodels(
+                observed_outcome=np.asarray(self.inputs.y),
+                counterfactual_outcome=np.asarray(p.counterfactual),
+                n_pre_periods=int(self.inputs.pre_periods),
+                n_post_periods=int(self.inputs.post_periods),
+                time_periods=np.asarray(self.inputs.time_labels),
+                weights=WeightsResults(
                     donor_weights={
                         str(k): float(v) for k, v in p.donor_weights.items()
                     }
                 ),
-                "fit_diagnostics": FitDiagnosticsResults(
-                    rmse_pre=float(p.pre_rmse), r_squared_pre=float(p.r_squared)
-                ),
-                "inference": InferenceResults(
+                inference=InferenceResults(
                     p_value=float(p.p_value),
                     ci_lower=float(p.ci[0]),
                     ci_upper=float(p.ci[1]),
                     standard_error=float(p.att_se),
                     method="analytic (Li 2023)",
                 ),
-                "method_details": MethodDetailsResults(
-                    method_name=p.name, is_recommended=True
-                ),
-            }
+                method_name=p.name,
+                is_recommended=True,
+                att_std_err=float(p.att_se),
+                # FDID computes its ATT / %ATT / pre-RMSE / R^2 analytically
+                # (Li 2023); pin those authoritative values so the validated
+                # numbers are unchanged while the helper unifies the mapping.
+                effects_overrides={
+                    "att": float(p.att),
+                    "att_percent": float(p.att_percent),
+                },
+                fit_overrides={
+                    "rmse_pre": float(p.pre_rmse),
+                    "r_squared_pre": float(p.r_squared),
+                },
+            )
             for key, value in derived.items():
                 object.__setattr__(self, key, value)
         return self
