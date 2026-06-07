@@ -221,7 +221,8 @@ class TSSCResults(BaseEstimatorResults):
         """Lift the recommended variant's standardized sub-models to the top
         level so a TSSC result exposes the same surface as every other
         EffectResult. Uses ``object.__setattr__`` because the model is
-        frozen."""
+        frozen.
+        """
         if self.effects is None and self.summary is not None:
             for key in (
                 "effects",

@@ -195,7 +195,8 @@ class FDIDResults(BaseEstimatorResults):
     def _populate_standard_submodels(self) -> "FDIDResults":
         """Derive the standardized EffectResult sub-models from the primary
         variant, so every FDID result exposes the common surface. Uses
-        ``object.__setattr__`` because the model is frozen."""
+        ``object.__setattr__`` because the model is frozen.
+        """
         if self.effects is None:
             p = self._primary
             derived = {

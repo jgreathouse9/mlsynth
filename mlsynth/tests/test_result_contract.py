@@ -98,7 +98,8 @@ def test_standard_submodels_populated(Est, extra, fitted):
 @pytest.mark.parametrize("Est, extra", OBSERVATIONAL)
 def test_flat_accessor_contract(Est, extra, fitted):
     """The flat read contract: att / att_ci / counterfactual / gap /
-    donor_weights / pre_rmse behave identically across estimators."""
+    donor_weights / pre_rmse behave identically across estimators.
+    """
     res = fitted[Est.__name__]
 
     assert isinstance(res.att, float)
