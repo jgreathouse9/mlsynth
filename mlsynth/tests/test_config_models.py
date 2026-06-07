@@ -11,13 +11,11 @@ from mlsynth.config_models import (
     FMAConfig,
     PDAConfig,
     FDIDConfig,
-    GSCConfig,
     CLUSTERSCConfig,
     PROXIMALConfig,
     FSCMConfig,
     SCMOConfig,
     SIConfig,
-    StableSCConfig,
     NSCConfig,
     SDIDConfig,
     MAREXConfig
@@ -173,10 +171,6 @@ def test_fdid_config_valid(base_config_data: Dict[str, Any]):
     """Test valid instantiation of FDIDConfig."""
     FDIDConfig(**base_config_data) # Should not raise
 
-def test_gsc_config_valid(base_config_data: Dict[str, Any]):
-    """Test valid instantiation of GSCConfig."""
-    GSCConfig(**base_config_data) # Should not raise
-
 def test_clustersc_config_valid(base_config_data: Dict[str, Any]):
     """Test valid instantiation of CLUSTERSCConfig.
 
@@ -284,10 +278,6 @@ def test_si_config_valid(base_config_data: Dict[str, Any]):
     assert config.inters == ["inter_1", "inter_2"]
     with pytest.raises(ValidationError): # Missing 'inters'
         SIConfig(**base_config_data)
-
-def test_stablesc_config_valid(base_config_data: Dict[str, Any]):
-    """Test valid instantiation of StableSCConfig."""
-    StableSCConfig(**base_config_data) # Should not raise
 
 def test_nsc_config_valid(base_config_data: Dict[str, Any]):
     """Test valid instantiation of the modernized NSCConfig (Tian 2023)."""
