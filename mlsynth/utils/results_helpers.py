@@ -121,6 +121,7 @@ def build_effect_submodels(
     fit_overrides: Optional[Dict[str, Any]] = None,
     additional_effects: Optional[Dict[str, Any]] = None,
     additional_metrics: Optional[Dict[str, Any]] = None,
+    intervention_time: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Build the standardized EffectResult sub-models from two outcome paths.
 
@@ -161,6 +162,7 @@ def build_effect_submodels(
             counterfactual_outcome=np.asarray(counterfactual_outcome, dtype=float).ravel(),
             estimated_gap=m["gap"],
             time_periods=None if time_periods is None else np.asarray(time_periods),
+            intervention_time=intervention_time,
         ),
         "fit_diagnostics": FitDiagnosticsResults(**fit_kwargs),
     }

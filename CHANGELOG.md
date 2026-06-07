@@ -8,6 +8,21 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Changed
+- **SPOTSYNTH migrated onto the two-family result contract.** `SPOTSYNTH.fit()`
+  now returns `SpotSynthResults` as a frozen pydantic `EffectResult`: it
+  populates the standardized sub-models (`effects`, `time_series`, `weights`,
+  `inference`, `fit_diagnostics`, `method_details`) and exposes the flat
+  accessors (`att`, `att_ci`, `counterfactual`, `gap`, `donor_weights`,
+  `pre_rmse`). All previously public attributes still resolve, and `att_ci` now
+  reads from `inference`. **One rename:** the result's former `inference` field
+  (the `"bayes"`/`"frequentist"` label) is now `inference_method`, because
+  `inference` is the standardized `InferenceResults` slot; the config field
+  `SPOTSYNTHConfig.inference` is unchanged. Mutating the frozen result now raises
+  pydantic `ValidationError` (not `dataclasses.FrozenInstanceError`). SPOTSYNTH
+  plots via the standardized `result.plot()` and is pinned in
+  `tests/test_result_contract.py`.
+
 ### Added
 - **Standardized plotting foundation.** A nested `PlotConfig` on
   `BaseEstimatorConfig` (`plot=...`) centralizes plot cosmetics — observed/

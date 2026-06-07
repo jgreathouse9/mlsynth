@@ -26,7 +26,6 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **BVSS** — Bayesian Synthetic Control with a soft simplex constraint.  (config: BVSSConfig)
 - **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)
 - **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
-- **DC** — De-biased convex panel-regression estimator (Farias et al. 2021).  (config: DCConfig)
 - **DSC** — Distributional Synthetic Control estimator.  (config: DSCConfig)
 - **DSCAR** — Dynamic Synthetic Control for Auto-Regressive processes.  (config: DSCARConfig)
 - **FDID** — Forward Difference-in-Differences (FDID) estimator.  (config: FDIDConfig)

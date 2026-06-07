@@ -36,7 +36,6 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.spotsynth_helpers.pipeline import run_spotsynth
-from ..utils.spotsynth_helpers.plotter import plot_spotsynth
 from ..utils.spotsynth_helpers.setup import prepare_spotsynth_inputs
 from ..utils.spotsynth_helpers.structures import SpotSynthResults
 
@@ -97,17 +96,17 @@ class SPOTSYNTH:
                 n_samples=self.n_samples, n_warmup=self.n_warmup,
                 debias=self.debias, seed=self.seed,
             )
+            # Attach plotting context so result.plot() is self-contained and
+            # styled from the (possibly nested) config; labels default to the
+            # column names when the user has not set them.
+            pc = self.config.resolved_plot()
+            if pc.xlabel is None:
+                pc.xlabel = self.time
+            if pc.ylabel is None:
+                pc.ylabel = self.outcome
+            object.__setattr__(results, "plot_config", pc)
             if self.display_graphs:
-                plot_spotsynth(
-                    results,
-                    treated_color=self.treated_color,
-                    counterfactual_color=self.counterfactual_color,
-                    save=self.save,
-                    time_axis_label=self.time,
-                    treatment_label=self.treat,
-                    unit_label=self.unitid,
-                    outcome_label=self.outcome,
-                )
+                results.plot()
             return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
