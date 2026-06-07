@@ -439,18 +439,6 @@ class PDAConfig(BaseEstimatorConfig):
 # module for backward compatibility via the module-level __getattr__ below.
 
 
-class GSCConfig(BaseEstimatorConfig):
-    """Configuration for the Generalized Synthetic Control (GSC) estimator."""
-    denoising_method: str = Field(
-        default="non-convex",
-        description="Method for the denoising algorithm: 'auto', 'convex', or 'non-convex'.",
-        pattern="^(auto|convex|non-convex)$"
-    )
-    target_rank: Optional[int] = Field(
-        default=None,
-        description="Optional user-specified rank for the denoising algorithm. If None, rank is estimated internally.",
-        ge=1
-    )
     # Note: The original GSC __init__ docstring mentioned 'save', but it was commented out
     # in the implementation. If 'save' functionality specific to GSC is re-added,
     # it might need to be defined here if different from BaseEstimatorConfig.save.
@@ -849,49 +837,6 @@ class MUSCConfig(BaseEstimatorConfig):
 
 
 
-class TASCMConfig(BaseEstimatorConfig):
-    """Configuration for Temporal-Aggregation SCM (Sun et al. 2024).
-
-    Sun, L., Ben-Michael, E., & Feller, A. (2024). *Temporal Aggregation
-    for the Synthetic Control Method.* AEA Papers and Proceedings.
-    """
-
-    aggregation_block_size: int = Field(
-        ..., ge=2,
-        description=(
-            "Number of high-frequency periods per aggregated period "
-            "(``K`` in the paper). For weekly-into-monthly aggregation "
-            "use ``K = 4`` or ``K = 5``; for monthly-into-yearly use "
-            "``K = 12``."
-        ),
-    )
-    nu_hat: float = Field(
-        default=0.5, ge=0.0, le=1.0,
-        description=(
-            "Convex-combination weight on the aggregated objective in "
-            "``[0, 1]``. ``nu_hat = 0`` recovers plain SCM on the "
-            "high-frequency data; ``nu_hat = 1`` recovers plain SCM "
-            "on the block-aggregated data; ``nu_hat = 0.5`` (default) "
-            "matches the paper's recommended baseline."
-        ),
-    )
-    nu_grid: Optional[List[float]] = Field(
-        default=None,
-        description=(
-            "Optional explicit grid of ``nu`` values for the imbalance-"
-            "frontier sweep. Each entry must lie in ``[0, 1]``. Defaults "
-            "to ``numpy.linspace(0, 1, 11)``."
-        ),
-    )
-    solver: Optional[str] = Field(
-        default=None,
-        description=(
-            "cvxpy solver name forwarded to the combined-objective QP. "
-            "Defaults to CLARABEL when unset."
-        ),
-    )
-
-
 class MASCConfig(BaseEstimatorConfig):
     """Configuration for the MASC estimator (Kellogg et al. 2021).
 
@@ -983,180 +928,6 @@ class MASCConfig(BaseEstimatorConfig):
 
 
 
-class GMMSCEConfig(BaseEstimatorConfig):
-    """Configuration for the GMM Synthetic Control Estimator (Fry 2024 JoE).
-
-    Fry, J. (2024). *A method of moments approach to asymptotically
-    unbiased Synthetic Controls.* J. of Econometrics 244, 105846.
-    The estimator solves a GMM problem with IV moment conditions from
-    instrument units, on row-normalised pre-period outcomes. Under a
-    linear factor model the SC weights converge to the treated unit's
-    factor loadings so the ATT is asymptotically unbiased as
-    ``T0 -> infinity``.
-    """
-
-    donors: Optional[List[Any]] = Field(
-        default=None,
-        description=(
-            "Unit labels for the donor (control) pool. If omitted and "
-            "``auto_select=False``, every never-treated unit serves "
-            "as both donor and instrument (the R reference's initial "
-            "step, ``YK = YN0``)."
-        ),
-    )
-    instruments: Optional[List[Any]] = Field(
-        default=None,
-        description=(
-            "Unit labels for the instrument pool. Must be never-treated. "
-            "If omitted defaults to the donor pool (mirrors the R "
-            "reference's initial fit)."
-        ),
-    )
-    fixed_instruments: Optional[List[Any]] = Field(
-        default=None,
-        description=(
-            "Units guaranteed to be used as instruments under "
-            "``auto_select=True`` (the R reference's ``YN1`` argument). "
-            "For German reunification, Fry uses Penn World Table OECD "
-            "countries outside Abadie's candidate pool."
-        ),
-    )
-    auto_select: bool = Field(
-        default=False,
-        description=(
-            "If True, run the Sargan-Hansen J-test-driven model "
-            "selection (R reference's ``RandomModelSelection``) to "
-            "partition the never-treated units into donors and "
-            "instruments. Otherwise use the user-supplied "
-            "``donors`` / ``instruments``."
-        ),
-    )
-    meanfit: bool = Field(
-        default=True,
-        description=(
-            "Append a constant column to the instrument matrix (R "
-            "reference's ``meanfit=TRUE``). Adds the constant-instrument "
-            "moment ``mean_pre(Y0 - YJ w) = 0`` to the GMM system."
-        ),
-    )
-    solver: Optional[str] = Field(
-        default=None,
-        description=(
-            "cvxpy solver name forwarded to the step-1 QP. Defaults to "
-            "CLARABEL when unset."
-        ),
-    )
-
-
-
-class OSCEConfig(BaseEstimatorConfig):
-    """Configuration for the Orthogonalized SCE (Fry 2026).
-
-    Fry, J. (2026). *Orthogonalized Synthetic Controls.* SSRN.
-    The IV-SCE specialization of Fry's general orthogonalization
-    framework: simplex donor weights ``delta`` are fit alongside
-    orthogonalization coefficients ``eta`` via a penalized GMM step,
-    then the ATT is recovered in closed form from the orthogonalized
-    moment condition. Asymptotic normality of the ATT holds even when
-    ``delta`` is partially identified or on the simplex boundary.
-    """
-
-    instruments: list = Field(
-        ...,
-        description=(
-            "Unit labels (matching ``df[unitid]``) to use as instruments "
-            "Z_t. Must be never-treated. The donor pool delta is fit on "
-            "every other non-treated unit. For Fry's Sweden carbon-tax "
-            "application: Finland, Germany, Ireland, Italy, Netherlands, "
-            "Norway, United Kingdom."
-        ),
-    )
-    lambda_delta: Optional[float] = Field(
-        default=None, ge=0.0,
-        description=(
-            "Slackness on the pre-period IV moment constraints. When "
-            "None (default) the value is auto-tuned by Fry's "
-            "``EstimateLambdaDelta`` LP (inflated by ``log(min(T0,T1)) "
-            "* log(J) / log(K)``)."
-        ),
-    )
-    lambda_eta: Optional[float] = Field(
-        default=None, ge=0.0,
-        description=(
-            "Slackness on the orthogonality constraints. When None "
-            "(default) the value is auto-tuned by Fry's "
-            "``EstimateLambdaEta`` LP (inflated by ``log(min(T0,T1))``)."
-        ),
-    )
-    scaled: bool = Field(
-        default=True,
-        description=(
-            "Apply per-period standard-deviation rescaling to "
-            "``Y_treated``, ``Y_donors``, and ``Z`` before step 1 "
-            "(matches the R reference's ``Scaled = TRUE`` path). "
-            "Required for the empirical Sweden replication."
-        ),
-    )
-    solver: Optional[str] = Field(
-        default=None,
-        description=(
-            "cvxpy solver name forwarded to the step-1 QPs. Defaults "
-            "to CLARABEL when unset."
-        ),
-    )
-
-
-
-class TROPConfig(BaseEstimatorConfig):
-    """Configuration for the Triply Robust Panel (TROP) estimator.
-
-    Athey, Imbens, Qu & Viviano (2026, *Journal of Applied
-    Econometrics*). Combines exponential time and unit weights with a
-    nuclear-norm-penalised low-rank factor adjustment, fit on control
-    observations via weighted least squares; ATT is the average
-    treated-cell residual. First mlsynth release implements the
-    ``global`` (simultaneous-adoption) path only.
-    """
-
-    lambda_time_grid: Optional[List[float]] = Field(
-        default=None,
-        description=(
-            "LOOCV grid for the time-decay rate. 0.0 yields uniform "
-            "time weights. Inf is rejected. Default: "
-            "[0, 0.1, 0.5, 1, 2, 5]."
-        ),
-    )
-    lambda_unit_grid: Optional[List[float]] = Field(
-        default=None,
-        description=(
-            "LOOCV grid for the unit-decay rate. 0.0 yields uniform "
-            "unit weights. Inf is rejected. Default: "
-            "[0, 0.1, 0.5, 1, 2, 5]."
-        ),
-    )
-    lambda_nn_grid: Optional[List[float]] = Field(
-        default=None,
-        description=(
-            "LOOCV grid for the nuclear-norm penalty on the low-rank "
-            "component. 0 means no penalty (rank free); values >= 1e10 "
-            "disable the factor model (L=0). Default: "
-            "[0, 0.01, 0.1, 1, 10]."
-        ),
-    )
-    max_iter: int = Field(
-        default=100, ge=1,
-        description="Outer alternating-minimisation iterations.",
-    )
-    tol: float = Field(
-        default=1e-6, gt=0.0,
-        description="Convergence tolerance on the low-rank component.",
-    )
-    verbose: bool = Field(
-        default=False,
-        description="Print LOOCV scores for each grid triplet.",
-    )
-
-
 class SpSyDiDConfig(BaseEstimatorConfig):
     """Configuration for the Spatial Synthetic Difference-in-Differences estimator.
 
@@ -1198,57 +969,6 @@ class SpSyDiDConfig(BaseEstimatorConfig):
         default=True,
         description="Row-standardise the spatial matrix internally so each row "
                     "of W sums to 1.",
-    )
-
-
-class CSCConfig(BaseEstimatorConfig):
-    """Configuration for the Correlated Synthetic Controls (CSC) estimator.
-
-    Moev, T. (2025). *"Correlated Synthetic Controls,"* arXiv:2507.08918.
-    Builds per-treated-unit synthetic controls whose donor weights vary
-    with the treated unit's categorical covariates, for the
-    many-treated-units / short-pre-period regime.
-
-    Parameters
-    ----------
-    covariates : list of str
-        Categorical covariate columns on the treated units
-        (time-invariant). These drive the weight heterogeneity. CSC
-        supports categorical covariates only -- bin any continuous
-        covariate (e.g. into quantile brackets) before passing it.
-    cluster_bootstrap : bool
-        If True, run a stratified cluster bootstrap over the treated
-        units to obtain CIs for the ATT, per-segment averages, and
-        per-unit effects. Default False (point estimates only).
-    n_boot : int
-        Number of bootstrap resamples when ``cluster_bootstrap=True``.
-    alpha : float
-        Two-sided level for the bootstrap CIs (e.g. 0.05 -> 95% CI).
-    random_state : int
-        Seed for the bootstrap RNG.
-    """
-
-    covariates: List[str] = Field(
-        ...,
-        description="Categorical covariate columns driving the weight "
-                    "heterogeneity (time-invariant, categorical only).",
-    )
-    cluster_bootstrap: bool = Field(
-        default=False,
-        description="Run a stratified cluster bootstrap over treated units "
-                    "for confidence intervals.",
-    )
-    n_boot: int = Field(
-        default=500, ge=10,
-        description="Number of bootstrap resamples when cluster_bootstrap=True.",
-    )
-    alpha: float = Field(
-        default=0.05, gt=0.0, lt=1.0,
-        description="Two-sided level for the bootstrap confidence intervals.",
-    )
-    random_state: int = Field(
-        default=0,
-        description="Seed for the bootstrap RNG.",
     )
 
 
@@ -1299,67 +1019,6 @@ class MCNNMConfig(BaseEstimatorConfig):
         description="Two-sided level for the jackknife confidence interval.")
     random_state: int = Field(
         default=0, description="Seed for the CV fold assignment.")
-
-
-class DCConfig(BaseEstimatorConfig):
-    """Configuration for the de-biased convex (DC) estimator.
-
-    Farias, V., Li, A. & Peng, T. (2021), *"Learning Treatment Effects in
-    Panels with General Intervention Patterns"* (NeurIPS 2021). Jointly fits
-    a low-rank baseline ``M`` and treatment effect(s) ``tau`` to the observed
-    panel ``O = M + sum_k tau_k Z_k + E``, removes the nuclear-norm
-    regularisation bias from ``tau`` in closed form, and reports a sandwich
-    standard error. Unlike single-treated synthetic control, the DC method
-    admits *arbitrary* intervention patterns (block, staggered, on/off) and
-    inherits the standard ``df`` / ``outcome`` / ``treat`` / ``unitid`` /
-    ``time`` interface.
-
-    Parameters
-    ----------
-    suggest_r : int, optional
-        Fixed rank for the low-rank baseline ``M``. ``None`` (default) selects
-        it automatically from the spectrum of ``O``. **The auto-rank path is
-        the default, but it is fragile on small / single-treated panels** (a
-        level-dominated spectrum can collapse to rank 1 and inflate the ATT);
-        the estimator always reports the selected rank and the spectral energy
-        it retains, and warns on such panels.
-    spectrum_cut : float
-        Energy threshold for automatic rank selection: keep the leading
-        singular values that explain ``1 - spectrum_cut`` of the energy.
-        Default 0.002.
-    method : {"auto", "convex", "non-convex"}
-        Fitting branch. ``"convex"`` shrinks the nuclear-norm penalty until
-        the rank exceeds ``suggest_r`` then de-biases; ``"non-convex"``
-        hard-truncates to ``suggest_r``; ``"auto"`` (default) keeps whichever
-        attains the lower residual.
-    eps : float
-        ALS convergence tolerance. Default 1e-6.
-    alpha : float
-        Two-sided level for the sandwich confidence interval. Default 0.05.
-    """
-
-    suggest_r: Optional[int] = Field(
-        default=None, ge=1,
-        description="Fixed baseline rank; None selects it from the spectrum.")
-    spectrum_cut: float = Field(
-        default=0.002, gt=0.0, lt=1.0,
-        description="Energy threshold for automatic rank selection.")
-    method: str = Field(
-        default="auto",
-        description="Fitting branch: 'auto', 'convex' or 'non-convex'.")
-    eps: float = Field(
-        default=1e-6, gt=0.0, description="ALS convergence tolerance.")
-    alpha: float = Field(
-        default=0.05, gt=0.0, lt=1.0,
-        description="Two-sided level for the sandwich confidence interval.")
-
-    @field_validator("method")
-    @classmethod
-    def _check_method(cls, v: str) -> str:
-        if v not in ("auto", "convex", "non-convex"):
-            raise ValueError(
-                "method must be 'auto', 'convex' or 'non-convex'.")
-        return v
 
 
 class MSQRTConfig(BaseEstimatorConfig):
@@ -2110,62 +1769,6 @@ class DSCARConfig(BaseEstimatorConfig):
     seed: int = Field(default=0, description="RNG seed for placebo draws.")
 
 
-class COMPSYNTHConfig(BaseEstimatorConfig):
-    """Configuration for the COMPSYNTH estimator.
-
-    Bogatyrev, K. & Stoetzer, L. F. (2026). *"Estimating Treatment Effects
-    on Proportions with Synthetic Controls,"* Political Analysis (R package
-    ``propsdid``). Common-weights synthetic controls for compositional
-    (proportional) outcomes -- one donor (and time) weighting shared across
-    all ``K`` proportions, so the per-outcome ATTs sum to zero.
-
-    Parameters
-    ----------
-    outcomes : list of str
-        The ``K >= 2`` compositional outcome columns. Each row's values
-        across these columns must be non-negative and sum to one.
-    method : {"sdid", "sc"}
-        ``"sdid"`` -- synthetic difference-in-differences with common unit
-        and time weights (default). ``"sc"`` -- classic synthetic control
-        with common unit weights, no time weights, no intercept shift.
-    inference : bool
-        Run placebo inference for per-outcome SEs/CIs. Default True.
-    alpha : float
-        Two-sided level for the placebo confidence intervals.
-    max_placebo : int, optional
-        Cap on the number of control units used as placebos.
-
-    Notes
-    -----
-    The base ``outcome`` field is unused by COMPSYNTH; provide the ``K``
-    proportion columns via ``outcomes`` instead. Pass any existing column
-    name for ``outcome`` to satisfy the base config (e.g. ``outcomes[0]``).
-    """
-
-    outcomes: List[str] = Field(
-        ...,
-        description="The K >= 2 compositional outcome columns (sum to 1 "
-                    "per unit-time).",
-    )
-    method: Literal["sdid", "sc"] = Field(
-        default="sdid",
-        description="'sdid' (common unit+time weights) or 'sc' (common unit "
-                    "weights only).",
-    )
-    inference: bool = Field(
-        default=True,
-        description="Run placebo inference for per-outcome standard errors.",
-    )
-    alpha: float = Field(
-        default=0.05, gt=0.0, lt=1.0,
-        description="Two-sided level for placebo confidence intervals.",
-    )
-    max_placebo: Optional[int] = Field(
-        default=None, ge=2,
-        description="Cap on the number of control units used as placebos.",
-    )
-
-
 class PANGEOConfig(BaseModel):
     """Configuration for the PANGEO experimental-design estimator.
 
@@ -2832,75 +2435,6 @@ class BVSSConfig(BaseEstimatorConfig):
     seed: Optional[int] = Field(default=None)
 
 
-class BASCConfig(BaseEstimatorConfig):
-    """Configuration for the Bayesian spike-and-slab synthetic control (BASC).
-
-    BASC builds donor weights from a Gamma "slab" magnitude times a
-    Bernoulli "spike" inclusion indicator, renormalized onto the simplex::
-
-        w_j   = (u_j * gamma_j) / sum_k (u_k * gamma_k),
-        u_j   ~ Gamma(a_u, b_u),
-        gamma_j ~ Bernoulli(pi),     pi ~ Beta(a_pi, b_pi).
-
-    With every ``gamma_j = 1`` the construction reduces to a Dirichlet
-    prior on the simplex (the "B-MV" model of Martinez &
-    Vives-i-Bastida, 2024), so the Bernoulli spike is the only addition
-    for sparse donor selection. The weights are fit on the
-    **pre-treatment window only**; the post-treatment counterfactual is
-    the donor projection (plus an optional GP trend), so post-treatment
-    treated outcomes never enter the weight likelihood.
-
-    Parameters
-    ----------
-    n_iter : int
-        Total MCMC iterations (including burn-in).
-    burn_in : int
-        Number of warm-up iterations discarded before reporting.
-    a_u, b_u : float
-        Gamma slab shape / rate. ``a_u`` doubles as the Dirichlet
-        concentration on the active simplex (``a_u = 1`` is uniform).
-    a_pi, b_pi : float
-        Beta hyperparameters for the prior inclusion probability ``pi``.
-        ``(1, 1)`` is uniform; raise ``b_pi`` to favor sparser designs.
-    sigma2_c0, sigma2_d0 : float
-        Inverse-Gamma shape / rate for the observation variance.
-    rw_conc : float
-        Concentration of the Dirichlet random-walk proposal for the
-        active weights (larger = smaller steps, higher acceptance).
-    use_gp : bool
-        Add a squared-exponential GP trend ``f_t`` to the pre-period fit.
-        Off by default: on the data we tested the GP was immaterial to
-        the effect estimate and is costly on long panels.
-    ci_alpha : float
-        Two-sided significance level for credible intervals (default
-        0.05 gives 95% bands).
-    display_graphs : bool
-        Display the observed-vs-counterfactual plot after the fit.
-    verbose : bool
-        Show a tqdm progress bar during MCMC.
-    seed : int, optional
-        Seed for the ``numpy.random.Generator`` used inside the sampler.
-    """
-
-    n_iter: int = Field(default=4000, ge=10)
-    burn_in: int = Field(default=2000, ge=0)
-    a_u: float = Field(default=1.0, gt=0)
-    b_u: float = Field(default=1.0, gt=0)
-    a_pi: float = Field(default=1.0, gt=0)
-    b_pi: float = Field(default=1.0, gt=0)
-    sigma2_c0: float = Field(default=0.01, gt=0)
-    sigma2_d0: float = Field(default=0.01, gt=0)
-    rw_conc: float = Field(default=50.0, gt=0)
-    use_gp: bool = Field(default=False)
-    ci_alpha: float = Field(default=0.05, gt=0.0, lt=1.0)
-    display_graphs: bool = Field(default=False)
-    verbose: bool = Field(default=False)
-    seed: Optional[int] = Field(default=None)
-
-
-
-
-
 class SPCDConfig(BaseMAREXConfig):
     """
     Configuration for the Synthetic Principal Component Design (SPCD) estimator.
@@ -3249,14 +2783,6 @@ class SIConfig(BaseEstimatorConfig):
                 "rank_method='fixed' requires an explicit positive `rank`."
             )
         return values
-
-class StableSCConfig(BaseEstimatorConfig):
-    """Configuration for the Stable Synthetic Control (StableSC) estimator."""
-    granger_alpha: float = Field(default=0.05, description="Significance level for Granger causality tests in the fit method.", ge=0, le=1)
-    granger_maxlag: int = Field(default=1, description="Maximum lag for Granger causality tests in the fit method.", ge=1)
-    proximity_alpha: float = Field(default=0.05, description="Significance level for proximity mask chi-squared tests in the fit method.", ge=0, le=1)
-    rbf_sigma_fit: float = Field(default=20.0, description="RBF kernel sigma (width) used for scoring in the fit method.", gt=0)
-    sc_model_type: str = Field(default="SIMPLEX", description="Synthetic control optimization model type. Valid options are 'SIMPLEX', 'OLS', 'MSCa', 'MSCb', 'MSCc'.", pattern="^(SIMPLEX|OLS|MSCa|MSCb|MSCc)$")
 
 class NSCConfig(BaseEstimatorConfig):
     """Configuration for the Nonlinear Synthetic Control (NSC) estimator.
@@ -4053,56 +3579,6 @@ class RESCMConfig(BaseEstimatorConfig):
 
     class Config:
         extra = "forbid"  # Unknown fields will raise a validation error
-class EICPConfig(BaseEstimatorConfig):
-    """Configuration for the Entrywise Inference for Causal Panels (EICP) estimator.
-
-    Implements the SVD-based imputation and entrywise Gaussian
-    confidence intervals of Yan and Wainwright (2024,
-    arXiv:2401.13665) for causal panel data under staggered adoption.
-
-    Parameters
-    ----------
-    rank : int or None, default None
-        Truncation rank ``r`` for the SVD steps. If ``None``, selected
-        automatically via the Donoho-Gavish optimal singular-value
-        threshold (Gavish and Donoho, 2014).
-    alpha : float, default 0.05
-        Two-sided significance level for the entrywise confidence
-        intervals (coverage = ``1 - alpha``).
-    estimate_treated_potential_outcomes : bool, default False
-        Whether to also impute the treated potential outcomes
-        ``N^*_{i,t}`` for untreated cells by applying the algorithm to
-        the 180-degree-rotated panel. Identifiability requires at least
-        one "always-treated" cohort; if absent, this flag has no effect
-        and the observed outcomes are used as the only estimate of
-        ``N^*`` on treated cells.
-    display_graph : bool, default False
-        Whether to render a cohort-mean diagnostic plot via
-        :func:`mlsynth.utils.eicp_helpers.plotter.plot_eicp_results`.
-    """
-
-    rank: Optional[int] = Field(
-        default=None,
-        ge=1,
-        description="SVD truncation rank. If None, selected by the "
-        "Donoho-Gavish optimal SVHT rule.",
-    )
-    alpha: float = Field(
-        default=0.05,
-        gt=0.0,
-        lt=1.0,
-        description="Two-sided significance level for entrywise CIs.",
-    )
-    estimate_treated_potential_outcomes: bool = Field(
-        default=False,
-        description="Whether to estimate N^* via the rotated panel.",
-    )
-    display_graph: bool = Field(
-        default=False,
-        description="Whether to plot cohort-mean observed vs. counterfactual series.",
-    )
-
-
 class SYNDESConfig(BaseMAREXConfig):
     """Configuration for the Synthetic Design (SYNDES) estimator.
 
