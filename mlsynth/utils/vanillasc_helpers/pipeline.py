@@ -165,6 +165,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         seed=config.seed,
         maxiter=config.mscmt_maxiter,
         popsize=config.mscmt_popsize,
+        prune_shady=config.mscmt_prune_shady,
         cv=config.penalized_cv,
     )
     with warnings.catch_warnings():

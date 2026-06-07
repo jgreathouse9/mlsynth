@@ -171,6 +171,36 @@ def test_mscmt_deterministic_with_seed():
     np.testing.assert_allclose(s1.V, s2.V)
 
 
+def test_sunny_mask_drops_shady_donors():
+    # 1-D predictors: treated at 0, donors at 1, 2, 3. Only the nearest donor
+    # (1) is visible from X1; donors 2 and 3 sit in its shadow -> shady.
+    from mlsynth.utils.fscm_helpers.bilevel.mscmt import _sunny_mask
+    X1 = np.array([0.0])
+    X0 = np.array([[1.0, 2.0, 3.0]])
+    mask = _sunny_mask(X1, X0)
+    assert mask.tolist() == [True, False, False]
+
+    # interior donor (a convex combination of others) is never uniquely needed
+    X1 = np.array([0.0, 0.0])
+    X0 = np.array([[0.0, 2.0, 1.0], [0.0, 2.0, 1.0]])   # col 2 = midpoint of 0,1
+    assert _sunny_mask(X1, X0)[2] == False
+
+
+def test_mscmt_prune_shady_leaves_optimum_unchanged():
+    # Pruning shady donors must not move the optimum: same W, V, objective.
+    rng = np.random.default_rng(7)
+    J, K, T = 12, 3, 16
+    Y0 = rng.normal(size=(T, J)); y1 = rng.normal(size=T)
+    X0 = rng.normal(size=(K, J)); X1 = rng.normal(size=K) * 3.0  # push X1 outside hull
+    prob = BilevelProblem(y1_pre=y1, Y0_pre=Y0, X1=X1, X0=X0)
+    s_on = solve_bilevel(prob, method="mscmt", seed=0, maxiter=60, prune_shady=True)
+    s_off = solve_bilevel(prob, method="mscmt", seed=0, maxiter=60, prune_shady=False)
+    np.testing.assert_allclose(s_on.W, s_off.W, atol=1e-6)
+    assert abs(s_on.upper_loss - s_off.upper_loss) < 1e-6
+    assert s_on.metadata["n_sunny"] + s_on.metadata["n_shady_pruned"] == J
+    assert s_off.metadata["n_shady_pruned"] == 0
+
+
 # --------------------------------------------------------------------------- #
 # penalized backend (Abadie & L'Hour 2021)
 # --------------------------------------------------------------------------- #

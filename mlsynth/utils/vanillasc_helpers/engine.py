@@ -36,7 +36,8 @@ _BACKENDS = ("auto", "outcome-only", "malo", "mscmt", "penalized")
 # Keyword arguments each bilevel backend accepts (others are filtered out so a
 # single ``solver_kwargs`` blob can be passed regardless of backend).
 _SOLVER_KWARGS = {
-    "mscmt": {"lb", "maxiter", "popsize", "tol", "seed", "polish", "feas_tol"},
+    "mscmt": {"lb", "maxiter", "popsize", "tol", "seed", "polish", "feas_tol",
+              "prune_shady"},
     "malo": {"feas_tol", "eps_corner", "refine", "refine_gap_tol"},
     "penalized": {"lam", "cv", "lam_grid", "max_iter", "tol"},
 }

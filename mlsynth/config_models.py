@@ -1894,6 +1894,12 @@ class VanillaSCConfig(BaseEstimatorConfig):
     mscmt_popsize: int = Field(
         default=15, ge=1, description="mscmt differential-evolution population size.",
     )
+    mscmt_prune_shady: bool = Field(
+        default=True,
+        description="mscmt: drop shady donors (Becker-Kloessner sunny-donor "
+                    "reduction) before the outer search. Leaves the optimum "
+                    "unchanged; shrinks the inner solve.",
+    )
     inference: Union[bool, str] = Field(
         default=True,
         description="Inference: True/'placebo' (in-space placebo), 'scpi' "

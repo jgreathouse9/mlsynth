@@ -131,6 +131,40 @@ def test_vanillasc_penalized_and_covariates():
     assert "predictor_weights" in res.weights.summary_stats
 
 
+def test_vanillasc_covariate_balance_reported():
+    df = _panel(seed=6)
+    res = VanillaSC({"df": df, "outcome": "y", "treat": "treated",
+                     "unitid": "unit", "time": "time",
+                     "covariates": ["x1"], "backend": "penalized",
+                     "inference": False, "display_graphs": False}).fit()
+    bal = res.additional_outputs["covariate_balance"]
+    assert bal is not None
+    assert bal["predictors"] == ["x1"]
+    for key in ("treated", "synthetic", "donor_average"):
+        assert len(bal[key]) == 1 and np.isfinite(bal[key][0])
+    gaps = bal["mean_abs_pct_gap"]
+    assert np.isfinite(gaps["synthetic"]) and np.isfinite(gaps["donor_average"])
+    # synthetic value is the donor-weighted predictor mean (over the pre-period,
+    # matching the pipeline's covariate averaging window)
+    pre = res.additional_outputs["pre_periods"]
+    pre_labels = sorted(df["time"].unique())[:pre]
+    w = res.weights.donor_weights
+    donors = (df[(df.unit != "u0") & df.time.isin(pre_labels)]
+              .groupby("unit")["x1"].mean())
+    wv = np.array([w.get(u, 0.0) for u in donors.index])
+    expected = float((donors.values * wv).sum() / wv.sum())
+    assert bal["synthetic"][0] == pytest.approx(expected, rel=1e-6)
+
+
+def test_vanillasc_covariate_balance_none_without_covariates():
+    df = _panel(seed=6)
+    res = VanillaSC({"df": df, "outcome": "y", "treat": "treated",
+                     "unitid": "unit", "time": "time",
+                     "backend": "outcome-only", "inference": False,
+                     "display_graphs": False}).fit()
+    assert res.additional_outputs["covariate_balance"] is None
+
+
 def test_vanillasc_config_dict_and_validation():
     df = _panel()
     # missing outcome column -> data error from the base config validator

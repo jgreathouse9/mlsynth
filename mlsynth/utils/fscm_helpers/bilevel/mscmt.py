@@ -18,11 +18,14 @@ and the same Section 3.1 global-optimum certificate; they differ only in how
 the predictor weights are searched, which matters when the optimal ``V`` is
 interior rather than a single corner.
 
-The inner problem reuses the FISTA simplex-least-squares primitive
-(:func:`mlsynth.utils.fscm_helpers.bilevel.simplex.simplex_lstsq`), the pure
-analogue of MSCMT's WNNLS inner solver. The sunny-donor LP reduction of the
-full MSCMT algorithm is not implemented here; it is a speed optimisation that
-does not change the optimum.
+The inner ``V``-weighted simplex least squares is solved with
+:func:`scipy.optimize.nnls` (non-negativity) plus a big-M row for the
+sum-to-one equality. The outer differential-evolution population is evaluated
+*vectorised* (one objective call per generation), and the donor pool is first
+reduced to its **sunny** donors (the Becker-Kloessner LP reduction): shady
+donors can never carry positive inner weight for any ``V`` and are dropped
+without changing the optimum. Both are speed optimisations that leave the
+solution unchanged.
 """
 
 from __future__ import annotations
@@ -47,11 +50,14 @@ def _inner_weights(prob: BilevelProblem, V: np.ndarray) -> np.ndarray:
 
     Solves ``min_W ||diag(V)^{1/2} (X1 - X0 W)||^2`` over ``{W >= 0, 1'W = 1}``
     -- the MSCMT inner objective (Eq. 8'). The non-negativity constraint is
-    handled by :func:`scipy.optimize.nnls` (the fast C analogue of MSCMT's
-    WNNLS); the sum-to-one constraint is enforced by appending a large-penalty
-    row ``M * 1' W = M``. ``nnls`` is used (rather than the pure-NumPy FISTA
+    handled by :func:`scipy.optimize.nnls` (an active-set solver, robust on the
+    ill-conditioned predictor blocks where a first-order method would crawl);
+    the sum-to-one constraint is enforced by appending a large-penalty row
+    ``M * 1' W = M``. ``nnls`` is used (rather than the pure-NumPy FISTA
     primitive) because the global outer search invokes the inner solve tens of
-    thousands of times, where its speed and accuracy matter.
+    thousands of times, where its accuracy and per-solve cost matter. The hot
+    loop in :func:`solve_mscmt` uses a preallocated, in-place variant of this;
+    this reference form is kept for the single-predictor path and tests.
     """
     sq = np.sqrt(np.clip(V, 0.0, None))
     A = sq[:, None] * prob.X0
@@ -62,6 +68,51 @@ def _inner_weights(prob: BilevelProblem, V: np.ndarray) -> np.ndarray:
     w, _ = nnls(A, b, maxiter=10000)
     s = w.sum()
     return w / s if s > 0 else w
+
+
+def _sunny_mask(X1: np.ndarray, X0: np.ndarray, tol: float = 1e-9) -> np.ndarray:
+    """Boolean mask of the *sunny* donors (Becker & Kloessner 2018).
+
+    A donor ``d`` is **sunny** if it can receive positive weight in the inner
+    solution for *some* predictor weighting ``V``, and **shady** if it gets zero
+    weight for *every* ``V``. Geometrically (think of a light source at the
+    treated unit ``X1``): sunny donors lie on the part of the donor convex hull
+    that is *visible* from ``X1``; shady donors sit in its shadow, behind the
+    hull. The ``V``-weighted projection of ``X1`` onto the hull can never land on
+    a face containing a shady donor, so dropping shady donors leaves every inner
+    ``W*(V)`` -- and therefore the whole outer objective -- unchanged.
+
+    Donor ``d`` is visible iff there is a hyperplane through ``X0[:, d]`` with
+    every donor on one side and ``X1`` on the outward side, i.e. the LP
+
+        max_a  a . (X1 - X0_d)   s.t.   a . (X0_i - X0_d) <= 0  for all i,
+                                        -1 <= a_k <= 1
+
+    has a positive optimum. The normal ``a`` is free over ``R^K`` -- a superset
+    of the ``V``-reachable normals -- so the test is **conservative**: it only
+    ever classifies a donor as shady when it is provably shady (never drops a
+    donor that could carry weight). Used as a pre-filter before the outer search.
+
+    Returns a length-``J`` boolean array, ``True`` for donors to keep (sunny).
+    """
+    from scipy.optimize import linprog
+
+    K, J = X0.shape
+    mask = np.ones(J, dtype=bool)
+    bnds = [(-1.0, 1.0)] * K
+    zeros_J = np.zeros(J)
+    for d in range(J):
+        gap = X1 - X0[:, d]
+        if float(gap @ gap) <= tol:        # donor coincides with X1 -> perfect, sunny
+            continue
+        A_ub = (X0 - X0[:, d : d + 1]).T   # rows a . (X0_i - X0_d) <= 0
+        res = linprog(c=-gap, A_ub=A_ub, b_ub=zeros_J, bounds=bnds, method="highs")
+        if res.success:
+            mask[d] = (-res.fun) > tol
+        # if the LP fails to solve, keep the donor (safe default)
+    if not mask.any():                     # degenerate guard: never drop everything
+        mask[:] = True
+    return mask
 
 
 def solve_mscmt(
@@ -75,6 +126,7 @@ def solve_mscmt(
     polish: bool = True,
     feas_tol: float = 1e-8,
     canonical_v=False,
+    prune_shady: bool = True,
     gap_warn_factor: float = _GAP_WARN_FACTOR,
 ) -> BilevelSolution:
     """Solve the bilevel SCM problem by global outer search (MSCMT style).
@@ -108,6 +160,12 @@ def solve_mscmt(
         fails to certify. When enabled, ``metadata["v_agreement"]`` reports the
         max gap between the two canonical choices (small = ``V`` well
         identified). Default ``False`` (historical behaviour).
+    prune_shady : bool
+        If ``True`` (default), reduce the donor pool to its *sunny* donors
+        (:func:`_sunny_mask`) before the outer search. Shady donors provably
+        carry zero inner weight for every ``V``, so this leaves the optimum
+        unchanged while shrinking the inner solve. ``metadata`` reports
+        ``n_sunny`` / ``n_shady_pruned``.
 
     Returns
     -------
@@ -151,13 +209,44 @@ def solve_mscmt(
         )
 
     log_lb = float(np.log10(lb))
-
-    def outer(logv: np.ndarray) -> float:
-        V = np.power(10.0, logv)
-        W = _inner_weights(prob, V)
-        return mspe(prob.y1_pre, prob.Y0_pre, W)
-
     bounds = [(log_lb, 0.0)] * K
+
+    # Sunny/shady reduction: drop donors that provably carry zero inner weight
+    # for every V, so only the sunny pool enters the tens of thousands of inner
+    # solves (the optimum is unchanged).
+    sunny = _sunny_mask(prob.X1, prob.X0) if prune_shady else np.ones(prob.n_donors, bool)
+    X0r = np.ascontiguousarray(prob.X0[:, sunny])       # (K, Jr)
+    Y0r = np.ascontiguousarray(prob.Y0_pre[:, sunny])
+    X1, y1 = prob.X1, prob.y1_pre
+    Jr = X0r.shape[1]
+
+    # Preallocated inner buffers (the big-M equality row is constant); filled in
+    # place each solve to avoid per-call allocation in the hot loop.
+    A_buf = np.empty((K + 1, Jr)); A_buf[K, :] = _BIG_M
+    b_buf = np.empty(K + 1); b_buf[K] = _BIG_M
+
+    def _inner(V: np.ndarray) -> np.ndarray:
+        sq = np.sqrt(np.clip(V, 0.0, None))
+        np.multiply(X0r, sq[:, None], out=A_buf[:K, :])
+        np.multiply(X1, sq, out=b_buf[:K])
+        w, _ = nnls(A_buf, b_buf, maxiter=10000)
+        s = w.sum()
+        return w / s if s > 0 else w
+
+    def _obj1(logv: np.ndarray) -> float:
+        w = _inner(np.power(10.0, logv))
+        r = y1 - Y0r @ w
+        return float(np.mean(r * r))
+
+    def outer(logv: np.ndarray):
+        # scipy passes (K,) during polish, (K, S) when vectorized=True
+        if logv.ndim == 1:
+            return _obj1(logv)
+        S = logv.shape[1]
+        out = np.empty(S)
+        for s in range(S):
+            out[s] = _obj1(logv[:, s])
+        return out
 
     # Seed the population with the K predictor corners (all mass on one
     # predictor, the rest at the lower bound) plus random draws, so the global
@@ -169,10 +258,14 @@ def solve_mscmt(
         init[k, :] = log_lb
         init[k, k] = 0.0
 
-    res = differential_evolution(
-        outer, bounds, init=init, maxiter=maxiter, tol=tol,
-        mutation=(0.3, 1.2), recombination=0.9, polish=polish, seed=seed,
-    )
+    with warnings.catch_warnings():
+        # vectorized necessarily implies updating='deferred'; that's intended.
+        warnings.filterwarnings("ignore", message=".*vectorized.*", category=UserWarning)
+        res = differential_evolution(
+            outer, bounds, init=init, maxiter=maxiter, tol=tol,
+            mutation=(0.3, 1.2), recombination=0.9, polish=polish, seed=seed,
+            vectorized=True,
+        )
     if not res.success:
         warnings.warn(
             f"mscmt differential evolution did not converge (maxiter={maxiter}): "
@@ -183,7 +276,8 @@ def solve_mscmt(
         )
 
     V_raw = np.power(10.0, res.x)
-    W = _inner_weights(prob, V_raw)
+    W = np.zeros(prob.n_donors)
+    W[sunny] = _inner(V_raw)                 # re-expand to the full donor pool
     V = V_raw / V_raw.sum()  # report on the simplex (objective is scale-free)
     upper = mspe(prob.y1_pre, prob.Y0_pre, W)
     warn_on_gap(float(upper - lower_bound), lower_bound, gap_warn_factor)
@@ -210,6 +304,9 @@ def solve_mscmt(
             "gap": float(upper - lower_bound),
             "lb": float(lb),
             "v_method": v_method,
+            "n_donors": int(prob.n_donors),
+            "n_sunny": int(sunny.sum()),
+            "n_shady_pruned": int((~sunny).sum()),
             **meta_extra,
         },
     )
