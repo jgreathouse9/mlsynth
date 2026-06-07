@@ -13,23 +13,23 @@ Arkhangelsky-Athey-Hirshberg-Imbens-Wager (2021) with a *spatial
 spillover term*. The estimator separates two estimands that standard
 SDID confounds when SUTVA is violated by geographic spillovers:
 
-* :math:`\widehat \tau` -- the direct ATT on the directly-treated
+* :math:`\widehat{\tau}` -- the direct ATT on the directly-treated
   units (identical in form to standard SDID).
-* :math:`\widehat \tau_s` -- the indirect / spillover coefficient per
+* :math:`\widehat{\tau}_s` -- the indirect / spillover coefficient per
   unit of neighbour-treatment exposure
-  :math:`(WD)_{it} = \sum_j w_{ij} D_{jt}`.
+  :math:`e_{it} = \sum_{j} w_{ij}\, d_{jt}`.
 
 The implied population ATE follows from Serenini & Masek's eq. 14,
 
 .. math::
 
-   \widehat{ATE} = \widehat \tau \cdot \bigl(1 + \overline{WD}\bigr),
+   \widehat{\mathrm{ATE}} = \widehat{\tau} \cdot \bigl(1 + \overline{WD}\bigr),
 
 where :math:`\overline{WD}` is the average exposure across the
 directly + indirectly treated units in the post-period.
 
 The user supplies a row-standardised :math:`N \times N` spatial
-weight matrix :math:`W`. Helpers in
+weight matrix :math:`\mathbf{W}`. Helpers in
 :mod:`mlsynth.utils.spsydid_helpers.spatial` cover the standard
 constructions:
 
@@ -39,9 +39,9 @@ constructions:
 * :func:`contiguity_weights` -- queen / rook contiguity from an
   adjacency dictionary.
 
-When :math:`W = 0` (no spatial structure) or no donor has any treated
-neighbour, SpSyDiD numerically reduces to plain SDID with
-:math:`\widehat \tau_s = 0`.
+When :math:`\mathbf{W} = \mathbf{0}` (no spatial structure) or no donor has any
+treated neighbour, SpSyDiD numerically reduces to plain SDID with
+:math:`\widehat{\tau}_s = 0`.
 
 When to Use This Method
 -----------------------
@@ -62,11 +62,11 @@ the comparison. Serenini & Masek (2024) make the bias explicit:
   exposed-but-excluded units is never measured.
 
 SpSyDiD targets this regime directly. It adds a single **spatial exposure
-term** :math:`(WD)_{it} = \sum_j w_{ij} D_{jt}` to the doubly-weighted SDID
+term** :math:`e_{it} = \sum_{j} w_{ij}\, d_{jt}` to the doubly-weighted SDID
 regression, so the estimator returns *two* numbers: the direct ATT
-:math:`\hat\tau` (same form as SDID) and the per-exposure indirect
-coefficient :math:`\hat\tau_s`. The population ATE then follows from
-:math:`\widehat{ATE} = \hat\tau\,(1 + \overline{WD})` (eq. 14). Relative to
+:math:`\widehat{\tau}` (same form as SDID) and the per-exposure indirect
+coefficient :math:`\widehat{\tau}_s`. The population ATE then follows from
+:math:`\widehat{\mathrm{ATE}} = \widehat{\tau}\,(1 + \overline{WD})` (eq. 14). Relative to
 the older Spatial DiD of Delgado & Florax (2015), the synthetic weighting
 sharpens identification of the **indirect** effect while keeping SDID's
 robustness for the **direct** effect.
@@ -74,7 +74,7 @@ robustness for the **direct** effect.
 Reach for SpSyDiD whenever there is a plausible mechanism for the
 treatment to *leak* from the directly-treated units to a subset of
 the donor pool through spatial or structural proximity, **and** you can
-supply a credible row-standardised weight matrix :math:`W` encoding that
+supply a credible row-standardised weight matrix :math:`\mathbf{W}` encoding that
 proximity. Typical examples:
 
 * **Immigration policy with cross-border relocation.** Arizona's
@@ -93,14 +93,15 @@ proximity. Typical examples:
 Do not use SpSyDiD when
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-* **SUTVA holds / there is no spillover concern.** With :math:`W = 0` or no
-  treated neighbours, SpSyDiD reduces numerically to plain :doc:`sdid` with
-  :math:`\hat\tau_s = 0`; the extra exposure column just adds noise. Use
+* **SUTVA holds / there is no spillover concern.** With
+  :math:`\mathbf{W} = \mathbf{0}` or no treated neighbours, SpSyDiD reduces
+  numerically to plain :doc:`sdid` with
+  :math:`\widehat{\tau}_s = 0`; the extra exposure column just adds noise. Use
   :doc:`sdid` -- it is faster and more parsimonious.
 * **You cannot defend a spatial weight matrix.** The whole identification
-  of :math:`\hat\tau_s` runs through :math:`W`. If proximity is not the
+  of :math:`\widehat{\tau}_s` runs through :math:`\mathbf{W}`. If proximity is not the
   spillover channel (e.g., interference flows through an unobserved social
-  or supply-chain network you cannot encode), a misspecified :math:`W`
+  or supply-chain network you cannot encode), a misspecified :math:`\mathbf{W}`
   buys biased indirect effects; consider :doc:`spillsynth`, which models
   spillover through donor membership rather than a fixed geographic kernel.
 * **Interference is global or non-local.** SpSyDiD assumes exposure is a
@@ -121,25 +122,34 @@ Mathematical Formulation
 Setup
 ^^^^^
 
-We observe :math:`N` units indexed :math:`i = 1, \dots, N` over
-:math:`T` periods. Treatment begins at :math:`T_0 + 1`. Let
-:math:`Y_{it}` be the outcome, :math:`D_{it} \in \{0, 1\}` the
-direct treatment indicator, and :math:`W \in \mathbb{R}^{N \times N}_+`
-a row-standardised spatial weight matrix with zero diagonal. The
-*spillover exposure* of unit :math:`i` at time :math:`t` is
+Let :math:`\mathcal{N} \coloneqq \{1, \dots, N\}` index the units and
+:math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}` the periods (1-indexed);
+the intervention takes effect **after** period :math:`T_0`, so the pre-period
+is :math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` and the
+post-period is :math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`,
+with :math:`T_{\mathrm{post}} \coloneqq T - T_0`. Let :math:`y_{it}` be the
+outcome, :math:`d_{it} \in \{0, 1\}` the direct-treatment indicator, and
+:math:`\mathbf{W} \in \mathbb{R}_{\ge 0}^{N \times N}` a row-standardised
+spatial weight matrix with zero diagonal. The *spillover exposure* of unit
+:math:`i` at time :math:`t` is
 
 .. math::
 
-   (WD)_{it} = \sum_{j = 1}^{N} w_{ij}\, D_{jt} \in [0, 1].
+   e_{it} \coloneqq (\mathbf{W}\mathbf{d}_t)_i
+         = \sum_{j \in \mathcal{N}} w_{ij}\, d_{jt} \in [0, 1],
+   \qquad
+   \mathbf{d}_t \coloneqq (d_{1t}, \dots, d_{Nt})^\top .
 
-The estimator auto-partitions the panel into
+The estimator auto-partitions :math:`\mathcal{N}` into
 
 * :math:`\mathcal{I}_{\mathrm{tr}}` -- directly treated units
-  (:math:`D_{it} = 1` for some :math:`t`),
+  (:math:`d_{it} = 1` for some :math:`t`), with
+  :math:`N_{\mathrm{tr}} \coloneqq |\mathcal{I}_{\mathrm{tr}}|`;
 * :math:`\mathcal{I}_{\mathrm{sp}}` -- indirectly treated units
-  (:math:`D = 0` always but :math:`(WD) > 0` for some :math:`t`),
-* :math:`\mathcal{C}` -- pure controls (:math:`D = 0` and
-  :math:`(WD) = 0` for all :math:`t`).
+  (:math:`d_{it} = 0` for all :math:`t` but :math:`e_{it} > 0` for some
+  :math:`t`), with :math:`N_{\mathrm{sp}} \coloneqq |\mathcal{I}_{\mathrm{sp}}|`;
+* :math:`\mathcal{C}` -- pure controls (:math:`d_{it} = 0` and
+  :math:`e_{it} = 0` for all :math:`t`).
 
 Only :math:`\mathcal{C}` is used to fit the SDID unit / time weights.
 
@@ -148,22 +158,23 @@ Algorithm
 
 **Step 1 -- SDID weights from pure controls.** Following
 Arkhangelsky et al. (2021), fit the unit weights
-:math:`\widehat \omega \in \mathbb{R}^{|\mathcal{C}|}_+` and time
-weights :math:`\widehat \lambda \in \mathbb{R}^{T_0}_+` (each summing
-to 1) on :math:`\mathcal{C}` only. The regularisation parameter is
-:math:`\zeta = T_{\mathrm{post}}^{1/4} \cdot \mathrm{sd}(\Delta Y)`
-where :math:`\mathrm{sd}(\Delta Y)` is the standard deviation of the
-first-differenced pre-period donor outcomes.
+:math:`\widehat{\boldsymbol{\omega}} \in \Delta^{|\mathcal{C}|}` and time
+weights :math:`\widehat{\boldsymbol{\lambda}} \in \Delta^{T_0}` (each on the
+unit simplex :math:`\Delta^{m} \coloneqq \{\mathbf{x} \in
+\mathbb{R}_{\ge 0}^{m} : \|\mathbf{x}\|_1 = 1\}`) on :math:`\mathcal{C}` only.
+The regularisation parameter is :math:`\zeta \coloneqq
+T_{\mathrm{post}}^{1/4} \cdot \mathrm{sd}(\Delta \mathbf{y})`, the standard
+deviation of the first-differenced pre-period donor outcomes.
 
 **Step 2 -- assemble the full weight vector.** Set
 
 .. math::
 
-   \widehat \omega_i =
+   \widehat{\omega}_i =
    \begin{cases}
-       1 / N_{\mathrm{tr}}             & i \in \mathcal{I}_{\mathrm{tr}}, \\
-       1 / N_{\mathrm{sp}}             & i \in \mathcal{I}_{\mathrm{sp}}, \\
-       \widehat \omega_i^{\mathrm{SDID}}& i \in \mathcal{C}.
+       1 / N_{\mathrm{tr}}                & i \in \mathcal{I}_{\mathrm{tr}}, \\
+       1 / N_{\mathrm{sp}}                & i \in \mathcal{I}_{\mathrm{sp}}, \\
+       \widehat{\omega}_i^{\mathrm{SDID}} & i \in \mathcal{C}.
    \end{cases}
 
 Time weights are SDID-fit for the pre-period and uniform
@@ -173,26 +184,29 @@ Time weights are SDID-fit for the pre-period and uniform
 
 .. math::
 
-   (\widehat \tau, \widehat \tau_s, \widehat \mu, \widehat \alpha,
-    \widehat \beta)
-   = \arg \min \sum_{i = 1}^{N} \sum_{t = 1}^{T}
+   (\widehat{\tau}, \widehat{\tau}_s, \widehat{\mu},
+    \widehat{\boldsymbol{\alpha}}, \widehat{\boldsymbol{\beta}})
+   = \arg\min_{\tau, \tau_s, \mu, \boldsymbol{\alpha}, \boldsymbol{\beta}}
+     \sum_{i \in \mathcal{N}} \sum_{t \in \mathcal{T}}
      \bigl[
-        Y_{it}
-        - \mu - \alpha_i - \beta_t
-        - \tau\, D_{it}
-        - \tau_s\, (WD)_{it}
+        y_{it} - \mu - \alpha_i - \beta_t
+        - \tau\, d_{it} - \tau_s\, e_{it}
      \bigr]^2
-     \widehat \omega_i\, \widehat \lambda_t.
+     \widehat{\omega}_i\, \widehat{\lambda}_t .
 
 The augmented design jointly recovers the direct effect
-:math:`\widehat \tau` (the ATT) and the spillover coefficient
-:math:`\widehat \tau_s`.
+:math:`\widehat{\tau}` (the ATT) and the spillover coefficient
+:math:`\widehat{\tau}_s`.
 
-**Step 4 -- combine.** The implied population ATE is
-:math:`\widehat{ATE} = \widehat \tau \cdot (1 + \overline{WD})`
-where :math:`\overline{WD}` is the average exposure across
-:math:`\mathcal{I}_{\mathrm{tr}} \cup \mathcal{I}_{\mathrm{sp}}` in
-the post-period.
+**Step 4 -- combine.** With :math:`\overline{WD}` the average exposure over
+:math:`\mathcal{I}_{\mathrm{tr}} \cup \mathcal{I}_{\mathrm{sp}}` in the
+post-period, the indirect and total effects are
+
+.. math::
+
+   \widehat{\mathrm{AITE}} = \widehat{\tau}_s\, \overline{WD},
+   \qquad
+   \widehat{\mathrm{ATE}} = \widehat{\tau}\,(1 + \overline{WD}).
 
 Identification assumptions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -207,10 +221,10 @@ conditional on unit and time fixed effects.
 A3. **Additivity and linearity of spillovers** -- the potential
 outcome of a unit depends linearly and additively on its own
 treatment status and the treatment exposure of its neighbours,
-captured by :math:`(WD)_{it}`.
+captured by :math:`e_{it}`.
 
 A4. **Limited interference** -- spillovers operate exclusively
-through the structure defined by the exogenous :math:`W`. No other
+through the structure defined by the exogenous :math:`\mathbf{W}`. No other
 local or global interference mechanisms are assumed.
 
 A5. **Synthetic-control transferability** -- the SDID synthetic
@@ -224,14 +238,14 @@ resemble treated states).
 Connection to existing methods
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* When :math:`W = 0` (no spatial structure), the spillover column
-  vanishes and SpSyDiD reduces to plain SDID with
-  :math:`\widehat \tau_s = 0`.
-* When :math:`\widehat \omega_i = 1 / N_{\mathrm{co}}` for all
+* When :math:`\mathbf{W} = \mathbf{0}` (no spatial structure), the spillover
+  column vanishes and SpSyDiD reduces to plain SDID with
+  :math:`\widehat{\tau}_s = 0`.
+* When :math:`\widehat{\omega}_i = 1 / |\mathcal{C}|` for all
   controls (uniform weights), SpSyDiD reduces to the Spatial
   Difference-in-Differences estimator of Delgado & Florax (2015).
 * When the panel is balanced + no spillover + non-trivial
-  :math:`W`, SpSyDiD's :math:`\widehat \tau` matches SDID's ATT.
+  :math:`\mathbf{W}`, SpSyDiD's :math:`\widehat{\tau}` matches SDID's ATT.
 
 Core API
 --------
@@ -278,7 +292,7 @@ A self-contained one-draw Monte Carlo on a :math:`8 \times 8` spatial
 grid. Six well-spaced units receive treatment of magnitude
 :math:`\tau = 2.0`; their :math:`k = 4` neighbours absorb a spillover
 of :math:`\tau_s = 1.0` per unit of exposure. SpSyDiD with the same
-:math:`W` recovers both estimates.
+:math:`\mathbf{W}` recovers both estimates.
 
 .. code-block:: python
 

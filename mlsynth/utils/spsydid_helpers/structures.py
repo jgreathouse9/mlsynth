@@ -20,6 +20,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from pydantic import ConfigDict, Field as PydField
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -85,24 +88,30 @@ class SpSyDiDInputs:
         return int(self.pure_control_indices.size)
 
 
-@dataclass(frozen=True)
-class SpSyDiDResults:
+class SpSyDiDResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.SpSyDiD.fit`.
 
-    Attributes
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report).
+    SpSyDiD is a **spillover decomposition**: the **direct** effect
+    :math:`\\widehat{\\tau}` (ATT) drives the standardized surface, so the flat
+    accessors ``att`` / ``counterfactual`` / ``gap`` / ``pre_rmse`` describe the
+    *directly-treated* group (observed mean vs the pure-control SDID synthetic).
+    The **indirect** (``aite``) and **total** (``ate``) effects, which have no
+    single counterfactual path, are kept as typed fields below. The pure-control
+    SDID unit weights live in the standardized ``weights`` slot (with the time
+    weights in ``summary_stats``).
+
+    Parameters
     ----------
     inputs : SpSyDiDInputs
         Preprocessed panel + W matrix + auto-detected partition.
-    att : float
-        Direct treatment effect on the treated :math:`\\widehat \\tau`
-        (identical in form to standard SDID).
     aite : float
         Average indirect treatment effect per unit of exposure
-        :math:`\\widehat \\tau_s`. Multiply by the average exposure to
+        :math:`\\widehat{\\tau}_s`. Multiply by the average exposure to
         recover the population-level spillover.
     ate : float
         Implied population-level ATE
-        :math:`\\widehat \\tau \\cdot (1 + \\bar{WD})` per the paper's
+        :math:`\\widehat{\\tau} \\cdot (1 + \\bar{WD})` per the paper's
         eq. 14, with :math:`\\bar{WD}` the average exposure across the
         directly + indirectly treated units.
     unit_weights : dict
@@ -121,15 +130,15 @@ class SpSyDiDResults:
         Free-form diagnostics (mean exposure, partition sizes, etc.).
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: SpSyDiDInputs
-    att: float
     aite: float
     ate: float
     unit_weights: Dict[Any, float]
     time_weights: np.ndarray
     zeta: float
-    weights: Optional[Any] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = PydField(default_factory=dict)
 
     @property
     def tau(self) -> float:

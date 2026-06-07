@@ -37,7 +37,7 @@ import warnings
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
-from ..results_helpers import make_weights_results
+from ..results_helpers import build_effect_submodels, make_weights_results
 from .structures import SpSyDiDInputs, SpSyDiDResults
 from .weights import (
     compute_regularization,
@@ -199,14 +199,34 @@ def run_spsydid(inputs: SpSyDiDInputs) -> SpSyDiDResults:
         },
     )
 
+    # Standardized sub-models describe the DIRECT effect: the directly-treated
+    # group's observed mean vs the pure-control SDID synthetic (the same
+    # reconstruction the plotter draws). att is overridden to the exact WLS tau.
+    observed_direct = Y[direct].mean(axis=0)
+    cf_intercept = float(intercept_omega) if intercept_omega is not None else 0.0
+    counterfactual_direct = cf_intercept + omega_pure @ Y[pure]
+    submodels = build_effect_submodels(
+        observed_outcome=np.asarray(observed_direct, dtype=float),
+        counterfactual_outcome=np.asarray(counterfactual_direct, dtype=float),
+        n_pre_periods=int(T0),
+        n_post_periods=int(T_post),
+        time_periods=np.asarray(inputs.time_labels),
+        weights=weights_res,
+        method_name="SpSyDiD",
+        effects_overrides={
+            "att": float(tau),
+            "additional_effects": {"aite": float(aite), "ate": float(ate)},
+        },
+        intervention_time=(inputs.time_labels[T0] if T0 < T
+                           else inputs.time_labels[-1]),
+    )
     return SpSyDiDResults(
+        **submodels,
         inputs=inputs,
-        att=tau,
         aite=aite,
         ate=ate,
         unit_weights=unit_weights,
         time_weights=lambda_pre,
         zeta=float(zeta),
-        weights=weights_res,
         metadata=metadata,
     )

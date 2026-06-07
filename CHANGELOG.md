@@ -9,6 +9,27 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Changed
+- **SpSyDiD migrated onto the two-family result contract** (final estimator of
+  the 9-estimator migration). `SpSyDiD.fit()` now returns `SpSyDiDResults` as a
+  frozen pydantic `EffectResult`. SpSyDiD is a **spillover decomposition**, so
+  the standardized surface describes the **direct** effect: `att` (= the WLS
+  `tau`), `counterfactual`, `gap`, `pre_rmse` resolve via the inherited
+  accessors against the directly-treated group's observed mean vs the
+  pure-control SDID synthetic (the same reconstruction the plotter draws). The
+  **indirect** (`aite`) and **total** (`ate`) effects — which have no single
+  counterfactual path — are kept as typed fields and mirrored into
+  `effects.additional_effects`. The pure-control SDID unit weights live in the
+  standardized `weights` slot (time weights in `summary_stats`); `inference` is
+  `None`. **Breaking surface change:** the flat `att` field is now an inherited
+  accessor (the `tau` / `tau_s` aliases still resolve), and the standalone
+  `weights` field is replaced by the standardized slot. `inputs` / `aite` /
+  `ate` / `unit_weights` / `time_weights` / `zeta` / `metadata` remain typed
+  fields. Plotting routes through `result.plot()`. Conformance is pinned in
+  `test_spsydid.py::test_two_family_result_contract` (SpSyDiD needs a spatial
+  matrix, so it can't join the single-df loop in `test_result_contract.py`).
+  `docs/spsydid.rst` notation rewritten to the `agents_docs.md` canon
+  (calligraphic sets, bold spatial matrix `\mathbf{W}`, hatted estimates,
+  `\coloneqq`, the `T_0` time split).
 - **TASC migrated onto the two-family result contract.** `TASC.fit()` now
   returns `TASCResults` as a frozen pydantic `EffectResult` with the
   standardized sub-models built from the observed target vs the smoother-based
