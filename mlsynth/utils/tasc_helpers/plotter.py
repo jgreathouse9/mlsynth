@@ -28,7 +28,7 @@ def plot_tasc(
     """Render the TASC counterfactual against the observed series."""
 
     inputs = results.inputs
-    inference = results.inference
+    inference = results.inference_detail
 
     counterfactuals = [inference.counterfactual]
     if isinstance(counterfactual_color, str):

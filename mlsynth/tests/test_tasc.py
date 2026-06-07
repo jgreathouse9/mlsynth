@@ -28,7 +28,8 @@ import pandas as pd
 import pytest
 
 from mlsynth import TASC
-from mlsynth.config_models import TASCConfig
+from mlsynth.config_models import EffectResult, TASCConfig
+from pydantic import ValidationError
 from mlsynth.exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -578,11 +579,21 @@ class TestTASCEstimator:
             "n_em_iter": 3,
         }).fit()
         assert isinstance(results, TASCResults)
+        assert isinstance(results, EffectResult)
         assert isinstance(results.design, TASCDesign)
-        assert isinstance(results.inference, TASCInference)
+        assert isinstance(results.inference_detail, TASCInference)
         assert isinstance(results.att, float)
         assert isinstance(results.pre_rmse, float)
         assert results.pre_rmse >= 0
+        # standardized sub-models populated; TASC has no donor weights
+        assert results.time_series is not None
+        assert results.time_series.counterfactual_outcome is not None
+        assert results.effects is not None and results.effects.att is not None
+        assert results.weights is not None
+        np.testing.assert_allclose(
+            np.asarray(results.counterfactual),
+            np.asarray(results.inference_detail.counterfactual),
+        )
 
     def test_fit_with_full_Q_R(self, panel_df):
         results = TASC({
@@ -687,5 +698,6 @@ class TestImmutability:
             "time": "time", "treat": "treat", "d": 2,
             "n_em_iter": 2,
         }).fit()
-        with pytest.raises(FrozenInstanceError):
-            results.att = 99.0   # type: ignore[misc]
+        # TASCResults is now a frozen pydantic EffectResult.
+        with pytest.raises(ValidationError):
+            results.inference_detail = None   # type: ignore[misc]

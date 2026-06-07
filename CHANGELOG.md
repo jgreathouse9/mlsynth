@@ -9,6 +9,21 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Changed
+- **TASC migrated onto the two-family result contract.** `TASC.fit()` now
+  returns `TASCResults` as a frozen pydantic `EffectResult` with the
+  standardized sub-models built from the observed target vs the smoother-based
+  counterfactual; `att` / `counterfactual` / `gap` / `pre_rmse` resolve via the
+  inherited accessors. TASC is a state-space / EM estimator with **no donor
+  weights**, so the `weights` slot records the method rather than per-donor
+  weights. **Breaking surface change:** the raw inference object (counterfactual
+  + per-period posterior bands: `.counterfactual` / `.ci_lower` / `.ci_upper` /
+  `.posterior_variance` / `.alpha`) moved from `res.inference` to
+  `res.inference_detail`; the `inference` slot now holds the standardized
+  `InferenceResults` (with the raw object in `.details`). The flat `att` /
+  `pre_rmse` fields are now inherited accessors; `design` / `inference_detail`
+  remain typed fields. Mutating the frozen result raises pydantic
+  `ValidationError`. TASC plots via `result.plot()` and is pinned in
+  `tests/test_result_contract.py`.
 - **SparseSC migrated onto the two-family result contract.** `SparseSC.fit()`
   now returns `SparseSCResults` as a frozen pydantic `EffectResult` with the
   standardized sub-models built from the treated series via

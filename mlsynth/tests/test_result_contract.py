@@ -20,7 +20,7 @@ import pandas as pd
 import pytest
 
 from mlsynth import (
-    FDID, MCNNM, MSQRT, RMSI, SNN, SparseSC, SPOTSYNTH, TSSC, VanillaSC,
+    FDID, MCNNM, MSQRT, RMSI, SNN, SparseSC, SPOTSYNTH, TASC, TSSC, VanillaSC,
 )
 from mlsynth.config_models import (
     BaseEstimatorResults,
@@ -70,6 +70,7 @@ OBSERVATIONAL = [
     pytest.param(MSQRT, {"lambda_": 0.5}, id="MSQRT"),
     pytest.param(MCNNM, {}, id="MCNNM"),
     pytest.param(SparseSC, {"outcome_lag_periods": [1, 2]}, id="SparseSC"),
+    pytest.param(TASC, {"d": 2, "n_em_iter": 2}, id="TASC"),
 ]
 
 
