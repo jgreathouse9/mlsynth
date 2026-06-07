@@ -52,7 +52,6 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.mcnnm_helpers.pipeline import run_mcnnm
-from ..utils.mcnnm_helpers.plotter import plot_mcnnm
 from ..utils.mcnnm_helpers.setup import prepare_mcnnm_inputs
 from ..utils.mcnnm_helpers.structures import MCNNMResults
 
@@ -110,17 +109,17 @@ class MCNNM:
                 alpha_level=self.alpha,
                 random_state=self.random_state,
             )
+            # Attach plotting context so result.plot() is self-contained and
+            # styled from the (possibly nested) config; labels default to the
+            # column names when the user has not set them.
+            pc = self.config.resolved_plot()
+            if pc.xlabel is None:
+                pc.xlabel = self.time
+            if pc.ylabel is None:
+                pc.ylabel = self.outcome
+            object.__setattr__(results, "plot_config", pc)
             if self.display_graphs:
-                plot_mcnnm(
-                    results,
-                    treated_color=self.treated_color,
-                    counterfactual_color=self.counterfactual_color,
-                    save=self.save,
-                    time_axis_label=self.time,
-                    treatment_label=self.treat,
-                    unit_label=self.unitid,
-                    outcome_label=self.outcome,
-                )
+                results.plot()
             return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

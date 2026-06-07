@@ -10,6 +10,7 @@ from mlsynth.utils.mcnnm_helpers.plotter import (
     _plot_event_study,
     _is_staggered,
 )
+from mlsynth.config_models import EffectsResults
 from mlsynth.utils.mcnnm_helpers.structures import MCNNMInputs, MCNNMResults
 
 
@@ -48,9 +49,9 @@ def _make_results(inputs, event_study=None):
     effects = np.full((N, T), np.nan)
     return MCNNMResults(
         inputs=inputs,
-        att=1.234,
-        counterfactual=counterfactual,
-        effects=effects,
+        effects=EffectsResults(att=1.234),
+        counterfactual_matrix=counterfactual,
+        effects_matrix=effects,
         att_by_period={},
         cohort_att={},
         event_study=event_study or {},

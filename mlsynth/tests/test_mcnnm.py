@@ -136,7 +136,7 @@ class TestEstimator:
         ca = res.inputs.unit_names.index("California")
         T0 = res.inputs.T0
         pre_rmse = float(np.sqrt(np.mean(
-            (res.inputs.Y[ca, :T0] - res.counterfactual[ca, :T0]) ** 2)))
+            (res.inputs.Y[ca, :T0] - res.counterfactual_matrix[ca, :T0]) ** 2)))
         assert pre_rmse < 3.0
 
     def test_exposes_factors_and_implied_weights(self):
@@ -190,10 +190,14 @@ class TestEstimator:
         res = MCNNM({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
                      "time": "time", "inference": True,
                      "display_graphs": False}).fit()
-        assert res.inference is not None
-        assert res.inference.method == "jackknife"
-        lo, hi = res.inference.ci
+        # Raw jackknife object preserved under inference_jackknife; the
+        # standardized InferenceResults is mirrored into the `inference` slot.
+        assert res.inference_jackknife is not None
+        assert res.inference_jackknife.method == "jackknife"
+        lo, hi = res.inference_jackknife.ci
         assert lo <= res.att <= hi
+        assert res.inference is not None
+        assert res.att_ci == pytest.approx((lo, hi))
 
 
 # ----------------------------------------------------------------------

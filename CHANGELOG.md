@@ -9,6 +9,24 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Changed
+- **MCNNM migrated onto the two-family result contract.** `MCNNM.fit()` now
+  returns `MCNNMResults` as a frozen pydantic `EffectResult` with the
+  standardized sub-models built from the cross-treated-unit observed / imputed
+  paths (T0 the common adoption reference); `att` / `counterfactual` / `gap` /
+  `att_ci` / `pre_rmse` resolve via the inherited accessors, and the *implied*
+  (non-unique) donor weights stay in the `weights` slot. **Breaking surface
+  change (matrix-completion convention):** `res.counterfactual` is now the
+  **1-D treated counterfactual path** (was the full `(N, T)` fitted matrix);
+  the matrix moved to `res.counterfactual_matrix`, and the per-cell `effects`
+  matrix to `res.effects_matrix` (the `effects` slot now holds
+  `EffectsResults`). The raw jackknife object moved from `res.inference` to
+  `res.inference_jackknife`; the `inference` slot now holds the standardized
+  `InferenceResults` (so `res.att_ci` resolves). The staggered-adoption extras
+  (`cohort_att`, `event_study`) and the factor diagnostics (`L`, `gamma`,
+  `delta`, `unit_factors`, `time_factors`, `singular_values`, `rank`) remain
+  typed fields. Mutating the frozen result raises pydantic `ValidationError`.
+  MCNNM plots via `result.plot()` and is pinned in
+  `tests/test_result_contract.py`.
 - **MSQRT migrated onto the two-family result contract.** `MSQRT.fit()` now
   returns `MSQRTResults` as a frozen pydantic `EffectResult` with the
   standardized sub-models built from the cross-treated-unit observed / synthetic
