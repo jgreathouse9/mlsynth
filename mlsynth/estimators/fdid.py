@@ -27,7 +27,6 @@ from ..utils.fdid_helpers import (
     FDIDResults,
     assemble_fdid_results,
     forward_did_select,
-    plot_fdid,
     prepare_fdid_inputs,
 )
 
@@ -125,16 +124,23 @@ class FDID:
 
         results = assemble_fdid_results(selector_output, inputs)
 
-        if self.display_graphs:
-            plot_fdid(
-                results,
-                time=self.time,
-                unitid=self.unitid,
-                outcome=self.outcome,
-                treat=self.treated,
-                treated_color=self.treated_color,
-                counterfactual_color=self.counterfactual_color,
-                save=self.save,
+        # Attach plotting context so result.plot() is self-contained and styled
+        # from the (possibly nested) config. Fill axis labels from the column
+        # names only when the user has not set them.
+        pc = self.config.resolved_plot()
+        if pc.xlabel is None:
+            pc.xlabel = self.time
+        if pc.ylabel is None:
+            pc.ylabel = self.outcome
+        object.__setattr__(results, "plot_config", pc)
+        if results.time_series is not None:
+            pre = int(inputs.pre_periods)
+            labels = list(inputs.time_labels)
+            results.time_series.intervention_time = (
+                labels[pre] if pre < len(labels) else labels[-1]
             )
+
+        if self.display_graphs:
+            results.plot()
 
         return results

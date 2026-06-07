@@ -9,6 +9,18 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- **Standardized plotting foundation.** A nested `PlotConfig` on
+  `BaseEstimatorConfig` (`plot=...`) centralizes plot cosmetics — observed/
+  counterfactual color, linewidth, linestyle; intervention reference line;
+  axis-label and title overrides; a user-suppliable `theme` — with sensible
+  defaults and full back-compat (legacy `treated_color`/`counterfactual_color`/
+  `display_graphs`/`save` fold in via `config.resolved_plot()`). The shared
+  `utils.plotting.Plotter` gains `gap` and `event_study` archetypes alongside
+  `observed_vs_counterfactual`, all config-driven and rendered in the house
+  style. `EffectResult.plot(kind=...)` is the single entry point, driven by the
+  standardized `time_series` sub-model (+ `intervention_time`) and the
+  `PlotConfig` captured at fit time. FDID is migrated as the reference;
+  the event-study archetype is validated on SDID output.
 - **FDID validation (Path A + B), officially complete.** New
   `benchmarks/cases/fdid_hongkong.py` reproduces Li (2024)'s public Hong Kong
   GDP companion replication cell by cell (FDID ATT 0.0254 / 53.84% / pre-R² 0.843
