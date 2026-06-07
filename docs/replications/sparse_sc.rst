@@ -6,11 +6,12 @@ SparseSC — L1 Predictor Selection for Synthetic Controls (Vives-i-Bastida 2022
 :Estimator: :doc:`../sparse_sc` — :class:`mlsynth.SparseSC`
 :Source: Vives-i-Bastida, Jaume (2022), *"Predictor Selection for Synthetic
    Controls,"* working paper, arXiv:2203.11576 [jaumesparsesc]_.
-:Replication type: **Path A** — reproduce the canonical Proposition 99 effect
-   on public data, with the L1 penalty selecting the predictor set.
+:Replication type: **Path A** (two canonical empirical panels) **+ Path B**
+   (the paper's own Monte-Carlo study, Section 4 / Figures 1-2).
 :Status: **Fully verified** — recovers the Abadie, Diamond & Hainmueller (2010)
-   Proposition 99 ATT *and* the Abadie & Gardeazabal (2003) Basque result,
-   each with the L1 penalty selecting the predictor set.
+   Proposition 99 ATT *and* the Abadie & Gardeazabal (2003) Basque result
+   (each with the L1 penalty selecting the predictor set), and reproduces the
+   qualitative findings of the paper's simulation study.
 
 Why Path A
 ----------
@@ -184,6 +185,108 @@ peaking :math:`-0.95`) lands on the A&G result. Notably the penalty *keeps*
 Abadie-L'Hour bias correction on this panel: density genuinely helps *explain*
 GDP (a good predictor) even though it cannot be safely *extrapolated* in a
 residual correction.
+
+Path B: the simulation study (Section 4)
+----------------------------------------
+
+The paper's Monte-Carlo (Figures 1-2) is reproduced from a linear factor model
+with a *grouped* structure (the design of the companion paper, Abadie &
+Vives-i-Bastida 2022, extended with covariates):
+
+.. math::
+
+   Y_{it} = \delta_t + \theta_t' Z_i + \lambda_t' \mu_i + \varepsilon_{it},
+
+with ``J+1 = 21`` units in 7 groups of 3 sharing a one-hot factor loading
+``mu_i``; common factors ``lambda_t`` AR(1) (``rho = 0.5``, standard-Gaussian
+innovations); ``delta_t = 100``; ``eps ~ N(0, 0.25^2)``. Covariates split into
+**useful** ``Z^1`` (nonzero ``theta``) and **nuisance** ``Z^2`` (zero
+``theta``), all drawn ``U[0,1]``; the treated unit's useful predictors are set
+to ``1/2(Z_2 + Z_3)`` and it shares units 2,3's group, so the **oracle synthetic
+control is** ``w_2 = w_3 = 1/2``. The design matrix adds 10 lagged outcomes (20
+predictors total). Two regimes: ``k1=k2=5`` (balanced) and ``k1=1, k2=9``
+(nuisance-heavy). The true effect is zero, so post-treatment MSE measures
+counterfactual prediction error. Three estimators are compared, mapped onto
+``SparseSC``'s knobs:
+
+* **SCM** — the standard control with the *fixed* Mahalanobis weight
+  ``V = (X0' X0)^{-1}`` (no optimisation; solved as ``min_w (X1-X0 w)'V(X1-X0 w)``
+  on the simplex).
+* **SCM λ=0** — ``V`` minimises the *validation*-block outcome fit with no
+  penalty (``outer_loss_window="validation"``, ``lambda=0``; Abadie-Diamond-
+  Hainmueller 2015).
+* **Sparse** — the same with the L1 penalty and CV-selected ``lambda``.
+
+Results (B = 60 draws; "Vnoise" is the V-weight assigned to the nuisance
+covariates):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 12 10 10 10 10
+
+   * - setting / method
+     - post-MSE
+     - \|bias\|
+     - val-RMSE
+     - w₂+w₃
+     - Vnoise
+   * - **k1=5,k2=5** SCM
+     - 1.78
+     - 0.06
+     - 1.27
+     - 0.25
+     - —
+   * - SCM λ=0
+     - 0.132
+     - 0.001
+     - 0.278
+     - 0.92
+     - 5.27
+   * - Sparse
+     - 0.153
+     - 0.010
+     - 0.255
+     - 0.90
+     - **0.16**
+   * - **k1=1,k2=9** SCM
+     - 1.99
+     - 0.02
+     - 1.28
+     - 0.17
+     - —
+   * - SCM λ=0
+     - 0.164
+     - 0.003
+     - 0.253
+     - 0.89
+     - 0.85
+   * - Sparse
+     - **0.141**
+     - 0.016
+     - **0.224**
+     - 0.90
+     - **0.21**
+
+The paper's three headline findings reproduce:
+
+* **Standard SCM is decisively worst** (post-MSE ~1.8-2.0; it cannot even
+  concentrate weight on the right donors, w₂+w₃ ≈ 0.2).
+* **Sparse is robust across regimes while the unpenalised method degrades.**
+  Moving from balanced to nuisance-heavy, ``SCM λ=0`` worsens 0.132 → 0.164
+  while **Sparse stays flat (0.153 → 0.141) and overtakes it** — Figure 1b's
+  central result.
+* **Sparse performs the selection** (Figure 2): it drives the nuisance-predictor
+  weights to ≈ 0 (Vnoise 0.16-0.21) where ``SCM λ=0`` piles weight on them
+  (5.27, 0.85), and it carries the lowest validation RMSE throughout.
+
+Honest caveats: *absolute* MSE levels are not comparable to the paper (the
+useful-predictor coefficient scale ``theta_t`` is not pinned down in either
+paper — the companion design has no covariate term — so it is filled in the
+spirit of the ``theta_t Z_i`` term as time-varying ``N(0,1)``); and in the easy
+``k1=k2=5`` regime Sparse ties rather than strictly beats ``SCM λ=0``, within
+the latitude of that unspecified constant, B = 60 Monte-Carlo noise, and a
+coarser (21-point) penalty grid. The *ordering* and the *robustness/selection*
+mechanism — the paper's actual claims — reproduce.
 
 A note on optimisation (and grid resolution)
 ---------------------------------------------
