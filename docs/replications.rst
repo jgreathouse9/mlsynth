@@ -39,7 +39,16 @@ replication content yet.
 
 Each entry below links to the full replication code in the source
 documentation page and calls out the headline number that
-demonstrates the match.
+demonstrates the match. Replications are progressively being broken out
+into **dedicated pages** (one per source paper) collected in the toctree
+below; the catalogue entries link to a dedicated page where one exists.
+
+.. toctree::
+   :hidden:
+   :caption: Dedicated replication pages
+
+   replications/fdid
+   replications/sparse_sc
 
 .. _replications-canonical:
 
@@ -57,6 +66,7 @@ Canonical workhorses
   **Path B:** Table 5 PMSE grid across DGP1-DGP4 at four
   :math:`(T_1, T_2)` configurations; cell :math:`(48, 24)` yields
   :math:`\mathrm{PMSE} = 0.084` against the paper's :math:`0.082`.
+  → dedicated page: :doc:`replications/fdid`.
 
 .. _replications-decomp:
 
@@ -163,10 +173,11 @@ High-dimensional donor pools
   pre-:math:`R^2 = 0.970`, CV RMSPE :math:`= 1.605` vs. the
   full-pool baseline 2.916.
 * :doc:`sparse_sc` -- Sparse SC. **Path A:** California
-  Proposition 99 with the augmented ADH-7 dataset of Vives, with
-  conformal inference -- validation MSE conformal CI
-  :math:`\approx [-20, -18]`, magnitude consistent with the ADH
-  baseline.
+  Proposition 99 with an over-rich augmented predictor set, with
+  conformal inference -- the L1 penalty prunes to 6 of 33 predictors
+  and the effect lands at :math:`-17.9` packs (95% CI
+  :math:`[-21.3, -15.4]`) on the ADH donor pool. See the
+  :doc:`dedicated page <replications/sparse_sc>`.
 
 .. _replications-time:
 

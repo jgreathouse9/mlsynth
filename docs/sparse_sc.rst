@@ -420,6 +420,16 @@ Helper Modules
    :members:
    :undoc-members:
 
+Replication
+-----------
+
+SparseSC is verified on the canonical Proposition 99 panel: handed an
+over-rich augmented predictor set, the L1 penalty prunes to **6 of 33**
+predictors and the effect lands at :math:`-17.9` packs (95% conformal CI
+:math:`[-21.3, -15.4]`) on the Abadie-Diamond-Hainmueller donor pool. See the
+dedicated :doc:`replication page <replications/sparse_sc>` for the full
+specification, code, and number-match.
+
 Example
 -------
 
