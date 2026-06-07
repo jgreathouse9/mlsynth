@@ -5,7 +5,8 @@ import importlib
 
 # name -> "benchmarks.cases.<module>"  (pure-Python unless noted needs_reference)
 CASES = {
-    "fdid_table5": "benchmarks.cases.fdid_table5",
+    "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
+    "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
 }
 

@@ -74,9 +74,12 @@ Canonical workhorses
   p-value relations.
   → dedicated page: :doc:`replications/vanillasc`.
 * :doc:`fdid` -- Li (2024) Forward Difference-in-Differences.
-  **Path B:** Table 5 PMSE grid across DGP1-DGP4 at four
-  :math:`(T_1, T_2)` configurations; cell :math:`(48, 24)` yields
-  :math:`\mathrm{PMSE} = 0.084` against the paper's :math:`0.082`.
+  **Path A:** the author's public Hong Kong GDP companion replication
+  reproduced cell by cell (FDID ATT :math:`0.0254`, :math:`53.84\%`,
+  pre-:math:`R^2 = 0.843`, 9 of 24 controls). **Path B:** Table 5 PMSE grid
+  across DGP1-DGP4 at four :math:`(T_1, T_2)` configurations; cell
+  :math:`(48, 24)` yields :math:`\mathrm{PMSE} = 0.084` against the paper's
+  :math:`0.082`.
   → dedicated page: :doc:`replications/fdid`.
 
 .. _replications-decomp:
