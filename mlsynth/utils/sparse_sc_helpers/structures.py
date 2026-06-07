@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
+from pydantic import ConfigDict, Field as PydField
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -161,9 +164,15 @@ class SparseSCInference:
     )
 
 
-@dataclass(frozen=True)
-class SparseSCResults:
+class SparseSCResults(BaseEstimatorResults):
     """Public ``SparseSC.fit()`` return container.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    in addition to the SparseSC-specific fields below it exposes the
+    standardized sub-models (``effects``, ``time_series``, ``weights``,
+    ``inference``, ``fit_diagnostics``, ``method_details``) and the flat
+    accessors ``att`` / ``counterfactual`` / ``gap`` / ``att_ci`` /
+    ``pre_rmse`` / ``donor_weights``.
 
     Parameters
     ----------
@@ -171,28 +180,25 @@ class SparseSCResults:
         Pre-processed panel + predictors.
     design : SparseSCDesign
         Lambda-selection results, V and W weights.
-    inference : SparseSCInference
-        Placebo p-value or ``method = "none"``.
-    counterfactual : np.ndarray
-        ``Y0 @ w`` over all ``T`` periods.
-    gap : np.ndarray
-        ``Y1 - counterfactual``, shape ``(T,)``.
-    att : float
-        Mean post-treatment gap.
-    pre_rmse : float
-        Root-mean-squared pre-treatment fit error.
-    donor_weights : Dict[Any, float]
-        ``{donor_name: w_j}``.
+    inference_detail : SparseSCInference
+        The raw placebo / conformal inference object (``method`` / ``p_value``
+        / ``placebo_atts`` / ``pointwise_*`` / ...) or ``method="none"``.
+        (Renamed from ``inference``; the standardized
+        :class:`~mlsynth.config_models.InferenceResults` is mirrored into the
+        ``inference`` slot so ``res.att_ci`` resolves.)
     predictor_weights : Dict[Any, float]
         ``{predictor_name: v_p}``.
+
+    Notes
+    -----
+    The donor weights (``{donor_name: w_j}``) live in the standardized
+    ``weights`` slot and are served by ``res.donor_weights``; the predictor
+    weights are also mirrored into ``weights.summary_stats``.
     """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: SparseSCInputs
     design: SparseSCDesign
-    inference: SparseSCInference
-    counterfactual: np.ndarray
-    gap: np.ndarray
-    att: float
-    pre_rmse: float
-    donor_weights: Dict[Any, float]
+    inference_detail: SparseSCInference
     predictor_weights: Dict[Any, float]

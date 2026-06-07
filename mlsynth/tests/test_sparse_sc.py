@@ -286,9 +286,9 @@ class TestPlacebo:
             "lambda_grid": [0.01], "run_inference": False,
             "display_graphs": False,
         }).fit()
-        assert res.inference.method == "none"
-        assert res.inference.n_placebo == 0
-        assert np.isnan(res.inference.p_value)
+        assert res.inference_detail.method == "none"
+        assert res.inference_detail.n_placebo == 0
+        assert np.isnan(res.inference_detail.p_value)
 
     def test_placebo_yields_valid_p_value(self, small_panel):
         res = SparseSC({
@@ -299,10 +299,10 @@ class TestPlacebo:
             "inference_method": "placebo",
             "n_placebo": 4, "display_graphs": False, "seed": 7,
         }).fit()
-        assert res.inference.method == "abadie_placebo_permutation"
-        assert 0.0 < res.inference.p_value <= 1.0
-        assert res.inference.n_placebo > 0
-        assert res.inference.placebo_atts.size == res.inference.n_placebo
+        assert res.inference_detail.method == "abadie_placebo_permutation"
+        assert 0.0 < res.inference_detail.p_value <= 1.0
+        assert res.inference_detail.n_placebo > 0
+        assert res.inference_detail.placebo_atts.size == res.inference_detail.n_placebo
 
     def test_conformal_validation_default(self, small_panel):
         res = SparseSC({
@@ -313,20 +313,20 @@ class TestPlacebo:
             "display_graphs": False,
         }).fit()
         # Default inference is the validation-block conformal.
-        assert res.inference.method == "conformal_validation"
-        assert np.isfinite(res.inference.att_observed)
-        assert np.isfinite(res.inference.ci_lower)
-        assert np.isfinite(res.inference.ci_upper)
-        assert res.inference.ci_lower <= res.inference.att_observed <= res.inference.ci_upper
-        assert 0.0 <= res.inference.p_value <= 1.0
-        assert res.inference.calibration_residuals.size > 0
+        assert res.inference_detail.method == "conformal_validation"
+        assert np.isfinite(res.inference_detail.att_observed)
+        assert np.isfinite(res.inference_detail.ci_lower)
+        assert np.isfinite(res.inference_detail.ci_upper)
+        assert res.inference_detail.ci_lower <= res.inference_detail.att_observed <= res.inference_detail.ci_upper
+        assert 0.0 <= res.inference_detail.p_value <= 1.0
+        assert res.inference_detail.calibration_residuals.size > 0
         n_post = (
             res.inputs.T - res.inputs.T0_total
         )
-        assert res.inference.pointwise_lower.size == n_post
-        assert res.inference.pointwise_upper.size == n_post
+        assert res.inference_detail.pointwise_lower.size == n_post
+        assert res.inference_detail.pointwise_upper.size == n_post
         assert (
-            res.inference.pointwise_upper >= res.inference.pointwise_lower
+            res.inference_detail.pointwise_upper >= res.inference_detail.pointwise_lower
         ).all()
 
     def test_conformal_pre_window(self, small_panel):
@@ -338,12 +338,12 @@ class TestPlacebo:
             "conformal_window": "pre",
             "display_graphs": False,
         }).fit()
-        assert res.inference.method == "conformal_pre"
+        assert res.inference_detail.method == "conformal_pre"
         # The full pre-block has more residuals than the validation
         # block alone, so the calibration set must be strictly larger.
-        assert res.inference.calibration_residuals.size > 0
+        assert res.inference_detail.calibration_residuals.size > 0
         assert (
-            res.inference.calibration_residuals.size
+            res.inference_detail.calibration_residuals.size
             >= res.inputs.T0_total - res.inputs.T0_train
         )
 
@@ -387,7 +387,7 @@ class TestPublicAPI:
         assert isinstance(res, SparseSCResults)
         assert isinstance(res.inputs, SparseSCInputs)
         assert isinstance(res.design, SparseSCDesign)
-        assert isinstance(res.inference, SparseSCInference)
+        assert isinstance(res.inference_detail, SparseSCInference)
 
     def test_dict_vs_config_object(self, small_panel):
         cfg_dict = {

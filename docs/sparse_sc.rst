@@ -503,9 +503,10 @@ inspect the ATT CI:
    }).fit()
 
    print(results.att)                       # post-period ATT
-   print(results.inference.ci_lower,
-         results.inference.ci_upper)        # 95% conformal CI
-   print(results.inference.p_value)         # H_0: ATT = 0
+   lo, hi = results.att_ci                  # 95% conformal CI (standardized)
+   print(lo, hi)
+   print(results.inference.p_value)         # H_0: ATT = 0 (standardized slot)
+   print(results.inference_detail.method)   # raw placebo/conformal object
    print(results.design.opt_lambda)         # selected L1 penalty
    print(results.predictor_weights)         # {predictor: v_p}
    print(results.donor_weights)             # {donor: w_j} on the simplex
