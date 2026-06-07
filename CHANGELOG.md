@@ -9,6 +9,21 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Changed
+- **SparseSC migrated onto the two-family result contract.** `SparseSC.fit()`
+  now returns `SparseSCResults` as a frozen pydantic `EffectResult` with the
+  standardized sub-models built from the treated series via
+  `build_effect_submodels`; `att` / `counterfactual` / `gap` / `att_ci` /
+  `pre_rmse` / `donor_weights` resolve via the inherited accessors, and the
+  donor weights live in the `weights` slot (predictor weights in
+  `summary_stats`). **Breaking surface change:** the raw placebo/conformal
+  inference object moved from `res.inference` to `res.inference_detail` (still
+  `.method` / `.p_value` / `.placebo_atts` / `.pointwise_*` / ...); the
+  `inference` slot now holds the standardized `InferenceResults` built from it
+  (so `res.att_ci` resolves), and is `None` when `method="none"`. The flat
+  `att` / `pre_rmse` / `donor_weights` fields are now inherited accessors;
+  `design` / `predictor_weights` / `inference_detail` remain typed fields.
+  Mutating the frozen result raises pydantic `ValidationError`. SparseSC plots
+  via `result.plot()` and is pinned in `tests/test_result_contract.py`.
 - **MLSC migrated onto the two-family result contract.** `MLSC.fit()` now
   returns `MLSCResults` as a frozen pydantic `EffectResult` with the
   standardized sub-models built from the aggregate treated series

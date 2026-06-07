@@ -33,7 +33,8 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import SparseSCConfig
+from ..config_models import InferenceResults, SparseSCConfig, WeightsResults
+from ..utils.results_helpers import build_effect_submodels
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -42,7 +43,6 @@ from ..exceptions import (
 )
 from ..utils.sparse_sc_helpers.inference import conformal_inference, run_placebo
 from ..utils.sparse_sc_helpers.optimization import recover_w, sweep_lambda
-from ..utils.sparse_sc_helpers.plotter import plot_sparse_sc
 from ..utils.sparse_sc_helpers.setup import prepare_sparse_sc_inputs
 from ..utils.sparse_sc_helpers.structures import (
     SparseSCDesign,
@@ -237,10 +237,44 @@ class SparseSC:
                 str(p): float(v) for p, v in zip(inputs.predictor_names, optv)
             }
 
-            results = SparseSCResults(
-                inputs=inputs, design=design, inference=inference,
-                counterfactual=cf, gap=gap, att=att, pre_rmse=pre_rmse,
+            # Standardized inference mirrored from the raw placebo/conformal
+            # object (NaN -> None); the contract slot holds InferenceResults.
+            def _f(x):
+                return None if x is None or np.isnan(x) else float(x)
+
+            std_inference = None
+            if inference.method != "none":
+                std_inference = InferenceResults(
+                    method=inference.method,
+                    p_value=_f(inference.p_value),
+                    ci_lower=_f(inference.ci_lower),
+                    ci_upper=_f(inference.ci_upper),
+                    confidence_level=(None if np.isnan(inference.alpha)
+                                      else float(1.0 - inference.alpha)),
+                    details=inference,
+                )
+            weights = WeightsResults(
                 donor_weights=donor_weights,
+                summary_stats={"predictor_weights": predictor_weights},
+            )
+            submodels = build_effect_submodels(
+                observed_outcome=np.asarray(inputs.Y1),
+                counterfactual_outcome=np.asarray(cf),
+                n_pre_periods=int(inputs.T0_total),
+                n_post_periods=int(inputs.T - inputs.T0_total),
+                time_periods=np.asarray(inputs.time_labels),
+                weights=weights,
+                inference=std_inference,
+                method_name="SparseSC",
+                effects_overrides={"att": float(att)},
+                fit_overrides={"rmse_pre": float(pre_rmse)},
+                intervention_time=(inputs.time_labels[inputs.T0_total]
+                                   if inputs.T0_total < inputs.T
+                                   else inputs.time_labels[-1]),
+            )
+            results = SparseSCResults(
+                **submodels,
+                inputs=inputs, design=design, inference_detail=inference,
                 predictor_weights=predictor_weights,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
@@ -250,16 +284,17 @@ class SparseSC:
                 f"SparseSC estimation failed: {exc}"
             ) from exc
 
+        # Standardized plotting: attach the resolved PlotConfig and route
+        # through result.plot().
+        pc = self.config.resolved_plot()
+        if pc.xlabel is None:
+            pc.xlabel = self.time
+        if pc.ylabel is None:
+            pc.ylabel = self.outcome
+        object.__setattr__(results, "plot_config", pc)
         if self.display_graphs:
             try:
-                plot_sparse_sc(
-                    results, treated_color=self.treated_color,
-                    counterfactual_color=self.counterfactual_color,
-                    save=self.save,
-                    time_axis_label=self.time,
-                    treatment_label=self.treat,
-                    unit_label=self.unitid,
-                )
+                results.plot()
             except MlsynthPlottingError:
                 raise
             except Exception as exc:
