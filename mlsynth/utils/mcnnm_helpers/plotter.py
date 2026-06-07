@@ -94,11 +94,11 @@ def plot_mcnnm(
     if treated.size == 1:
         i = int(treated[0])
         observed = inputs.Y[i]
-        counterfactual = results.counterfactual[i]
+        counterfactual = results.counterfactual_matrix[i]
         treated_name = str(inputs.unit_names[i])
     else:
         observed = inputs.Y[treated].mean(axis=0)
-        counterfactual = results.counterfactual[treated].mean(axis=0)
+        counterfactual = results.counterfactual_matrix[treated].mean(axis=0)
         treated_name = f"Treated mean (n={treated.size})"
 
     ywide = pd.DataFrame(

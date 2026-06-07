@@ -197,7 +197,7 @@ observed-vs-counterfactual chart.
    }).fit()
 
    print(f"ATT (avg 1989-2000) = {res.att:+.2f} packs/capita")
-   lo, hi = res.inference.ci
+   lo, hi = res.att_ci               # standardized; jackknife when inference=True
    print(f"jackknife 95% CI    = [{lo:+.2f}, {hi:+.2f}]")
    print(f"gap by 2000         = {res.att_by_period[2000]:+.2f}")
    print(f"selected lambda     = {res.best_lambda:.2f}")

@@ -13,6 +13,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from pydantic import ConfigDict, Field as PydField
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -53,22 +56,30 @@ class MCNNMInputs:
         return self.Y.shape[1]
 
 
-@dataclass(frozen=True)
-class MCNNMResults:
+class MCNNMResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.MCNNM.fit`.
 
-    Attributes
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    in addition to the MC-NNM-specific fields below it exposes the standardized
+    sub-models (``effects``, ``time_series``, ``weights``, ``inference``,
+    ``fit_diagnostics``, ``method_details``) and the flat accessors ``att`` /
+    ``counterfactual`` / ``gap`` / ``att_ci`` / ``pre_rmse``. The treated
+    counterfactual path (``res.counterfactual``) is the cross-treated-unit mean
+    of the imputed untreated outcome; the full ``(N, T)`` fitted matrix lives in
+    ``counterfactual_matrix``.
+
+    Parameters
     ----------
     inputs : MCNNMInputs
-    att : float
-        Average treatment effect on the treated (observed minus imputed
-        over the treated cells).
-    counterfactual : np.ndarray
+    counterfactual_matrix : np.ndarray
         Full fitted matrix ``L + Gamma + Delta``, shape ``(N, T)``; on
         treated cells this is the imputed untreated potential outcome.
-    effects : np.ndarray
+        (Renamed from ``counterfactual``, which now returns the 1-D treated
+        path per the result contract.)
+    effects_matrix : np.ndarray
         Per-cell effects (observed minus imputed) on treated cells; ``NaN``
-        elsewhere, shape ``(N, T)``.
+        elsewhere, shape ``(N, T)``. (Renamed from ``effects``, which is now
+        the standardized ``EffectsResults`` slot.)
     att_by_period : dict
         ``{period_label: mean effect across treated units}`` post-treatment
         (calendar time -- pools cohorts at each period).
@@ -98,20 +109,19 @@ class MCNNMResults:
         Time factors :math:`V \\Sigma^{1/2}`, shape ``(T, rank)``.
     singular_values : np.ndarray
         Singular values of ``L`` (the nuclear-norm spectrum).
-    weights : WeightsResults, optional
-        *Implied* per-treated-unit donor weights, obtained by projecting
-        the treated unit's low-rank row onto the control rows. MC-NNM is a
-        factorisation (not a weighting) estimator, so these are a derived,
-        **non-unique** diagnostic -- flagged as such in ``summary_stats``.
-    inference : object, optional
-        :class:`MCNNMInference` when ``inference=True``; else ``None``.
+    inference_jackknife : MCNNMInference, optional
+        The raw leave-one-control jackknife object (``method`` / ``se`` /
+        ``ci``) when ``inference=True``; else ``None``. The standardized
+        :class:`~mlsynth.config_models.InferenceResults` is mirrored into the
+        ``inference`` slot (so ``res.att_ci`` resolves).
     metadata : dict
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: MCNNMInputs
-    att: float
-    counterfactual: np.ndarray
-    effects: np.ndarray
+    counterfactual_matrix: np.ndarray
+    effects_matrix: np.ndarray
     att_by_period: Dict[Any, float]
     cohort_att: Dict[Any, float]
     event_study: Dict[int, float]
@@ -123,9 +133,8 @@ class MCNNMResults:
     unit_factors: Optional[np.ndarray] = None
     time_factors: Optional[np.ndarray] = None
     singular_values: Optional[np.ndarray] = None
-    weights: Optional[Any] = None
-    inference: Optional["MCNNMInference"] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    inference_jackknife: Optional["MCNNMInference"] = None
+    metadata: Dict[str, Any] = PydField(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -147,3 +156,7 @@ class MCNNMInference:
     ci: tuple
     alpha_level: float
     n_jackknife: int
+
+
+# Resolve the forward reference to MCNNMInference now that it is defined.
+MCNNMResults.model_rebuild()

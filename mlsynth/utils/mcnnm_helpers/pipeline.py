@@ -6,7 +6,8 @@ from typing import Optional
 
 import numpy as np
 
-from ...config_models import WeightsResults
+from ...config_models import InferenceResults, WeightsResults
+from ..results_helpers import build_effect_submodels
 from .completion import mcnnm_cv, mcnnm_fit
 from .structures import MCNNMInference, MCNNMInputs, MCNNMResults
 
@@ -184,14 +185,42 @@ def run_mcnnm(
         "estimate_unit_fe": est_u, "estimate_time_fe": est_v,
         "n_missing": int((1.0 - mask).sum()),
     }
+    # Cross-treated-unit observed / imputed paths drive the standardized time
+    # series (and result.plot()); T0 is the common adoption reference.
+    tr = inputs.treated_idx
+    observed_path = Y[tr].mean(axis=0)
+    counterfactual_path = completed[tr].mean(axis=0)
+    std_inference = None
+    if inf is not None:
+        lo, hi = inf.ci
+        std_inference = InferenceResults(
+            method=inf.method, standard_error=float(inf.se),
+            ci_lower=float(lo), ci_upper=float(hi),
+            confidence_level=float(1.0 - inf.alpha_level),
+            details={"n_jackknife": int(inf.n_jackknife)},
+        )
+    submodels = build_effect_submodels(
+        observed_outcome=observed_path,
+        counterfactual_outcome=counterfactual_path,
+        n_pre_periods=int(T0),
+        n_post_periods=int(inputs.T - T0),
+        time_periods=np.asarray(inputs.time_labels),
+        weights=weights,
+        inference=std_inference,
+        method_name="MCNNM",
+        effects_overrides={"att": float(att)},
+        intervention_time=(inputs.time_labels[T0] if T0 < inputs.T
+                           else inputs.time_labels[-1]),
+    )
     return MCNNMResults(
-        inputs=inputs, att=att, counterfactual=completed, effects=effects,
+        **submodels,
+        inputs=inputs, counterfactual_matrix=completed, effects_matrix=effects,
         att_by_period=att_by_period, cohort_att=cohort_att,
         event_study=event_study, L=fit["L"], gamma=fit["gamma"],
         delta=fit["delta"], best_lambda=float(fit["best_lambda"]), rank=rank,
         unit_factors=unit_factors, time_factors=time_factors,
-        singular_values=singular_values, weights=weights,
-        inference=inf, metadata=metadata,
+        singular_values=singular_values, inference_jackknife=inf,
+        metadata=metadata,
     )
 
 
