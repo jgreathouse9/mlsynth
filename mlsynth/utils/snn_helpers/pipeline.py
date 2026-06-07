@@ -12,7 +12,8 @@ from typing import Optional
 
 import numpy as np
 
-from ...config_models import WeightsResults
+from ...config_models import InferenceResults, WeightsResults
+from ..results_helpers import build_effect_submodels
 from .completion import snn_complete, snn_donor_weights
 from .structures import SNNInference, SNNInputs, SNNResults
 
@@ -168,10 +169,38 @@ def run_snn(
         "imputed_cells": int(treated_post.sum()),
         "infeasible_cells": int(((D > 0) & ~feasible).sum()),
     }
+    # Cross-treated-unit observed / imputed paths drive the standardized
+    # time series (and result.plot()).
+    tr = inputs.treated_idx
+    observed_path = inputs.Y[tr].mean(axis=0)
+    counterfactual_path = counterfactual[tr].mean(axis=0)
+    std_inference = None
+    if inf is not None:
+        lo, hi = inf.ci
+        std_inference = InferenceResults(
+            method=inf.method, standard_error=float(inf.se),
+            ci_lower=float(lo), ci_upper=float(hi),
+            confidence_level=float(1.0 - inf.alpha_level),
+            details={"n_jackknife": int(inf.n_jackknife)},
+        )
+    submodels = build_effect_submodels(
+        observed_outcome=observed_path,
+        counterfactual_outcome=counterfactual_path,
+        n_pre_periods=int(T0),
+        n_post_periods=int(inputs.T - T0),
+        time_periods=np.asarray(inputs.time_labels),
+        weights=weights,
+        inference=std_inference,
+        method_name="SNN",
+        effects_overrides={"att": float(att)},
+        intervention_time=(inputs.time_labels[T0] if T0 < inputs.T
+                           else inputs.time_labels[-1]),
+    )
     return SNNResults(
-        inputs=inputs, att=att, counterfactual=counterfactual, effects=effects,
-        att_by_period=att_by_period, feasible=feasible, weights=weights,
-        inference=inf, metadata=metadata,
+        **submodels,
+        inputs=inputs, counterfactual_matrix=counterfactual,
+        effects_matrix=effects, att_by_period=att_by_period,
+        feasible=feasible, inference_jackknife=inf, metadata=metadata,
     )
 
 

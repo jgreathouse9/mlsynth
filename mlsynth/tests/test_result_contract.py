@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mlsynth import FDID, RMSI, SPOTSYNTH, TSSC, VanillaSC
+from mlsynth import FDID, RMSI, SNN, SPOTSYNTH, TSSC, VanillaSC
 from mlsynth.config_models import (
     BaseEstimatorResults,
     DesignResult,
@@ -64,6 +64,7 @@ OBSERVATIONAL = [
     pytest.param(TSSC, {"draws": 80, "seed": 0}, id="TSSC"),
     pytest.param(SPOTSYNTH, {}, id="SPOTSYNTH"),
     pytest.param(RMSI, {}, id="RMSI"),
+    pytest.param(SNN, {}, id="SNN"),
 ]
 
 

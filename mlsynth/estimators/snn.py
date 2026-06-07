@@ -41,7 +41,6 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.snn_helpers.pipeline import run_snn
-from ..utils.snn_helpers.plotter import plot_snn
 from ..utils.snn_helpers.setup import prepare_snn_inputs
 from ..utils.snn_helpers.structures import SNNResults
 
@@ -100,17 +99,17 @@ class SNN:
                 alpha_level=self.alpha,
                 random_state=self.random_state,
             )
+            # Attach plotting context so result.plot() is self-contained and
+            # styled from the (possibly nested) config; labels default to the
+            # column names when the user has not set them.
+            pc = self.config.resolved_plot()
+            if pc.xlabel is None:
+                pc.xlabel = self.time
+            if pc.ylabel is None:
+                pc.ylabel = self.outcome
+            object.__setattr__(results, "plot_config", pc)
             if self.display_graphs:
-                plot_snn(
-                    results,
-                    treated_color=self.treated_color,
-                    counterfactual_color=self.counterfactual_color,
-                    save=self.save,
-                    time_axis_label=self.time,
-                    treatment_label=self.treat,
-                    unit_label=self.unitid,
-                    outcome_label=self.outcome,
-                )
+                results.plot()
             return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

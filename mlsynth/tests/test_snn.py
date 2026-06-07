@@ -142,11 +142,16 @@ class TestEstimator:
         df, effect, *_ = _low_rank_panel()
         res = SNN({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
                    "time": "time", "max_rank": 3, "inference": True, "display_graphs": False}).fit()
-        assert res.inference is not None
-        assert res.inference.method == "jackknife"
-        assert res.inference.se >= 0
-        lo, hi = res.inference.ci
+        # Raw jackknife object preserved under inference_jackknife; the
+        # standardized InferenceResults is mirrored into the `inference` slot.
+        assert res.inference_jackknife is not None
+        assert res.inference_jackknife.method == "jackknife"
+        assert res.inference_jackknife.se >= 0
+        lo, hi = res.inference_jackknife.ci
         assert lo <= res.att <= hi
+        assert res.inference is not None
+        assert res.inference.standard_error == pytest.approx(res.inference_jackknife.se)
+        assert res.att_ci == pytest.approx((lo, hi))
 
 
 # ----------------------------------------------------------------------
