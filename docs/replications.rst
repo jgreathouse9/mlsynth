@@ -48,6 +48,8 @@ below; the catalogue entries link to a dedicated page where one exists.
    :caption: Dedicated replication pages
 
    replications/fdid
+   replications/tssc
+   replications/vanillasc
    replications/sparse_sc
 
 .. _replications-canonical:
@@ -62,6 +64,15 @@ Canonical workhorses
   MSE-ratio grid -- all 16 cells of the
   :math:`(T_1, T_2)` sweep fall below :math:`1.0`, range
   :math:`[0.039, 0.889]`, matching the paper's geometry.
+  → dedicated page: :doc:`replications/tssc`.
+* :doc:`vanillasc` -- Standard SC (ADH 2010/2015; Abadie-Gardeazabal 2003).
+  **Path A:** the three canonical studies on their original datasets --
+  Prop 99 (Utah/Nevada/Montana/Colorado/Connecticut, ATT :math:`\approx -19`
+  packs), German reunification (Austria-dominant donor pool), Basque
+  (Cataluna :math:`\approx 0.8` + Madrid :math:`\approx 0.2`, ATT
+  :math:`\approx -0.68`); plus the Lei-Sudijono (2025) leave-two-out Table-1
+  p-value relations.
+  → dedicated page: :doc:`replications/vanillasc`.
 * :doc:`fdid` -- Li (2024) Forward Difference-in-Differences.
   **Path B:** Table 5 PMSE grid across DGP1-DGP4 at four
   :math:`(T_1, T_2)` configurations; cell :math:`(48, 24)` yields
