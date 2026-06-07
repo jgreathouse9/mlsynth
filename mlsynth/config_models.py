@@ -333,45 +333,9 @@ class BaseEstimatorConfig(BaseModel):
             )
         return values
 
-class TSSCConfig(BaseEstimatorConfig):
-    """Configuration for the Two-Step Synthetic Control (TSSC) estimator.
-
-    Implements:
-
-        Li, K. T., & Shankar, V. (2023). "A Two-Step Synthetic Control
-        Approach for Estimating Causal Effects of Marketing Events."
-        Management Science. https://doi.org/10.1287/mnsc.2023.4878
-
-    Parameters
-    ----------
-    alpha : float
-        Two-sided significance level for the Step-1 restriction tests
-        (the SC-pretrends test and the two single-restriction tests).
-        Default 0.05.
-    subsample_size : int or None
-        Subsample size ``m`` for the Step-1 subsampling procedure. When
-        ``None`` (default) it is set to ``T_1`` (the bootstrap special
-        case the paper's simulations validate). For genuine subsampling,
-        the paper's rule of thumb is ``m`` between ``T_1/2`` and ``T_1``
-        for moderate ``T_1`` (and smaller for large ``T_1``).
-    draws : int
-        Number of subsampling replications ``B`` for the Step-1 tests and
-        bootstrap replications for the per-variant ATT confidence
-        intervals. Default 500.
-    ci : float
-        Confidence level for the per-variant ATT confidence interval.
-        Default 0.95.
-    seed : int or None
-        Seed for the subsampling RNG (reproducibility). Default None.
-    """
-
-    alpha: float = Field(default=0.05, gt=0.0, lt=1.0,
-                         description="Significance level for Step-1 restriction tests.")
-    subsample_size: Optional[int] = Field(default=None, ge=2,
-                         description="Subsample size m; None uses T_1 (bootstrap).")
-    draws: int = Field(default=500, ge=1, description="Subsampling/bootstrap replications.")
-    ci: float = Field(default=0.95, gt=0.0, lt=1.0, description="ATT confidence level.")
-    seed: Optional[int] = Field(default=None, description="RNG seed for subsampling.")
+# TSSCConfig has been relocated to mlsynth/utils/tssc_helpers/config.py
+# (co-located with the estimator's helpers). It is re-exported from this
+# module for backward compatibility via the module-level __getattr__ below.
 
 # Placeholder for other estimator configs - to be added sequentially
 
@@ -470,19 +434,9 @@ class PDAConfig(BaseEstimatorConfig):
     alpha: float = Field(default=0.05, gt=0.0, lt=1.0, description="Significance level for confidence intervals and ATE inference.")
     fs_intercept: bool = Field(default=False, description="Forward-selection only: include a constant in the donor regression. False (default) matches Shi & Huang's simulation (no intercept, valid size on mean-zero factor data); True matches the released fsPDA R package (intercept, for panels with genuine level differences).")
 
-class FDIDConfig(BaseEstimatorConfig):
-    """
-    Configuration for the Forward Difference-in-Differences (FDID) estimator.
-    Inherits all common configuration parameters from BaseEstimatorConfig.
-
-    Additional Parameters
-    ---------------------
-    plot_did : bool, default=True
-        Whether to display a plot for the standard DID estimator.
-        Has no effect on FDID or ADID plots.
-    """
-    verbose: bool = Field(default=True, description="Whether to save intermediary Forward Selection Results.")
-
+# FDIDConfig has been relocated to mlsynth/utils/fdid_helpers/config.py
+# (co-located with the estimator's helpers). It is re-exported from this
+# module for backward compatibility via the module-level __getattr__ below.
 
 
 class GSCConfig(BaseEstimatorConfig):
@@ -1814,121 +1768,9 @@ class ISCMConfig(BaseEstimatorConfig):
     )
 
 
-class VanillaSCConfig(BaseEstimatorConfig):
-    """Configuration for the VanillaSC estimator (standard SCM, bilevel engine).
-
-    The ordinary single-treated synthetic control, built on the self-contained
-    bilevel machinery. With no covariates it reduces to the well-posed convex
-    outcome-matching problem; with covariates it routes through the bilevel
-    predictor-weight (``V``) optimisation, with a selectable, reliable backend.
-
-    Parameters
-    ----------
-    backend : {"auto", "outcome-only", "malo", "mscmt", "penalized"}
-        Predictor-weight backend. ``"auto"`` (default) uses ``"outcome-only"``
-        (convex simplex fit on pre-treatment outcomes) when no covariates are
-        given, and ``"mscmt"`` (global differential-evolution ``V`` search)
-        when they are. ``"malo"`` is the Malo et al. (2024) corner search,
-        ``"penalized"`` the Abadie-L'Hour (2021) unique/sparse estimator.
-    covariates : list of str, optional
-        Predictor columns. Each is averaged over its window (see
-        ``covariate_windows``) and scaled to unit variance, then matched via
-        the bilevel program. ``None`` -> outcome-only matching.
-    covariate_windows : dict, optional
-        Per-covariate inclusive ``(start, end)`` averaging window of time
-        labels (Abadie's special-predictor spec). Covariates not listed are
-        averaged over the full pre-treatment period.
-    canonical_v : bool or {"min.loss.w", "max.order"}
-        Canonicalise the (non-identified) predictor weights for ``mscmt``
-        (MSCMT ``determine_v``). The reported ``v_agreement`` is small when
-        ``V`` is well identified and large when it is fragile. Default False.
-    seed : int
-        RNG seed for the ``mscmt`` differential-evolution search.
-    mscmt_maxiter, mscmt_popsize : int
-        Differential-evolution budget for the ``mscmt`` backend.
-    inference : bool or {"placebo", "scpi", "lto"}
-        Inference method. ``True``/``"placebo"`` (default) runs Abadie in-space
-        placebo inference (refit treating each donor as pseudo-treated; the
-        p-value ranks the treated unit's post/pre RMSPE ratio). ``"scpi"`` runs
-        Cattaneo-Feng-Titiunik (2021) prediction intervals (in-sample
-        simulation + out-of-sample location-scale; exact for the simplex /
-        outcome-only synthetic control). ``"lto"`` runs the Lei-Sudijono (2025)
-        leave-two-out refined placebo test (O(J^2) reference comparisons; finer
-        granularity and non-zero size when ``alpha < 1/N``). ``False`` skips
-        inference.
-    alpha : float
-        Level. For placebo, the confidence statement; for SCPI, used as both
-        the in-sample (alpha1) and out-of-sample (alpha2) levels, giving a
-        prediction interval with coverage approximately ``1 - 2*alpha``.
-    scpi_sims : int
-        Number of Gaussian draws for the SCPI in-sample simulation.
-    scpi_e_method : {"gaussian", "empirical"}
-        Out-of-sample location-scale tabulation for SCPI.
-    lto_max_pairs : int, optional
-        Cap on the number of donor pairs evaluated by the ``"lto"`` test
-        (deterministic subsample via ``seed``). ``None`` (default) uses all
-        ``J*(J-1)/2`` pairs; set a cap to keep the O(J^2) cost tractable with
-        slow backends.
-    """
-
-    backend: Literal["auto", "outcome-only", "malo", "mscmt", "penalized"] = Field(
-        default="auto",
-        description="Predictor-weight backend (see class docstring).",
-    )
-    covariates: Optional[List[str]] = Field(
-        default=None,
-        description="Predictor columns; None -> outcome-only matching.",
-    )
-    covariate_windows: Optional[Dict[Any, Any]] = Field(
-        default=None,
-        description="Per-covariate inclusive (start, end) averaging window.",
-    )
-    canonical_v: Union[bool, str] = Field(
-        default=False,
-        description="Canonicalise mscmt predictor weights ('min.loss.w'/'max.order').",
-    )
-    seed: int = Field(default=0, description="RNG seed for the mscmt DE search.")
-    mscmt_maxiter: int = Field(
-        default=300, ge=1, description="mscmt differential-evolution max iterations.",
-    )
-    mscmt_popsize: int = Field(
-        default=15, ge=1, description="mscmt differential-evolution population size.",
-    )
-    mscmt_prune_shady: bool = Field(
-        default=True,
-        description="mscmt: drop shady donors (Becker-Kloessner sunny-donor "
-                    "reduction) before the outer search. Leaves the optimum "
-                    "unchanged; shrinks the inner solve.",
-    )
-    inference: Union[bool, str] = Field(
-        default=True,
-        description="Inference: True/'placebo' (in-space placebo), 'scpi' "
-                    "(Cattaneo-Feng-Titiunik prediction intervals), 'lto' "
-                    "(Lei-Sudijono leave-two-out refined placebo), or False.",
-    )
-    alpha: float = Field(
-        default=0.05, gt=0.0, lt=1.0,
-        description="Level (placebo confidence / SCPI alpha1 = alpha2).",
-    )
-    scpi_sims: int = Field(
-        default=200, ge=1,
-        description="Gaussian draws for the SCPI in-sample simulation.",
-    )
-    scpi_e_method: Literal["gaussian", "empirical"] = Field(
-        default="gaussian",
-        description="SCPI out-of-sample location-scale tabulation.",
-    )
-    lto_max_pairs: Optional[int] = Field(
-        default=None, ge=1,
-        description="Cap on donor pairs for the 'lto' test (None -> all pairs).",
-    )
-    penalized_cv: Literal["holdout", "loo", "pensynth"] = Field(
-        default="holdout",
-        description="Lambda selector for backend='penalized'. 'holdout'/'loo' "
-                    "are Abadie-L'Hour time-split criteria; 'pensynth' is van "
-                    "Kesteren's cv_pensynth (fit on covariates, validate on the "
-                    "held-out pre-period outcome path; needs covariates).",
-    )
+# VanillaSCConfig has been relocated to mlsynth/utils/vanillasc_helpers/config.py
+# (co-located with the estimator's helpers). It is re-exported from this
+# module for backward compatibility via the module-level __getattr__ below.
 
 
 class SPILLSYNTHConfig(BaseEstimatorConfig):
@@ -4634,6 +4476,34 @@ class SIVConfig(BaseEstimatorConfig):
 
 # --- Pydantic Models for Standardized Estimator Results ---
 
+class MlsynthResult(BaseModel):
+    """Common base for every ``fit()`` return value in mlsynth.
+
+    mlsynth has exactly two output families, because panel causal inference
+    has exactly two modes:
+
+    * :class:`EffectResult` -- an *observational report*: measure a treatment
+      effect on already-observed data (ATT, counterfactual, weights,
+      inference).
+    * :class:`DesignResult` -- a *research design*: choose which units to
+      treat before any intervention. A design resolves to the same effect
+      report once outcomes exist (see :attr:`DesignResult.report`).
+
+    Every estimator returns one of these two types, so library behaviour is
+    simple and predictable: ``isinstance(result, MlsynthResult)`` always
+    holds, and the two faces share serialization and validation config.
+    """
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "forbid"
+        json_encoders = {
+            np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()]
+            if arr is not None
+            else None
+        }
+
+
 class EffectsResults(BaseModel):
     """Standardized model for reporting treatment effects."""
     att: Optional[float] = Field(default=None, description="Average Treatment Effect on the Treated.")
@@ -4666,13 +4536,27 @@ class TimeSeriesResults(BaseModel):
         extra = 'allow'
 
 class WeightsResults(BaseModel):
-    """Standardized model for reporting donor weights."""
+    """Standardized model for reporting estimator weights.
+
+    The single weights container for the whole library. ``weights`` are not
+    one thing across synthetic-control methods, so this model exposes the
+    real variety as optional faces; an estimator populates whichever apply:
+
+    * ``donor_weights`` -- ``{donor label: weight}`` (most SCMs);
+    * ``time_weights``  -- ``{period: weight}`` (e.g. SDID's lambda, DSC
+      period weights);
+    * ``unit_weights``  -- a weight matrix / array (e.g. MCNNM / ISCM unit
+      factors, per-unit weight matrices).
+    """
     donor_weights: Optional[Dict[str, float]] = Field(default=None, description="Dictionary mapping donor unit names/IDs to their weights.")
+    time_weights: Optional[Dict[Any, float]] = Field(default=None, description="Dictionary mapping time periods to weights (e.g. SDID lambda, DSC period weights).")
+    unit_weights: Optional[np.ndarray] = Field(default=None, description="Unit weight matrix/array for estimators whose weights are not a donor mapping (e.g. MCNNM/ISCM).")
     summary_stats: Optional[Dict[str, Any]] = Field(default=None, description="Summary statistics about weights (e.g., cardinality).")
     # For estimators returning multiple sets of weights (e.g. TSSC sub-methods), this might be part of a list or dict structure.
     # donor_names is removed as it's incorporated into donor_weights dict keys
 
     class Config:
+        arbitrary_types_allowed = True
         extra = 'allow'
 
 class InferenceResults(BaseModel):
@@ -4699,10 +4583,15 @@ class MethodDetailsResults(BaseModel):
     class Config:
         extra = 'allow'
 
-class BaseEstimatorResults(BaseModel):
-    """
-    Base Pydantic model for standardized estimator `fit()` method results.
-    This model aims to provide a common structure for the primary outputs.
+class BaseEstimatorResults(MlsynthResult):
+    """The observational report: standardized result of an effect estimator.
+
+    Aliased as :class:`EffectResult`. Carries the standardized sub-models
+    (:class:`EffectsResults`, :class:`TimeSeriesResults`,
+    :class:`WeightsResults`, :class:`InferenceResults`,
+    :class:`FitDiagnosticsResults`) plus flat convenience accessors
+    (``att``, ``att_ci``, ``counterfactual``, ``gap``, ``donor_weights``,
+    ``pre_rmse``) so every effect estimator exposes one predictable surface.
     """
     # Core components, all optional as not all estimators produce all parts.
     effects: Optional[EffectsResults] = None
@@ -4737,3 +4626,117 @@ class BaseEstimatorResults(BaseModel):
             np.ndarray: lambda arr: [None if pd.isna(x) else x for x in arr.tolist()] if arr is not None else None
             # This explicitly converts np.nan (which becomes float('nan') in tolist()) to Python None.
         }
+
+    # ------------------------------------------------------------------
+    # Flat convenience accessors -- the minimum read contract every effect
+    # estimator satisfies, delegating to the standardized sub-models. Adding
+    # them here brings *every* estimator that returns a BaseEstimatorResults
+    # into compliance at once; subclasses may override (e.g. dispatchers that
+    # delegate to a selected variant).
+    # ------------------------------------------------------------------
+    @property
+    def att(self) -> Optional[float]:
+        """Average treatment effect on the treated."""
+        return self.effects.att if self.effects else None
+
+    @property
+    def att_ci(self) -> Optional[tuple]:
+        """``(lower, upper)`` confidence interval for the ATT, if available."""
+        inf = self.inference
+        if inf is not None and inf.ci_lower is not None and inf.ci_upper is not None:
+            return (inf.ci_lower, inf.ci_upper)
+        return None
+
+    @property
+    def counterfactual(self) -> Optional[np.ndarray]:
+        """Estimated counterfactual outcome path."""
+        return self.time_series.counterfactual_outcome if self.time_series else None
+
+    @property
+    def gap(self) -> Optional[np.ndarray]:
+        """Estimated gap (observed minus counterfactual)."""
+        return self.time_series.estimated_gap if self.time_series else None
+
+    @property
+    def donor_weights(self) -> Optional[Dict[str, float]]:
+        """Donor weights ``{label: weight}``."""
+        return self.weights.donor_weights if self.weights else None
+
+    @property
+    def pre_rmse(self) -> Optional[float]:
+        """Pre-treatment root-mean-squared fit error."""
+        return self.fit_diagnostics.rmse_pre if self.fit_diagnostics else None
+
+
+# ``EffectResult`` is the canonical, intention-revealing name for the
+# observational report. ``BaseEstimatorResults`` is retained as an alias for
+# backward compatibility (it is referenced throughout the library and docs).
+EffectResult = BaseEstimatorResults
+
+
+class DesignResult(MlsynthResult):
+    """The research design: an experimental-design estimator's output.
+
+    Experimental/design methods (e.g. MAREX, PANGEO, SYNDES, SPCD) choose
+    which units to treat *before* any intervention. A design is not disjoint
+    from an effect report -- it *resolves* to one: once outcomes are observed,
+    the design is realized as an :class:`EffectResult`, exposed via
+    :attr:`report` (today's per-estimator ``post_fit`` / ``summary``).
+
+    This is a skeleton for the two-family contract; design estimators are
+    migrated onto it after the observational family is validated.
+    """
+
+    report: Optional[BaseEstimatorResults] = Field(
+        default=None,
+        description="The effect report once the design is realized (the "
+        "design's `post_fit`/`summary`). Same type the observational "
+        "family returns.",
+    )
+    assignment: Optional[Any] = Field(
+        default=None, description="Treatment assignment chosen by the design."
+    )
+    selected_units: Optional[Any] = Field(
+        default=None, description="Units selected for treatment by the design."
+    )
+    design_weights: Optional[WeightsResults] = Field(
+        default=None, description="Synthetic-control weights implied by the design."
+    )
+    power: Optional[Any] = Field(
+        default=None, description="Power / MDE analysis for the design."
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None, description="Free-form design diagnostics."
+    )
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "allow"
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatibility shims for relocated per-estimator configs.
+#
+# Per-estimator config classes are being moved next to their helper packages
+# (``mlsynth/utils/<name>_helpers/config.py``) to shrink this module. The
+# shared bases (BaseEstimatorConfig, BaseMAREXConfig) and the standardized
+# result models stay here. A module-level ``__getattr__`` (PEP 562) lazily
+# re-exports the relocated classes so existing imports such as
+# ``from mlsynth.config_models import VanillaSCConfig`` keep working. The
+# import is lazy to avoid a circular import (the relocated module imports
+# BaseEstimatorConfig from here).
+# ---------------------------------------------------------------------------
+_RELOCATED_CONFIGS = {
+    "VanillaSCConfig": "mlsynth.utils.vanillasc_helpers.config",
+    "FDIDConfig": "mlsynth.utils.fdid_helpers.config",
+    "TSSCConfig": "mlsynth.utils.tssc_helpers.config",
+}
+
+
+def __getattr__(name: str):  # PEP 562 module-level attribute hook
+    module_path = _RELOCATED_CONFIGS.get(name)
+    if module_path is not None:
+        import importlib
+
+        return getattr(importlib.import_module(module_path), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

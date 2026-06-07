@@ -588,7 +588,7 @@ Core API
 Configuration
 -------------
 
-.. autoclass:: mlsynth.config_models.TSSCConfig
+.. autoclass:: mlsynth.utils.tssc_helpers.config.TSSCConfig
    :members:
    :undoc-members:
 

@@ -32,16 +32,24 @@ python benchmarks/run_benchmarks.py --all     # durable paper/reference validati
 1. **Every estimator has a dedicated Pydantic config** inheriting
    `BaseEstimatorConfig` (or `BaseMAREXConfig`), with `extra="forbid"`,
    `Field(...)` descriptions, and validators that fail early with
-   `MlsynthConfigError` / `MlsynthDataError`. No free-form kwargs.
+   `MlsynthConfigError` / `MlsynthDataError`. No free-form kwargs. The shared
+   bases live in `config_models.py`; per-estimator configs are being relocated
+   next to their helpers (`utils/<name>_helpers/config.py`) and re-exported
+   from `config_models.py` for backward compatibility.
 2. **Data ingestion goes through `mlsynth.utils.datautils.dataprep`** (or a
    `<name>_helpers/setup.py` that wraps it). Do not hand-pivot pandas in an
    estimator — `dataprep` returns the canonical `Ywide` / `y` / `donor_matrix`
    / `pre_periods` / `post_periods` contract.
-3. **Results use the standardized models** in `config_models.py`
-   (`BaseEstimatorResults`, `EffectsResults`, `FitDiagnosticsResults`,
-   `TimeSeriesResults`, `WeightsResults`, `InferenceResults`,
-   `MethodDetailsResults`) — or a frozen `<name>_helpers/structures.py`
-   dataclass that mirrors them. No ad-hoc dicts as the public return.
+3. **Results use the two-family contract** (see `agents/agents_results.md`):
+   every `fit()` returns an `EffectResult` (observational; alias of
+   `BaseEstimatorResults`) or a `DesignResult` (experimental design, whose
+   `report` is an `EffectResult`) — both subclass `MlsynthResult`. Result
+   containers are **Pydantic models** (frozen where practical) that populate
+   the standardized sub-models (`EffectsResults`, `FitDiagnosticsResults`,
+   `TimeSeriesResults`,
+   `WeightsResults`, `InferenceResults`, `MethodDetailsResults`) and keep
+   estimator-specific outputs as typed fields. No ad-hoc dicts as the public
+   return. Conformance is pinned in `tests/test_result_contract.py`.
 4. **One estimator = one package**: `estimators/<name>.py` (thin) +
    `utils/<name>_helpers/{setup,pipeline,structures,plotter,...}.py`. Dispatcher
    estimators (e.g. `SPILLSYNTH`) add a method subpackage, not a new top-level
@@ -77,6 +85,24 @@ linked from the estimator page's short "Verification" pointer (see
 - Develop on the assigned feature branch; commit with clear messages.
 - Commit author/committer email: `noreply@anthropic.com`.
 - Don't create a PR unless asked.
+
+### Merging PRs (standing authorization, with guardrails)
+
+Claude Code may merge a pull request **without re-asking** only when **all** of
+these hold:
+
+1. **Trigger** — the user explicitly says to merge it (e.g. "merge it",
+   "go ahead and merge"). Absent an explicit instruction, ask first.
+2. **Preconditions** — required CI is **green**, there are **no unresolved
+   review threads**, and the PR has **no merge conflicts** with its base.
+3. **Scope** — the PR originates from a `claude/*` branch produced in this
+   session, targeting `main`. Anything else: ask first.
+4. **Method** — **squash-merge**, and **delete the source branch** after a
+   successful merge.
+
+**Hard stops (never, even if asked):** do not force-merge or override a failing
+required check; do not merge if the diff has drifted from what was discussed;
+do not merge into anything other than the agreed base. When in doubt, ask.
 
 ## AI workflow (slash commands)
 

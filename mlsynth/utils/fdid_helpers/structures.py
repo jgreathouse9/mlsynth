@@ -27,6 +27,17 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+from pydantic import ConfigDict, Field as PydField, model_validator
+
+from ...config_models import (
+    BaseEstimatorResults,
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 
 
 # Public method names.
@@ -146,9 +157,15 @@ class FDIDMethodFit:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
-class FDIDResults:
+class FDIDResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.FDID.fit`.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational
+    report): in addition to the FDID-specific fields below, it exposes the
+    standardized sub-models (``effects``, ``time_series``, ``weights``,
+    ``inference``, ``fit_diagnostics``, ``method_details``) -- derived from
+    the selected variant -- and the flat accessors ``att``/``att_ci``/
+    ``counterfactual``/``gap``/``donor_weights``/``pre_rmse``.
 
     Parameters
     ----------
@@ -166,11 +183,55 @@ class FDIDResults:
         Free-form pipeline diagnostics.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: FDIDInputs
     fdid: FDIDMethodFit
     did: FDIDMethodFit
     selected_variant: str = FDID
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = PydField(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _populate_standard_submodels(self) -> "FDIDResults":
+        """Derive the standardized EffectResult sub-models from the primary
+        variant, so every FDID result exposes the common surface. Uses
+        ``object.__setattr__`` because the model is frozen."""
+        if self.effects is None:
+            p = self._primary
+            derived = {
+                "effects": EffectsResults(
+                    att=float(p.att),
+                    att_percent=float(p.att_percent),
+                    att_std_err=float(p.att_se),
+                ),
+                "time_series": TimeSeriesResults(
+                    observed_outcome=np.asarray(self.inputs.y),
+                    counterfactual_outcome=np.asarray(p.counterfactual),
+                    estimated_gap=np.asarray(p.gap),
+                    time_periods=np.asarray(self.inputs.time_labels),
+                ),
+                "weights": WeightsResults(
+                    donor_weights={
+                        str(k): float(v) for k, v in p.donor_weights.items()
+                    }
+                ),
+                "fit_diagnostics": FitDiagnosticsResults(
+                    rmse_pre=float(p.pre_rmse), r_squared_pre=float(p.r_squared)
+                ),
+                "inference": InferenceResults(
+                    p_value=float(p.p_value),
+                    ci_lower=float(p.ci[0]),
+                    ci_upper=float(p.ci[1]),
+                    standard_error=float(p.att_se),
+                    method="analytic (Li 2023)",
+                ),
+                "method_details": MethodDetailsResults(
+                    method_name=p.name, is_recommended=True
+                ),
+            }
+            for key, value in derived.items():
+                object.__setattr__(self, key, value)
+        return self
 
     @property
     def methods(self) -> Dict[str, FDIDMethodFit]:

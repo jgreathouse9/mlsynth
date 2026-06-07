@@ -727,7 +727,7 @@ Core API
 Configuration
 -------------
 
-.. autoclass:: mlsynth.config_models.FDIDConfig
+.. autoclass:: mlsynth.utils.fdid_helpers.config.FDIDConfig
    :members:
    :undoc-members:
 
