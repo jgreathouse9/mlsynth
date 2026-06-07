@@ -13,6 +13,11 @@ Each estimator's replication follows one of three "paths" (same vocabulary as
 * **Cross-validation** — match an authoritative reference implementation
   (e.g. R `Synth`, `synthdid`, `did`) cell by cell.
 
+The **definitions of done** for each path — broken out by what the source gives
+you (paper only / code excerpt / full repo) — live in
+[`agents/agents_benchmarking.md`](../agents/agents_benchmarking.md). This README
+is the mechanics ("what to run"); that doc is the process ("when is it done").
+
 ## Layout
 
     benchmarks/

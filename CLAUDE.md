@@ -72,6 +72,12 @@ replication gets a **dedicated docs page** under `docs/replications/<name>.rst`,
 linked from the estimator page's short "Verification" pointer (see
 `docs/replications/fdid.rst` for the template).
 
+The **definitions of done** for benchmarking — by input scenario (paper only /
+code excerpt / full repo) and path (A / B) — live in
+`agents/agents_benchmarking.md`. Benchmark authoring is a **separate workstream**
+from estimator/result-contract work: don't bundle new benchmark cases into a
+migration or refactor PR.
+
 ## Docs conventions
 
 - One `docs/<name>.rst` per estimator: When-to-use → Notation → Assumptions
