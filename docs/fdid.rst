@@ -475,61 +475,11 @@ tracks the population-optimal path.
 Example
 -------
 
-The block below is self-contained. It draws one panel from Li's Web
-Appendix E data-generating process (three common factors, 60 controls), in
-the configuration where **half the controls are the wrong comparison**:
-the treated unit and the first 30 controls load on the common factor with
-weight 1, while the last 30 load with weight 2 (Li's "DGP2"). The true ATT
-is zero. Forward DiD should select from the *matching* half and beat plain
-DiD, which is contaminated by the mismatched half.
-
-.. code-block:: python
-
-   import numpy as np
-   from mlsynth import FDID
-   from mlsynth.utils.fdid_helpers.simulation import simulate_fdid_sample
-
-   sample = simulate_fdid_sample(dgp=2, N=60, T1=24, T2=12,
-                                  rng=np.random.default_rng(0))
-
-   res = FDID({"df": sample.df, "outcome": "y", "treat": "treat",
-               "unitid": "unit", "time": "time",
-               "display_graphs": False}).fit()
-
-   sel = res.fdid.selected_names
-   matching = sum(int(s[1:]) < 60 // 2 for s in sel)
-   print(f"FDID: ATT={res.fdid.att:+.3f}  R2={res.fdid.r_squared:.3f}  "
-         f"selected {len(sel)} donors, {matching} from the matching group")
-   print(f"DID : ATT={res.did.att:+.3f}  R2={res.did.r_squared:.3f}  (all 60 donors)")
-
-A representative single draw prints::
-
-   FDID: ATT=-0.556  R2=0.918  selected 4 donors, 4 from the matching group
-   DID : ATT=-0.924  R2=0.632  (all 60 donors)
-
-Forward DiD picks **only** matching controls, lifting the pre-fit
-:math:`R^2` from 0.63 to 0.92 and landing closer to the true zero effect
-than DiD -- which is dragged off by the 30 mismatched controls it is forced
-to include. (A single draw is noisy; the averaged behaviour over many draws
-is in *Verification* below.)
-
-``res`` is an
-:class:`~mlsynth.utils.fdid_helpers.structures.FDIDResults`: ``res.fdid``
-and ``res.did`` are the two
-:class:`~mlsynth.utils.fdid_helpers.structures.FDIDMethodFit` objects, the
-convenience accessors (``res.att``, ``res.att_se``, ``res.counterfactual``,
-``res.donor_weights``) forward to the Forward DiD fit, and
-``res.att_by_method()`` / ``res.ci_by_method()`` return both side by side.
-
-Empirical Illustration: Hong Kong's economic integration
---------------------------------------------------------
-
-Forward DiD is the DiD analogue of the forward-selected panel-data approach
-([fsPDA]_), and it shines on exactly the data those methods target. We use
-the Hsiao, Ching and Wan ([HCW]_) panel of quarterly real-GDP growth for
-Hong Kong and 24 comparison economies, with Hong Kong's economic
-integration with mainland China as the intervention (44 pre-treatment
-quarters, 17 post).
+The block below fits Forward DiD on the Hsiao, Ching and Wan ([HCW]_) panel of
+quarterly real-GDP growth for Hong Kong and 24 comparison economies -- the
+canonical setting for the forward-selected panel-data approach ([fsPDA]_) that
+Forward DiD descends from -- with Hong Kong's economic integration with
+mainland China as the intervention (44 pre-treatment quarters, 17 post).
 
 .. code-block:: python
 
@@ -542,36 +492,38 @@ quarters, 17 post).
    res = FDID({"df": df, "outcome": "GDP", "treat": "Integration",
                "unitid": "Country", "time": "Time", "display_graphs": True}).fit()
 
-   print(f"FDID ATT {res.fdid.att:.4f}  SE {res.fdid.att_se:.4f}  "
-         f"R2 {res.fdid.r_squared:.3f}  ({len(res.fdid.selected_names)} of "
-         f"{res.inputs.n_donors} controls)")
-   print("selected:", res.fdid.selected_names)
-   print(f"DID  ATT {res.did.att:.4f}  SE {res.did.att_se:.4f}  R2 {res.did.r_squared:.3f}")
+   # Forward DiD fit and the all-controls DiD benchmark, side by side.
+   print(res.fdid.att, res.fdid.r_squared, res.fdid.selected_names)
+   print(res.did.att, res.did.r_squared)
 
-This prints::
+Forward DiD keeps a small, regionally sensible subset of Hong Kong's trading
+partners rather than averaging all 24 economies, so it tracks Hong Kong's
+pre-integration path far more closely (a higher pre-period :math:`R^2`) and
+estimates the post-integration GDP-growth effect more precisely than the
+all-controls DiD. The exact selected group and the cell-by-cell match to Li's
+released output are in :doc:`replications/fdid`.
 
-   FDID ATT 0.0254  SE 0.0046  R2 0.843  (9 of 24 controls)
-   selected: ['Philippines', 'Singapore', 'Thailand', 'Norway', 'Mexico',
-              'Korea', 'Indonesia', 'New Zealand', 'Malaysia']
-   DID  ATT 0.0317  SE 0.0082  R2 0.505
-
-Forward DiD keeps **9 of the 24** economies -- a regionally sensible mix of
-Hong Kong's trading partners -- and in doing so lifts the pre-intervention
-:math:`R^2` from 0.51 (all-controls DiD) to 0.84, roughly **halving the
-standard error**. The selected comparison group implies a post-integration
-GDP-growth effect of about +2.5 percentage points, more precisely estimated
-and better-fitting than the all-controls DiD's +3.2.
+``res`` is an
+:class:`~mlsynth.utils.fdid_helpers.structures.FDIDResults`: ``res.fdid``
+and ``res.did`` are the two
+:class:`~mlsynth.utils.fdid_helpers.structures.FDIDMethodFit` objects, the
+convenience accessors (``res.att``, ``res.att_se``, ``res.counterfactual``,
+``res.donor_weights``) forward to the Forward DiD fit, and
+``res.att_by_method()`` / ``res.ci_by_method()`` return both side by side.
 
 Verification
 ------------
 
-Forward DiD is validated by reproducing the paper's own Monte Carlo
-(Li 2024, Web Appendix E): the Table 5 PMSE grid reproduces cell by cell
-(e.g. cell :math:`(48, 24)` yields :math:`\mathrm{PMSE} = 0.084` against the
-paper's :math:`0.082`), confirming that Forward DiD pays only a small
-efficiency cost when ordinary DiD is valid and wins decisively when half the
-controls are mismatched. See the dedicated replication page,
-:doc:`replications/fdid`, for the full design, code, and cell-by-cell table.
+Forward DiD is validated on two fronts. **Path A** -- mlsynth reproduces the
+author's public Hong Kong GDP companion replication cell by cell (FDID ATT
+:math:`0.0254`, :math:`53.84\%`, pre-period :math:`R^2 = 0.843`, 9 of 24
+controls). **Path B** -- the paper's own Monte Carlo (Li 2024, Web Appendix E)
+reproduces cell by cell (e.g. cell :math:`(48, 24)` yields
+:math:`\mathrm{PMSE} = 0.084` against the paper's :math:`0.082`), confirming
+Forward DiD pays only a small efficiency cost when ordinary DiD is valid and
+wins decisively when half the controls are mismatched. See the dedicated
+replication page, :doc:`replications/fdid`, for the full design, code, and
+cell-by-cell tables.
 
 Core API
 --------
