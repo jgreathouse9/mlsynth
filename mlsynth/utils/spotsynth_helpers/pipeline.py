@@ -9,6 +9,8 @@ from .debias import proximal_debias
 from .sc import simplex_weights
 from .screen import spillover_screen
 from .structures import SpotSynthInputs, SpotSynthResults
+from ...config_models import InferenceResults
+from ..results_helpers import build_effect_submodels, make_weights_results
 
 
 def run_spotsynth(
@@ -92,10 +94,32 @@ def run_spotsynth(
         "dirichlet_alpha": float(dirichlet_alpha) if inference == "bayes" else None,
         "treated_name": inputs.treated_name,
     }
+    # Standardized EffectResult sub-models (born from the screened SC fit).
+    inference_results = InferenceResults(
+        method=("Dirichlet posterior" if inference == "bayes"
+                else "simplex least squares"),
+        ci_lower=float(att_ci[0]) if att_ci is not None else None,
+        ci_upper=float(att_ci[1]) if att_ci is not None else None,
+    )
+    submodels = build_effect_submodels(
+        observed_outcome=inputs.y,
+        counterfactual_outcome=counterfactual,
+        n_pre_periods=int(T0),
+        n_post_periods=int(inputs.T - T0),
+        time_periods=inputs.time_labels,
+        weights=make_weights_results(
+            donor_weights, constraint="simplex (non-negative, sum to 1)"
+        ),
+        inference=inference_results,
+        method_name="SPOTSYNTH",
+        effects_overrides={"att": float(att)},
+        intervention_time=(inputs.time_labels[T0] if T0 < inputs.T
+                           else inputs.time_labels[-1]),
+    )
     return SpotSynthResults(
-        inputs=inputs, screen=screen, att=att, counterfactual=counterfactual,
-        gap=gap, att_by_period=att_by_period, donor_weights=donor_weights,
-        att_unscreened=att_all, inference=inference, att_ci=att_ci,
+        **submodels,
+        inputs=inputs, screen=screen, att_by_period=att_by_period,
+        att_unscreened=att_all, inference_method=inference,
         counterfactual_lower=cf_lower, counterfactual_upper=cf_upper,
         att_debiased=att_debiased, metadata=metadata,
     )

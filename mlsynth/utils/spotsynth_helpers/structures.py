@@ -15,6 +15,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from pydantic import ConfigDict, Field as PydField
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -99,54 +102,48 @@ class SpilloverScreen:
         return [self.donor_names[i] for i in self.excluded_idx]
 
 
-@dataclass(frozen=True)
-class SpotSynthResults:
+class SpotSynthResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.SPOTSYNTH.fit`.
 
-    Attributes
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    in addition to the SPOTSYNTH-specific fields below it exposes the
+    standardized sub-models (``effects``, ``time_series``, ``weights``,
+    ``inference``, ``fit_diagnostics``, ``method_details``) and the flat
+    accessors ``att`` / ``att_ci`` / ``counterfactual`` / ``gap`` /
+    ``donor_weights`` / ``pre_rmse``. The screened ATT is the post-period mean
+    gap; ``att_ci`` reads the Dirichlet credible interval from ``inference``.
+
+    Parameters
     ----------
     inputs : SpotSynthInputs
     screen : SpilloverScreen
         The per-donor spillover diagnostics and the valid-donor selection.
-    att : float
-        Average treatment effect on the treated, computed on the *screened*
-        synthetic control (mean post-period gap).
-    counterfactual : np.ndarray
-        Synthetic-control counterfactual for the treated unit, length ``T``.
-    gap : np.ndarray
-        Observed minus counterfactual, length ``T`` (the per-period effect).
     att_by_period : dict
         ``{time_label: gap}`` over the post-intervention periods.
-    donor_weights : dict
-        ``{donor_name: weight}`` for the selected donors (simplex weights).
     att_unscreened : float
         ATT from a synthetic control on the *full* donor pool (the ``All``
         baseline) -- for comparison.
-    inference : str
+    inference_method : str
         ``"bayes"`` (Dirichlet posterior) or ``"frequentist"`` (simplex LS).
-    att_ci : tuple, optional
-        Credible interval for the ATT under the Dirichlet posterior
-        (``inference="bayes"``), else ``None``.
+        (Renamed from the former ``inference`` field, which now holds the
+        standardized :class:`~mlsynth.config_models.InferenceResults`.)
     counterfactual_lower, counterfactual_upper : np.ndarray, optional
         Posterior-predictive credible band for the counterfactual (length
-        ``T``) under ``inference="bayes"``, else ``None``.
+        ``T``) under ``inference_method="bayes"``, else ``None``.
     att_debiased : float, optional
         Proximal (two-stage / GMM) debiased ATT using the excluded donors as
         proximal controls (when ``debias=True``), else ``None``.
     metadata : dict
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: SpotSynthInputs
     screen: SpilloverScreen
-    att: float
-    counterfactual: np.ndarray
-    gap: np.ndarray
     att_by_period: Dict[Any, float]
-    donor_weights: Dict[Any, float]
     att_unscreened: float
-    inference: str = "frequentist"
-    att_ci: Optional[Tuple[float, float]] = None
+    inference_method: str = "frequentist"
     counterfactual_lower: Optional[np.ndarray] = None
     counterfactual_upper: Optional[np.ndarray] = None
     att_debiased: Optional[float] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = PydField(default_factory=dict)

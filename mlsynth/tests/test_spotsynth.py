@@ -12,11 +12,10 @@ Layered per agents/agents_tests.md:
 
 from __future__ import annotations
 
-import dataclasses
-
 import numpy as np
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from mlsynth import SPOTSYNTH
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
@@ -222,7 +221,7 @@ class TestBayesAndDebias:
                          "unitid": "unit", "time": "time", "selection": "S1",
                          "n_donors": 10, "inference": "bayes", "n_samples": 1000,
                          "n_warmup": 600, "display_graphs": False}).fit()
-        assert res.inference == "bayes"
+        assert res.inference_method == "bayes"
         assert res.att_ci is not None and res.att_ci[0] < res.att_ci[1]
         assert res.counterfactual_lower is not None
         assert res.counterfactual_lower.shape == res.counterfactual.shape
@@ -280,8 +279,10 @@ class TestAPI:
         assert isinstance(res, SpotSynthResults)
         assert isinstance(res.screen, SpilloverScreen)
         assert isinstance(res.inputs, SpotSynthInputs)
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            res.att = 0.0
+        # SpotSynthResults is now a frozen pydantic EffectResult; mutating a
+        # field raises pydantic's ValidationError (not FrozenInstanceError).
+        with pytest.raises(ValidationError):
+            res.att_unscreened = 0.0
 
     def test_config_validation(self):
         df, _ = simulate_spillover_panel(n_donors=10, T0=20, n_post=6, seed=0)
