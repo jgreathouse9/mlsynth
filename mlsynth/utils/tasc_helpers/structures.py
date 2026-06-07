@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 
 import numpy as np
+from pydantic import ConfigDict
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -190,9 +193,17 @@ class TASCDesign:
     smoothed: TASCSmoothedStates
 
 
-@dataclass(frozen=True)
-class TASCResults:
+class TASCResults(BaseEstimatorResults):
     """Public ``TASC.fit()`` return container.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    in addition to the TASC-specific fields below it exposes the standardized
+    sub-models (``effects``, ``time_series``, ``weights``, ``inference``,
+    ``fit_diagnostics``, ``method_details``) and the flat accessors ``att`` /
+    ``counterfactual`` / ``gap`` / ``pre_rmse``. TASC is a state-space / EM
+    estimator (no donor weights), so the ``weights`` slot records the method
+    rather than per-donor weights; the per-period posterior bands live in the
+    ``inference`` slot's ``details`` (and on ``inference_detail``).
 
     Parameters
     ----------
@@ -200,18 +211,16 @@ class TASCResults:
         Pre-processed panel data.
     design : TASCDesign
         Learned model, EM diagnostics, and filtered / smoothed state arrays.
-    inference : TASCInference
-        Counterfactual and posterior-based confidence intervals.
-    att : float
-        Average treatment effect on the treated across post-treatment periods.
-        ``mean(y_{0, t} - y_hat_{0, t})`` for ``t > T0``.
-    pre_rmse : float
-        Root mean squared error between the observed target and its
-        smoother-based fit over the pre-treatment window.
+    inference_detail : TASCInference
+        The raw counterfactual + posterior-based pointwise confidence bands
+        (``counterfactual`` / ``ci_lower`` / ``ci_upper`` / ``posterior_variance``
+        / ``alpha``). (Renamed from ``inference``; the standardized
+        :class:`~mlsynth.config_models.InferenceResults` is mirrored into the
+        ``inference`` slot.)
     """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: TASCInputs
     design: TASCDesign
-    inference: TASCInference
-    att: float
-    pre_rmse: float
+    inference_detail: TASCInference

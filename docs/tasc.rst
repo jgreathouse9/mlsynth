@@ -542,10 +542,11 @@ Example
    print(results.att)              # mean post-period gap, y_{0,t} - h_1' m_t^s
    print(results.pre_rmse)         # pre-period RMSE of the smoother's target fit
 
-   # Counterfactual path and posterior confidence band
-   cf = results.inference.counterfactual     # length-T vector
-   lo = results.inference.ci_lower           # length-T vector
-   hi = results.inference.ci_upper           # length-T vector
+   # Counterfactual path and posterior confidence band (raw TASC inference).
+   # ``results.counterfactual`` is the same series via the standardized accessor.
+   cf = results.inference_detail.counterfactual     # length-T vector
+   lo = results.inference_detail.ci_lower           # length-T vector
+   hi = results.inference_detail.ci_upper           # length-T vector
 
    # Learned model and EM diagnostics
    theta = results.design.parameters         # A, H, Q, R, m0, P0
@@ -601,7 +602,7 @@ paper's Figure 10 directly:
                 "time": "year", "treat": "treat", "d": 2,
                 "n_em_iter": 50, "em_tol": 1e-4, "alpha": 0.05,
                 "seed": 0, "display_graphs": False}).fit()
-   yhat = res.inference.counterfactual
+   yhat = res.inference_detail.counterfactual
    print(f"pre-RMSE = {res.pre_rmse:.3f}  ATT = {res.att:.3f}")
 
 prints::

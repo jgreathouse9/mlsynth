@@ -33,10 +33,12 @@ from __future__ import annotations
 
 from typing import Any, Optional, Union
 
+import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import TASCConfig
+from ..config_models import InferenceResults, TASCConfig, WeightsResults
+from ..utils.results_helpers import build_effect_submodels
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -45,7 +47,6 @@ from ..exceptions import (
 )
 from ..utils.datautils import balance
 from ..utils.tasc_helpers.orchestration import run_tasc, summarize_effects
-from ..utils.tasc_helpers.plotter import plot_tasc
 from ..utils.tasc_helpers.setup import prepare_tasc_inputs
 from ..utils.tasc_helpers.structures import TASCResults
 
@@ -188,26 +189,53 @@ class TASC:
                 f"TASC estimation failed: {exc}"
             ) from exc
 
+        # Standardized sub-models: observed target vs the smoother-based
+        # counterfactual. TASC is a state-space/EM estimator with no donor
+        # weights; the per-period posterior bands ride in inference.details.
+        std_inference = InferenceResults(
+            method="tasc_posterior",
+            confidence_level=(None if np.isnan(inference.alpha)
+                              else float(1.0 - inference.alpha)),
+            details=inference,
+        )
+        weights = WeightsResults(
+            donor_weights={},
+            summary_stats={"method": "TASC",
+                           "note": "state-space/EM; no donor weights"},
+        )
+        submodels = build_effect_submodels(
+            observed_outcome=np.asarray(inputs.y_target),
+            counterfactual_outcome=np.asarray(inference.counterfactual),
+            n_pre_periods=int(inputs.pre_periods),
+            n_post_periods=int(inputs.post_periods),
+            time_periods=np.asarray(inputs.time_labels),
+            weights=weights,
+            inference=std_inference,
+            method_name="TASC",
+            effects_overrides={"att": float(att)},
+            fit_overrides={"rmse_pre": float(pre_rmse)},
+            intervention_time=(inputs.time_labels[inputs.pre_periods]
+                               if inputs.pre_periods < len(inputs.time_labels)
+                               else inputs.time_labels[-1]),
+        )
         results = TASCResults(
+            **submodels,
             inputs=inputs,
             design=design,
-            inference=inference,
-            att=att,
-            pre_rmse=pre_rmse,
+            inference_detail=inference,
         )
 
+        # Standardized plotting: attach the resolved PlotConfig and route
+        # through result.plot().
+        pc = self.config.resolved_plot()
+        if pc.xlabel is None:
+            pc.xlabel = self.time
+        if pc.ylabel is None:
+            pc.ylabel = self.outcome
+        object.__setattr__(results, "plot_config", pc)
         if self.display_graphs:
             try:
-                plot_tasc(
-                    results=results,
-                    treated_color=self.treated_color,
-                    counterfactual_color=self.counterfactual_color,
-                    save=self.save,
-                    time_axis_label=self.time,
-                    outcome_label=self.outcome,
-                    treatment_label=self.treat,
-                    unit_label=self.unitid,
-                )
+                results.plot()
             except MlsynthPlottingError:
                 raise
             except Exception as exc:
