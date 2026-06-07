@@ -2,7 +2,7 @@ from typing import List, Optional, Any, Dict, Union, Literal
 import pandas as pd
 import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
-from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
+from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthPlottingError
 import warnings
 
 class BaseMAREXConfig(BaseModel):
@@ -68,6 +68,45 @@ class BaseMAREXConfig(BaseModel):
 
 
 
+_DEFAULT_CF_COLORS = ["red", "blue", "green", "purple", "orange", "brown"]
+
+
+class PlotConfig(BaseModel):
+    """Cosmetic configuration for an estimator's plots.
+
+    The single, nested home for everything a user might tune about a figure --
+    colors, line thickness and pattern, axis labels, title, and theme -- so the
+    look is fully orchestrated from the top config with sensible defaults the
+    user never has to touch. Consumed by :meth:`EffectResult.plot` and the
+    shared :class:`mlsynth.utils.plotting.Plotter`.
+    """
+
+    # Observed (treated) series.
+    observed_color: str = Field(default="black", description="Color of the observed (treated) line.")
+    observed_linewidth: float = Field(default=1.6, description="Width of the observed line.")
+    observed_linestyle: str = Field(default="-", description="Matplotlib linestyle for the observed line.")
+    # Counterfactual series (cycled / broadcast across multiple counterfactuals).
+    counterfactual_colors: List[str] = Field(default_factory=lambda: list(_DEFAULT_CF_COLORS), description="Color cycle for counterfactual line(s).")
+    counterfactual_linewidth: float = Field(default=1.4, description="Width of counterfactual line(s).")
+    counterfactual_linestyle: str = Field(default="--", description="Matplotlib linestyle for counterfactual line(s).")
+    # Reference lines.
+    show_intervention_line: bool = Field(default=True, description="Draw a vertical line at the intervention.")
+    intervention_color: str = Field(default="grey", description="Color of the intervention reference line.")
+    # Labels / title (None => a sensible default derived from the data/method).
+    xlabel: Optional[str] = Field(default=None, description="X-axis label override.")
+    ylabel: Optional[str] = Field(default=None, description="Y-axis label override.")
+    title: Optional[str] = Field(default=None, description="Plot title override.")
+    # Theme: a dict of rcParams merged over the house style, or a named style.
+    theme: Optional[Union[dict, str]] = Field(default=None, description="Custom theme: rcParams dict (merged over the mlsynth style) or a named Matplotlib style.")
+    # Lifecycle.
+    display: bool = Field(default=True, description="Show the figure.")
+    save: Union[bool, str, dict] = Field(default=False, description="Save config: False, a filename, or a dict.")
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "forbid"
+
+
 class BaseEstimatorConfig(BaseModel):
     """
     Base Pydantic model for estimator configurations.
@@ -80,12 +119,35 @@ class BaseEstimatorConfig(BaseModel):
     time: str = Field(..., description="Name of the time period column in the DataFrame.")
     display_graphs: bool = Field(default=True, description="Whether to display plots of results.")
     save: Union[bool, str] = Field(default=False, description="Configuration for saving plots. If False (default), plots are not saved. If True, plots are saved with default names. If a string, it's used as the base filename for saved plots.")
-    counterfactual_color: List[str] = Field(default_factory=lambda: ["red"],description="Color(s) for counterfactual line(s) in plots.")
-    treated_color: str = Field(default="black", description="Color for the treated unit line in plots.")
+    counterfactual_color: List[str] = Field(default_factory=lambda: ["red"],description="Color(s) for counterfactual line(s) in plots. (Legacy; prefer `plot`.)")
+    treated_color: str = Field(default="black", description="Color for the treated unit line in plots. (Legacy; prefer `plot`.)")
+    plot: PlotConfig = Field(default_factory=PlotConfig, description="Nested cosmetic plot configuration (colors, line styles, labels, theme).")
 
     class Config:
         arbitrary_types_allowed = True
         extra = 'forbid' # Forbid extra fields not defined in the model
+
+    def resolved_plot(self) -> "PlotConfig":
+        """Effective :class:`PlotConfig`, folding in the legacy flat fields.
+
+        If the user supplied a custom ``plot`` it is authoritative; otherwise
+        the legacy ``treated_color`` / ``counterfactual_color`` are mapped into
+        a fresh ``PlotConfig``. The behavioral ``display_graphs`` / ``save``
+        always apply unless overridden on ``plot``. This keeps every existing
+        config call working while routing plotting through the nested model.
+        """
+        if self.plot != PlotConfig():
+            pc = self.plot.model_copy()
+        else:
+            pc = PlotConfig(
+                observed_color=self.treated_color,
+                counterfactual_colors=list(self.counterfactual_color),
+            )
+        if pc.display is True:  # default untouched -> honor legacy flag
+            pc.display = self.display_graphs
+        if pc.save is False:  # default untouched -> honor legacy flag
+            pc.save = self.save
+        return pc
 
     @model_validator(mode='after')
     def check_df_and_columns(cls, values: Any) -> Any:
@@ -184,6 +246,7 @@ class TimeSeriesResults(BaseModel):
     counterfactual_outcome: Optional[np.ndarray] = Field(default=None, description="Estimated counterfactual outcome vector.")
     estimated_gap: Optional[np.ndarray] = Field(default=None, description="Estimated treatment effect vector (observed - counterfactual).")
     time_periods: Optional[np.ndarray] = Field(default=None, description="Array of time periods corresponding to the series.") # Retaining np.ndarray, TSSC will convert
+    intervention_time: Optional[Any] = Field(default=None, description="Time label at the pre/post boundary, for the plot's intervention reference line.")
 
     class Config:
         arbitrary_types_allowed = True
@@ -271,6 +334,9 @@ class BaseEstimatorResults(MlsynthResult):
     # To capture any errors or warnings encountered during fitting.
     execution_summary: Optional[Dict[str, Any]] = Field(default=None, description="Summary of execution, including any errors or warnings.")
 
+    # Resolved cosmetic config stored at fit time so ``plot()`` is self-contained.
+    plot_config: Optional[PlotConfig] = Field(default=None, exclude=True, description="Resolved PlotConfig captured at fit time; drives plot().")
+
 
     class Config:
         arbitrary_types_allowed = True
@@ -320,6 +386,84 @@ class BaseEstimatorResults(MlsynthResult):
     def pre_rmse(self) -> Optional[float]:
         """Pre-treatment root-mean-squared fit error."""
         return self.fit_diagnostics.rmse_pre if self.fit_diagnostics else None
+
+    # ------------------------------------------------------------------
+    # Standard plotting -- one entry point for every effect estimator,
+    # driven by the standardized ``time_series`` sub-model and the resolved
+    # ``PlotConfig`` captured at fit time. Bespoke estimators override.
+    # ------------------------------------------------------------------
+    def plot(self, kind: str = "auto", *, ax: Any = None, **overrides: Any) -> Any:
+        """Render the standard effect plot from the standardized result.
+
+        Parameters
+        ----------
+        kind : {"auto", "counterfactual", "gap"}, default "auto"
+            ``"auto"``/``"counterfactual"`` draw observed vs. counterfactual;
+            ``"gap"`` draws the per-period effect. (Event-study lives on the
+            staggered/multi-cohort estimators.)
+        ax : matplotlib Axes, optional
+            Draw into an existing axis (multi-panel composition).
+        **overrides
+            Per-call cosmetic overrides applied over the stored PlotConfig
+            (e.g. ``title=...``, ``observed_color=...``).
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+        """
+        import matplotlib.pyplot as plt
+
+        from .utils.plotting import Plotter, mlsynth_style
+
+        ts = self.time_series
+        if ts is None or ts.observed_outcome is None:
+            raise MlsynthPlottingError(
+                "Result has no time_series.observed_outcome to plot."
+            )
+
+        pc = (self.plot_config or PlotConfig())
+        pc = pc.model_copy(update=overrides) if overrides else pc
+
+        observed = np.asarray(ts.observed_outcome).reshape(-1)
+        times = (np.asarray(ts.time_periods) if ts.time_periods is not None
+                 else np.arange(observed.shape[0]))
+        intervention = ts.intervention_time if pc.show_intervention_line else None
+        method = self.method_details.method_name if self.method_details else None
+        xlabel = pc.xlabel if pc.xlabel is not None else "Time"
+        ylabel = pc.ylabel if pc.ylabel is not None else "Outcome"
+
+        with mlsynth_style(pc.theme):
+            plotter = Plotter.from_config(pc)
+            if kind in ("auto", "counterfactual"):
+                cf = ts.counterfactual_outcome
+                if cf is None:
+                    raise MlsynthPlottingError(
+                        "Result has no counterfactual_outcome to plot."
+                    )
+                ax = plotter.observed_vs_counterfactual(
+                    times, observed, np.asarray(cf).reshape(-1),
+                    treated_label=method or "Treated",
+                    intervention=intervention, outcome=ylabel, time=xlabel,
+                    title=pc.title or (f"{method}: observed vs. counterfactual"
+                                       if method else "Observed vs. counterfactual"),
+                    ax=ax,
+                )
+            elif kind == "gap":
+                ax = plotter.gap(
+                    times, np.asarray(ts.estimated_gap).reshape(-1),
+                    intervention=intervention, outcome=ylabel, time=xlabel,
+                    title=pc.title or "Estimated gap", ax=ax,
+                )
+            else:
+                raise MlsynthPlottingError(f"Unknown plot kind {kind!r}.")
+
+            fig = ax.figure
+            if pc.save:
+                fname = pc.save if isinstance(pc.save, str) else f"{method or 'mlsynth'}_plot.png"
+                fig.savefig(fname, bbox_inches="tight")
+            if pc.display:
+                plt.show()
+        return ax
 
 
 # ``EffectResult`` is the canonical, intention-revealing name for the

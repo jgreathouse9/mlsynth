@@ -69,8 +69,8 @@ MLSYNTH_RC = {
 }
 
 
-def mlsynth_style():
-    """Context manager applying :data:`MLSYNTH_RC` to plots created within it.
+def mlsynth_style(theme: Optional[Union[dict, str]] = None):
+    """Context manager applying the mlsynth plot style to plots created within.
 
     Scoped via ``matplotlib.rc_context`` so the user's global rcParams are
     untouched. Wrap the *entire* plotting block (figure creation included), as
@@ -79,10 +79,22 @@ def mlsynth_style():
         with mlsynth_style():
             fig, ax = plt.subplots()
             ...
+
+    Parameters
+    ----------
+    theme : dict or str, optional
+        ``None`` (default) uses the mlsynth house style :data:`MLSYNTH_RC`.
+        A dict of rcParams is merged *over* the house style. A string is
+        treated as a named Matplotlib style (``plt.style.context``), letting a
+        user drop in their own theme.
     """
     import matplotlib.pyplot as plt
 
-    return plt.rc_context(MLSYNTH_RC)
+    if theme is None:
+        return plt.rc_context(MLSYNTH_RC)
+    if isinstance(theme, str):
+        return plt.style.context(theme)
+    return plt.rc_context({**MLSYNTH_RC, **theme})
 
 
 def apply_mlsynth_style() -> None:
@@ -116,6 +128,10 @@ class Plotter:
         counterfactual_colors: Optional[Union[str, Sequence[str]]] = None,
         intervention_color: str = "grey",
         figsize: tuple = (7, 5),
+        treated_linewidth: float = 1.6,
+        treated_linestyle: str = "-",
+        counterfactual_linewidth: float = 1.4,
+        counterfactual_linestyle: str = "--",
     ) -> None:
         self.treated_color = treated_color
         if counterfactual_colors is None:
@@ -125,6 +141,28 @@ class Plotter:
         self.counterfactual_colors = list(counterfactual_colors)
         self.intervention_color = intervention_color
         self.figsize = figsize
+        self.treated_linewidth = treated_linewidth
+        self.treated_linestyle = treated_linestyle
+        self.counterfactual_linewidth = counterfactual_linewidth
+        self.counterfactual_linestyle = counterfactual_linestyle
+
+    @classmethod
+    def from_config(cls, pc: Any) -> "Plotter":
+        """Build a Plotter from a ``PlotConfig`` (duck-typed; no import).
+
+        Reads the cosmetic fields off ``pc`` so plotting stays decoupled from
+        :mod:`mlsynth.config_models`. Missing attributes fall back to defaults.
+        """
+        cf = getattr(pc, "counterfactual_colors", None)
+        return cls(
+            treated_color=getattr(pc, "observed_color", "black"),
+            counterfactual_colors=cf if cf else None,
+            intervention_color=getattr(pc, "intervention_color", "grey"),
+            treated_linewidth=getattr(pc, "observed_linewidth", 1.6),
+            treated_linestyle=getattr(pc, "observed_linestyle", "-"),
+            counterfactual_linewidth=getattr(pc, "counterfactual_linewidth", 1.4),
+            counterfactual_linestyle=getattr(pc, "counterfactual_linestyle", "--"),
+        )
 
     @staticmethod
     def _as_counterfactual_list(counterfactuals: CounterfactualLike) -> List[np.ndarray]:
@@ -195,16 +233,97 @@ class Plotter:
 
         times = np.asarray(times)
         ax.plot(times, np.asarray(observed).reshape(-1),
-                color=self.treated_color, label=f"Treated ({treated_label})")
+                color=self.treated_color, linewidth=self.treated_linewidth,
+                linestyle=self.treated_linestyle, label=f"Treated ({treated_label})")
         for i, cf in enumerate(cfs):
             color = self.counterfactual_colors[i % len(self.counterfactual_colors)]
-            ax.plot(times, np.asarray(cf).reshape(-1), linestyle="--",
+            ax.plot(times, np.asarray(cf).reshape(-1),
+                    linewidth=self.counterfactual_linewidth,
+                    linestyle=self.counterfactual_linestyle,
                     color=color, label=labels[i])
         if intervention is not None:
             ax.axvline(intervention, color=self.intervention_color,
-                       linestyle=":", linewidth=1)
+                       linestyle=":", linewidth=1.2, label="Intervention")
         ax.set_xlabel(time)
         ax.set_ylabel(outcome)
         ax.set_title(title)
         ax.legend()  # frame styling comes from the active rcParams
+        return ax
+
+    def gap(
+        self,
+        times: Sequence[Any],
+        gap: np.ndarray,
+        *,
+        intervention: Optional[Any] = None,
+        outcome: str = "",
+        time: str = "",
+        title: str = "Estimated gap",
+        color: Optional[str] = None,
+        ax: Optional["object"] = None,
+    ) -> "object":
+        """Plot the per-period effect ``tau_t`` (gap) with a zero reference line.
+
+        Draws the gap series against a horizontal zero line and an optional
+        vertical intervention marker -- the standard companion to the
+        observed-vs-counterfactual panel.
+        """
+        import matplotlib.pyplot as plt
+
+        if ax is None:
+            _, ax = plt.subplots(figsize=self.figsize)
+        times = np.asarray(times)
+        ax.plot(times, np.asarray(gap).reshape(-1),
+                color=color or self.counterfactual_colors[0],
+                linewidth=self.counterfactual_linewidth, label="Gap")
+        ax.axhline(0.0, color="black", linewidth=0.8)
+        if intervention is not None:
+            ax.axvline(intervention, color=self.intervention_color,
+                       linestyle=":", linewidth=1.2, label="Intervention")
+        ax.set_xlabel(time)
+        ax.set_ylabel(outcome or "Treated - counterfactual")
+        ax.set_title(title)
+        ax.legend()
+        return ax
+
+    def event_study(
+        self,
+        event_times: Sequence[Any],
+        effects: np.ndarray,
+        *,
+        ci_lower: Optional[np.ndarray] = None,
+        ci_upper: Optional[np.ndarray] = None,
+        outcome: str = "",
+        time: str = "Event time",
+        title: str = "Event study",
+        color: Optional[str] = None,
+        ax: Optional["object"] = None,
+    ) -> "object":
+        """Plot effects against event time with an optional CI band.
+
+        The archetype for staggered / multi-cohort designs (and SDID-style
+        pooled event studies): effects vs. event time, a horizontal zero line,
+        a vertical marker at event time 0, and a shaded confidence band when
+        ``ci_lower`` / ``ci_upper`` are supplied.
+        """
+        import matplotlib.pyplot as plt
+
+        if ax is None:
+            _, ax = plt.subplots(figsize=self.figsize)
+        et = np.asarray(event_times)
+        eff = np.asarray(effects).reshape(-1)
+        line_color = color or self.counterfactual_colors[0]
+        ax.plot(et, eff, marker="o", color=line_color,
+                linewidth=self.counterfactual_linewidth, label="Effect")
+        if ci_lower is not None and ci_upper is not None:
+            ax.fill_between(et, np.asarray(ci_lower).reshape(-1),
+                            np.asarray(ci_upper).reshape(-1),
+                            color=line_color, alpha=0.20, label="95% CI")
+        ax.axhline(0.0, color="black", linewidth=0.8)
+        ax.axvline(0.0, color=self.intervention_color, linestyle=":",
+                   linewidth=1.2, label="Intervention")
+        ax.set_xlabel(time)
+        ax.set_ylabel(outcome or "Treatment effect")
+        ax.set_title(title)
+        ax.legend()
         return ax
