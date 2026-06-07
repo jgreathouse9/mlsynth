@@ -9,6 +9,21 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Changed
+- **SNN migrated onto the two-family result contract.** `SNN.fit()` now
+  returns `SNNResults` as a frozen pydantic `EffectResult` with the
+  standardized sub-models built from the cross-treated-unit observed / imputed
+  paths; `att` / `counterfactual` / `gap` / `att_ci` / `pre_rmse` resolve via
+  the inherited accessors, and the PCR donor weights stay in the `weights`
+  slot. **Breaking surface change (matrix-completion convention):**
+  `res.counterfactual` is now the **1-D treated counterfactual path** (was the
+  full `(N, T)` imputed matrix); the matrix moved to
+  `res.counterfactual_matrix`, and the per-cell `effects` matrix to
+  `res.effects_matrix` (the `effects` slot now holds `EffectsResults`). The raw
+  jackknife object moved from `res.inference` to `res.inference_jackknife`; the
+  `inference` slot now holds the standardized `InferenceResults` (so
+  `res.att_ci` resolves). Mutating the frozen result raises pydantic
+  `ValidationError`. SNN plots via `result.plot()` and is pinned in
+  `tests/test_result_contract.py`.
 - **RMSI migrated onto the two-family result contract.** `RMSI.fit()` now
   returns `RMSIResults` as a frozen pydantic `EffectResult` with the
   standardized sub-models populated from the treated aggregate paths
