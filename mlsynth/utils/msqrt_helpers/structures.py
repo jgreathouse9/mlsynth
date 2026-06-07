@@ -14,6 +14,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from pydantic import ConfigDict, Field as PydField
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -58,29 +61,34 @@ class MSQRTInputs:
         return self.Y_post.shape[0]
 
 
-@dataclass(frozen=True)
-class MSQRTResults:
+class MSQRTResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.MSQRT.fit`.
 
-    Attributes
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    in addition to the MSQRT-specific fields below it exposes the standardized
+    sub-models (``effects``, ``time_series``, ``weights``, ``inference``,
+    ``fit_diagnostics``, ``method_details``) and the flat accessors ``att`` /
+    ``counterfactual`` / ``gap`` / ``att_ci`` / ``pre_rmse``. The treated
+    counterfactual path (``res.counterfactual``) is the cross-treated-unit
+    synthetic mean; the full ``(T, m)`` synthetic / gap matrices live in
+    ``counterfactual_matrix`` / ``gap_matrix``. The per-treated-unit PCR donor
+    weights live in the standardized ``weights`` slot.
+
+    Parameters
     ----------
     inputs : MSQRTInputs
-    att : float
-        Average treatment effect on the treated (mean post-period gap over all
-        treated units).
     att_percent : float
         ``att`` as a percentage of the mean synthetic counterfactual on the
         post window.
     theta : np.ndarray
         Estimated donor-weight matrix ``Theta``, shape ``(n, m)``.
-    weights : object
-        :class:`mlsynth.config_models.WeightsResults` -- per-treated-unit donor
-        weight dicts plus aggregate sparsity stats.
-    counterfactual : np.ndarray
+    counterfactual_matrix : np.ndarray
         Synthetic (untreated) outcome for the treated units, shape
-        ``(T0 + T_post, m)``.
-    gap : np.ndarray
-        Observed minus synthetic for the treated units, same shape.
+        ``(T0 + T_post, m)``. (Renamed from ``counterfactual``, which now
+        returns the 1-D treated path per the result contract.)
+    gap_matrix : np.ndarray
+        Observed minus synthetic for the treated units, same shape. (Renamed
+        from ``gap``, which now returns the 1-D treated gap path.)
     att_t : np.ndarray
         Mean treated gap at each post-treatment period, shape ``(T_post,)``.
     unit_att : Dict
@@ -92,28 +100,27 @@ class MSQRTResults:
         Selected (or supplied) L1 penalty.
     sparsity : np.ndarray
         Per-treated-unit count of active donors (``|Theta_ij| > tol``).
-    pre_rmse : float
-        Root-mean-square pre-period gap (overall fit quality).
-    inference : SCPIResults, optional
+    inference_intervals : SCPIResults, optional
         CFPT/scpi prediction intervals (Cattaneo, Feng, Palomba & Titiunik
         2025); see :mod:`mlsynth.utils.scpi_helpers`. For MSQRT only the
-        out-of-sample error is modelled.
+        out-of-sample error is modelled. (Renamed from ``inference``; the
+        standardized :class:`~mlsynth.config_models.InferenceResults` is
+        mirrored into the ``inference`` slot so ``res.att_ci`` resolves.)
     metadata : dict
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: MSQRTInputs
-    att: float
     att_percent: float
     theta: np.ndarray
-    weights: Any
-    counterfactual: np.ndarray
-    gap: np.ndarray
+    counterfactual_matrix: np.ndarray
+    gap_matrix: np.ndarray
     att_t: np.ndarray
     unit_att: Dict[Any, float]
     treated_mean: np.ndarray
     synthetic_mean: np.ndarray
     best_lambda: float
     sparsity: np.ndarray
-    pre_rmse: float
-    inference: Optional[Any] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    inference_intervals: Optional[Any] = None
+    metadata: Dict[str, Any] = PydField(default_factory=dict)

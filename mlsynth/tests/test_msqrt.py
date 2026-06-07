@@ -17,6 +17,7 @@ import dataclasses
 import numpy as np
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from mlsynth import MSQRT
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
@@ -199,9 +200,12 @@ class TestIntegration:
             "n_lambda": 4, "inference": True, "alpha": 0.1,
             "display_graphs": False,
         }).fit()
-        scpi = res.inference
+        scpi = res.inference_intervals
         assert scpi is not None
         assert scpi.method == "cfpt_scpi"
+        # standardized inference mirrored into the contract slot
+        assert res.inference is not None
+        assert res.att_ci == pytest.approx((scpi.taua.lower, scpi.taua.upper))
         # in-sample omitted for MSQRT
         assert scpi.in_sample_included is False
         assert scpi.alpha_out == 0.1 and scpi.alpha_in == 0.0
@@ -228,8 +232,8 @@ class TestIntegration:
                   "inference": True, "display_graphs": False}
         iid = MSQRT({**common, "time_dependence": "iid"}).fit()
         gen = MSQRT({**common, "time_dependence": "general"}).fit()
-        w_iid = iid.inference.taua.upper - iid.inference.taua.lower
-        w_gen = gen.inference.taua.upper - gen.inference.taua.lower
+        w_iid = iid.inference_intervals.taua.upper - iid.inference_intervals.taua.lower
+        w_gen = gen.inference_intervals.taua.upper - gen.inference_intervals.taua.lower
         assert w_gen >= w_iid - 1e-9
 
     def test_fixed_lambda_skips_cv(self):
@@ -255,8 +259,9 @@ class TestAPI:
             "n_lambda": 3, "display_graphs": False,
         }).fit()
         assert isinstance(res, MSQRTResults)
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            res.att = 0.0
+        # MSQRTResults is now a frozen pydantic EffectResult.
+        with pytest.raises(ValidationError):
+            res.best_lambda = 0.0
 
     def test_bad_config_raises(self):
         df = _block_panel()

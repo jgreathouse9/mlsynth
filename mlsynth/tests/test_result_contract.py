@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mlsynth import FDID, RMSI, SNN, SPOTSYNTH, TSSC, VanillaSC
+from mlsynth import FDID, MSQRT, RMSI, SNN, SPOTSYNTH, TSSC, VanillaSC
 from mlsynth.config_models import (
     BaseEstimatorResults,
     DesignResult,
@@ -65,6 +65,7 @@ OBSERVATIONAL = [
     pytest.param(SPOTSYNTH, {}, id="SPOTSYNTH"),
     pytest.param(RMSI, {}, id="RMSI"),
     pytest.param(SNN, {}, id="SNN"),
+    pytest.param(MSQRT, {"lambda_": 0.5}, id="MSQRT"),
 ]
 
 

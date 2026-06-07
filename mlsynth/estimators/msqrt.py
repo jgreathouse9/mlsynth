@@ -47,7 +47,6 @@ from ..exceptions import (
     MlsynthEstimationError,
 )
 from ..utils.msqrt_helpers.pipeline import run_msqrt
-from ..utils.msqrt_helpers.plotter import plot_msqrt
 from ..utils.msqrt_helpers.setup import prepare_msqrt_inputs
 from ..utils.msqrt_helpers.structures import MSQRTResults
 
@@ -109,17 +108,17 @@ class MSQRT:
                 alpha=self.alpha,
                 time_dependence=self.time_dependence,
             )
+            # Attach plotting context so result.plot() is self-contained and
+            # styled from the (possibly nested) config; labels default to the
+            # column names when the user has not set them.
+            pc = self.config.resolved_plot()
+            if pc.xlabel is None:
+                pc.xlabel = self.time
+            if pc.ylabel is None:
+                pc.ylabel = self.outcome
+            object.__setattr__(results, "plot_config", pc)
             if self.display_graphs:
-                plot_msqrt(
-                    results,
-                    treated_color=self.treated_color,
-                    counterfactual_color=self.counterfactual_color,
-                    save=self.save,
-                    time_axis_label=self.time,
-                    treatment_label=self.treat,
-                    unit_label=self.unitid,
-                    outcome_label=self.outcome,
-                )
+                results.plot()
             return results
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
