@@ -12,7 +12,8 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from ...config_models import WeightsResults
+from ...config_models import InferenceResults, WeightsResults
+from ..results_helpers import build_effect_submodels
 from ..scpi_helpers import out_of_sample_intervals
 from .optimization import fit_msqrt_weights, select_lambda_cv
 from .structures import MSQRTInputs, MSQRTResults
@@ -151,10 +152,33 @@ def run_msqrt(
         "estimator": "MSQRT",
         "objective": "(1/sqrt(T0))||Y - X Theta||_* + lambda ||Theta||_1",
     }
+    # Standardized InferenceResults mirrored from the SCPI overall ATT band.
+    std_inference = None
+    if inf is not None:
+        std_inference = InferenceResults(
+            method=inf.method,
+            ci_lower=float(inf.taua.lower), ci_upper=float(inf.taua.upper),
+            confidence_level=float(1.0 - alpha),
+            details=inf,
+        )
+    submodels = build_effect_submodels(
+        observed_outcome=treated_mean,
+        counterfactual_outcome=synthetic_mean,
+        n_pre_periods=int(inputs.T0),
+        n_post_periods=int(inputs.n_post),
+        time_periods=np.asarray(inputs.time_labels),
+        weights=weights,
+        inference=std_inference,
+        method_name="MSQRT",
+        effects_overrides={"att": float(att), "att_percent": float(att_percent)},
+        fit_overrides={"rmse_pre": float(pre_rmse)},
+        intervention_time=inputs.time_labels[inputs.T0],
+    )
     return MSQRTResults(
-        inputs=inputs, att=att, att_percent=att_percent, theta=theta,
-        weights=weights, counterfactual=synthetic, gap=gap, att_t=att_t,
+        **submodels,
+        inputs=inputs, att_percent=att_percent, theta=theta,
+        counterfactual_matrix=synthetic, gap_matrix=gap, att_t=att_t,
         unit_att=unit_att, treated_mean=treated_mean,
         synthetic_mean=synthetic_mean, best_lambda=best_lambda,
-        sparsity=sparsity, pre_rmse=pre_rmse, inference=inf, metadata=metadata,
+        sparsity=sparsity, inference_intervals=inf, metadata=metadata,
     )

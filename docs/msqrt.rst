@@ -234,10 +234,10 @@ recovers the ATT with a CFPT/scpi prediction band.
    }).fit()
 
    print(f"ATT (true 2.0)   = {res.att:+.3f}")
-   lo, hi = res.inference.taua.ci     # overall ATT (TAUA) band
+   lo, hi = res.att_ci                          # overall ATT (TAUA) band
    print(f"90% scpi band    = [{lo:+.3f}, {hi:+.3f}]")
-   # per-period (unit-averaged) effects with their bands
-   for period, band in res.inference.tsua.items():
+   # per-period (unit-averaged) effects with their bands (raw SCPI object)
+   for period, band in res.inference_intervals.tsua.items():
        print(f"  k={period}: {band.point:+.3f}  [{band.lower:+.3f}, {band.upper:+.3f}]")
    print(f"selected lambda  = {res.best_lambda:.3f}")
    print(f"avg active donors per treated = "

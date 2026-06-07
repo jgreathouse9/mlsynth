@@ -9,6 +9,19 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Changed
+- **MSQRT migrated onto the two-family result contract.** `MSQRT.fit()` now
+  returns `MSQRTResults` as a frozen pydantic `EffectResult` with the
+  standardized sub-models built from the cross-treated-unit observed / synthetic
+  paths; `att` / `counterfactual` / `gap` / `att_ci` / `pre_rmse` resolve via
+  the inherited accessors, and the per-treated-unit PCR donor weights stay in
+  the `weights` slot. **Breaking surface changes:** `res.counterfactual` /
+  `res.gap` are now the **1-D treated paths**; the full `(T, m)` synthetic / gap
+  matrices moved to `res.counterfactual_matrix` / `res.gap_matrix`. The raw
+  SCPI prediction-interval object moved from `res.inference` to
+  `res.inference_intervals`; the `inference` slot now holds the standardized
+  `InferenceResults` (so `res.att_ci` resolves). Mutating the frozen result
+  raises pydantic `ValidationError`. MSQRT plots via `result.plot()` and is
+  pinned in `tests/test_result_contract.py`.
 - **SNN migrated onto the two-family result contract.** `SNN.fit()` now
   returns `SNNResults` as a frozen pydantic `EffectResult` with the
   standardized sub-models built from the cross-treated-unit observed / imputed
