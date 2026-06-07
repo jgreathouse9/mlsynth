@@ -717,8 +717,8 @@ Example
    print(results.aggregate_donor_weights)      # {state:        w_s = sum_c omega_sc}
 
    # Counterfactual trajectory (length T) and the observed - counterfactual gap.
-   cf  = results.inference.counterfactual
-   gap = results.inference.gap
+   cf  = results.counterfactual          # standardized accessor (== results.paths.counterfactual)
+   gap = results.gap                     # == results.paths.gap
 
    # Sensitivity: sweep lambda by hand.
    for lam in [0.0, 1e-2, 1e-1, 1.0, 10.0, 1e6]:
