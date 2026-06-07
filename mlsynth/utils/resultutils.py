@@ -347,6 +347,10 @@ def plot_estimates(
         plt.close() # Close the plot figure to free up memory, especially in loops or batch processing.
 
 
+from . import effectutils as _eff
+from . import fitutils as _fit
+
+
 class effects:
     @staticmethod
     def calculate(
@@ -383,58 +387,43 @@ class effects:
         >>> # Placeholder example
         >>> pass
         """
-        # --- Pre-treatment Fit Statistics ---
-        # Calculate residuals in the pre-treatment period.
-        pre_treatment_residuals = observed_outcome_series[:num_pre_treatment_periods] - counterfactual_outcome_series[:num_pre_treatment_periods]
-        
-        # Calculate the denominator for R-squared: variance of observed outcomes in pre-treatment.
-        mean_sq_error_pre_treatment_denom = np.mean((observed_outcome_series[:num_pre_treatment_periods] - np.mean(observed_outcome_series[:num_pre_treatment_periods]))**2)
-        
-        # Calculate R-squared for the pre-treatment period.
-        # R-squared = 1 - (MSE_residuals / Var_observed_outcomes)
-        # Handle cases with no pre-periods or zero variance in observed outcomes.
-        r_squared_pre_treatment = 1 - (np.mean(pre_treatment_residuals**2)) / mean_sq_error_pre_treatment_denom if num_pre_treatment_periods > 0 and mean_sq_error_pre_treatment_denom != 0 else np.nan
+        # All series-derived quantities come from the vectorized primitives in
+        # effectutils (treatment effects) and fitutils (goodness-of-fit / loss),
+        # so every estimator computes them identically; the rounding below is
+        # for display / back-compat only.
+        obs = _fit._ravel(observed_outcome_series)
+        cf = _fit._ravel(counterfactual_outcome_series)
+        gap_series = _eff.gap(obs, cf)
+        pre_gap, post_gap = _eff.split_pre_post(
+            gap_series, num_pre_treatment_periods, num_actual_post_periods
+        )
+        obs_pre, _ = _eff.split_pre_post(
+            obs, num_pre_treatment_periods, num_actual_post_periods
+        )
+        _, cf_post = _eff.split_pre_post(
+            cf, num_pre_treatment_periods, num_actual_post_periods
+        )
 
-        # --- Post-treatment Effect Calculations ---
+        # --- Goodness-of-fit (loss) ---
+        r_squared_pre_treatment = (
+            _fit.r_squared(obs_pre, pre_gap) if num_pre_treatment_periods > 0 else np.nan
+        )
+        t0_rmse = _fit.rmse(pre_gap) if num_pre_treatment_periods > 0 else np.nan
+
+        # --- Treatment effects ---
         if num_actual_post_periods > 0:
-            # Define the slice for the post-treatment period.
-            post_period_slice = slice(num_pre_treatment_periods, num_pre_treatment_periods + num_actual_post_periods)
-            
-            # Average Treatment Effect on the Treated (ATT)
-            average_treatment_effect_treated = np.mean(observed_outcome_series[post_period_slice] - counterfactual_outcome_series[post_period_slice])
-            
-            # Mean of the counterfactual in the post-treatment period (for Percent ATT).
-            mean_counterfactual_post_treatment = np.mean(counterfactual_outcome_series[post_period_slice])
-            # Percent ATT: ATT as a percentage of the mean counterfactual.
-            average_treatment_effect_treated_percent = (100 * average_treatment_effect_treated / mean_counterfactual_post_treatment) if mean_counterfactual_post_treatment != 0 else np.nan
-            
-            # Components for Standardized ATT (SATT)
-            # Scaled mean squared pre-treatment residuals.
-            scaled_mean_sq_pre_treatment_residuals = (num_actual_post_periods / num_pre_treatment_periods) * np.mean(pre_treatment_residuals**2) if num_pre_treatment_periods > 0 else np.nan
-            mean_sq_pre_treatment_residuals = np.mean(pre_treatment_residuals**2) if num_pre_treatment_periods > 0 else np.nan
-            # Denominator for SATT, based on pre-treatment residual variance.
-            standard_error_denominator_for_satt = np.sqrt(scaled_mean_sq_pre_treatment_residuals + mean_sq_pre_treatment_residuals) if not (np.isnan(scaled_mean_sq_pre_treatment_residuals) or np.isnan(mean_sq_pre_treatment_residuals)) else np.nan
-            
-            # Standardized ATT.
-            standardized_average_treatment_effect = (np.sqrt(num_actual_post_periods) * average_treatment_effect_treated / standard_error_denominator_for_satt) if standard_error_denominator_for_satt != 0 and not np.isnan(standard_error_denominator_for_satt) else np.nan
-            
-            # Total Treatment Effect (TTE): sum of differences in the post-period.
-            total_treatment_effect = np.sum(observed_outcome_series[post_period_slice] - counterfactual_outcome_series[post_period_slice])
-            
-            # Time series of ATT for each post-treatment period.
-            att_time_series = observed_outcome_series[post_period_slice] - counterfactual_outcome_series[post_period_slice]
-            # Time series of Percent ATT.
-            percent_att_time_series = np.full_like(att_time_series, np.nan) # Initialize with NaNs.
-            non_zero_cf_post_mask = counterfactual_outcome_series[post_period_slice] != 0 # Avoid division by zero.
-            percent_att_time_series[non_zero_cf_post_mask] = 100 *\
-                att_time_series[non_zero_cf_post_mask] / counterfactual_outcome_series[post_period_slice][non_zero_cf_post_mask]
-            # Time series of SATT (currently a placeholder, as per-period SATT might need different scaling).
-            satt_time_series = np.full_like(att_time_series, np.nan) 
-            
-            # RMSE of the gap in the post-treatment period (T1 RMSE).
-            post_treatment_rmse = round(np.std(observed_outcome_series[post_period_slice] - counterfactual_outcome_series[post_period_slice]), 3)
-
-        else: # Handle case with no post-treatment periods.
+            average_treatment_effect_treated = _eff.att(post_gap)
+            average_treatment_effect_treated_percent = _eff.percent_att(
+                average_treatment_effect_treated, cf_post
+            )
+            standardized_average_treatment_effect = _eff.standardized_att(pre_gap, post_gap)
+            total_treatment_effect = _eff.total_effect(post_gap)
+            att_time_series = post_gap
+            percent_att_time_series = _eff.percent_gap(post_gap, cf_post)
+            satt_time_series = np.full_like(att_time_series, np.nan)
+            # "T1 RMSE" is historically the std dev of the post-treatment gap.
+            post_treatment_rmse = round(_fit.std(post_gap), 3)
+        else:  # No post-treatment periods.
             average_treatment_effect_treated = np.nan
             average_treatment_effect_treated_percent = np.nan
             standardized_average_treatment_effect = np.nan
@@ -447,9 +436,9 @@ class effects:
         # --- Compile Results into Dictionaries ---
         # Dictionary for goodness-of-fit statistics.
         fit_statistics_dict = {
-            "T0 RMSE": round(np.sqrt(np.mean(pre_treatment_residuals**2)), 3) if num_pre_treatment_periods > 0 else np.nan, # Pre-treatment RMSE
-            "T1 RMSE": post_treatment_rmse, # Post-treatment RMSE (std dev of post-treatment gap)
-            "R-Squared": round(r_squared_pre_treatment, 3), # Pre-treatment R-squared
+            "T0 RMSE": round(t0_rmse, 3) if not np.isnan(t0_rmse) else np.nan,
+            "T1 RMSE": post_treatment_rmse,
+            "R-Squared": round(r_squared_pre_treatment, 3) if not np.isnan(r_squared_pre_treatment) else np.nan,
             "Pre-Periods": num_pre_treatment_periods,
             "Post-Periods": num_actual_post_periods,
         }
@@ -462,30 +451,18 @@ class effects:
             "TTE": round(total_treatment_effect, 3) if not np.isnan(total_treatment_effect) else np.nan,
             "ATT_Time": np.round(att_time_series, 3),
             "PercentATT_Time": np.round(percent_att_time_series, 3),
-            "SATT_Time": np.round(satt_time_series, 3), # Placeholder SATT time series
+            "SATT_Time": np.round(satt_time_series, 3),  # Placeholder SATT time series
         }
 
-        # Calculate the gap series (observed - counterfactual) for all periods.
-        gap_series = observed_outcome_series - counterfactual_outcome_series
-
-        # Create a relative time column: 0 for treatment start, negative for pre, positive for post.
+        # Relative time column: 0 at treatment start, negative pre, positive post.
         relative_time_column_for_gap = np.arange(gap_series.shape[0]) - num_pre_treatment_periods + 1
-        # Combine gap series and relative time into a 2-column matrix.
         gap_matrix = np.column_stack((gap_series, relative_time_column_for_gap))
 
-        # Dictionary for key time series vectors.
-        cf_series_for_dict = np.full_like(observed_outcome_series, np.nan, dtype=float) # Default to NaNs, ensure float
-        if counterfactual_outcome_series is not None and\
-           isinstance(counterfactual_outcome_series, np.ndarray) and\
-           counterfactual_outcome_series.size == observed_outcome_series.size:
-            try:
-                # Ensure counterfactual_outcome_series is 1D before reshape
-                reshaped_cf = counterfactual_outcome_series.flatten().reshape(-1, 1)
-                cf_series_for_dict = np.round(reshaped_cf, 3)
-            except Exception: # Broad catch if reshape/round fails
-                # If error, cf_series_for_dict remains as NaNs
-                pass
-        
+        # Counterfactual column vector (NaNs if shapes are incompatible).
+        cf_series_for_dict = np.full_like(obs, np.nan, dtype=float)
+        if cf.size == obs.size:
+            cf_series_for_dict = np.round(cf.reshape(-1, 1), 3)
+
         time_series_vectors_dict = {
             "Observed Unit": np.round(observed_outcome_series.reshape(-1, 1), 3), # Reshape to column vector
             "Counterfactual": cf_series_for_dict, # Use the robustly prepared series

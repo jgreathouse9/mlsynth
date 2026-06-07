@@ -12,6 +12,8 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
+from . import effectutils as em
+from . import fitutils as fm
 from ..config_models import (
     EffectsResults,
     FitDiagnosticsResults,
@@ -86,38 +88,20 @@ def effect_metrics(
         ``r_squared_pre`` (floats; ``nan`` where undefined) and ``gap``
         (the full-length ``observed - counterfactual`` array).
     """
-    obs = np.asarray(observed_outcome, dtype=float).ravel()
-    cf = np.asarray(counterfactual_outcome, dtype=float).ravel()
-    gap = obs - cf
-    pre = slice(0, n_pre_periods)
-    post = slice(n_pre_periods, n_pre_periods + n_post_periods)
+    obs = em._ravel(observed_outcome)
+    full_gap = em.gap(obs, counterfactual_outcome)
+    pre_gap, post_gap = em.split_pre_post(full_gap, n_pre_periods, n_post_periods)
+    obs_pre, _ = em.split_pre_post(obs, n_pre_periods, n_post_periods)
+    _, cf_post = em.split_pre_post(counterfactual_outcome, n_pre_periods, n_post_periods)
 
-    pre_resid = gap[pre]
-    rmse_pre = float(np.sqrt(np.mean(pre_resid ** 2))) if n_pre_periods > 0 else float("nan")
-    obs_pre = obs[pre]
-    var_pre = float(np.mean((obs_pre - obs_pre.mean()) ** 2)) if n_pre_periods > 0 else 0.0
-    r_squared_pre = (
-        float(1.0 - np.mean(pre_resid ** 2) / var_pre)
-        if n_pre_periods > 0 and var_pre != 0.0
-        else float("nan")
-    )
-
-    if n_post_periods > 0:
-        post_gap = gap[post]
-        att = float(np.mean(post_gap))
-        cf_post_mean = float(np.mean(cf[post]))
-        att_percent = float(100.0 * att / cf_post_mean) if cf_post_mean != 0.0 else float("nan")
-        rmse_post = float(np.sqrt(np.mean(post_gap ** 2)))
-    else:
-        att = att_percent = rmse_post = float("nan")
-
+    att_value = em.att(post_gap)
     return {
-        "att": att,
-        "att_percent": att_percent,
-        "rmse_pre": rmse_pre,
-        "rmse_post": rmse_post,
-        "r_squared_pre": r_squared_pre,
-        "gap": gap,
+        "att": att_value,
+        "att_percent": em.percent_att(att_value, cf_post),
+        "rmse_pre": fm.rmse(pre_gap) if n_pre_periods > 0 else float("nan"),
+        "rmse_post": fm.rmse(post_gap) if n_post_periods > 0 else float("nan"),
+        "r_squared_pre": fm.r_squared(obs_pre, pre_gap) if n_pre_periods > 0 else float("nan"),
+        "gap": full_gap,
     }
 
 
