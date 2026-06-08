@@ -77,27 +77,31 @@ same panel; both deliver the same "no spurious effect" verdict.)
 Path B — the design recovers the effect (Abadie-Zhao Sec. 5)
 ------------------------------------------------------------
 
-On the paper's linear-factor DGP
-(:func:`mlsynth.utils.marex_helpers.simulation.generate_marex_sample`,
-eqs 12a/12b) we run the full experimental-design loop: LEXSCM picks the treated
+On the paper's exact Section-5 linear-factor DGP
+(:func:`mlsynth.utils.marex_helpers.simulation.generate_marex_sample`, eqs
+12a/12b) — ``J = 15`` units, ``R = 7`` observed and ``F = 11`` unobserved
+covariates, ``T = 30`` with ``T0 = 25`` pre-intervention (``T_E = 20`` fitting,
+5 blank, 5 experimental), ``sigma^2 = 1``, uniform weights, every unit a
+candidate — we run the full experimental-design loop: LEXSCM picks the treated
 units from the pre-period untreated outcomes, the experiment realizes the
 treated potential outcome on exactly those units, and the design's estimator is
 compared to the true effect. The design recovers the average effect with MAE far
-below its own scale, and the error shrinks as more units are treated — the
-paper's Table 2 finding:
+below its own scale, and the error shrinks moving from the single-treated-unit
+design to ``m = 2`` — the paper's Table 2 finding ("performance improves
+substantially when allowing m = 2 or 3"):
 
 .. list-table:: Design MAE relative to the effect scale (paired draws)
    :header-rows: 1
-   :widths: 30 35 35
+   :widths: 36 32 32
 
    * - Treated cardinality
      - MAE / effect scale
      -
-   * - ``m = 2``
-     - **0.17**
+   * - ``m = 1`` (single treated)
+     - **0.24**
      -
-   * - ``m = 4``
-     - **0.09**
+   * - ``m = 2``
+     - **0.16**
      - (error decreases with m)
 
 The durable check is ``benchmarks/cases/lexscm_design_mc.py``::
@@ -105,7 +109,7 @@ The durable check is ``benchmarks/cases/lexscm_design_mc.py``::
    python benchmarks/run_benchmarks.py --case lexscm_design_mc
 
 It asserts the design recovers the effect (MAE well below scale at both
-cardinalities) and that the error decreases from ``m = 2`` to ``m = 4``.
+cardinalities) and that the error decreases from ``m = 1`` to ``m = 2``.
 
 References
 ----------

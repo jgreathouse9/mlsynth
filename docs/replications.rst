@@ -355,10 +355,11 @@ Experimental design
   45-store placebo design -- pre-fit RMSE :math:`\approx 2.7\%` of
   mean sales, placebo effect :math:`\approx 0.9\%`, permutation
   p :math:`\approx 0.63` (CI covers zero), the paper's "no spurious
-  effect" result. **Path B:** the Abadie-Zhao linear-factor design
-  simulation -- the design recovers the planted effect with
-  MAE/scale :math:`\approx 0.17` at :math:`m=2` falling to
-  :math:`\approx 0.09` at :math:`m=4` (Table-2 monotonicity).
+  effect" result. **Path B:** the Abadie-Zhao Section-5 linear-factor
+  design simulation (exact params: :math:`J=15`, :math:`T_E=20`) -- the
+  design recovers the planted effect with MAE/scale :math:`\approx 0.24`
+  for the single-treated-unit design falling to :math:`\approx 0.16` at
+  :math:`m=2` (Table-2 monotonicity).
   → dedicated page: :doc:`replications/lexscm`.
 
 Coverage summary
