@@ -10,6 +10,8 @@ CASES = {
     "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs causaltensor
     "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs causaltensor
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
+    "clustersc_subgroups": "benchmarks.cases.clustersc_subgroups",      # Path B: ClusterSC vs RSC
+    "clustersc_subgroups_ref": "benchmarks.cases.clustersc_subgroups_ref",  # cross-val vs authors' repo
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
 }
 

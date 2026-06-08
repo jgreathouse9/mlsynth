@@ -929,6 +929,20 @@ roughly 0.3-0.5 s each on a moderate panel),
 per-period PIs, in-sample bootstrap bands, the Hoeffding constant,
 and the aggregated ATT PI.
 
+Verification
+------------
+
+In the high-dimensional-subgroup regime (pooled donor rank
+:math:`> T_0`), ``CLUSTERSC`` reproduces the central claim of Rho et al.
+(2025): donor clustering lowers the post-period prediction MSE versus the
+whole-pool RSC baseline at every noise level (down
+:math:`60.8\% / 43.2\% / 24.3\%` at :math:`\sigma = 0.10/0.25/0.40`).
+Both modes run through the one estimator (``clustering=False`` is RSC,
+``clustering=True`` is ClusterSC). Pinned in
+``benchmarks/cases/clustersc_subgroups.py``; the authors' own code is
+cross-checked against its paper in ``clustersc_subgroups_ref.py``. See the
+dedicated page :doc:`replications/clustersc`.
+
 Core API
 --------
 

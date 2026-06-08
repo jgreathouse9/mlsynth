@@ -54,6 +54,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/sdid
    replications/mcnnm
    replications/spsydid
+   replications/clustersc
 
 .. _replications-canonical:
 
@@ -166,7 +167,14 @@ High-dimensional donor pools
   German reunification -- Norway weight 0.48, France 0.35,
   pre-RMSE :math:`\approx 90` matching Bayani's reference figures.
   **Path B:** Amjad-Shah-Shen periodicity DGP plus a two-factor
-  DGP for missing-data robustness.
+  DGP for missing-data robustness. **Path B (subgroups,
+  cross-validated):** Rho et al. (2025) ClusterSC -- in the
+  high-dimensional-subgroup regime (pooled rank :math:`>T_0`)
+  ClusterSC beats whole-pool RSC at every noise level (MSE down
+  :math:`60.8\% / 43.2\% / 24.3\%` at :math:`\sigma = 0.10/0.25/0.40`),
+  and the authors' own code reproduces its :math:`\approx 50\%`
+  headline on its own DGP.
+  → dedicated page: :doc:`replications/clustersc`.
 * :doc:`mlsc` -- Bottmer (2024) multi-level SC. **Path A:**
   matched to the reference implementation on the README DGP --
   :math:`\widehat{\mathrm{ATT}} = +0.011930`,

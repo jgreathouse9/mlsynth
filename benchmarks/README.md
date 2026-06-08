@@ -30,9 +30,12 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         sdid_prop99.py      # cross-val: SDID vs causaltensor on Prop 99
         mcnnm_prop99.py     # cross-val: MC-NNM vs causaltensor on Prop 99
         spsydid_state_mc.py # cross-val: SpSyDiD vs the authors' repo (per-rep)
+        clustersc_subgroups.py      # Path B: ClusterSC vs whole-pool RSC (subgroup regime)
+        clustersc_subgroups_ref.py  # cross-val: authors' ClusterSC code vs its own paper
       reference/            # Python reference implementations (cloned on demand)
         clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
         spsydid_ref.py      # authors' SDID weights + the notebook's spatial WLS
+        clone_clustersc.py  # pin + clone srho1/ClusterSC (MIT; imported not vendored)
       R/                    # reference-implementation cross-checks
         requirements.R      # install the reference R packages
         synth_crosscheck.R  # run R's Synth on a dumped panel for cell-by-cell comparison
@@ -65,14 +68,16 @@ are part of the default `--all` set but **skip gracefully** when their optional
 dependency is absent — install these to actually exercise them:
 
 ```bash
-pip install causaltensor   # sdid_prop99, mcnnm_prop99
-pip install libpysal       # spsydid_state_mc (reads the .gal spatial weights)
+pip install causaltensor      # sdid_prop99, mcnnm_prop99
+pip install libpysal          # spsydid_state_mc (reads the .gal spatial weights)
+pip install kneed scikit-learn # clustersc_subgroups_ref (the authors' syclib deps)
 ```
 
-`spsydid_state_mc` additionally **clones** the authors' (unlicensed) reference
-repo `serenini/spatial_SDID` at a pinned commit into
-`benchmarks/reference/.cache/` (git-ignored) — it is imported, never vendored.
-If git or the network is unavailable the case skips.
+`spsydid_state_mc` and `clustersc_subgroups_ref` additionally **clone** the
+authors' reference repos (`serenini/spatial_SDID`, `srho1/ClusterSC`) at pinned
+commits into `benchmarks/reference/.cache/` (git-ignored) — imported, never
+vendored. If git or the network is unavailable the case skips. (The mlsynth-only
+`clustersc_subgroups` Path-B case needs no clone and always runs.)
 
 ## Adding a benchmark
 
