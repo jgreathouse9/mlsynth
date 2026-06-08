@@ -8,11 +8,11 @@ error)** across noise levels -- so the in-sample pre-fit is an honest predictor
 of out-of-sample forecast accuracy. Both errors are measured against the *true*
 (noise-free) mean, which the synthetic DGP makes available.
 
-This exercises mlsynth's PCR-SC path (``CLUSTERSC`` with ``clustering=False`` --
-the Amjad-Shah-Shen RSC: HSVT-denoise the donors, then OLS). It is run through
-the lighter :func:`mlsynth.utils.clustersc_helpers.pcr.pipeline.run_pcr` entry
-point -- this is a prediction-only simulation that needs no confidence
-intervals, so it skips the (now vectorised) Shen-CI machinery entirely.
+This exercises mlsynth's PCR-SC path through the public ``CLUSTERSC().fit()`` API
+(``clustering=False`` -- the Amjad-Shah-Shen RSC: HSVT-denoise the donors, then
+OLS), reading the counterfactual via the standardized ``res.counterfactual``
+accessor. ``compute_shen_ci=False`` skips the per-period CIs this
+prediction-only study does not need.
 
 Provenance
 ----------
@@ -40,21 +40,29 @@ NOISE_LEVELS = [3.1, 1.3, 0.4]
 
 
 def _train_gen_error(noise: float):
-    """Median (over placebo targets) pre/post MSE of the RSC estimate vs truth."""
-    from mlsynth.utils.clustersc_helpers.pcr.pipeline import run_pcr
+    """Mean (over placebo targets) pre/post MSE of the RSC estimate vs truth."""
+    import pandas as pd
+
+    from mlsynth import CLUSTERSC
 
     panel = simulate_rsc_panel(N=100, T=2000, T0=1600, noise=noise, seed=SEED)
     M, X, T0 = panel.means, panel.observed, panel.T0
-    J = X.shape[0] - 1
+    wide = pd.DataFrame(X.T)                          # (T, N); columns are unit ids
+    wide.columns = range(X.shape[0])
     train, gen = [], []
     for ti in range(N_TARGETS):
-        target = X[ti]
-        donors = np.delete(X, ti, axis=0).T          # (T, J)
-        fit, _ = run_pcr(target, donors, [str(j) for j in range(J)], T0,
-                         objective="OLS", estimator="frequentist", clustering=False,
-                         rank=RANK, rank_method="fixed", project_denoised=True,
-                         compute_shen_ci=False)
-        cf = np.asarray(fit.counterfactual).ravel()
+        long = (wide.reset_index()
+                .melt(id_vars="index", var_name="unit", value_name="y")
+                .rename(columns={"index": "time"}))
+        long["treat"] = ((long["unit"] == ti) & (long["time"] >= T0)).astype(int)
+        res = CLUSTERSC({
+            "df": long, "outcome": "y", "treat": "treat",
+            "unitid": "unit", "time": "time",
+            "method": "pcr", "clustering": False, "pcr_objective": "OLS",
+            "rank": RANK, "rank_method": "fixed", "project_denoised": True,
+            "compute_shen_ci": False, "display_graphs": False,
+        }).fit()
+        cf = np.asarray(res.counterfactual).ravel()
         truth = M[ti]
         train.append(float(np.mean((cf[:T0] - truth[:T0]) ** 2)))
         gen.append(float(np.mean((cf[T0:] - truth[T0:]) ** 2)))
