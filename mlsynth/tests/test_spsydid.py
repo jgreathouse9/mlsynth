@@ -292,6 +292,37 @@ def test_weights_results_exposed(grid_panel):
     assert "time_weights" in res.weights.summary_stats
 
 
+def test_two_family_result_contract(grid_panel):
+    """SpSyDiD conforms to the observational (EffectResult) contract.
+
+    SpSyDiD needs a spatial-weight matrix, so it cannot join the single-df loop
+    in test_result_contract.py; pin the contract here instead. The standardized
+    surface describes the DIRECT effect (att = tau); the indirect (aite) and
+    total (ate) effects are typed extras with no single counterfactual path.
+    """
+    import numpy as np
+    from mlsynth.config_models import EffectResult, MlsynthResult
+    df, W, _, _ = grid_panel
+    res = SpSyDiD({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
+                   "time": "time", "spatial_matrix": W,
+                   "display_graphs": False}).fit()
+    assert isinstance(res, MlsynthResult)
+    assert isinstance(res, EffectResult)
+    # standardized sub-models populated from the direct-effect series
+    assert res.effects is not None and res.effects.att is not None
+    assert res.time_series is not None
+    assert res.time_series.counterfactual_outcome is not None
+    assert res.weights is not None
+    assert res.method_details is not None and res.method_details.method_name
+    # flat accessor == direct effect (tau); aite/ate carried as typed extras
+    assert res.att == pytest.approx(res.effects.att)
+    assert res.att == pytest.approx(res.tau)
+    assert res.effects.additional_effects["aite"] == pytest.approx(res.aite)
+    assert res.effects.additional_effects["ate"] == pytest.approx(res.ate)
+    # SpSyDiD has no statistical inference
+    assert res.inference is None
+
+
 # ----------------------------------------------------------------------
 # Path-B replication: pin Serenini & Masek (2024) headline Monte Carlo
 # numbers as a permanent regression check. Drives through the public
