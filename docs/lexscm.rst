@@ -722,14 +722,32 @@ Result Containers
 -----------------
 
 ``LEXSCM.fit()`` returns a
-:class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMResults` carrying the
+:class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMResults`, which is a
+:class:`~mlsynth.config_models.DesignResult` -- the experimental-design half of
+mlsynth's two-family result contract. LEXSCM *chooses which units to treat*
+before any intervention, so it returns a **design** that resolves to an effect
+report. The standardized design fields are:
+
+* ``res.report`` -- an :class:`~mlsynth.config_models.EffectResult` built from the
+  realized post-fit (the same flat ``att`` / ``counterfactual`` / ``gap`` /
+  ``att_ci`` surface every effect estimator exposes);
+* ``res.selected_units`` -- the treated units chosen by the design;
+* ``res.assignment`` -- the treated / control split;
+* ``res.design_weights`` -- the synthetic-control weights implied by the design
+  (a :class:`~mlsynth.config_models.WeightsResults`);
+* ``res.power`` -- the design's MDE / power analysis;
+* ``res.metadata`` -- the lexicographic recommendation diagnostics.
+
+Alongside the contract fields it keeps the LEXSCM-specific search structure: the
 winning :class:`~mlsynth.utils.fast_scm_helpers.structure.SEDCandidate`
-(weights, predictions, losses, inference), the full candidate shortlist, the
-Stage-1 branch-and-bound metadata, and the time / unit metadata blocks. In
-addition, ``results.post_fit`` is the standardized
+(``res.best_candidate``), the full candidate shortlist (``res.summary`` /
+``res.all_candidates``), the Stage-1 branch-and-bound metadata
+(``res.bnb_metadata``), and the time / unit metadata blocks. ``res.post_fit`` is
+the standardized
 :class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` shared across the
 MAREX family (LEXSCM / MAREX / SYNDES / PANGEO): same ATE / RMSE / SMD /
-inference / power surface, regardless of which estimator produced the design.
+inference / power surface, regardless of which estimator produced the design
+(``res.report`` is the contract-standard view of the same realization).
 
 .. autoclass:: mlsynth.utils.fast_scm_helpers.structure.LEXSCMResults
    :members:

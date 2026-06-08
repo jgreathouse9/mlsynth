@@ -3,7 +3,17 @@ import pandas as pd
 from typing import Any, Dict, Optional, List, Literal
 
 # Configuration and Exceptions
-from ..config_models import BaseMAREXConfig, LEXSCMConfig
+from ..config_models import (
+    BaseMAREXConfig,
+    EffectResult,
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    LEXSCMConfig,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from ..exceptions import MlsynthDataError, MlsynthEstimationError
 from ..utils.helperutils import lexplot
 # Utilities - Data Handling
@@ -239,7 +249,7 @@ class LEXSCM:
                 float(np.mean([a for _, _, a, _ in finite])),
                 float(np.mean(pcts)) if pcts else np.nan)
 
-    def fit(self, **kwargs) -> "LEXSCM":
+    def fit(self, **kwargs) -> "LEXSCMResults":
         """
         Run the full Synthetic Experiment Design pipeline.
 
@@ -495,24 +505,13 @@ class LEXSCM:
         )
 
         # =========================================================
-        # FINAL RESULTS OBJECT
-        # =========================================================
-        results = LEXSCMResults(
-            summary=shortlist,
-            best_candidate=best_candidate,
-            all_candidates=candidate_results,
-            bnb_metadata=bbresults,
-
-            time=time_info,
-            units=unit_info,
-
-            outcome=self.outcome,
-            y_pop_mean_t=y_pop_mean_t
-        )
-
         # Standardized post-fit + power analysis from the chosen design's gap
         # series. Mirrors the MAREX / SYNDES wiring so downstream consumers see
         # the same SyntheticControlPostFit surface across the entire family.
+        # Computed before assembling the (frozen) result so it can feed both the
+        # ``post_fit`` field and the contract-standard ``report``.
+        # =========================================================
+        pf = None
         try:
             from ..utils.post_fit import compute_post_fit, compute_power_analysis
             from dataclasses import replace as _dc_replace
@@ -534,11 +533,94 @@ class LEXSCM:
                 pf = _dc_replace(pf, power=power)
             except Exception:        # never let power analysis break a fit
                 pass
-            results.post_fit = pf
         except Exception:            # never let post_fit assembly break a fit
-            pass
+            pf = None
+
+        # =========================================================
+        # Standardized two-family (design) result contract.
+        # =========================================================
+        design_donor_weights = {
+            str(k): float(v) for k, v in best.control_weight_dict.items()
+        }
+        design_weights = WeightsResults(
+            donor_weights=design_donor_weights,
+            summary_stats={
+                "n_treated": int(unit_info.treated_size),
+                "n_control": int(unit_info.control_size),
+                "treated_weights": {
+                    str(k): float(v) for k, v in best.treated_weight_dict.items()
+                },
+            },
+        )
+        report = self._report_from_post_fit(
+            pf, time_info, design_donor_weights) if pf is not None else None
+        rec = bbresults.get("recommendation", {})
+
+        # =========================================================
+        # FINAL RESULTS OBJECT
+        # =========================================================
+        results = LEXSCMResults(
+            # --- standardized design-family fields ---
+            report=report,
+            selected_units=list(treated_labels),
+            assignment={"treated": list(treated_labels),
+                        "control": list(control_labels)},
+            design_weights=design_weights,
+            power=(pf.power if pf is not None else None),
+            metadata={
+                "status": rec.get("status"),
+                "winner": rec.get("winner"),
+                "pareto_ids": rec.get("pareto_ids"),
+                "n_candidates": len(candidate_results),
+                "outcome": self.outcome,
+            },
+            # --- LEXSCM-specific search/diagnostic structure ---
+            summary=shortlist,
+            best_candidate=best_candidate,
+            all_candidates=candidate_results,
+            bnb_metadata=bbresults,
+            time=time_info,
+            units=unit_info,
+            outcome=self.outcome,
+            y_pop_mean_t=y_pop_mean_t,
+            post_fit=pf,
+        )
 
         if self.display_graph:
             lexplot(results)
 
         return results
+
+    @staticmethod
+    def _report_from_post_fit(pf, time_info, donor_weights) -> EffectResult:
+        """Build the realized effect report (an EffectResult) from the post-fit.
+
+        The design ``resolves`` to this observational report once outcomes
+        exist (``DesignResult.report``); it carries the same standardized
+        sub-models every effect estimator exposes.
+        """
+        treated = np.asarray(pf.treated_series, dtype=float)
+        control = np.asarray(pf.control_series, dtype=float)
+        gap = np.asarray(pf.gap_series, dtype=float)
+        times = np.asarray(time_info.index.labels)
+        time_periods = times if times.shape[0] == treated.shape[0] else None
+        intervention = None
+        if time_periods is not None and time_info.n_pre < time_periods.shape[0]:
+            intervention = time_periods[time_info.n_pre]
+        return EffectResult(
+            effects=EffectsResults(att=pf.ate, att_percent=pf.ate_percent),
+            time_series=TimeSeriesResults(
+                observed_outcome=treated,
+                counterfactual_outcome=control,
+                estimated_gap=gap,
+                time_periods=time_periods,
+                intervention_time=intervention,
+            ),
+            fit_diagnostics=FitDiagnosticsResults(
+                rmse_pre=pf.rmse_fit, rmse_post=pf.rmse_post),
+            inference=InferenceResults(
+                p_value=pf.p_value, ci_lower=pf.ci_lower, ci_upper=pf.ci_upper,
+                standard_error=None, method=pf.inference_method),
+            weights=WeightsResults(donor_weights=donor_weights),
+            method_details=MethodDetailsResults(method_name="LEXSCM"),
+        )

@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 from typing import Optional, List, Dict, Any, Iterable
 
+from pydantic import ConfigDict, Field as PydField
+
+from ...config_models import DesignResult
 from .fast_scm_bb_helpers import Solution
 #from .fast_scm_setup import IndexSet
 
@@ -247,24 +250,51 @@ class UnitInfo:
 # =========================================================
 # FINAL RESULTS OBJECT
 # =========================================================
-@dataclass
-class LEXSCMResults:
-    summary: pd.DataFrame
+class LEXSCMResults(DesignResult):
+    """Top-level container returned by :meth:`mlsynth.LEXSCM.fit`.
+
+    A :class:`~mlsynth.config_models.DesignResult` (the experimental-design
+    family): LEXSCM *chooses which units to treat* before any intervention, so
+    its output is a design that resolves to an effect report. The standardized
+    design fields (``report`` -- an :class:`~mlsynth.config_models.EffectResult`
+    built from the realized post-fit; ``selected_units``; ``assignment``;
+    ``design_weights``; ``power``; ``metadata``) are populated by the
+    orchestrator. The LEXSCM-specific search/diagnostic structure is kept on the
+    fields below.
+
+    Parameters
+    ----------
+    summary : pd.DataFrame
+        Ranked shortlist of candidate designs.
+    best_candidate : SEDCandidate
+        The selected design (winner of the lexicographic search).
+    all_candidates : list of SEDCandidate
+        Every evaluated candidate.
+    bnb_metadata : dict
+        Branch-and-bound search diagnostics + the recommendation record.
+    time : TimeInfo
+        Pre/blank/post period structure.
+    units : UnitInfo
+        Treated / control unit labels.
+    outcome : str
+        Outcome column name.
+    y_pop_mean_t : np.ndarray
+        Population-mean outcome series over time.
+    post_fit : SyntheticControlPostFit or None
+        Standardized post-fit diagnostics (ATE / total / RMSE / SMD / power)
+        from the chosen design; ``None`` if post-fit assembly failed. The
+        ``report`` field is the contract-standard view of the same realization.
+    """
+
+    model_config = ConfigDict(
+        frozen=True, arbitrary_types_allowed=True, extra="allow")
+
+    summary: Any
     best_candidate: SEDCandidate
     all_candidates: List[SEDCandidate]
     bnb_metadata: Dict[str, Any]
-
-    # structured metadata
     time: TimeInfo
     units: UnitInfo
-
     outcome: str
-
-    # OPTIONAL
-    y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
-
-    # Standardized post-fit diagnostics (SyntheticControlPostFit) computed from
-    # ``best_candidate.predictions`` at the end of LEXSCM.fit(). Provides the
-    # unified ATE / total / RMSE / SMD / power surface used across the entire
-    # MAREX-family (LEXSCM, MAREX, SYNDES, PANGEO).
+    y_pop_mean_t: np.ndarray = PydField(default_factory=lambda: np.array([]))
     post_fit: Optional[Any] = None
