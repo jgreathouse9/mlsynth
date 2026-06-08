@@ -34,6 +34,8 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         clustersc_subgroups_ref.py  # cross-val: authors' ClusterSC code vs its own paper
         rsc_synth_error.py          # Path B: RSC train-error approximates gen-error (ASS 2018)
         rsc_shen_coverage.py        # cross-val: Shen et al. PCR CIs + coverage validity
+        lexscm_walmart.py           # Path A: LEXSCM Walmart placebo design (Abadie-Zhao Sec 4)
+        lexscm_design_mc.py         # Path B: LEXSCM recovers planted effect (Abadie-Zhao Sec 5)
       reference/            # Python reference implementations (cloned on demand)
         clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
         spsydid_ref.py      # authors' SDID weights + the notebook's spatial WLS

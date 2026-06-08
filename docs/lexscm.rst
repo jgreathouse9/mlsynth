@@ -703,6 +703,19 @@ fit; ``res.post_fit.power`` is simply left as ``None``. To compute on a
 non-default horizon grid or significance level call
 :func:`~mlsynth.utils.post_fit.compute_power_analysis` directly.
 
+Verification
+------------
+
+LEXSCM is validated against the synthetic-experimental-design framework it
+implements (Abadie & Zhao 2026; Vives-i-Bastida 2022). **Path A:** the Walmart
+45-store placebo design tracks pre-period to ~2.7% of mean sales and yields a
+placebo effect of ~0.9% whose permutation test fails to reject (CI covers zero)
+-- the paper's "no spurious effect" result. **Path B:** on the paper's
+linear-factor DGP the design recovers the planted effect with MAE far below its
+scale (~0.17 at ``m = 2``, falling to ~0.09 at ``m = 4``). Pinned in
+``benchmarks/cases/lexscm_walmart.py`` and ``lexscm_design_mc.py``; see the
+dedicated page :doc:`replications/lexscm`.
+
 Core API
 --------
 

@@ -55,6 +55,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/mcnnm
    replications/spsydid
    replications/clustersc
+   replications/lexscm
 
 .. _replications-canonical:
 
@@ -349,11 +350,16 @@ Experimental design
   :math:`\widehat{\mathrm{ATT}} \approx 1.0`, RMSE
   :math:`\approx 0.4` against the random-design baseline RMSE
   :math:`\approx 3.9` (a :math:`10\times` improvement).
-* :doc:`lexscm` -- Lexicographic SC. **Path B:** synthetic sales
-  panel with budget and operational constraints --
-  enumeration solver returns ``OPTIMAL`` status and best
-  imbalance :math:`\approx 4 \times 10^{-4}`, demonstrating the
-  full lexicographic max-validity / max-power decision.
+* :doc:`lexscm` -- Lexicographic synthetic experimental design
+  (Abadie-Zhao 2026; Vives-i-Bastida 2022). **Path A:** the Walmart
+  45-store placebo design -- pre-fit RMSE :math:`\approx 2.7\%` of
+  mean sales, placebo effect :math:`\approx 0.9\%`, permutation
+  p :math:`\approx 0.63` (CI covers zero), the paper's "no spurious
+  effect" result. **Path B:** the Abadie-Zhao linear-factor design
+  simulation -- the design recovers the planted effect with
+  MAE/scale :math:`\approx 0.17` at :math:`m=2` falling to
+  :math:`\approx 0.09` at :math:`m=4` (Table-2 monotonicity).
+  → dedicated page: :doc:`replications/lexscm`.
 
 Coverage summary
 ----------------
