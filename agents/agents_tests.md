@@ -219,6 +219,41 @@ Validate:
 * outputs expose expected fields
 * metadata dimensions align
 
+### Result-contract conformance (`test_result_contract.py`)
+
+The two-family result contract (see `agents_results.md`) is machine-checked by
+a shared, parametrized harness. Every migrated estimator is added to the
+`OBSERVATIONAL` (or design) list; the harness asserts it returns an
+`EffectResult`/`DesignResult`, populates the standardized sub-models, and that
+the flat accessors resolve. Lessons from wiring up the first batch:
+
+* **The `fitted` fixture is module-scoped and cascades.** A single estimator
+  whose `fit()` *errors* during collection fails **every** conformance test,
+  not just its own param. Before adding an estimator to the list, run its fit
+  in isolation and confirm the config is accepted — a missing required field
+  (e.g. a spatial matrix) surfaces as a wall of unrelated red.
+* **Estimators needing non-standard inputs can't join the single-`df` loop.**
+  The harness feeds one canonical long panel. Estimators that require a
+  two-level panel (MLSC), a spatial weight matrix (SpSyDiD), or at least one
+  predictor (SparseSC) cannot be parametrized into it — pin a **dedicated
+  in-file** `test_two_family_result_contract` in the estimator's own test file
+  instead, asserting the same surface against a fixture that supplies the
+  special input.
+* **Pass cheap, deterministic config via the param's `extra` dict** so the
+  conformance fit stays fast and reproducible: a fixed penalty
+  (`{"lambda_": 0.5}`), few EM iterations (`{"d": 2, "n_em_iter": 2}`), or
+  explicit lags (`{"outcome_lag_periods": [1, 2]}`).
+
+### Frozen-result tests: `ValidationError`, and the accessor trap
+
+Migrated result objects are frozen **pydantic** models, so mutation raises
+`pydantic.ValidationError` — update any test that expected
+`dataclasses.FrozenInstanceError`. **Trap:** the flat fields (`att`,
+`counterfactual`, `gap`, `pre_rmse`) are now inherited **read-only properties**
+with no setter, so assigning to them raises `AttributeError`, *not*
+`ValidationError`. To assert immutability of the model itself, mutate a real
+**field** (e.g. `res.aite = ...`), not an accessor.
+
 ---
 
 # Preferred Testing Patterns
