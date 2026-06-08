@@ -106,3 +106,65 @@ def simulate_subgroup_panel(
     target_ids = list(np.where(labels == 0)[0])
     return SubgroupPanel(wide=wide, labels=labels, target_ids=target_ids,
                          T0=T0, rank=rank, K=K)
+
+
+@dataclass
+class RSCPanel:
+    """A latent-variable panel with the noise-free mean matrix retained.
+
+    Attributes
+    ----------
+    means : np.ndarray
+        ``(N, T)`` true (noise-free) mean matrix ``M``.
+    observed : np.ndarray
+        ``(N, T)`` observed matrix ``X = M + N(0, noise^2)``.
+    T0 : int
+        Pre-intervention length.
+    noise : float
+        Observation-noise standard deviation.
+    """
+
+    means: np.ndarray
+    observed: np.ndarray
+    T0: int
+    noise: float
+
+
+def simulate_rsc_panel(
+    *,
+    N: int = 100,
+    T: int = 2000,
+    T0: int = 1600,
+    noise: float = 1.0,
+    seed: int = 0,
+) -> RSCPanel:
+    """Latent-variable DGP of Amjad, Shah & Shen (2018), RSC Section 5.3.
+
+    Each unit ``i`` has a latent feature ``θ_i ~ U[0, 1]``; time is the latent
+    variable ``ρ_t = t``. The mean is
+
+    .. math::
+
+       m_{it} = θ_i + (0.3\\,θ_i\\,ρ_t/T)\\,e^{ρ_t/T}
+                + \\cos(f_1 π/180) + 0.5\\sin(f_2 π/180)
+                + 1.5\\cos(f_3 π/180) - 0.5\\sin(f_4 π/180),
+
+    with periodicities ``f_1 = ρ_t mod 360``, ``f_2 = ρ_t mod 180``,
+    ``f_3 = 2ρ_t mod 360``, ``f_4 = 2ρ_t mod 180`` (shared across units). The
+    observed matrix adds i.i.d. ``N(0, noise^2)`` noise. The signal is
+    approximately rank 3 (unit intercept + shared seasonal pattern +
+    ``θ``-scaled trend), the low-rank regime RSC targets.
+    """
+    rng = np.random.default_rng(seed)
+    theta = rng.uniform(0.0, 1.0, N)
+    t = np.arange(1, T + 1)
+    f1 = t % 360
+    f2 = t % 180
+    f3 = (2 * t) % 360
+    f4 = (2 * t) % 180
+    seasonal = (np.cos(f1 * np.pi / 180) + 0.5 * np.sin(f2 * np.pi / 180)
+                + 1.5 * np.cos(f3 * np.pi / 180) - 0.5 * np.sin(f4 * np.pi / 180))
+    trend = 0.3 * (t / T) * np.exp(t / T)
+    means = theta[:, None] + theta[:, None] * trend[None, :] + seasonal[None, :]
+    observed = means + rng.normal(0.0, noise, (N, T))
+    return RSCPanel(means=means, observed=observed, T0=T0, noise=noise)

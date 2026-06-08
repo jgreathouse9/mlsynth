@@ -32,10 +32,13 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         spsydid_state_mc.py # cross-val: SpSyDiD vs the authors' repo (per-rep)
         clustersc_subgroups.py      # Path B: ClusterSC vs whole-pool RSC (subgroup regime)
         clustersc_subgroups_ref.py  # cross-val: authors' ClusterSC code vs its own paper
+        rsc_synth_error.py          # Path B: RSC train-error approximates gen-error (ASS 2018)
+        rsc_shen_coverage.py        # cross-val: Shen et al. PCR CIs + coverage validity
       reference/            # Python reference implementations (cloned on demand)
         clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
         spsydid_ref.py      # authors' SDID weights + the notebook's spatial WLS
         clone_clustersc.py  # pin + clone srho1/ClusterSC (MIT; imported not vendored)
+        clone_panel_regressions.py  # pin + clone deshen24/panel-data-regressions (Shen CIs)
       R/                    # reference-implementation cross-checks
         requirements.R      # install the reference R packages
         synth_crosscheck.R  # run R's Synth on a dumped panel for cell-by-cell comparison
@@ -71,13 +74,15 @@ dependency is absent — install these to actually exercise them:
 pip install causaltensor      # sdid_prop99, mcnnm_prop99
 pip install libpysal          # spsydid_state_mc (reads the .gal spatial weights)
 pip install kneed scikit-learn # clustersc_subgroups_ref (the authors' syclib deps)
+pip install toolz scikit-learn # rsc_shen_coverage (the authors' var.py deps)
 ```
 
-`spsydid_state_mc` and `clustersc_subgroups_ref` additionally **clone** the
-authors' reference repos (`serenini/spatial_SDID`, `srho1/ClusterSC`) at pinned
-commits into `benchmarks/reference/.cache/` (git-ignored) — imported, never
-vendored. If git or the network is unavailable the case skips. (The mlsynth-only
-`clustersc_subgroups` Path-B case needs no clone and always runs.)
+`spsydid_state_mc`, `clustersc_subgroups_ref`, and `rsc_shen_coverage`
+additionally **clone** the authors' reference repos (`serenini/spatial_SDID`,
+`srho1/ClusterSC`, `deshen24/panel-data-regressions`) at pinned commits into
+`benchmarks/reference/.cache/` (git-ignored) — imported, never vendored. If git
+or the network is unavailable the case skips. (The mlsynth-only Path-B cases
+`clustersc_subgroups` and `rsc_synth_error` need no clone and always run.)
 
 ## Adding a benchmark
 

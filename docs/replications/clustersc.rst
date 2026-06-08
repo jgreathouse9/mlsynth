@@ -134,8 +134,91 @@ Run it with::
 It skips gracefully when the repo cannot be cloned or ``syclib`` / ``kneed`` are
 unavailable.
 
+RSC pre/post test error (Amjad-Shah-Shen 2018)
+----------------------------------------------
+
+The PCR-SC path is also benchmarked against the **Robust Synthetic Control**
+paper (Amjad, Shah & Shen 2018, JMLR 19:1-51) that underpins it. Section 5.3,
+Table 1 reports that on a low-rank latent-variable panel the **pre-intervention
+MSE (training error) approximates the post-intervention MSE (generalization
+error)** -- so the in-sample pre-fit honestly predicts out-of-sample forecast
+accuracy. Both errors are taken against the *true* (noise-free) mean, which the
+DGP exposes; mlsynth's RSC (``CLUSTERSC`` with ``clustering=False``) reproduces
+this at every noise level:
+
+.. list-table:: PCR-SC error vs the true mean (N=100, T=2000, T0=1600, rank 3)
+   :header-rows: 1
+   :widths: 16 22 22 18
+
+   * - Noise σ
+     - Training (pre) MSE
+     - Generalization (post) MSE
+     - gen / train
+   * - 3.1
+     - 0.176
+     - 0.202
+     - 1.15
+   * - 1.3
+     - 0.041
+     - 0.044
+     - 1.08
+   * - 0.4
+     - 0.0043
+     - 0.0044
+     - 1.03
+
+The ratio sits just above 1 throughout, matching the paper's "training error
+approximates generalization error" finding; the absolute magnitudes depend on
+the (paper-underspecified) truncation rank, so the durable check
+(``benchmarks/cases/rsc_synth_error.py``) pins the *ratio* and noise-monotonicity
+rather than Table 1's exact cells. The DGP is
+:func:`mlsynth.utils.clustersc_helpers.simulation.simulate_rsc_panel`.
+
+Confidence-interval coverage (Shen et al.)
+------------------------------------------
+
+mlsynth's frequentist PCR-SC confidence intervals port the variance estimators of
+Shen et al.'s *Same Root Different Leaves* (the
+https://github.com/deshen24/panel-data-regressions reference). Two cross-checks
+in ``benchmarks/cases/rsc_shen_coverage.py``:
+
+* **Variance cross-validation.** On identical resampled inputs, mlsynth's
+  ``_var_homo`` / ``_var_jack`` equal the reference ``var.py`` to machine
+  precision (max :math:`|\Delta| \approx 4\times 10^{-16}` / exactly 0).
+* **Coverage validity.** Reproducing the repo's ``simulation.py`` Monte Carlo
+  (calibrated to Prop 99), the **doubly-robust** variance is approximately valid
+  for *all three* estimands, while a single-source variance under-covers the
+  estimand it is not built for:
+
+  .. list-table:: 95%-CI coverage (seed 0, 500 reps)
+     :header-rows: 1
+     :widths: 26 18 18 18
+
+     * - Variance
+       - μ_hz
+       - μ_vt
+       - μ_dr
+     * - doubly robust (DR)
+       - 0.95
+       - 1.00
+       - 0.92
+     * - vertical only (VT)
+       - **0.63**
+       - 0.93
+       - 0.58
+
+  The DR variance keeps coverage near nominal everywhere; the vertical-only
+  variance covers the horizontal estimand just 63% of the time -- the paper's
+  motivation for the doubly-robust construction. Run with
+  ``python benchmarks/run_benchmarks.py --case rsc_shen_coverage`` (skips if the
+  repo cannot be cloned).
+
 References
 ----------
+
+Shen, D., Ding, P., Sekhon, J., & Yu, B. (2023). "Same Root Different Leaves:
+Time Series and Cross-Sectional Methods in Panel Data." *Econometrica*
+91(6):2125-2154.
 
 Rho, S., Tang, A., Bergam, N., Cummings, R., & Misra, V. (2025). "ClusterSC:
 Advancing Synthetic Control with Donor Selection." *arXiv:2503.21629.*

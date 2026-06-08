@@ -173,7 +173,14 @@ High-dimensional donor pools
   ClusterSC beats whole-pool RSC at every noise level (MSE down
   :math:`60.8\% / 43.2\% / 24.3\%` at :math:`\sigma = 0.10/0.25/0.40`),
   and the authors' own code reproduces its :math:`\approx 50\%`
-  headline on its own DGP.
+  headline on its own DGP. **Path B (RSC, Amjad-Shah-Shen 2018):**
+  the PCR-SC training error approximates its generalization error
+  (gen/train :math:`\approx 1.0\text{-}1.15`) across noise, the RSC
+  Table-1 finding. **Cross-validation (Shen et al. CIs):** mlsynth's
+  variance code matches deshen24/panel-data-regressions to machine
+  precision, and the doubly-robust CI attains :math:`\approx 95\%`
+  coverage for all three estimands where a single-source CI drops to
+  :math:`63\%`.
   → dedicated page: :doc:`replications/clustersc`.
 * :doc:`mlsc` -- Bottmer (2024) multi-level SC. **Path A:**
   matched to the reference implementation on the README DGP --
