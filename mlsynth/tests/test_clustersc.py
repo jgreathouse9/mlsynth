@@ -357,8 +357,10 @@ class TestEstimator:
             "method": "pcr", "estimator": "bayesian", "alpha": 0.10,
         }).fit()
         assert res.inference.method == "bayesian_credible"
-        lo, hi = res.inference.credible_interval
+        lo, hi = res.cluster_inference.credible_interval
         assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
+        # Standardized contract: the credible interval is mirrored into att_ci.
+        assert res.att_ci is not None and res.att_ci[0] <= res.att_ci[1]
 
     def test_shen_ci_for_frequentist_ols_pcr(self, panel):
         """Frequentist OLS PCR returns Shen-Ding-Sekhon-Yu (2023) CIs by default."""
@@ -369,7 +371,7 @@ class TestEstimator:
             "method": "pcr", "estimator": "frequentist",
         }).fit()
         assert res.inference.method == "shen_homoskedastic"
-        shen = res.inference.shen
+        shen = res.cluster_inference.shen
         assert shen is not None
         # Per-period structure: one CI per post-period.
         n_post = res.inputs.T - res.inputs.T0
@@ -429,7 +431,7 @@ class TestEstimator:
             "compute_cft_pi": True, "cft_sims": 30,
         }).fit()
         assert res.inference.method == "cft_gaussian"
-        cft = res.inference.cft
+        cft = res.cluster_inference.cft
         assert cft is not None
         n_post = res.inputs.T - res.inputs.T0
         assert cft.per_period_gap.shape == (n_post,)
@@ -451,7 +453,7 @@ class TestEstimator:
             "compute_shen_ci": False,
         }).fit()
         assert res.inference.method == "none"
-        assert res.inference.shen is None
+        assert res.cluster_inference.shen is None
 
     @pytest.mark.parametrize("objective", ["OLS", "SIMPLEX"])
     def test_pcr_objectives(self, panel, objective):

@@ -25,7 +25,15 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import CLUSTERSCConfig
+from ..config_models import (
+    CLUSTERSCConfig,
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -113,6 +121,97 @@ class CLUSTERSC:
         self.cft_alpha: float = config.cft_alpha
         self.cft_e_method: str = config.cft_e_method
         self.display_graphs: bool = config.display_graphs
+
+    def _standardize_results(
+        self, *, inputs, pcr_fit, rpca_fit, primary_fit, selected,
+        cluster_inference,
+    ) -> CLUSTERSCResults:
+        """Assemble the standardized EffectResult from the primary variant."""
+        # Scalar inference summary mirrored into the standardized slot.
+        ci_lower = ci_upper = std_err = None
+        if cluster_inference.method == "bayesian_credible":
+            lo, hi = cluster_inference.credible_interval
+            if np.isfinite(lo) and np.isfinite(hi):
+                ci_lower, ci_upper = float(lo), float(hi)
+        elif cluster_inference.shen is not None:
+            lo, hi = cluster_inference.shen.att_ci_dr
+            ci_lower, ci_upper = float(lo), float(hi)
+            std_err = float(cluster_inference.shen.att_se_dr)
+        elif cluster_inference.cft is not None:
+            lo, hi = cluster_inference.cft.att_pi
+            ci_lower, ci_upper = float(lo), float(hi)
+
+        std_inference = InferenceResults(
+            method=cluster_inference.method,
+            ci_lower=ci_lower,
+            ci_upper=ci_upper,
+            standard_error=std_err,
+            confidence_level=1.0 - float(self.alpha),
+        )
+
+        att = float(primary_fit.att) if primary_fit is not None else None
+        effects = EffectsResults(
+            att=att,
+            additional_effects={
+                "pcr_att": float(pcr_fit.att) if pcr_fit is not None else None,
+                "rpca_att": float(rpca_fit.att) if rpca_fit is not None else None,
+            },
+        )
+        time_series = TimeSeriesResults(
+            observed_outcome=np.asarray(inputs.treated_outcome, dtype=float),
+            counterfactual_outcome=(
+                np.asarray(primary_fit.counterfactual, dtype=float)
+                if primary_fit is not None else None),
+            estimated_gap=(
+                np.asarray(primary_fit.gap, dtype=float)
+                if primary_fit is not None else None),
+            time_periods=np.asarray(inputs.time_labels),
+            intervention_time=(
+                inputs.time_labels[inputs.T0] if inputs.T0 < inputs.T else None),
+        )
+        donor_weights = (
+            {str(k): float(v) for k, v in primary_fit.donor_weights.items()}
+            if primary_fit is not None else None)
+        weights = WeightsResults(
+            donor_weights=donor_weights,
+            summary_stats=(
+                {"n_selected_donors": int(len(primary_fit.selected_donors))}
+                if primary_fit is not None else None),
+        )
+        fit_diagnostics = FitDiagnosticsResults(
+            rmse_pre=float(primary_fit.pre_rmse) if primary_fit is not None else None,
+        )
+        method_name = (f"PCR-RSC ({self.estimator})" if selected == "pcr"
+                       else f"RPCA-SC ({self.rpca_method})")
+        method_details = MethodDetailsResults(
+            method_name=method_name,
+            parameters_used={
+                "method": self.method, "clustering": self.clustering,
+                "pcr_objective": self.pcr_objective, "rank_method": self.rank_method,
+            },
+        )
+
+        return CLUSTERSCResults(
+            effects=effects,
+            time_series=time_series,
+            weights=weights,
+            inference=std_inference,
+            fit_diagnostics=fit_diagnostics,
+            method_details=method_details,
+            inputs=inputs,
+            pcr=pcr_fit,
+            rpca=rpca_fit,
+            selected_variant=selected,
+            cluster_inference=cluster_inference,
+            metadata={
+                "method": self.method,
+                "primary": self.primary,
+                "estimator": self.estimator,
+                "rpca_method": self.rpca_method,
+                "pcr_objective": self.pcr_objective,
+                "clustering": self.clustering,
+            },
+        )
 
     def fit(self) -> CLUSTERSCResults:
         """Run the requested family (or both) and return a :class:`CLUSTERSCResults`."""
@@ -212,7 +311,7 @@ class CLUSTERSC:
             )
 
             if credible is not None and self.estimator == "bayesian":
-                inference = CLUSTERSCInference(
+                cluster_inference = CLUSTERSCInference(
                     method="bayesian_credible",
                     alpha=float(self.alpha),
                     att=primary_att,
@@ -232,40 +331,37 @@ class CLUSTERSC:
                     else None
                 )
                 if shen_obj is not None and selected == "pcr":
-                    inference = CLUSTERSCInference(
+                    cluster_inference = CLUSTERSCInference(
                         method=shen_obj.method,
                         alpha=float(self.alpha),
                         att=primary_att,
                         shen=shen_obj,
                     )
                 elif cft_obj is not None and selected == "rpca":
-                    inference = CLUSTERSCInference(
+                    cluster_inference = CLUSTERSCInference(
                         method=cft_obj.method,
                         alpha=float(self.alpha),
                         att=primary_att,
                         cft=cft_obj,
                     )
                 else:
-                    inference = CLUSTERSCInference(
+                    cluster_inference = CLUSTERSCInference(
                         method="none",
                         alpha=float(self.alpha),
                         att=primary_att,
                     )
 
-            results = CLUSTERSCResults(
-                inputs=inputs,
-                pcr=pcr_fit,
-                rpca=rpca_fit,
-                inference=inference,
-                selected_variant=selected,
-                metadata={
-                    "method": self.method,
-                    "primary": self.primary,
-                    "estimator": self.estimator,
-                    "rpca_method": self.rpca_method,
-                    "pcr_objective": self.pcr_objective,
-                    "clustering": self.clustering,
-                },
+            # ----------------------------------------------------------------
+            # Populate the standardized two-family result contract from the
+            # primary variant (see agents/agents_results.md). The flat
+            # accessors (att / counterfactual / gap / att_ci / donor_weights /
+            # pre_rmse) then resolve through BaseEstimatorResults.
+            # ----------------------------------------------------------------
+            primary_fit = pcr_fit if selected == "pcr" else rpca_fit
+            results = self._standardize_results(
+                inputs=inputs, pcr_fit=pcr_fit, rpca_fit=rpca_fit,
+                primary_fit=primary_fit, selected=selected,
+                cluster_inference=cluster_inference,
             )
 
             if self.display_graphs:
