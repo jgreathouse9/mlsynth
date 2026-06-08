@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from typing import Optional, List, Dict, Any, Iterable
 
-from pydantic import ConfigDict, Field as PydField
+from pydantic import ConfigDict
 
 from ...config_models import DesignResult
 from .fast_scm_bb_helpers import Solution
@@ -250,51 +250,80 @@ class UnitInfo:
 # =========================================================
 # FINAL RESULTS OBJECT
 # =========================================================
+@dataclass(frozen=True)
+class LEXSCMSearch:
+    """The design search -- *how* the treated set was chosen.
+
+    Attributes
+    ----------
+    shortlist : pd.DataFrame
+        Ranked table of candidate designs (the recommendation shortlist).
+    candidates : list of SEDCandidate
+        Every evaluated candidate design.
+    winner : SEDCandidate
+        The selected design (winner of the lexicographic search), with its
+        weights / predictions / losses / inference / raw MDE curve.
+    bnb : dict
+        Branch-and-bound search diagnostics plus the recommendation record.
+    """
+
+    shortlist: Any
+    candidates: List[SEDCandidate]
+    winner: SEDCandidate
+    bnb: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class LEXSCMPanel:
+    """The panel structure the design was built on.
+
+    Attributes
+    ----------
+    time : TimeInfo
+        Fitting / blank / post period layout.
+    units : UnitInfo
+        Treated / control unit rosters.
+    outcome : str
+        Outcome column name.
+    population_mean : np.ndarray
+        Population-mean outcome series over time (the design target).
+    """
+
+    time: TimeInfo
+    units: UnitInfo
+    outcome: str
+    population_mean: np.ndarray
+
+
 class LEXSCMResults(DesignResult):
     """Top-level container returned by :meth:`mlsynth.LEXSCM.fit`.
 
     A :class:`~mlsynth.config_models.DesignResult` (the experimental-design
-    family): LEXSCM *chooses which units to treat* before any intervention, so
-    its output is a design that resolves to an effect report. The standardized
-    design fields (``report`` -- an :class:`~mlsynth.config_models.EffectResult`
-    built from the realized post-fit; ``selected_units``; ``assignment``;
-    ``design_weights``; ``power``; ``metadata``) are populated by the
-    orchestrator. The LEXSCM-specific search/diagnostic structure is kept on the
-    fields below.
+    family) with a deliberately small, grouped surface -- one obvious home for
+    each thing:
 
-    Parameters
-    ----------
-    summary : pd.DataFrame
-        Ranked shortlist of candidate designs.
-    best_candidate : SEDCandidate
-        The selected design (winner of the lexicographic search).
-    all_candidates : list of SEDCandidate
-        Every evaluated candidate.
-    bnb_metadata : dict
-        Branch-and-bound search diagnostics + the recommendation record.
-    time : TimeInfo
-        Pre/blank/post period structure.
-    units : UnitInfo
-        Treated / control unit labels.
-    outcome : str
-        Outcome column name.
-    y_pop_mean_t : np.ndarray
-        Population-mean outcome series over time.
-    post_fit : SyntheticControlPostFit or None
-        Standardized post-fit diagnostics (ATE / total / RMSE / SMD / power)
-        from the chosen design; ``None`` if post-fit assembly failed. The
-        ``report`` field is the contract-standard view of the same realization.
+    **Front door (the standardized contract).**
+
+    * ``report`` -- the realized effect as an
+      :class:`~mlsynth.config_models.EffectResult` (the single source for
+      ATT / CI / p-value / pre-fit; its ``additional_outputs['post_fit']`` holds
+      the full :class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` with the
+      per-period effects and covariate-balance SMDs).
+    * ``power`` -- the design's MDE / power analysis (the single source for power;
+      ``None`` if power analysis failed).
+    * ``selected_units`` / ``assignment`` / ``design_weights`` -- the design.
+    * ``metadata`` -- the lexicographic recommendation diagnostics.
+
+    **Grouped detail.**
+
+    * ``search`` -- the candidate search (:class:`LEXSCMSearch`): ``shortlist``,
+      ``candidates``, ``winner``, ``bnb``.
+    * ``panel`` -- the panel structure (:class:`LEXSCMPanel`): ``time``,
+      ``units``, ``outcome``, ``population_mean``.
     """
 
     model_config = ConfigDict(
         frozen=True, arbitrary_types_allowed=True, extra="allow")
 
-    summary: Any
-    best_candidate: SEDCandidate
-    all_candidates: List[SEDCandidate]
-    bnb_metadata: Dict[str, Any]
-    time: TimeInfo
-    units: UnitInfo
-    outcome: str
-    y_pop_mean_t: np.ndarray = PydField(default_factory=lambda: np.array([]))
-    post_fit: Optional[Any] = None
+    search: LEXSCMSearch
+    panel: LEXSCMPanel

@@ -75,7 +75,7 @@ def _design_mae(sample, m: int):
             "top_K": 3, "n_sims": 40, "n_post_grid": [5], "mde_horizon": "late",
             "verbose": False,
         }).fit()
-    bc = res.best_candidate
+    bc = res.search.winner
     w = np.zeros(Jn)
     for label, wj in bc.treated_weight_dict.items():
         w[int(str(label)[1:])] = wj          # treated representativeness weights

@@ -631,3 +631,68 @@ def compute_power_analysis(
         sigma_placebo=sigma_placebo, serial_correlation=rho,
         baseline=baseline, method="analytical_ar1",
     )
+
+
+# ---------------------------------------------------------------------------
+# Standardized-result adapter
+# ---------------------------------------------------------------------------
+
+def to_effect_result(
+    pf: "SyntheticControlPostFit",
+    *,
+    time_periods: Optional[np.ndarray] = None,
+    intervention_time: Optional[Any] = None,
+    method_name: Optional[str] = None,
+    donor_weights: Optional[Dict[str, float]] = None,
+) -> Any:
+    """Convert a :class:`SyntheticControlPostFit` into a standardized ``EffectResult``.
+
+    The single, family-wide adapter from the rich post-fit bundle to the
+    contract's ``EffectResult`` view, so every MAREX-family estimator (LEXSCM,
+    MAREX, SYNDES, PANGEO) gets ``report`` for free instead of hand-copying
+    fields. The realized effect's standard scalars populate the standard
+    sub-models; everything the contract has no slot for (per-period effects,
+    cumulative effect, covariate SMDs, and the full ``post_fit`` object itself)
+    is carried in ``additional_outputs`` so it remains discoverable.
+    """
+    from ..config_models import (
+        EffectResult, EffectsResults, FitDiagnosticsResults, InferenceResults,
+        MethodDetailsResults, TimeSeriesResults, WeightsResults,
+    )
+
+    treated = np.asarray(pf.treated_series, dtype=float)
+    control = np.asarray(pf.control_series, dtype=float)
+    gap = np.asarray(pf.gap_series, dtype=float)
+    tp = np.asarray(time_periods) if time_periods is not None else None
+    if tp is not None and tp.shape[0] != treated.shape[0]:
+        tp = None
+
+    extras: Dict[str, Any] = {"post_fit": pf}
+    if pf.ate_per_period is not None:
+        extras["ate_per_period"] = pf.ate_per_period
+    if pf.cumulative_effect is not None:
+        extras["cumulative_effect"] = pf.cumulative_effect
+    for name in ("covariate_smd", "covariate_smd_treated_vs_pop",
+                 "covariate_smd_control_vs_pop"):
+        val = getattr(pf, name, None)
+        if val is not None:
+            extras[name] = val
+
+    blank = ({"rmse_blank": pf.rmse_blank} if pf.rmse_blank is not None else None)
+    return EffectResult(
+        effects=EffectsResults(att=pf.ate, att_percent=pf.ate_percent),
+        time_series=TimeSeriesResults(
+            observed_outcome=treated, counterfactual_outcome=control,
+            estimated_gap=gap, time_periods=tp, intervention_time=intervention_time,
+        ),
+        fit_diagnostics=FitDiagnosticsResults(
+            rmse_pre=pf.rmse_fit, rmse_post=pf.rmse_post, additional_metrics=blank),
+        inference=InferenceResults(
+            p_value=pf.p_value, ci_lower=pf.ci_lower, ci_upper=pf.ci_upper,
+            method=pf.inference_method),
+        weights=(WeightsResults(donor_weights=donor_weights)
+                 if donor_weights is not None else None),
+        method_details=(MethodDetailsResults(method_name=method_name)
+                        if method_name else None),
+        additional_outputs=extras,
+    )

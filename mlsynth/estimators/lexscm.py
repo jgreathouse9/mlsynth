@@ -3,18 +3,9 @@ import pandas as pd
 from typing import Any, Dict, Optional, List, Literal
 
 # Configuration and Exceptions
-from ..config_models import (
-    BaseMAREXConfig,
-    EffectResult,
-    EffectsResults,
-    FitDiagnosticsResults,
-    InferenceResults,
-    LEXSCMConfig,
-    MethodDetailsResults,
-    TimeSeriesResults,
-    WeightsResults,
-)
+from ..config_models import BaseMAREXConfig, LEXSCMConfig, WeightsResults
 from ..exceptions import MlsynthDataError, MlsynthEstimationError
+from ..utils.post_fit import to_effect_result as post_fit_to_effect_result
 from ..utils.helperutils import lexplot
 # Utilities - Data Handling
 from ..utils.datautils import balance
@@ -45,6 +36,8 @@ from dataclasses import dataclass, field
 from ..utils.fast_scm_helpers.structure import (
     SEDCandidate,
     LEXSCMResults,
+    LEXSCMSearch,
+    LEXSCMPanel,
     UnitInfo,
     TimeInfo
 )
@@ -552,21 +545,35 @@ class LEXSCM:
                 },
             },
         )
-        report = self._report_from_post_fit(
-            pf, time_info, design_donor_weights) if pf is not None else None
+
+        # The realized effect: one standardized EffectResult built by the shared
+        # family adapter (no per-estimator field-copying). `report` is the single
+        # source for ATT / CI / pre-fit; the rich SyntheticControlPostFit (with
+        # per-period effects and covariate SMDs) rides along in
+        # `report.additional_outputs['post_fit']`. `power` is the single source
+        # for the MDE / power analysis.
+        times = np.asarray(time_info.index.labels)
+        intervention = (times[time_info.n_pre]
+                        if time_info.n_pre < times.shape[0] else None)
+        report = (
+            post_fit_to_effect_result(
+                pf, time_periods=times, intervention_time=intervention,
+                method_name="LEXSCM", donor_weights=design_donor_weights)
+            if pf is not None else None
+        )
         rec = bbresults.get("recommendation", {})
 
         # =========================================================
-        # FINAL RESULTS OBJECT
+        # FINAL RESULTS OBJECT -- a small, grouped surface.
         # =========================================================
         results = LEXSCMResults(
-            # --- standardized design-family fields ---
+            # --- standardized contract front door ---
             report=report,
+            power=(pf.power if pf is not None else None),
             selected_units=list(treated_labels),
             assignment={"treated": list(treated_labels),
                         "control": list(control_labels)},
             design_weights=design_weights,
-            power=(pf.power if pf is not None else None),
             metadata={
                 "status": rec.get("status"),
                 "winner": rec.get("winner"),
@@ -574,53 +581,22 @@ class LEXSCM:
                 "n_candidates": len(candidate_results),
                 "outcome": self.outcome,
             },
-            # --- LEXSCM-specific search/diagnostic structure ---
-            summary=shortlist,
-            best_candidate=best_candidate,
-            all_candidates=candidate_results,
-            bnb_metadata=bbresults,
-            time=time_info,
-            units=unit_info,
-            outcome=self.outcome,
-            y_pop_mean_t=y_pop_mean_t,
-            post_fit=pf,
+            # --- grouped detail ---
+            search=LEXSCMSearch(
+                shortlist=shortlist,
+                candidates=candidate_results,
+                winner=best_candidate,
+                bnb=bbresults,
+            ),
+            panel=LEXSCMPanel(
+                time=time_info,
+                units=unit_info,
+                outcome=self.outcome,
+                population_mean=y_pop_mean_t,
+            ),
         )
 
         if self.display_graph:
             lexplot(results)
 
         return results
-
-    @staticmethod
-    def _report_from_post_fit(pf, time_info, donor_weights) -> EffectResult:
-        """Build the realized effect report (an EffectResult) from the post-fit.
-
-        The design ``resolves`` to this observational report once outcomes
-        exist (``DesignResult.report``); it carries the same standardized
-        sub-models every effect estimator exposes.
-        """
-        treated = np.asarray(pf.treated_series, dtype=float)
-        control = np.asarray(pf.control_series, dtype=float)
-        gap = np.asarray(pf.gap_series, dtype=float)
-        times = np.asarray(time_info.index.labels)
-        time_periods = times if times.shape[0] == treated.shape[0] else None
-        intervention = None
-        if time_periods is not None and time_info.n_pre < time_periods.shape[0]:
-            intervention = time_periods[time_info.n_pre]
-        return EffectResult(
-            effects=EffectsResults(att=pf.ate, att_percent=pf.ate_percent),
-            time_series=TimeSeriesResults(
-                observed_outcome=treated,
-                counterfactual_outcome=control,
-                estimated_gap=gap,
-                time_periods=time_periods,
-                intervention_time=intervention,
-            ),
-            fit_diagnostics=FitDiagnosticsResults(
-                rmse_pre=pf.rmse_fit, rmse_post=pf.rmse_post),
-            inference=InferenceResults(
-                p_value=pf.p_value, ci_lower=pf.ci_lower, ci_upper=pf.ci_upper,
-                standard_error=None, method=pf.inference_method),
-            weights=WeightsResults(donor_weights=donor_weights),
-            method_details=MethodDetailsResults(method_name="LEXSCM"),
-        )

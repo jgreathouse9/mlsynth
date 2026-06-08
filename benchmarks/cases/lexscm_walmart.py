@@ -50,14 +50,16 @@ def run() -> dict:
             "verbose": False,
         }).fit()
 
-    pf = res.post_fit
+    # The realized effect lives on the standardized report (the contract view).
+    report = res.report
+    ci_lo, ci_hi = report.att_ci
     return {
         "n_treated": float(len(res.selected_units)),
-        "prefit_rmse_pct": float(pf.rmse_fit / mean_sales),
-        "abs_ate_pct": abs(float(pf.ate / mean_sales)),
-        "placebo_p_value": float(pf.p_value),
+        "prefit_rmse_pct": float(report.fit_diagnostics.rmse_pre / mean_sales),
+        "abs_ate_pct": abs(float(report.att / mean_sales)),
+        "placebo_p_value": float(report.inference.p_value),
         # 1.0 iff the experimental CI covers zero (no spurious effect).
-        "ci_covers_zero": float(pf.ci_lower <= 0.0 <= pf.ci_upper),
+        "ci_covers_zero": float(ci_lo <= 0.0 <= ci_hi),
     }
 
 

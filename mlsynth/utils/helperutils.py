@@ -883,20 +883,20 @@ def lexplot(
     # =========================================================
     # Extract core components
     # =========================================================
-    time_info = results.time
+    time_info = results.panel.time
 
     n_fit = time_info.n_fit
     n_blank = time_info.n_blank
     n_post = time_info.n_post
 
-    synthetic_treated = results.best_candidate.predictions.synthetic_treated
-    synthetic_control = results.best_candidate.predictions.synthetic_control
-    population_mean = results.y_pop_mean_t
+    synthetic_treated = results.search.winner.predictions.synthetic_treated
+    synthetic_control = results.search.winner.predictions.synthetic_control
+    population_mean = results.panel.population_mean
 
-    outcome_name = results.outcome
+    outcome_name = results.panel.outcome
     x = time_info.index.labels
 
-    best = results.best_candidate
+    best = results.search.winner
 
     # =========================================================
     # Helper metrics (safe guards)
@@ -1006,7 +1006,7 @@ def lexplot(
     rmse_est_ctrl = rmse(synthetic_control[est_slice], synthetic_treated[est_slice])
 
     tuplename = best.identification.tuple_id
-    w = results.bnb_metadata['top_tuples'][0].full_weights
+    w = results.search.bnb['top_tuples'][0].full_weights
     m = np.sum(w > 0)
 
     # =========================================================
