@@ -380,6 +380,45 @@ class TestEstimator:
             lo, hi = ci
             assert np.isfinite(lo) and np.isfinite(hi) and lo <= hi
 
+    @pytest.mark.parametrize("variance", ["homoskedastic", "jackknife", "hrk"])
+    def test_shen_batch_matches_per_period(self, variance):
+        """The vectorised Shen-CI path equals the per-period reference exactly.
+
+        Guards the ``shen_inference`` optimisation: the batched-over-post-periods
+        variance estimators must reproduce the scalar ``_var_*`` functions (the
+        reference-matched source of truth) to machine precision.
+        """
+        from mlsynth.utils.clustersc_helpers.pcr.inference import (
+            shen_inference, _pcr_weights, _var_homo, _var_jack, _var_hrk,
+        )
+
+        rng = np.random.default_rng(0)
+        J, T, T0, k = 60, 60, 40, 3   # wide donor pool keeps HRK's guard satisfied
+        signal = rng.normal(0, 1, (T, k)) @ rng.normal(0, 1, (k, J + 1))
+        data = signal + rng.normal(0, 0.3, signal.shape)
+        y, Y_full = data[:, 0], data[:, 1:]
+
+        res = shen_inference(y, Y_full, T0, rank=k, variance=variance)
+
+        # Independent per-period recomputation using the scalar estimators.
+        y_n = y[:T0]
+        Y0 = Y_full[:T0].T
+        U, sv, Vt = np.linalg.svd(Y0, full_matrices=False)
+        U_k, Vt_k = U[:, :k], Vt[:k, :]
+        Hu_perp = np.eye(J) - U_k @ U_k.T
+        Hv_perp = np.eye(T0) - Vt_k.T @ Vt_k
+        Y0_low = (U_k * sv[:k]) @ Vt_k
+        fn = {"homoskedastic": _var_homo, "jackknife": _var_jack, "hrk": _var_hrk}[variance]
+        for ti, t in enumerate(range(T0, T)):
+            y_t = Y_full[t, :]
+            w_vt = _pcr_weights(Y0.T, y_n, k)
+            w_hz = _pcr_weights(Y0, y_t, k)
+            vh, vv, trA = fn(y_n, y_t, Y0_low, w_hz, w_vt, Hu_perp, Hv_perp)
+            assert res.per_period_se_hz[ti] == pytest.approx(np.sqrt(vh), abs=1e-9)
+            assert res.per_period_se_vt[ti] == pytest.approx(np.sqrt(vv), abs=1e-9)
+            assert res.per_period_se_dr[ti] == pytest.approx(
+                np.sqrt(max(0.0, vh + vv - trA)), abs=1e-9)
+
     def test_cft_pi_for_rpca(self, panel):
         """`compute_cft_pi=True` returns CFT prediction intervals for RPCA-SC."""
         df, _ = panel

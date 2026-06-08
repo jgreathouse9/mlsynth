@@ -11,8 +11,8 @@ of out-of-sample forecast accuracy. Both errors are measured against the *true*
 This exercises mlsynth's PCR-SC path (``CLUSTERSC`` with ``clustering=False`` --
 the Amjad-Shah-Shen RSC: HSVT-denoise the donors, then OLS). It is run through
 the lighter :func:`mlsynth.utils.clustersc_helpers.pcr.pipeline.run_pcr` entry
-point because the full estimator's per-period Shen CIs are prohibitively slow at
-the paper's ``T = 2000``.
+point -- this is a prediction-only simulation that needs no confidence
+intervals, so it skips the (now vectorised) Shen-CI machinery entirely.
 
 Provenance
 ----------
