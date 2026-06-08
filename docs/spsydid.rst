@@ -386,12 +386,18 @@ Serenini & Masek (2024) include an empirical example (the Arizona
 2007 LAWA effect on noncitizen Hispanic share, Tables 8-11) but do
 **not** release the CPS panel used to construct it -- their public
 replication repo
-(https://github.com/renanserenini/spatial_SDID) ships only the
+(https://github.com/serenini/spatial_SDID) ships only the
 simulation code and a BLS unemployment panel for two Monte Carlo
 exercises. We therefore satisfy the Path-B contract by reproducing
 those two simulation findings against the authors' own driver
 (`functions_ssdid.py` in their repo), invoking
 ``SpSyDiD(config).fit()`` end-to-end on every replication.
+
+The state-level finding is institutionalised as a **per-replication
+cross-validation** benchmark -- ``benchmarks/cases/spsydid_state_mc.py``
+runs both ``SpSyDiD`` and the authors' own algorithm on each panel and
+asserts per-rep agreement; see the dedicated page
+:doc:`replications/spsydid`.
 
 The reference panels and adjacency matrices ship with mlsynth in
 ``basedata/``:

@@ -51,6 +51,9 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/tssc
    replications/vanillasc
    replications/sparse_sc
+   replications/sdid
+   replications/mcnnm
+   replications/spsydid
 
 .. _replications-canonical:
 
@@ -220,10 +223,15 @@ Staggered adoption
   paper's :math:`-15.6` (and the ``synthdid`` R-package's
   :math:`-15.604`) to three significant figures; placebo SE
   :math:`7.58` against the paper's :math:`8.4`.
-* :doc:`spsydid` -- Spatial Synthetic-DiD. **Path B:** 8x8 grid
-  with 6 treated units and planted spillover-exposure effects --
-  :math:`\widehat{\tau} \approx 2.0`,
-  :math:`\widehat{\tau}_s \approx 1.0`, both recovered.
+  **Cross-validation:** matched to ``causaltensor.SDID`` on the same
+  matrix to :math:`|\Delta| = 3.1\times 10^{-3}`.
+  → dedicated page: :doc:`replications/sdid`.
+* :doc:`spsydid` -- Spatial Synthetic-DiD. **Path B
+  (cross-validation):** the authors' State-Level Monte Carlo
+  (serenini/spatial_SDID) run per-rep against their own algorithm --
+  per-rep ATT correlation 0.996, mean ATT bias :math:`\approx 0.02`
+  for both implementations (the paper's headline unbiasedness).
+  → dedicated page: :doc:`replications/spsydid`.
 * :doc:`spotsynth` -- O'Riordan & Gilligan-Lee (2025) spillover
   detection for donor selection. **Path B:** the Figure 2 bias study
   on the Appendix B DGP -- a synthetic control on all donors is biased
@@ -258,7 +266,10 @@ Missing data
   (2021) matrix-completion SC. **Path A:** Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} \approx -20` packs per capita,
   consistent with classical SC, FSCM and SNN estimates on the
-  same panel.
+  same panel. **Cross-validation:** matched to
+  ``causaltensor``'s MC-NNM ATT (-19.83 vs -20.27, :math:`\approx`
+  2%; estimand-level, given the differing FE sub-solvers).
+  → dedicated page: :doc:`replications/mcnnm`.
 * :doc:`snn` -- Synthetic Nearest Neighbours.
   **Cross-validation:** Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} \approx -19` packs/capita,

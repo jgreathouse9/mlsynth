@@ -7,10 +7,17 @@ import importlib
 CASES = {
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
+    "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs causaltensor
+    "mcnnm_prop99": "benchmarks.cases.mcnnm_prop99",    # cross-val vs causaltensor
+    "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
 }
 
-NEEDS_REFERENCE = set()   # names whose case reads an R reference output
+# Names whose case reads an external R/MATLAB reference *dump*. The cross-checks
+# against the pip-installable ``causaltensor`` and the on-demand SpSyDiD clone are
+# NOT listed here: they run under the default ``--all`` and skip themselves
+# (BenchmarkSkipped) when their optional dependency is absent.
+NEEDS_REFERENCE = set()
 
 
 def load(name: str):

@@ -4,6 +4,15 @@ from __future__ import annotations
 from typing import Dict, Tuple
 
 
+class BenchmarkSkipped(Exception):
+    """Raised by a case's ``run()`` when an optional dependency or reference
+    implementation is unavailable (e.g. ``causaltensor`` not installed, or the
+    reference repo could not be cloned). The driver reports it as ``SKIP`` --
+    distinct from a numerical ``FAIL`` -- so a missing optional toolchain never
+    turns the suite red.
+    """
+
+
 def compare(got: Dict[str, float],
             expected: Dict[str, Tuple[float, float]]) -> Tuple[bool, str]:
     """Compare a case's numbers to (expected, abs_tol). Returns (ok, report)."""

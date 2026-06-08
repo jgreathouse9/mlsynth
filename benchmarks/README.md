@@ -27,6 +27,12 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
       cases/                # one module per benchmark (pure-Python where possible)
         fdid_table5.py      # Path B: Li (2024) Table 5 PMSE grid (no R needed)
         fdid_hongkong.py    # Path A: Li (2024) Hong Kong GDP empirical (no R needed)
+        sdid_prop99.py      # cross-val: SDID vs causaltensor on Prop 99
+        mcnnm_prop99.py     # cross-val: MC-NNM vs causaltensor on Prop 99
+        spsydid_state_mc.py # cross-val: SpSyDiD vs the authors' repo (per-rep)
+      reference/            # Python reference implementations (cloned on demand)
+        clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
+        spsydid_ref.py      # authors' SDID weights + the notebook's spatial WLS
       R/                    # reference-implementation cross-checks
         requirements.R      # install the reference R packages
         synth_crosscheck.R  # run R's Synth on a dumped panel for cell-by-cell comparison
@@ -34,26 +40,47 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
 ## Quick start
 
 ```bash
-# Pure-Python benchmarks (no R required)
+# All benchmarks (cases skip themselves if an optional dependency is missing)
 python benchmarks/run_benchmarks.py --all
 
 # A single case
 python benchmarks/run_benchmarks.py --case fdid_table5
 
-# Reference cross-checks (need R + packages)
+# Reference cross-checks behind a flag (need R + packages)
 Rscript benchmarks/R/requirements.R          # one-time
 python benchmarks/run_benchmarks.py --with-reference
 ```
 
 A case **passes** when every reported number is within its declared tolerance
-of the expected (paper / reference) value. Tolerances are intentionally loose
+of the expected (paper / reference) value, **fails** when a number is out of
+tolerance, and **skips** (`[SKIP]`, never a failure) when an optional
+dependency or reference is unavailable. Tolerances are intentionally loose
 enough to absorb Monte-Carlo noise (smaller M than the paper) but tight enough
 to catch real regressions.
+
+### Optional dependencies
+
+Some cross-validation cases run against a Python reference implementation. They
+are part of the default `--all` set but **skip gracefully** when their optional
+dependency is absent — install these to actually exercise them:
+
+```bash
+pip install causaltensor   # sdid_prop99, mcnnm_prop99
+pip install libpysal       # spsydid_state_mc (reads the .gal spatial weights)
+```
+
+`spsydid_state_mc` additionally **clones** the authors' (unlicensed) reference
+repo `serenini/spatial_SDID` at a pinned commit into
+`benchmarks/reference/.cache/` (git-ignored) — it is imported, never vendored.
+If git or the network is unavailable the case skips.
 
 ## Adding a benchmark
 
 1. Add `benchmarks/cases/<name>.py` exposing `run() -> dict[str, float]` and
    `EXPECTED: dict[str, tuple[float, float]]` (value, abs-tolerance).
 2. Register it in `registry.py`.
-3. If it needs a reference run, drop the R script under `R/` and have the case
-   read the reference output (or skip gracefully when R is absent).
+3. If it needs a reference run, either drop an R script under `R/` (add the case
+   to `NEEDS_REFERENCE` and have it read the dumped output), or — for a
+   pip-installable / clonable Python reference — import it inside `run()` and
+   `raise BenchmarkSkipped(...)` when it is missing, so `--all` stays green
+   without the extra dependency.

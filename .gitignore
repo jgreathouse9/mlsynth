@@ -20,3 +20,6 @@ coverage.xml
 
 # Stray plot artifact emitted by some tests
 y_lexplot.png
+
+# on-demand reference clones (benchmarks)
+benchmarks/reference/.cache/
