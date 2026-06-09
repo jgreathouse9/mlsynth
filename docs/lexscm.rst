@@ -370,6 +370,43 @@ pure placebo noise; they are the raw material for the power analysis. This
 stage is identical to the pre-rebuild control path -- only the search and
 power stages around it changed.
 
+Spillover / interference exclusions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When treating a *set* of units, interference is a design concern, and
+Vives-i-Bastida (2022) handles it with two exclusion criteria that LEXSCM
+implements directly. Both read off **one conflict graph** -- a symmetric
+relation "units :math:`i` and :math:`j` interfere" -- supplied either as a
+``cluster_col`` (two units conflict iff they share a cluster, e.g. a state or
+province) or as an ``adjacency`` / spillover matrix (conflict iff the entry
+exceeds ``spillover_threshold``); the two combine by logical OR. The graph is
+aligned to the IndexSet, the single source of truth for unit identity.
+
+* **"No interference" (Stage 1, a treatment criterion).** The selected treated
+  :math:`m`-tuple must be an **independent set** of the conflict graph -- no two
+  treated units may interfere. This is a restriction on the admissible supports,
+  so it enters exactly where the :math:`\lVert w\rVert_0 = m` cardinality
+  constraint already lives -- as a filter on the candidate tuples, not a term in
+  the inner weight QP -- and only *shrinks* the search.
+
+* **"Exclusion restriction" (Stage 2, a control criterion).** For a treated set
+  :math:`S`, the donor pool drops not only :math:`S` but also its conflict
+  neighbours :math:`N(S)`, so a treated unit's spillover neighbours cannot enter
+  its synthetic control and contaminate the counterfactual.
+
+If no conflict-free :math:`m`-tuple exists (e.g. ``m`` exceeds the number of
+clusters), or the exclusions empty every donor pool, the fit raises
+:class:`~mlsynth.exceptions.MlsynthConfigError` rather than returning a degenerate
+design. With no ``cluster_col`` / ``adjacency`` supplied the behaviour is exactly
+the unconstrained search.
+
+.. code-block:: python
+
+   # at most one treated unit per state, and no treated unit's
+   # same-state neighbours used as its donors
+   LEXSCM({"df": df, "outcome": "y", "unitid": "unit", "time": "year",
+           "candidate_col": "eligible", "m": 2, "cluster_col": "state"}).fit()
+
 Stage 3 -- Power analysis (minimum detectable effect)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
