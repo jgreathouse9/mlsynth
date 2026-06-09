@@ -522,8 +522,8 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
             # Generate lambda sequence using the first alpha
             self.lams_ = generate_lambda_seq2(y, X, self.alphas_[0])
 
-    def _solve_enet(self, X, y, lam, alpha) -> np.ndarray:
-        """Fit Elastic Net using SCopt for given lam and alpha."""
+    def _solve_enet(self, X, y, lam, alpha) -> tuple[np.ndarray, float]:
+        """Fit Elastic Net using SCopt; return (donor weights, intercept)."""
 
         try:
             res = Opt2.SCopt(
@@ -545,17 +545,18 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
                 w = w.flatten()
             else:
                 w = np.zeros(X.shape[1], dtype=np.float64)
-            return w
+            b0 = float(res["weights"].get("b0", 0.0) or 0.0)
+            return w, b0
         except Exception as e:
             print(f"SCopt failed for lam={lam}, alpha={alpha}: {e}")
-            return np.zeros(X.shape[1], dtype=np.float64)
+            return np.zeros(X.shape[1], dtype=np.float64), 0.0
 
     def _fit_fold(self, X, y, train_idx, test_idx, lam, alpha):
         """Compute fold MSE for one lam/alpha combination."""
         X_train, y_train = X[train_idx], y[train_idx]
         X_test, y_test = X[test_idx], y[test_idx]
-        w = self._solve_enet(X_train, y_train, lam, alpha)
-        y_pred = X_test @ w
+        w, b0 = self._solve_enet(X_train, y_train, lam, alpha)
+        y_pred = X_test @ w + b0
         return np.mean((y_test - y_pred) ** 2)
 
     def _cross_validate(self, X, y):
@@ -584,13 +585,13 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
         X, y = X.astype(np.float64), y.astype(np.float64)
         self._process_grid(X, y)
         self._cross_validate(X, y)
-        self.coef_ = self._solve_enet(X, y, self.lam_, self.alpha_)
+        self.coef_, self.intercept_ = self._solve_enet(X, y, self.lam_, self.alpha_)
         return self
 
     def predict(self, X):
-        """Predict using fitted weights."""
+        """Predict using fitted weights (and intercept, when fitted)."""
         X = X.astype(np.float64)
-        return X @ self.coef_
+        return X @ self.coef_ + getattr(self, "intercept_", 0.0)
 
 
 
@@ -649,10 +650,15 @@ def fit_en_scm(
 
     # Transform weights back to original scale if standardized
     weights_scaled = model.coef_
-    if standardize:
-        weights_orig = (weights_scaled / scaler_X.scale_) / np.sum(weights_scaled / scaler_X.scale_)
-    else:
-        weights_orig = weights_scaled / np.sum(weights_scaled)
+    weights_orig = weights_scaled / scaler_X.scale_ if standardize else weights_scaled
+    # Sum-to-one renormalization is only meaningful when the weights live on the
+    # simplex (or are otherwise constrained to add up). The unconstrained
+    # Wang-Xing-Ye L-infinity SC keeps its raw, dense, possibly-negative weights,
+    # with the level handled by the intercept.
+    if constraint_type != "unconstrained":
+        total = np.sum(weights_orig)
+        if total != 0:
+            weights_orig = weights_orig / total
 
     def round_sig(x, sig=3):
         return float(f"{x:.{sig}g}")

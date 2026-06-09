@@ -354,7 +354,10 @@ class OptHelpers:
         """
         if objective_type == "penalized":
             loss = OptHelpers.squared_loss(y, X, w, b0, scale=False)
-            if alpha == 0.0:
+            # The squared-L2 shortcut only applies to the L2 second norm; for the
+            # L-infinity second norm, alpha == 0 means a *pure L-infinity* penalty
+            # (Wang-Xing-Ye), which must go through elastic_net_penalty.
+            if alpha == 0.0 and second_norm == "L1_L2":
                 penalty = lam * OptHelpers.l2_only_penalty(w)
             else:
                 penalty = OptHelpers.elastic_net_penalty(w, lam, alpha, second_norm)
