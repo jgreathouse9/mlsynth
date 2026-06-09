@@ -48,6 +48,7 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         scmo_averaged_mc.py         # Path B: averaged regime contrast (Sun et al. App. D)
         rescm_brexit.py             # Path A: SCM-relaxation Brexit/UK GDP (Liao-Shi-Zheng)
         rescm_relax_ref.py          # cross-val: mlsynth L2 relaxation vs scmrelax
+        rescm_relax_mc.py           # Path B: latent-group MC, L2 relaxation beats SCM (Liao-Shi-Zheng S5)
         linf_crossval_ref.py        # cross-val: mlsynth LINF/L1LINF vs LinfinitySC (Wang-Xing-Ye)
         linf_prop99.py              # Path A: dense L-inf weighting vs sparse SC (Prop 99)
         linf_sim.py                 # Path B: L-inf beats SC in dense DGPs (Wang-Xing-Ye Table 4)

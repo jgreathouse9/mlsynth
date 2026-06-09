@@ -62,3 +62,36 @@ implementations of the same unique QP. The case routes ``scmrelax``'s hardcoded
 MOSEK dependency to an open solver (the L2 program is a QP, so the optimum is
 solver-invariant) and skips gracefully when ``scmrelax`` is unavailable.
 Durable case: ``rescm_relax_ref``.
+
+Path B — the latent-group Monte Carlo
+-------------------------------------
+
+The paper's Section-5 simulation is where the relaxation's advantage shows: under
+a latent-group factor DGP with **many more donors than pre-periods**
+(:math:`J \gg T_0`), classic SC overfits its non-unique exact-balance weights and
+predicts poorly out of sample, while the L2 relaxation recovers the dense,
+group-diversified oracle weighting. The paper's Table 1 reports out-of-sample
+prediction-error ratios of the relaxation vs SC of :math:`\approx 0.15`–:math:`0.53`.
+
+mlsynth reproduces this: at :math:`J = 120`, :math:`T_0 = 40`, with
+cross-validated :math:`\tau`, the L2 relaxation's post-period error against the
+**oracle counterfactual** is :math:`\approx 0.43` of classic SC's (median over
+reps), and it beats SC in :math:`\approx 73\%` of reps.
+
+Two calibration points are essential and worth remembering:
+
+* **Measure against the oracle counterfactual, not the noisy realization.** The
+  realized :math:`y_0` carries the treated unit's own idiosyncratic noise, an
+  irreducible error floor added to *every* method equally; it compresses all
+  ratios toward 1 (median :math:`\approx 0.87` against :math:`y_0` vs
+  :math:`\approx 0.43` against the oracle) and hides the effect.
+* **Use the median, not the mean.** With a cross-validated :math:`\tau` on a
+  coarse grid, an occasional rep selects a loose :math:`\tau` (weights collapse
+  toward uniform) and inflates its ratio; the median rep shows the paper's
+  effect while those outliers drag the mean to :math:`\approx 1`.
+
+The case pins L2 (the paper's recommended method, fast via the OSQP path); a full
+multi-method MC over the exp-cone entropy/EL relaxations is a follow-up, gated on
+an efficient large-:math:`J` solve for those (their DPP form carries a
+:math:`J\times J` Gram parameter that is inefficient at the large :math:`J` this
+regime needs). Durable case: ``rescm_relax_mc``.

@@ -165,6 +165,54 @@ select over (λ, factor count, or a discrete variant menu).
 
 ---
 
+## 2. C-Lasso (Su-Shi-Phillips) latent-group classifier SCM
+
+**Status: Planned (speculative -- original methodology, not a replication).**
+
+Reference repo to clone downstream (pinned, never vendored):
+**https://github.com/zhan-gao/classo** (Su, Shi & Phillips 2016, *Identifying
+Latent Structures in Panel Data*, Econometrica).
+
+### CRITICAL terminology warning (do not conflate)
+
+"Group lasso" names **two different methods** here:
+
+* In Liao-Shi-Zheng's relaxed-SCM Monte Carlo (arXiv:2508.01793v2, §5), the
+  "Group Lasso" is the **standard Yuan-Lin (2006)** group lasso used as a
+  competitor baseline, **fed the true group membership as an oracle**. It does
+  no classification. (We did *not* build it: ``rescm_relax_mc`` pins the L2
+  relaxation vs SC, which is the head-to-head that matters.)
+* **Su-Shi-Phillips's C-Lasso** is a *different* estimator -- a mixed
+  additive-multiplicative ``sum_i prod_k ||beta_i - alpha_k||`` penalty that
+  **classifies units' regression-slope vectors** into latent groups. **C-Lasso
+  appears nowhere in the relaxed-SCM paper.**
+
+### The idea, and why it is harder than it looks
+
+Classify donors into latent groups with C-Lasso from their pre-treatment
+behaviour, then fit SCM per group, vs ``RELAX_L2``. From reading both papers,
+the obstacles (this would be original research, not a replication):
+
+* C-Lasso classifies regression **slope vectors and needs covariates**
+  ``x_it`` -- neither paper runs it on bare outcome series. Repurposing it for
+  outcome-only SCM (e.g. classify factor loadings, factors-as-regressors) is not
+  done or claimed in either paper.
+* It needs ``T -> infinity`` and large groups (classification ~80-89% correct at
+  ``T = 15``); SCM pre-periods are short and donor pools split into K groups
+  leave few units per group.
+* It fights the relaxed-SCM thesis: Liao-Shi-Zheng (Remark 2) show you **do not
+  need to recover membership** -- L2-relaxation exploits the groups implicitly
+  and *beats* the oracle-informed group lasso. "Classify-then-SCM-per-group" is
+  the harder two-stage route they argue is unnecessary.
+* C-Lasso itself is heavy: non-convex product-of-distances penalty, iterative
+  joint estimation, init/local-optima sensitivity, an IC step for K, a
+  post-Lasso refit.
+
+**Verdict:** pursue only with appetite for original methodology; pin the
+loadings-as-slopes specification against ``zhan-gao/classo`` first.
+
+---
+
 ## Done
 
-*(empty — move completed items here, preserving their Learnings subsection.)*
+*(empty -- move completed items here, preserving their Learnings subsection.)*
