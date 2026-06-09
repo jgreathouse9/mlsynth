@@ -45,6 +45,30 @@ def test_fast_solve_matches_scopt(second_norm, alpha, ct, fi, lam):
     assert np.abs(w_ref - w_osqp).max() < 1e-4 and abs(b_ref - b_osqp) < 1e-4
 
 
+@pytest.mark.parametrize("rt", ["l2", "entropy", "el"])
+def test_relaxed_fast_solve_matches_scopt(rt):
+    """The relaxed-branch fast solves (OSQP for L2, DPP for entropy/EL) must
+    reproduce the reference SCopt relaxed solve cell-by-cell."""
+    import cvxpy as cp
+    from mlsynth.utils.laxscm_helpers.fast_solve import solve_relaxed_l2_osqp, solve_relaxed_dpp
+
+    rng = np.random.default_rng(0)
+    T0, J = 40, 12
+    X = rng.normal(size=(T0, J))
+    y = X @ np.random.default_rng(1).dirichlet(np.ones(J)) + rng.normal(scale=0.3, size=T0)
+    G, h, w0 = X.T @ X, X.T @ y, np.ones(J) / J
+    eta = cp.Problem(cp.Minimize(
+        cp.norm((h - G @ w0) / T0 + cp.Variable() * np.ones(J), "inf"))).solve(solver=cp.CLARABEL)
+    tau = 1.5 * float(eta)
+    res = Opt2.SCopt(y=y, X=X, T0=T0, fit_intercept=False, constraint_type="simplex",
+                     objective_type="relaxed", relaxation_type=rt, lam=0.0, tau=tau, solver="CLARABEL")
+    w_ref = np.asarray(res["weights"]["w"]).ravel()
+    w_fast = (solve_relaxed_l2_osqp(X, y, tau) if rt == "l2"
+              else solve_relaxed_dpp(X, y, tau, relaxation_type=rt))
+    assert w_fast is not None
+    assert np.abs(w_ref - w_fast).max() < 1e-3
+
+
 # ======================================================
 # ElasticNetCV grid processing tests
 # ======================================================

@@ -249,3 +249,152 @@ def solve_penalized_osqp(
     x = np.asarray(x, dtype=float)
     b0 = float(x[J]) if fit_intercept else 0.0
     return x[:J], b0
+
+
+# ---------------------------------------------------------------------------
+# Relaxed branch (SCM-relaxation): solve over the balance polytope.
+#
+# All three relaxations minimise a divergence D(w) over
+#   w in simplex,  ||(h - G w)/T0 + gamma * 1||_inf <= tau   (gamma a free scalar)
+# where G = X'X, h = X'y. With the Gram, the balance L-infinity ball is just 2J
+# linear inequalities in (w, gamma):  for each j,
+#   -tau <= (h_j - (G w)_j)/T0 + gamma <= tau.
+# L2 (D = ||w||^2) is then a QP -> OSQP; entropy / EL are max-entropy / EL over
+# the same polytope (smooth-dual targets, handled separately).
+# ---------------------------------------------------------------------------
+
+def _balance_rows(G: np.ndarray, h: np.ndarray, T0: int, tau: float, n_extra: int):
+    """Linear rows/bounds for ``||(h - G w)/T0 + gamma||_inf <= tau``.
+
+    Variable layout is ``[w (J), gamma (1), <n_extra aux>]``; gamma is column J.
+    Returns ``(rows, lo, hi)`` with one pair of bounds folded into ``[lo, hi]``
+    per donor (the two-sided inequality).
+    """
+    J = G.shape[1]
+    N = J + 1 + n_extra
+    rows, lo, hi = [], [], []
+    for j in range(J):
+        r = np.zeros(N)
+        r[:J] = -G[j, :] / T0           # -(G w)_j / T0
+        r[J] = 1.0                       # + gamma
+        rows.append(r)
+        lo.append(-tau - h[j] / T0)      # -tau <= ... - h_j/T0  (move constant)
+        hi.append(tau - h[j] / T0)
+    return rows, lo, hi
+
+
+def solve_relaxed_l2_osqp(X: np.ndarray, y: np.ndarray, tau: float) -> np.ndarray | None:
+    """Native OSQP solve of the L2 SCM-relaxation (``min ||w||^2`` over the
+    simplex and the relaxed-balance polytope). Returns donor weights ``(J,)`` or
+    ``None`` on failure. Mirrors ``Opt2.SCopt(objective_type='relaxed',
+    relaxation_type='l2', constraint_type='simplex')``.
+    """
+    import osqp
+    import scipy.sparse as sp
+
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float).ravel()
+    T0, J = X.shape
+    G = X.T @ X
+    h = X.T @ y
+    N = J + 1                                   # [w (J), gamma]
+
+    P = np.zeros((N, N))
+    P[np.arange(J), np.arange(J)] = 2.0          # (1/2) x'Px = ||w||^2
+    q = np.zeros(N)
+
+    rows, lo, hi = [], [], []
+    r = np.zeros(N); r[:J] = 1.0                 # sum_j w_j = 1
+    rows.append(r); lo.append(1.0); hi.append(1.0)
+    for d in range(J):                           # w_j >= 0
+        rr = np.zeros(N); rr[d] = 1.0
+        rows.append(rr); lo.append(0.0); hi.append(np.inf)
+    br, blo, bhi = _balance_rows(G, h, T0, tau, n_extra=0)
+    rows += br; lo += blo; hi += bhi
+
+    A = sp.csc_matrix(np.vstack(rows))
+    m = osqp.OSQP()
+    try:
+        m.setup(P=sp.csc_matrix(P), q=q, A=A, l=np.array(lo), u=np.array(hi),
+                verbose=False, eps_abs=1e-9, eps_rel=1e-9, max_iter=40000, polish=True)
+        res = m.solve()
+    except Exception:  # pragma: no cover - solver setup/solve failure
+        return None
+    x = getattr(res, "x", None)
+    if x is None or np.any(np.isnan(x)):
+        return None
+    w = np.asarray(x[:J], dtype=float)
+    if np.allclose(w, 0):
+        return None
+    return w
+
+
+# Cache of compiled DPP relaxed problems, keyed by (J, relaxation_type).
+_RELAX_CACHE: Dict[tuple, "_RelaxedProblem"] = {}
+
+
+class _RelaxedProblem:
+    """A compiled, DPP-parametrized SCM-relaxation problem of fixed shape.
+
+    The Gram sufficient statistics enter as parameters ``Gn = X'X / T0`` and
+    ``hn = X'y / T0`` (so the solve is T0-independent and reused across CV folds),
+    ``tau`` is a parameter, and a single compiled problem serves the whole tau
+    grid. The divergence objective carries no parameters, so DPP holds.
+    """
+
+    def __init__(self, J: int, relaxation_type: str):
+        w = cp.Variable(J)
+        gam = cp.Variable()
+        self.w = w
+        self.Gn = cp.Parameter((J, J))
+        self.hn = cp.Parameter(J)
+        self.tau = cp.Parameter(nonneg=True)
+
+        residual = self.hn - self.Gn @ w            # (h - G w) / T0
+        constraints = [cp.sum(w) == 1, w >= 0,
+                       cp.norm(residual + gam, "inf") <= self.tau]
+        if relaxation_type == "entropy":
+            obj = cp.sum(-cp.entr(w))               # sum w_i log w_i
+        elif relaxation_type == "el":
+            obj = cp.sum(-cp.log(w))                # -sum log w_i
+        elif relaxation_type == "l2":
+            obj = cp.sum_squares(w)
+        else:  # pragma: no cover
+            raise ValueError(f"unknown relaxation_type {relaxation_type!r}")
+        self.problem = cp.Problem(cp.Minimize(obj), constraints)
+
+
+def solve_relaxed_dpp(
+    X: np.ndarray, y: np.ndarray, tau: float, relaxation_type: str = "entropy",
+    solver: str = "CLARABEL",
+) -> np.ndarray | None:
+    """DPP/Gram relaxed solve reusing a cached compiled problem across the tau
+    grid. Mirrors ``Opt2.SCopt(objective_type='relaxed', ...)``; returns donor
+    weights ``(J,)`` or ``None`` on failure.
+    """
+    if cp is None:  # pragma: no cover
+        raise RuntimeError("cvxpy is required for solve_relaxed_dpp")
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float).ravel()
+    T0, J = X.shape
+
+    key = (J, relaxation_type)
+    prob = _RELAX_CACHE.get(key)
+    if prob is None:
+        prob = _RelaxedProblem(J, relaxation_type)
+        _RELAX_CACHE[key] = prob
+
+    prob.Gn.value = (X.T @ X) / T0
+    prob.hn.value = (X.T @ y) / T0
+    prob.tau.value = float(tau)
+    try:
+        prob.problem.solve(solver=solver, verbose=False)
+    except Exception:  # pragma: no cover - solver failure
+        return None
+    wv = prob.w.value
+    if wv is None:
+        return None
+    w = np.asarray(wv, dtype=float).ravel()
+    if np.allclose(w, 0):
+        return None
+    return w
