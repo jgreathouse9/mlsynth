@@ -1,12 +1,14 @@
 name: Test mlsynth Installation
 
+# Post-merge install smoke check only. It installs mlsynth from the GitHub `main`
+# branch and imports it, so it is only meaningful AFTER a merge to main -- on a PR
+# it would install main (not the PR's code) and tell us nothing. The PR gate is
+# the full test suite in build.yml.
 on:
   push:
     branches:
-      - main  # Trigger this action when you push to the 'main' branch
-  pull_request:
-    branches:
-      - main  # Trigger this action for pull requests to the 'main' branch
+      - main  # validate that main pip-installs + imports after each merge
+  workflow_dispatch:
 
 jobs:
   install_and_test:
