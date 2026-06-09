@@ -88,8 +88,11 @@ jobs:
       # onto main with the merge. [skip ci] keeps this commit from re-triggering
       # the workflow. PR-only (it needs a head branch to push to and fresh
       # coverage data from the run above).
+      # The badge is cosmetic, so this step must never fail the test gate:
+      # continue-on-error + a tolerant push.
       - name: Update coverage badge on the PR branch
         if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
         run: |
           coverage report -m || true
           coverage-badge -o coverage.svg -f
@@ -101,7 +104,7 @@ jobs:
             exit 0
           fi
           git commit -m "Update coverage badge [skip ci]"
-          git push origin "HEAD:${{ github.head_ref }}"
+          git push origin "HEAD:${{ github.head_ref }}" || echo "Badge push skipped (no write access or race); not fatal."
 
       - name: Build distribution
         run: python setup.py sdist
@@ -111,5 +114,3 @@ jobs:
         with:
           name: mlsynth-dist
           path: dist/
-
-# (CI: re-trigger after workflow change)
