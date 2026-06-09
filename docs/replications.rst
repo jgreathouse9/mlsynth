@@ -218,11 +218,6 @@ High-dimensional donor pools
   forward-selection vs. LASSO at 300 reps -- size = 0.047 vs.
   the paper's :math:`\approx 0.05`; power = 0.98 at D5 vs.
   :math:`1.0`.
-* :doc:`rescm` -- Liao, Shi & Zheng (2025) relaxed SC. **Path A:**
-  Proposition 99 (38 control states). **Path B:** high-dim grid
-  :math:`N = 90`, :math:`T_1 = T_2 = 36`, 50 reps at
-  :math:`\delta \in \{0, 1\}`; SC and LINF achieve size 0.20-0.22
-  and power 0.98; RELAX-:math:`L_2` reaches size 0.28, power 0.94.
 * :doc:`fscm` -- Cerulli (2024) forward-selected SC. **Path A:**
   Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} = -20.15`,
