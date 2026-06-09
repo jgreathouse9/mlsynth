@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
+from pydantic import ConfigDict
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -155,16 +158,26 @@ class SDIDInference:
     n_placebo: int
 
 
-@dataclass(frozen=True)
-class SDIDResults:
+class SDIDResults(BaseEstimatorResults):
     """Public ``SDID.fit()`` return container.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    it populates the standardized sub-models so the flat accessors (``att`` /
+    ``att_ci`` / ``counterfactual`` / ``gap`` / ``pre_rmse``) resolve through
+    the base contract. The flat ``counterfactual`` / ``gap`` are the
+    treated-unit-weighted aggregate trajectories across cohorts (for a single
+    cohort, that cohort's path). The full SDID detail -- the placebo inference,
+    the pooled event study, and the per-cohort decomposition -- stays in the
+    typed fields below.
 
     Parameters
     ----------
     inputs : SDIDInputs
         Pre-processed panel.
-    inference : SDIDInference
-        Overall ATT and placebo inference (Equation 7).
+    inference_detail : SDIDInference
+        Overall ATT and placebo inference (Equation 7). Was ``inference``
+        before the contract migration; the standardized ``inference`` slot now
+        holds the ATT-level :class:`~mlsynth.config_models.InferenceResults`.
     event_study : SDIDEventStudy
         Pooled event-study estimator (Equation 6).
     cohorts : Dict[int, SDIDCohort]
@@ -176,8 +189,14 @@ class SDIDResults:
         retained for reproducibility and downstream tooling.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: SDIDInputs
-    inference: SDIDInference
+    inference_detail: SDIDInference
     event_study: SDIDEventStudy
     cohorts: Dict[int, SDIDCohort]
     raw: Dict[str, Any]
+
+
+# Resolve forward references (module uses ``from __future__ import annotations``).
+SDIDResults.model_rebuild()

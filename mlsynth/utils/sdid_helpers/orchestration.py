@@ -15,6 +15,14 @@ from typing import Any, Dict
 
 import numpy as np
 
+from ...config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from .event_study import estimate_event_study_sdid
 from .setup import prepare_sdid_inputs
 from .structures import (
@@ -120,12 +128,52 @@ def assemble_results(inputs: SDIDInputs, raw: Dict[str, Any]) -> SDIDResults:
         n_placebo=int(len(placebo)),
     )
 
+    # Treated-unit-weighted aggregate trajectory across cohorts -> the flat
+    # standardized counterfactual / gap (a single cohort reduces to its path).
+    labels = np.asarray(inputs.time_labels)
+    if cohorts:
+        w = np.array([max(c.n_treated, 1) for c in cohorts.values()], dtype=float)
+        actual = np.average(
+            np.vstack([np.asarray(c.actual, dtype=float) for c in cohorts.values()]),
+            axis=0, weights=w)
+        cf = np.average(
+            np.vstack([np.asarray(c.counterfactual, dtype=float) for c in cohorts.values()]),
+            axis=0, weights=w)
+    else:
+        actual = cf = np.full(labels.shape[0], np.nan)
+    gap = actual - cf
+    n_pre = int(inputs.n_pre)
+    pre_rmse = (float(np.sqrt(np.mean(gap[:n_pre] ** 2)))
+                if n_pre > 0 and np.isfinite(gap[:n_pre]).all() else None)
+    std_inference = InferenceResults(
+        standard_error=None if np.isnan(se) else float(se),
+        ci_lower=None if np.isnan(ci_pair[0]) else float(ci_pair[0]),
+        ci_upper=None if np.isnan(ci_pair[1]) else float(ci_pair[1]),
+        p_value=None if np.isnan(inference.p_value) else float(inference.p_value),
+        method="placebo",
+        details=inference,
+    )
+
     return SDIDResults(
         inputs=inputs,
-        inference=inference,
+        inference_detail=inference,
         event_study=event_study,
         cohorts=cohorts,
         raw=raw,
+        effects=EffectsResults(
+            att=None if np.isnan(att) else float(att),
+            att_std_err=None if np.isnan(se) else float(se)),
+        time_series=TimeSeriesResults(
+            observed_outcome=actual,
+            counterfactual_outcome=cf,
+            estimated_gap=gap,
+            time_periods=labels,
+            intervention_time=(labels[n_pre] if 0 <= n_pre < labels.shape[0] else None)),
+        weights=WeightsResults(
+            summary_stats={"constraint": "SDID unit + time weights (per cohort)"}),
+        fit_diagnostics=FitDiagnosticsResults(rmse_pre=pre_rmse),
+        inference=std_inference,
+        method_details=MethodDetailsResults(method_name="SDID", is_recommended=True),
     )
 
 

@@ -20,8 +20,9 @@ import pandas as pd
 import pytest
 
 from mlsynth import (
-    CLUSTERSC, FDID, FSCM, HSC, LEXSCM, MASC, MCNNM, MSQRT, NSC, PDA, RESCM,
-    RMSI, SBC, SCMO, SNN, SparseSC, SPOTSYNTH, TASC, TSSC, VanillaSC,
+    CLUSTERSC, FDID, FMA, FSCM, HSC, LEXSCM, MASC, MCNNM, MSQRT, NSC, PDA,
+    RESCM, RMSI, SBC, SCMO, SDID, SequentialSDID, SNN, SparseSC, SPOTSYNTH,
+    TASC, TSSC, VanillaSC,
 )
 from mlsynth.config_models import (
     BaseEstimatorResults,
@@ -81,6 +82,9 @@ OBSERVATIONAL = [
     pytest.param(PDA, {}, id="PDA"),
     pytest.param(MASC, {}, id="MASC"),
     pytest.param(NSC, {"a": 0.0, "b": 0.0}, id="NSC"),
+    pytest.param(FMA, {}, id="FMA"),
+    pytest.param(SDID, {}, id="SDID"),
+    pytest.param(SequentialSDID, {"n_bootstrap": 20, "seed": 0}, id="SequentialSDID"),
 ]
 
 

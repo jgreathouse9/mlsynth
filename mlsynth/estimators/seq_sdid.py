@@ -31,7 +31,15 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import SequentialSDIDConfig
+from ..config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    MethodDetailsResults,
+    SequentialSDIDConfig,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -204,14 +212,36 @@ class SequentialSDID:
                 method="bayesian_bootstrap",
                 seed=self.seed,
             )
+            horizons = np.arange(inputs.K + 1)
+            tau_arr = np.asarray(tau_hat, dtype=float)
+            att = float(np.nanmean(tau_arr)) if tau_arr.size else float("nan")
+            # Standardized event-time series: gap = pooled horizon effect,
+            # counterfactual = no-effect baseline (0), observed = effect.
+            cf = np.zeros_like(tau_arr)
             results = SeqSDIDResults(
                 inputs=inputs,
                 cohort_effects=cohort_effects,
                 event_study=event_study,
-                inference=inference,
+                inference_detail=inference,
                 eta=effective_eta,
                 mode=self.mode,
                 raw_event_study=tau_hat.copy(),
+                effects=EffectsResults(att=None if np.isnan(att) else att),
+                time_series=TimeSeriesResults(
+                    observed_outcome=tau_arr,
+                    counterfactual_outcome=cf,
+                    estimated_gap=tau_arr,
+                    time_periods=horizons,
+                    intervention_time=0,
+                ),
+                weights=WeightsResults(
+                    summary_stats={"constraint": "SSDiD unit + time weights "
+                                   "(per cohort x horizon)"}),
+                fit_diagnostics=FitDiagnosticsResults(),
+                inference=InferenceResults(
+                    method=inference.method, details=inference),
+                method_details=MethodDetailsResults(
+                    method_name=f"SequentialSDID ({self.mode})", is_recommended=True),
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

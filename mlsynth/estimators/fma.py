@@ -37,7 +37,15 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import FMAConfig
+from ..config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    FMAConfig,
+    InferenceResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -163,19 +171,44 @@ class FMA:
                 n_factors=n_factors,
             )
 
+            labels = np.asarray(inputs.time_labels)
+            T0, T = inputs.T0, inputs.T
+            std_inference = InferenceResults(
+                standard_error=None if np.isnan(inference.asymptotic_att_se) else float(inference.asymptotic_att_se),
+                ci_lower=None if np.isnan(inference.asymptotic_att_lower) else float(inference.asymptotic_att_lower),
+                ci_upper=None if np.isnan(inference.asymptotic_att_upper) else float(inference.asymptotic_att_upper),
+                p_value=None if np.isnan(inference.asymptotic_att_p_value) else float(inference.asymptotic_att_p_value),
+                method=inference.method,
+                details=inference,
+            )
             results = FMAResults(
                 inputs=inputs,
                 design=design,
-                inference=inference,
-                counterfactual=counterfactual,
-                gap=gap,
-                att=att,
-                pre_rmse=pre_rmse,
+                inference_detail=inference,
                 metadata={
                     "n_factors_source": source,
                     "n_factors": int(n_factors),
                     "inference_methods": list(self.inference_methods),
                 },
+                effects=EffectsResults(
+                    att=None if np.isnan(att) else float(att),
+                    att_std_err=None if np.isnan(inference.asymptotic_att_se) else float(inference.asymptotic_att_se),
+                ),
+                time_series=TimeSeriesResults(
+                    observed_outcome=np.asarray(inputs.treated_outcome, dtype=float),
+                    counterfactual_outcome=np.asarray(counterfactual, dtype=float),
+                    estimated_gap=np.asarray(gap, dtype=float),
+                    time_periods=labels,
+                    intervention_time=(labels[T0] if T0 < T else None),
+                ),
+                weights=WeightsResults(
+                    donor_weights={},
+                    summary_stats={"constraint": "factor-model projection (no donor weights)"},
+                ),
+                fit_diagnostics=FitDiagnosticsResults(
+                    rmse_pre=None if np.isnan(pre_rmse) else float(pre_rmse)),
+                inference=std_inference,
+                method_details=MethodDetailsResults(method_name="FMA", is_recommended=True),
             )
 
             if self.display_graphs:

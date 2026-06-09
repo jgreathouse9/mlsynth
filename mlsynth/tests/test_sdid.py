@@ -264,15 +264,15 @@ class TestProp99Replication:
         # et al. (2021) Table 1. The point estimate is deterministic given
         # the regularization parameter; only inference fields move with
         # the placebo seed.
-        assert res.inference.att == pytest.approx(-15.6054, abs=5e-3)
+        assert res.inference_detail.att == pytest.approx(-15.6054, abs=5e-3)
 
     def test_inference_is_well_formed(self, smoking_panel):
         res = SDID(_base_config(smoking_panel, B=50, seed=1400)).fit()
-        assert res.inference.n_placebo == 50
-        assert np.isfinite(res.inference.se) and res.inference.se > 0
-        lo, hi = res.inference.ci
-        assert lo <= res.inference.att <= hi
-        assert 0.0 < res.inference.p_value <= 1.0
+        assert res.inference_detail.n_placebo == 50
+        assert np.isfinite(res.inference_detail.se) and res.inference_detail.se > 0
+        lo, hi = res.inference_detail.ci
+        assert lo <= res.inference_detail.att <= hi
+        assert 0.0 < res.inference_detail.p_value <= 1.0
 
     def test_event_study_post_period_negative(self, smoking_panel):
         # Prop 99 reduced cigarette sales; the LAST event-time effect should
@@ -290,15 +290,15 @@ class TestProp99Replication:
         res = SDID(_base_config(smoking_panel, B=20, seed=1400)).fit()
         assert len(res.cohorts) == 1
         cohort = next(iter(res.cohorts.values()))
-        assert cohort.att == pytest.approx(res.inference.att, abs=1e-10)
+        assert cohort.att == pytest.approx(res.inference_detail.att, abs=1e-10)
 
     def test_zero_placebo_iterations_yield_nan_inference(self, smoking_panel):
         res = SDID(_base_config(smoking_panel, B=0)).fit()
         # Point estimate is still computable.
-        assert np.isfinite(res.inference.att)
+        assert np.isfinite(res.inference_detail.att)
         # But the variance / CI fields are NaN.
-        assert np.isnan(res.inference.se)
-        assert np.isnan(res.inference.p_value)
+        assert np.isnan(res.inference_detail.se)
+        assert np.isnan(res.inference_detail.p_value)
 
 
 class TestStaggeredAdoption:
@@ -337,7 +337,7 @@ class TestPublicAPI:
         res = SDID(_base_config(smoking_panel, B=10)).fit()
         assert isinstance(res, SDIDResults)
         assert isinstance(res.inputs, SDIDInputs)
-        assert isinstance(res.inference, SDIDInference)
+        assert isinstance(res.inference_detail, SDIDInference)
         assert isinstance(res.event_study, SDIDEventStudy)
         for cohort in res.cohorts.values():
             assert isinstance(cohort, SDIDCohort)
@@ -353,4 +353,4 @@ class TestPublicAPI:
         cfg_obj = SDIDConfig(**cfg_dict)
         r1 = SDID(cfg_dict).fit()
         r2 = SDID(cfg_obj).fit()
-        assert r1.inference.att == pytest.approx(r2.inference.att)
+        assert r1.inference_detail.att == pytest.approx(r2.inference_detail.att)

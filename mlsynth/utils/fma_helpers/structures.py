@@ -28,6 +28,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 import numpy as np
+from pydantic import ConfigDict, Field
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -191,9 +194,16 @@ class FMAInference:
     )
 
 
-@dataclass(frozen=True)
-class FMAResults:
+class FMAResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.FMA.fit`.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    it populates the standardized sub-models so the flat accessors (``att`` /
+    ``att_ci`` / ``counterfactual`` / ``gap`` / ``pre_rmse``) resolve through
+    the base contract. FMA is a factor-model counterfactual, so it carries no
+    donor weights; the rich asymptotic/bootstrap/placebo inference lives on
+    ``inference_detail`` (the standardized ``inference`` slot mirrors the
+    ATT-level asymptotic CI).
 
     Parameters
     ----------
@@ -201,30 +211,25 @@ class FMAResults:
         Preprocessed panel.
     design : FMADesign
         Factor-model design.
-    inference : FMAInference
-        Inference output.
-    counterfactual : np.ndarray
-        Convenience alias of ``design.counterfactual``.
-    gap : np.ndarray
-        Convenience alias of ``design.gap``.
-    att : float
-        Mean post-treatment gap.
-    pre_rmse : float
-        Root mean squared pre-treatment fit error.
+    inference_detail : FMAInference
+        Full inference output (was ``inference`` before the contract
+        migration).
     metadata : dict
         Free-form pipeline diagnostics.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: FMAInputs
     design: FMADesign
-    inference: FMAInference
-    counterfactual: np.ndarray
-    gap: np.ndarray
-    att: float
-    pre_rmse: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    inference_detail: FMAInference
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @property
     def n_factors(self) -> int:
         """Selected number of factors."""
         return self.design.n_factors
+
+
+# Resolve forward references (module uses ``from __future__ import annotations``).
+FMAResults.model_rebuild()
