@@ -327,3 +327,74 @@ def solve_relaxed_l2_osqp(X: np.ndarray, y: np.ndarray, tau: float) -> np.ndarra
     if np.allclose(w, 0):
         return None
     return w
+
+
+# Cache of compiled DPP relaxed problems, keyed by (J, relaxation_type).
+_RELAX_CACHE: Dict[tuple, "_RelaxedProblem"] = {}
+
+
+class _RelaxedProblem:
+    """A compiled, DPP-parametrized SCM-relaxation problem of fixed shape.
+
+    The Gram sufficient statistics enter as parameters ``Gn = X'X / T0`` and
+    ``hn = X'y / T0`` (so the solve is T0-independent and reused across CV folds),
+    ``tau`` is a parameter, and a single compiled problem serves the whole tau
+    grid. The divergence objective carries no parameters, so DPP holds.
+    """
+
+    def __init__(self, J: int, relaxation_type: str):
+        w = cp.Variable(J)
+        gam = cp.Variable()
+        self.w = w
+        self.Gn = cp.Parameter((J, J))
+        self.hn = cp.Parameter(J)
+        self.tau = cp.Parameter(nonneg=True)
+
+        residual = self.hn - self.Gn @ w            # (h - G w) / T0
+        constraints = [cp.sum(w) == 1, w >= 0,
+                       cp.norm(residual + gam, "inf") <= self.tau]
+        if relaxation_type == "entropy":
+            obj = cp.sum(-cp.entr(w))               # sum w_i log w_i
+        elif relaxation_type == "el":
+            obj = cp.sum(-cp.log(w))                # -sum log w_i
+        elif relaxation_type == "l2":
+            obj = cp.sum_squares(w)
+        else:  # pragma: no cover
+            raise ValueError(f"unknown relaxation_type {relaxation_type!r}")
+        self.problem = cp.Problem(cp.Minimize(obj), constraints)
+
+
+def solve_relaxed_dpp(
+    X: np.ndarray, y: np.ndarray, tau: float, relaxation_type: str = "entropy",
+    solver: str = "CLARABEL",
+) -> np.ndarray | None:
+    """DPP/Gram relaxed solve reusing a cached compiled problem across the tau
+    grid. Mirrors ``Opt2.SCopt(objective_type='relaxed', ...)``; returns donor
+    weights ``(J,)`` or ``None`` on failure.
+    """
+    if cp is None:  # pragma: no cover
+        raise RuntimeError("cvxpy is required for solve_relaxed_dpp")
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float).ravel()
+    T0, J = X.shape
+
+    key = (J, relaxation_type)
+    prob = _RELAX_CACHE.get(key)
+    if prob is None:
+        prob = _RelaxedProblem(J, relaxation_type)
+        _RELAX_CACHE[key] = prob
+
+    prob.Gn.value = (X.T @ X) / T0
+    prob.hn.value = (X.T @ y) / T0
+    prob.tau.value = float(tau)
+    try:
+        prob.problem.solve(solver=solver, verbose=False)
+    except Exception:  # pragma: no cover - solver failure
+        return None
+    wv = prob.w.value
+    if wv is None:
+        return None
+    w = np.asarray(wv, dtype=float).ravel()
+    if np.allclose(w, 0):
+        return None
+    return w

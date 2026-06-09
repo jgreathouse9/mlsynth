@@ -145,6 +145,17 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
                     return w_fast
             except Exception:  # noqa: BLE001 - fall through to SCopt
                 pass
+        elif self.relaxation_type in ("entropy", "el"):
+            # DPP/Gram cvxpy fast path (compile once, vary tau across the grid).
+            try:
+                from .fast_solve import solve_relaxed_dpp
+                w_fast = solve_relaxed_dpp(
+                    X, y, tau_val, relaxation_type=self.relaxation_type, solver=self.solver
+                )
+                if w_fast is not None:
+                    return w_fast
+            except Exception:  # noqa: BLE001 - fall through to SCopt
+                pass
 
         try:
             sc_res = Opt2.SCopt(
