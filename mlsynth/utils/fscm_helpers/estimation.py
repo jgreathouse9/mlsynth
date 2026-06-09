@@ -23,6 +23,13 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
+from ...config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from .bilevel import BilevelProblem, lower_level_weights, simplex_lstsq, solve_bilevel
 from .structures import FSCMInputs, FSCMResults, FSCMSelectionPath
 
@@ -264,15 +271,31 @@ def run_fscm(
         diagnostics["bilevel_lower_bound"] = bilevel_sol.lower_bound
         diagnostics["bilevel_gap"] = bilevel_sol.gap
 
+    labels = np.asarray(inputs.time_index.labels)
+    T = inputs.T
     return FSCMResults(
         inputs=inputs,
         selected_donors=[inputs.donor_labels[i] for i in active_idx],
-        weights=np.asarray(active_w),
-        donor_weights=donor_weights,
-        counterfactual=counterfactual,
-        gap=gap,
-        att=att,
+        weights_vector=np.asarray(active_w),
         selection_path=path,
-        fit_diagnostics=diagnostics,
+        diagnostics=diagnostics,
         metadata=metadata,
+        effects=EffectsResults(att=att),
+        time_series=TimeSeriesResults(
+            observed_outcome=np.asarray(inputs.y, dtype=float),
+            counterfactual_outcome=np.asarray(counterfactual, dtype=float),
+            estimated_gap=np.asarray(gap, dtype=float),
+            time_periods=labels,
+            intervention_time=(labels[T0] if T0 < T else None),
+        ),
+        weights=WeightsResults(
+            donor_weights={str(k): float(v) for k, v in donor_weights.items()},
+            summary_stats={"constraint": "simplex (non-negative, sum to 1)"},
+        ),
+        fit_diagnostics=FitDiagnosticsResults(
+            rmse_pre=diagnostics["pre_rmse"],
+            r_squared_pre=diagnostics["pre_r_squared"],
+            additional_metrics=diagnostics,
+        ),
+        method_details=MethodDetailsResults(method_name="FSCM", is_recommended=True),
     )

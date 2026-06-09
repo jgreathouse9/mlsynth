@@ -23,6 +23,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from pydantic import ConfigDict, Field
+
+from ...config_models import BaseEstimatorResults
 
 from ..fast_scm_helpers.structure import IndexSet
 
@@ -120,25 +123,48 @@ class FSCMSelectionPath:
     optimal_size: int                 # argmin test_rmspe (number of donors)
 
 
-@dataclass(frozen=True)
-class FSCMResults:
-    """Top-level container returned by :meth:`mlsynth.FSCM.fit`."""
+class FSCMResults(BaseEstimatorResults):
+    """Top-level container returned by :meth:`mlsynth.FSCM.fit`.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    it populates the standardized sub-models so the flat accessors (``att`` /
+    ``counterfactual`` / ``gap`` / ``donor_weights`` / ``pre_rmse``) resolve
+    through the base contract. The FSCM-specific fields below carry the
+    forward-selection detail.
+
+    Parameters
+    ----------
+    inputs : FSCMInputs
+        Preprocessed panel.
+    selected_donors : list
+        Labels of the donor set carrying weight.
+    weights_vector : np.ndarray
+        ``(n_selected,)`` simplex weights over ``selected_donors`` (the raw
+        weight array; ``res.donor_weights`` is the full-pool mapping).
+    selection_path : FSCMSelectionPath or None
+        Forward-selection / cross-validation trace (``None`` when forward
+        selection is off).
+    diagnostics : dict
+        Rich fit diagnostics (pre-RMSE, R-squared, donor counts, CV stats);
+        the standardized ``fit_diagnostics`` sub-model mirrors the headline
+        numbers and keeps this dict in ``additional_metrics``.
+    metadata : dict
+        Free-form provenance.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: FSCMInputs
-    selected_donors: List[Any]        # labels of the donor set with weight
-    weights: np.ndarray               # (n_selected,) simplex weights
-    donor_weights: Dict[Any, float]   # full pool, zeros off the selected set
-    counterfactual: np.ndarray        # (T,)
-    gap: np.ndarray                   # (T,) = y - counterfactual
-    att: float                        # mean post-period gap
-    selection_path: Optional[FSCMSelectionPath] = None  # None when no forward selection
-    fit_diagnostics: Dict[str, float] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    selected_donors: List[Any]
+    weights_vector: np.ndarray
+    selection_path: Optional[FSCMSelectionPath] = None
+    diagnostics: Dict[str, float] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @property
     def n_selected(self) -> int:
         return len(self.selected_donors)
 
-    @property
-    def pre_rmse(self) -> float:
-        return float(self.fit_diagnostics.get("pre_rmse", np.nan))
+
+# Resolve forward references (module uses ``from __future__ import annotations``).
+FSCMResults.model_rebuild()
