@@ -134,6 +134,18 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
 
     def _solve_relax_problem(self, X: np.ndarray, y: np.ndarray, tau: float = None) -> np.ndarray | None:
         tau_val = self.tau_ if tau is None else tau
+
+        # Native OSQP fast path for the L2 relaxation (a QP over the balance
+        # polytope); falls through to the reference SCopt build on any failure.
+        if self.relaxation_type == "l2":
+            try:
+                from .fast_solve import solve_relaxed_l2_osqp
+                w_fast = solve_relaxed_l2_osqp(X, y, tau_val)
+                if w_fast is not None:
+                    return w_fast
+            except Exception:  # noqa: BLE001 - fall through to SCopt
+                pass
+
         try:
             sc_res = Opt2.SCopt(
                 y=y,

@@ -249,3 +249,81 @@ def solve_penalized_osqp(
     x = np.asarray(x, dtype=float)
     b0 = float(x[J]) if fit_intercept else 0.0
     return x[:J], b0
+
+
+# ---------------------------------------------------------------------------
+# Relaxed branch (SCM-relaxation): solve over the balance polytope.
+#
+# All three relaxations minimise a divergence D(w) over
+#   w in simplex,  ||(h - G w)/T0 + gamma * 1||_inf <= tau   (gamma a free scalar)
+# where G = X'X, h = X'y. With the Gram, the balance L-infinity ball is just 2J
+# linear inequalities in (w, gamma):  for each j,
+#   -tau <= (h_j - (G w)_j)/T0 + gamma <= tau.
+# L2 (D = ||w||^2) is then a QP -> OSQP; entropy / EL are max-entropy / EL over
+# the same polytope (smooth-dual targets, handled separately).
+# ---------------------------------------------------------------------------
+
+def _balance_rows(G: np.ndarray, h: np.ndarray, T0: int, tau: float, n_extra: int):
+    """Linear rows/bounds for ``||(h - G w)/T0 + gamma||_inf <= tau``.
+
+    Variable layout is ``[w (J), gamma (1), <n_extra aux>]``; gamma is column J.
+    Returns ``(rows, lo, hi)`` with one pair of bounds folded into ``[lo, hi]``
+    per donor (the two-sided inequality).
+    """
+    J = G.shape[1]
+    N = J + 1 + n_extra
+    rows, lo, hi = [], [], []
+    for j in range(J):
+        r = np.zeros(N)
+        r[:J] = -G[j, :] / T0           # -(G w)_j / T0
+        r[J] = 1.0                       # + gamma
+        rows.append(r)
+        lo.append(-tau - h[j] / T0)      # -tau <= ... - h_j/T0  (move constant)
+        hi.append(tau - h[j] / T0)
+    return rows, lo, hi
+
+
+def solve_relaxed_l2_osqp(X: np.ndarray, y: np.ndarray, tau: float) -> np.ndarray | None:
+    """Native OSQP solve of the L2 SCM-relaxation (``min ||w||^2`` over the
+    simplex and the relaxed-balance polytope). Returns donor weights ``(J,)`` or
+    ``None`` on failure. Mirrors ``Opt2.SCopt(objective_type='relaxed',
+    relaxation_type='l2', constraint_type='simplex')``.
+    """
+    import osqp
+    import scipy.sparse as sp
+
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float).ravel()
+    T0, J = X.shape
+    G = X.T @ X
+    h = X.T @ y
+    N = J + 1                                   # [w (J), gamma]
+
+    P = np.zeros((N, N))
+    P[np.arange(J), np.arange(J)] = 2.0          # (1/2) x'Px = ||w||^2
+    q = np.zeros(N)
+
+    rows, lo, hi = [], [], []
+    r = np.zeros(N); r[:J] = 1.0                 # sum_j w_j = 1
+    rows.append(r); lo.append(1.0); hi.append(1.0)
+    for d in range(J):                           # w_j >= 0
+        rr = np.zeros(N); rr[d] = 1.0
+        rows.append(rr); lo.append(0.0); hi.append(np.inf)
+    br, blo, bhi = _balance_rows(G, h, T0, tau, n_extra=0)
+    rows += br; lo += blo; hi += bhi
+
+    A = sp.csc_matrix(np.vstack(rows))
+    m = osqp.OSQP()
+    try:
+        m.setup(P=sp.csc_matrix(P), q=q, A=A, l=np.array(lo), u=np.array(hi),
+                verbose=False, eps_abs=1e-9, eps_rel=1e-9, max_iter=40000, polish=True)
+        res = m.solve()
+    except Exception:  # pragma: no cover - solver setup/solve failure
+        return None
+    x = getattr(res, "x", None)
+    if x is None or np.any(np.isnan(x)):
+        return None
+    w = np.asarray(x[:J], dtype=float)
+    if np.allclose(w, 0):
+        return None
+    return w
