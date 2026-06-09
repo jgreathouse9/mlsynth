@@ -44,6 +44,19 @@ handful of donors (``LINF`` / ``RELAX_*``), or (ii) a one-stop interface to
 compare classic SCM against its penalized and relaxed cousins on the same
 panel. Pick estimators by name through ``methods``.
 
+.. admonition:: Reference implementations (authors' code)
+
+   The source papers' own code — useful for cross-checking and otherwise
+   hard to locate:
+
+   * **L-infinity-norm SCM** (Wang, Xing & Ye [LinfSC]_, backing ``LINF`` /
+     ``L1LINF``): https://github.com/BioAlgs/LinfinitySC
+   * **SCM-relaxation** (Liao, Shi & Zheng [RelaxSC]_, backing ``RELAX_L2`` /
+     ``RELAX_ENTROPY`` / ``RELAX_EL``): the ``scmrelax`` Python package at
+     https://github.com/metricshilab/scmrelax (installable from
+     https://github.com/PanJi-0/scmrelax), with the Brexit / UK real-GDP
+     application at https://github.com/YapengZheng/Relaxed_SC
+
 Notation
 --------
 
