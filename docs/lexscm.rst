@@ -1035,6 +1035,56 @@ local solver (``status = FEASIBLE``), at which point the ``consensus``
 block under ``stats["search"]`` reports how many independent starts agreed
 on the incumbent.
 
+Example: spillover-aware selection
+==================================
+
+Suppose the markets sit inside larger regions and treating two markets in the
+same region would let the intervention spill across them (and onto each other's
+donors). Assign every unit a ``region`` and pass it as ``cluster_col``: LEXSCM
+then refuses to co-treat two markets from the same region (Stage 1) **and**
+refuses to build a treated market's synthetic control from its own-region peers
+(Stage 2).
+
+.. code-block:: python
+
+    import numpy as np
+
+    df = generate_synthetic_sales_panel(n_units=120, n_candidates=40,
+                                        n_time_periods=100, treatment_start=90,
+                                        seed=4545)
+
+    # assign each unit to one of 8 regions (constant within unit)
+    rng = np.random.default_rng(0)
+    region_of = rng.integers(0, 8, size=df["unitid"].nunique())
+    df["region"] = df["unitid"].map(lambda u: f"R{region_of[u]}")
+
+    config = {
+        "df": df, "outcome": "sales", "unitid": "unitid", "time": "time",
+        "candidate_col": "candidate", "m": 3, "post_col": "post",
+        "cluster_col": "region",        # <-- the only new line vs the budget example
+        "mde_horizon": "late", "top_K": 20,
+    }
+    results = LEXSCM(config).fit()
+
+    treated = list(results.selected_units)
+    treated_regions = {df.set_index("unitid")["region"].loc[int(u)] for u in treated}
+    donor_regions = {df.set_index("unitid")["region"].loc[int(d)]
+                     for d in results.design_weights.donor_weights}
+
+    print("treated markets :", treated)
+    print("treated regions :", treated_regions)       # all distinct -- one per region
+    print("donor regions   :", donor_regions)
+    assert treated_regions.isdisjoint(donor_regions)   # donors avoid treated regions
+
+Instead of clusters you can hand LEXSCM a **spillover/adjacency matrix** -- a
+``pandas.DataFrame`` indexed and columned by unit id, with a positive entry
+wherever two units interfere -- via ``adjacency=...`` and an optional
+``spillover_threshold`` (units conflict when the entry exceeds it). A
+``cluster_col`` and an ``adjacency`` may be supplied together; their conflicts
+combine. If the constraint admits no conflict-free ``m``-tuple (for instance
+``m`` larger than the number of regions), the fit raises
+:class:`~mlsynth.exceptions.MlsynthConfigError`.
+
 References
 ----------
 
