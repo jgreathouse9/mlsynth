@@ -213,6 +213,95 @@ loadings-as-slopes specification against ``zhan-gao/classo`` first.
 
 ---
 
+## 3. Fast large-J solver for the entropy / EL relaxations
+
+**Status: In progress (dual derived + prototyped + validated; needs a faster
+optimizer to be production-ready).**
+
+### Why
+
+`RELAX_L2` is fast (native OSQP). The exp-cone **entropy** (`Σ wⱼ log wⱼ`) and
+**EL** (`−Σ log wⱼ`) relaxations go through cvxpy/CLARABEL at ~0.4-0.5s per solve
+at `J=120`; the CV does ~`n_taus·n_splits` of them per method per rep, so a
+multi-method `rescm_relax_mc` at `J≫T0` costs minutes. Dead ends ruled out:
+**SCS** is ~marginal for entropy but **~10x slower for EL** on the real CV
+τ-grid (log-barrier + tiny τ); the **DPP `Gn=cp.Parameter((J,J))`** path
+(`fast_solve.py`) carries `J²` parameter entries → cvxpy's "too many parameters"
+warning and ~1.4x *self-inflicted* overhead at large J (re-casting so `tau` is the
+only parameter, with `G,h` constants, recovers that 1.4x but no more).
+
+### The dual (derived + verified)
+
+With Gram `G = X'X/T0`, `h = X'y/T0`, the relaxed balance ball
+`∃γ: ‖h − Gw + γ1‖∞ ≤ τ` dualizes (band multipliers `p = a − b`, with `1'p = 0`
+from γ-stationarity) to a **concave dual in `p ∈ R^J`**:
+
+```
+max_{1'p = 0}   p'h − τ‖p‖₁ − Φ(Gp)
+∇(smooth) = h − G·w(p)
+entropy:  Φ = logΣexp(Gp),     w(p) = softmax(Gp)
+EL:       Φ = EL-conjugate,    w(p)_j = 1/(ν − (Gp)_j),  ν>max(Gp) by 1-D root (Σ wⱼ=1)
+```
+
+**Key structure:** `Gp = X'(Xp)/T0` lives in the `T0`-dim column space of `X'`, so
+each iteration is a `G·w = X'(Xw)/T0` multiply — **O(T0·J), no J×J factorization**.
+That is the large-J win.
+
+### Prototype results (preserved below; throwaway scripts, not committed code)
+
+Projected FISTA (soft-threshold for `τ‖p‖₁`, mean-subtract for `1'p=0`):
+
+* **Correct, no bias.** Converges to CLARABEL cell-by-cell — e.g. entropy
+  `J=200, τ=0.4`: `maxwdiff` 2.1e-2 → 2.9e-3 → 3.2e-4 at 4k/15k/60k iters, with
+  the balance range tightening 0.829 → 0.804 → 0.8006 onto the `2τ=0.8` face.
+* **Fast at loose τ / very large J.** `J=200, τ=0.1`: ~0.26s vs CLARABEL 4.5s;
+  `J=120, τ=0.4`: 0.20s vs 0.46s.
+* **But plain FISTA is too slow at *tight* τ.** The dual is ill-conditioned (G's
+  eigenvalue spread), so parity needs ~60k iters (~3.8s) at `J=200, τ=0.4` —
+  *slower* than CLARABEL there. EL is worse-conditioned than entropy.
+
+**Verdict:** the reformulation is right and cheap-per-iteration; the blocker is
+the **convergence rate at tight τ**, not correctness.
+
+### Path to production (the remaining work)
+
+1. **A faster optimizer** (pick by benchmarking): preconditioned + adaptive-restart
+   FISTA; **L-BFGS on a Moreau/Huber-smoothed dual** (exploits low-rank `G`,
+   usually far fewer iters); or **ADMM** (splits the `1'p=0` + `‖p‖₁`, often the
+   most robust here).
+2. **Infeasibility detection** for tight τ: when no simplex `w` achieves
+   `range(h−Gw) ≤ 2τ`, return `None` (match `SCopt`); the prototype currently
+   returns a mildly-infeasible `w` there.
+3. **A real stopping rule** (duality gap / primal-feasibility), not a fixed iter
+   count.
+4. **Validate** cell-by-cell vs `Opt2.SCopt` across the τ grid and CV folds
+   (extend `test_relaxed_fast_solve_matches_scopt`); integrate as the entropy/EL
+   fast path in `solve_relaxed_dpp` with `SCopt` fallback, gated where it wins.
+5. **Then** extend `rescm_relax_mc` to all three relaxations.
+
+### Prototype code (entropy; EL swaps the `w(p)` map)
+
+```python
+def entropy_fista(X, y, tau, iters=20000):
+    T0, J = X.shape
+    G = (X.T @ X) / T0; h = (X.T @ y) / T0
+    L = np.linalg.norm(G, 2) ** 2 * 0.25 + 1e-9          # ∇ Lipschitz of smooth part
+    sm = lambda v: np.exp(v - v.max()) / np.exp(v - v.max()).sum()
+    proj = lambda p: p - p.mean()                        # onto {1'p = 0}
+    p = np.zeros(J); z = p.copy(); t = 1.0
+    for _ in range(iters):
+        w = sm(G @ z); grad = G @ w - h
+        v = z - grad / L
+        pn = np.sign(v) * np.maximum(np.abs(v) - tau / L, 0.0)   # soft-threshold
+        pn = proj(pn)
+        tn = (1 + np.sqrt(1 + 4 * t * t)) / 2
+        z = pn + ((t - 1) / tn) * (pn - p); p = pn; t = tn
+    return sm(G @ p)
+# EL: replace sm(.) by w_el(c): solve Σ 1/(ν−c_j)=1 for ν>max(c) (Newton), w=1/(ν−c).
+```
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
