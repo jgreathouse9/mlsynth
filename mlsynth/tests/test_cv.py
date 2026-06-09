@@ -109,19 +109,22 @@ def test_solve_enet_failure_returns_zero_weights(mock_scopt, incrementality_synt
     y, X, _ = incrementality_synth_panel
     model = ElasticNetCV()
 
-    w = model._solve_enet(X, y, lam=0.1, alpha=0.5)
+    # _solve_enet returns (weights, intercept); on solver failure both fall back
+    # to zero / 0.0.
+    w, b0 = model._solve_enet(X, y, lam=0.1, alpha=0.5)
 
     assert w.shape == (X.shape[1],)
     assert np.all(w == 0.0)
+    assert b0 == 0.0
 
 
-@patch.object(ElasticNetCV, "_solve_enet", return_value=np.array([]))
+@patch.object(ElasticNetCV, "_solve_enet", return_value=(np.array([]), 0.0))
 def test_cv_does_not_crash_on_bad_weights(mock_solve, incrementality_synth_panel):
     y, X, _ = incrementality_synth_panel
     model = ElasticNetCV(alpha=[0.5], lam=[0.1], n_splits=2)
 
-    # force safe fallback shape
-    mock_solve.return_value = np.zeros(X.shape[1])
+    # force safe fallback shape -- (weights, intercept) tuple
+    mock_solve.return_value = (np.zeros(X.shape[1]), 0.0)
 
     model.fit(X, y)
 
