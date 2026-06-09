@@ -20,8 +20,8 @@ import pandas as pd
 import pytest
 
 from mlsynth import (
-    BVSS, CLUSTERSC, FDID, FMA, FSCM, HSC, LEXSCM, MASC, MCNNM, MSQRT, NSC,
-    PDA, RESCM, RMSI, SBC, SCMO, SDID, SequentialSDID, SNN, SparseSC,
+    BVSS, CLUSTERSC, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MCNNM, MSQRT,
+    NSC, PDA, RESCM, RMSI, SBC, SCMO, SDID, SequentialSDID, SNN, SparseSC,
     SPOTSYNTH, SSC, TASC, TSSC, VanillaSC,
 )
 from mlsynth.config_models import (
@@ -195,6 +195,12 @@ DESIGN = [
          "top_K": 3, "n_sims": 30, "n_post_grid": [2, 4, 6, 8],
          "mde_horizon": "late", "verbose": False},
         id="LEXSCM",
+    ),
+    pytest.param(
+        MAREX,
+        {"outcome": "y", "unitid": "unitid", "time": "time",
+         "design": "standard", "post_col": "post", "m_eq": 3, "relaxed": True},
+        id="MAREX",
     ),
 ]
 

@@ -18,6 +18,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from pydantic import ConfigDict
+
+from ...config_models import DesignResult
 
 
 @dataclass(frozen=True)
@@ -148,9 +151,16 @@ class MAREXGlobalDesign:
     inference: Optional[MAREXInference] = None
 
 
-@dataclass(frozen=True)
-class MAREXResults:
+class MAREXResults(DesignResult):
     """User-facing output of the MAREX estimator.
+
+    A :class:`~mlsynth.config_models.DesignResult` (the experimental-design
+    family): MAREX *designs* an experiment (it chooses which units to treat),
+    so it populates the standardized design surface -- ``report`` (the realized
+    effect as an :class:`~mlsynth.config_models.EffectResult`, the single source
+    for ATT / CI / pre-fit), ``selected_units`` / ``assignment`` /
+    ``design_weights``, and ``power`` -- while the MAREX-specific design detail
+    stays in the typed fields below.
 
     Parameters
     ----------
@@ -162,11 +172,14 @@ class MAREXResults:
         Aggregate design and synthetics.
     post_fit : SyntheticControlPostFit, optional
         Standardized post-fit diagnostics (ATE / total effect / percentage
-        lift / fit RMSEs / inference / covariate SMDs). Computed at the
-        end of :meth:`mlsynth.estimators.MAREX.fit` via
-        :func:`mlsynth.utils.post_fit.compute_post_fit_marex`. ``None`` only
+        lift / fit RMSEs / inference / covariate SMDs). Computed via
+        :func:`mlsynth.utils.post_fit.compute_post_fit`. ``None`` only
         when an estimator failure leaves the result partially constructed.
+        Also mirrored into ``report`` (the standardized effect view).
     """
+
+    model_config = ConfigDict(
+        frozen=True, arbitrary_types_allowed=True, extra="allow")
 
     clusters: Dict[str, MAREXClusterDesign]
     study: MAREXStudy
@@ -196,3 +209,15 @@ class MAREXResults:
         for c in cd.values():
             out.extend(c.unit_weight_map.get("Treated", {}).keys())
         return out
+
+    @property
+    def control_units(self) -> List[Any]:
+        """Units assigned to control (non-zero aggregate control weight)."""
+        out: List[Any] = []
+        for c in self.clusters.values():
+            out.extend(c.unit_weight_map.get("Control", {}).keys())
+        return out
+
+
+# Resolve forward references (module uses ``from __future__ import annotations``).
+MAREXResults.model_rebuild()

@@ -8,7 +8,8 @@ import numpy as np
 
 from dataclasses import replace as _dc_replace
 
-from ..post_fit import compute_post_fit, compute_power_analysis
+from ...config_models import WeightsResults
+from ..post_fit import compute_post_fit, compute_power_analysis, to_effect_result
 from .inference import compute_inference
 from .optimization import solve_design, solve_design_relaxed
 from .structures import (
@@ -173,5 +174,45 @@ def solve_marex(
     except Exception:                # never let power analysis break a fit
         pass
 
-    return MAREXResults(clusters=clusters_out, study=study, globres=globres,
-                          post_fit=post_fit)
+    # ----- standardized DesignResult surface -----
+    # Treated / control assignment aggregated across clusters.
+    treated_labels, control_labels = [], []
+    for c in clusters_out.values():
+        treated_labels.extend(c.unit_weight_map.get("Treated", {}).keys())
+        control_labels.extend(c.unit_weight_map.get("Control", {}).keys())
+    treated_w_map = {str(unit_labels[i]): float(adj_treated[i])
+                     for i in range(len(unit_labels)) if adj_treated[i] > 1e-8}
+    control_w_map = {str(unit_labels[i]): float(adj_control[i])
+                     for i in range(len(unit_labels)) if adj_control[i] > 1e-8}
+    design_weights = WeightsResults(
+        donor_weights=treated_w_map,
+        summary_stats={
+            "weights_are": "marex_treated_weights_agg",
+            "n_treated": len(treated_labels),
+            "n_control": len(control_labels),
+            "control_weights_agg": control_w_map,
+        },
+    )
+    # The realized effect as a standardized EffectResult (the family adapter).
+    time_periods = (np.asarray(df.columns) if hasattr(df, "columns") else None)
+    intervention = (time_periods[T0_eff]
+                    if time_periods is not None and T0_eff < time_periods.shape[0]
+                    else None)
+    report = to_effect_result(
+        post_fit, time_periods=time_periods, intervention_time=intervention,
+        method_name="MAREX", donor_weights=treated_w_map,
+    ) if post_fit is not None else None
+
+    return MAREXResults(
+        clusters=clusters_out, study=study, globres=globres, post_fit=post_fit,
+        report=report,
+        selected_units=list(treated_labels),
+        assignment={"treated": list(treated_labels),
+                    "control": list(control_labels)},
+        design_weights=design_weights,
+        power=(post_fit.power if post_fit is not None else None),
+        metadata={
+            "design": design, "T0": T0_eff, "blank_periods": blank_periods,
+            "n_clusters": len(clusters_out),
+        },
+    )

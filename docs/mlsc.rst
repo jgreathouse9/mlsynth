@@ -658,6 +658,16 @@ Helper Modules
    :members:
    :undoc-members:
 
+.. note::
+
+   ``MLSC.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on the
+   standardized two-family contract: ``res.att`` / ``res.counterfactual`` /
+   ``res.gap`` / ``res.donor_weights`` (the disaggregate-level weights) /
+   ``res.pre_rmse`` resolve through the standardized sub-models. MLSC produces
+   no statistical inference, so ``res.inference`` is ``None``; the MLSC-specific
+   detail stays on ``res.design`` / ``res.paths`` /
+   ``res.aggregate_donor_weights``.
+
 .. automodule:: mlsynth.utils.mlsc_helpers.structures
    :members:
    :undoc-members:
