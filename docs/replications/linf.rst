@@ -63,8 +63,10 @@ weights are dense (DGP 2/3), while the mixed ``L1LINF`` wins when the truth is
 sparse (DGP 4). mlsynth reproduces this ordering. The case uses
 :math:`B=50` replications and a fixed penalty for a CI-affordable guard
 (asserting the ordering, not the paper's 4-decimal :math:`B=2000` Table-4
-cells); the full-:math:`B` cells become tractable once the penalized solve is
-sped up.
+cells). The penalized solve runs through the OSQP / Gram fast path
+(:mod:`mlsynth.utils.laxscm_helpers.fast_solve`), so a larger :math:`B` is
+affordable for a manual durable run; the full :math:`B=2000` cells remain a
+manual target.
 
 Reproduce
 ---------

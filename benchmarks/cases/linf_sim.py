@@ -22,8 +22,9 @@ Runtime note
 The paper uses ``B = 2000`` and CV-selected ``lambda``. For a CI-affordable
 durable guard we use ``B = 50`` and a fixed penalty, asserting the **ordering**
 (L-infinity < SC in the dense DGPs 2/3; L1+L-infinity < SC in the sparse DGP 4),
-not the 4-decimal Table-4 cells. The full-``B`` cells become tractable once the
-penalized solve is sped up (DPP/OSQP); see docs.
+not the 4-decimal Table-4 cells. The penalized solve now runs through the
+OSQP / Gram fast path (``fast_solve``), so a larger ``B`` is affordable for a
+manual durable run; the full ``B = 2000`` Table-4 cells remain a manual target.
 
 Provenance / scenario
 ---------------------
