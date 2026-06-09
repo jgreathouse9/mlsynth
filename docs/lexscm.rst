@@ -764,8 +764,8 @@ report. The surface is small and grouped -- one obvious home for each thing.
   -- *how* the design was chosen: ``shortlist`` (the ranked table),
   ``candidates`` (every evaluated design), ``winner`` (the chosen
   :class:`~mlsynth.utils.fast_scm_helpers.structure.SEDCandidate` with its
-  weights / predictions / losses / raw MDE curve), and ``bnb`` (the Stage-1
-  branch-and-bound diagnostics).
+  weights / predictions / losses / raw MDE curve), and ``selection`` (the
+  Stage-1 treated-design selection diagnostics).
 * ``res.panel`` (:class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMPanel`)
   -- the panel structure: ``time``, ``units``, ``outcome``, ``population_mean``.
 
@@ -969,7 +969,7 @@ Run LEXSCM and inspect the design
     results = LEXSCM(config).fit()
 
     # --- Stage 1: solver-style search diagnostics ---
-    stats = results.search.bnb["stats"]
+    stats = results.search.selection["stats"]
     print("status        :", stats["termination"]["status"])      # OPTIMAL / FEASIBLE
     print("method        :", stats["search"]["method"])
     print("subsets scored :", stats["search"]["subsets_evaluated"])
@@ -977,7 +977,7 @@ Run LEXSCM and inspect the design
     print("best imbalance :", round(stats["incumbent"]["imbalance"], 4))
 
     # --- Stage 4: lexicographic recommendation tuple ---
-    rec = results.search.bnb["recommendation"]
+    rec = results.search.selection["recommendation"]
     print("rec status    :", rec["status"])      # OK / POWER_NOT_ESTABLISHED
     print("winner        :", rec["winner"])
     print("pareto ids    :", rec["pareto_ids"])

@@ -263,14 +263,15 @@ class LEXSCMSearch:
     winner : SEDCandidate
         The selected design (winner of the lexicographic search), with its
         weights / predictions / losses / inference / raw MDE curve.
-    bnb : dict
-        Branch-and-bound search diagnostics plus the recommendation record.
+    selection : dict
+        Treated-design selection diagnostics (the imbalance-minimizing
+        enumerate-or-local-search) plus the recommendation record.
     """
 
     shortlist: Any
     candidates: List[SEDCandidate]
     winner: SEDCandidate
-    bnb: Dict[str, Any]
+    selection: Dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -317,7 +318,7 @@ class LEXSCMResults(DesignResult):
     **Grouped detail.**
 
     * ``search`` -- the candidate search (:class:`LEXSCMSearch`): ``shortlist``,
-      ``candidates``, ``winner``, ``bnb``.
+      ``candidates``, ``winner``, ``selection``.
     * ``panel`` -- the panel structure (:class:`LEXSCMPanel`): ``time``,
       ``units``, ``outcome``, ``population_mean``.
     """

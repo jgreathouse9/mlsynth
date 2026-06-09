@@ -98,9 +98,10 @@ class LEXSCM:
 
         **Search / Optimization Budget**
 
-        - ``top_K`` (int): Number of top candidate tuples returned by
-          branch-and-bound.
-        - ``top_P`` (int): Number of seed units used for BnB initialization.
+        - ``top_K`` (int): Number of top candidate tuples returned by the
+          treated-design selection search.
+        - ``top_P`` (int): Deprecated/unused (the multi-start search seeds
+          itself); retained for backward-compatible configs.
 
         **Inference / Power Analysis**
 
@@ -266,7 +267,7 @@ class LEXSCM:
             - summary : ranked table of candidate designs
             - best_candidate : selected experimental design
             - all_candidates : full evaluated set
-            - bnb_metadata : search diagnostics
+            - selection_metadata : search diagnostics
             - additional dataset and inference diagnostics
         """
 
@@ -382,7 +383,7 @@ class LEXSCM:
             method="auto",
             random_state=self.seed,
         )
-        bbresults = {"top_tuples": search["top_designs"], "stats": search["stats"]}
+        selection_results = {"top_tuples": search["top_designs"], "stats": search["stats"]}
 
         # --------------- Stage 2: control fit (unchanged) -----------------
         candidate_results = evaluate_candidates(
@@ -436,7 +437,7 @@ class LEXSCM:
             max_shortlist=self.max_shortlist,
         )
         shortlist = pd.DataFrame(recommendation.table)
-        bbresults["recommendation"] = {
+        selection_results["recommendation"] = {
             "status": recommendation.status,
             "winner": recommendation.winner.design_id if recommendation.winner else None,
             "pareto_ids": recommendation.pareto_ids,
@@ -568,7 +569,7 @@ class LEXSCM:
                 method_name="LEXSCM", donor_weights=design_donor_weights)
             if pf is not None else None
         )
-        rec = bbresults.get("recommendation", {})
+        rec = selection_results.get("recommendation", {})
 
         # =========================================================
         # FINAL RESULTS OBJECT -- a small, grouped surface.
@@ -593,7 +594,7 @@ class LEXSCM:
                 shortlist=shortlist,
                 candidates=candidate_results,
                 winner=best_candidate,
-                bnb=bbresults,
+                selection=selection_results,
             ),
             panel=LEXSCMPanel(
                 time=time_info,
