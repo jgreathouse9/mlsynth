@@ -104,13 +104,14 @@ def test_selected_params_from_grid(incrementality_synth_panel):
 # Solver failure tolerance tests
 # ======================================================
 
+@patch("mlsynth.utils.laxscm_helpers.fast_solve.solve_penalized", side_effect=RuntimeError("boom"))
 @patch("mlsynth.utils.laxscm_helpers.crossval.Opt2.SCopt", side_effect=RuntimeError("boom"))
-def test_solve_enet_failure_returns_zero_weights(mock_scopt, incrementality_synth_panel):
+def test_solve_enet_failure_returns_zero_weights(mock_scopt, mock_fast, incrementality_synth_panel):
     y, X, _ = incrementality_synth_panel
     model = ElasticNetCV()
 
-    # _solve_enet returns (weights, intercept); on solver failure both fall back
-    # to zero / 0.0.
+    # _solve_enet returns (weights, intercept); when both the fast Gram/DPP solve
+    # and the SCopt fallback fail, it returns zero / 0.0.
     w, b0 = model._solve_enet(X, y, lam=0.1, alpha=0.5)
 
     assert w.shape == (X.shape[1],)

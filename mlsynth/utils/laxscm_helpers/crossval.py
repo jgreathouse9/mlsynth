@@ -523,7 +523,23 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
             self.lams_ = generate_lambda_seq2(y, X, self.alphas_[0])
 
     def _solve_enet(self, X, y, lam, alpha) -> tuple[np.ndarray, float]:
-        """Fit Elastic Net using SCopt; return (donor weights, intercept)."""
+        """Fit Elastic Net; return (donor weights, intercept).
+
+        Primary path is the Gram/DPP fast solve
+        (:func:`mlsynth.utils.laxscm_helpers.fast_solve.solve_penalized`), which
+        reuses one cached, T0-independent parametrized problem across the whole
+        CV / lambda / alpha grid. Falls back to the reference ``SCopt`` build on
+        any failure, and to zero weights if that fails too.
+        """
+        try:
+            from .fast_solve import solve_penalized
+            return solve_penalized(
+                X, y, lam=lam, alpha=alpha, second_norm=self.second_norm,
+                constraint_type=self.constraint_type,
+                fit_intercept=self.fit_intercept, solver=self.solver,
+            )
+        except Exception as e:  # noqa: BLE001 - fall back to the reference build
+            print(f"fast solve failed for lam={lam}, alpha={alpha}: {e}; using SCopt")
 
         try:
             res = Opt2.SCopt(
