@@ -266,3 +266,40 @@ MLSC) have **no** `resolved_plot()` — build the `PlotConfig` by hand from the
 legacy color/label fields. Keep any legacy `plot_<name>` helper functional
 (repoint it to renamed fields or let it read the accessors) so its existing
 coverage test stays green.
+
+### 4.7 Reserved sub-model names collide — rename the estimator's raw field
+
+`BaseEstimatorResults` declares `effects` / `time_series` / `weights` /
+`inference` / `fit_diagnostics` / `method_details` as **fields** (holding the
+standardized sub-models). An unmigrated dataclass routinely already has a field
+or property with one of those names holding something else — a raw weight array
+(`weights`), a per-cell effect matrix (`effects`), a rich diagnostics dict
+(`fit_diagnostics`), or a bespoke inference object (`inference`). You **cannot**
+keep the old meaning under the reserved name; rename the raw field and let the
+reserved name be the standardized sub-model. The renames that recurred across
+the FSCM/MASC/NSC/FMA/SDID/SeqSDID/SSC/BVSS batch:
+
+| raw field (old)   | renamed to        | reserved name now holds |
+| ----------------- | ----------------- | ----------------------- |
+| `weights` (array) | `weights_vector`  | `WeightsResults`        |
+| `effects` (matrix)| `effects_matrix`  | `EffectsResults`        |
+| `fit_diagnostics` (dict) | `diagnostics` | `FitDiagnosticsResults` |
+| `inference` (rich obj)   | `inference_detail` | `InferenceResults` (§4.1) |
+
+This is a **breaking surface change** → update the estimator's tests/plotter
+and docs (note the rename), and add a one-line note in the docs return-object
+section. The flat accessors (`att`/`counterfactual`/`gap`/`donor_weights`/
+`pre_rmse`) must keep resolving via the sub-models afterwards.
+
+### 4.8 Event-study / multi-unit estimators: lay `time_series` over event-time
+
+Staggered / multi-unit estimators with no single calendar-time treated path
+(SequentialSDID, SSC) still satisfy the flat contract by laying the
+standardized `time_series` over **event-time** rather than calendar time:
+`time_periods` = the event-time horizons, `estimated_gap` = the event-study
+effect curve (`tau_hat_k` / `ATT_e`), `counterfactual_outcome` = the no-effect
+baseline, and `att` = the appropriate scalar summary (mean pooled effect /
+overall ATT). SDID instead aggregates a treated-unit-weighted calendar path
+across cohorts (a single cohort reduces to its own path). The conformance
+harness only requires `counterfactual.shape == gap.shape`, `ndim == 1`, and a
+populated `time_series`; an honest event-time layout satisfies it.

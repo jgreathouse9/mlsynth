@@ -449,14 +449,14 @@ a pack or two of the paper's reported numbers.
    print(f"selected (a*, b*) = ({res.design.a_star}, {res.design.b_star})")
    print(f"pre-RMSE          = {res.pre_rmse:.4f}")
    print(f"ATT (1989-2000)   = {res.att:+.4f}  packs/capita")
-   print(f"ATT 95% CI        = ({res.inference.att_lower:+.2f}, "
-         f"{res.inference.att_upper:+.2f})")
+   print(f"ATT 95% CI        = ({res.inference_detail.att_lower:+.2f}, "
+         f"{res.inference_detail.att_upper:+.2f})")
 
    gaps = pd.DataFrame({
        "year": res.inputs.time_labels.astype(int),
        "gap": res.gap,
-       "ci_low": res.inference.gap_lower,
-       "ci_high": res.inference.gap_upper,
+       "ci_low": res.inference_detail.gap_lower,
+       "ci_high": res.inference_detail.gap_upper,
    })
    for y in (1990, 1995, 2000):
        row = gaps.loc[gaps.year == y].iloc[0]
@@ -536,6 +536,16 @@ Helper Modules
 .. automodule:: mlsynth.utils.nsc_helpers.plotter
    :members:
    :undoc-members:
+
+.. note::
+
+   ``NSC.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on the
+   standardized two-family contract: ``res.att`` / ``res.att_ci`` /
+   ``res.counterfactual`` / ``res.gap`` / ``res.donor_weights`` /
+   ``res.pre_rmse`` resolve through the standardized sub-models. The rich
+   Doudchenko-Imbens per-period bands are on ``res.inference_detail`` (the bare
+   ``res.inference`` slot is reserved for the standardized ATT-level
+   :class:`~mlsynth.config_models.InferenceResults`).
 
 .. automodule:: mlsynth.utils.nsc_helpers.structures
    :members:
@@ -627,17 +637,17 @@ effect to the treated unit's post-period.
    print(f"ATT_hat     = {results.att:+.3f}")
    print(f"a* = {results.design.a_star:.2f}, b* = {results.design.b_star:.2f}")
    print(f"pre-RMSE    = {results.pre_rmse:.4f}")
-   print(f"95% CI ATT  = [{results.inference.att_lower:+.3f}, "
-         f"{results.inference.att_upper:+.3f}]")
-   print(f"p-value     = {results.inference.p_value:.3f}")
+   print(f"95% CI ATT  = [{results.inference_detail.att_lower:+.3f}, "
+         f"{results.inference_detail.att_upper:+.3f}]")
+   print(f"p-value     = {results.inference_detail.p_value:.3f}")
 
    # Per-period diagnostics:
    import pandas as pd
    print(pd.DataFrame({
        "t": np.arange(T),
        "gap": results.gap,
-       "ci_low": results.inference.gap_lower,
-       "ci_high": results.inference.gap_upper,
+       "ci_low": results.inference_detail.gap_lower,
+       "ci_high": results.inference_detail.gap_upper,
    }).round(3).to_string(index=False))
 
 References

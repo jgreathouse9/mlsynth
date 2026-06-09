@@ -573,6 +573,18 @@ Helper Modules
    :members:
    :undoc-members:
 
+.. note::
+
+   ``BVSS.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on the
+   standardized two-family contract: ``res.att`` (posterior mean ATT) /
+   ``res.att_ci`` (credible interval) / ``res.counterfactual`` (posterior mean)
+   / ``res.gap`` / ``res.donor_weights`` (posterior mean weights) /
+   ``res.pre_rmse`` resolve through the standardized sub-models. The full
+   Bayesian detail -- the MCMC posterior, per-draw ATT samples, and pointwise
+   counterfactual bands -- is on ``res.inference_detail`` / ``res.posterior``
+   (the bare ``res.inference`` slot is reserved for the standardized ATT-level
+   :class:`~mlsynth.config_models.InferenceResults`).
+
 .. automodule:: mlsynth.utils.bvss_helpers.structures
    :members:
    :undoc-members:
@@ -607,10 +619,10 @@ the BVSS API is just five fields plus a display toggle:
    # ------------------------------------------------------------------
    # Headline ATT
    # ------------------------------------------------------------------
-   print(f"ATT posterior mean: {results.inference.att_mean:.4f}")
+   print(f"ATT posterior mean: {results.inference_detail.att_mean:.4f}")
    print(f"95% credible interval: "
-         f"[{results.inference.att_ci_lower:.4f}, "
-         f"{results.inference.att_ci_upper:.4f}]")
+         f"[{results.inference_detail.att_ci_lower:.4f}, "
+         f"{results.inference_detail.att_ci_upper:.4f}]")
 
    # ------------------------------------------------------------------
    # Donor selection: posterior inclusion probabilities and weight means
@@ -632,9 +644,9 @@ the BVSS API is just five fields plus a display toggle:
    # ------------------------------------------------------------------
    # Counterfactual path and per-period bands (in original outcome units)
    # ------------------------------------------------------------------
-   results.inference.counterfactual_mean    # shape (T,)
-   results.inference.counterfactual_lower   # shape (T,)
-   results.inference.counterfactual_upper   # shape (T,)
+   results.inference_detail.counterfactual_mean    # shape (T,)
+   results.inference_detail.counterfactual_lower   # shape (T,)
+   results.inference_detail.counterfactual_upper   # shape (T,)
 
    # ------------------------------------------------------------------
    # Raw MCMC samples for downstream analysis (after burn-in)
@@ -704,9 +716,9 @@ discarded as burn-in) reproduces the published Table 3 values:
    tau = res.posterior.tau
    phi = res.posterior.phi
    gamma_count = res.posterior.gamma.sum(axis=0)
-   print(f"ATT    = {res.inference.att_mean:+.3f}  "
-          f"({res.inference.att_ci_lower:+.3f}, "
-          f"{res.inference.att_ci_upper:+.3f})")
+   print(f"ATT    = {res.inference_detail.att_mean:+.3f}  "
+          f"({res.inference_detail.att_ci_lower:+.3f}, "
+          f"{res.inference_detail.att_ci_upper:+.3f})")
    print(f"tau    = {tau.mean():.3f}")
    print(f"phi    = {phi.mean():.2f}")
    print(f"|gamma|= {gamma_count.mean():.2f}")

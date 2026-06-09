@@ -457,6 +457,18 @@ Helper Modules
    :members:
    :undoc-members:
 
+.. note::
+
+   ``SDID.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on the
+   standardized two-family contract: ``res.att`` / ``res.att_ci`` /
+   ``res.counterfactual`` / ``res.gap`` / ``res.pre_rmse`` resolve through the
+   standardized sub-models (the flat ``counterfactual`` / ``gap`` are the
+   treated-unit-weighted aggregate across cohorts). The placebo inference, the
+   pooled event study, and the per-cohort decomposition stay on
+   ``res.inference_detail`` / ``res.event_study`` / ``res.cohorts`` (the bare
+   ``res.inference`` slot is reserved for the standardized ATT-level
+   :class:`~mlsynth.config_models.InferenceResults`).
+
 .. automodule:: mlsynth.utils.sdid_helpers.structures
    :members:
    :undoc-members:
@@ -486,10 +498,10 @@ Example
    }).fit()
 
    # Overall ATT (Ciccia 2024 Eq. 7) and placebo inference.
-   print(results.inference.att)        # -15.605 (matches Arkhangelsky et al. 2021)
-   print(results.inference.se)
-   print(results.inference.ci)
-   print(results.inference.p_value)
+   print(results.inference_detail.att)        # -15.605 (matches Arkhangelsky et al. 2021)
+   print(results.inference_detail.se)
+   print(results.inference_detail.ci)
+   print(results.inference_detail.p_value)
 
    # Pooled event-study trajectory (Ciccia 2024 Eq. 6).
    es = results.event_study

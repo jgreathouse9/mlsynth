@@ -58,7 +58,7 @@ def run() -> dict:
         res = SDID({"df": df, "outcome": "cigsale", "treat": "treat",
                     "unitid": "state", "time": "year",
                     "display_graphs": False}).fit()
-    ml_att = float(res.inference.att)
+    ml_att = float(res.att)
 
     # --- causaltensor reference: O (N x T) outcome matrix + Z treatment mask ---
     wide = df.pivot(index="state", columns="year", values="cigsale").sort_index()

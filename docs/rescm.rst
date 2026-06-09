@@ -708,6 +708,16 @@ NumPy-only panel is exposed as a
 :class:`~mlsynth.utils.laxscm_helpers.structures.RESCMInputs`, with units and
 time addressed through an :class:`IndexSet`.
 
+.. note::
+
+   ``RESCM.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on
+   the standardized two-family contract. It is a dispatcher over the corner-case
+   estimators in ``res.fits``; the selected estimator drives the flat accessors
+   (``res.att`` / ``res.att_ci`` / ``res.counterfactual`` / ``res.gap`` /
+   ``res.donor_weights`` / ``res.pre_rmse``), which resolve through the
+   standardized sub-models. ``res.att_by_method()`` / ``res.se_by_method()``
+   report every fit.
+
 .. automodule:: mlsynth.utils.laxscm_helpers.structures
    :members:
    :undoc-members:

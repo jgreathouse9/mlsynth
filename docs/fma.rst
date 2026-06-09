@@ -390,6 +390,16 @@ as a one-liner.
    :members:
    :undoc-members:
 
+.. note::
+
+   ``FMA.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on the
+   standardized two-family contract: ``res.att`` / ``res.att_ci`` /
+   ``res.counterfactual`` / ``res.gap`` / ``res.pre_rmse`` resolve through the
+   standardized sub-models (FMA is a factor-model counterfactual, so it carries
+   no donor weights). The full asymptotic/bootstrap/placebo inference is on
+   ``res.inference_detail`` (the bare ``res.inference`` slot is reserved for the
+   standardized ATT-level :class:`~mlsynth.config_models.InferenceResults`).
+
 .. automodule:: mlsynth.utils.fma_helpers.structures
    :members:
    :undoc-members:
@@ -472,7 +482,7 @@ modes and prints the headline output.
    print(f"r selected            = {results.design.n_factors} "
          f"({results.design.n_factors_source})")
    print(f"pre-RMSE              = {results.pre_rmse:.4f}")
-   inf = results.inference
+   inf = results.inference_detail
    print(f"asymptotic 95% CI ATT = "
          f"[{inf.asymptotic_att_lower:+.3f}, {inf.asymptotic_att_upper:+.3f}]")
    print(f"asymptotic p-value    = {inf.asymptotic_att_p_value:.3f}")
@@ -531,8 +541,8 @@ Replicating the headline coverage findings is a 15-line script:
                       "stationarity": stationarity,
                       "inference_methods": ["asymptotic"],
                       "alpha": alpha, "display_graphs": False}).fit()
-           covers.append(res.inference.asymptotic_att_lower <= 0.0
-                          <= res.inference.asymptotic_att_upper)
+           covers.append(res.inference_detail.asymptotic_att_lower <= 0.0
+                          <= res.inference_detail.asymptotic_att_upper)
        return float(np.mean(covers))
 
    for dgp in ("dgp1", "dgp2"):

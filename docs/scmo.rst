@@ -804,6 +804,16 @@ NumPy-only panel is exposed as an
 :class:`~mlsynth.utils.scmo_helpers.structures.SCMOInputs`, with units and time
 addressed through an :class:`IndexSet`.
 
+.. note::
+
+   ``SCMO.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on the
+   standardized two-family contract. It is a dispatcher over the weighting
+   schemes in ``res.fits``; the selected scheme drives the flat accessors
+   (``res.att`` / ``res.att_ci`` / ``res.counterfactual`` / ``res.gap`` /
+   ``res.donor_weights`` / ``res.pre_rmse``), which resolve through the
+   standardized sub-models. ``res.att_by_method()`` reports the ATT of every
+   scheme.
+
 .. automodule:: mlsynth.utils.scmo_helpers.structures
    :members:
    :undoc-members:
