@@ -36,7 +36,9 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         tssc_brooklyn.py            # Path A: TSSC Brooklyn showroom (Li & Shankar 2024)
         tssc_figure2.py             # Path B: TSSC Figure-2 MSE-ratio grid
         sbc_germany.py              # Path A: SBC German reunification (Shi-Xi-Xie 2025)
+        sbc_mc.py                   # Path B: SBC vs SC, Shi-Xi-Xie MSE ratios
         hsc_hongkong.py             # Path A: HSC 1997 Hong Kong handover (Liu & Xu)
+        hsc_mc.py                   # Path B: HSC regime adaptation (Liu & Xu)
         rsc_synth_error.py          # Path B: RSC train-error approximates gen-error (ASS 2018)
         rsc_shen_coverage.py        # cross-val: Shen et al. PCR CIs + coverage validity
         lexscm_walmart.py           # Path A: LEXSCM Walmart placebo design (Abadie-Zhao Sec 4)

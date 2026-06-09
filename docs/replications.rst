@@ -98,14 +98,15 @@ Decomposition-first synthetic control
   the paper's :math:`-\$1{,}900`; Korea weight 0.18 and Germany
   weight 0.14 match the paper (with ``ridge="sdid"`` + a refined
   rho grid; durable: ``hsc_hongkong``). **Path B:** Liu-Xu regime-adaptation
-  grid with ARIMA(1,1,0) trends -- HSC RMSE 6.46 vs. SC-diff 6.11
-  under the idiosyncratic regime.
+  grid with ARIMA(1,1,0) trends -- HSC tracks the oracle-best fixed
+  method in both regimes (rho adapts; durable: ``hsc_mc``).
 * :doc:`sbc` -- Synthetic Business Cycle. **Path A:** German
   reunification -- Greece weight 0.44, Netherlands 0.37,
   :math:`\widehat{\mathrm{ATT}} \approx -952` (durable:
   ``sbc_germany``); also reproduces the
   Hong Kong handover. **Path B:** Shi-Xi-Xie Models 1-3
-  nonstationary DGP, Model 1 MSE ratio 0.012 vs. the paper's 0.01.
+  nonstationary DGP, post-MSE ratio < 1 in every model and highest
+  (SC competitive) under cointegration (durable: ``sbc_mc``).
 
 .. _replications-generalised:
 

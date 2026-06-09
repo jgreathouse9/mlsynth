@@ -16,7 +16,9 @@ CASES = {
     "tssc_brooklyn": "benchmarks.cases.tssc_brooklyn",        # Path A: Brooklyn showroom (Li-Shankar)
     "tssc_figure2": "benchmarks.cases.tssc_figure2",          # Path B: Figure 2 MSE-ratio grid
     "sbc_germany": "benchmarks.cases.sbc_germany",            # Path A: SBC German reunification
+    "sbc_mc": "benchmarks.cases.sbc_mc",                      # Path B: Shi-Xi-Xie MSE ratios
     "hsc_hongkong": "benchmarks.cases.hsc_hongkong",          # Path A: HSC HK handover
+    "hsc_mc": "benchmarks.cases.hsc_mc",                      # Path B: HSC regime adaptation
     "rsc_synth_error": "benchmarks.cases.rsc_synth_error",      # Path B: RSC train≈gen error
     "rsc_shen_coverage": "benchmarks.cases.rsc_shen_coverage",  # cross-val: Shen CIs + coverage
     "lexscm_walmart": "benchmarks.cases.lexscm_walmart",        # Path A: Walmart placebo design
