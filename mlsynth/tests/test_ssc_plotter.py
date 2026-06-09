@@ -69,7 +69,7 @@ def test_save_true_default_name(tmp_path, monkeypatch):
 def test_empty_event_att_returns_early():
     # es falsy -> early return, nothing drawn.
     res = _fit(inference=False)
-    res2 = dataclasses.replace(res, event_att={})
+    res2 = res.model_copy(update={"event_att": {}})
     assert plot_ssc(res2) is None
 
 
@@ -87,5 +87,5 @@ def test_att_band_present_but_no_event_bands():
     res = _fit(inference=True)
     band = SSCBand(label=None, point=res.att, lower=-0.1, upper=0.1,
                    p_value=0.04, n_cells=5)
-    res2 = dataclasses.replace(res, event_bands={}, att_band=band)
+    res2 = res.model_copy(update={"event_bands": {}, "att_band": band})
     plot_ssc(res2)

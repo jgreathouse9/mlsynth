@@ -582,6 +582,19 @@ objects, the aggregate
 :class:`~mlsynth.utils.marex_helpers.structures.MAREXStudy` hyperparameters, and
 (optionally) :class:`~mlsynth.utils.marex_helpers.structures.MAREXInference`.
 
+.. note::
+
+   ``MAREX.fit()`` returns a :class:`~mlsynth.config_models.DesignResult` (the
+   experimental-design family, *not* an ``EffectResult``): MAREX designs an
+   experiment, so it exposes the standardized design surface --
+   ``res.report`` (the realized effect as an
+   :class:`~mlsynth.config_models.EffectResult`, the single source for ATT / CI
+   / pre-fit; ``res.report.att`` / ``res.report.counterfactual`` / ...),
+   ``res.selected_units`` / ``res.assignment`` (treated vs control),
+   ``res.design_weights``, and ``res.power``. The MAREX-specific design detail
+   stays on ``res.clusters`` / ``res.study`` / ``res.globres`` / ``res.post_fit``
+   (the same ``SyntheticControlPostFit`` that ``res.report`` is built from).
+
 .. automodule:: mlsynth.utils.marex_helpers.structures
    :members:
    :undoc-members:

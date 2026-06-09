@@ -31,7 +31,15 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import NSCConfig
+from ..config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    MethodDetailsResults,
+    NSCConfig,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -185,15 +193,21 @@ class NSC:
                     gap=gap,
                 )
 
+            labels = np.asarray(inputs.time_labels)
+            T0, T = inputs.T0, inputs.T
+            std_inference = InferenceResults(
+                standard_error=None if np.isnan(inference.att_se) else float(inference.att_se),
+                ci_lower=None if np.isnan(inference.att_lower) else float(inference.att_lower),
+                ci_upper=None if np.isnan(inference.att_upper) else float(inference.att_upper),
+                p_value=None if np.isnan(inference.p_value) else float(inference.p_value),
+                method=inference.method,
+                details=inference,
+            )
             results = NSCResults(
                 inputs=inputs,
                 design=design,
                 cv_trace=trace,
-                inference=inference,
-                counterfactual=counterfactual,
-                gap=gap,
-                att=att,
-                pre_rmse=pre_rmse,
+                inference_detail=inference,
                 metadata={
                     "cv_converged": (trace.converged if trace else None),
                     "cv_iterations": (trace.iterations if trace else 0),
@@ -201,6 +215,25 @@ class NSC:
                     "matching_dim": int(inputs.matching_matrix.shape[1]),
                     "n_eigvals": int(eigvals.size),
                 },
+                effects=EffectsResults(
+                    att=None if np.isnan(att) else float(att),
+                    att_std_err=None if np.isnan(inference.att_se) else float(inference.att_se),
+                ),
+                time_series=TimeSeriesResults(
+                    observed_outcome=np.asarray(inputs.treated_outcome, dtype=float),
+                    counterfactual_outcome=np.asarray(counterfactual, dtype=float),
+                    estimated_gap=np.asarray(gap, dtype=float),
+                    time_periods=labels,
+                    intervention_time=(labels[T0] if T0 < T else None),
+                ),
+                weights=WeightsResults(
+                    donor_weights={str(k): float(v) for k, v in design.donor_weights.items()},
+                    summary_stats={"constraint": "adding-up (sum to 1; weights may be negative)"},
+                ),
+                fit_diagnostics=FitDiagnosticsResults(
+                    rmse_pre=None if np.isnan(pre_rmse) else float(pre_rmse)),
+                inference=std_inference,
+                method_details=MethodDetailsResults(method_name="NSC", is_recommended=True),
             )
 
             if self.display_graphs:

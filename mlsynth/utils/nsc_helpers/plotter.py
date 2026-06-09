@@ -40,7 +40,7 @@ def plot_nsc(results: NSCResults) -> None:
     ax = axes[1]
     ax.axhline(0.0, color="grey", lw=0.8)
     ax.plot(t, results.gap, "b-", lw=2, label="Y_treated - Y_SC")
-    inf = results.inference
+    inf = results.inference_detail
     if inf.gap_lower.size:
         ax.fill_between(
             t, inf.gap_lower, inf.gap_upper,

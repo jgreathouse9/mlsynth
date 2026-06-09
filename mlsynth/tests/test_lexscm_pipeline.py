@@ -34,37 +34,37 @@ def _cfg(df, **over):
 
 def test_full_pipeline_m4():
     res = LEXSCM(_cfg(_panel())).fit()
-    meta = res.bnb_metadata
+    meta = res.search.bnb
     assert meta["stats"]["search"]["method"] in ("enumeration", "multistart_local_search")
     assert meta["recommendation"]["status"] == "OK"
     assert meta["recommendation"]["winner"] is not None
     # exactly m treated units chosen
-    assert len(res.best_candidate.identification.treated_idx) == 4
-    assert len(res.best_candidate.control_weight_dict) >= 1
+    assert len(res.search.winner.identification.treated_idx) == 4
+    assert len(res.search.winner.control_weight_dict) >= 1
     # summary table carries the new design metrics
     for col in ("design_id", "imbalance", "mde_sd", "pareto", "winner"):
-        assert col in res.summary.columns
-    assert res.summary["winner"].sum() == 1
+        assert col in res.search.shortlist.columns
+    assert res.search.shortlist["winner"].sum() == 1
 
 
 def test_late_horizon_does_not_require_horizon_8():
     # old pipeline hardcoded mde_8w under "late" and crashed when 8 not in grid;
     # new pipeline uses max(n_post_grid).
     res = LEXSCM(_cfg(_panel(), mde_horizon="late", n_post_grid=[2, 3, 4])).fit()
-    assert res.bnb_metadata["recommendation"]["status"] in ("OK", "POWER_NOT_ESTABLISHED")
+    assert res.search.bnb["recommendation"]["status"] in ("OK", "POWER_NOT_ESTABLISHED")
 
 
 def test_zero_mean_outcome_is_graceful():
     # old pipeline divided by the outcome level (floored 1e-8) and produced
     # all-NaN MDEs -> empty Pareto -> IndexError; new MDE is SD-based.
     res = LEXSCM(_cfg(_panel(level=0.0))).fit()
-    assert res.bnb_metadata["recommendation"]["status"] in ("OK", "POWER_NOT_ESTABLISHED")
-    assert res.best_candidate is not None
+    assert res.search.bnb["recommendation"]["status"] in ("OK", "POWER_NOT_ESTABLISHED")
+    assert res.search.winner is not None
 
 
 def test_m_six_runs():
     res = LEXSCM(_cfg(_panel(N=40), m=6, top_K=10)).fit()
-    assert len(res.best_candidate.identification.treated_idx) == 6
+    assert len(res.search.winner.identification.treated_idx) == 6
 
 
 if __name__ == "__main__":

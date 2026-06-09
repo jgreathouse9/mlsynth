@@ -275,7 +275,7 @@ class TestPublicAPI:
         assert isinstance(res, SeqSDIDResults)
         assert isinstance(res.inputs, SeqSDIDInputs)
         assert isinstance(res.event_study, SeqSDIDEventStudy)
-        assert isinstance(res.inference, SeqSDIDInference)
+        assert isinstance(res.inference_detail, SeqSDIDInference)
         for effect in res.cohort_effects.values():
             assert isinstance(effect, SeqSDIDCohortEffect)
 

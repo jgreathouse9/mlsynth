@@ -28,6 +28,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 import numpy as np
+from pydantic import ConfigDict, Field
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -214,9 +217,16 @@ class NSCInference:
     p_value: float = float("nan")
 
 
-@dataclass(frozen=True)
-class NSCResults:
+class NSCResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.NSC.fit`.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    it populates the standardized sub-models so the flat accessors (``att`` /
+    ``att_ci`` / ``counterfactual`` / ``gap`` / ``donor_weights`` /
+    ``pre_rmse``) resolve through the base contract. The rich Doudchenko-Imbens
+    per-period bands live on ``inference_detail`` (the standardized
+    ``inference`` slot mirrors the ATT-level CI), and the NSC tuning detail
+    stays on ``design`` / ``cv_trace``.
 
     Parameters
     ----------
@@ -225,35 +235,29 @@ class NSCResults:
     design : NSCDesign
         Optimised weights plus the tuning state.
     cv_trace : NSCCVTrace or None
-        Coordinate-descent diagnostics; ``None`` when the user
-        supplied ``a`` and ``b`` explicitly.
-    inference : NSCInference
-        Per-period and ATT inference.
-    counterfactual : np.ndarray
-        Synthetic-control imputation of the treated outcome at
-        every period, shape ``(T,)``.
-    gap : np.ndarray
-        Treated minus counterfactual, shape ``(T,)``.
-    att : float
-        Mean post-treatment gap.
-    pre_rmse : float
-        Root mean squared pre-treatment fit error.
+        Coordinate-descent diagnostics; ``None`` when the user supplied ``a``
+        and ``b`` explicitly.
+    inference_detail : NSCInference
+        Per-period and ATT inference (was ``inference`` before the contract
+        migration; the standardized ``inference`` slot now holds the
+        ATT-level :class:`~mlsynth.config_models.InferenceResults`).
     metadata : dict
-        Free-form pipeline diagnostics (anchor of (a*, b*), iteration
-        count, condition number of ``Z_0 Z_0'``, ...).
+        Free-form pipeline diagnostics.
     """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: NSCInputs
     design: NSCDesign
     cv_trace: Optional[NSCCVTrace]
-    inference: NSCInference
-    counterfactual: np.ndarray
-    gap: np.ndarray
-    att: float
-    pre_rmse: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    inference_detail: NSCInference
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @property
     def donor_weights(self) -> Dict[Any, float]:
-        """Alias for :py:attr:`design.donor_weights`."""
+        """Alias for :py:attr:`design.donor_weights` (original-keyed)."""
         return self.design.donor_weights
+
+
+# Resolve forward references (module uses ``from __future__ import annotations``).
+NSCResults.model_rebuild()

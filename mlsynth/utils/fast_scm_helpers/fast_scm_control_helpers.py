@@ -147,14 +147,34 @@ def solve_control_qp(
     - Used downstream to construct synthetic control trajectories.
     """
     _, N = X_E.shape
-    v = cp.Variable(N)
 
-    objective = _build_objective(X_E, v, treated_vec, lambda_penalty)
-    constraints = _build_constraints(v, treated_idx)
+    # Exclusion by *construction*: drop the treated columns from the problem
+    # entirely rather than pinning ``v[treated] == 0`` as a solver equality.
+    # A first-order QP solver only satisfies equalities to its tolerance
+    # (~1e-6), which can leave a tiny weight on a treated unit; eliminating the
+    # variables makes those entries exactly zero. Optimising over the donor
+    # submatrix is mathematically identical to constraining the treated weights
+    # to zero, since the penalty term is separable in ``v`` and a zero weight
+    # contributes nothing.
+    treated_set = {int(j) for j in treated_idx}
+    control_idx = np.array([i for i in range(N) if i not in treated_set], dtype=int)
+    if control_idx.size == 0:
+        return None
 
-    solution = _solve_qp_problem(objective, constraints)
+    v_control = cp.Variable(control_idx.size)
+    objective = _build_objective(X_E[:, control_idx], v_control,
+                                 treated_vec, lambda_penalty)
+    constraints = [v_control >= 0, cp.sum(v_control) == 1]
 
-    return solution
+    solution_control = _solve_qp_problem(objective, constraints)
+    if solution_control is None:
+        return None
+
+    # Scatter the donor weights back into a full-length vector with exact zeros
+    # on the treated indices.
+    v = np.zeros(N)
+    v[control_idx] = solution_control
+    return v
 
 
 

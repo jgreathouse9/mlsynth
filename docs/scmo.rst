@@ -577,6 +577,12 @@ Verification
    averaged 1.408), confirming both papers' analyses and the regime-dependence
    of which scheme wins.
 
+   **Durable benchmarks.** These checks are pinned as re-runnable cases:
+   ``scmo_germany`` (Path A — Tian et al. Table 2 balance, cell by cell),
+   ``scmo_concatenated_mc`` (Path B — Tian Table 1 / Sun ``Simulation1.R``), and
+   ``scmo_averaged_mc`` (Path B — Sun Appendix-D regime contrast). See the
+   dedicated page :doc:`replications/scmo`.
+
 Simulation study: Tian-Lee-Panchenko Table 1 (Path B)
 -----------------------------------------------------
 
@@ -803,6 +809,16 @@ gap, ATT, donor weights, and the CWZ conformal p-value and CI). The prepared,
 NumPy-only panel is exposed as an
 :class:`~mlsynth.utils.scmo_helpers.structures.SCMOInputs`, with units and time
 addressed through an :class:`IndexSet`.
+
+.. note::
+
+   ``SCMO.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on the
+   standardized two-family contract. It is a dispatcher over the weighting
+   schemes in ``res.fits``; the selected scheme drives the flat accessors
+   (``res.att`` / ``res.att_ci`` / ``res.counterfactual`` / ``res.gap`` /
+   ``res.donor_weights`` / ``res.pre_rmse``), which resolve through the
+   standardized sub-models. ``res.att_by_method()`` reports the ATT of every
+   scheme.
 
 .. automodule:: mlsynth.utils.scmo_helpers.structures
    :members:

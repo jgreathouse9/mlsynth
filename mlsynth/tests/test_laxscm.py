@@ -138,6 +138,34 @@ def test_fit_returns_results_with_aliases(panel):
     assert set(res.att_by_method()) == {"SC", "RELAX_L2"}
 
 
+def test_standardize_toggle(panel):
+    """The relaxed branch's ``standardize`` flag is wired and changes the fit.
+
+    The relaxed-balance L-infinity FOC is scale-sensitive, so toggling
+    standardization yields a different relaxation weight vector (``False`` matches
+    the authors' ``scmrelax`` reference, which solves on the raw series). Both
+    settings must run and return a valid simplex-weighted relaxation.
+    """
+    def _fit(std):
+        cfg = RESCMConfig(df=panel, outcome="y", treat="treat", unitid="unit",
+                          time="time", methods=["RELAX_L2"], standardize=std,
+                          n_taus=20, display_graphs=False)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return RESCM(cfg).fit().fits["RELAX_L2"]
+
+    fit_std, fit_raw = _fit(True), _fit(False)
+    # Both produce non-empty donor weights summing to ~1 (simplex).
+    for fit in (fit_std, fit_raw):
+        assert fit.donor_weights
+        assert abs(sum(fit.donor_weights.values()) - 1.0) < 1e-2
+    # The two regimes give materially different weight vectors.
+    keys = set(fit_std.donor_weights) | set(fit_raw.donor_weights)
+    diff = sum(abs(fit_std.donor_weights.get(k, 0.0) - fit_raw.donor_weights.get(k, 0.0))
+               for k in keys)
+    assert diff > 1e-3
+
+
 def test_config_rejects_unknown_method(panel):
     with pytest.raises((MlsynthConfigError, ValueError)):
         RESCMConfig(df=panel, outcome="y", treat="treat", unitid="unit",

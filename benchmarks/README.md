@@ -27,6 +27,32 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
       cases/                # one module per benchmark (pure-Python where possible)
         fdid_table5.py      # Path B: Li (2024) Table 5 PMSE grid (no R needed)
         fdid_hongkong.py    # Path A: Li (2024) Hong Kong GDP empirical (no R needed)
+        sdid_prop99.py      # cross-val: SDID vs causaltensor on Prop 99
+        mcnnm_prop99.py     # cross-val: MC-NNM vs causaltensor on Prop 99
+        spsydid_state_mc.py # cross-val: SpSyDiD vs the authors' repo (per-rep)
+        clustersc_subgroups.py      # Path B: ClusterSC vs whole-pool RSC (subgroup regime)
+        clustersc_subgroups_ref.py  # cross-val: authors' ClusterSC code vs its own paper
+        clustersc_rpca_germany.py   # Path A: RPCA-SC West German reunification (Bayani 2021)
+        tssc_brooklyn.py            # Path A: TSSC Brooklyn showroom (Li & Shankar 2024)
+        tssc_figure2.py             # Path B: TSSC Figure-2 MSE-ratio grid
+        sbc_germany.py              # Path A: SBC German reunification (Shi-Xi-Xie 2025)
+        sbc_mc.py                   # Path B: SBC vs SC, Shi-Xi-Xie MSE ratios
+        hsc_hongkong.py             # Path A: HSC 1997 Hong Kong handover (Liu & Xu)
+        hsc_mc.py                   # Path B: HSC regime adaptation (Liu & Xu)
+        rsc_synth_error.py          # Path B: RSC train-error approximates gen-error (ASS 2018)
+        rsc_shen_coverage.py        # cross-val: Shen et al. PCR CIs + coverage validity
+        lexscm_walmart.py           # Path A: LEXSCM Walmart placebo design (Abadie-Zhao Sec 4)
+        lexscm_design_mc.py         # Path B: LEXSCM recovers planted effect (Abadie-Zhao Sec 5)
+        scmo_germany.py             # Path A: SCMO West Germany balance (Tian et al. Table 2)
+        scmo_concatenated_mc.py     # Path B: concatenated multi-outcome bias (Tian Table 1)
+        scmo_averaged_mc.py         # Path B: averaged regime contrast (Sun et al. App. D)
+        rescm_brexit.py             # Path A: SCM-relaxation Brexit/UK GDP (Liao-Shi-Zheng)
+        rescm_relax_ref.py          # cross-val: mlsynth L2 relaxation vs scmrelax
+      reference/            # Python reference implementations (cloned on demand)
+        clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
+        spsydid_ref.py      # authors' SDID weights + the notebook's spatial WLS
+        clone_clustersc.py  # pin + clone srho1/ClusterSC (MIT; imported not vendored)
+        clone_panel_regressions.py  # pin + clone deshen24/panel-data-regressions (Shen CIs)
       R/                    # reference-implementation cross-checks
         requirements.R      # install the reference R packages
         synth_crosscheck.R  # run R's Synth on a dumped panel for cell-by-cell comparison
@@ -34,26 +60,51 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
 ## Quick start
 
 ```bash
-# Pure-Python benchmarks (no R required)
+# All benchmarks (cases skip themselves if an optional dependency is missing)
 python benchmarks/run_benchmarks.py --all
 
 # A single case
 python benchmarks/run_benchmarks.py --case fdid_table5
 
-# Reference cross-checks (need R + packages)
+# Reference cross-checks behind a flag (need R + packages)
 Rscript benchmarks/R/requirements.R          # one-time
 python benchmarks/run_benchmarks.py --with-reference
 ```
 
 A case **passes** when every reported number is within its declared tolerance
-of the expected (paper / reference) value. Tolerances are intentionally loose
+of the expected (paper / reference) value, **fails** when a number is out of
+tolerance, and **skips** (`[SKIP]`, never a failure) when an optional
+dependency or reference is unavailable. Tolerances are intentionally loose
 enough to absorb Monte-Carlo noise (smaller M than the paper) but tight enough
 to catch real regressions.
+
+### Optional dependencies
+
+Some cross-validation cases run against a Python reference implementation. They
+are part of the default `--all` set but **skip gracefully** when their optional
+dependency is absent — install these to actually exercise them:
+
+```bash
+pip install causaltensor      # sdid_prop99, mcnnm_prop99
+pip install libpysal          # spsydid_state_mc (reads the .gal spatial weights)
+pip install kneed scikit-learn # clustersc_subgroups_ref (the authors' syclib deps)
+pip install toolz scikit-learn # rsc_shen_coverage (the authors' var.py deps)
+```
+
+`spsydid_state_mc`, `clustersc_subgroups_ref`, and `rsc_shen_coverage`
+additionally **clone** the authors' reference repos (`serenini/spatial_SDID`,
+`srho1/ClusterSC`, `deshen24/panel-data-regressions`) at pinned commits into
+`benchmarks/reference/.cache/` (git-ignored) — imported, never vendored. If git
+or the network is unavailable the case skips. (The mlsynth-only Path-B cases
+`clustersc_subgroups` and `rsc_synth_error` need no clone and always run.)
 
 ## Adding a benchmark
 
 1. Add `benchmarks/cases/<name>.py` exposing `run() -> dict[str, float]` and
    `EXPECTED: dict[str, tuple[float, float]]` (value, abs-tolerance).
 2. Register it in `registry.py`.
-3. If it needs a reference run, drop the R script under `R/` and have the case
-   read the reference output (or skip gracefully when R is absent).
+3. If it needs a reference run, either drop an R script under `R/` (add the case
+   to `NEEDS_REFERENCE` and have it read the dumped output), or — for a
+   pip-installable / clonable Python reference — import it inside `run()` and
+   `raise BenchmarkSkipped(...)` when it is missing, so `--all` stays green
+   without the extra dependency.

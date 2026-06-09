@@ -67,7 +67,7 @@ def test_time_label_mismatch_fallback(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     res = _fit("both", primary="pcr")
     bad_inputs = dataclasses.replace(res.inputs, time_labels=np.array([1, 2, 3]))
-    res2 = dataclasses.replace(res, inputs=bad_inputs)
+    res2 = res.model_copy(update={"inputs": bad_inputs})
     plot_clustersc(res2)
 
 

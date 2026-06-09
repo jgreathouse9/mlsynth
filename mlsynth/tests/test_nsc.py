@@ -242,7 +242,7 @@ class TestEstimator:
             "run_inference": True,
             "display_graphs": False,
         }).fit()
-        inf = res.inference
+        inf = res.inference_detail
         assert inf.method == "doudchenko_imbens"
         assert inf.period_variance.size == res.inputs.T
         assert inf.gap_lower.size == res.inputs.T
@@ -261,7 +261,7 @@ class TestEstimator:
             "run_inference": False,
             "display_graphs": False,
         }).fit()
-        assert res.inference.method == "none"
+        assert res.inference_detail.method == "none"
 
     def test_cv_target_treated_is_rejected(self, panel):
         """The legacy ``target='treated'`` CV mode (training error on the

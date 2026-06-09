@@ -44,6 +44,19 @@ handful of donors (``LINF`` / ``RELAX_*``), or (ii) a one-stop interface to
 compare classic SCM against its penalized and relaxed cousins on the same
 panel. Pick estimators by name through ``methods``.
 
+.. admonition:: Reference implementations (authors' code)
+
+   The source papers' own code — useful for cross-checking and otherwise
+   hard to locate:
+
+   * **L-infinity-norm SCM** (Wang, Xing & Ye [LinfSC]_, backing ``LINF`` /
+     ``L1LINF``): https://github.com/BioAlgs/LinfinitySC
+   * **SCM-relaxation** (Liao, Shi & Zheng [RelaxSC]_, backing ``RELAX_L2`` /
+     ``RELAX_ENTROPY`` / ``RELAX_EL``): the ``scmrelax`` Python package at
+     https://github.com/metricshilab/scmrelax (installable from
+     https://github.com/PanJi-0/scmrelax), with the Brexit / UK real-GDP
+     application at https://github.com/YapengZheng/Relaxed_SC
+
 Notation
 --------
 
@@ -678,6 +691,12 @@ Verification
    procedure [CWZ2021]_. (Only 50 replications -- noisy; the relaxation
    :math:`\eta` is validated by CV, not fixed.)
 
+   **Durable benchmarks.** The relaxation branch is pinned against the authors'
+   own paper and code: ``rescm_brexit`` (Path A -- the Brexit / UK real-GDP
+   application, ``standardize=False``) and ``rescm_relax_ref`` (cross-validation
+   -- mlsynth's L2 relaxation vs the ``scmrelax`` package, cell by cell at a
+   matched :math:`\eta`). See the dedicated page :doc:`replications/rescm`.
+
 Core API
 --------
 
@@ -707,6 +726,16 @@ Convenience aliases (``att``, ``att_se``, ``counterfactual``,
 NumPy-only panel is exposed as a
 :class:`~mlsynth.utils.laxscm_helpers.structures.RESCMInputs`, with units and
 time addressed through an :class:`IndexSet`.
+
+.. note::
+
+   ``RESCM.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on
+   the standardized two-family contract. It is a dispatcher over the corner-case
+   estimators in ``res.fits``; the selected estimator drives the flat accessors
+   (``res.att`` / ``res.att_ci`` / ``res.counterfactual`` / ``res.gap`` /
+   ``res.donor_weights`` / ``res.pre_rmse``), which resolve through the
+   standardized sub-models. ``res.att_by_method()`` / ``res.se_by_method()``
+   report every fit.
 
 .. automodule:: mlsynth.utils.laxscm_helpers.structures
    :members:

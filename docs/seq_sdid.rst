@@ -326,6 +326,17 @@ Helper Modules
    :members:
    :undoc-members:
 
+.. note::
+
+   ``SequentialSDID.fit()`` returns an
+   :class:`~mlsynth.config_models.EffectResult` on the standardized two-family
+   contract. Sequential SDiD is an event-study estimator, so its standardized
+   ``time_series`` is laid out over *event-time horizons* (``res.gap`` is the
+   pooled horizon effect ``tau_hat_k``) and ``res.att`` is the simple average
+   of those pooled effects. The per-(cohort, horizon) effects, the pooled event
+   study, and the bootstrap config stay on ``res.cohort_effects`` /
+   ``res.event_study`` / ``res.inference_detail``.
+
 .. automodule:: mlsynth.utils.seq_sdid_helpers.structures
    :members:
    :undoc-members:

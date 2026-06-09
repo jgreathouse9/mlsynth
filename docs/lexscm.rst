@@ -533,7 +533,7 @@ The recommendation is returned as a tuple of fields:
 imbalance :math:`\downarrow` vs. ``mde_sd`` :math:`\downarrow`, always
 exposed for transparency), a ``status``, a human-readable
 ``explanation``, and a per-design ``table`` (which becomes
-``results.summary``). The status is one of:
+``results.search.shortlist``). The status is one of:
 
 * ``OK`` -- a valid, adequately powered design was found;
 * ``POWER_NOT_ESTABLISHED`` -- no gated design reached the power target
@@ -638,7 +638,7 @@ reports, comparison tables) read identical fields across the family.
 
 .. code-block:: python
 
-   pf = res.post_fit                          # SyntheticControlPostFit
+   pf = res.report.additional_outputs["post_fit"]   # SyntheticControlPostFit
    pf.ate, pf.ate_percent, pf.total_effect    # treatment-effect scalars
    pf.rmse_fit, pf.rmse_blank, pf.rmse_post   # pre / blank / post fit quality
    pf.p_value, pf.ci_lower, pf.ci_upper       # conformal inference
@@ -678,10 +678,10 @@ the same module powers all three estimators.
 
 .. code-block:: python
 
-   p = res.post_fit.power                      # PowerAnalysis
+   p = res.power                               # PowerAnalysis (single source)
    p.headline.mde_absolute                     # MDE at the realised T_post
    p.headline.mde_pct                          # ... as % of post-period baseline
-   p.headline.power_at_observed                # power to detect res.post_fit.ate
+   p.headline.power_at_observed                # power to detect res.report.att
    p.curve                                     # tuple of MDEPoint per horizon
    p.sigma_placebo                             # σ̂ used (B window in LEXSCM)
    p.serial_correlation                        # ρ̂ AR(1) of the B residuals
@@ -693,15 +693,29 @@ Two MDEs, complementary roles
   null on the B window, used to *rank designs against each other*. Aggregated
   to a representative scalar by ``mde_horizon`` (``late`` / ``early_min`` /
   ``early_mean``) and consumed by Stage 4's lexicographic gate.
-* **Post-fit MDE** (``res.post_fit.power``) -- analytical Gaussian +
+* **Post-fit MDE** (``res.power``) -- analytical Gaussian +
   AR(1) MDE consumed *after* a design has been chosen, on the same surface
   that MAREX / SYNDES / PANGEO produce. Use this when reporting a single
   detectability number alongside the realised ATE / CI.
 
 Power-analysis failures (e.g. degenerate B-window residuals) never break a
-fit; ``res.post_fit.power`` is simply left as ``None``. To compute on a
+fit; ``res.power`` is simply left as ``None``. To compute on a
 non-default horizon grid or significance level call
 :func:`~mlsynth.utils.post_fit.compute_power_analysis` directly.
+
+Verification
+------------
+
+LEXSCM is validated against the synthetic-experimental-design framework it
+implements (Abadie & Zhao 2026; Vives-i-Bastida 2022). **Path A:** the Walmart
+45-store placebo design tracks pre-period to ~2.7% of mean sales and yields a
+placebo effect of ~0.9% whose permutation test fails to reject (CI covers zero)
+-- the paper's "no spurious effect" result. **Path B:** on the paper's exact
+Section-5 linear-factor DGP (``J = 15``, ``T_E = 20``) the design recovers the
+planted effect with MAE far below its scale (~0.24 for the single-treated-unit
+design, falling to ~0.16 at ``m = 2``). Pinned in
+``benchmarks/cases/lexscm_walmart.py`` and ``lexscm_design_mc.py``; see the
+dedicated page :doc:`replications/lexscm`.
 
 Core API
 --------
@@ -722,19 +736,51 @@ Result Containers
 -----------------
 
 ``LEXSCM.fit()`` returns a
-:class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMResults` carrying the
-winning :class:`~mlsynth.utils.fast_scm_helpers.structure.SEDCandidate`
-(weights, predictions, losses, inference), the full candidate shortlist, the
-Stage-1 branch-and-bound metadata, and the time / unit metadata blocks. In
-addition, ``results.post_fit`` is the standardized
-:class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` shared across the
-MAREX family (LEXSCM / MAREX / SYNDES / PANGEO): same ATE / RMSE / SMD /
-inference / power surface, regardless of which estimator produced the design.
+:class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMResults`, which is a
+:class:`~mlsynth.config_models.DesignResult` -- the experimental-design half of
+mlsynth's two-family result contract. LEXSCM *chooses which units to treat*
+before any intervention, so it returns a **design** that resolves to an effect
+report. The surface is small and grouped -- one obvious home for each thing.
+
+**Front door (the standardized contract):**
+
+* ``res.report`` -- the realized effect as an
+  :class:`~mlsynth.config_models.EffectResult`: the *single source* for the ATT /
+  CI / pre-fit (flat ``att`` / ``att_ci`` / ``counterfactual`` / ``gap`` plus the
+  standard sub-models). Its ``additional_outputs['post_fit']`` carries the full
+  :class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` -- the MAREX-family
+  shared bundle with per-period effects and covariate-balance SMDs --
+  alongside ``ate_per_period`` and ``cumulative_effect``.
+* ``res.power`` -- the design's MDE / power analysis (the *single source* for
+  power; ``None`` if power analysis failed).
+* ``res.selected_units`` / ``res.assignment`` / ``res.design_weights`` -- the
+  chosen design (the treated units, the treated/control split, and the implied
+  :class:`~mlsynth.config_models.WeightsResults`).
+* ``res.metadata`` -- the lexicographic recommendation diagnostics.
+
+**Grouped detail:**
+
+* ``res.search`` (:class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMSearch`)
+  -- *how* the design was chosen: ``shortlist`` (the ranked table),
+  ``candidates`` (every evaluated design), ``winner`` (the chosen
+  :class:`~mlsynth.utils.fast_scm_helpers.structure.SEDCandidate` with its
+  weights / predictions / losses / raw MDE curve), and ``bnb`` (the Stage-1
+  branch-and-bound diagnostics).
+* ``res.panel`` (:class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMPanel`)
+  -- the panel structure: ``time``, ``units``, ``outcome``, ``population_mean``.
 
 .. autoclass:: mlsynth.utils.fast_scm_helpers.structure.LEXSCMResults
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. autoclass:: mlsynth.utils.fast_scm_helpers.structure.LEXSCMSearch
+   :members:
+   :undoc-members:
+
+.. autoclass:: mlsynth.utils.fast_scm_helpers.structure.LEXSCMPanel
+   :members:
+   :undoc-members:
 
 .. autoclass:: mlsynth.utils.post_fit.SyntheticControlPostFit
    :members:
@@ -804,7 +850,7 @@ estimation/blank split, and the Gram matrix.
 Standardized post-fit (shared across the MAREX family) -- the
 :func:`~mlsynth.utils.post_fit.compute_post_fit` and
 :func:`~mlsynth.utils.post_fit.compute_power_analysis` helpers that
-populate ``results.post_fit`` live outside this package so SYNDES, MAREX,
+populate the post-fit bundle live outside this package so SYNDES, MAREX,
 and PANGEO all consume the same diagnostics module:
 
 .. automodule:: mlsynth.utils.post_fit
@@ -923,7 +969,7 @@ Run LEXSCM and inspect the design
     results = LEXSCM(config).fit()
 
     # --- Stage 1: solver-style search diagnostics ---
-    stats = results.bnb_metadata["stats"]
+    stats = results.search.bnb["stats"]
     print("status        :", stats["termination"]["status"])      # OPTIMAL / FEASIBLE
     print("method        :", stats["search"]["method"])
     print("subsets scored :", stats["search"]["subsets_evaluated"])
@@ -931,15 +977,15 @@ Run LEXSCM and inspect the design
     print("best imbalance :", round(stats["incumbent"]["imbalance"], 4))
 
     # --- Stage 4: lexicographic recommendation tuple ---
-    rec = results.bnb_metadata["recommendation"]
+    rec = results.search.bnb["recommendation"]
     print("rec status    :", rec["status"])      # OK / POWER_NOT_ESTABLISHED
     print("winner        :", rec["winner"])
     print("pareto ids    :", rec["pareto_ids"])
     print(rec["explanation"])
 
     # --- the recommended design ---
-    print(results.summary)                        # ranked per-design table
-    best = results.best_candidate
+    print(results.search.shortlist)               # ranked per-design table
+    best = results.search.winner
     print("treated weights:", best.treated_weight_dict)
     print("control weights:", best.control_weight_dict)
 

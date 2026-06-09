@@ -20,18 +20,18 @@ def lexplot(
     # 1. Metadata and X-Axis Setup (Robust Handling)
     # =========================================================
     # Use time-specific suffixes to prevent covariate row pollution
-    n_fit = results.time.n_fit_time
-    n_blank = results.time.n_blank_time
-    n_post = results.time.n_post
+    n_fit = results.panel.time.n_fit_time
+    n_blank = results.panel.time.n_blank_time
+    n_post = results.panel.time.n_post
 
     # Crucial: Convert labels to an array for value-based vertical lines
-    x_axis_labels = np.asarray(results.time.index.labels)
+    x_axis_labels = np.asarray(results.panel.time.index.labels)
     
-    synthetic_treated = results.best_candidate.predictions.synthetic_treated
-    synthetic_control = results.best_candidate.predictions.synthetic_control
-    population_mean = results.y_pop_mean_t
+    synthetic_treated = results.search.winner.predictions.synthetic_treated
+    synthetic_control = results.search.winner.predictions.synthetic_control
+    population_mean = results.panel.population_mean
 
-    outcome_name = results.outcome
+    outcome_name = results.panel.outcome
     
     # Boundary indices for slicing
     est_end = n_fit
@@ -101,7 +101,7 @@ def lexplot(
     # =========================================================
     # 4. Annotation and Titles
     # =========================================================
-    best = results.best_candidate
+    best = results.search.winner
     tuplename = best.identification.tuple_id
     m_val = len(best.treated_weight_dict)
 

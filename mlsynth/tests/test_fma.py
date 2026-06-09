@@ -226,8 +226,8 @@ class TestEstimator:
         assert abs(res.att - tau_true) < 0.5
         # Default inference is asymptotic only.
         assert "asymptotic" in res.metadata["inference_methods"]
-        assert np.isfinite(res.inference.asymptotic_att_se)
-        assert np.isfinite(res.inference.asymptotic_att_lower)
+        assert np.isfinite(res.inference_detail.asymptotic_att_se)
+        assert np.isfinite(res.inference_detail.asymptotic_att_lower)
 
     def test_user_n_factors_override(self, panel):
         df, _, _ = panel
@@ -247,11 +247,11 @@ class TestEstimator:
             "inference_methods": ["asymptotic", "bootstrap"],
             "n_bootstrap": 200,
         }).fit()
-        assert res.inference.bootstrap_n_replicates == 200
-        assert res.inference.bootstrap_att_t_lower.size == res.inputs.n_post
+        assert res.inference_detail.bootstrap_n_replicates == 200
+        assert res.inference_detail.bootstrap_att_t_lower.size == res.inputs.n_post
         assert (
-            res.inference.bootstrap_att_t_upper
-            >= res.inference.bootstrap_att_t_lower
+            res.inference_detail.bootstrap_att_t_upper
+            >= res.inference_detail.bootstrap_att_t_lower
         ).all()
 
     def test_placebo_inference(self, panel):
@@ -262,8 +262,8 @@ class TestEstimator:
             "inference_methods": ["placebo"],
             "n_factors": 2,
         }).fit()
-        assert res.inference.placebo_att_curves.shape[0] == res.inputs.N_co + 1
-        assert res.inference.placebo_att_curves.shape[1] == res.inputs.T
+        assert res.inference_detail.placebo_att_curves.shape[0] == res.inputs.N_co + 1
+        assert res.inference_detail.placebo_att_curves.shape[1] == res.inputs.T
 
     def test_all_three_inference_modes(self, panel):
         df, _, _ = panel
@@ -274,9 +274,9 @@ class TestEstimator:
             "n_bootstrap": 100,
             "n_factors": 2,
         }).fit()
-        assert np.isfinite(res.inference.asymptotic_att_se)
-        assert res.inference.bootstrap_replicates.shape[0] == 100
-        assert res.inference.placebo_att_curves.size > 0
+        assert np.isfinite(res.inference_detail.asymptotic_att_se)
+        assert res.inference_detail.bootstrap_replicates.shape[0] == 100
+        assert res.inference_detail.placebo_att_curves.size > 0
 
     def test_no_inference(self, panel):
         df, _, _ = panel
@@ -285,7 +285,7 @@ class TestEstimator:
             "unitid": "unit", "time": "time",
             "inference_methods": [],
         }).fit()
-        assert res.inference.method == "none"
+        assert res.inference_detail.method == "none"
 
     def test_invalid_inference_method_rejected(self, panel):
         df, _, _ = panel

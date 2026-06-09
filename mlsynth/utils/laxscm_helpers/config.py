@@ -56,6 +56,17 @@ class RESCMConfig(BaseEstimatorConfig):
         default=0.05, gt=0.0, lt=1.0,
         description="Significance level for confidence intervals and ATE inference.",
     )
+    standardize: bool = Field(
+        default=True,
+        description=(
+            "Per-donor scale standardization for the relaxation branch "
+            "(``RELAX_*``). The relaxed-balance L-infinity FOC is scale-"
+            "sensitive: ``True`` (default) standardizes donor columns (the "
+            "paper's Appendix-B recommendation, preferable for heterogeneous "
+            "scales); ``False`` solves on the raw series, matching the authors' "
+            "``scmrelax`` reference implementation."
+        ),
+    )
     @model_validator(mode="after")
     def _validate_methods(self):
         from mlsynth.utils.laxscm_helpers.specs import normalize_method

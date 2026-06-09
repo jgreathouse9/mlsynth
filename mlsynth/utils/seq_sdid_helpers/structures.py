@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
+from pydantic import ConfigDict
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -124,9 +127,18 @@ class SeqSDIDInference:
     seed: int
 
 
-@dataclass(frozen=True)
-class SeqSDIDResults:
+class SeqSDIDResults(BaseEstimatorResults):
     """Public ``SequentialSDID.fit()`` return container.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report).
+    Sequential SDiD is an event-study estimator, so its standardized
+    ``time_series`` is laid out over *event-time horizons* rather than calendar
+    time: ``time_periods`` are the horizons ``k = 0, 1, ..., K`` and ``gap`` is
+    the pooled horizon effect ``tau_hat_k`` (``counterfactual`` is the
+    no-effect baseline). The flat ``att`` is the simple average of the pooled
+    horizon effects. The full SSDiD detail -- per-(cohort, horizon) effects,
+    the pooled event study, and the bootstrap config -- stays in the typed
+    fields below.
 
     Parameters
     ----------
@@ -136,8 +148,10 @@ class SeqSDIDResults:
         Per-(cohort_period, k) effects.
     event_study : SeqSDIDEventStudy
         Pooled horizon-k effects with bootstrap inference.
-    inference : SeqSDIDInference
-        Bootstrap configuration summary.
+    inference_detail : SeqSDIDInference
+        Bootstrap configuration summary (was ``inference`` before the contract
+        migration; the standardized ``inference`` slot holds the
+        :class:`~mlsynth.config_models.InferenceResults`).
     eta : float
         Regularization parameter actually used.
     mode : str
@@ -148,10 +162,16 @@ class SeqSDIDResults:
         numbers as ``event_study.tau``; kept separately for clarity).
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: SeqSDIDInputs
     cohort_effects: Dict[Tuple[int, int], SeqSDIDCohortEffect]
     event_study: SeqSDIDEventStudy
-    inference: SeqSDIDInference
+    inference_detail: SeqSDIDInference
     eta: float
     mode: str
     raw_event_study: np.ndarray
+
+
+# Resolve forward references (module uses ``from __future__ import annotations``).
+SeqSDIDResults.model_rebuild()

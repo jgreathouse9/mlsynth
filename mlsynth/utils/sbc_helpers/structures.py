@@ -18,6 +18,9 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 
 import numpy as np
+from pydantic import ConfigDict
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -135,9 +138,15 @@ class SBCDesign:
     pre_cycle_rmse: float
 
 
-@dataclass(frozen=True)
-class SBCResults:
+class SBCResults(BaseEstimatorResults):
     """Public ``SBC.fit()`` return container.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    it populates the standardized sub-models (``effects``, ``time_series``,
+    ``weights``, ``fit_diagnostics``, ``method_details``) so the flat accessors
+    ``att`` / ``counterfactual`` / ``gap`` / ``donor_weights`` / ``pre_rmse``
+    resolve through the base contract. The SBC-specific fields below carry the
+    decomposition detail.
 
     Parameters
     ----------
@@ -145,25 +154,25 @@ class SBCResults:
         Pre-processed panel data.
     design : SBCDesign
         Hamilton fits, donor weights, and post-treatment counterfactual.
-    att : float
-        Mean post-treatment treatment effect:
-        ``mean(y_{0, t} - counterfactual_post)`` over ``t > T_0``.
-        ``np.nan`` if there are no post-treatment periods.
     counterfactual_full : np.ndarray
         Length-``T`` series. Pre-treatment entries equal the observed
-        ``y_target`` (no counterfactual is computed for pre-periods);
-        post-treatment entries equal ``design.counterfactual_post``.
+        ``y_target``; post-treatment entries equal ``design.counterfactual_post``.
+        (Mirrored into ``res.counterfactual`` via the contract.)
     treatment_effect : np.ndarray
-        Length-``T`` series of ``y_target - counterfactual_full``. Zero
-        in the pre-period, ATT-relevant after ``T_0``.
+        Length-``T`` series of ``y_target - counterfactual_full`` (mirrored
+        into ``res.gap``).
     weights_by_donor : dict
-        Mapping ``donor_label -> weight``. Only non-zero entries are
-        included for the simplex mode.
+        Mapping ``donor_label -> weight`` (mirrored into ``res.donor_weights``).
     """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: SBCInputs
     design: SBCDesign
-    att: float
     counterfactual_full: np.ndarray
     treatment_effect: np.ndarray
     weights_by_donor: dict
+
+
+# Resolve string annotations (module uses ``from __future__ import annotations``).
+SBCResults.model_rebuild()

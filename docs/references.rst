@@ -357,14 +357,20 @@ References
     DOI: https://doi.org/10.1257/aer.103.6.2121
 
 .. [LinfSC]
-    Wang, Xing, and Ye.
-    *"L-infinity-norm Synthetic Control."*
-    Working Paper. (Title, journal, year, and DOI to be completed.)
+    Wang, Le, Xin Xing, and Youhui Ye.
+    *"A L-infinity Norm Counterfactual and Synthetic Control Approach."*
+    Working Paper, Virginia Tech, 2025. arXiv: https://arxiv.org/abs/2510.26053.
+    Reference implementation (Python): https://github.com/BioAlgs/LinfinitySC
 
 .. [RelaxSC]
-    Liao, Shi, and Zheng.
-    *"Synthetic Control Relaxation."*
-    Working Paper. (Title, journal, year, and DOI to be completed.)
+    Liao, Chengwang, Zhentao Shi, and Yapeng Zheng.
+    *"A Relaxation Approach to Synthetic Control."*
+    Working Paper, The Chinese University of Hong Kong, 2026.
+    arXiv: https://arxiv.org/abs/2508.01793.
+    Reference implementation (Python package ``scmrelax``):
+    https://github.com/metricshilab/scmrelax (installable from
+    https://github.com/PanJi-0/scmrelax); the Brexit / UK real-GDP
+    empirical application: https://github.com/YapengZheng/Relaxed_SC
 
 .. [LiSCMN]
     Li.

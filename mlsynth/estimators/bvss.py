@@ -22,7 +22,15 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import BVSSConfig
+from ..config_models import (
+    BVSSConfig,
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -184,12 +192,46 @@ class BVSS:
             for i in range(inputs.N)
         }
 
+        labels = np.asarray(inputs.time_labels)
+        T0, T = inputs.T0, inputs.T
+        y_obs = np.asarray(inputs.y_target, dtype=float)
+        cf = np.asarray(inference.counterfactual_mean, dtype=float)
+        gap = y_obs - cf
+        pre_rmse = (float(np.sqrt(np.mean(gap[:T0] ** 2)))
+                    if T0 > 0 else float("nan"))
+        att_samples = np.asarray(inference.att_samples, dtype=float)
+        att_se = float(np.std(att_samples)) if att_samples.size else None
+        std_inference = InferenceResults(
+            standard_error=att_se,
+            ci_lower=None if np.isnan(inference.att_ci_lower) else float(inference.att_ci_lower),
+            ci_upper=None if np.isnan(inference.att_ci_upper) else float(inference.att_ci_upper),
+            confidence_level=float(1.0 - inference.ci_alpha),
+            method="bayesian_posterior",
+            details=inference,
+        )
         results = BVSSResults(
             inputs=inputs,
             posterior=posterior,
-            inference=inference,
+            inference_detail=inference,
             inclusion_probs=inclusion_probs,
             weight_means=weight_means,
+            effects=EffectsResults(
+                att=None if np.isnan(inference.att_mean) else float(inference.att_mean),
+                att_std_err=att_se),
+            time_series=TimeSeriesResults(
+                observed_outcome=y_obs,
+                counterfactual_outcome=cf,
+                estimated_gap=gap,
+                time_periods=labels,
+                intervention_time=(labels[T0] if T0 < T else None)),
+            weights=WeightsResults(
+                donor_weights={str(k): float(v) for k, v in weight_means.items()},
+                summary_stats={"constraint": "Bayesian spike-and-slab (posterior mean)",
+                               "inclusion_probs": inclusion_probs}),
+            fit_diagnostics=FitDiagnosticsResults(
+                rmse_pre=None if np.isnan(pre_rmse) else float(pre_rmse)),
+            inference=std_inference,
+            method_details=MethodDetailsResults(method_name="BVSS", is_recommended=True),
         )
 
         if self.display_graphs:

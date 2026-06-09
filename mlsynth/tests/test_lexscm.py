@@ -443,9 +443,9 @@ class TestLEXSCMEstimator:
             "verbose": False,
         })
         result = est.fit()
-        assert hasattr(result, "best_candidate")
-        assert hasattr(result, "all_candidates")
-        assert hasattr(result, "summary")
+        assert result.search.winner is not None
+        assert len(result.search.candidates) > 0
+        assert result.search.shortlist is not None
 
     def test_covariates_match_only_not_in_rmse(self, panel_df):
         # Covariates are for MATCHING only: their values must never enter any
@@ -465,12 +465,12 @@ class TestLEXSCMEstimator:
         result = est.fit()
         # (a) one collapsed covariate row, not a full trajectory
         assert est.Z.shape[0] == 1
-        L = result.best_candidate.losses
+        L = result.search.winner.losses
         # (b) every reported RMSE / NMSE stays in outcome scale (y ~ 100), not 1e6
         for val in (L.rmse_sc_E, L.rmse_pop_E, L.rmse_sc_B, L.rmse_pop_B,
                     L.nmse_E, L.nmse_B):
             assert np.isfinite(val) and val < 50.0
-        assert float(result.summary.iloc[0]["imbalance"]) < 50.0
+        assert float(result.search.shortlist.iloc[0]["imbalance"]) < 50.0
 
     def test_fit_design_only_no_post(self, panel_no_post):
         est = LEXSCM({
@@ -482,7 +482,7 @@ class TestLEXSCMEstimator:
         })
         result = est.fit()
         assert result is not None
-        assert hasattr(result, "best_candidate")
+        assert result.search.winner is not None
 
     def test_design_only_power_has_finite_percentage_mde(self, panel_no_post):
         # Power analysis must not require post-period data: a design-only run
@@ -494,8 +494,8 @@ class TestLEXSCMEstimator:
             "top_K": 3, "n_sims": 50, "verbose": False,
         })
         result = est.fit()
-        assert result.time.n_post == 0
-        pw = result.post_fit.power
+        assert result.panel.time.n_post == 0
+        pw = result.power
         assert np.isfinite(pw.baseline)
         assert np.isfinite(pw.headline.mde_absolute)
         assert np.isfinite(pw.headline.mde_pct)
@@ -578,39 +578,39 @@ class TestLEXSCMPostFitAndBranches:
     def test_post_fit_attached(self, panel_df):
         from mlsynth.utils.post_fit import SyntheticControlPostFit
         res = LEXSCM({"df": panel_df, **self._est_kwargs("late")}).fit()
-        assert isinstance(res.post_fit, SyntheticControlPostFit)
-        assert res.post_fit.power is not None
+        assert isinstance(res.report.additional_outputs["post_fit"], SyntheticControlPostFit)
+        assert res.power is not None
 
     def test_early_mean_branch(self, panel_df):
         res = LEXSCM({"df": panel_df, **self._est_kwargs("early_mean")}).fit()
         # The 'early_mean' branch (lines 240-242 of lexscm.py) populates
-        # the per-design imbalance / MDE in res.best_candidate.mde_results.
-        assert res.best_candidate.mde_results is not None
+        # the per-design imbalance / MDE in res.search.winner.mde_results.
+        assert res.search.winner.mde_results is not None
 
     def test_early_min_branch(self, panel_df):
         res = LEXSCM({"df": panel_df, **self._est_kwargs("early_min")}).fit()
-        assert res.best_candidate.mde_results is not None
+        assert res.search.winner.mde_results is not None
 
     def test_post_fit_power_failure_swallowed(self, panel_df, monkeypatch):
-        # Force compute_power_analysis to raise → res.post_fit.power stays None.
+        # Force compute_power_analysis to raise → res.power stays None (report kept).
         import mlsynth.utils.post_fit as pf_mod
 
         def _boom(*_a, **_kw):
             raise RuntimeError("nope")
         monkeypatch.setattr(pf_mod, "compute_power_analysis", _boom)
         res = LEXSCM({"df": panel_df, **self._est_kwargs("late")}).fit()
-        assert res.post_fit is not None
-        assert res.post_fit.power is None
+        assert res.report is not None
+        assert res.power is None
 
     def test_post_fit_assembly_failure_swallowed(self, panel_df, monkeypatch):
-        # Force compute_post_fit itself to raise → res.post_fit stays None.
+        # Force compute_post_fit itself to raise → res.report stays None.
         import mlsynth.utils.post_fit as pf_mod
 
         def _boom(*_a, **_kw):
             raise RuntimeError("nope")
         monkeypatch.setattr(pf_mod, "compute_post_fit", _boom)
         res = LEXSCM({"df": panel_df, **self._est_kwargs("late")}).fit()
-        assert res.post_fit is None
+        assert res.report is None
 
     def test_display_graph_runs(self, panel_df, monkeypatch):
         # Smoke: display_graph=True triggers lexplot at the end of fit().
@@ -620,7 +620,7 @@ class TestLEXSCMPostFitAndBranches:
         monkeypatch.setattr(_plt, "show", lambda: None)
         res = LEXSCM({"df": panel_df, "display_graph": True,
                        **self._est_kwargs("late")}).fit()
-        assert res.post_fit is not None
+        assert res.report is not None
         _plt.close("all")
 
     def test_representative_mde_no_finite(self, panel_df):
@@ -1406,7 +1406,7 @@ class TestLEXSCMCoverageMopUp:
                        "n_post_grid": [2, 4, 6, 8], "mde_horizon": "late",
                        "verbose": False})
         res = est.fit()
-        cands = res.all_candidates[:1]
+        cands = res.search.candidates[:1]
         # Strip prior mde_results and re-run with default grid.
         cands[0].mde_results = None
         from mlsynth.utils.fast_scm_helpers.power_helpers import (

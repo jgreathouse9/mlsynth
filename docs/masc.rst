@@ -483,6 +483,16 @@ and SC components separately preserved), counterfactual, pre/post gap,
 pre-RMSE, ATT, and the full CV grid. The prepared NumPy panel is exposed
 as a :class:`~mlsynth.utils.masc_helpers.structures.MASCInputs`.
 
+.. note::
+
+   ``MASC.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on the
+   standardized two-family contract: ``res.att`` / ``res.counterfactual`` /
+   ``res.gap`` / ``res.donor_weights`` / ``res.pre_rmse`` resolve through the
+   standardized sub-models. The blended MASC weight vector is ``res.weights_vector``
+   (the bare ``res.weights`` is reserved for the standardized
+   :class:`~mlsynth.config_models.WeightsResults`); the CV-selected tuning is on
+   ``res.m_hat`` / ``res.phi_hat`` and the full fit on ``res.fit``.
+
 .. automodule:: mlsynth.utils.masc_helpers.structures
    :members:
    :undoc-members:

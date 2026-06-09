@@ -22,10 +22,18 @@ from __future__ import annotations
 
 from typing import Union
 
+import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import SBCConfig
+from ..config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    MethodDetailsResults,
+    SBCConfig,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -123,10 +131,24 @@ class SBC:
             if abs(w) > threshold
         }
 
+        # Standardized two-family (effect) result contract.
+        times = np.asarray(inputs.time_labels)
         results = SBCResults(
+            effects=EffectsResults(att=float(att)),
+            time_series=TimeSeriesResults(
+                observed_outcome=np.asarray(inputs.y_target, dtype=float),
+                counterfactual_outcome=np.asarray(cf_full, dtype=float),
+                estimated_gap=np.asarray(te, dtype=float),
+                time_periods=times,
+                intervention_time=(times[inputs.T0] if inputs.T0 < inputs.T else None),
+            ),
+            weights=WeightsResults(donor_weights=weights_by_donor),
+            fit_diagnostics=FitDiagnosticsResults(
+                rmse_pre=float(design.pre_cycle_rmse)),
+            method_details=MethodDetailsResults(
+                method_name=f"SBC ({self.weights_mode})"),
             inputs=inputs,
             design=design,
-            att=att,
             counterfactual_full=cf_full,
             treatment_effect=te,
             weights_by_donor=weights_by_donor,

@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 from typing import Optional, List, Dict, Any, Iterable
 
+from pydantic import ConfigDict
+
+from ...config_models import DesignResult
 from .fast_scm_bb_helpers import Solution
 #from .fast_scm_setup import IndexSet
 
@@ -247,24 +250,80 @@ class UnitInfo:
 # =========================================================
 # FINAL RESULTS OBJECT
 # =========================================================
-@dataclass
-class LEXSCMResults:
-    summary: pd.DataFrame
-    best_candidate: SEDCandidate
-    all_candidates: List[SEDCandidate]
-    bnb_metadata: Dict[str, Any]
+@dataclass(frozen=True)
+class LEXSCMSearch:
+    """The design search -- *how* the treated set was chosen.
 
-    # structured metadata
+    Attributes
+    ----------
+    shortlist : pd.DataFrame
+        Ranked table of candidate designs (the recommendation shortlist).
+    candidates : list of SEDCandidate
+        Every evaluated candidate design.
+    winner : SEDCandidate
+        The selected design (winner of the lexicographic search), with its
+        weights / predictions / losses / inference / raw MDE curve.
+    bnb : dict
+        Branch-and-bound search diagnostics plus the recommendation record.
+    """
+
+    shortlist: Any
+    candidates: List[SEDCandidate]
+    winner: SEDCandidate
+    bnb: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class LEXSCMPanel:
+    """The panel structure the design was built on.
+
+    Attributes
+    ----------
+    time : TimeInfo
+        Fitting / blank / post period layout.
+    units : UnitInfo
+        Treated / control unit rosters.
+    outcome : str
+        Outcome column name.
+    population_mean : np.ndarray
+        Population-mean outcome series over time (the design target).
+    """
+
     time: TimeInfo
     units: UnitInfo
-
     outcome: str
+    population_mean: np.ndarray
 
-    # OPTIONAL
-    y_pop_mean_t: np.ndarray = field(default_factory=lambda: np.array([]))
 
-    # Standardized post-fit diagnostics (SyntheticControlPostFit) computed from
-    # ``best_candidate.predictions`` at the end of LEXSCM.fit(). Provides the
-    # unified ATE / total / RMSE / SMD / power surface used across the entire
-    # MAREX-family (LEXSCM, MAREX, SYNDES, PANGEO).
-    post_fit: Optional[Any] = None
+class LEXSCMResults(DesignResult):
+    """Top-level container returned by :meth:`mlsynth.LEXSCM.fit`.
+
+    A :class:`~mlsynth.config_models.DesignResult` (the experimental-design
+    family) with a deliberately small, grouped surface -- one obvious home for
+    each thing:
+
+    **Front door (the standardized contract).**
+
+    * ``report`` -- the realized effect as an
+      :class:`~mlsynth.config_models.EffectResult` (the single source for
+      ATT / CI / p-value / pre-fit; its ``additional_outputs['post_fit']`` holds
+      the full :class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` with the
+      per-period effects and covariate-balance SMDs).
+    * ``power`` -- the design's MDE / power analysis (the single source for power;
+      ``None`` if power analysis failed).
+    * ``selected_units`` / ``assignment`` / ``design_weights`` -- the design.
+    * ``metadata`` -- the lexicographic recommendation diagnostics.
+
+    **Grouped detail.**
+
+    * ``search`` -- the candidate search (:class:`LEXSCMSearch`): ``shortlist``,
+      ``candidates``, ``winner``, ``bnb``.
+    * ``panel`` -- the panel structure (:class:`LEXSCMPanel`): ``time``,
+      ``units``, ``outcome``, ``population_mean``.
+    """
+
+    model_config = ConfigDict(
+        frozen=True, arbitrary_types_allowed=True, extra="allow")
+
+    search: LEXSCMSearch
+    panel: LEXSCMPanel

@@ -3,8 +3,9 @@ import pandas as pd
 from typing import Any, Dict, Optional, List, Literal
 
 # Configuration and Exceptions
-from ..config_models import BaseMAREXConfig, LEXSCMConfig
+from ..config_models import BaseMAREXConfig, LEXSCMConfig, WeightsResults
 from ..exceptions import MlsynthDataError, MlsynthEstimationError
+from ..utils.post_fit import to_effect_result as post_fit_to_effect_result
 from ..utils.helperutils import lexplot
 # Utilities - Data Handling
 from ..utils.datautils import balance
@@ -35,6 +36,8 @@ from dataclasses import dataclass, field
 from ..utils.fast_scm_helpers.structure import (
     SEDCandidate,
     LEXSCMResults,
+    LEXSCMSearch,
+    LEXSCMPanel,
     UnitInfo,
     TimeInfo
 )
@@ -239,7 +242,7 @@ class LEXSCM:
                 float(np.mean([a for _, _, a, _ in finite])),
                 float(np.mean(pcts)) if pcts else np.nan)
 
-    def fit(self, **kwargs) -> "LEXSCM":
+    def fit(self, **kwargs) -> "LEXSCMResults":
         """
         Run the full Synthetic Experiment Design pipeline.
 
@@ -495,24 +498,13 @@ class LEXSCM:
         )
 
         # =========================================================
-        # FINAL RESULTS OBJECT
-        # =========================================================
-        results = LEXSCMResults(
-            summary=shortlist,
-            best_candidate=best_candidate,
-            all_candidates=candidate_results,
-            bnb_metadata=bbresults,
-
-            time=time_info,
-            units=unit_info,
-
-            outcome=self.outcome,
-            y_pop_mean_t=y_pop_mean_t
-        )
-
         # Standardized post-fit + power analysis from the chosen design's gap
         # series. Mirrors the MAREX / SYNDES wiring so downstream consumers see
         # the same SyntheticControlPostFit surface across the entire family.
+        # Computed before assembling the (frozen) result so it can feed both the
+        # ``post_fit`` field and the contract-standard ``report``.
+        # =========================================================
+        pf = None
         try:
             from ..utils.post_fit import compute_post_fit, compute_power_analysis
             from dataclasses import replace as _dc_replace
@@ -534,9 +526,75 @@ class LEXSCM:
                 pf = _dc_replace(pf, power=power)
             except Exception:        # never let power analysis break a fit
                 pass
-            results.post_fit = pf
         except Exception:            # never let post_fit assembly break a fit
-            pass
+            pf = None
+
+        # =========================================================
+        # Standardized two-family (design) result contract.
+        # =========================================================
+        design_donor_weights = {
+            str(k): float(v) for k, v in best.control_weight_dict.items()
+        }
+        design_weights = WeightsResults(
+            donor_weights=design_donor_weights,
+            summary_stats={
+                "n_treated": int(unit_info.treated_size),
+                "n_control": int(unit_info.control_size),
+                "treated_weights": {
+                    str(k): float(v) for k, v in best.treated_weight_dict.items()
+                },
+            },
+        )
+
+        # The realized effect: one standardized EffectResult built by the shared
+        # family adapter (no per-estimator field-copying). `report` is the single
+        # source for ATT / CI / pre-fit; the rich SyntheticControlPostFit (with
+        # per-period effects and covariate SMDs) rides along in
+        # `report.additional_outputs['post_fit']`. `power` is the single source
+        # for the MDE / power analysis.
+        times = np.asarray(time_info.index.labels)
+        intervention = (times[time_info.n_pre]
+                        if time_info.n_pre < times.shape[0] else None)
+        report = (
+            post_fit_to_effect_result(
+                pf, time_periods=times, intervention_time=intervention,
+                method_name="LEXSCM", donor_weights=design_donor_weights)
+            if pf is not None else None
+        )
+        rec = bbresults.get("recommendation", {})
+
+        # =========================================================
+        # FINAL RESULTS OBJECT -- a small, grouped surface.
+        # =========================================================
+        results = LEXSCMResults(
+            # --- standardized contract front door ---
+            report=report,
+            power=(pf.power if pf is not None else None),
+            selected_units=list(treated_labels),
+            assignment={"treated": list(treated_labels),
+                        "control": list(control_labels)},
+            design_weights=design_weights,
+            metadata={
+                "status": rec.get("status"),
+                "winner": rec.get("winner"),
+                "pareto_ids": rec.get("pareto_ids"),
+                "n_candidates": len(candidate_results),
+                "outcome": self.outcome,
+            },
+            # --- grouped detail ---
+            search=LEXSCMSearch(
+                shortlist=shortlist,
+                candidates=candidate_results,
+                winner=best_candidate,
+                bnb=bbresults,
+            ),
+            panel=LEXSCMPanel(
+                time=time_info,
+                units=unit_info,
+                outcome=self.outcome,
+                population_mean=y_pop_mean_t,
+            ),
+        )
 
         if self.display_graph:
             lexplot(results)

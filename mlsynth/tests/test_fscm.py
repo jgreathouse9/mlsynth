@@ -62,8 +62,8 @@ def test_fit_returns_results(panel):
 
 def test_weights_form_simplex(panel):
     res = FSCM(_cfg(panel)).fit()
-    assert np.all(res.weights >= -1e-9)
-    assert res.weights.sum() == pytest.approx(1.0, abs=1e-6)
+    assert np.all(res.weights_vector >= -1e-9)
+    assert res.weights_vector.sum() == pytest.approx(1.0, abs=1e-6)
     # Full donor-weight dict zeros out the unselected donors.
     nonzero = [k for k, v in res.donor_weights.items() if v > 0]
     assert set(nonzero).issubset(set(res.selected_donors))
@@ -82,13 +82,13 @@ def test_recovers_effect_sign(panel):
     res = FSCM(_cfg(panel)).fit()
     # Effect was -5; estimate should be clearly negative and roughly on target.
     assert res.att < -2.0
-    assert res.fit_diagnostics["pre_rmse"] < 1.0
+    assert res.diagnostics["pre_rmse"] < 1.0
 
 
 def test_selects_fewer_than_full_pool(panel):
     # Forward selection should not always keep every donor.
     res = FSCM(_cfg(panel)).fit()
-    assert res.n_selected <= res.fit_diagnostics["n_donors_available"]
+    assert res.n_selected <= res.diagnostics["n_donors_available"]
 
 
 def test_max_donors_cap(panel):
@@ -101,14 +101,14 @@ def test_covariates_path(panel):
     res = FSCM(_cfg(panel, covariates=["x1"])).fit()
     assert isinstance(res, FSCMResults)
     assert res.metadata["covariates"] == ["x1"]
-    assert res.weights.sum() == pytest.approx(1.0, abs=1e-6)
+    assert res.weights_vector.sum() == pytest.approx(1.0, abs=1e-6)
 
 
 def test_match_periods_path(panel):
     res = FSCM(_cfg(panel, match_periods=[5, 10, 15])).fit()
     assert isinstance(res, FSCMResults)
     assert res.metadata["match_periods"] == [5, 10, 15]
-    assert res.weights.sum() == pytest.approx(1.0, abs=1e-6)
+    assert res.weights_vector.sum() == pytest.approx(1.0, abs=1e-6)
 
 
 def test_match_periods_with_covariates(panel):
@@ -136,7 +136,7 @@ def test_rolling_origin_metadata(panel):
     # First origin is round(T0 * cv_split); origins run to the end of the pre-period.
     assert res.metadata["cv_origins"][0] == round(T0 * 0.6)
     assert res.metadata["cv_origins"][-1] == T0 - 1
-    assert res.fit_diagnostics["n_cv_origins"] == len(res.metadata["cv_origins"])
+    assert res.diagnostics["n_cv_origins"] == len(res.metadata["cv_origins"])
 
 
 def test_covariate_windows_and_global_v(panel):
@@ -145,7 +145,7 @@ def test_covariate_windows_and_global_v(panel):
     assert res.metadata["matching_mode"] == "predictor"
     # Global V is reported over covariates + lagged-outcome predictors.
     assert set(res.metadata["V_weights"]) == {"x1", "y[5]", "y[10]"}
-    assert res.weights.sum() == pytest.approx(1.0, abs=1e-6)
+    assert res.weights_vector.sum() == pytest.approx(1.0, abs=1e-6)
 
 
 def test_bad_covariate_window_raises(panel):
@@ -159,9 +159,9 @@ def test_no_forward_selection_trajectory(panel):
     assert res.metadata["forward_selection"] is False
     assert res.selection_path is None
     assert res.metadata["solver"] == "simplex_lstsq"
-    assert res.weights.sum() == pytest.approx(1.0, abs=1e-6)
+    assert res.weights_vector.sum() == pytest.approx(1.0, abs=1e-6)
     # Reported donors are the weight-bearing ones from the full solve.
-    assert all(w > 0 for w in res.weights)
+    assert all(w > 0 for w in res.weights_vector)
 
 
 def test_no_forward_selection_predictor_mode(panel):
@@ -171,7 +171,7 @@ def test_no_forward_selection_predictor_mode(panel):
     assert res.metadata["solver"] == "bilevel"
     assert res.selection_path is None
     assert "V_weights" in res.metadata
-    assert res.weights.sum() == pytest.approx(1.0, abs=1e-6)
+    assert res.weights_vector.sum() == pytest.approx(1.0, abs=1e-6)
 
 
 def test_fs_true_false_both_run_with_and_without_covariates(panel):
@@ -180,7 +180,7 @@ def test_fs_true_false_both_run_with_and_without_covariates(panel):
         for cov in ({}, {"covariates": ["x1"]}):
             res = FSCM(_cfg(panel, forward_selection=fs, **cov)).fit()
             assert np.isfinite(res.att)
-            assert res.weights.sum() == pytest.approx(1.0, abs=1e-6)
+            assert res.weights_vector.sum() == pytest.approx(1.0, abs=1e-6)
             assert res.counterfactual.shape == (panel["time"].nunique(),)
 
 

@@ -13,6 +13,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, Sequence
 
 import numpy as np
+from pydantic import ConfigDict
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -118,9 +121,14 @@ class HSCDesign:
     forecaster: str
 
 
-@dataclass(frozen=True)
-class HSCResults:
+class HSCResults(BaseEstimatorResults):
     """User-facing output of the HSC estimator.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    it populates the standardized sub-models so the flat accessors ``att`` /
+    ``counterfactual`` / ``gap`` / ``donor_weights`` / ``pre_rmse`` resolve
+    through the base contract. The HSC-specific fields below carry the harmonic
+    decomposition detail.
 
     Parameters
     ----------
@@ -128,20 +136,23 @@ class HSCResults:
         Preprocessed panel data.
     design : HSCDesign
         Fitted design (weights, smooth component, counterfactual).
-    att : float
-        Average post-treatment effect (mean of ``treatment_effect``).
     counterfactual_full : np.ndarray
         Counterfactual over the full timeline, shape ``(T,)`` (pre-period
-        in-sample fit followed by the post-period counterfactual).
+        in-sample fit followed by the post-period counterfactual; mirrored into
+        ``res.counterfactual``).
     treatment_effect : np.ndarray
-        Post-period treated minus counterfactual, shape ``(n_post,)``.
+        Post-period treated minus counterfactual, shape ``(n_post,)``. (Note:
+        the contract's ``res.gap`` is the *full-length* treated-minus-CF series;
+        this field stays post-only for HSC consumers.)
     weights_by_donor : dict
-        ``{donor_label: weight}`` for donors with non-trivial weight.
+        ``{donor_label: weight}`` for donors with non-trivial weight (mirrored
+        into ``res.donor_weights``).
     """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: HSCInputs
     design: HSCDesign
-    att: float
     counterfactual_full: np.ndarray
     treatment_effect: np.ndarray
     weights_by_donor: Dict[Any, float]
@@ -155,3 +166,7 @@ class HSCResults:
     def selected_rho(self) -> float:
         """Cross-validated allocation parameter."""
         return self.design.selected_rho
+
+
+# Resolve string annotations (module uses ``from __future__ import annotations``).
+HSCResults.model_rebuild()

@@ -366,14 +366,28 @@ Result Containers
 -----------------
 
 ``SSC.fit()`` returns a
-:class:`~mlsynth.utils.ssc_helpers.structures.SSCResults`: the per-cell effects
-``tau`` with their ``index`` (post-period, unit, event time), the overall
-``att`` and its :class:`~mlsynth.utils.ssc_helpers.structures.SSCBand`, the
-``event_att`` path and per-event ``event_bands``, the per-cell ``effects`` grid,
-the synthetic-control intercepts ``a_hat`` and weight matrix ``B_hat`` (plus a
-:class:`~mlsynth.config_models.WeightsResults`), the pre-treatment
-``residuals``, and the
-:class:`~mlsynth.utils.ssc_helpers.structures.SSCInference` summary.
+:class:`~mlsynth.utils.ssc_helpers.structures.SSCResults`, an
+:class:`~mlsynth.config_models.EffectResult` on the standardized two-family
+contract. The flat accessors resolve through the standardized sub-models: the
+overall ``res.att`` (mean of the per-cell effects) and its ``res.att_ci`` from
+the Andrews band, ``res.donor_weights`` (per-treated-unit weights), and a
+``time_series`` laid out over *event-time* (``res.gap`` is the ``event_att``
+curve). The SSC-specific detail is carried alongside: the per-cell effects
+``tau`` with their ``index`` (post-period, unit, event time), the overall ATT's
+:class:`~mlsynth.utils.ssc_helpers.structures.SSCBand` (``att_band``), the
+``event_att`` path and per-event ``event_bands``, the per-cell effect grid
+``effects_matrix``, the synthetic-control intercepts ``a_hat`` and weight
+matrix ``B_hat``, the pre-treatment ``residuals``, and the
+:class:`~mlsynth.utils.ssc_helpers.structures.SSCInference` summary
+(``inference_detail``).
+
+.. note::
+
+   The per-cell effect grid is ``res.effects_matrix`` and the Andrews
+   inference config is ``res.inference_detail``; the bare names ``res.effects``
+   / ``res.inference`` are reserved by the contract for the standardized
+   :class:`~mlsynth.config_models.EffectsResults` /
+   :class:`~mlsynth.config_models.InferenceResults` sub-models.
 
 .. automodule:: mlsynth.utils.ssc_helpers.structures
    :members:

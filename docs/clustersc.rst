@@ -720,7 +720,18 @@ RSC) when:**
 Inference
 ^^^^^^^^^
 
-Three inference families are wired into :py:class:`CLUSTERSCInference`:
+``CLUSTERSC.fit()`` returns an
+:class:`~mlsynth.config_models.EffectResult`: the flat accessors (``res.att``,
+``res.counterfactual``, ``res.gap``, ``res.att_ci``, ``res.donor_weights``,
+``res.pre_rmse``) and the standardized sub-models (``res.effects``,
+``res.time_series``, ``res.weights``, ``res.inference``, ``res.fit_diagnostics``,
+``res.method_details``) are populated from the *primary* variant. The rich,
+estimator-specific inference object lives on ``res.cluster_inference`` (its
+scalar ATT interval is mirrored into the standardized ``res.inference``), and the
+two family fits remain available side by side on ``res.pcr`` / ``res.rpca``.
+
+Three inference families are wired into :py:class:`CLUSTERSCInference`
+(accessed via ``res.cluster_inference``):
 
 * **Frequentist PCR -- Shen-Ding-Sekhon-Yu (2023) closed-form CIs.**
   Default on for ``estimator="frequentist"`` and
@@ -929,6 +940,24 @@ roughly 0.3-0.5 s each on a moderate panel),
 per-period PIs, in-sample bootstrap bands, the Hoeffding constant,
 and the aggregated ATT PI.
 
+Verification
+------------
+
+In the high-dimensional-subgroup regime (pooled donor rank
+:math:`> T_0`), ``CLUSTERSC`` reproduces the central claim of Rho et al.
+(2025): donor clustering lowers the post-period prediction MSE versus the
+whole-pool RSC baseline at every noise level (down
+:math:`60.8\% / 43.2\% / 24.3\%` at :math:`\sigma = 0.10/0.25/0.40`).
+Both modes run through the one estimator (``clustering=False`` is RSC,
+``clustering=True`` is ClusterSC). Pinned in
+``benchmarks/cases/clustersc_subgroups.py``; the authors' own code is
+cross-checked against its paper in ``clustersc_subgroups_ref.py``; the RSC
+pre/post-error and Shen-CI coverage are pinned in ``rsc_synth_error.py`` /
+``rsc_shen_coverage.py``. The **RPCA-SC** family is pinned separately on the
+West-German-reunification application (``clustersc_rpca_germany.py``: Norway 0.49
+/ France 0.35 / pre-RMSE ~89). See the dedicated page
+:doc:`replications/clustersc`.
+
 Core API
 --------
 
@@ -1112,8 +1141,8 @@ the frozen :py:class:`CLUSTERSCResults` container.
    print(f"RPCA pre-RMSE         = {res.rpca.pre_rmse:.4f}")
    print(f"HSVT rank (PCR)       = {res.pcr.metadata['rank']}")
    print(f"HQF  rank (RPCA)      = {res.rpca.metadata['hqf_rank']}")
-   if res.inference.method == "bayesian_credible":
-       lo, hi = res.inference.credible_interval
+   if res.cluster_inference.method == "bayesian_credible":
+       lo, hi = res.cluster_inference.credible_interval
        print(f"Bayesian 90% CrI ATT  = [{lo:+.3f}, {hi:+.3f}]")
 
 Empirical example: California Proposition 99
@@ -1149,7 +1178,7 @@ default ``compute_shen_ci=True`` produces.
    }).fit()
 
    print(f"ATT             = {res.att:+.3f}")
-   shen = res.inference.shen
+   shen = res.cluster_inference.shen
    print(f"95% CI (VT src) = [{shen.att_ci_vt[0]:+.2f}, {shen.att_ci_vt[1]:+.2f}]")
    print(f"95% CI (HZ src) = [{shen.att_ci_hz[0]:+.2f}, {shen.att_ci_hz[1]:+.2f}]")
 
@@ -1200,7 +1229,7 @@ the default ``cft_sims=200``).
        "cft_alpha": 0.05,
    }).fit()
 
-   cft = res.inference.cft
+   cft = res.cluster_inference.cft
    print(f"ATT                = {res.att:+.3f}")
    print(f"95% CFT PI on ATT  = [{cft.att_pi[0]:+.2f}, {cft.att_pi[1]:+.2f}]")
    print(f"sigma_e (pre-RMSE) = {cft.sigma_e:.3f}")
@@ -1248,7 +1277,7 @@ five predictors Abadie et al. (2015) used.
        "display_graphs": True,
    }).fit()
 
-   cft = res.inference.cft
+   cft = res.cluster_inference.cft
    gap = res.inputs.treated_outcome - res.rpca.counterfactual
    weights = {k: round(v, 2) for k, v in res.rpca.donor_weights.items()
               if abs(v) > 1e-3}

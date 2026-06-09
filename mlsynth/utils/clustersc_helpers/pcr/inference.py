@@ -70,6 +70,94 @@ def _pcr_weights(X: np.ndarray, y: np.ndarray, rank: int) -> np.ndarray:
     return ((vt[:r, :].T / sv[:r]) @ u[:, :r].T) @ y
 
 
+# ---------------------------------------------------------------------------
+# Vectorised (batched-over-post-periods) variance estimators.
+#
+# These compute the same (var_hz, var_vt, trA) triples as the per-period
+# ``_var_homo`` / ``_var_jack`` / ``_var_hrk`` above, but for *all* post-periods
+# at once and with every period-invariant quantity (SVD-derived pseudo-inverses,
+# projections, the y_n-side residuals, the interaction trace) computed a single
+# time. They are what :func:`shen_inference` calls; the scalar versions are kept
+# as the reference-matched source of truth (and are cross-validated against the
+# authors' ``var.py`` in the benchmark suite). Inputs:
+#   Y_post : (T1, J) donor outcomes over the post-period.
+#   W_hz   : (T0, T1) HZ weights, column ``ti`` = w_hz for post-period ``ti``.
+#   w_vt   : (J,) period-invariant VT weights.
+#   Y0     : (J, T0) rank-k donor pre-matrix (``Y0_low``).
+# ---------------------------------------------------------------------------
+def _batch_var_homo(y_n, Y_post, Y0, W_hz, w_vt, Hu_perp, Hv_perp):
+    T1, J = Y_post.shape
+    T0d = y_n.shape[0]
+    R = int(round(np.trace(Y0 @ np.linalg.pinv(Y0))))
+
+    sig2_hz = np.zeros(T1)
+    if R != J:
+        E = _threshold(Hu_perp @ Y_post.T)            # (J, T1)
+        sig2_hz = (E ** 2).sum(axis=0) / (J - R)      # (T1,)
+    v_hz = sig2_hz * float(np.dot(w_vt, w_vt))
+
+    sig2_vt = 0.0
+    if R != T0d:
+        err_vt = _threshold(Hv_perp @ y_n)
+        sig2_vt = (np.linalg.norm(err_vt) ** 2) / (T0d - R)
+    v_vt = sig2_vt * (W_hz ** 2).sum(axis=0)          # dot(w_hz, w_hz) per period
+
+    trace_A0 = float(np.trace(np.linalg.pinv(Y0) @ np.linalg.pinv(Y0.T)))
+    trA = sig2_hz * sig2_vt * trace_A0
+    return v_hz, v_vt, trA
+
+
+def _batch_var_jack(y_n, Y_post, Y0, W_hz, w_vt, Hu_perp, Hv_perp):
+    T1, J = Y_post.shape
+    T0d = y_n.shape[0]
+    R = int(round(np.trace(Y0 @ np.linalg.pinv(Y0))))
+    P1 = np.linalg.pinv(Y0)          # (T0, J)
+    P2 = np.linalg.pinv(Y0.T)        # (J, T0)
+    Q = P1 * P2.T                    # (T0, J): Q[i,j] = P1[i,j] P2[j,i]
+
+    D_hz = np.zeros((J, T1))
+    if R != J:
+        H_inv_hz = np.linalg.pinv((Hu_perp * Hu_perp) * np.eye(J))
+        E_hz = _threshold((Hu_perp @ Y_post.T) ** 2)  # (J, T1)
+        D_hz = H_inv_hz @ E_hz                         # (J, T1)
+    v_hz = ((w_vt[:, None] ** 2) * D_hz).sum(axis=0)
+
+    d_vt = np.zeros(T0d)
+    if R != T0d:
+        H_inv_vt = np.linalg.pinv((Hv_perp * Hv_perp) * np.eye(T0d))
+        e_vt = _threshold((Hv_perp @ y_n) ** 2)
+        d_vt = H_inv_vt @ e_vt                          # (T0,)
+    v_vt = ((W_hz ** 2) * d_vt[:, None]).sum(axis=0)
+
+    trA = d_vt @ (Q @ D_hz)                              # (T1,)
+    return v_hz, v_vt, trA
+
+
+def _batch_var_hrk(y_n, Y_post, Y0, W_hz, w_vt, Hu_perp, Hv_perp):
+    T1, J = Y_post.shape
+    P1 = np.linalg.pinv(Y0)
+    P2 = np.linalg.pinv(Y0.T)
+    Q = P1 * P2.T
+
+    H_inv_hz = np.linalg.pinv(Hu_perp * Hu_perp)
+    D_hz = H_inv_hz @ _threshold((Hu_perp @ Y_post.T) ** 2)   # (J, T1)
+    v_hz = ((w_vt[:, None] ** 2) * D_hz).sum(axis=0)
+
+    H_inv_vt = np.linalg.pinv(Hv_perp * Hv_perp)
+    d_vt = H_inv_vt @ _threshold((Hv_perp @ y_n) ** 2)        # (T0,)
+    v_vt = ((W_hz ** 2) * d_vt[:, None]).sum(axis=0)
+
+    trA = d_vt @ (Q @ D_hz)
+    return v_hz, v_vt, trA
+
+
+_BATCH_VARIANCE_FNS = {
+    "homoskedastic": _batch_var_homo,
+    "jackknife": _batch_var_jack,
+    "hrk": _batch_var_hrk,
+}
+
+
 def _var_homo(
     y_n: np.ndarray,
     y_t: np.ndarray,
@@ -289,28 +377,25 @@ def shen_inference(
             )
 
     z = norm.ppf(1.0 - alpha / 2.0)
-    var_fn = _VARIANCE_FNS[variance]
+    batch_var_fn = _BATCH_VARIANCE_FNS[variance]
 
-    gaps = np.zeros(T1)
-    v_hz = np.zeros(T1); v_vt = np.zeros(T1); v_dr = np.zeros(T1)
+    # Period-invariant pieces, computed once. The truncated pseudo-inverses
+    # reuse the SVD of Y0 already taken above (P_hz @ y = pinv_k(Y0) @ y,
+    # P_vt @ y = pinv_k(Y0^T) @ y), so the per-period loop becomes pure
+    # matrix-vector work -- no SVD/pinv is recomputed across post-periods.
+    P_hz = (Vt_k.T / sv[:k]) @ U_k.T            # (T0, J): w_hz = P_hz @ y_t
+    P_vt = (U_k / sv[:k]) @ Vt_k                # (J, T0): w_vt = P_vt @ y_n
+    w_vt = P_vt @ y_n                           # (J,) -- period-invariant
+    Y_post = Y_full[T0:]                        # (T1, J)
+    W_hz = P_hz @ Y_post.T                      # (T0, T1): columns are w_hz
 
-    for ti, t in enumerate(range(T0, T)):
-        y_t = Y_full[t, :]      # (J,) donors at post-period t
-        # VT weights: regress y_n on Y0.T = Y_pre.
-        w_vt = _pcr_weights(Y0.T, y_n, k)            # (J,)
-        # HZ weights: regress y_t on Y0 = Y_pre.T.
-        w_hz = _pcr_weights(Y0, y_t, k)              # (T0,)
-        # Theorem 1: HZ and VT predictions coincide for PCR with same k.
-        # Take the VT prediction (the SCM-style one).
-        yhat = float(np.dot(y_t, w_vt))
-        gaps[ti] = y[t] - yhat
+    # Theorem 1: HZ and VT predictions coincide for PCR at the same rank.
+    gaps = y[T0:] - Y_post @ w_vt               # (T1,)
 
-        var_hz_t, var_vt_t, trA_t = var_fn(
-            y_n, y_t, Y0_low, w_hz, w_vt, Hu_perp, Hv_perp,
-        )
-        v_hz[ti] = var_hz_t
-        v_vt[ti] = var_vt_t
-        v_dr[ti] = max(0.0, var_hz_t + var_vt_t - trA_t)
+    v_hz, v_vt, trA = batch_var_fn(
+        y_n, Y_post, Y0_low, W_hz, w_vt, Hu_perp, Hv_perp,
+    )
+    v_dr = np.maximum(0.0, v_hz + v_vt - trA)
 
     se_hz = np.sqrt(v_hz)
     se_vt = np.sqrt(v_vt)

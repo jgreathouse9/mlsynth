@@ -823,6 +823,17 @@ NumPy-only panel is exposed as a
 :class:`~mlsynth.utils.pda_helpers.structures.PDAInputs`, with units and time
 addressed through an :class:`IndexSet`.
 
+.. note::
+
+   ``PDA.fit()`` returns an :class:`~mlsynth.config_models.EffectResult` on the
+   standardized two-family contract. It is a dispatcher over the variants in
+   ``res.fits`` (l2 / lasso / fs); the selected variant drives the flat
+   accessors (``res.att`` / ``res.att_ci`` / ``res.counterfactual`` /
+   ``res.gap`` / ``res.donor_weights`` / ``res.pre_rmse``), which resolve
+   through the standardized sub-models. ``res.donor_weights`` are the regression
+   coefficients (PDA is a regression counterfactual, not a simplex average);
+   ``res.att_by_method()`` / ``res.se_by_method()`` report every variant.
+
 .. automodule:: mlsynth.utils.pda_helpers.structures
    :members:
    :undoc-members:

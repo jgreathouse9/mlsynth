@@ -80,7 +80,7 @@ def test_plot_hsc(monkeypatch, tmp_path):
 
 def test_plot_missing_counterfactual_raises():
     res = _fit()
-    broken = dataclasses.replace(res, counterfactual_full=None)
+    broken = res.model_copy(update={"counterfactual_full": None})
     with pytest.raises(MlsynthPlottingError):
         plot_hsc(broken)
 

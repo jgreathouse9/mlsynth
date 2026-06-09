@@ -226,12 +226,12 @@ indicator is California from 1989 onward.
    res = FSCM({"df": df, "outcome": "cigsale", "treat": "treated",
                "unitid": "state", "time": "year", "display_graphs": True}).fit()
 
-   print(f"optimal donors : {res.n_selected} of {res.fit_diagnostics['n_donors_available']}")
+   print(f"optimal donors : {res.n_selected} of {res.diagnostics['n_donors_available']}")
    print(f"selected       : {res.selected_donors}")
    print(f"ATT            : {res.att:.2f}")
-   print(f"pre-period R^2 : {res.fit_diagnostics['pre_r_squared']:.3f}")
-   print(f"CV RMSPE       : optimum={res.fit_diagnostics['cv_rmspe_at_optimum']:.3f}"
-         f"  full pool={res.fit_diagnostics['cv_rmspe_full_pool']:.3f}")
+   print(f"pre-period R^2 : {res.diagnostics['pre_r_squared']:.3f}")
+   print(f"CV RMSPE       : optimum={res.diagnostics['cv_rmspe_at_optimum']:.3f}"
+         f"  full pool={res.diagnostics['cv_rmspe_full_pool']:.3f}")
 
 This prints::
 
@@ -269,7 +269,7 @@ optimum** over all donors:
                "covariate_windows": {"lnincome": (1980, 1988), "age15to24": (1980, 1988),
                                      "retprice": (1980, 1988), "beer": (1984, 1988)},
                "match_periods": [1975, 1980, 1988]}).fit()
-   print(f"R^2 {res.fit_diagnostics['pre_r_squared']:.4f}  ATT {res.att:.2f}")
+   print(f"R^2 {res.diagnostics['pre_r_squared']:.4f}  ATT {res.att:.2f}")
    print({str(k): round(v, 3) for k, v in res.donor_weights.items() if v > 1e-3})
    # R^2 0.9787  ATT -19.68
    # {'Utah': 0.386, 'Montana': 0.257, 'Nevada': 0.206, 'Connecticut': 0.107, 'New Hampshire': 0.043}
@@ -334,14 +334,28 @@ Result Containers
 -----------------
 
 ``FSCM.fit()`` returns a
-:class:`~mlsynth.utils.fscm_helpers.structures.FSCMResults`: the weight-bearing
-donor set, simplex weights, the full-pool ``donor_weights`` dict,
-counterfactual, gap, ATT, fit diagnostics, and -- when forward selection ran --
+:class:`~mlsynth.utils.fscm_helpers.structures.FSCMResults`, an
+:class:`~mlsynth.config_models.EffectResult` on the standardized two-family
+contract: the flat accessors ``res.att`` / ``res.counterfactual`` / ``res.gap``
+/ ``res.donor_weights`` (the full-pool mapping) / ``res.pre_rmse`` resolve
+through the standardized sub-models (``effects`` / ``time_series`` / ``weights``
+/ ``fit_diagnostics``). The FSCM-specific detail is carried alongside: the
+weight-bearing donor set (``selected_donors``), the raw simplex weight array
+(``weights_vector``), the rich fit-diagnostics dict (``diagnostics`` -- pre-RMSE,
+R\ :sup:`2`, donor counts, CV stats), and -- when forward selection ran --
 a :class:`~mlsynth.utils.fscm_helpers.structures.FSCMSelectionPath` (per-size
 in-sample and rolling-origin CV RMSPE, and the selection order;
 ``None`` when ``forward_selection=False``). The prepared, NumPy-only panel is
 exposed as a :class:`~mlsynth.utils.fscm_helpers.structures.FSCMInputs`, with
 units and time addressed through an :class:`IndexSet`.
+
+.. note::
+
+   The raw simplex weight array is ``res.weights_vector`` and the rich
+   diagnostics dict is ``res.diagnostics``; the bare names ``res.weights`` /
+   ``res.fit_diagnostics`` are reserved by the contract for the standardized
+   :class:`~mlsynth.config_models.WeightsResults` /
+   :class:`~mlsynth.config_models.FitDiagnosticsResults` sub-models.
 
 .. automodule:: mlsynth.utils.fscm_helpers.structures
    :members:

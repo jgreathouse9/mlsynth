@@ -260,8 +260,8 @@ class TestEstimatorPipeline:
 
     def test_weights_form_simplex(self, panel):
         res = MASC(_cfg(panel)).fit()
-        assert np.all(res.weights >= -1e-9)
-        assert res.weights.sum() == pytest.approx(1.0, abs=1e-6)
+        assert np.all(res.weights_vector >= -1e-9)
+        assert res.weights_vector.sum() == pytest.approx(1.0, abs=1e-6)
 
     def test_cv_grid_has_expected_shape(self, panel):
         res = MASC(_cfg(panel, m_grid=[1, 2, 3], min_preperiods=5)).fit()
@@ -275,12 +275,12 @@ class TestEstimatorPipeline:
         res = MASC(_cfg(panel, m_grid=[1], min_preperiods=5)).fit()
         if res.phi_hat == 0.0:
             # MASC weights collapse to the SC weights.
-            assert np.allclose(res.weights, res.fit.weights_sc)
+            assert np.allclose(res.weights_vector, res.fit.weights_sc)
 
     def test_phi_one_recovers_pure_match(self, panel):
         res = MASC(_cfg(panel, m_grid=[1], min_preperiods=5)).fit()
         if res.phi_hat == 1.0:
-            assert np.allclose(res.weights, res.fit.weights_match)
+            assert np.allclose(res.weights_vector, res.fit.weights_match)
 
     def test_counterfactual_has_correct_length(self, panel):
         res = MASC(_cfg(panel)).fit()
@@ -295,7 +295,7 @@ class TestEstimatorPipeline:
     def test_pipeline_runs_with_covariates(self, panel_with_cov):
         res = MASC(_cfg(panel_with_cov, covariates=["x1", "x2"])).fit()
         assert isinstance(res, MASCResults)
-        assert np.isclose(res.weights.sum(), 1.0)
+        assert np.isclose(res.weights_vector.sum(), 1.0)
 
 
 # --------------------------------------------------------------------------- #

@@ -13,7 +13,7 @@ def plot_fma(results: FMAResults) -> None:
     """Two-panel plot: trajectories + per-period gap with CI bands."""
 
     inputs = results.inputs
-    inf = results.inference
+    inf = results.inference_detail
     t = np.asarray(inputs.time_labels)
     if t.size != inputs.T:
         t = np.arange(inputs.T)

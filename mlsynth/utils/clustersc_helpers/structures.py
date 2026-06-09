@@ -1,4 +1,8 @@
-"""Frozen dataclasses for the Cluster-based Synthetic Control (CLUSTERSC) estimator.
+"""Result structures for the Cluster-based Synthetic Control (CLUSTERSC) estimator.
+
+The inputs and per-method fits are frozen dataclasses; the top-level
+``CLUSTERSCResults`` is a Pydantic :class:`~mlsynth.config_models.EffectResult`
+(the two-family result contract), carrying the dataclass layers as typed fields.
 
 CLUSTERSC bundles two complementary robust synthetic-control families:
 
@@ -28,6 +32,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
+from pydantic import ConfigDict, Field as PydField
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -159,9 +166,16 @@ class CLUSTERSCInference:
     cft: Optional[Any] = None
 
 
-@dataclass(frozen=True)
-class CLUSTERSCResults:
+class CLUSTERSCResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.CLUSTERSC.fit`.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    it populates the standardized sub-models (``effects``, ``time_series``,
+    ``weights``, ``inference``, ``fit_diagnostics``, ``method_details``) from the
+    *primary* variant, so the flat accessors ``att`` / ``counterfactual`` /
+    ``gap`` / ``att_ci`` / ``donor_weights`` / ``pre_rmse`` resolve through the
+    base contract. The CLUSTERSC-specific fields below carry the dispatcher's
+    extra structure (both family fits side by side, and the rich inference).
 
     Parameters
     ----------
@@ -171,61 +185,29 @@ class CLUSTERSCResults:
         PCR-RSC fit (populated when ``method in {"pcr", "both"}``).
     rpca : MethodFit or None
         RPCA-SC fit (populated when ``method in {"rpca", "both"}``).
-    inference : CLUSTERSCInference
-        Optional inferential output (Bayesian credible interval for
-        the PCR variant when ``estimator = "bayesian"``).
     selected_variant : str
-        Which fit is exposed via the convenience aliases ``att``,
-        ``counterfactual``, ``gap`` -- ``"pcr"`` or ``"rpca"``. When
-        ``method = "both"`` the user picks via
+        Which fit drives the standardized sub-models / flat accessors --
+        ``"pcr"`` or ``"rpca"``. When ``method = "both"`` the user picks via
         ``CLUSTERSCConfig.primary``; default ``"pcr"``.
+    cluster_inference : CLUSTERSCInference or None
+        The rich inferential output (Bayesian credible interval, Shen et al.
+        per-period/ATT CIs, or CFT prediction intervals). The scalar summary
+        is mirrored into the standardized ``inference`` slot so ``res.att_ci``
+        resolves.
     metadata : dict
         Free-form pipeline diagnostics.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: CLUSTERSCInputs
-    pcr: Optional[MethodFit]
-    rpca: Optional[MethodFit]
-    inference: CLUSTERSCInference
-    selected_variant: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    pcr: Optional[MethodFit] = None
+    rpca: Optional[MethodFit] = None
+    selected_variant: str = "pcr"
+    cluster_inference: Optional[CLUSTERSCInference] = None
+    metadata: Dict[str, Any] = PydField(default_factory=dict)
 
-    @property
-    def _primary(self) -> Optional[MethodFit]:
-        return self.pcr if self.selected_variant == "pcr" else self.rpca
 
-    @property
-    def att(self) -> float:
-        """ATT of the primary variant."""
-        fit = self._primary
-        return float("nan") if fit is None else fit.att
-
-    @property
-    def counterfactual(self) -> np.ndarray:
-        """Counterfactual of the primary variant."""
-        fit = self._primary
-        return (
-            np.full(self.inputs.T, np.nan)
-            if fit is None else fit.counterfactual
-        )
-
-    @property
-    def gap(self) -> np.ndarray:
-        """Gap of the primary variant."""
-        fit = self._primary
-        return (
-            np.full(self.inputs.T, np.nan)
-            if fit is None else fit.gap
-        )
-
-    @property
-    def donor_weights(self) -> Dict[Any, float]:
-        """Donor weights of the primary variant."""
-        fit = self._primary
-        return {} if fit is None else fit.donor_weights
-
-    @property
-    def pre_rmse(self) -> float:
-        """Pre-treatment RMSE of the primary variant."""
-        fit = self._primary
-        return float("nan") if fit is None else fit.pre_rmse
+# Resolve the string annotations (the module uses ``from __future__ import
+# annotations``) now that all referenced dataclasses are defined.
+CLUSTERSCResults.model_rebuild()

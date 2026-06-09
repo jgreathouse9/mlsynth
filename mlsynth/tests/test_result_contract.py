@@ -20,7 +20,9 @@ import pandas as pd
 import pytest
 
 from mlsynth import (
-    FDID, MCNNM, MSQRT, RMSI, SNN, SparseSC, SPOTSYNTH, TASC, TSSC, VanillaSC,
+    BVSS, CLUSTERSC, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MCNNM, MSQRT,
+    NSC, PDA, RESCM, RMSI, SBC, SCMO, SDID, SequentialSDID, SNN, SparseSC,
+    SPOTSYNTH, SSC, TASC, TSSC, VanillaSC,
 )
 from mlsynth.config_models import (
     BaseEstimatorResults,
@@ -64,13 +66,27 @@ OBSERVATIONAL = [
     pytest.param(VanillaSC, {}, id="VanillaSC"),
     pytest.param(FDID, {}, id="FDID"),
     pytest.param(TSSC, {"draws": 80, "seed": 0}, id="TSSC"),
-    pytest.param(SPOTSYNTH, {}, id="SPOTSYNTH"),
+    pytest.param(SPOTSYNTH, {"inference": "frequentist"}, id="SPOTSYNTH"),
     pytest.param(RMSI, {}, id="RMSI"),
     pytest.param(SNN, {}, id="SNN"),
     pytest.param(MSQRT, {"lambda_": 0.5}, id="MSQRT"),
     pytest.param(MCNNM, {}, id="MCNNM"),
     pytest.param(SparseSC, {"outcome_lag_periods": [1, 2]}, id="SparseSC"),
     pytest.param(TASC, {"d": 2, "n_em_iter": 2}, id="TASC"),
+    pytest.param(CLUSTERSC, {"clustering": False}, id="CLUSTERSC"),
+    pytest.param(SBC, {}, id="SBC"),
+    pytest.param(HSC, {}, id="HSC"),
+    pytest.param(FSCM, {}, id="FSCM"),
+    pytest.param(SCMO, {}, id="SCMO"),
+    pytest.param(RESCM, {}, id="RESCM"),
+    pytest.param(PDA, {}, id="PDA"),
+    pytest.param(MASC, {}, id="MASC"),
+    pytest.param(NSC, {"a": 0.0, "b": 0.0}, id="NSC"),
+    pytest.param(FMA, {}, id="FMA"),
+    pytest.param(SDID, {}, id="SDID"),
+    pytest.param(SequentialSDID, {"n_bootstrap": 20, "seed": 0}, id="SequentialSDID"),
+    pytest.param(SSC, {}, id="SSC"),
+    pytest.param(BVSS, {"n_iter": 30, "burn_in": 10, "seed": 0}, id="BVSS"),
 ]
 
 
@@ -150,3 +166,72 @@ def test_design_report_is_effect_result():
     design = DesignResult(report=report)
     assert isinstance(design.report, EffectResult)
     assert isinstance(design, MlsynthResult)
+
+
+# --- design-family conformance on real estimators ------------------------
+
+def _make_design_panel(n_units=15, T=40, T_post=12, n_candidates=8, L=2,
+                       sigma=0.1, seed=0, baseline=100.0):
+    """Factor panel with a candidate-eligibility column + post indicator."""
+    rng = np.random.default_rng(seed)
+    gamma = rng.standard_normal((n_units, L))
+    nu = rng.standard_normal((T, L))
+    Y = baseline + nu @ gamma.T + sigma * rng.standard_normal((T, n_units))
+    rows = []
+    for i in range(n_units):
+        for t in range(T):
+            rows.append({"unitid": f"u{i:02d}", "time": t, "y": Y[t, i],
+                         "post": int(t >= T - T_post),
+                         "candidate": int(i < n_candidates)})
+    return pd.DataFrame(rows)
+
+
+# Estimators that should return a DesignResult (the experimental-design family).
+DESIGN = [
+    pytest.param(
+        LEXSCM,
+        {"outcome": "y", "unitid": "unitid", "time": "time",
+         "candidate_col": "candidate", "m": 2, "post_col": "post",
+         "top_K": 3, "n_sims": 30, "n_post_grid": [2, 4, 6, 8],
+         "mde_horizon": "late", "verbose": False},
+        id="LEXSCM",
+    ),
+    pytest.param(
+        MAREX,
+        {"outcome": "y", "unitid": "unitid", "time": "time",
+         "design": "standard", "post_col": "post", "m_eq": 3, "relaxed": True},
+        id="MAREX",
+    ),
+]
+
+
+@pytest.fixture(scope="module")
+def fitted_designs():
+    df = _make_design_panel()
+    return {p.id: p.values[0]({"df": df, **p.values[1]}).fit() for p in DESIGN}
+
+
+@pytest.mark.parametrize("Est, extra", DESIGN)
+def test_is_design_result(Est, extra, fitted_designs):
+    res = fitted_designs[Est.__name__]
+    assert isinstance(res, MlsynthResult)
+    assert isinstance(res, DesignResult)
+    assert not isinstance(res, EffectResult)  # the design family, not the report
+
+
+@pytest.mark.parametrize("Est, extra", DESIGN)
+def test_design_resolves_to_effect_report(Est, extra, fitted_designs):
+    """A realized design exposes its effect report as an EffectResult."""
+    res = fitted_designs[Est.__name__]
+    assert res.selected_units is not None and len(res.selected_units) > 0
+    report = res.report
+    assert isinstance(report, EffectResult)
+    # The report satisfies the same flat read-contract as any effect estimator.
+    assert report.effects is not None and report.effects.att is not None
+    assert isinstance(report.att, float)
+    assert report.att == pytest.approx(report.effects.att)
+    cf = np.asarray(report.counterfactual)
+    gap = np.asarray(report.gap)
+    assert cf.ndim == 1 and cf.shape == gap.shape
+    ci = report.att_ci
+    assert ci is None or (len(ci) == 2 and ci[0] <= ci[1])

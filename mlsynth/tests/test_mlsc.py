@@ -496,8 +496,14 @@ class TestPublicAPI:
         assert res.weights is not None
         assert res.method_details is not None and res.method_details.method_name
         # flat accessors resolve; donor weights served from the weights slot
+        assert isinstance(res.att, float)
         assert res.att == pytest.approx(res.effects.att)
+        cf = np.asarray(res.counterfactual)
+        gap = np.asarray(res.gap)
+        assert cf.ndim == 1 and cf.shape == gap.shape
         assert set(res.donor_weights.keys()) == set(res.inputs.disagg_labels)
+        ci = res.att_ci
+        assert ci is None or (len(ci) == 2 and ci[0] <= ci[1])
         # mlSC has no statistical inference
         assert res.inference is None
 

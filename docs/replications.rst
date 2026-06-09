@@ -51,6 +51,13 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/tssc
    replications/vanillasc
    replications/sparse_sc
+   replications/sdid
+   replications/mcnnm
+   replications/spsydid
+   replications/clustersc
+   replications/lexscm
+   replications/scmo
+   replications/rescm
 
 .. _replications-canonical:
 
@@ -64,7 +71,8 @@ Canonical workhorses
   MSE-ratio grid -- all 16 cells of the
   :math:`(T_1, T_2)` sweep fall below :math:`1.0`, range
   :math:`[0.039, 0.889]`, matching the paper's geometry.
-  → dedicated page: :doc:`replications/tssc`.
+  → dedicated page: :doc:`replications/tssc`; durable cases
+  ``tssc_brooklyn`` (Path A) and ``tssc_figure2`` (Path B).
 * :doc:`vanillasc` -- Standard SC (ADH 2010/2015; Abadie-Gardeazabal 2003).
   **Path A:** the three canonical studies on their original datasets --
   Prop 99 (Utah/Nevada/Montana/Colorado/Connecticut, ATT :math:`\approx -19`
@@ -90,26 +98,45 @@ Decomposition-first synthetic control
 * :doc:`hsc` -- Harmonic Synthetic Control. **Path A:** the 1997
   Hong Kong handover -- 2003 effect :math:`-\$1{,}902` against
   the paper's :math:`-\$1{,}900`; Korea weight 0.18 and Germany
-  weight 0.14 match the paper. **Path B:** Liu-Xu regime-adaptation
-  grid with ARIMA(1,1,0) trends -- HSC RMSE 6.46 vs. SC-diff 6.11
-  under the idiosyncratic regime.
+  weight 0.14 match the paper (with ``ridge="sdid"`` + a refined
+  rho grid; durable: ``hsc_hongkong``). **Path B:** Liu-Xu regime-adaptation
+  grid with ARIMA(1,1,0) trends -- HSC tracks the oracle-best fixed
+  method in both regimes (rho adapts; durable: ``hsc_mc``).
 * :doc:`sbc` -- Synthetic Business Cycle. **Path A:** German
   reunification -- Greece weight 0.44, Netherlands 0.37,
-  :math:`\widehat{\mathrm{ATT}} \approx -952`; also reproduces the
+  :math:`\widehat{\mathrm{ATT}} \approx -952` (durable:
+  ``sbc_germany``); also reproduces the
   Hong Kong handover. **Path B:** Shi-Xi-Xie Models 1-3
-  nonstationary DGP, Model 1 MSE ratio 0.012 vs. the paper's 0.01.
+  nonstationary DGP, post-MSE ratio < 1 in every model and highest
+  (SC competitive) under cointegration (durable: ``sbc_mc``).
 
 .. _replications-generalised:
 
 Generalising the estimand, treatment, or unit
 ---------------------------------------------
 
-* :doc:`scmo` -- Tian, Lee & Panchenko (2024) multi-outcome SC.
-  **Path A:** German reunification (nine pre-1989 indicators) --
-  pre-RMSE = 110, matching Table 1 to three decimals.
-  **Path B:** TLP Table 1 plus SBMF averaging, 400-800 reps; bias
-  / SD at :math:`K = 6` are :math:`1.11 / 1.40` against the
-  paper's :math:`1.08 / 1.36`.
+* :doc:`scmo` -- multi-outcome SC, both variants.
+  **Path A:** Tian-Lee-Panchenko (2026) German reunification (nine
+  pre-1989 indicators) -- the concatenated synthetic reproduces their
+  Table 2 balance cell by cell (synthetic 1989 GDP per capita
+  :math:`19029.8`; CPI :math:`3.1`; trade :math:`59.1`; tax
+  :math:`34.1`), pre-RMSE :math:`= 110` (durable: ``scmo_germany``).
+  **Path B (concatenated):** TLP Table 1 == Sun et al. ``Simulation1.R``
+  -- bias falls and pre-fit rises with the outcome count :math:`K` across
+  :math:`T_0 \in \{1, 5, 10\}` (durable: ``scmo_concatenated_mc``).
+  **Path B (averaged):** Sun-Ben-Michael-Feller (2025) Appendix-D regime
+  contrast -- averaging beats the separate SC under a common factor and
+  hurts under purely idiosyncratic factors (durable: ``scmo_averaged_mc``).
+  → dedicated page: :doc:`replications/scmo`.
+* :doc:`rescm` -- SCM-relaxation (Liao, Shi & Zheng 2026).
+  **Path A:** Brexit / UK real GDP -- the L2 relaxation's cumulative
+  GDP loss is :math:`\approx 4.0\%` (paper 3.85%, treatment 2016Q3),
+  dense weights on the major EU economies that classic SC drops
+  (durable: ``rescm_brexit``). **Cross-validation:** mlsynth's L2
+  relaxation matches the authors' ``scmrelax`` package cell by cell at a
+  matched :math:`\tau` (donor-weight :math:`L_1` distance
+  :math:`\approx 0.0014`; durable: ``rescm_relax_ref``).
+  → dedicated page: :doc:`replications/rescm`.
 * :doc:`ctsc` -- Continuous-Treatment SC. **Path B:** Section 5 /
   Table 1 Monte Carlo across Models 1-4 with factor structure and
   true average effect :math:`= 0`; CTSC bias :math:`\approx 0.00`
@@ -160,10 +187,25 @@ High-dimensional donor pools
   California Proposition 99 -- rank-1 PCR
   :math:`\widehat{\mathrm{ATT}}` in the :math:`[-19, -24]` range
   matching the classical ADH baseline. **Path A (RPCA-SC):** West
-  German reunification -- Norway weight 0.48, France 0.35,
-  pre-RMSE :math:`\approx 90` matching Bayani's reference figures.
+  German reunification -- Norway weight 0.485, France 0.354,
+  pre-RMSE :math:`\approx 89` matching Bayani's reference figures
+  (durable: ``clustersc_rpca_germany``).
   **Path B:** Amjad-Shah-Shen periodicity DGP plus a two-factor
-  DGP for missing-data robustness.
+  DGP for missing-data robustness. **Path B (subgroups,
+  cross-validated):** Rho et al. (2025) ClusterSC -- in the
+  high-dimensional-subgroup regime (pooled rank :math:`>T_0`)
+  ClusterSC beats whole-pool RSC at every noise level (MSE down
+  :math:`60.8\% / 43.2\% / 24.3\%` at :math:`\sigma = 0.10/0.25/0.40`),
+  and the authors' own code reproduces its :math:`\approx 50\%`
+  headline on its own DGP. **Path B (RSC, Amjad-Shah-Shen 2018):**
+  the PCR-SC training error approximates its generalization error
+  (gen/train :math:`\approx 1.0\text{-}1.15`) across noise, the RSC
+  Table-1 finding. **Cross-validation (Shen et al. CIs):** mlsynth's
+  variance code matches deshen24/panel-data-regressions to machine
+  precision, and the doubly-robust CI attains :math:`\approx 95\%`
+  coverage for all three estimands where a single-source CI drops to
+  :math:`63\%`.
+  → dedicated page: :doc:`replications/clustersc`.
 * :doc:`mlsc` -- Bottmer (2024) multi-level SC. **Path A:**
   matched to the reference implementation on the README DGP --
   :math:`\widehat{\mathrm{ATT}} = +0.011930`,
@@ -176,11 +218,6 @@ High-dimensional donor pools
   forward-selection vs. LASSO at 300 reps -- size = 0.047 vs.
   the paper's :math:`\approx 0.05`; power = 0.98 at D5 vs.
   :math:`1.0`.
-* :doc:`rescm` -- Liao, Shi & Zheng (2025) relaxed SC. **Path A:**
-  Proposition 99 (38 control states). **Path B:** high-dim grid
-  :math:`N = 90`, :math:`T_1 = T_2 = 36`, 50 reps at
-  :math:`\delta \in \{0, 1\}`; SC and LINF achieve size 0.20-0.22
-  and power 0.98; RELAX-:math:`L_2` reaches size 0.28, power 0.94.
 * :doc:`fscm` -- Cerulli (2024) forward-selected SC. **Path A:**
   Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} = -20.15`,
@@ -220,10 +257,15 @@ Staggered adoption
   paper's :math:`-15.6` (and the ``synthdid`` R-package's
   :math:`-15.604`) to three significant figures; placebo SE
   :math:`7.58` against the paper's :math:`8.4`.
-* :doc:`spsydid` -- Spatial Synthetic-DiD. **Path B:** 8x8 grid
-  with 6 treated units and planted spillover-exposure effects --
-  :math:`\widehat{\tau} \approx 2.0`,
-  :math:`\widehat{\tau}_s \approx 1.0`, both recovered.
+  **Cross-validation:** matched to ``causaltensor.SDID`` on the same
+  matrix to :math:`|\Delta| = 3.1\times 10^{-3}`.
+  → dedicated page: :doc:`replications/sdid`.
+* :doc:`spsydid` -- Spatial Synthetic-DiD. **Path B
+  (cross-validation):** the authors' State-Level Monte Carlo
+  (serenini/spatial_SDID) run per-rep against their own algorithm --
+  per-rep ATT correlation 0.996, mean ATT bias :math:`\approx 0.02`
+  for both implementations (the paper's headline unbiasedness).
+  → dedicated page: :doc:`replications/spsydid`.
 * :doc:`spotsynth` -- O'Riordan & Gilligan-Lee (2025) spillover
   detection for donor selection. **Path B:** the Figure 2 bias study
   on the Appendix B DGP -- a synthetic control on all donors is biased
@@ -258,7 +300,10 @@ Missing data
   (2021) matrix-completion SC. **Path A:** Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} \approx -20` packs per capita,
   consistent with classical SC, FSCM and SNN estimates on the
-  same panel.
+  same panel. **Cross-validation:** matched to
+  ``causaltensor``'s MC-NNM ATT (-19.83 vs -20.27, :math:`\approx`
+  2%; estimand-level, given the differing FE sub-solvers).
+  → dedicated page: :doc:`replications/mcnnm`.
 * :doc:`snn` -- Synthetic Nearest Neighbours.
   **Cross-validation:** Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} \approx -19` packs/capita,
@@ -323,11 +368,17 @@ Experimental design
   :math:`\widehat{\mathrm{ATT}} \approx 1.0`, RMSE
   :math:`\approx 0.4` against the random-design baseline RMSE
   :math:`\approx 3.9` (a :math:`10\times` improvement).
-* :doc:`lexscm` -- Lexicographic SC. **Path B:** synthetic sales
-  panel with budget and operational constraints --
-  enumeration solver returns ``OPTIMAL`` status and best
-  imbalance :math:`\approx 4 \times 10^{-4}`, demonstrating the
-  full lexicographic max-validity / max-power decision.
+* :doc:`lexscm` -- Lexicographic synthetic experimental design
+  (Abadie-Zhao 2026; Vives-i-Bastida 2022). **Path A:** the Walmart
+  45-store placebo design -- pre-fit RMSE :math:`\approx 2.7\%` of
+  mean sales, placebo effect :math:`\approx 0.9\%`, permutation
+  p :math:`\approx 0.63` (CI covers zero), the paper's "no spurious
+  effect" result. **Path B:** the Abadie-Zhao Section-5 linear-factor
+  design simulation (exact params: :math:`J=15`, :math:`T_E=20`) -- the
+  design recovers the planted effect with MAE/scale :math:`\approx 0.24`
+  for the single-treated-unit design falling to :math:`\approx 0.16` at
+  :math:`m=2` (Table-2 monotonicity).
+  → dedicated page: :doc:`replications/lexscm`.
 
 Coverage summary
 ----------------
