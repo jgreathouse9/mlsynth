@@ -97,7 +97,7 @@ class TestIngestion:
                    "inference": True, "display_graphs": False}).fit()
         assert np.isfinite(res.att)                 # point estimate exists
         assert np.isnan(res.att_band.lower)         # band undefined
-        assert res.inference.n_placebo == 0
+        assert res.inference_detail.n_placebo == 0
 
 
 # ----------------------------------------------------------------------
@@ -121,8 +121,8 @@ class TestIntegration:
         early = np.mean([res.event_att[e] for e in events[:2]])
         assert late > early
         # per-cell effect grid has the right footprint
-        assert res.effects.shape == (20, 6)
-        assert np.isfinite(res.effects).sum() == res.metadata["K"]
+        assert res.effects_matrix.shape == (20, 6)
+        assert np.isfinite(res.effects_matrix).sum() == res.metadata["K"]
 
     def test_simulation_study_runs(self):
         # Path-B replication harness: returns event-time RMSE per (r, T0) cell.
@@ -165,7 +165,7 @@ class TestIntegration:
         res = SSC({"df": df, "outcome": "Y", "treat": "treated",
                    "unitid": "unit", "time": "time",
                    "inference": False, "display_graphs": False}).fit()
-        assert res.att_band is None and res.inference is None
+        assert res.att_band is None and res.inference_detail is None
         assert res.event_bands == {}
         assert len(res.event_att) > 0          # point estimates still produced
 
@@ -180,8 +180,10 @@ class TestAPI:
         res = SSC({"df": df, "outcome": "Y", "treat": "treated",
                    "unitid": "unit", "time": "time",
                    "display_graphs": False}).fit()
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            res.att = 0.0
+        # `att` is now a read-only accessor; mutate a real field to prove the
+        # frozen pydantic model rejects assignment.
+        with pytest.raises(Exception):
+            res.tau = np.zeros_like(res.tau)
 
     def test_bad_config_raises(self):
         df = _panel(n_units=8)

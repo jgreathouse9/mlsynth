@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import numpy as np
 
-from ...config_models import WeightsResults
+from ...config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    InferenceResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from .estimation import (
     aggregate,
     build_treatment_structure,
@@ -110,9 +117,34 @@ def run_ssc(inputs: SSCInputs, *, inference: bool = True,
         "gram_min_eigenvalue": gram_min_eig,
         "estimator": "SSC",
     }
+    # Standardized event-time series: gap = event-study ATT_e curve,
+    # counterfactual = no-effect baseline.
+    events = sorted(event_att)
+    event_curve = np.array([event_att[e] for e in events], dtype=float)
+    cf = np.zeros_like(event_curve)
+    std_inference = InferenceResults(
+        ci_lower=(att_band.lower if att_band is not None else None),
+        ci_upper=(att_band.upper if att_band is not None else None),
+        p_value=(att_band.p_value if att_band is not None else None),
+        method=(inf.method if inf is not None else None),
+        details=inf,
+    )
     return SSCResults(
-        inputs=inputs, tau=tau, index=index, att=att, att_band=att_band,
-        event_att=event_att, event_bands=event_bands, effects=effects,
+        inputs=inputs, tau=tau, index=index, att_band=att_band,
+        event_att=event_att, event_bands=event_bands, effects_matrix=effects,
         a_hat=a_hat, B_hat=B_hat, weights=_build_weights(B_hat, inputs),
-        residuals=residuals, inference=inf, metadata=metadata,
+        residuals=residuals, inference_detail=inf, metadata=metadata,
+        effects=EffectsResults(att=att),
+        time_series=TimeSeriesResults(
+            observed_outcome=event_curve,
+            counterfactual_outcome=cf,
+            estimated_gap=event_curve,
+            time_periods=np.asarray(events),
+            intervention_time=(0 if 0 in events else None),
+        ),
+        fit_diagnostics=FitDiagnosticsResults(
+            rmse_pre=float(np.sqrt(np.mean(np.asarray(residuals, dtype=float) ** 2)))
+            if np.size(residuals) else None),
+        inference=std_inference,
+        method_details=MethodDetailsResults(method_name="SSC", is_recommended=True),
     )

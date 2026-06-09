@@ -497,7 +497,7 @@ class TestBVSSEstimator:
             "n_iter": 50, "burn_in": 25, "seed": 0,
         }).fit()
         assert isinstance(res, BVSSResults)
-        assert isinstance(res.inference, BVSSInference)
+        assert isinstance(res.inference_detail, BVSSInference)
         assert res.posterior.mu.shape == (res.inputs.N, 25)
         assert res.posterior.phi.shape == (25,)
         assert res.posterior.tau.shape == (25,)
@@ -512,7 +512,7 @@ class TestBVSSEstimator:
             "n_iter": 80, "burn_in": 30, "seed": 0,
         }).fit()
         # +2 effect on the treated unit -> ATT should be positive.
-        assert res.inference.att_mean > 0
+        assert res.inference_detail.att_mean > 0
 
     def test_seed_reproducibility(self, panel_df):
         cfg = dict(
@@ -523,7 +523,7 @@ class TestBVSSEstimator:
         r1 = BVSS(cfg).fit()
         r2 = BVSS(cfg).fit()
         np.testing.assert_allclose(r1.posterior.mu, r2.posterior.mu)
-        assert r1.inference.att_mean == r2.inference.att_mean
+        assert r1.inference_detail.att_mean == r2.inference_detail.att_mean
 
     def test_unexpected_error_wrapped(self, monkeypatch, panel_df):
         def boom(*args, **kwargs):
@@ -576,7 +576,9 @@ class TestImmutability:
             "time": "time", "treat": "treat",
             "n_iter": 30, "burn_in": 10, "seed": 0,
         }).fit()
-        with pytest.raises(FrozenInstanceError):
-            res.inference = None   # type: ignore[misc]
+        # BVSSResults is now a frozen pydantic model (raises ValidationError);
+        # its nested dataclasses stay frozen (raise FrozenInstanceError).
+        with pytest.raises(Exception):
+            res.inference_detail = None   # type: ignore[misc]
         with pytest.raises(FrozenInstanceError):
             res.posterior.mu = np.zeros((5, 5))   # type: ignore[misc]

@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 
 import numpy as np
+from pydantic import ConfigDict
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -124,15 +127,26 @@ class BVSSInference:
     counterfactual_upper: np.ndarray
 
 
-@dataclass(frozen=True)
-class BVSSResults:
+class BVSSResults(BaseEstimatorResults):
     """Public ``BVSS.fit()`` return container.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report):
+    it populates the standardized sub-models so the flat accessors (``att`` /
+    ``att_ci`` / ``counterfactual`` / ``gap`` / ``donor_weights`` /
+    ``pre_rmse``) resolve through the base contract. ``att`` is the posterior
+    mean ATT and ``att_ci`` its credible interval; ``donor_weights`` are the
+    posterior mean weights. The full Bayesian detail -- the MCMC posterior, the
+    per-draw ATT samples, the pointwise counterfactual bands, and the inclusion
+    probabilities -- stays in the typed fields below.
 
     Parameters
     ----------
     inputs : BVSSInputs
     posterior : BVSSPosterior
-    inference : BVSSInference
+    inference_detail : BVSSInference
+        Posterior ATT / counterfactual bands (was ``inference`` before the
+        contract migration; the standardized ``inference`` slot now holds the
+        ATT-level :class:`~mlsynth.config_models.InferenceResults`).
     inclusion_probs : dict
         ``donor_label -> P(\\gamma_i = 1 | y)`` posterior inclusion
         frequencies over the post burn-in samples.
@@ -140,8 +154,14 @@ class BVSSResults:
         ``donor_label -> E[\\mu_i | y]`` posterior mean weights.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     inputs: BVSSInputs
     posterior: BVSSPosterior
-    inference: BVSSInference
+    inference_detail: BVSSInference
     inclusion_probs: dict
     weight_means: dict
+
+
+# Resolve forward references (module uses ``from __future__ import annotations``).
+BVSSResults.model_rebuild()

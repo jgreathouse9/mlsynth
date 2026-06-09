@@ -18,7 +18,7 @@ def plot_bvss(results: BVSSResults, title: str | None = None) -> None:
     """
 
     inputs = results.inputs
-    inference = results.inference
+    inference = results.inference_detail
 
     time = inputs.time_labels
     T0 = inputs.T0

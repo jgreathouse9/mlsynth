@@ -16,6 +16,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from pydantic import ConfigDict, Field
+
+from ...config_models import BaseEstimatorResults
 
 
 @dataclass(frozen=True)
@@ -124,9 +127,18 @@ class SSCBand:
         return (self.lower, self.upper)
 
 
-@dataclass(frozen=True)
-class SSCResults:
+class SSCResults(BaseEstimatorResults):
     """Top-level container returned by :meth:`mlsynth.SSC.fit`.
+
+    An :class:`~mlsynth.config_models.EffectResult` (the observational report).
+    SSC is a multi-unit staggered estimator, so its standardized ``time_series``
+    is laid out over *event-time* (``gap`` = the event-study ATT_e curve,
+    ``counterfactual`` the no-effect baseline) and ``att`` is the overall ATT.
+    ``weights`` is the standardized :class:`WeightsResults` (per-treated-unit
+    donor weights + summary), and the Andrews end-of-sample inference lands in
+    the standardized ``inference`` slot (with the raw config on
+    ``inference_detail``). The per-cell effect grid, GLS solution, and bands
+    stay in the typed fields below.
 
     Attributes
     ----------
@@ -136,42 +148,44 @@ class SSCResults:
     index : np.ndarray
         ``(K, 3)`` rows ``[post_period s (1-based), unit_index, event_time e
         (0-based)]`` aligning with ``tau``.
-    att : float
-        Overall ATT (mean of ``tau``).
     att_band : SSCBand
         Overall ATT with its end-of-sample band and p-value.
     event_att : dict
         ``{event_time e: ATT_e}`` (event-study point estimates).
     event_bands : dict
         ``{event_time e: SSCBand}``.
-    effects : np.ndarray
+    effects_matrix : np.ndarray
         ``(N, S)`` per-cell effects placed on the post-period grid (NaN where
-        a unit is untreated at that post period).
+        a unit is untreated at that post period). Renamed from ``effects`` in
+        the contract migration (the ``effects`` slot now holds the standardized
+        :class:`EffectsResults`).
     a_hat : np.ndarray
         Per-unit synthetic-control intercepts, length ``N``.
     B_hat : np.ndarray
         ``(N, N)`` synthetic-control weight matrix (row ``i`` = donor weights
         for unit ``i``; zero diagonal).
-    weights : object
-        :class:`mlsynth.config_models.WeightsResults` -- per-treated-unit donor
-        weights plus a summary.
     residuals : np.ndarray
         ``(N, T0)`` pre-treatment prediction errors.
-    inference : SSCInference, optional
+    inference_detail : SSCInference, optional
+        Andrews end-of-sample inference config (was ``inference``).
     metadata : dict
     """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: SSCInputs
     tau: np.ndarray
     index: np.ndarray
-    att: float
     att_band: Optional[SSCBand]
     event_att: Dict[int, float]
     event_bands: Dict[int, SSCBand]
-    effects: np.ndarray
+    effects_matrix: np.ndarray
     a_hat: np.ndarray
     B_hat: np.ndarray
-    weights: Any
     residuals: np.ndarray
-    inference: Optional[SSCInference] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    inference_detail: Optional[SSCInference] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+# Resolve forward references (module uses ``from __future__ import annotations``).
+SSCResults.model_rebuild()
