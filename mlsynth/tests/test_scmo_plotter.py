@@ -83,7 +83,7 @@ def test_t0_at_or_after_end_skips_axvline():
     # T0 >= len(years): the intervention axvline branch is skipped.
     res = _fit()
     big_t0 = dataclasses.replace(res.inputs, T0=len(res.inputs.time_index.labels))
-    res2 = dataclasses.replace(res, inputs=big_t0)
+    res2 = res.model_copy(update={"inputs": big_t0})
     plot_scmo(res2, outcome="Y", time="T")
 
 
