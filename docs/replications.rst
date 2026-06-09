@@ -137,6 +137,11 @@ Generalising the estimand, treatment, or unit
   relaxation matches the authors' ``scmrelax`` package cell by cell at a
   matched :math:`\tau` (donor-weight :math:`L_1` distance
   :math:`\approx 0.0014`; durable: ``rescm_relax_ref``).
+  **Path B:** the Section-5 latent-group Monte Carlo -- with
+  :math:`J \gg T_0`, the L2 relaxation's out-of-sample error against the
+  oracle counterfactual is :math:`\approx 0.43` of classic SC's (median;
+  paper's Table 1 :math:`\approx 0.15`--:math:`0.53`), beating SC in
+  :math:`\approx 73\%` of reps (durable: ``rescm_relax_mc``).
   → dedicated page: :doc:`replications/rescm`.
 * :doc:`rescm` -- L-infinity-norm SC (Wang, Xing & Ye 2025;
   ``LINF`` / ``L1LINF``). **Cross-validation:** mlsynth's L-infinity
