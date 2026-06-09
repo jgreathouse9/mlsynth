@@ -28,6 +28,9 @@ CASES = {
     "scmo_averaged_mc": "benchmarks.cases.scmo_averaged_mc",    # Path B: Sun averaged regime geometry
     "rescm_brexit": "benchmarks.cases.rescm_brexit",            # Path A: SCM-relaxation Brexit/UK GDP
     "rescm_relax_ref": "benchmarks.cases.rescm_relax_ref",      # cross-val vs scmrelax (skips if absent)
+    "linf_crossval_ref": "benchmarks.cases.linf_crossval_ref",  # cross-val: LINF vs LinfinitySC (skips if absent)
+    "linf_prop99": "benchmarks.cases.linf_prop99",              # Path A: dense L-inf vs sparse SC (Prop 99)
+    "linf_sim": "benchmarks.cases.linf_sim",                    # Path B: L-inf vs SC (Wang-Xing-Ye Table 4)
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
 }
 

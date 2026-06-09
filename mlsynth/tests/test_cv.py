@@ -11,6 +11,41 @@ from mlsynth.exceptions import MlsynthEstimationError
 
 
 # ======================================================
+# Fast-solve (OSQP / Gram-DPP) parity with the reference SCopt
+# ======================================================
+
+@pytest.mark.parametrize("second_norm,alpha,ct,fi,lam", [
+    ("L1_L2", 0.0, "simplex", False, 0.0),         # classic SC
+    ("L1_L2", 0.0, "simplex", False, 1.0),         # ridge
+    ("L1_L2", 1.0, "simplex", False, 0.5),         # lasso
+    ("L1_INF", 0.0, "unconstrained", True, 2.0),   # LINF (Wang-Xing-Ye)
+    ("L1_INF", 0.5, "unconstrained", True, 2.0),   # L1LINF
+    ("L1_INF", 0.0, "affine", False, 1.5),
+])
+def test_fast_solve_matches_scopt(second_norm, alpha, ct, fi, lam):
+    """Both fast paths (native OSQP and the cvxpy Gram/DPP solve) must reproduce
+    the reference Opt2.SCopt penalized solve cell-by-cell."""
+    from mlsynth.utils.laxscm_helpers.fast_solve import solve_penalized, solve_penalized_osqp
+
+    rng = np.random.default_rng(0)
+    T0, J = 40, 12
+    X = rng.normal(size=(T0, J))
+    y = X @ rng.normal(size=J) + rng.normal(scale=0.5, size=T0)
+    res = Opt2.SCopt(y=y, X=X, T0=T0, fit_intercept=fi, constraint_type=ct,
+                     objective_type="penalized", lam=lam, alpha=alpha,
+                     second_norm=second_norm, solver="CLARABEL")
+    w_ref = np.asarray(res["weights"]["w"]).ravel()
+    b_ref = float(res["weights"].get("b0", 0.0) or 0.0)
+
+    w_dpp, b_dpp = solve_penalized(X, y, lam=lam, alpha=alpha, second_norm=second_norm,
+                                   constraint_type=ct, fit_intercept=fi)
+    w_osqp, b_osqp = solve_penalized_osqp(X, y, lam=lam, alpha=alpha, second_norm=second_norm,
+                                          constraint_type=ct, fit_intercept=fi)
+    assert np.abs(w_ref - w_dpp).max() < 1e-4 and abs(b_ref - b_dpp) < 1e-4
+    assert np.abs(w_ref - w_osqp).max() < 1e-4 and abs(b_ref - b_osqp) < 1e-4
+
+
+# ======================================================
 # ElasticNetCV grid processing tests
 # ======================================================
 
@@ -104,24 +139,28 @@ def test_selected_params_from_grid(incrementality_synth_panel):
 # Solver failure tolerance tests
 # ======================================================
 
+@patch("mlsynth.utils.laxscm_helpers.fast_solve.solve_penalized", side_effect=RuntimeError("boom"))
 @patch("mlsynth.utils.laxscm_helpers.crossval.Opt2.SCopt", side_effect=RuntimeError("boom"))
-def test_solve_enet_failure_returns_zero_weights(mock_scopt, incrementality_synth_panel):
+def test_solve_enet_failure_returns_zero_weights(mock_scopt, mock_fast, incrementality_synth_panel):
     y, X, _ = incrementality_synth_panel
     model = ElasticNetCV()
 
-    w = model._solve_enet(X, y, lam=0.1, alpha=0.5)
+    # _solve_enet returns (weights, intercept); when both the fast Gram/DPP solve
+    # and the SCopt fallback fail, it returns zero / 0.0.
+    w, b0 = model._solve_enet(X, y, lam=0.1, alpha=0.5)
 
     assert w.shape == (X.shape[1],)
     assert np.all(w == 0.0)
+    assert b0 == 0.0
 
 
-@patch.object(ElasticNetCV, "_solve_enet", return_value=np.array([]))
+@patch.object(ElasticNetCV, "_solve_enet", return_value=(np.array([]), 0.0))
 def test_cv_does_not_crash_on_bad_weights(mock_solve, incrementality_synth_panel):
     y, X, _ = incrementality_synth_panel
     model = ElasticNetCV(alpha=[0.5], lam=[0.1], n_splits=2)
 
-    # force safe fallback shape
-    mock_solve.return_value = np.zeros(X.shape[1])
+    # force safe fallback shape -- (weights, intercept) tuple
+    mock_solve.return_value = (np.zeros(X.shape[1]), 0.0)
 
     model.fit(X, y)
 

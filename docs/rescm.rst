@@ -697,6 +697,14 @@ Verification
    -- mlsynth's L2 relaxation vs the ``scmrelax`` package, cell by cell at a
    matched :math:`\eta`). See the dedicated page :doc:`replications/rescm`.
 
+   The penalized branch's L-infinity estimators (``LINF`` / ``L1LINF``, Wang,
+   Xing & Ye [LinfSC]_) are pinned separately: ``linf_crossval_ref``
+   (cross-validation -- mlsynth's L-infinity engine vs the authors'
+   ``LinfinitySC`` code, cell by cell in the unique :math:`T_0>J` regime),
+   ``linf_prop99`` (Path A -- dense weighting vs classic SC on Proposition 99),
+   and ``linf_sim`` (Path B -- the Section 5 Monte Carlo ordering). See the
+   dedicated page :doc:`replications/linf`.
+
 Core API
 --------
 

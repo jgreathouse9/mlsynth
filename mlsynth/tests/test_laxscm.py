@@ -166,6 +166,48 @@ def test_standardize_toggle(panel):
     assert diff > 1e-3
 
 
+def test_linf_penalty_is_inf_norm_not_l2():
+    """Guard the alpha==0 shortcut bug: pure L-infinity (``L1_INF``) must differ
+    from pure ridge (``L1_L2``). ``build_objective`` used to short-circuit
+    ``alpha == 0`` to a squared-L2 penalty regardless of ``second_norm``, so
+    ``LINF`` silently became ridge; a regression would make the two identical.
+    """
+    from mlsynth.utils.laxscm_helpers.crossval import fit_en_scm
+
+    rng = np.random.default_rng(0)
+    T0, J = 40, 12
+    X = rng.normal(size=(T0 + 5, J))
+    y = X @ rng.normal(size=J) + rng.normal(scale=0.5, size=T0 + 5)
+    common = dict(
+        X_pre=X[:T0], y_pre=y[:T0], X_post=X[T0:], y=y,
+        donor_names=[f"d{j}" for j in range(J)], fit_intercept=True,
+        constraint_type="unconstrained", standardize=False, alpha=[0.0], lam=[2.0],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        w_inf = np.array(list(fit_en_scm(**common, second_norm="L1_INF")["donor_weights"].values()))
+        w_l2 = np.array(list(fit_en_scm(**common, second_norm="L1_L2")["donor_weights"].values()))
+    assert np.abs(w_inf - w_l2).max() > 1e-2
+
+
+def test_linf_is_faithful_dense_wxy(panel):
+    """LINF/L1LINF must realise the Wang-Xing-Ye dense L-infinity SC: weights
+    that leave the simplex (negative and/or not summing to one) and are denser
+    than classic SC -- not the sparse, simplex-bound near-SC they used to be.
+    """
+    cfg = RESCMConfig(df=panel, outcome="y", treat="treat", unitid="unit",
+                      time="time", methods=["SC", "LINF"], display_graphs=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = RESCM(cfg).fit()
+    sc = np.array(list(res.fits["SC"].donor_weights.values()))
+    linf = np.array(list(res.fits["LINF"].donor_weights.values()))
+    # LINF leaves the simplex: negative weights or a sum away from one.
+    assert (linf < -1e-3).any() or abs(linf.sum() - 1.0) > 1e-2
+    # LINF is denser than the sparse classic SC.
+    assert np.sum(np.abs(linf) > 1e-3) > np.sum(np.abs(sc) > 1e-3)
+
+
 def test_config_rejects_unknown_method(panel):
     with pytest.raises((MlsynthConfigError, ValueError)):
         RESCMConfig(df=panel, outcome="y", treat="treat", unitid="unit",

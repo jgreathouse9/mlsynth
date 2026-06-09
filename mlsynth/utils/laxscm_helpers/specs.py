@@ -56,14 +56,20 @@ METHOD_SPECS: Dict[str, MethodSpec] = {
     ),
     "LINF": MethodSpec(
         "LINF", ELASTIC,
-        "L-infinity-norm SCM (Wang, Xing & Ye 2025); spreads weight, "
-        "nesting equal-weights/DiD as lambda grows.",
-        {"second_norm": "L1_INF", "alpha": 0.0, "constraint_type": "simplex"},
+        "L-infinity-norm SCM (Wang, Xing & Ye 2025): an intercept-shifted, "
+        "unconstrained L-infinity-penalized regression (no simplex, weights may be "
+        "negative and need not sum to one) that spreads weight densely across "
+        "donors, nesting equal-weights/DiD as lambda grows.",
+        {"second_norm": "L1_INF", "alpha": 0.0, "constraint_type": "unconstrained",
+         "fit_intercept": True, "standardize": False},
     ),
     "L1LINF": MethodSpec(
         "L1LINF", ELASTIC,
-        "Mixed L1 + L-infinity penalized SCM.",
-        {"second_norm": "L1_INF", "alpha": 0.5, "constraint_type": "simplex"},
+        "Mixed L1 + L-infinity penalized SCM (Wang, Xing & Ye 2025): unconstrained "
+        "with an intercept, balancing sparsity (L1) against dense spreading "
+        "(L-infinity).",
+        {"second_norm": "L1_INF", "alpha": 0.5, "constraint_type": "unconstrained",
+         "fit_intercept": True, "standardize": False},
     ),
     # --- relaxation branch (Opt2.SCopt objective_type="relaxed") ---
     "RELAX_L2": MethodSpec(
