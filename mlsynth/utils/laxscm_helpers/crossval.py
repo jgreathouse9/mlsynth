@@ -531,6 +531,19 @@ class ElasticNetCV(BaseEstimator, RegressorMixin):
         CV / lambda / alpha grid. Falls back to the reference ``SCopt`` build on
         any failure, and to zero weights if that fails too.
         """
+        # 1) Native OSQP QP (fastest; covers SC/ridge/lasso/LINF/L1LINF).
+        try:
+            from .fast_solve import solve_penalized_osqp
+            return solve_penalized_osqp(
+                X, y, lam=lam, alpha=alpha, second_norm=self.second_norm,
+                constraint_type=self.constraint_type, fit_intercept=self.fit_intercept,
+            )
+        except NotImplementedError:
+            pass  # SOC config (e.g. elastic net) -> cvxpy below
+        except Exception as e:  # noqa: BLE001 - fall back
+            print(f"osqp solve failed for lam={lam}, alpha={alpha}: {e}; trying cvxpy")
+
+        # 2) cvxpy Gram/DPP solve (handles the SOC families too).
         try:
             from .fast_solve import solve_penalized
             return solve_penalized(

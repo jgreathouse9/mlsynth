@@ -11,6 +11,41 @@ from mlsynth.exceptions import MlsynthEstimationError
 
 
 # ======================================================
+# Fast-solve (OSQP / Gram-DPP) parity with the reference SCopt
+# ======================================================
+
+@pytest.mark.parametrize("second_norm,alpha,ct,fi,lam", [
+    ("L1_L2", 0.0, "simplex", False, 0.0),         # classic SC
+    ("L1_L2", 0.0, "simplex", False, 1.0),         # ridge
+    ("L1_L2", 1.0, "simplex", False, 0.5),         # lasso
+    ("L1_INF", 0.0, "unconstrained", True, 2.0),   # LINF (Wang-Xing-Ye)
+    ("L1_INF", 0.5, "unconstrained", True, 2.0),   # L1LINF
+    ("L1_INF", 0.0, "affine", False, 1.5),
+])
+def test_fast_solve_matches_scopt(second_norm, alpha, ct, fi, lam):
+    """Both fast paths (native OSQP and the cvxpy Gram/DPP solve) must reproduce
+    the reference Opt2.SCopt penalized solve cell-by-cell."""
+    from mlsynth.utils.laxscm_helpers.fast_solve import solve_penalized, solve_penalized_osqp
+
+    rng = np.random.default_rng(0)
+    T0, J = 40, 12
+    X = rng.normal(size=(T0, J))
+    y = X @ rng.normal(size=J) + rng.normal(scale=0.5, size=T0)
+    res = Opt2.SCopt(y=y, X=X, T0=T0, fit_intercept=fi, constraint_type=ct,
+                     objective_type="penalized", lam=lam, alpha=alpha,
+                     second_norm=second_norm, solver="CLARABEL")
+    w_ref = np.asarray(res["weights"]["w"]).ravel()
+    b_ref = float(res["weights"].get("b0", 0.0) or 0.0)
+
+    w_dpp, b_dpp = solve_penalized(X, y, lam=lam, alpha=alpha, second_norm=second_norm,
+                                   constraint_type=ct, fit_intercept=fi)
+    w_osqp, b_osqp = solve_penalized_osqp(X, y, lam=lam, alpha=alpha, second_norm=second_norm,
+                                          constraint_type=ct, fit_intercept=fi)
+    assert np.abs(w_ref - w_dpp).max() < 1e-4 and abs(b_ref - b_dpp) < 1e-4
+    assert np.abs(w_ref - w_osqp).max() < 1e-4 and abs(b_ref - b_osqp) < 1e-4
+
+
+# ======================================================
 # ElasticNetCV grid processing tests
 # ======================================================
 

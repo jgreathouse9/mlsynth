@@ -139,3 +139,113 @@ def solve_penalized(
     w_full = np.asarray(wv, dtype=float).ravel()
     b0 = float(w_full[J]) if fit_intercept else 0.0
     return w_full[:J], b0
+
+
+# Constraint types whose QP form OSQP can express directly.
+_OSQP_CONSTRAINTS = {"simplex", "affine", "nonneg", "unconstrained"}
+
+
+def _osqp_plan(second_norm: str, alpha: float):
+    """Resolve (ridge, c_inf, c_l1, has_inf, has_l1) for the OSQP QP, or raise.
+
+    OSQP is a pure QP solver: squared-L2 (ridge) folds into ``P``; L1 and
+    L-infinity penalties use the box + auxiliary-variable trick. The *non-squared*
+    L2 of elastic net (0 < alpha < 1, ``L1_L2``) is a second-order cone, which
+    OSQP cannot express -- the caller falls back to cvxpy for that.
+    """
+    if second_norm == "L1_INF":
+        return 0.0, float(1.0 - alpha), float(alpha), True, alpha > 0.0
+    if second_norm == "L1_L2":
+        if alpha == 0.0:
+            return 1.0, 0.0, 0.0, False, False        # ridge (squared L2) -> P
+        if alpha == 1.0:
+            return 0.0, 0.0, 1.0, False, True          # lasso (pure L1) -> u
+    raise NotImplementedError(f"OSQP cannot express second_norm={second_norm!r}, alpha={alpha}")
+
+
+def solve_penalized_osqp(
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    lam: float,
+    alpha: float,
+    second_norm: str = "L1_L2",
+    constraint_type: str = "simplex",
+    fit_intercept: bool = False,
+) -> Tuple[np.ndarray, float]:
+    """Native warm-startable OSQP solve of the penalized SCM QP (no cvxpy).
+
+    Mirrors ``Opt2.SCopt``'s penalized branch for the QP-expressible families
+    (SC, ridge, lasso, LINF, L1LINF) via the Gram and the box+auxiliary
+    reformulation; raises ``NotImplementedError`` for SOC cases (elastic-net's
+    non-squared L2) so the caller can fall back. Returns ``(weights, intercept)``.
+    """
+    import osqp
+    import scipy.sparse as sp
+
+    if constraint_type not in _OSQP_CONSTRAINTS:
+        raise NotImplementedError(f"OSQP path does not handle constraint_type={constraint_type!r}")
+    ridge_coef, c_inf, c_l1, has_inf, has_l1 = _osqp_plan(second_norm, alpha)
+
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float).ravel()
+    T0, J = X.shape
+    Xa = np.hstack([X, np.ones((T0, 1))]) if fit_intercept else X
+    n = Xa.shape[1]
+    G = Xa.T @ Xa
+    h = Xa.T @ y
+
+    t_idx = n if has_inf else None
+    u0 = n + (1 if has_inf else 0)
+    N = n + (1 if has_inf else 0) + (J if has_l1 else 0)
+    INF = np.inf
+
+    P = np.zeros((N, N))
+    P[:n, :n] = 2.0 * G
+    if ridge_coef:
+        P[np.arange(J), np.arange(J)] += 2.0 * lam * ridge_coef
+    q = np.zeros(N)
+    q[:n] = -2.0 * h
+    if has_inf:
+        q[t_idx] = lam * c_inf
+    if has_l1:
+        q[u0:u0 + J] = lam * c_l1
+
+    rows, lo, hi = [], [], []
+
+    def _row(*entries):
+        r = np.zeros(N)
+        for idx, val in entries:
+            r[idx] = val
+        return r
+
+    if constraint_type in ("simplex", "affine"):           # sum_j w_j = 1
+        r = np.zeros(N); r[:J] = 1.0
+        rows.append(r); lo.append(1.0); hi.append(1.0)
+    if constraint_type in ("simplex", "nonneg"):           # w_j >= 0
+        for d in range(J):
+            rows.append(_row((d, 1.0))); lo.append(0.0); hi.append(INF)
+    if has_inf:                                            # |w_j| <= t
+        for d in range(J):
+            rows.append(_row((d, 1.0), (t_idx, -1.0))); lo.append(-INF); hi.append(0.0)
+            rows.append(_row((d, -1.0), (t_idx, -1.0))); lo.append(-INF); hi.append(0.0)
+    if has_l1:                                             # |w_j| <= u_j
+        for d in range(J):
+            rows.append(_row((d, 1.0), (u0 + d, -1.0))); lo.append(-INF); hi.append(0.0)
+            rows.append(_row((d, -1.0), (u0 + d, -1.0))); lo.append(-INF); hi.append(0.0)
+
+    if rows:
+        A = sp.csc_matrix(np.vstack(rows)); l = np.array(lo); u = np.array(hi)
+    else:  # OSQP needs at least one (here trivially unbounded) constraint row
+        A = sp.csc_matrix((1, N)); l = np.array([-INF]); u = np.array([INF])
+
+    m = osqp.OSQP()
+    m.setup(P=sp.csc_matrix(P), q=q, A=A, l=l, u=u, verbose=False,
+            eps_abs=1e-9, eps_rel=1e-9, max_iter=40000, polish=True)
+    res = m.solve()
+    x = getattr(res, "x", None)
+    if x is None or np.any(np.isnan(x)):  # pragma: no cover - solver failure
+        return np.zeros(J, dtype=float), 0.0
+    x = np.asarray(x, dtype=float)
+    b0 = float(x[J]) if fit_intercept else 0.0
+    return x[:J], b0
