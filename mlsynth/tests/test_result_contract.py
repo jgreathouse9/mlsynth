@@ -20,8 +20,8 @@ import pandas as pd
 import pytest
 
 from mlsynth import (
-    CLUSTERSC, FDID, LEXSCM, MCNNM, MSQRT, RMSI, SNN, SparseSC, SPOTSYNTH, TASC,
-    TSSC, VanillaSC,
+    CLUSTERSC, FDID, HSC, LEXSCM, MCNNM, MSQRT, RMSI, SBC, SNN, SparseSC,
+    SPOTSYNTH, TASC, TSSC, VanillaSC,
 )
 from mlsynth.config_models import (
     BaseEstimatorResults,
@@ -73,6 +73,8 @@ OBSERVATIONAL = [
     pytest.param(SparseSC, {"outcome_lag_periods": [1, 2]}, id="SparseSC"),
     pytest.param(TASC, {"d": 2, "n_em_iter": 2}, id="TASC"),
     pytest.param(CLUSTERSC, {"clustering": False}, id="CLUSTERSC"),
+    pytest.param(SBC, {}, id="SBC"),
+    pytest.param(HSC, {}, id="HSC"),
 ]
 
 

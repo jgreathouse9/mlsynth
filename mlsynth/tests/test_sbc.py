@@ -523,8 +523,10 @@ class TestImmutability:
             "df": panel_df, "outcome": "y", "unitid": "unitid",
             "time": "time", "treat": "treat",
         }).fit()
-        with pytest.raises(FrozenInstanceError):
-            res.att = 99.0   # type: ignore[misc]
+        # SBCResults is now a frozen pydantic EffectResult; field assignment
+        # raises (and `att` is a read-only contract property).
+        with pytest.raises(Exception):
+            res.weights_by_donor = {}   # type: ignore[misc]
 
     def test_hamilton_fit_frozen(self):
         fit = fit_hamilton_filter(np.arange(20, dtype=float), h=2, p=2)

@@ -27,10 +27,18 @@ from __future__ import annotations
 
 from typing import Union
 
+import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import HSCConfig
+from ..config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    HSCConfig,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from ..exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
@@ -135,10 +143,29 @@ class HSC:
             if abs(w) > 1e-8
         }
 
+        # Standardized two-family (effect) result contract. The contract gap is
+        # the full-length treated-minus-counterfactual series (HSC's own
+        # ``treatment_effect`` stays post-only).
+        y_full = np.asarray(inputs.y_target, dtype=float)
+        cf_arr = np.asarray(cf_full, dtype=float)
+        times = np.asarray(inputs.time_labels)
+        T0 = inputs.T0
+        pre_rmse = float(np.sqrt(np.mean((y_full[:T0] - cf_arr[:T0]) ** 2)))
         results = HSCResults(
+            effects=EffectsResults(att=float(att)),
+            time_series=TimeSeriesResults(
+                observed_outcome=y_full,
+                counterfactual_outcome=cf_arr,
+                estimated_gap=y_full - cf_arr,
+                time_periods=times,
+                intervention_time=(times[T0] if T0 < inputs.T else None),
+            ),
+            weights=WeightsResults(
+                donor_weights={str(k): float(v) for k, v in weights_by_donor.items()}),
+            fit_diagnostics=FitDiagnosticsResults(rmse_pre=pre_rmse),
+            method_details=MethodDetailsResults(method_name="HSC"),
             inputs=inputs,
             design=design,
-            att=att,
             counterfactual_full=cf_full,
             treatment_effect=te,
             weights_by_donor=weights_by_donor,
