@@ -10,6 +10,13 @@ import pytest
 from mlsynth.exceptions import MlsynthPlottingError
 from mlsynth.utils.nsc_helpers import plotter as nsc_plotter
 from mlsynth.utils.nsc_helpers.plotter import plot_nsc
+from mlsynth.config_models import (
+    EffectsResults,
+    FitDiagnosticsResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
+    WeightsResults,
+)
 from mlsynth.utils.nsc_helpers.structures import (
     NSCDesign,
     NSCInference,
@@ -74,15 +81,23 @@ def _make_results(inputs=None, with_ci=True):
         b_scaled=2.0,
         eigvals=np.array([1.0, 2.0]),
     )
+    cf = np.linspace(0.9, 2.8, T)
+    gap = np.linspace(-0.3, 0.3, T)
     return NSCResults(
         inputs=inputs,
         design=design,
         cv_trace=None,
-        inference=_make_inference(T=T, with_ci=with_ci),
-        counterfactual=np.linspace(0.9, 2.8, T),
-        gap=np.linspace(-0.3, 0.3, T),
-        att=0.1,
-        pre_rmse=0.05,
+        inference_detail=_make_inference(T=T, with_ci=with_ci),
+        effects=EffectsResults(att=0.1),
+        time_series=TimeSeriesResults(
+            observed_outcome=cf + gap,
+            counterfactual_outcome=cf,
+            estimated_gap=gap,
+            time_periods=np.asarray(inputs.time_labels),
+        ),
+        weights=WeightsResults(donor_weights={"d0": 0.5, "d1": 0.5}),
+        fit_diagnostics=FitDiagnosticsResults(rmse_pre=0.05),
+        method_details=MethodDetailsResults(method_name="NSC"),
     )
 
 
