@@ -213,6 +213,42 @@ in ``benchmarks/cases/rsc_shen_coverage.py``:
   ``python benchmarks/run_benchmarks.py --case rsc_shen_coverage`` (skips if the
   repo cannot be cloned).
 
+RPCA-SC: West German reunification (Bayani 2021)
+------------------------------------------------
+
+The sections above all exercise the PCR-SC / RSC family. CLUSTERSC's *other*
+family -- **RPCA-SC** (robust :math:`L+S` low-rank donor denoising, Bayani 2021)
+-- is pinned on the canonical German-reunification application. With the PCP
+robust-PCA denoiser, ``CLUSTERSC(method="rpca", rpca_method="PCP")`` reproduces
+Bayani's reference design on ``basedata/german_reunification.csv``:
+
+.. list-table:: RPCA-SC synthetic West Germany (PCP)
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - Quantity
+     - mlsynth
+     - Bayani (2021)
+   * - Norway weight
+     - 0.485
+     - ~0.48
+   * - France weight
+     - 0.354
+     - ~0.35
+   * - New Zealand weight
+     - 0.296
+     - ~0.30
+   * - Pre-fit RMSE
+     - 88.6
+     - ~90
+   * - Effect on West German GDP
+     - negative
+     - negative (ADH)
+
+The durable check is ``benchmarks/cases/clustersc_rpca_germany.py``::
+
+   python benchmarks/run_benchmarks.py --case clustersc_rpca_germany
+
 References
 ----------
 
@@ -225,3 +261,5 @@ Advancing Synthetic Control with Donor Selection." *arXiv:2503.21629.*
 
 Amjad, M., Shah, D., & Shen, D. (2018). "Robust Synthetic Control." *Journal of
 Machine Learning Research* 19(22):1-51.
+
+Bayani, M. (2021). "Robust PCA Synthetic Control."

@@ -12,6 +12,7 @@ CASES = {
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
     "clustersc_subgroups": "benchmarks.cases.clustersc_subgroups",      # Path B: ClusterSC vs RSC
     "clustersc_subgroups_ref": "benchmarks.cases.clustersc_subgroups_ref",  # cross-val vs authors' repo
+    "clustersc_rpca_germany": "benchmarks.cases.clustersc_rpca_germany",  # Path A: RPCA-SC West Germany
     "rsc_synth_error": "benchmarks.cases.rsc_synth_error",      # Path B: RSC train≈gen error
     "rsc_shen_coverage": "benchmarks.cases.rsc_shen_coverage",  # cross-val: Shen CIs + coverage
     "lexscm_walmart": "benchmarks.cases.lexscm_walmart",        # Path A: Walmart placebo design

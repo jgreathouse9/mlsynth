@@ -165,8 +165,9 @@ High-dimensional donor pools
   California Proposition 99 -- rank-1 PCR
   :math:`\widehat{\mathrm{ATT}}` in the :math:`[-19, -24]` range
   matching the classical ADH baseline. **Path A (RPCA-SC):** West
-  German reunification -- Norway weight 0.48, France 0.35,
-  pre-RMSE :math:`\approx 90` matching Bayani's reference figures.
+  German reunification -- Norway weight 0.485, France 0.354,
+  pre-RMSE :math:`\approx 89` matching Bayani's reference figures
+  (durable: ``clustersc_rpca_germany``).
   **Path B:** Amjad-Shah-Shen periodicity DGP plus a two-factor
   DGP for missing-data robustness. **Path B (subgroups,
   cross-validated):** Rho et al. (2025) ClusterSC -- in the

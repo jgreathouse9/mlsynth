@@ -32,6 +32,7 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         spsydid_state_mc.py # cross-val: SpSyDiD vs the authors' repo (per-rep)
         clustersc_subgroups.py      # Path B: ClusterSC vs whole-pool RSC (subgroup regime)
         clustersc_subgroups_ref.py  # cross-val: authors' ClusterSC code vs its own paper
+        clustersc_rpca_germany.py   # Path A: RPCA-SC West German reunification (Bayani 2021)
         rsc_synth_error.py          # Path B: RSC train-error approximates gen-error (ASS 2018)
         rsc_shen_coverage.py        # cross-val: Shen et al. PCR CIs + coverage validity
         lexscm_walmart.py           # Path A: LEXSCM Walmart placebo design (Abadie-Zhao Sec 4)

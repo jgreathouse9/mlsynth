@@ -951,8 +951,12 @@ whole-pool RSC baseline at every noise level (down
 Both modes run through the one estimator (``clustering=False`` is RSC,
 ``clustering=True`` is ClusterSC). Pinned in
 ``benchmarks/cases/clustersc_subgroups.py``; the authors' own code is
-cross-checked against its paper in ``clustersc_subgroups_ref.py``. See the
-dedicated page :doc:`replications/clustersc`.
+cross-checked against its paper in ``clustersc_subgroups_ref.py``; the RSC
+pre/post-error and Shen-CI coverage are pinned in ``rsc_synth_error.py`` /
+``rsc_shen_coverage.py``. The **RPCA-SC** family is pinned separately on the
+West-German-reunification application (``clustersc_rpca_germany.py``: Norway 0.49
+/ France 0.35 / pre-RMSE ~89). See the dedicated page
+:doc:`replications/clustersc`.
 
 Core API
 --------
