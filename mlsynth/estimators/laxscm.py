@@ -96,7 +96,7 @@ class RESCM:
             inputs, self.config.methods,
             tau=self.config.tau, n_splits=self.config.n_splits,
             n_taus=self.config.n_taus, solver=self.config.solver,
-            alpha=self.config.alpha,
+            alpha=self.config.alpha, standardize=self.config.standardize,
         )
         results = assemble_rescm_results(
             inputs, fits, selected_variant=self.config.methods[0],

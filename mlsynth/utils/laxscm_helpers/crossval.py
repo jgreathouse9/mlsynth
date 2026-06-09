@@ -306,7 +306,8 @@ def fit_relaxed_scm(
     n_splits: int = 5,
     n_taus: int = 1000,
     solver: str = "CLARABEL",
-        relaxation_type: str = "l2"
+        relaxation_type: str = "l2",
+        standardize: bool = True,
 ) -> dict:
     """
     Fit a Relaxed L2 Synthetic Control Method (SCM) with optional cross-validation
@@ -368,14 +369,22 @@ def fit_relaxed_scm(
     - Cross-validation uses `RelaxationCV` with simplex weights and no intercept.
     - ATT/effects calculation is performed via `effects.calculate`.
     """
-    # Standardize donors
-    scaler_X = StandardScaler().fit(X_pre)
-    X_pre_scaled = scaler_X.transform(X_pre)
-    X_post_scaled = scaler_X.transform(X_post)
-
-    # Standardize outcomes
-    y_mean, y_std = y_pre.mean(), y_pre.std()
-    y_pre_scaled = (y_pre - y_mean) / y_std
+    # Optional per-donor scale standardization. The relaxed-balance L_infinity
+    # FOC constraint is scale-sensitive, so standardizing changes the weights.
+    # The authors' reference (Liao-Shi-Zheng `scmrelax`) solves on the raw
+    # series; ``standardize=False`` matches it, while ``standardize=True``
+    # (mlsynth's historical default) is preferable when donor scales are
+    # heterogeneous (the paper's Appendix-B recommendation).
+    if standardize:
+        scaler_X = StandardScaler().fit(X_pre)
+        X_pre_scaled = scaler_X.transform(X_pre)
+        X_post_scaled = scaler_X.transform(X_post)
+        y_mean, y_std = y_pre.mean(), y_pre.std()
+        y_pre_scaled = (y_pre - y_mean) / y_std
+    else:
+        X_pre_scaled, X_post_scaled = X_pre, X_post
+        y_mean, y_std = 0.0, 1.0
+        y_pre_scaled = y_pre
 
     # Fit relaxation SCM
     model = RelaxationCV(
@@ -397,7 +406,11 @@ def fit_relaxed_scm(
 
     # Transform weights back to original scale
     weights_scaled = model.coef_
-    weights_orig = (weights_scaled / scaler_X.scale_) / np.sum(weights_scaled / scaler_X.scale_)
+    if standardize:
+        weights_orig = (weights_scaled / scaler_X.scale_) / np.sum(weights_scaled / scaler_X.scale_)
+    else:
+        s = np.sum(weights_scaled)
+        weights_orig = weights_scaled / s if s != 0 else weights_scaled
 
     def round_sig(x, sig=3):
         return float(f"{x:.{sig}g}")

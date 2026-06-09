@@ -25,6 +25,7 @@ def _run_one(
     n_splits: Optional[int],
     n_taus: Optional[int],
     solver: str,
+    standardize: bool = True,
 ) -> Dict[str, Any]:
     """Dispatch a single spec to its convex-engine entry point."""
     y, X, T0 = inputs.y, inputs.X, inputs.T0
@@ -42,6 +43,7 @@ def _run_one(
             kw.setdefault("n_splits", n_splits)
         if n_taus is not None:
             kw.setdefault("n_taus", n_taus)
+        kw.setdefault("standardize", standardize)
         return fit_relaxed_scm(**common, solver=solver, **kw)
 
     if spec.branch == ELASTIC:
@@ -62,6 +64,7 @@ def run_rescm(
     n_taus: Optional[int] = None,
     solver: str = "CLARABEL",
     alpha: float = 0.05,
+    standardize: bool = True,
 ) -> Dict[str, RESCMMethodFit]:
     """Fit each requested RESCM corner case and attach weak-dependence ATE inference."""
     specs = resolve_specs(methods)
@@ -71,6 +74,7 @@ def run_rescm(
     for spec in specs:
         raw = _run_one(
             spec, inputs, tau=tau, n_splits=n_splits, n_taus=n_taus, solver=solver,
+            standardize=standardize,
         )
         cf = np.asarray(raw["predictions"], dtype=float).flatten()
         gap = inputs.y - cf
