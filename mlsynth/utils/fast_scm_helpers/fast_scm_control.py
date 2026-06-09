@@ -1,13 +1,15 @@
 
 # mlsynth/experimental_design/fast_scm_control.py
 
-from typing import List
+from typing import List, Optional
 import numpy as np
 
 from .fast_scm_bb_helpers import Solution
 from .structure import SEDCandidate, WeightVectors, PredictionVectors, Losses, Identification
 from .fast_scm_control_helpers import solve_control_qp
 from .fast_scm_setup import IndexSet
+from .conflict import neighbours
+from ...exceptions import MlsynthConfigError
 
 def _zero_small_weights(weights: np.ndarray, threshold: float = 1e-8) -> np.ndarray:
     """
@@ -44,7 +46,8 @@ def evaluate_candidates(
     E_idx: np.ndarray,
     B_idx: np.ndarray,
     lambda_penalty: float,
-    index_set: IndexSet
+    index_set: IndexSet,
+    conflict: Optional[np.ndarray] = None,
 ) -> List[SEDCandidate]:
 
 
@@ -116,13 +119,26 @@ def evaluate_candidates(
 
         w = sol.weights[treated_idx] if len(sol.weights) != m else sol.weights
 
+        # Spillover "exclusion restriction": drop the treated units' conflict
+        # neighbours N(S) from the donor pool so the treatment cannot contaminate
+        # the synthetic control.
+        spill = neighbours(conflict, treated_idx) if conflict is not None else None
+
         treated_vec_E = X_E[:, treated_idx] @ w
-        v = solve_control_qp(X_E, treated_vec_E, treated_idx, lambda_penalty)
+        v = solve_control_qp(X_E, treated_vec_E, treated_idx, lambda_penalty,
+                             exclude_idx=spill)
+        if v is None:
+            # The exclusions (treated + N(S)) emptied / over-constrained the donor
+            # pool for this candidate; skip it rather than crash.
+            continue
 
         v = _zero_small_weights(v, threshold=1e-8)
 
-        assert np.allclose(v[treated_idx], 0.0, atol=1e-8), \
-            "Control QP violated exclusion constraint: treated units have nonzero weight"
+        excluded_idx = treated_idx if spill is None or len(spill) == 0 \
+            else np.concatenate([treated_idx, np.asarray(spill, dtype=int)])
+        assert np.allclose(v[excluded_idx], 0.0, atol=1e-8), \
+            "Control QP violated exclusion constraint: a treated unit or its " \
+            "spillover neighbour has nonzero control weight"
         
 
         # label mapping (THIS is the fix)
@@ -203,6 +219,14 @@ def evaluate_candidates(
         )
 
         results.append(candidate)
+
+    if not results and candidates and conflict is not None:
+        raise MlsynthConfigError(
+            "Every candidate design had its donor pool emptied by the spillover "
+            "'exclusion restriction' (treated units plus their conflict "
+            "neighbours leave too few controls). Relax the adjacency/cluster "
+            "constraint or widen the donor pool."
+        )
 
     return results
 

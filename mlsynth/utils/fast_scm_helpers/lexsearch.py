@@ -47,6 +47,9 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
+from .conflict import is_independent
+from ...exceptions import MlsynthConfigError
+
 
 # ======================================================================
 # Inner simplex-QP solvers (Away-step Frank-Wolfe; pure numpy)
@@ -179,7 +182,8 @@ def _budget_feasible_candidates(candidate_idx, m, unit_costs, budget):
 # Exact enumeration (small C(M, m))
 # ======================================================================
 
-def _enumerate(G, cand, m, top_K, unit_costs, budget, iters, chunk=300_000):
+def _enumerate(G, cand, m, top_K, unit_costs, budget, iters, chunk=300_000,
+               conflict=None):
     cand = np.sort(np.asarray(cand))
     from itertools import combinations, chain
     combs = np.fromiter(chain.from_iterable(combinations(cand.tolist(), m)), dtype=int)
@@ -187,6 +191,12 @@ def _enumerate(G, cand, m, top_K, unit_costs, budget, iters, chunk=300_000):
     if unit_costs is not None and budget is not None and not np.isinf(budget):
         feasible = unit_costs[combs].sum(1) <= budget
         combs = combs[feasible]
+    # Spillover "No interference": keep only m-tuples that are independent sets of
+    # the conflict graph (no two members interfere). Vectorised over all pairs.
+    if conflict is not None and len(combs):
+        iu = np.triu_indices(m, k=1)
+        pair_conf = conflict[combs[:, iu[0]], combs[:, iu[1]]]   # (N, n_pairs)
+        combs = combs[~pair_conf.any(axis=1)]
     if len(combs) == 0:
         return [], 0
     losses = np.empty(len(combs))
@@ -206,15 +216,21 @@ def _cost_ok(idx_list, unit_costs, budget):
     return float(unit_costs[list(idx_list)].sum()) <= budget + 1e-12
 
 def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
-                  n_kicks=4):
+                  n_kicks=4, conflict=None):
     """Multi-start best-improvement swap search with basin-hopping kicks.
 
     Returns (ranked_designs, n_distinct_subsets, consensus) where ``consensus``
     carries the multi-start diagnostics that stand in for a solver's MIP gap:
     how many independent starts converged to the incumbent, how many distinct
     local optima were seen, and the incumbent-improvement trail.
+
+    Every generated tuple is required to be both budget-feasible and an
+    independent set of ``conflict`` (the spillover "No interference" constraint).
     """
     cand = list(np.sort(np.asarray(cand)))
+
+    def _ok(S):
+        return _cost_ok(S, unit_costs, budget) and is_independent(conflict, S)
     diag = np.diag(G)
     pool: Dict[tuple, float] = {}
     work = [0]                      # total subsets scored ("simplex iterations")
@@ -237,12 +253,12 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
     def greedy(start):
         S = [start]
         while len(S) < m:
-            rem = [j for j in cand if j not in S and _cost_ok(S + [j], unit_costs, budget)]
+            rem = [j for j in cand if j not in S and _ok(S + [j])]
             if not rem:
                 return None
             cands = [sorted(S + [j]) for j in rem]
             S = sorted(S + [rem[int(score(cands).argmin())]])
-        return S if _cost_ok(S, unit_costs, budget) else None
+        return S if _ok(S) else None
 
     def descend(S):
         improved = True
@@ -250,7 +266,7 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
             improved = False
             moves = [sorted(S[:a] + S[a + 1:] + [j])
                      for a in range(m) for j in cand
-                     if j not in S and _cost_ok(S[:a] + S[a + 1:] + [j], unit_costs, budget)]
+                     if j not in S and _ok(S[:a] + S[a + 1:] + [j])]
             if not moves:
                 break
             L = score(moves)
@@ -266,7 +282,7 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
                 free = [j for j in cand if j not in T]
                 if free:
                     T = sorted(T[:a] + T[a + 1:] + [int(rng.choice(free))])
-            if len(set(T)) == m and _cost_ok(T, unit_costs, budget):
+            if len(set(T)) == m and _ok(T):
                 return T
         return S
 
@@ -321,6 +337,7 @@ def select_treated_designs(
     iters: int = 80,
     random_state: int = 0,
     unit_index: Optional[Any] = None,
+    conflict: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     """Select the ``top_K`` treated m-tuples with smallest imbalance.
 
@@ -357,14 +374,28 @@ def select_treated_designs(
 
     consensus = None
     if method == "enumerate":
-        raw, n_eval = _enumerate(G, cand, m, top_K, unit_costs, budget, iters)
+        raw, n_eval = _enumerate(G, cand, m, top_K, unit_costs, budget, iters,
+                                 conflict=conflict)
         exact = True
     elif method == "heuristic":
         raw, n_eval, consensus = _local_search(G, cand, m, top_K, unit_costs,
-                                               budget, n_starts, rng, iters)
+                                               budget, n_starts, rng, iters,
+                                               conflict=conflict)
         exact = False
     else:
         raise ValueError(f"unknown method {method!r}")
+
+    # Spillover feasibility: with the "No interference" constraint active, an
+    # admissible design must be a size-m independent set of the conflict graph.
+    # If the search found none, that constraint (alone or with the budget) is
+    # infeasible -- fail loudly rather than silently returning an empty design.
+    if conflict is not None and not raw:
+        raise MlsynthConfigError(
+            f"No conflict-free treated {m}-tuple exists among the {M} candidate "
+            f"units: the spillover 'no interference' constraint admits no "
+            f"independent set of size m={m}. Reduce m, relax the cluster/adjacency "
+            f"constraint, or widen the candidate pool."
+        )
 
     # finalise weights to high precision for the returned designs
     designs: List[TreatedDesign] = []
