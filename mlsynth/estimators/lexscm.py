@@ -488,8 +488,15 @@ class LEXSCM:
         # =========================================================
         best = best_candidate
 
-        treated_labels = list(best.treated_weight_dict.keys())
-        control_labels = list(best.control_weight_dict.keys())
+        # The IndexSet is the single source of truth for unit identity: the
+        # weight dicts are already keyed by its labels (fast_scm_control /
+        # lexsearch). The result contract serializes weight-dict keys as ``str``
+        # (and ``UnitInfo.treated_labels`` is typed ``List[str]``), so canonicalize
+        # the returned labels the SAME way -- otherwise selected_units /
+        # assignment keep the raw label type (e.g. ``np.int64``) and fall out of
+        # lock-step with the str-keyed ``treated_weights`` dict below.
+        treated_labels = [str(k) for k in best.treated_weight_dict.keys()]
+        control_labels = [str(k) for k in best.control_weight_dict.keys()]
 
         unit_info = UnitInfo(
             n_units_total=self.Y.shape[1],

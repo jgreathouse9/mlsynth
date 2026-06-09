@@ -1568,3 +1568,57 @@ class TestStructDerivedProps:
         assert c.treated_size == 2
         # control_idx picks nonzero entries of weights.control
         assert c.control_size >= 1
+
+
+# =========================================================================
+# Identity invariant: returned labels are ALWAYS in the weight dicts.
+#
+# The IndexSet is the single source of truth for unit identity. The result
+# contract serializes weight-dict keys as ``str`` (and ``UnitInfo.treated_labels``
+# is typed ``List[str]``), so the labels surfaced to the user -- ``selected_units``
+# and ``assignment`` -- must be canonicalized the SAME way. If they keep the raw
+# IndexSet label type (e.g. ``np.int64`` for integer unit ids) they fall out of
+# lock-step with the str-keyed ``treated_weights`` dict, and a consumer doing
+# ``treated_weights[unit]`` gets a KeyError. Integer ids are the case that
+# exposed the divergence.
+# =========================================================================
+
+def _panel_with_unit_labels(kind: str):
+    """``_make_panel`` relabelled with str (``"u00"``) or int (``0``) unit ids."""
+    df, _ = _make_panel()
+    if kind == "int":
+        df = df.copy()
+        df["unitid"] = df["unitid"].str.slice(1).astype(int)   # "u07" -> 7
+    return df
+
+
+class TestLEXSCMLabelWeightInvariant:
+
+    @pytest.mark.parametrize("unit_id_kind", ["str", "int"])
+    def test_returned_labels_always_in_treated_weights(self, unit_id_kind):
+        df = _panel_with_unit_labels(unit_id_kind)
+        res = LEXSCM({
+            "df": df, "outcome": "y", "unitid": "unitid", "time": "time",
+            "candidate_col": "candidate", "m": 2, "post_col": "post",
+            "top_K": 3, "n_sims": 30, "verbose": False,
+        }).fit()
+
+        treated_weights = res.design_weights.summary_stats["treated_weights"]
+        donor_weights = res.design_weights.donor_weights
+
+        # There IS a selected design, and selected_units == assignment["treated"].
+        assert len(res.selected_units) > 0
+        assert list(res.assignment["treated"]) == list(res.selected_units)
+
+        # Every returned treated label is a key in the treated_weights dict.
+        for label in res.selected_units:
+            assert label in treated_weights, (
+                f"selected treated unit {label!r} ({type(label).__name__}) is not a "
+                f"key in treated_weights {list(treated_weights)}"
+            )
+        # ...and every returned control label is a key in donor_weights.
+        for label in res.assignment["control"]:
+            assert label in donor_weights, (
+                f"control unit {label!r} ({type(label).__name__}) is not a key in "
+                f"donor_weights {list(donor_weights)}"
+            )
