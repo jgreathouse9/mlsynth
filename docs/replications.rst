@@ -58,6 +58,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/lexscm
    replications/scmo
    replications/rescm
+   replications/linf
 
 .. _replications-canonical:
 
@@ -137,6 +138,16 @@ Generalising the estimand, treatment, or unit
   matched :math:`\tau` (donor-weight :math:`L_1` distance
   :math:`\approx 0.0014`; durable: ``rescm_relax_ref``).
   → dedicated page: :doc:`replications/rescm`.
+* :doc:`rescm` -- L-infinity-norm SC (Wang, Xing & Ye 2025;
+  ``LINF`` / ``L1LINF``). **Cross-validation:** mlsynth's L-infinity
+  engine matches the authors' ``LinfinitySC`` code cell by cell in the
+  unique :math:`T_0>J` regime (donor-weight :math:`L_1` distance
+  :math:`\approx 0.0019`; durable: ``linf_crossval_ref``). **Path A:**
+  Proposition 99 -- dense weighting across all 38 donors vs classic SC's
+  6 (durable: ``linf_prop99``). **Path B:** the Section 5 two-factor
+  Monte Carlo -- L-infinity beats sparse SC in the dense DGPs, ``L1LINF``
+  in the sparse one (durable: ``linf_sim``).
+  → dedicated page: :doc:`replications/linf`.
 * :doc:`ctsc` -- Continuous-Treatment SC. **Path B:** Section 5 /
   Table 1 Monte Carlo across Models 1-4 with factor structure and
   true average effect :math:`= 0`; CTSC bias :math:`\approx 0.00`

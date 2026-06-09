@@ -48,8 +48,12 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         scmo_averaged_mc.py         # Path B: averaged regime contrast (Sun et al. App. D)
         rescm_brexit.py             # Path A: SCM-relaxation Brexit/UK GDP (Liao-Shi-Zheng)
         rescm_relax_ref.py          # cross-val: mlsynth L2 relaxation vs scmrelax
+        linf_crossval_ref.py        # cross-val: mlsynth LINF/L1LINF vs LinfinitySC (Wang-Xing-Ye)
+        linf_prop99.py              # Path A: dense L-inf weighting vs sparse SC (Prop 99)
+        linf_sim.py                 # Path B: L-inf beats SC in dense DGPs (Wang-Xing-Ye Table 4)
       reference/            # Python reference implementations (cloned on demand)
         clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
+        clone_linfinitysc.py # pin + clone BioAlgs/LinfinitySC (no packaging -> not vendored)
         spsydid_ref.py      # authors' SDID weights + the notebook's spatial WLS
         clone_clustersc.py  # pin + clone srho1/ClusterSC (MIT; imported not vendored)
         clone_panel_regressions.py  # pin + clone deshen24/panel-data-regressions (Shen CIs)
