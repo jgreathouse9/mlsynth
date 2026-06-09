@@ -1006,7 +1006,7 @@ def lexplot(
     rmse_est_ctrl = rmse(synthetic_control[est_slice], synthetic_treated[est_slice])
 
     tuplename = best.identification.tuple_id
-    w = results.search.bnb['top_tuples'][0].full_weights
+    w = results.search.selection['top_tuples'][0].full_weights
     m = np.sum(w > 0)
 
     # =========================================================

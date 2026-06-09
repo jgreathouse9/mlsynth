@@ -34,7 +34,7 @@ def _cfg(df, **over):
 
 def test_full_pipeline_m4():
     res = LEXSCM(_cfg(_panel())).fit()
-    meta = res.search.bnb
+    meta = res.search.selection
     assert meta["stats"]["search"]["method"] in ("enumeration", "multistart_local_search")
     assert meta["recommendation"]["status"] == "OK"
     assert meta["recommendation"]["winner"] is not None
@@ -51,14 +51,14 @@ def test_late_horizon_does_not_require_horizon_8():
     # old pipeline hardcoded mde_8w under "late" and crashed when 8 not in grid;
     # new pipeline uses max(n_post_grid).
     res = LEXSCM(_cfg(_panel(), mde_horizon="late", n_post_grid=[2, 3, 4])).fit()
-    assert res.search.bnb["recommendation"]["status"] in ("OK", "POWER_NOT_ESTABLISHED")
+    assert res.search.selection["recommendation"]["status"] in ("OK", "POWER_NOT_ESTABLISHED")
 
 
 def test_zero_mean_outcome_is_graceful():
     # old pipeline divided by the outcome level (floored 1e-8) and produced
     # all-NaN MDEs -> empty Pareto -> IndexError; new MDE is SD-based.
     res = LEXSCM(_cfg(_panel(level=0.0))).fit()
-    assert res.search.bnb["recommendation"]["status"] in ("OK", "POWER_NOT_ESTABLISHED")
+    assert res.search.selection["recommendation"]["status"] in ("OK", "POWER_NOT_ESTABLISHED")
     assert res.search.winner is not None
 
 
