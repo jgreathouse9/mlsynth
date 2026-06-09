@@ -13,6 +13,10 @@ CASES = {
     "clustersc_subgroups": "benchmarks.cases.clustersc_subgroups",      # Path B: ClusterSC vs RSC
     "clustersc_subgroups_ref": "benchmarks.cases.clustersc_subgroups_ref",  # cross-val vs authors' repo
     "clustersc_rpca_germany": "benchmarks.cases.clustersc_rpca_germany",  # Path A: RPCA-SC West Germany
+    "tssc_brooklyn": "benchmarks.cases.tssc_brooklyn",        # Path A: Brooklyn showroom (Li-Shankar)
+    "tssc_figure2": "benchmarks.cases.tssc_figure2",          # Path B: Figure 2 MSE-ratio grid
+    "sbc_germany": "benchmarks.cases.sbc_germany",            # Path A: SBC German reunification
+    "hsc_hongkong": "benchmarks.cases.hsc_hongkong",          # Path A: HSC HK handover
     "rsc_synth_error": "benchmarks.cases.rsc_synth_error",      # Path B: RSC train≈gen error
     "rsc_shen_coverage": "benchmarks.cases.rsc_shen_coverage",  # cross-val: Shen CIs + coverage
     "lexscm_walmart": "benchmarks.cases.lexscm_walmart",        # Path A: Walmart placebo design

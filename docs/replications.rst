@@ -69,7 +69,8 @@ Canonical workhorses
   MSE-ratio grid -- all 16 cells of the
   :math:`(T_1, T_2)` sweep fall below :math:`1.0`, range
   :math:`[0.039, 0.889]`, matching the paper's geometry.
-  → dedicated page: :doc:`replications/tssc`.
+  → dedicated page: :doc:`replications/tssc`; durable cases
+  ``tssc_brooklyn`` (Path A) and ``tssc_figure2`` (Path B).
 * :doc:`vanillasc` -- Standard SC (ADH 2010/2015; Abadie-Gardeazabal 2003).
   **Path A:** the three canonical studies on their original datasets --
   Prop 99 (Utah/Nevada/Montana/Colorado/Connecticut, ATT :math:`\approx -19`
@@ -95,12 +96,14 @@ Decomposition-first synthetic control
 * :doc:`hsc` -- Harmonic Synthetic Control. **Path A:** the 1997
   Hong Kong handover -- 2003 effect :math:`-\$1{,}902` against
   the paper's :math:`-\$1{,}900`; Korea weight 0.18 and Germany
-  weight 0.14 match the paper. **Path B:** Liu-Xu regime-adaptation
+  weight 0.14 match the paper (with ``ridge="sdid"`` + a refined
+  rho grid; durable: ``hsc_hongkong``). **Path B:** Liu-Xu regime-adaptation
   grid with ARIMA(1,1,0) trends -- HSC RMSE 6.46 vs. SC-diff 6.11
   under the idiosyncratic regime.
 * :doc:`sbc` -- Synthetic Business Cycle. **Path A:** German
   reunification -- Greece weight 0.44, Netherlands 0.37,
-  :math:`\widehat{\mathrm{ATT}} \approx -952`; also reproduces the
+  :math:`\widehat{\mathrm{ATT}} \approx -952` (durable:
+  ``sbc_germany``); also reproduces the
   Hong Kong handover. **Path B:** Shi-Xi-Xie Models 1-3
   nonstationary DGP, Model 1 MSE ratio 0.012 vs. the paper's 0.01.
 
