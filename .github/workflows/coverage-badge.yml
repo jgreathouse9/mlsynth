@@ -1,0 +1,80 @@
+name: Daily coverage badge
+
+# Refresh coverage.svg on main once a day (and on demand), out-of-band from the
+# PR test gate (build.yml) so the badge never adds a commit to / de-heads a PR.
+# Skips the (expensive) suite run entirely when no mlsynth/ code changed in the
+# last day, so quiet days cost nothing.
+on:
+  schedule:
+    - cron: "0 0 * * *"     # 00:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: coverage-badge
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONWARNINGS: "ignore"
+  MPLBACKEND: "Agg"
+
+jobs:
+  badge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Skip if no code changed in the last day
+        id: guard
+        run: |
+          # Any commit touching mlsynth/ in the last ~26h (window > the daily
+          # cadence), ignoring the bot's own badge commits? If none, do nothing.
+          CHANGED=$(git log --since="26 hours ago" --pretty=format:%s -- mlsynth/ \
+                    | grep -vc "Update coverage badge" || true)
+          if [ "${CHANGED:-0}" -eq 0 ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No mlsynth/ changes in the last day -- skipping the suite."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "$CHANGED mlsynth/ commit(s) since yesterday -- refreshing the badge."
+          fi
+
+      - name: Set up Python
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-xdist coverage coverage-badge
+
+      - name: Run tests with coverage
+        if: steps.guard.outputs.run == 'true'
+        run: PYTHONPATH="$(pwd)" pytest -n auto --cov=mlsynth --cov-report=term-missing --tb=short
+
+      - name: Regenerate + commit badge (only if it changed)
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          coverage-badge -o coverage.svg -f
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add coverage.svg
+          if git diff --cached --quiet; then
+            echo "Coverage badge unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "Update coverage badge [skip ci]"
+          git pull --rebase --autostash origin main
+          git push

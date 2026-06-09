@@ -1,11 +1,9 @@
 name: Test MLSYNTH
 
-# The full test suite runs ONCE per change -- on the pull request only.
-# Previously this workflow also ran on `push: [main]`, so every change was tested
-# twice (on the PR, then again on the merge to main: the same tree). The PR is the
-# gate; the post-merge re-run was pure duplication. The coverage badge, which used
-# to be produced by that main run, is now regenerated on the PR and committed to
-# the PR branch, so it lands on main via the (squash-)merge.
+# The full test suite runs ONCE per change -- on the pull request only (the gate).
+# It does NOT run on push: [main], so a merge never re-tests the identical tree.
+# The coverage badge is updated out-of-band by the daily `coverage-badge.yml`
+# workflow, so this gate never commits to / de-heads a PR.
 on:
   pull_request:
     branches: [main]
@@ -17,7 +15,7 @@ on:
         default: "all"
 
 permissions:
-  contents: write
+  contents: read
 
 # Cancel superseded runs on the same ref instead of piling up.
 concurrency:
@@ -35,12 +33,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          # Check out the PR head branch (not the detached merge ref) so the
-          # coverage badge can be committed back to it. On workflow_dispatch
-          # head_ref is empty, so fall back to the dispatched branch.
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -52,7 +44,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-xdist coverage coverage-badge
+          pip install pytest pytest-cov pytest-xdist coverage
 
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
@@ -83,28 +75,6 @@ jobs:
             fi
             pytest -n auto "$MATCH" --tb=short
           fi
-
-      # Regenerate the coverage badge and commit it to the PR branch so it travels
-      # onto main with the merge. [skip ci] keeps this commit from re-triggering
-      # the workflow. PR-only (it needs a head branch to push to and fresh
-      # coverage data from the run above).
-      # The badge is cosmetic, so this step must never fail the test gate:
-      # continue-on-error + a tolerant push.
-      - name: Update coverage badge on the PR branch
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        run: |
-          coverage report -m || true
-          coverage-badge -o coverage.svg -f
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add coverage.svg
-          if git diff --cached --quiet; then
-            echo "Coverage badge unchanged; nothing to commit."
-            exit 0
-          fi
-          git commit -m "Update coverage badge [skip ci]"
-          git push origin "HEAD:${{ github.head_ref }}" || echo "Badge push skipped (no write access or race); not fatal."
 
       - name: Build distribution
         run: python setup.py sdist
