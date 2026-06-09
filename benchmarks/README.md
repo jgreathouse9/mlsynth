@@ -43,6 +43,9 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         rsc_shen_coverage.py        # cross-val: Shen et al. PCR CIs + coverage validity
         lexscm_walmart.py           # Path A: LEXSCM Walmart placebo design (Abadie-Zhao Sec 4)
         lexscm_design_mc.py         # Path B: LEXSCM recovers planted effect (Abadie-Zhao Sec 5)
+        scmo_germany.py             # Path A: SCMO West Germany balance (Tian et al. Table 2)
+        scmo_concatenated_mc.py     # Path B: concatenated multi-outcome bias (Tian Table 1)
+        scmo_averaged_mc.py         # Path B: averaged regime contrast (Sun et al. App. D)
       reference/            # Python reference implementations (cloned on demand)
         clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
         spsydid_ref.py      # authors' SDID weights + the notebook's spatial WLS

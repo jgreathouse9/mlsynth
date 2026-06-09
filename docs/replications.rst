@@ -56,6 +56,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/spsydid
    replications/clustersc
    replications/lexscm
+   replications/scmo
 
 .. _replications-canonical:
 
@@ -113,12 +114,19 @@ Decomposition-first synthetic control
 Generalising the estimand, treatment, or unit
 ---------------------------------------------
 
-* :doc:`scmo` -- Tian, Lee & Panchenko (2024) multi-outcome SC.
-  **Path A:** German reunification (nine pre-1989 indicators) --
-  pre-RMSE = 110, matching Table 1 to three decimals.
-  **Path B:** TLP Table 1 plus SBMF averaging, 400-800 reps; bias
-  / SD at :math:`K = 6` are :math:`1.11 / 1.40` against the
-  paper's :math:`1.08 / 1.36`.
+* :doc:`scmo` -- multi-outcome SC, both variants.
+  **Path A:** Tian-Lee-Panchenko (2026) German reunification (nine
+  pre-1989 indicators) -- the concatenated synthetic reproduces their
+  Table 2 balance cell by cell (synthetic 1989 GDP per capita
+  :math:`19029.8`; CPI :math:`3.1`; trade :math:`59.1`; tax
+  :math:`34.1`), pre-RMSE :math:`= 110` (durable: ``scmo_germany``).
+  **Path B (concatenated):** TLP Table 1 == Sun et al. ``Simulation1.R``
+  -- bias falls and pre-fit rises with the outcome count :math:`K` across
+  :math:`T_0 \in \{1, 5, 10\}` (durable: ``scmo_concatenated_mc``).
+  **Path B (averaged):** Sun-Ben-Michael-Feller (2025) Appendix-D regime
+  contrast -- averaging beats the separate SC under a common factor and
+  hurts under purely idiosyncratic factors (durable: ``scmo_averaged_mc``).
+  → dedicated page: :doc:`replications/scmo`.
 * :doc:`ctsc` -- Continuous-Treatment SC. **Path B:** Section 5 /
   Table 1 Monte Carlo across Models 1-4 with factor structure and
   true average effect :math:`= 0`; CTSC bias :math:`\approx 0.00`

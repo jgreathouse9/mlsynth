@@ -577,6 +577,12 @@ Verification
    averaged 1.408), confirming both papers' analyses and the regime-dependence
    of which scheme wins.
 
+   **Durable benchmarks.** These checks are pinned as re-runnable cases:
+   ``scmo_germany`` (Path A — Tian et al. Table 2 balance, cell by cell),
+   ``scmo_concatenated_mc`` (Path B — Tian Table 1 / Sun ``Simulation1.R``), and
+   ``scmo_averaged_mc`` (Path B — Sun Appendix-D regime contrast). See the
+   dedicated page :doc:`replications/scmo`.
+
 Simulation study: Tian-Lee-Panchenko Table 1 (Path B)
 -----------------------------------------------------
 
