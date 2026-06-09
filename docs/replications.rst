@@ -57,6 +57,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/clustersc
    replications/lexscm
    replications/scmo
+   replications/rescm
 
 .. _replications-canonical:
 
@@ -127,6 +128,15 @@ Generalising the estimand, treatment, or unit
   contrast -- averaging beats the separate SC under a common factor and
   hurts under purely idiosyncratic factors (durable: ``scmo_averaged_mc``).
   → dedicated page: :doc:`replications/scmo`.
+* :doc:`rescm` -- SCM-relaxation (Liao, Shi & Zheng 2026).
+  **Path A:** Brexit / UK real GDP -- the L2 relaxation's cumulative
+  GDP loss is :math:`\approx 4.0\%` (paper 3.85%, treatment 2016Q3),
+  dense weights on the major EU economies that classic SC drops
+  (durable: ``rescm_brexit``). **Cross-validation:** mlsynth's L2
+  relaxation matches the authors' ``scmrelax`` package cell by cell at a
+  matched :math:`\tau` (donor-weight :math:`L_1` distance
+  :math:`\approx 0.0014`; durable: ``rescm_relax_ref``).
+  → dedicated page: :doc:`replications/rescm`.
 * :doc:`ctsc` -- Continuous-Treatment SC. **Path B:** Section 5 /
   Table 1 Monte Carlo across Models 1-4 with factor structure and
   true average effect :math:`= 0`; CTSC bias :math:`\approx 0.00`

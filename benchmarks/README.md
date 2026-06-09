@@ -46,6 +46,8 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         scmo_germany.py             # Path A: SCMO West Germany balance (Tian et al. Table 2)
         scmo_concatenated_mc.py     # Path B: concatenated multi-outcome bias (Tian Table 1)
         scmo_averaged_mc.py         # Path B: averaged regime contrast (Sun et al. App. D)
+        rescm_brexit.py             # Path A: SCM-relaxation Brexit/UK GDP (Liao-Shi-Zheng)
+        rescm_relax_ref.py          # cross-val: mlsynth L2 relaxation vs scmrelax
       reference/            # Python reference implementations (cloned on demand)
         clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
         spsydid_ref.py      # authors' SDID weights + the notebook's spatial WLS

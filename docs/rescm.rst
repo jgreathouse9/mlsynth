@@ -691,6 +691,12 @@ Verification
    procedure [CWZ2021]_. (Only 50 replications -- noisy; the relaxation
    :math:`\eta` is validated by CV, not fixed.)
 
+   **Durable benchmarks.** The relaxation branch is pinned against the authors'
+   own paper and code: ``rescm_brexit`` (Path A -- the Brexit / UK real-GDP
+   application, ``standardize=False``) and ``rescm_relax_ref`` (cross-validation
+   -- mlsynth's L2 relaxation vs the ``scmrelax`` package, cell by cell at a
+   matched :math:`\eta`). See the dedicated page :doc:`replications/rescm`.
+
 Core API
 --------
 
