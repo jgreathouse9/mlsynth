@@ -1,0 +1,207 @@
+dma_name,dma_code,state,latitude,longitude
+"Abilene-Sweetwater, TX",662,TX,32.404348,-99.8293625
+"Albany, GA",525,GA,31.5279975,-83.7121235
+"Albany-Schenectady-Troy, NY",532,NY,43.049266,-73.8438695
+"Albuquerque-Santa Fe, NM",790,NM,34.4952755,-106.526644
+"Alexandria, LA",644,LA,31.322628,-92.61795
+"Alpena, MI",583,MI,44.856283,-83.5733565
+"Amarillo, TX",634,TX,35.4797235,-102.063253
+"Atlanta, GA",524,GA,33.9253975,-84.3335135
+"Augusta, GA",520,GA,33.2388275,-81.9064505
+"Austin, TX",635,TX,30.331427,-98.0272995
+"Bakersfield, CA",800,CA,35.291006,-119.05459
+"Baltimore, MD",512,MD,38.972515,-76.506469
+"Bangor, ME",537,ME,45.3356845,-68.751059
+"Baton Rouge, LA",716,LA,30.4278165,-91.140946
+"Beaumont-Port Arthur, TX",692,TX,30.3724315,-94.1330155
+"Bend, OR",821,OR,44.001647,-120.9495205
+"Billings, MT",756,MT,45.8919365,-108.195493
+"Biloxi-Gulfport, MS",746,MS,30.651123,-88.868398
+"Binghamton, NY",502,NY,42.2963485,-75.4931575
+"Birmingham (Anniston and Tuscaloosa), AL",630,AL,33.5031,-86.869635
+"Bluefield-Beckley-Oak Hill, WV",559,WV,37.6001745,-80.978172
+"Boise, ID",757,ID,43.632029,-117.0232835
+"Boston, MA (Manchester, NH)",506,NH,42.501023,-71.460493
+"Bowling Green, KY",736,KY,37.0341725,-85.99226
+"Buffalo, NY",514,NY,42.42369,-78.6800405
+"Burlington, VT-Plattsburgh, NY",523,NY,44.071301,-73.0368725
+"Butte-Bozeman, MT",754,MT,45.979098,-112.3609785
+"Casper-Riverton, WY",767,WY,43.412869,-107.4728085
+"Cedar Rapids-Waterloo-Iowa City & Dubuque, IA",637,IA,42.331217,-91.7493605
+"Champaign & Springfield-Decatur, IL",648,IL,39.9606635,-89.0627055
+"Charleston, SC",519,SC,33.181204,-80.042272
+"Charleston-Huntington, WV",564,WV,38.376208,-82.039491
+"Charlotte, NC",517,NC,35.477172,-80.76953
+"Charlottesville, VA",584,VA,38.1802125,-78.4610955
+"Chattanooga, TN",575,TN,35.204094,-84.7884855
+"Cheyenne, WY-Scottsbluff, NE",759,NE,41.8048825,-104.3206125
+"Chicago, IL",602,IL,41.615065,-87.8455645
+"Chico-Redding, CA",868,CA,40.3359675,-122.350166
+"Cincinnati, OH",515,OH,39.0338655,-84.357866
+"Clarksburg-Weston, WV",598,WV,38.93329,-80.309074
+"Cleveland-Akron (Canton), OH",510,OH,41.0958885,-81.71123
+"Colorado Springs-Pueblo, CO",752,CO,38.061384,-104.0271685
+"Columbia, SC",546,SC,33.896366,-80.9102195
+"Columbia-Jefferson City, MO",604,MO,38.8629485,-92.26804
+"Columbus, GA",522,GA,32.2969995,-84.8353915
+"Columbus, OH",535,OH,39.9719715,-82.734151
+"Columbus-Tupelo-West Point, MS",673,MS,33.9623585,-88.939003
+"Corpus Christi, TX",600,TX,27.6933695,-97.8595055
+"Dallas-Ft. Worth, TX",623,TX,32.702473,-97.098903
+"Davenport, IA-Rock Island-Moline, IL",682,IL,41.5680725,-90.4412815
+"Dayton, OH",542,OH,40.1392235,-84.3547855
+"Denver, CO",751,CO,40.9981425,-108.925452
+"Des Moines-Ames, IA",679,IA,41.8822865,-93.6950785
+"Detroit, MI",505,MI,42.7069935,-83.2883905
+"Dothan, AL",606,AL,31.2429535,-85.412413
+"Duluth, MN-Superior, WI",676,WI,47.169647,-91.7104225
+"El Paso, TX",765,TX,31.840946,-105.6619505
+"Elmira, NY",565,NY,42.0595215,-77.1441155
+"Erie, PA",516,PA,41.8794375,-79.717601
+"Eugene, OR",801,OR,43.6937855,-123.1256445
+"Eureka, CA",802,CA,41.001389,-123.908896
+"Evansville, IN",649,IN,37.8233245,-87.5662395
+"Fargo-Valley City, ND",724,ND,47.659799,-97.1383975
+"Flint-Saginaw-Bay City, MI",513,MI,43.643882,-83.847331
+"Fresno-Visalia, CA",866,CA,36.846642,-119.613123
+"Ft. Myers-Naples, FL",571,FL,26.5720265,-81.6230635
+"Ft. Smith-Fayetteville-Springdale-Rogers, AR",670,AR,35.5031505,-94.202877
+"Ft. Wayne, IN",509,IN,41.0334615,-85.1430895
+"Gainesville, FL",592,FL,29.4735495,-82.7294775
+"Glendive, MT",798,MT,46.836368,-105.065505
+"Grand Junction-Montrose, CO",773,CO,38.425681,-108.2153545
+"Grand Rapids-Kalamazoo-Battle Creek, MI",563,MI,42.7892405,-85.624075
+"Great Falls, MT",755,MT,47.838823,-109.9362935
+"Green Bay-Appleton, WI",658,WI,44.7644785,-88.2017
+"Greensboro-High Point-Winston Salem, NC",518,NC,35.994693,-80.4077355
+"Greenville-New Bern-Washington, NC",545,NC,35.342169,-76.9754245
+"Greenville-Spartanburg, SC-Asheville, NC-Anderson,SC",567,SC,35.0526635,-82.697701
+"Greenwood-Greenville, MS",647,MS,33.585109,-90.4836365
+"Harlingen-Weslaco-Brownsville-McAllen, TX",636,TX,26.311933,-98.157698
+"Harrisburg-Lancaster-Lebanon-York, PA",566,PA,40.2836345,-76.882001
+"Harrisonburg, VA",569,VA,38.4231645,-79.0679395
+"Hartford & New Haven, CT",533,CT,41.612664,-72.659358
+"Hattiesburg-Laurel, MS",710,MS,31.5670435,-89.2449615
+"Helena, MT",766,MT,47.1878,-112.3319335
+"Houston, TX",618,TX,29.606092,-95.6464085
+"Huntsville-Decatur (Florence), AL",691,AL,34.7953925,-86.8583345
+"Idaho Falls-Pocatello, ID",758,ID,43.641669,-112.6765315
+"Indianapolis, IN",527,IN,39.84288,-86.1652105
+"Jackson, MS",718,MS,32.1874215,-90.485657
+"Jackson, TN",639,TN,35.5707925,-88.530231
+"Jacksonville, FL",561,FL,30.427575,-82.006576
+"Johnstown-Altoona, PA",574,PA,40.673069,-78.328162
+"Jonesboro, AR",734,AR,36.0989355,-91.1294975
+"Joplin, MO-Pittsburg, KS",603,KS,37.2695535,-95.0098365
+"Kansas City, MO",616,MO,39.3042305,-94.208994
+"Knoxville, TN",557,TN,36.112655,-84.0422025
+"La Crosse-Eau Claire, WI",702,WI,44.313217,-91.197266
+"Lafayette, IN",582,IN,40.3451955,-87.113428
+"Lafayette, LA",642,LA,30.2379905,-92.1119525
+"Lake Charles, LA",643,LA,30.2390885,-93.2619725
+"Lansing, MI",551,MI,42.4074535,-84.602594
+"Laredo, TX",749,TX,27.388155,-99.5051385
+"Las Vegas, NV",839,NV,37.082759,-116.121556
+"Lexington, KY",541,KY,37.584915,-83.9929735
+"Lima, OH",558,OH,40.782607,-84.138823
+"Lincoln & Hastings-Kearney, NE",722,NE,41.282784,-99.257628
+"Little Rock-Pine Bluff, AR",693,AR,34.647081,-92.670434
+"Los Angeles, CA",803,CA,35.132844,-116.858513
+"Louisville, KY",529,KY,38.1524665,-85.7750445
+"Lubbock, TX",651,TX,33.4181475,-101.791018
+"Macon, GA",503,GA,32.6218675,-83.3190475
+"Madison, WI",669,WI,43.370746,-89.9627745
+"Mankato, MN",737,MN,43.876563,-94.4376415
+"Marquette, MI",553,MI,46.8707415,-87.8765355
+"Medford-Klamath Falls, OR",813,OR,42.3097025,-121.9634415
+"Memphis, TN",640,TN,35.1946395,-89.757956
+"Meridian, MS",711,MS,32.3468715,-88.5817905
+"Miami-Fort Lauderdale, FL",528,FL,25.439022,-80.940626
+"Milwaukee, WI",617,WI,43.1921015,-88.358241
+"Minneapolis-St. Paul, MN",613,MN,46.0197555,-94.199023
+"Minot-Bismarck-Dickinson(Williston), ND",687,ND,46.8731805,-102.71806
+"Missoula, MT",762,MT,47.229117,-114.464452
+"Mobile, AL-Pensacola (Ft. Walton Beach), FL",686,FL,31.1061175,-87.6151775
+"Monroe, LA-El Dorado, AR",628,AR,32.1842885,-91.9321725
+"Monterey-Salinas, CA",828,CA,36.537526,-121.265832
+"Montgomery-Selma, AL",698,AL,32.0506805,-86.7675715
+"Myrtle Beach-Florence, SC",570,SC,34.2987775,-79.419767
+"Nashville, TN",659,TN,36.07259,-86.631128
+"New Orleans, LA",622,LA,29.9723295,-90.0824885
+"New York, NY",501,NY,40.839717,-73.6072985
+"Norfolk-Portsmouth-Newport News, VA",544,VA,36.608336,-76.3720915
+"North Platte, NE",740,NE,41.394995,-100.836179
+"Odessa-Midland, TX",633,TX,30.781491,-103.077288
+"Oklahoma City, OK",650,OK,35.667342,-97.9919705
+"Omaha, NE",652,NE,41.1056295,-96.150686
+"Orlando-Daytona Beach-Melbourne, FL",534,FL,28.6562235,-81.4963015
+"Ottumwa, IA-Kirksville, MO",631,MO,40.384083,-92.545142
+"Paducah, KY-Cape Girardeau, MO-Harrisburg, IL",632,IL,37.2352865,-89.497325
+"Palm Springs, CA",804,CA,33.72988,-116.2354255
+"Panama City, FL",656,FL,30.293713,-85.3696325
+"Parkersburg, WV",597,WV,39.336078,-81.4306435
+"Peoria-Bloomington, IL",675,IL,40.6826125,-89.343186
+"Philadelphia, PA",504,PA,39.8995855,-75.3874975
+"Phoenix, AZ",753,AZ,34.7133875,-111.899851
+"Pittsburgh, PA",508,PA,40.409733,-79.6590145
+"Portland, OR",820,OR,44.191309,-120.4498885
+"Portland-Auburn, ME",500,ME,44.366668,-70.1830055
+"Presque Isle, ME",552,ME,46.519615,-68.9025615
+"Providence, RI-New Bedford, MA",521,MA,41.620932,-71.351281
+"Quincy, IL-Hannibal, MO-Keokuk, IA",717,IA,40.066065,-91.1726125
+"Raleigh-Durham (Fayetteville), NC",560,NC,35.72255,-78.4212995
+"Rapid City, SD",764,SD,43.7649485,-104.4792695
+"Reno, NV",811,NV,39.4852355,-118.959289
+"Richmond-Petersburg, VA",556,VA,37.4686305,-77.5349825
+"Roanoke-Lynchburg, VA",573,VA,37.6408795,-79.9113685
+"Rochester, NY",538,NY,42.9137715,-77.387152
+"Rochester, MN-Mason City, IA-Austin, MN",611,MN,43.552183,-92.850969
+"Rockford, IL",610,IL,42.0453555,-89.316059
+"Sacramento-Stockton-Modesto, CA",862,CA,38.7885185,-120.9905465
+"Salisbury, MD",576,MD,38.4437985,-75.548586
+"Salt Lake City, UT",770,UT,40.23193,-112.26407
+"San Angelo, TX",661,TX,31.186904,-100.740601
+"San Antonio, TX",641,TX,29.2651455,-99.1607395
+"San Diego, CA",825,CA,33.0195915,-116.8402815
+"San Francisco-Oakland-San Jose, CA",807,CA,38.4477155,-122.6193155
+"Santa Barbara-Santa Maria-San Luis Obispo, CA",855,CA,34.844663,-120.4100205
+"Savannah, GA",507,GA,32.168191,-81.6330685
+"Seattle-Tacoma, WA",819,WA,47.621239,-121.842349
+"Sherman, TX-Ada, OK",657,OK,34.181478,-96.2499835
+"Shreveport, LA",612,LA,32.820852,-94.0138375
+"Sioux City, IA",624,IA,42.621459,-96.376337
+"Sioux Falls (Mitchell), SD",725,SD,44.0133785,-98.735199
+"South Bend-Elkhart, IN",588,IN,41.576527,-86.062314
+"Spokane, WA",881,WA,47.0398515,-117.603633
+"Springfield, MO",619,MO,37.1293385,-92.5469955
+"Springfield-Holyoke, MA",543,MA,42.3856895,-72.6017095
+"St. Joseph, MO",638,MO,40.055305,-94.8792055
+"St. Louis, MO",609,MO,38.434253,-90.169254
+"Syracuse, NY",555,NY,42.9849975,-76.1014455
+"Tallahassee, FL-Thomasville, GA",530,GA,30.462299,-83.675708
+"Tampa-St. Petersburg (Sarasota), FL",539,FL,27.9989465,-81.8973955
+"Terre Haute, IN",581,IN,39.2814045,-87.6904085
+"Toledo, OH",547,OH,41.384993,-83.7585085
+"Topeka, KS",605,KS,39.0201515,-96.5557205
+"Traverse City-Cadillac, MI",540,MI,45.119199,-84.9520115
+"Tri-Cities, TN-VA",531,VA,36.732483,-82.468517
+"Tucson (Sierra Vista), AZ",789,AZ,31.923023,-111.1907555
+"Tulsa, OK",671,OK,35.9900205,-95.7685615
+"Twin Falls, ID",760,ID,42.994495,-114.043651
+"Tyler-Longview(Lufkin & Nacogdoches), TX",709,TX,32.1070105,-94.8806935
+"Utica, NY",526,NY,43.205527,-75.026249
+"Victoria, TX",626,TX,28.805652,-96.973793
+"Waco-Temple-Bryan, TX",625,TX,31.0795205,-97.3521605
+"Washington, DC (Hagerstown, MD)",511,MD,39.127683,-77.904362
+"Watertown, NY",549,NY,44.217164,-75.4894475
+"Wausau-Rhinelander, WI",705,WI,44.9711405,-89.6752625
+"West Palm Beach-Ft. Pierce, FL",548,FL,27.096694,-80.6271745
+"Wheeling, WV-Steubenville, OH",554,OH,39.96655,-81.0435735
+"Wichita Falls, TX-Lawton, OK",627,OK,33.9059285,-99.039775
+"Wichita-Hutchinson, KS Plus",678,KS,38.672948,-99.005353
+"Wilkes Barre-Scranton, PA",577,PA,41.2488125,-76.530153
+"Wilmington, NC",550,NC,34.3480385,-78.294559
+"Yakima-Pasco-Richland-Kennewick, WA",810,WA,46.29578,-119.748852
+"Youngstown, OH",536,OH,41.0505515,-80.543523
+"Yuma, AZ-El Centro, CA",771,CA,32.751631,-114.7199745
+"Zanesville, OH",596,OH,39.961236,-81.9657085

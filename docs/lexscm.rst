@@ -51,29 +51,31 @@ Setup and notation
 
 We observe :math:`J` units over a pre-treatment period of length
 :math:`T_0`. Stack the pre-period outcomes as
-:math:`Y \in \mathbb{R}^{T_0 \times J}` (rows = time, columns = units) and,
-optionally, :math:`K` time-invariant or pre-period covariates as
-:math:`Z \in \mathbb{R}^{K \times J}`. The two are stacked vertically into
-the **predictor matrix**
+:math:`\mathbf{Y} \in \mathbb{R}^{T_0 \times J}` (rows = time, columns = units)
+and, optionally, :math:`K` time-invariant or pre-period covariates as
+:math:`\mathbf{Z} \in \mathbb{R}^{K \times J}`. The two are stacked vertically
+into the **predictor matrix**
 
 .. math::
 
-   X = \begin{bmatrix} Y \\ Z \end{bmatrix}
+   \mathbf{X} = \begin{bmatrix} \mathbf{Y} \\ \mathbf{Z} \end{bmatrix}
        \in \mathbb{R}^{(T_0 + K) \times J},
 
-so each column :math:`X_{\cdot, j}` is unit :math:`j`'s predictor profile.
+so each column :math:`\mathbf{x}_j` is unit :math:`j`'s predictor profile.
 A subset :math:`\mathcal{C} \subseteq \{1, \dots, J\}` of size
 :math:`M = |\mathcal{C}|` is flagged as **treatment-eligible** (the
 ``candidate_col``); the design must pick :math:`m` of these.
 
-A **population weighting vector** :math:`f \in \mathbb{R}^J`,
-:math:`f \ge 0`, :math:`\mathbf{1}^\top f = 1` (uniform :math:`1/J` by
-default, or a ``weight_col`` such as population or revenue) defines the
-estimand's target trajectory -- the :math:`f`-weighted average unit
+A **population weighting vector** :math:`\mathbf{f} \in \mathbb{R}^J`,
+:math:`\mathbf{f} \ge 0`, :math:`\mathbf{1}^\top \mathbf{f} = 1` (uniform
+:math:`1/J` by default, or a ``weight_col`` such as population or revenue)
+defines the estimand's target trajectory -- the :math:`\mathbf{f}`-weighted
+average unit
 
 .. math::
 
-   \bar{X} = X f, \qquad \bar{X}_t = X_{t, \cdot}\, f .
+   \bar{\mathbf{x}} \coloneqq \mathbf{X} \mathbf{f},
+   \qquad \bar{x}_t = \mathbf{X}_{t, \cdot}\, \mathbf{f} .
 
 The pre-period predictor rows are split into an **estimation window**
 :math:`E` (the first :math:`\lfloor \texttt{frac\_E} \cdot T_0 \rfloor`
@@ -87,19 +89,20 @@ population target**:
 
 .. math::
 
-   \widetilde{X}_{t, j} = \frac{X_{t, j} - \bar{X}_t}{\sigma_t},
+   \widetilde{X}_{t, j} = \frac{X_{t, j} - \bar{x}_t}{\sigma_t},
    \qquad
    \sigma_t = \operatorname{sd}_j\!\bigl(X_{t, \cdot}\bigr),
 
 with :math:`\sigma_t` floored away from zero. Centring on
-:math:`\bar{X}_t` puts the population target at the origin; scaling by the
+:math:`\bar{x}_t` puts the population target at the origin; scaling by the
 cross-sectional spread :math:`\sigma_t` makes mixed-scale predictors
 (outcomes in dollars, covariates in percent) commensurable so no single
 predictor dominates the fit. The :math:`J \times J` **Gram matrix**
 
 .. math::
 
-   G = \widetilde{X}_E^\top \widetilde{X}_E \succeq 0
+   \mathbf{G} \coloneqq \widetilde{\mathbf{X}}_E^\top \widetilde{\mathbf{X}}_E
+   \succeq 0
 
 summarizes all pairwise predictor inner products over :math:`E`.
 
@@ -119,13 +122,14 @@ with common time effects :math:`\delta_t`, latent time factors
 shocks :math:`\varepsilon_{j, t}`.
 
 *Assumption 1 (approximate balance).* There exist treatment weights
-:math:`w` on the chosen treated set :math:`S` and control weights
-:math:`v` on the remainder such that the synthetic treated and synthetic
-control reproduce the population target on the pre-period predictors,
-:math:`\bar{X} - \sum_{j \in S} w_j X_j \approx 0`. *Remark.* This is the
-design analogue of the SCM convex-hull condition, and it is the only
-substantive requirement. Crucially it is **not imposed as an axiom**: the
-*achieved* imbalance :math:`\lVert \bar{X} - \sum_j w_j X_j\rVert` is a
+:math:`\mathbf{w}` on the chosen treated set :math:`\mathcal{S}` and control
+weights :math:`\mathbf{v}` on the remainder such that the synthetic treated and
+synthetic control reproduce the population target on the pre-period predictors,
+:math:`\bar{\mathbf{x}} - \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j \approx 0`.
+*Remark.* This is the design analogue of the SCM convex-hull condition, and it
+is the only substantive requirement. Crucially it is **not imposed as an
+axiom**: the *achieved* imbalance
+:math:`\lVert \bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j\rVert` is a
 measurable goodness-of-fit quantity, reported for every design, on which
 the validity of the bias bound and the inference is *conditional* (Abadie
 & Zhao, p.13). The analyst checks the :math:`\approx 0` condition rather
@@ -153,83 +157,94 @@ Zhao rather than an i.i.d. permutation.
 Stage 1 -- Treated-tuple selection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For a treated set :math:`S` with :math:`|S| = m` and simplex weights
-:math:`w \in \Delta(S) = \{w \ge 0 : \mathbf{1}^\top w = 1\}`, the
-synthetic treated unit is :math:`\sum_{j \in S} w_j X_j`. Its
-**imbalance** against the population target is, over the estimation window,
+For a treated set :math:`\mathcal{S}` with :math:`|\mathcal{S}| = m` and simplex
+weights :math:`\mathbf{w} \in \Delta(\mathcal{S}) \coloneqq \{\mathbf{w} \ge 0 :
+\mathbf{1}^\top \mathbf{w} = 1\}`, the synthetic treated unit is
+:math:`\sum_{j \in \mathcal{S}} w_j \mathbf{x}_j`. Its **imbalance** against the
+population target is, over the estimation window,
 
 .. math::
 
-   L(S) = \min_{w \in \Delta(S)}
-          \Bigl\lVert \sum_{j \in S} w_j \widetilde{X}_{E, j}
+   L(\mathcal{S}) = \min_{\mathbf{w} \in \Delta(\mathcal{S})}
+          \Bigl\lVert \sum_{j \in \mathcal{S}} w_j \widetilde{\mathbf{x}}_{E, j}
           \Bigr\rVert_2^2
-        = \min_{w \in \Delta(S)} w^\top G_{SS}\, w ,
+        = \min_{\mathbf{w} \in \Delta(\mathcal{S})}
+          \mathbf{w}^\top \mathbf{G}_{\mathcal{S}\mathcal{S}}\, \mathbf{w} ,
 
-where :math:`G_{SS}` is the :math:`m \times m` sub-Gram matrix on the rows
-and columns of :math:`S`. Because the design is :math:`f`-centred the
-population target sits at the origin, so :math:`L(S)` is the **squared
-distance from the population centroid to the convex hull of the selected
-donors**, and :math:`\sqrt{L(S)}` is the achieved imbalance of
-Assumption 1. Stage 1 returns the ``top_K`` sets of smallest :math:`L(S)`,
-subject to the budget below.
+where :math:`\mathbf{G}_{\mathcal{S}\mathcal{S}}` is the :math:`m \times m`
+sub-Gram matrix on the rows and columns of :math:`\mathcal{S}`. Because the
+design is :math:`\mathbf{f}`-centred the population target sits at the origin,
+so :math:`L(\mathcal{S})` is the **squared distance from the population centroid
+to the convex hull of the selected donors**, and :math:`\sqrt{L(\mathcal{S})}`
+is the achieved imbalance of Assumption 1. Stage 1 returns the ``top_K`` sets of
+smallest :math:`L(\mathcal{S})`, subject to the budget below.
 
 How a single tuple is built: the inner simplex QP
 """""""""""""""""""""""""""""""""""""""""""""""""
 
-"Building" a tuple :math:`S` means solving its inner problem
-:math:`\min_{w \in \Delta(S)} w^\top G_{SS}\, w` for the **optimal
-treatment weights** :math:`w(S)`; the synthetic treated unit is then
-:math:`\sum_{j \in S} w_j(S)\, X_j` and the design's achieved imbalance is
-:math:`\sqrt{w(S)^\top G_{SS}\, w(S)}`. This convex quadratic program over
-the probability simplex is solved by an **Away-step Frank-Wolfe (AFW)**
+"Building" a tuple :math:`\mathcal{S}` means solving its inner problem
+:math:`\min_{\mathbf{w} \in \Delta(\mathcal{S})} \mathbf{w}^\top
+\mathbf{G}_{\mathcal{S}\mathcal{S}}\, \mathbf{w}` for the **optimal treatment
+weights** :math:`\mathbf{w}(\mathcal{S})`; the synthetic treated unit is then
+:math:`\sum_{j \in \mathcal{S}} w_j(\mathcal{S})\, \mathbf{x}_j` and the design's
+achieved imbalance is :math:`\sqrt{\mathbf{w}(\mathcal{S})^\top
+\mathbf{G}_{\mathcal{S}\mathcal{S}}\, \mathbf{w}(\mathcal{S})}`. This convex
+quadratic program over the probability simplex is solved by an **Away-step
+Frank-Wolfe (AFW)**
 routine in pure NumPy (``_afw_single``), chosen because every iterate stays
 exactly on the simplex (no projection step) and the *away* move removes the
 zig-zagging that plain Frank-Wolfe suffers near a face-constrained optimum
--- so the support of :math:`w` (which donors carry positive weight) sharpens
-in a handful of iterations.
+-- so the support of :math:`\mathbf{w}` (which donors carry positive weight)
+sharpens in a handful of iterations.
 
-Write :math:`Q = G_{SS}`, :math:`f(w) = w^\top Q w`,
-:math:`\nabla f(w) = 2 Q w`. From a vertex start
-:math:`w^{(0)} = e_{\arg\min_i Q_{ii}}` (the single donor closest to the
-target), each iteration:
+Write :math:`\mathbf{Q} = \mathbf{G}_{\mathcal{S}\mathcal{S}}`,
+:math:`f(\mathbf{w}) = \mathbf{w}^\top \mathbf{Q} \mathbf{w}`,
+:math:`\nabla f(\mathbf{w}) = 2 \mathbf{Q} \mathbf{w}`. From a vertex start
+:math:`\mathbf{w}^{(0)} = \mathbf{e}_{\arg\min_i Q_{ii}}` (the single donor
+closest to the target), each iteration (all vectors below are the iterate
+:math:`\mathbf{w}` and its simplex vertices :math:`\mathbf{e}_i`):
 
 #. **Pick two vertices.** The Frank-Wolfe vertex
-   :math:`s = \arg\min_i [\nabla f(w)]_i` and the away vertex
-   :math:`a = \arg\max_{i \in \operatorname{supp}(w)} [\nabla f(w)]_i` --
-   the currently active donor the gradient most wants to shed.
+   :math:`s = \arg\min_i [\nabla f(\mathbf{w})]_i` and the away vertex
+   :math:`a = \arg\max_{i \in \operatorname{supp}(\mathbf{w})}
+   [\nabla f(\mathbf{w})]_i` -- the currently active donor the gradient most
+   wants to shed.
 #. **Choose the direction.** Compare the FW direction
-   :math:`d_{\mathrm{FW}} = e_s - w` against the away direction
-   :math:`d_{\mathrm{AW}} = w - e_a` by :math:`\langle \nabla f, d\rangle`
-   and take whichever descends more. The away step's maximal feasible
-   length is :math:`\gamma_{\max} = w_a / (1 - w_a)`; the FW step caps at
-   :math:`1`.
+   :math:`\mathbf{d}_{\mathrm{FW}} = \mathbf{e}_s - \mathbf{w}` against the away
+   direction :math:`\mathbf{d}_{\mathrm{AW}} = \mathbf{w} - \mathbf{e}_a` by
+   :math:`\langle \nabla f, \mathbf{d}\rangle` and take whichever descends more.
+   The away step's maximal feasible length is
+   :math:`\gamma_{\max} = w_a / (1 - w_a)`; the FW step caps at :math:`1`.
 #. **Exact line search.** Because :math:`f` is quadratic the optimal step
-   along :math:`d` is closed-form,
+   along :math:`\mathbf{d}` is closed-form,
 
    .. math::
 
       \gamma^\star = \operatorname{clip}\!\Bigl(
-        -\frac{w^\top Q d}{d^\top Q d},\; 0,\; \gamma_{\max}\Bigr),
+        -\frac{\mathbf{w}^\top \mathbf{Q} \mathbf{d}}{\mathbf{d}^\top
+        \mathbf{Q} \mathbf{d}},\; 0,\; \gamma_{\max}\Bigr),
 
-   then :math:`w \leftarrow w + \gamma^\star d`, dropping :math:`a` from the
-   active set when a full away step empties it.
+   then :math:`\mathbf{w} \leftarrow \mathbf{w} + \gamma^\star \mathbf{d}`,
+   dropping :math:`a` from the active set when a full away step empties it.
 #. **Certified lower bound.** The Frank-Wolfe gap gives a running lower
-   bound :math:`f(w) + \min_i[\nabla f(w)]_i - \nabla f(w)^\top w \le
-   f(w^\star)` on the tuple's true minimal loss; iteration stops once the
-   duality gap :math:`\nabla f(w)^\top w - \min_i[\nabla f(w)]_i` drops
-   below ``tol``.
+   bound :math:`f(\mathbf{w}) + \min_i[\nabla f(\mathbf{w})]_i -
+   \nabla f(\mathbf{w})^\top \mathbf{w} \le f(\mathbf{w}^\star)` on the tuple's
+   true minimal loss; iteration stops once the duality gap
+   :math:`\nabla f(\mathbf{w})^\top \mathbf{w} - \min_i[\nabla f(\mathbf{w})]_i`
+   drops below ``tol``.
 
 **Two-pass precision.** Scoring every candidate tuple to convergence would
 be wasteful, so Stage 1 runs AFW at two fidelities. A **vectorized
 batched** AFW (``_afw_batched``, ``iters=80``, all :math:`m \times m`
 problems advanced together with ``einsum``) ranks thousands of tuples in
 one sweep; only the surviving ``top_K`` are **re-solved** by the scalar
-``_afw_single`` at ``iters=600``, ``tol=1e-14`` to pin :math:`w(S)` and the
-loss to full precision. Each returned
+``_afw_single`` at ``iters=600``, ``tol=1e-14`` to pin
+:math:`\mathbf{w}(\mathcal{S})` and the loss to full precision. Each returned
 :class:`~mlsynth.utils.fast_scm_helpers.lexsearch.TreatedDesign` then
-carries its ``indices``, the high-precision ``weights`` :math:`w(S)`,
-``loss`` :math:`= L(S)`, ``imbalance`` :math:`= \sqrt{L(S)}`,
-``total_cost``, and a label-keyed ``weight_dict``.
+carries its ``indices``, the high-precision ``weights``
+:math:`\mathbf{w}(\mathcal{S})`, ``loss`` :math:`= L(\mathcal{S})`,
+``imbalance`` :math:`= \sqrt{L(\mathcal{S})}`, ``total_cost``, and a
+label-keyed ``weight_dict``.
 
 Why a search and not a full enumeration or an exact MIP
 """""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -299,8 +314,8 @@ local search (``_local_search``):
   population centroid -- the cheapest places to start near balance) plus
   ``n_starts`` uniformly random units for diversity.
 * **Greedy construction.** From a seed, repeatedly add the candidate that
-  most lowers the batched loss of the partial tuple until :math:`|S| = m`,
-  skipping any addition that would breach the budget.
+  most lowers the batched loss of the partial tuple until
+  :math:`|\mathcal{S}| = m`, skipping any addition that would breach the budget.
 * **Best-improvement descent.** Score the full **1-swap** neighbourhood
   (replace one member with one non-member), move to the steepest improving
   swap, and repeat to a local optimum.
@@ -323,7 +338,7 @@ returned design must satisfy the hard knapsack constraint
 
 .. math::
 
-   \sum_{j \in S} c_j \le B_{\max}.
+   \sum_{j \in \mathcal{S}} c_j \le B_{\max}.
 
 Two mechanisms enforce it. First, a **sound feasibility presolve** removes
 any eligible unit :math:`i` that cannot belong to *any* budget-feasible
@@ -350,17 +365,20 @@ status / runtime.
 Stage 2 -- Control fit
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-For each candidate treated set :math:`S` with weights :math:`w`, the
-synthetic treated trajectory is :math:`X_{\cdot, S}\, w`. A synthetic
-control is then built from the **non-treated** units: control weights
-:math:`v` solve a ridge-penalized quadratic program (penalty
-``lambda_penalty``) matching the synthetic treated over :math:`E`, subject
-to an exclusion constraint :math:`v_j = 0` for all :math:`j \in S` (a
-treated unit cannot also be its own control). The per-period gap is
+For each candidate treated set :math:`\mathcal{S}` with weights
+:math:`\mathbf{w}`, the synthetic treated trajectory is
+:math:`\mathbf{X}_{\cdot, \mathcal{S}}\, \mathbf{w}`. A synthetic control is then
+built from the **non-treated** units: control weights :math:`\mathbf{v}` solve a
+ridge-penalized quadratic program (penalty ``lambda_penalty``) matching the
+synthetic treated over :math:`E`, subject to an exclusion constraint
+:math:`v_j = 0` for all :math:`j \in \mathcal{S}` (a treated unit cannot also be
+its own control; the spillover ``adjacency`` widens this to
+:math:`\mathcal{S} \cup \mathcal{A}(\mathcal{S})`). The per-period gap is
 
 .. math::
 
-   e_t = (X_{\cdot, S}\, w)_t - (X v)_t .
+   e_t = (\mathbf{X}_{\cdot, \mathcal{S}}\, \mathbf{w})_t
+         - (\mathbf{X} \mathbf{v})_t .
 
 Pre-treatment fit is summarized by the normalized mean-squared error
 (NMSE) of the synthetic treated against the target on both windows
@@ -375,30 +393,41 @@ Spillover / interference exclusions
 
 When treating a *set* of units, interference is a design concern, and
 Vives-i-Bastida (2022) handles it with two exclusion criteria that LEXSCM
-implements directly. Both read off **one conflict graph** -- a symmetric
-relation "units :math:`i` and :math:`j` interfere" -- supplied either as a
-``cluster_col`` (two units conflict iff they share a cluster, e.g. a state or
-province) or as an ``adjacency`` / spillover matrix (conflict iff the entry
-exceeds ``spillover_threshold``); the two combine by logical OR. The graph is
-aligned to the IndexSet, the single source of truth for unit identity.
+implements directly. Both read off **one conflict graph**, encoded by a
+symmetric matrix :math:`\mathbf{A} \in \{0, 1\}^{J \times J}` with
+:math:`A_{ij} = 1` iff units :math:`i` and :math:`j` interfere (zero diagonal).
+:math:`\mathbf{A}` is supplied either as a ``cluster_col`` (:math:`A_{ij} = 1`
+iff :math:`i, j` share a cluster, e.g. a state or province) or as an
+``adjacency`` / spillover matrix (:math:`A_{ij} = 1` iff the entry exceeds
+``spillover_threshold``); the two combine entrywise by logical OR. The matrix is
+aligned to the IndexSet, the single source of truth for unit identity. Write the
+conflict-neighbours of a treated set :math:`\mathcal{S}` as
 
-* **"No interference" (Stage 1, a treatment criterion).** The selected treated
-  :math:`m`-tuple must be an **independent set** of the conflict graph -- no two
-  treated units may interfere. This is a restriction on the admissible supports,
-  so it enters exactly where the :math:`\lVert w\rVert_0 = m` cardinality
-  constraint already lives -- as a filter on the candidate tuples, not a term in
-  the inner weight QP -- and only *shrinks* the search.
+.. math::
 
-* **"Exclusion restriction" (Stage 2, a control criterion).** For a treated set
-  :math:`S`, the donor pool drops not only :math:`S` but also its conflict
-  neighbours :math:`N(S)`, so a treated unit's spillover neighbours cannot enter
-  its synthetic control and contaminate the counterfactual.
+   \mathcal{A}(\mathcal{S}) \coloneqq
+     \{\, k : A_{jk} = 1 \ \text{for some}\ j \in \mathcal{S} \,\}.
 
-If no conflict-free :math:`m`-tuple exists (e.g. ``m`` exceeds the number of
+* **"No interference" (Stage 1, a treatment criterion).** The treated set
+  :math:`\mathcal{S} = \operatorname{supp}(\mathbf{w})` must be **conflict-free**
+  -- an *independent set* of :math:`\mathbf{A}`, :math:`A_{ij} = 0` for all
+  :math:`i, j \in \mathcal{S}`. This restricts only the admissible supports, so
+  it enters exactly where the cardinality constraint
+  :math:`\lVert \mathbf{w} \rVert_0 = m` already lives -- a filter on the
+  candidate tuples, not a term in the inner weight program -- and only *shrinks*
+  the search.
+
+* **"Exclusion restriction" (Stage 2, a control criterion).** The donor pool
+  drops :math:`\mathcal{S} \cup \mathcal{A}(\mathcal{S})`: the Stage-2 program
+  pins :math:`v_k = 0` for every :math:`k \in \mathcal{S} \cup
+  \mathcal{A}(\mathcal{S})`, so a treated unit's spillover neighbours cannot
+  enter its synthetic control and contaminate the counterfactual.
+
+If no conflict-free :math:`m`-tuple exists (e.g. :math:`m` exceeds the number of
 clusters), or the exclusions empty every donor pool, the fit raises
 :class:`~mlsynth.exceptions.MlsynthConfigError` rather than returning a degenerate
-design. With no ``cluster_col`` / ``adjacency`` supplied the behaviour is exactly
-the unconstrained search.
+design. With no ``cluster_col`` / ``adjacency`` supplied, :math:`\mathbf{A} =
+\mathbf{0}` and the behaviour is exactly the unconstrained search.
 
 .. code-block:: python
 
@@ -1084,6 +1113,32 @@ wherever two units interfere -- via ``adjacency=...`` and an optional
 combine. If the constraint admits no conflict-free ``m``-tuple (for instance
 ``m`` larger than the number of regions), the fit raises
 :class:`~mlsynth.exceptions.MlsynthConfigError`.
+
+A ready-made matrix ships with mlsynth -- you don't need a shapefile or GIS
+toolchain. ``basedata/markets/dma_adjacency.csv`` is a 206 x 206 border matrix
+over US Nielsen Designated Market Areas (built from the public TopoJSON via
+shared-arc contiguity; see ``basedata/markets/build_dma_adjacency.py``), so
+"no two treated markets may share a border" is one ``read_csv`` away:
+
+.. code-block:: python
+
+    import pandas as pd
+
+    adj = pd.read_csv("basedata/markets/dma_adjacency.csv", index_col=0)
+    meta = pd.read_csv("basedata/markets/dma_metadata.csv")          # state, lat, long
+    se = [n for n in meta.loc[meta.state.isin({"FL","GA","AL","MS","SC","NC","TN"}),
+                              "dma_name"] if n in adj.index]
+    A = adj.loc[se, se]                                              # induced subgraph
+
+    LEXSCM({"df": df, "outcome": "sales", "unitid": "dma", "time": "week",
+            "candidate_col": "eligible", "m": 4, "adjacency": A}).fit()
+
+On a spatially-correlated Southeast panel this is the difference between an
+unconstrained design that co-treats a cluster of bordering Gulf-Coast markets
+(Hattiesburg, Jackson, Mobile-Pensacola, Montgomery -- with Biloxi-Gulfport and
+Dothan as *donors*, both bordering treated markets) and the spillover-aware
+design, which spreads treatment across non-adjacent markets and keeps every
+donor clear of a treated market.
 
 References
 ----------
