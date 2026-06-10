@@ -831,6 +831,33 @@ with :math:`T` and its test approaches the nominal 5% size as :math:`T_1 \to
 :math:`\tau` grid makes large Monte Carlos expensive (~5 s/fit), so the full
 table is summarized rather than swept here.
 
+Multiple treated units
+----------------------
+
+When *several* units are treated by the same intervention, Shi & Wang's
+L2-relaxation PDA fits a counterfactual **per treated unit** against the shared
+control pool and aggregates the effects into a **per-period cross-sectional
+ATE**,
+
+.. math::
+
+   \widehat{\mathrm{ATE}}_t = \frac{1}{J} \sum_{j=1}^{J}
+       \bigl( y_{jt} - \hat{y}_{jt} \bigr),
+   \qquad
+   \mathrm{s.e.} = \frac{\sqrt{\mathbf{1}'\hat{\Sigma}_e\,\mathbf{1}}}{J},
+
+with :math:`\hat{\Sigma}_e` the cross-sectional covariance of the pre-period
+prediction residuals (so the standard error is constant across post-periods).
+:func:`mlsynth.utils.pda_helpers.multitreat.run_pda_multitreat` implements this.
+Because every per-unit fit shares the same
+:math:`\hat{\boldsymbol{\Sigma}} = X'X/T_1`, all :math:`J` fits run through a
+**single OSQP factorisation** -- the batched solver
+:func:`mlsynth.utils.pda_helpers.l2.batch.l2_relax_batch` updates only the
+constraint bounds per ``(unit, tau)`` (hundreds of conic solves become hundreds
+of warm-started ADMM updates). On the Brexit study (52 UK firms vs 300 controls)
+this reproduces the paper's first-day return ATE of :math:`-4.3\%`
+(:math:`t \approx -7.4`); see ``benchmarks/cases/pda_brexit.py``.
+
 Core API
 --------
 

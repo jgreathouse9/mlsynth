@@ -296,7 +296,13 @@ High-dimensional donor pools
   effect, :math:`-5.95\%` (:math:`t = -4.48`), against their
   :math:`-6.40\%` (:math:`t = -3.61`); the gap is mlsynth's
   time-respecting sequential CV vs the paper's future-leaking 5-block
-  K-fold (durable: ``pda_ppi``).
+  K-fold (durable: ``pda_ppi``). **Path A (multi-treat):** the Shi &
+  Wang (2024) Brexit study on ``brexit_long.csv`` -- 52 UK firms
+  treated as a cross-section against 300 controls; on the first
+  post-referendum day the L2-relaxation per-period ATE on UK returns
+  is :math:`-4.50\%` (:math:`t = -7.5`), reproducing the paper's
+  :math:`-4.31\%` (:math:`t = -7.39`). All 52 per-firm fits run
+  through one shared OSQP factorisation (durable: ``pda_brexit``).
 * :doc:`fscm` -- Cerulli (2024) forward-selected SC. **Path A:**
   Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} = -20.15`,
