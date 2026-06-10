@@ -432,11 +432,15 @@ Identification under endogeneity
   calibrated Monte Carlo across :math:`r \in \{0.5, 0.7, 0.9\}`
   at 200 reps; TSLS-TWFE bias 0.111 / 0.228 / 0.387 matches the
   paper's 0.111 / 0.218 / 0.360 essentially exactly.
-* :doc:`proximal` -- Proximal SC. **Path A:** Panic of 1907 on
-  the Trust panel, reproduced across all six proximal variants
-  -- PI :math:`-1.148` vs. paper :math:`-1.138`; PIS
-  :math:`-1.148` vs. :math:`-1.134`; PIPost :math:`-1.220` vs.
-  :math:`-1.220`. **Path B:** Single-Proxy SC (SPSC) plus
+* :doc:`proximal` -- Proximal SC. **Path A (cross-validation):**
+  Panic of 1907 on the Trust panel, cross-validated against the
+  authors' Python reference (``freshtaste/proximal``, pinned commit
+  ``a67d81e``) and the papers' Table 3 -- PI :math:`-1.148` vs.
+  reference :math:`-1.138`; PIS :math:`-1.148` vs. :math:`-1.134`;
+  PIPost :math:`-1.220` (matching the reference to ``1e-8``); the
+  no-proxy SPSC (:math:`-0.892`), doubly-robust DR (:math:`-1.194`)
+  and PIPW (:math:`-0.854`) are pinned alongside (durable:
+  ``proximal_panic1907``). **Path B:** Single-Proxy SC (SPSC) plus
   Doubly-Robust and PIPW Monte Carlo --
   SPSC-DT :math:`\widehat{\mathrm{ATT}} = -0.815` against
   :math:`-0.816`.
