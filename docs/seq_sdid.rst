@@ -288,6 +288,22 @@ underdetermined; the practical recommendation is to use canonical
 :class:`SDID` for those panels and reserve Sequential SDiD for genuine
 staggered designs with multiple sizable cohorts.
 
+A second requirement is *donor balance*. Each treated cohort :math:`a` is
+balanced only against the cohorts adopting after it (:math:`j > a`) plus any
+never-treated cohort, so it needs at least **two** such donor cohorts to
+balance even a rank-one interactive fixed effect — matching a one-dimensional
+loading and the intercept spans :math:`(1, \lambda)`. With a single donor the
+sum-to-one constraint forces :math:`\omega = [1]` and the cohort effect
+collapses to an unbalanced DiD, biased whenever the loadings differ; that bias
+also cascades backward through the sequential imputation. On a *noiseless*
+rank-one factor the estimator recovers the effect **exactly** for every cohort
+that is balanced, and the entire residual bias is attributable to the
+donor-starved late cohorts. Because the latest cohorts are the most exposed
+(the default ``a_max`` is the last adopting cohort), :meth:`SequentialSDID.fit`
+emits a :class:`UserWarning` naming any donor-starved cohort and the largest
+``a_max`` that keeps every estimated cohort balanced — report, don't silently
+relax.
+
 Core API
 --------
 

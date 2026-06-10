@@ -7,6 +7,8 @@ Reference: Arkhangelsky & Samkov (2025), arXiv:2404.00164v2.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -15,6 +17,7 @@ from mlsynth import SequentialSDID
 from mlsynth.config_models import SequentialSDIDConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.seq_sdid_helpers.algorithm import (
+    _warn_donor_starved_cohorts,
     pooled_event_study,
     run_sequential_sdid,
 )
@@ -301,3 +304,99 @@ class TestPublicAPI:
         r1 = SequentialSDID(cfg_dict).fit()
         r2 = SequentialSDID(cfg_obj).fit()
         assert np.allclose(r1.event_study.tau, r2.event_study.tau)
+
+
+# ---------------------------------------------------------------------------
+# Donor-balance diagnostic + the exact-recovery property it protects
+# ---------------------------------------------------------------------------
+
+def _rank1_ife_panel(
+    *, adoptions, n_never=30, n_per_cohort=6, T=40, seed=3, true_effect=0.0
+) -> pd.DataFrame:
+    """Noiseless rank-1 interactive-FE panel: y = a_i + b_t + lambda_i f_t.
+
+    With no idiosyncratic noise, Sequential SDiD must recover the planted
+    effect *exactly* for every cohort whose donor pool can span the
+    one-dimensional loading -- the property the donor-balance diagnostic
+    guards. ``f_t`` is a bounded (stationary) factor so the recovery does not
+    rely on a trend.
+    """
+    rng = np.random.default_rng(seed)
+    f = np.sin(np.linspace(0, 8, T)) + 0.4 * np.cos(np.linspace(0, 15, T))
+    lam = np.linspace(-2, 2, len(adoptions) * n_per_cohort + n_never)
+    rng.shuffle(lam)
+    records, uid, li = [], 0, 0
+    cohorts = [(a, n_per_cohort) for a in adoptions] + [(None, n_never)]
+    for adoption, n in cohorts:
+        for _ in range(n):
+            L = lam[li]; li += 1
+            for t in range(T):
+                y = 3.0 + 0.05 * t + L * f[t]
+                treated = int(adoption is not None and t >= adoption)
+                if treated:
+                    y += true_effect
+                records.append({"unit": uid, "year": t, "y": y, "treat": treated})
+            uid += 1
+    return pd.DataFrame(records)
+
+
+class TestDonorBalanceDiagnostic:
+    """A donor-starved late cohort biases the pooled estimate; we must warn."""
+
+    def test_exact_recovery_when_all_cohorts_balanced(self):
+        # Many cohorts; cap a_max so every estimated cohort keeps >= 2 donors.
+        df = _rank1_ife_panel(adoptions=list(range(20, 32)), true_effect=0.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # any donor warning would fail here
+            res = SequentialSDID({
+                "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+                "time": "year", "mode": "ssdid", "eta": 1e-3, "K": 4,
+                "a_max": 26, "n_bootstrap": 0, "display_graphs": False,
+            }).fit()
+        # Noiseless rank-1 IFE, balanced donors -> machine-exact zero effect.
+        assert np.allclose(res.event_study.tau, 0.0, atol=1e-6)
+
+    def test_warns_and_names_starved_cohort_and_fix(self):
+        df = _rank1_ife_panel(adoptions=list(range(20, 32)))
+        with pytest.warns(UserWarning, match="fewer than 2 donor cohorts"):
+            res = SequentialSDID({
+                "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+                "time": "year", "mode": "ssdid", "eta": 1e-3, "K": 4,
+                "n_bootstrap": 0, "display_graphs": False,
+            }).fit()
+        # The starved tail biases the pooled estimate away from zero.
+        assert not np.allclose(res.event_study.tau, 0.0, atol=1e-6)
+
+    def test_no_warning_when_capped(self):
+        df = _rank1_ife_panel(adoptions=list(range(20, 32)))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            SequentialSDID({
+                "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+                "time": "year", "mode": "ssdid", "eta": 1e-3, "K": 4,
+                "a_max": 26, "n_bootstrap": 0, "display_graphs": False,
+            }).fit()
+        assert not [w for w in caught
+                    if "donor cohorts" in str(w.message)]
+
+
+class TestWarnDonorStarvedHelper:
+    """Unit-level coverage of the warning helper's branches."""
+
+    def test_empty_is_noop(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _warn_donor_starved_cohorts({})
+
+    def test_no_starved_is_silent(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            _warn_donor_starved_cohorts({10: 3, 12: 2})
+
+    def test_suggests_a_max_when_some_balanced(self):
+        with pytest.warns(UserWarning, match="Lower a_max to 12"):
+            _warn_donor_starved_cohorts({10: 3, 12: 2, 18: 1})
+
+    def test_suggests_adding_donors_when_all_starved(self):
+        with pytest.warns(UserWarning, match="Add later-adopting"):
+            _warn_donor_starved_cohorts({18: 1, 20: 1})

@@ -12,12 +12,23 @@ the estimator its name.
 
 from __future__ import annotations
 
+import warnings
 from typing import Dict, Tuple
 
 import numpy as np
 
 from .structures import SeqSDIDCohortEffect
 from .weights import solve_time_qp, solve_unit_qp
+
+# A treated cohort needs at least this many donor cohorts (later-adopting plus
+# never-treated) for the unit-weight QP to balance even a rank-1 interactive
+# fixed effect: matching a one-dimensional loading plus the intercept spans
+# ``(1, lambda)``, which requires two affinely-independent donors. With a single
+# donor the sum-to-one constraint forces ``omega = [1]`` and the cohort effect
+# collapses to an unbalanced DiD against that lone donor -- biased whenever the
+# factor loadings differ. We surface that as a diagnostic rather than silently
+# averaging the biased cohort into the pooled event study.
+_MIN_DONORS_FOR_BALANCE = 2
 
 
 def run_sequential_sdid(
@@ -79,6 +90,9 @@ def run_sequential_sdid(
     A_to_idx = {int(period): col for col, period in zip(treated_indices_sorted, treated_periods_sorted)}
 
     cohort_effects: Dict[Tuple[int, int], SeqSDIDCohortEffect] = {}
+    # donor count per estimated cohort (constant across k; donors are the
+    # cohorts adopting strictly after a, plus never-treated).
+    donor_counts: Dict[int, int] = {}
 
     for k in range(K + 1):
         for a in range(a_min, a_max + 1):
@@ -107,6 +121,7 @@ def run_sequential_sdid(
             )
             if donor_cols.size == 0:
                 continue
+            donor_counts.setdefault(a, int(donor_cols.size))
 
             Y_pre_donors = Y[:pre_end, donor_cols]                # (pre_end, J)
             y_pre_treated = Y[:pre_end, a_col]                    # (pre_end,)
@@ -134,7 +149,47 @@ def run_sequential_sdid(
                 # counterfactual (Algorithm 1, line 7).
                 Y[event_period, a_col] = Y[event_period, a_col] - tau
 
+    _warn_donor_starved_cohorts(donor_counts)
+
     return Y, cohort_effects
+
+
+def _warn_donor_starved_cohorts(donor_counts: Dict[int, int]) -> None:
+    """Warn if any estimated cohort lacks enough donors to balance the factor.
+
+    Donor-starved late cohorts cannot balance their factor loadings, so their
+    effects reduce to an unbalanced DiD and bias the pooled event study (the
+    bias also cascades backward through the sequential imputation). We report
+    which cohorts are affected and the largest ``a_max`` that keeps every
+    estimated cohort balanced -- the minimal fix -- without silently dropping
+    them, mirroring the library's report-don't-relax stance.
+    """
+    if not donor_counts:
+        return
+    starved = sorted(a for a, n in donor_counts.items()
+                     if n < _MIN_DONORS_FOR_BALANCE)
+    if not starved:
+        return
+    balanced = [a for a, n in donor_counts.items()
+                if n >= _MIN_DONORS_FOR_BALANCE]
+    detail = ", ".join(f"{a} ({donor_counts[a]} donor"
+                       f"{'s' if donor_counts[a] != 1 else ''})"
+                       for a in starved)
+    if balanced:
+        fix = (f"Lower a_max to {max(balanced)} (the latest cohort with at "
+               f"least {_MIN_DONORS_FOR_BALANCE} donors)")
+    else:
+        fix = ("Add later-adopting or never-treated donor cohorts, or estimate "
+               "fewer horizons")
+    warnings.warn(
+        "Sequential SDiD: treated cohort(s) "
+        f"{detail} have fewer than {_MIN_DONORS_FOR_BALANCE} donor cohorts "
+        "(later-adopting plus never-treated). Their effects reduce to an "
+        "unbalanced DiD and can bias the pooled event study under interactive "
+        f"fixed effects. {fix}.",
+        UserWarning,
+        stacklevel=2,
+    )
 
 
 def pooled_event_study(
