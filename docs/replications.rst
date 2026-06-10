@@ -11,11 +11,10 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Thirty-two of the
-thirty-six estimators are currently fully verified, three carry
+This page catalogues those replications. Thirty-three of the
+thirty-six estimators are currently fully verified, and three carry
 partial replications (one-draw illustrations or empirical
-applications without an explicit number-match), and one has no
-replication content yet.
+applications without an explicit number-match).
 
 * The :ref:`replications-canonical` section covers the workhorse
   SC variants you would reach for first.
@@ -54,6 +53,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/sdid
    replications/mcnnm
    replications/spsydid
+   replications/seq_sdid
    replications/clustersc
    replications/lexscm
    replications/scmo
@@ -306,6 +306,19 @@ Staggered adoption
   the reference. **Path B:** the paper's staggered AR(1)-factor DGP
   (Section 3) -- the event-time ATT path :math:`\tau = 1 + e` is
   recovered, using all units (including not-yet-treated) as donors.
+* :doc:`seq_sdid` -- Arkhangelsky & Samkov (2025) Sequential
+  Synthetic DiD. **Path B:** the Section-5.2.2 calibrated-panel
+  Monte Carlo (Table 1) reconstructed from the paper's description
+  (the authors' CPS log-wage panel is not public) -- under an
+  interactive-fixed-effects violation of parallel trends, standard
+  DiD's 95% CI coverage collapses (:math:`\approx 0.45`, paper
+  :math:`\approx 0.70`) while Sequential SDiD stays near nominal
+  (:math:`0.945`) with roughly five-times-smaller bias and lower
+  RMSE -- the paper's "DiD severely biased, Sequential SDiD reliable"
+  headline (durable: ``seq_sdid_mc``). A noiseless rank-one IFE
+  corollary pins exact machine-precision recovery for every
+  donor-balanced cohort.
+  → dedicated page: :doc:`replications/seq_sdid`.
 
 .. _replications-missing:
 
@@ -434,9 +447,9 @@ Coverage summary
      - 2
      - Complete (FMA, TASC)
    * - Staggered adoption
-     - 4
      - 5
-     - SDID, SpSyDiD, PPSCM, SSC ✓; SEQ_SDID queued
+     - 5
+     - Complete (SDID, SpSyDiD, PPSCM, SSC, SEQ_SDID)
    * - Spillover-aware (donor screening)
      - 1
      - 1
@@ -454,12 +467,11 @@ Coverage summary
      - 5
      - Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)
 
-Of mlsynth's 36 estimators, 32 (89%) carry a strong or solid
+Of mlsynth's 36 estimators, 33 (92%) carry a strong or solid
 replication against their source paper or against an
 authoritative reference implementation. ISCM, NSC, and
 SPARSE_SC carry partial replications -- one-draw illustrations
-or empirical applications without an explicit number-match --
-and SEQ_SDID is the single estimator still in queue.
+or empirical applications without an explicit number-match.
 
 Contributing a replication
 --------------------------
