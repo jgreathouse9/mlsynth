@@ -220,7 +220,7 @@ class TestStage1:
     def test_infeasible_raises(self):
         G = _small_gram(10)
         A = _clique_conflict([0, 0, 0, 0, 1, 1, 1, 2, 2, 2])   # only 3 cliques
-        with pytest.raises(MlsynthConfigError, match="no interference|independent set"):
+        with pytest.raises(MlsynthConfigError, match="spillover|conflict-free"):
             select_treated_designs(G, list(range(10)), m=4, method="enumerate", conflict=A)
 
     def test_conflict_composes_with_budget(self):
@@ -312,7 +312,7 @@ class TestLEXSCMSpilloverEndToEnd:
     def test_infeasible_m_exceeds_clusters_raises(self):
         # 8 candidates but only 4 candidate-clusters (A,B,C,D); m=5 is infeasible.
         df = make_panel(clusters=CLUSTERS)
-        with pytest.raises(MlsynthConfigError, match="no interference|independent set"):
+        with pytest.raises(MlsynthConfigError, match="spillover|conflict-free"):
             LEXSCM({"df": df, **{**BASE, "m": 5}, "cluster_col": "state"}).fit()
 
     @pytest.mark.parametrize("str_ids", [False, True])
