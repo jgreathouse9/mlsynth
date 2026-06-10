@@ -118,6 +118,10 @@ What it confirms
   benchmark, and recovers **ADH's donor pool** (Utah / Nevada / Connecticut /
   Colorado) from a 38-state pool — the selection does not distort the answer.
 
+The durable check lives in ``benchmarks/cases/sparse_sc_prop99.py``::
+
+   python benchmarks/run_benchmarks.py --case sparse_sc_prop99
+
 A second case: the Basque Country
 ---------------------------------
 
