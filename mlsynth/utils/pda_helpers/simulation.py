@@ -280,3 +280,65 @@ def simulate_libell_panel(
              "y": float(Y0[i, t]), "treat": int(i == 0 and t >= T1)}
             for i in range(N) for t in range(T)]
     return pd.DataFrame(rows)
+
+
+# --------------------------------------------------------------------------- #
+# Shi & Wang (2024) Section 5.1-5.2 -- the L2-relaxation PDA size/power
+# simulation (Table 2: a dense strong-factor model with N = 100).
+# --------------------------------------------------------------------------- #
+# Innovation SDs that normalise each factor to unit unconditional variance.
+_SW_FACTOR_SD = (1.0, 0.19 ** 0.5, (5.0 / 9.0) ** 0.5, (3.0 / 7.0) ** 0.5)
+_SW_NOISE_SD = 0.5 ** 0.5          # idiosyncratic N(0, 0.5)
+_SW_NULL_SHOCKS = frozenset({"D1", "D2", "D3"})
+
+
+def _shiwang_factors(T: int, rng: np.random.Generator, burn: int = 200) -> np.ndarray:
+    """Shi & Wang (2024) Sec. 5.1 four factors, shape ``(T, 4)``.
+
+    ``f1`` i.i.d.; ``f2`` AR(1) 0.9; ``f3`` MA(2) (0.8, 0.4); ``f4`` ARMA(1,1)
+    (0.5, 0.5); innovation variances set so each factor has unit unconditional
+    variance. A burn-in removes the zero initial state.
+    """
+    L = T + burn
+    v = rng.standard_normal((L, 4)) * np.asarray(_SW_FACTOR_SD)
+    f = np.zeros((L, 4))
+    for t in range(L):
+        f[t, 0] = v[t, 0]
+        f[t, 1] = (0.9 * f[t - 1, 1] if t >= 1 else 0.0) + v[t, 1]
+        f[t, 2] = (v[t, 2] + (0.8 * v[t - 1, 2] if t >= 1 else 0.0)
+                   + (0.4 * v[t - 2, 2] if t >= 2 else 0.0))
+        f[t, 3] = ((0.5 * f[t - 1, 3] if t >= 1 else 0.0) + v[t, 3]
+                   + (0.5 * v[t - 1, 3] if t >= 1 else 0.0))
+    return f[burn:]
+
+
+def _shiwang_loadings(n: int, rng: np.random.Generator) -> np.ndarray:
+    """Strong loadings ~ Uniform([-0.5,-0.3] U [0.3,0.5]), shape ``(n, 4)``."""
+    return rng.choice([-1.0, 1.0], size=(n, 4)) * rng.uniform(0.3, 0.5, size=(n, 4))
+
+
+def simulate_shiwang_panel(
+    N: int = 100, T1: int = 50, T2: Optional[int] = None, shock: str = "D1",
+    rng: Optional[np.random.Generator] = None, seed: Optional[int] = None,
+):
+    """Draw one sample from Shi & Wang (2024) Table-2 (single-treated, strong factors).
+
+    ``y_it = lambda_i' f_t + u_it`` with strong loadings, ``u_it ~ N(0, 0.5)``,
+    and unit-variance factors; the treated unit (index 0) gets the post-period
+    shock ``Delta_t`` (``D1`` = 0 for size; ``D4`` adds a constant 0.3 for power).
+    Returns ``(y_treated, Y_controls, T1)`` -- arrays, since the L2 size study
+    drives the estimator at the array level. The null holds for ``D1``-``D3``.
+    """
+    if rng is None:
+        rng = np.random.default_rng(seed)
+    T2 = T1 if T2 is None else T2
+    T = T1 + T2
+    f = _shiwang_factors(T, rng)                       # (T, 4)
+    y = f @ _shiwang_loadings(1, rng)[0] + _SW_NOISE_SD * rng.standard_normal(T)
+    Yc = _shiwang_loadings(N, rng) @ f.T + _SW_NOISE_SD * rng.standard_normal((N, T))
+    if shock in ("D4", "D5", "D6", "D7", "D8", "D9"):
+        const = {"D4": 0.3, "D5": 0.3, "D6": 0.3, "D7": 0.5, "D8": 0.5, "D9": 0.5}[shock]
+        y[T1:] += const
+    elif shock not in ("D1", "D2", "D3"):
+        raise ValueError(f"unknown shock {shock!r}; expected D1..D9.")
+    return y, Yc, T1

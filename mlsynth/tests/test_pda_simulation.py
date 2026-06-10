@@ -119,3 +119,39 @@ class TestLibellDgp3:
         from mlsynth.utils.pda_helpers.simulation import _libell_factors
         f = _libell_factors(50, np.random.default_rng(0))
         assert f.shape == (50, 3)
+
+
+class TestShiWangDgp:
+    """Shi & Wang (2024) Table-2 simulator (the L2-relaxation size/power design)."""
+
+    def test_shapes_and_default(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_shiwang_panel
+        y, Yc, T1 = simulate_shiwang_panel(N=100, T1=50, seed=0)
+        assert y.shape == (100,) and Yc.shape == (100, 100) and T1 == 50
+
+    def test_deterministic(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_shiwang_panel
+        a = simulate_shiwang_panel(T1=40, seed=7)[0]
+        b = simulate_shiwang_panel(T1=40, seed=7)[0]
+        np.testing.assert_array_equal(a, b)
+
+    def test_d4_adds_constant_post_shift(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_shiwang_panel
+        y0 = simulate_shiwang_panel(T1=50, shock="D1", seed=3)[0]
+        y4 = simulate_shiwang_panel(T1=50, shock="D4", seed=3)[0]
+        np.testing.assert_allclose(y4[:50], y0[:50])
+        np.testing.assert_allclose(y4[50:], y0[50:] + 0.3)
+
+    def test_unknown_shock_raises(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_shiwang_panel
+        with pytest.raises(ValueError):
+            simulate_shiwang_panel(shock="D99", seed=0)
+
+    def test_factors_and_loadings(self):
+        from mlsynth.utils.pda_helpers.simulation import (
+            _shiwang_factors, _shiwang_loadings)
+        f = _shiwang_factors(60, np.random.default_rng(0))
+        assert f.shape == (60, 4)
+        lam = _shiwang_loadings(50, np.random.default_rng(0))
+        assert lam.shape == (50, 4)
+        assert np.all((np.abs(lam) >= 0.3) & (np.abs(lam) <= 0.5))

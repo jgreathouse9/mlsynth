@@ -276,7 +276,13 @@ High-dimensional donor pools
   out-of-sample PMSE scales with the idiosyncratic noise
   (:math:`\approx 1.5 / 0.97 / 0.18` at :math:`\sigma^2 = 1 / 0.5 /
   0.1`, vs the paper's :math:`1.77 / 0.96 / 0.22`; durable:
-  ``pda_lasso_sim``). **Path A (fsPDA):** the China luxury-watch
+  ``pda_lasso_sim``). **Path B (l2):** Shi & Wang (2024) Table 2 on a
+  dense strong-factor DGP (:math:`N=100`) -- the L2-relaxation test's
+  size shrinks toward nominal as :math:`T_1` grows (:math:`0.20` at
+  :math:`T_1=50` → :math:`0.10` at :math:`200`, vs the paper's
+  :math:`0.142 \to 0.072`) and its power matches (:math:`0.567` vs
+  :math:`0.570` at :math:`T_1=50`; durable: ``pda_l2_sim``).
+  **Path A (fsPDA):** the China luxury-watch
   study (anti-corruption campaign, Jan-2013) on
   ``china_watches_long.csv`` -- forward selection picks 3 controls,
   in-sample :math:`R^2 = 0.777` and monthly ATE
