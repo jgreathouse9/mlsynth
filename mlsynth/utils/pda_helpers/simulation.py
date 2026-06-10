@@ -227,3 +227,56 @@ def simulate_pda_panel(
     return PDASimSample(df=df, Y_treated=y_tr, Y_controls=y_ctrl,
                         relevant_donors=relevant, T1=T1, T2=T2,
                         shock=label, is_null=is_null)
+
+
+# --------------------------------------------------------------------------- #
+# Li & Bell (2017) DGP3 -- the LASSO-PDA out-of-sample-prediction simulation
+# (Table 2: a dense three-factor model with N > T1).
+# --------------------------------------------------------------------------- #
+_LIBELL_BURN = 100
+
+
+def _libell_factors(T: int, rng: np.random.Generator) -> np.ndarray:
+    """Li & Bell (2017) Eq. 5.1 three factors, shape ``(T, 3)``.
+
+    ``f1`` AR(1) 0.8; ``f2`` ARMA(1,1) (-0.68, 0.8); ``f3`` MA(2) (0.9, 0.4);
+    innovations i.i.d. ``N(0, 1)``. A burn-in removes the zero initial state.
+    """
+    L = T + _LIBELL_BURN
+    v = rng.standard_normal((L, 3))
+    f = np.zeros((L, 3))
+    for t in range(L):
+        f[t, 0] = (0.8 * f[t - 1, 0] if t >= 1 else 0.0) + v[t, 0]
+        f[t, 1] = ((-0.68 * f[t - 1, 1] if t >= 1 else 0.0)
+                   + v[t, 1] + (0.8 * v[t - 1, 1] if t >= 1 else 0.0))
+        f[t, 2] = (v[t, 2] + (0.9 * v[t - 1, 2] if t >= 1 else 0.0)
+                   + (0.4 * v[t - 2, 2] if t >= 2 else 0.0))
+    return f[_LIBELL_BURN:]
+
+
+def simulate_libell_panel(
+    N: int = 31, T1: int = 25, T2: int = 10, sigma2: float = 1.0,
+    rng: Optional[np.random.Generator] = None, seed: Optional[int] = None,
+) -> pd.DataFrame:
+    """Draw one untreated panel from Li & Bell (2017) DGP3 (Eq. 5.2).
+
+    ``y_it^0 = a_i + b_i' f_t + u_it`` with ``a_i = 1``, loadings
+    ``b_ji ~ N(1, 1)`` (a *dense* factor model), idiosyncratic
+    ``u_it ~ N(0, sigma2)``, and the Eq. 5.1 factors. Unit ``0`` is the
+    "treated" unit (no effect is injected -- the case measures out-of-sample
+    prediction of its untreated path), treated over the ``T2`` post-periods.
+    Returns a long ``unit``/``time``/``y``/``treat`` frame for :class:`mlsynth.PDA`.
+    """
+    if rng is None:
+        rng = np.random.default_rng(seed)
+    T = T1 + T2
+    f = _libell_factors(T, rng)                       # (T, 3)
+    a = np.ones(N)
+    B = rng.normal(1.0, 1.0, size=(N, 3))             # b_ji ~ N(1, 1)
+    u = rng.normal(0.0, np.sqrt(sigma2), size=(N, T))
+    Y0 = a[:, None] + B @ f.T + u                      # (N, T)
+
+    rows = [{"unit": "treated" if i == 0 else f"c{i:03d}", "time": t,
+             "y": float(Y0[i, t]), "treat": int(i == 0 and t >= T1)}
+            for i in range(N) for t in range(T)]
+    return pd.DataFrame(rows)

@@ -90,3 +90,32 @@ class TestHelpers:
     def test_shock_unknown_raises(self):
         with pytest.raises(ValueError):
             _shock("D9", 10, np.random.default_rng(0))
+
+
+class TestLibellDgp3:
+    """Li & Bell (2017) DGP3 simulator (the LASSO-PDA OOS-prediction design)."""
+
+    def test_shape_treated_and_controls(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_libell_panel
+        df = simulate_libell_panel(N=31, T1=25, T2=10, seed=0)
+        assert df["unit"].nunique() == 31 and df["time"].nunique() == 35
+        tr = df[df["unit"] == "treated"].sort_values("time")
+        assert tr["treat"].tolist() == [0] * 25 + [1] * 10
+        assert (df[df["unit"] != "treated"]["treat"] == 0).all()
+
+    def test_deterministic(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_libell_panel
+        a = simulate_libell_panel(seed=7)["y"].to_numpy()
+        b = simulate_libell_panel(seed=7)["y"].to_numpy()
+        np.testing.assert_array_equal(a, b)
+
+    def test_sigma2_scales_idiosyncratic_variance(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_libell_panel
+        lo = simulate_libell_panel(sigma2=0.1, seed=1)["y"].var()
+        hi = simulate_libell_panel(sigma2=4.0, seed=1)["y"].var()
+        assert hi > lo
+
+    def test_factors_shape(self):
+        from mlsynth.utils.pda_helpers.simulation import _libell_factors
+        f = _libell_factors(50, np.random.default_rng(0))
+        assert f.shape == (50, 3)
