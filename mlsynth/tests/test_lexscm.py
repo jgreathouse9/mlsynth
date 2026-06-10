@@ -1081,7 +1081,8 @@ class TestLexSearchEdges:
 
     def test_select_treated_designs_not_enough_candidates(self):
         G = self._G(J=3)
-        with pytest.raises(MlsynthConfigError, match="budget-feasible"):
+        # 3 candidates, m=5 -> the feasibility audit reports the candidate pool.
+        with pytest.raises(MlsynthConfigError, match="candidate pool"):
             select_treated_designs(G=G, candidate_idx=np.arange(3), m=5,
                                      top_K=3, unit_costs=None, budget=None,
                                      unit_index=None, method="auto")

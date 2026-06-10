@@ -157,27 +157,35 @@ def is_independent(conflict: Optional[np.ndarray], idx) -> bool:
     return not bool(np.any(np.triu(sub, k=1)))
 
 
+def greedy_independent_set_size(conflict: Optional[np.ndarray], candidate_idx) -> int:
+    """Size of a greedy minimum-degree independent set among ``candidate_idx``.
+
+    A **lower bound** on the maximum independent set (greedy can undercount), so
+    it is sound as a *sufficient* feasibility signal: if it reaches ``m`` a
+    conflict-free ``m``-tuple certainly exists.
+    """
+    if conflict is None:
+        return len(np.asarray(list(candidate_idx)))
+    cand = np.asarray(list(candidate_idx), dtype=int)
+    sub = conflict[np.ix_(cand, cand)]
+    remaining = list(range(len(cand)))
+    chosen = 0
+    while remaining:
+        deg = sub[np.ix_(remaining, remaining)].sum(axis=1)
+        pick = remaining[int(np.argmin(deg))]
+        chosen += 1
+        # drop pick and all its neighbours within the remaining set
+        remaining = [r for r in remaining if r != pick and not sub[pick, r]]
+    return chosen
+
+
 def max_independent_set_size_at_least(conflict: Optional[np.ndarray], candidate_idx, m: int) -> bool:
     """Cheap sufficient feasibility check: can a size-``m`` independent set exist
-    among ``candidate_idx``?
-
-    Uses a greedy minimum-degree construction (sound as a *lower* bound on the
-    maximum independent set): if the greedy set already reaches ``m`` the answer
-    is certainly yes. Greedy can undercount, so a ``False`` is only advisory; the
-    search itself raises the definitive infeasibility error if it finds nothing.
+    among ``candidate_idx``? (Greedy lower bound; a ``False`` is only advisory.)
     """
     if conflict is None:
         return True
     cand = np.asarray(list(candidate_idx), dtype=int)
     if len(cand) < m:
         return False
-    sub = conflict[np.ix_(cand, cand)]
-    remaining = list(range(len(cand)))
-    chosen = 0
-    while remaining and chosen < m:
-        deg = sub[np.ix_(remaining, remaining)].sum(axis=1)
-        pick = remaining[int(np.argmin(deg))]
-        chosen += 1
-        # drop pick and all its neighbours within the remaining set
-        remaining = [r for r in remaining if r != pick and not sub[pick, r]]
-    return chosen >= m
+    return greedy_independent_set_size(conflict, cand) >= m
