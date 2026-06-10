@@ -845,6 +845,11 @@ The Monte Carlo standard error of the mean at :math:`M = 200` is
 :math:`\hat\lambda` does not introduce systematic bias, and ``mlsynth``
 and the reference impl produce statistically identical samples.
 
+Both checks are wired as the durable benchmark ``mlsc_bottmer``, which
+clones the author's repository (pinned commit ``0fb2639``) at run time,
+runs both estimators on the README DGP, and skips gracefully when the
+reference or its dependencies are unavailable.
+
 Empirical application
 ^^^^^^^^^^^^^^^^^^^^^
 
