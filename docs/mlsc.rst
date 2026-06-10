@@ -198,7 +198,7 @@ dependency.
 Selecting :math:`\lambda`: Heuristic and Fixed Modes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Two penalty-selection rules are exposed via
+Three penalty-selection rules are exposed via
 :class:`mlsynth.config_models.MLSCConfig.lambda_est`:
 
 * ``'heuristic'`` — the closed-form rule from Section 5.2 of the
@@ -222,9 +222,16 @@ Two penalty-selection rules are exposed via
   disaggregated-SC regimes) and for reproducing the paper's grid-
   search experiments.
 
-The cross-validation-over-time rule from Section 5.2 is not yet
-exposed in v1 of the :mod:`mlsynth` implementation; it is on the
-short-term roadmap.
+* ``'cross-validation'`` — the rolling cross-validation-over-time
+  rule from Section 5.2. The last ``cv_holdout_periods`` pre-treatment
+  periods are held out as a one-step-ahead forecast target; the
+  penalized program is refit over ``lambda_grid`` on the earlier
+  pre-period and the :math:`\lambda` with the smallest held-out
+  forecast MSE is selected (the ``0`` grid point recovers
+  fully-disaggregated SC). This is a faithful port of the reference
+  ``get_lambda_cv``; on the README DGP it selects the same grid
+  penalty as the reference (e.g. :math:`316.23` on the seed-42 panel),
+  and the cross-check is wired into the ``mlsc_bottmer`` benchmark.
 
 Variance Decomposition (Appendix G)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

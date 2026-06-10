@@ -27,8 +27,8 @@ class MLSCConfig(BaseModel):
     classical SC in the large-penalty limit and fully-disaggregated SC at
     penalty zero.
 
-    v1 implements only the heuristic and fixed-lambda penalty-selection
-    paths from Section 5.2 of the paper; cross-validation will follow.
+    Implements all three Section-5.2 penalty-selection paths: the heuristic
+    closed form, a fixed lambda, and rolling cross-validation over time.
     """
 
     df_agg: pd.DataFrame = Field(
@@ -86,19 +86,42 @@ class MLSCConfig(BaseModel):
             "simulation default)."
         ),
     )
-    lambda_est: Literal["heuristic", "fixed"] = Field(
+    lambda_est: Literal["heuristic", "fixed", "cross-validation"] = Field(
         default="heuristic",
         description=(
             "Penalty-selection rule. 'heuristic' uses the Appendix-B closed "
             "form ``lambda = 2 * sigma_eps^2 / sigma_y^2`` estimated from "
             "the disaggregate pre-treatment panel (Appendix G). 'fixed' uses "
-            "``lambda_val`` directly. Cross-validation is planned for v2."
+            "``lambda_val`` directly. 'cross-validation' implements the "
+            "Section-5.2 rolling cross-validation over time: it holds out the "
+            "last ``cv_holdout_periods`` pre-treatment periods, refits over "
+            "``lambda_grid``, and selects the penalty with the smallest "
+            "held-out forecast MSE."
         ),
     )
     lambda_val: float = Field(
         default=1e-4,
         ge=0.0,
         description="Penalty value used when ``lambda_est == 'fixed'``.",
+    )
+    lambda_grid: Optional[List[float]] = Field(
+        default=None,
+        description=(
+            "Candidate penalties for ``lambda_est == 'cross-validation'``. "
+            "``None`` (default) uses the reference grid "
+            "``[0] + logspace(1e-8, 5, 50) + logspace(10, 1000, 5)``; the "
+            "``0`` candidate corresponds to fully-disaggregated SC."
+        ),
+    )
+    cv_holdout_periods: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "Number of trailing pre-treatment periods held out as the "
+            "cross-validation forecast target when "
+            "``lambda_est == 'cross-validation'`` (the reference "
+            "``t_cv_periods``)."
+        ),
     )
     solver: Any = Field(
         default=None,
