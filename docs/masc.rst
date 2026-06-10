@@ -393,26 +393,29 @@ donor candidates), 1955-1997, with the JASA predictor specification
        if w > 0.05:
            print(f"  {u:<32s} {w:.3f}")
 
-This prints (roughly)::
+This prints::
 
-   Selected m   : 1
-   Selected phi : 0.324
-   Pre-RMSE     : $97/capita
-   ATT          : $-641/capita/year
+   Selected m   : 3
+   Selected phi : 0.308
+   Pre-RMSE     : $89/capita
+   ATT          : $-816/capita/year
    Top donors:
-     Cataluna                         0.640
-     Madrid (Comunidad De)            0.225
-     Principado De Asturias           0.063
-     Baleares (Islas)                 0.054
+     Cataluna                         0.446
+     Madrid (Comunidad De)            0.298
+     Baleares (Islas)                 0.211
 
 The paper [KMPT2021]_, Section 5, reports MASC ≡ SCE
 (:math:`\hat\varphi = 0`), pre-RMSE :math:`\approx \$94`, ATT
 :math:`\approx -\$580`/capita/year, with donor weights ``Cataluna 0.85``,
-``Madrid 0.15``. The dominant donors (Cataluna + Madrid) agree, both
-quantitatively (Cataluna 0.64 + Madrid 0.23 here vs.\ 0.85 + 0.15 in
-KMPT) and in pre-RMSE (:math:`\$97` vs.\ :math:`\$94`). The ATT
-:math:`-\$641` is within :math:`\$60` of the published :math:`-\$580`;
-the residual gap is the documented V-optimiser non-uniqueness below.
+``Madrid 0.15``. The agreement is on the robust quantities: Cataluna is the
+dominant donor in both, Cataluna + Madrid carry most of the SC weight
+(:math:`0.45 + 0.30 = 0.74` here vs.\ :math:`0.85 + 0.15` in KMPT), and the
+pre-RMSE matches (:math:`\$89` vs.\ :math:`\$94`). The ATT :math:`-\$816`
+shares the paper's sign and :math:`\$600`-:math:`\$800` magnitude but sits
+below the published :math:`-\$580`; the level difference is the V-optimiser
+non-uniqueness documented below (mlsynth's CV prefers a small amount of
+matching, :math:`\hat\varphi \approx 0.31`, :math:`m = 3`, rather than the
+paper's pure SC). The durable check is ``benchmarks/cases/masc_basque.py``.
 
 .. note::
 
