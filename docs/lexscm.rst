@@ -436,6 +436,43 @@ design. With no ``cluster_col`` / ``adjacency`` supplied, :math:`\mathbf{A} =
    LEXSCM({"df": df, "outcome": "y", "unitid": "unit", "time": "year",
            "candidate_col": "eligible", "m": 2, "cluster_col": "state"}).fit()
 
+Coverage quotas and size bands
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Two further treatment criteria from the same design checklist restrict *which*
+units may be treated -- both, like the spillover "no interference" rule, act on
+the admissible supports and never enter the inner weight program.
+
+* **Coverage / stratification.** Give each unit a stratum (region / tier /
+  segment) via ``stratum_col``. ``min_per_stratum`` requires at least that many
+  treated units from **every stratum that has a candidate** ("test in every
+  region"); ``max_per_stratum`` allows at most that many ("a quota"). Formally
+  the treated set :math:`\mathcal{S}` must satisfy
+  :math:`\texttt{min} \le |\{j \in \mathcal{S} : g(j) = s\}| \le \texttt{max}`
+  for each candidate stratum :math:`s`, where :math:`g(j)` is unit :math:`j`'s
+  stratum. (Setting ``max_per_stratum = 1`` mirrors a ``cluster_col`` quota on
+  the treated side, but unlike the spillover rule it does **not** also clean the
+  donor pool.)
+
+* **Treated-unit size bands.** With ``size_col`` and ``min_size`` / ``max_size``,
+  only units whose size lies in :math:`[\texttt{min\_size}, \texttt{max\_size}]`
+  are eligible for **treatment** (they remain available as donors). The floor is
+  a power / operational minimum; the ceiling encodes the convex-hull limit -- a
+  unit far larger than the rest cannot be reproduced by a convex combination of
+  the others (Vives-i-Bastida excludes big cities for exactly this reason).
+
+Either constraint raises :class:`~mlsynth.exceptions.MlsynthConfigError` when it
+is infeasible (e.g. ``min_per_stratum`` over more strata than :math:`m`, or fewer
+than :math:`m` candidates inside the size band).
+
+.. code-block:: python
+
+   # cover every region, at most two per region, and only mid-sized markets
+   LEXSCM({"df": df, "outcome": "y", "unitid": "unit", "time": "year",
+           "candidate_col": "eligible", "m": 4,
+           "stratum_col": "region", "min_per_stratum": 1, "max_per_stratum": 2,
+           "size_col": "population", "min_size": 50_000, "max_size": 2_000_000}).fit()
+
 Stage 3 -- Power analysis (minimum detectable effect)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
