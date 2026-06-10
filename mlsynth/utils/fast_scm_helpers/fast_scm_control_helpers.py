@@ -118,7 +118,8 @@ def solve_control_qp(
     X_E: np.ndarray,
     treated_vec: np.ndarray,
     treated_idx: List[int],
-    lambda_penalty: float = 0.1
+    lambda_penalty: float = 0.1,
+    exclude_idx: Optional[List[int]] = None,
 ) -> Optional[np.ndarray]:
     """
     Solve for synthetic control weights given a treated trajectory.
@@ -133,12 +134,18 @@ def solve_control_qp(
         Indices of treated units to exclude from the control.
     lambda_penalty : float, default=0.1
         Regularization strength for mismatch penalties.
+    exclude_idx : list of int, optional
+        Additional indices to drop from the donor pool -- the spillover
+        neighbours ``N(S)`` of the treated units (Vives-i-Bastida "exclusion
+        restriction": a treated unit's same-cluster/adjacent units may not serve
+        as its controls, so the treatment cannot contaminate the counterfactual).
 
     Returns
     -------
     v : np.ndarray, shape (N,) or None
-        Synthetic control weights over all units. Entries at treated
-        indices are zero. Returns None if optimization fails.
+        Synthetic control weights over all units. Entries at treated AND excluded
+        indices are exactly zero. Returns None if optimization fails (including
+        when the exclusions empty the donor pool).
 
     Notes
     -----
@@ -156,8 +163,10 @@ def solve_control_qp(
     # submatrix is mathematically identical to constraining the treated weights
     # to zero, since the penalty term is separable in ``v`` and a zero weight
     # contributes nothing.
-    treated_set = {int(j) for j in treated_idx}
-    control_idx = np.array([i for i in range(N) if i not in treated_set], dtype=int)
+    excluded = {int(j) for j in treated_idx}
+    if exclude_idx is not None:
+        excluded |= {int(j) for j in exclude_idx}
+    control_idx = np.array([i for i in range(N) if i not in excluded], dtype=int)
     if control_idx.size == 0:
         return None
 

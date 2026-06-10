@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 from pydantic import Field
 from ...config_models import BaseMAREXConfig
 
@@ -51,6 +51,35 @@ class LEXSCMConfig(BaseMAREXConfig):
         gt=0,
         description="Hard total budget for the sum of treatment costs of the "
                     "selected treated units."
+    )
+
+    # =========================================================
+    # SPILLOVER / INTERFERENCE EXCLUSIONS (Vives-i-Bastida 2022)
+    # =========================================================
+
+    cluster_col: Optional[str] = Field(
+        default=None,
+        description="Optional column assigning each unit to a spillover cluster "
+                    "(e.g. state/province; constant within unit). Enforces the "
+                    "Vives-i-Bastida (2022) interference exclusions: treated units "
+                    "may not share a cluster (Stage-1 'no interference'), and a "
+                    "treated unit's same-cluster units are barred from its donor "
+                    "pool (Stage-2 'exclusion restriction')."
+    )
+
+    adjacency: Optional[Any] = Field(
+        default=None,
+        description="Optional spillover/adjacency matrix: a (J, J) array in sorted "
+                    "unit-id order, or a pandas DataFrame indexed and columned by "
+                    "unit id (preferred -- order-independent). Two units conflict "
+                    "when their entry exceeds `spillover_threshold`. Combined with "
+                    "`cluster_col` via logical OR."
+    )
+
+    spillover_threshold: float = Field(
+        default=0.0, ge=0.0,
+        description="Adjacency entries strictly above this value count as a "
+                    "spillover conflict (default 0.0: any positive entry)."
     )
 
     seed: int = 42

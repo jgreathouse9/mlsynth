@@ -25,6 +25,7 @@ from ..utils.fast_scm_helpers.fast_scm_setup import (
 # Utilities - Search and Evaluation
 from ..utils.fast_scm_helpers.lexsearch import select_treated_designs
 from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
+from ..utils.fast_scm_helpers.conflict import build_conflict_matrix
 # Utilities - Power and Ranking
 from ..utils.fast_scm_helpers.lexpower import detectability_curve
 from ..utils.fast_scm_helpers.lexselect import DesignMetrics, select_design
@@ -177,6 +178,9 @@ class LEXSCM:
         self.weight_col: Optional[str] = config.weight_col
         self.unit_cost_col: Optional[str] = config.unit_cost_col
         self.budget: Optional[float] = config.budget
+        self.cluster_col: Optional[str] = config.cluster_col
+        self.adjacency = config.adjacency
+        self.spillover_threshold: float = config.spillover_threshold
         self.frac_E: float = config.frac_E
 
         # =========================================================
@@ -371,6 +375,21 @@ class LEXSCM:
         # If no budget is provided, set to infinity so no pruning occurs
         effective_budget = self.budget if self.budget is not None else np.inf
 
+        # --- Spillover conflict graph (Vives-i-Bastida interference exclusions) ---
+        # The IndexSet is the source of truth, so build the (J, J) conflict matrix
+        # aligned to it; one graph drives both Stage-1 (no co-treating conflicting
+        # units) and Stage-2 (no conflicting unit as a treated unit's donor).
+        cluster_of = None
+        if self.cluster_col is not None:
+            cluster_of = (self.df.groupby(self.unitid)[self.cluster_col]
+                          .first().to_dict())
+        conflict = build_conflict_matrix(
+            unit_index,
+            cluster_of=cluster_of,
+            adjacency=self.adjacency,
+            spillover_threshold=self.spillover_threshold,
+        )
+
         # ---------- Stage 1: treated-tuple selection (lexsearch) ----------
         search = select_treated_designs(
             G=G,
@@ -382,6 +401,7 @@ class LEXSCM:
             unit_index=unit_index,
             method="auto",
             random_state=self.seed,
+            conflict=conflict,
         )
         selection_results = {"top_tuples": search["top_designs"], "stats": search["stats"]}
 
@@ -394,7 +414,8 @@ class LEXSCM:
             f=self.f,
             E_idx=E_idx,
             B_idx=B_idx,
-            lambda_penalty=self.lambda_penalty, index_set=unit_index
+            lambda_penalty=self.lambda_penalty, index_set=unit_index,
+            conflict=conflict,
         )
 
         # ----- Stage 3: power / MDE (moving-block placebo null) -----------
