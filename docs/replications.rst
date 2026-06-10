@@ -259,7 +259,7 @@ High-dimensional donor pools
   Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} = -20.15`,
   pre-:math:`R^2 = 0.970`, CV RMSPE :math:`= 1.605` vs. the
-  full-pool baseline 2.916.
+  full-pool baseline 2.916 (durable: ``fscm_prop99``).
 * :doc:`sparse_sc` -- Sparse SC. **Path A:** California
   Proposition 99 with an over-rich augmented predictor set, with
   conformal inference -- the L1 penalty prunes to 6 of 33 predictors
