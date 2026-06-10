@@ -93,6 +93,16 @@ class SequentialSDID:
     single-treated-unit panels the algorithm still runs but the formal
     efficiency results don't apply.
 
+    Each treated cohort's counterfactual is balanced against the cohorts that
+    adopt *after* it (plus any never-treated cohort). A cohort therefore needs
+    at least two such donor cohorts to balance even a rank-one interactive
+    fixed effect -- with a single donor its effect collapses to an unbalanced
+    DiD and is biased under interactive fixed effects, a bias that also
+    cascades backward through the sequential imputation. The latest cohorts are
+    the most exposed; ``fit()`` emits a :class:`UserWarning` naming any
+    donor-starved cohort and the largest ``a_max`` that keeps every estimated
+    cohort balanced.
+
     References
     ----------
     Arkhangelsky, D., & Samkov, A. (2025). "Sequential Synthetic Difference
