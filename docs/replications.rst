@@ -81,8 +81,20 @@ Canonical workhorses
   packs), German reunification (Austria-dominant donor pool), Basque
   (Cataluna :math:`\approx 0.8` + Madrid :math:`\approx 0.2`, ATT
   :math:`\approx -0.68`); plus the Lei-Sudijono (2025) leave-two-out Table-1
-  p-value relations.
+  p-value relations. The Prop 99 fit reproduces ADH 2010 Table 2 with the full
+  predictor spec (Utah 0.335, Nevada 0.236, Montana 0.202, Colorado 0.160,
+  Connecticut 0.068, each within 0.005 of the paper; durable:
+  ``vanillasc_prop99``).
   → dedicated page: :doc:`replications/vanillasc`.
+* :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)
+  matching + synthetic control. **Path A:** the KMPT Section-5
+  Basque Country / ETA-terrorism study on ``basque_jasa.csv`` --
+  the Cataluna-dominated donor pool and pre-period RMSE
+  (:math:`\approx \$89` vs the paper's :math:`\$94`) agree, and the
+  ATT (:math:`-\$816`/capita) shares the paper's sign and
+  :math:`\$600`-:math:`\$800` magnitude; the level differs because
+  the SC predictor-weight (``V``) optimiser is non-unique
+  (durable: ``masc_basque``).
 * :doc:`fdid` -- Li (2024) Forward Difference-in-Differences.
   **Path A:** the author's public Hong Kong GDP companion replication
   reproduced cell by cell (FDID ATT :math:`0.0254`, :math:`53.84\%`,
@@ -268,9 +280,11 @@ Time-aware and factor models
 * :doc:`tasc` -- Rho et al. (2026) time-aware SC. **Path A:**
   Proposition 99 -- pre-RMSE 0.767, ATT -16.793, gap of -24
   packs by 2000 against the paper's Figure 10 gap of -25 to -30.
-  **Path B:** Section 5.2 :math:`(Q, R)` ablation grid (30 reps);
-  TASC dominates the simplex-SC baseline in all four cells, with
-  a :math:`4.5\times` margin at big-:math:`Q` / small-:math:`R`.
+  **Path B:** the Section-5.2 :math:`(q, r)` state-space ablation
+  (Figures 3-4) -- TASC has the smaller median counterfactual RMSE
+  than vanilla SC in **all four** regimes (ratio 0.84-0.93),
+  strongest under high observation noise, the paper's headline
+  (durable: ``tasc_mc``).
 
 .. _replications-staggered:
 
