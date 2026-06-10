@@ -308,6 +308,24 @@ de-meaned post-period effects. **No first-stage variance term is needed** --
 the asymptotic independence absorbs it -- which makes fsPDA's inference the
 simplest of the three.
 
+.. note::
+
+   **Long-run-variance estimator.** ``mlsynth`` defaults to the **prewhitened
+   Newey-West** estimator (Andrews-Monahan VAR(1) prewhitening + Bartlett kernel
+   with the data-driven NW(1994) bandwidth + finite-sample adjustment) -- R's
+   ``sandwich::lrvar(..., prewhite = TRUE, adjust = TRUE)``, which Shi & Huang
+   use in their application scripts. Prewhitening is essential when the
+   treatment-effect series is strongly serially dependent: monthly growth rates
+   mean-revert (lag-1 autocorrelation around :math:`-0.45` in the luxury-watch
+   panel), and a plain Bartlett kernel cannot absorb that, leaving
+   :math:`\hat\rho` nearly double its true value and the test far too
+   conservative. Setting ``lrvar_lag`` instead switches to the released
+   ``est.fsPDA`` package's fixed-lag Bartlett estimator
+   (default lag :math:`\lfloor T_2^{1/4}\rfloor`, capped at
+   :math:`\lfloor\sqrt{T_2}\rfloor`); on the watch panel that no-prewhitening
+   form gives an insignificant :math:`t \approx -1.15`, versus the prewhitened
+   default's :math:`-2.51` (the paper reports :math:`-2.457`).
+
 **When to use.** A large candidate-control pool where the goal is to
 *synthesize an ensemble* that mimics the outcome (not to interpret which
 controls are "causal"); when computational efficiency and honest

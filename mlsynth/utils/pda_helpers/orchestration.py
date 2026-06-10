@@ -27,7 +27,7 @@ def _weights_dict(beta: np.ndarray, labels: np.ndarray) -> Dict[Any, float]:
 
 def run_pda(
     inputs: PDAInputs, methods: List[str], tau: Optional[float], alpha: float,
-    fs_intercept: bool = False,
+    fs_intercept: bool = False, lrvar_lag: Optional[int] = None,
 ) -> Dict[str, PDAMethodFit]:
     """Fit each requested PDA variant with its own paper's inference."""
     y, X, T0 = inputs.y, inputs.X, inputs.T0
@@ -47,7 +47,7 @@ def run_pda(
             selected = [labels[i] for i in np.where(support)[0]]
         elif m == FS:
             sel_idx, beta, intercept, cf = forward_select(y, X, T0, intercept=fs_intercept)
-            att, se, ci, p = fs_ate_inference(y, cf, T0, alpha=alpha)
+            att, se, ci, p = fs_ate_inference(y, cf, T0, alpha=alpha, lrvar_lag=lrvar_lag)
             selected = [labels[i] for i in sel_idx]
         else:
             raise ValueError(f"Unknown PDA method: {m!r}")

@@ -270,7 +270,14 @@ High-dimensional donor pools
   matching the paper; both fully powered at ``D5`` (durable:
   ``pda_table1``). mlsynth's LASSO is cross-validated, not the
   paper's modified-BIC, so its LASSO cells are a CV variant, not
-  a cell-by-cell match.
+  a cell-by-cell match. **Path A (fsPDA):** the China luxury-watch
+  study (anti-corruption campaign, Jan-2013) on
+  ``china_watches_long.csv`` -- forward selection picks 3 controls,
+  in-sample :math:`R^2 = 0.777` and monthly ATE
+  :math:`-3.09\%`, matching Shi & Huang's Section 5 cell-for-cell;
+  with the prewhitened Newey-West variance from their application
+  script the effect is significant (:math:`t = -2.51` vs the paper's
+  :math:`-2.457`; durable: ``pda_luxurywatch``).
 * :doc:`fscm` -- Cerulli (2024) forward-selected SC. **Path A:**
   Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} = -20.15`,

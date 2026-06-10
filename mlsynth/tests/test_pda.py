@@ -219,6 +219,46 @@ def test_newey_west_lag_values():
     assert newey_west_lag(500) > newey_west_lag(50)
 
 
+def test_fspda_lrvar_lag_rule_and_cap():
+    from mlsynth.utils.pda_helpers.inference import fspda_lrvar_lag
+    # default rule: floor(T2 ** 1/4)
+    assert fspda_lrvar_lag(36) == 2          # floor(36**.25)=2
+    assert fspda_lrvar_lag(100) == 3         # floor(100**.25)=3
+    # explicit lag within the floor(sqrt(T2)) cap is accepted
+    assert fspda_lrvar_lag(100, 5) == 5
+    # over the cap or negative -> error
+    with pytest.raises(ValueError):
+        fspda_lrvar_lag(36, 99)
+    with pytest.raises(ValueError):
+        fspda_lrvar_lag(36, -1)
+
+
+def test_prewhitened_nw_lrvar_handles_negative_autocorr():
+    from mlsynth.utils.pda_helpers.inference import lrvar_prewhite_nw, hac_lrv
+    # Strongly mean-reverting (lag-1 autocorr ~ -1) series: prewhitening should
+    # shrink the long-run variance of the mean well below the iid 1/n level.
+    z = np.tile([1.0, -1.0], 30)
+    v_pw = lrvar_prewhite_nw(z)
+    assert v_pw >= 0 and np.isfinite(v_pw)
+    assert v_pw < np.var(z) / z.size          # below the naive var(mean)
+    # short series falls back gracefully
+    assert np.isfinite(lrvar_prewhite_nw(np.array([1.0, 2.0, 3.0])))
+
+
+def test_fs_lrvar_lag_override_changes_se(rng_panel_factory=None):
+    # Default fs (prewhitened NW) vs the fixed-lag Bartlett override should give
+    # different standard errors on a serially-dependent effect series.
+    from mlsynth.utils.pda_helpers.fs.inference import fs_ate_inference
+    rng = np.random.default_rng(0)
+    T0, T2 = 30, 24
+    y = np.r_[rng.normal(size=T0), 2.0 + np.tile([1.0, -1.0], T2 // 2)]
+    cf = np.r_[y[:T0], np.zeros(T2)]
+    _, se_default, _, _ = fs_ate_inference(y, cf, T0)
+    _, se_bartlett, _, _ = fs_ate_inference(y, cf, T0, lrvar_lag=2)
+    assert se_default > 0 and se_bartlett > 0
+    assert not np.isclose(se_default, se_bartlett)
+
+
 def test_hac_lrv_empty_is_nan():
     assert np.isnan(hac_lrv(np.array([])))
 
