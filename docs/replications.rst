@@ -11,10 +11,10 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Thirty-three of the
-thirty-six estimators are currently fully verified, and three carry
-partial replications (one-draw illustrations or empirical
-applications without an explicit number-match).
+This page catalogues those replications. Thirty-five of the
+thirty-six estimators are currently fully verified; ISCM carries a
+one-draw illustration only (its paper relies on a non-public panel
+and provides no Monte Carlo to reproduce).
 
 * The :ref:`replications-canonical` section covers the workhorse
   SC variants you would reach for first.
@@ -50,6 +50,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/tssc
    replications/vanillasc
    replications/sparse_sc
+   replications/nsc
    replications/sdid
    replications/mcnnm
    replications/spsydid
@@ -183,11 +184,19 @@ Convex-hull relaxation
   :math:`\widehat{\mathrm{ATT}} \approx 3.0` and a small outside-
   hull fit metric, illustrating the all-units-as-synthetic-
   controls construction. *Full Monte Carlo replication queued.*
-* :doc:`nsc` -- Nonlinear SC. **Path B (one-draw):** Tian (2023)
-  Section 4 nonlinear DGP with :math:`J = 12`, :math:`T = 18`,
-  :math:`\tau_{\mathrm{true}} = 0.10` -- recovered
-  :math:`\widehat{\tau} \approx 0.10`. *Averaged Monte Carlo
-  queued.*
+* :doc:`nsc` -- Nonlinear SC. **Cross-validation:** matched to
+  Tian's (2023) own R implementation on the Proposition 99 panel
+  (Table 2) -- per-donor NSC weights track the author's to
+  correlation 0.989 (max :math:`|\Delta| = 0.024`), recovering the
+  same signed donor pool, with an average effect :math:`-19.1` and
+  an effect path (:math:`-9.1/-22.6/-27.0` in 1990/1995/2000)
+  matching the paper's :math:`-9.5/-24.5/-28.7`. **Path B:** the
+  nonlinear-outcome Monte Carlo (Section 4, Table 1) -- on the
+  :math:`r = 2` panel NSC's 95% CI covers near nominal
+  (:math:`0.93/0.97` at :math:`J = 25/50`, paper
+  :math:`0.935/0.950`) and the error shrinks as the donor pool
+  grows. → dedicated page: :doc:`replications/nsc`; durable cases
+  ``nsc_prop99``, ``nsc_mc``.
 
 .. _replications-highdim:
 
@@ -243,7 +252,8 @@ High-dimensional donor pools
   Proposition 99 with an over-rich augmented predictor set, with
   conformal inference -- the L1 penalty prunes to 6 of 33 predictors
   and the effect lands at :math:`-17.9` packs (95% CI
-  :math:`[-21.3, -15.4]`) on the ADH donor pool. See the
+  :math:`[-21.3, -15.4]`) on the ADH donor pool (durable:
+  ``sparse_sc_prop99``). See the
   :doc:`dedicated page <replications/sparse_sc>`.
 
 .. _replications-time:
@@ -433,10 +443,10 @@ Coverage summary
      - 5
      - Complete (SCMO, CTSC, DSC, SI, MicroSynth)
    * - Convex-hull relaxation
-     - 0 (2 partial)
+     - 1
      - 2
-     - ISCM and NSC have one-draw illustrations;
-       averaged Monte Carlos queued
+     - NSC ✓ (cross-validated vs author's R + Path-B MC);
+       ISCM one-draw only (non-public panel, no MC)
    * - High-dimensional donors
      - 7
      - 7
@@ -467,11 +477,11 @@ Coverage summary
      - 5
      - Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)
 
-Of mlsynth's 36 estimators, 33 (92%) carry a strong or solid
+Of mlsynth's 36 estimators, 35 (97%) carry a strong or solid
 replication against their source paper or against an
-authoritative reference implementation. ISCM, NSC, and
-SPARSE_SC carry partial replications -- one-draw illustrations
-or empirical applications without an explicit number-match.
+authoritative reference implementation. Only ISCM remains a
+one-draw illustration -- its paper relies on a non-public panel
+and provides no Monte Carlo to reproduce.
 
 Contributing a replication
 --------------------------

@@ -344,6 +344,16 @@ qualitative finding -- NSC beats OSC (the non-negativity-restricted
 original) on bias in the nonlinear regime, and matches it in the
 linear one.
 
+.. note::
+
+   **Verification.** NSC is validated two ways: a **cross-validation**
+   against Tian's own R implementation on Proposition 99 (weights match
+   to correlation 0.989; effect path :math:`-9.1/-22.6/-27.0` vs the
+   paper's :math:`-9.5/-24.5/-28.7`) and the **Path-B** nonlinear Monte
+   Carlo (near-nominal coverage; error shrinking with the donor pool).
+   See the dedicated page :doc:`replications/nsc`; durable checks
+   ``nsc_prop99`` and ``nsc_mc``.
+
 .. code-block:: python
 
    """Tian (2023) Section 4 DGP: NSC vs OSC bias as nonlinearity rises.
