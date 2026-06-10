@@ -117,3 +117,133 @@ Regardless of path or scenario, a benchmark is *done* only when **all** of:
    and the estimator page's Verification pointer.
 6. Confirm `python benchmarks/run_benchmarks.py --case <name>` passes, then
    `--all` to confirm no regression.
+
+## Field notes (hard-won)
+
+Patterns and traps from building the SEQ_SDID, SPARSE_SC, NSC, VanillaSC, MASC,
+TASC, FSCM and PDA cases. These complement the DoD above; they are the things
+that actually cost time.
+
+### Tolerances & determinism
+
+- **Center `EXPECTED` on the *measured* deterministic value, not the paper's
+  printed one.** Demonstrate-first, capture the exact output, then set the
+  center to what the code produced and the tolerance to the regression band you
+  want. Re-centering after the first registered run is normal (did it for
+  `seq_sdid_mc`, `nsc_mc`, `tasc_mc`). A deterministic case's tolerance is a
+  *regression guard*, not a noise budget — it does not need to be wide.
+- **Pin every RNG seed and say which.** Structural seed, per-draw shock seed,
+  and bootstrap seed are independent — fix all three (`seq_sdid_mc` uses
+  structural `2024`, shock `8000+m`, bootstrap `7`). Global-search optimisers
+  count too: MSCMT's `differential_evolution` is seeded, so VanillaSC/MASC
+  covariate fits are deterministic.
+- **Read the actual got-values off a failing run.** Registering with rough
+  `EXPECTED` then reading the harness's `got` column is the fastest way to pin
+  exact deterministic cells (and to catch a key-name typo — a `MISSING` row
+  means the `run()` key doesn't match an `EXPECTED` key, e.g. `LASSO` vs
+  `lasso`).
+
+### Monte-Carlo design (Path B)
+
+- **Fix the structure; redraw only the shocks.** Re-drawing the whole DGP per
+  replication injects variance a within-panel bootstrap cannot see, so coverage
+  comes out wrong. The paper's "treat estimated components as fixed, resample
+  the idiosyncratic shocks" device is what makes the bootstrap a valid coverage
+  measure. This was *the* fix for `seq_sdid_mc`; `simulate_*` helpers that back a
+  coverage MC should separate a `calibrate_*` (structure, once) from a
+  `simulate_replication` (shocks, per draw). Same shape in `tasc_mc`.
+- **Don't assert a signed bias at benchmark `M`.** Per-period signed bias is
+  often ~0.01 with SE ≈ SD/√M; at `M`≈40 it is pure noise. Assert the *robust*
+  quantities the paper highlights — coverage near nominal, error-shrinks-with-J,
+  RMSE ratios `< 1` — and merely *report* bias (`nsc_mc`). MC tolerance scale:
+  coverage SE ≈ √(p(1−p)/(M·n_periods)).
+- **Geometry vs cells, stated honestly.** Under scenario-1 reconstruction you
+  usually can't hit exact cells. Assert the qualitative geometry (all ratios
+  `<1`; DiD coverage collapses while the method stays nominal) with headline
+  cells in a generous band, and *say in prose it is geometry, not a cell match*.
+- **Watch for design-specific feasibility traps.** SEQ_SDID needs ≥2
+  later/never-treated donor cohorts per estimated cohort or its effect collapses
+  to an unbalanced DiD; the MC must spread adoption and cap `a_max` so every
+  estimated cohort is donor-balanced. Surface such traps as estimator
+  diagnostics, not just benchmark knobs.
+
+### Cross-validation against the authors' code
+
+- **Stochastic hyperparameter selection does not port.** If the reference's CV
+  draws a random held-in unit each fold (NSC's `fn_cv`, MASC's analytic CV), you
+  cannot reproduce its *selection* in Python. Fix the reference's **reported
+  selected** hyperparameter (NSC `a*=0.3, b*=0.7`) and cross-validate the
+  deterministic downstream estimate. Document the substitution.
+- **Keep the reference script for provenance even when you can't run it.** No
+  R/Gurobi in CI is fine: store the script under `benchmarks/R/` (e.g.
+  `nsc_tian2023_reference.R`) and embed the published table values as the
+  reference. A future R-equipped run regenerates the dump.
+- **The reference *code* is the source of truth for algorithmic choices the
+  paper glosses.** The MASC paper text did not make clear that its Basque
+  application matches on covariates and uses `synth`'s V-optimiser; only
+  `SC_application.R` / `Estimator_Code.R` did. Read the estimator, CV, and
+  application scripts, not just the prose.
+
+### Isolating a discrepancy
+
+- **When an estimate drifts from a reference, bisect the pipeline.** MASC on
+  Basque gave −$816 vs KMPT −$580. Running *VanillaSC* (which has the ADH/MSCMT
+  V-optimiser) on the same data reproduced −$585 to within $5 — proving the SC
+  weights and pre-period were right and localising the bug to MASC's *solver
+  choice* (it delegated to the Malo bilevel solver) and its *matching basis*
+  (outcomes, not covariates). Reproduce each component with a known-good
+  estimator before concluding "the method differs".
+- **Verify treatment timing and the pre-period before blaming the method.**
+  Confirm the `treat` column turns on at the paper's date and the pre-period
+  spans the paper's years (Basque: `terrorism=1` at 1970, pre 1955–1969). A
+  wrong window mimics a method discrepancy.
+- **Predictor-weight `V` is non-identified.** Different V-optimisers (MSCMT/synth
+  vs Malo bilevel) give different `W` on over-parameterised predictor sets, and
+  the difference cascades (here, a CV over-blending matching). Match the
+  reference's optimiser; expose the alternative as a toggle and default to the
+  reference-faithful one (`sc_backend="mscmt"`, `match_on="covariates"`).
+
+### Data, scope, and drift
+
+- **The shipped panel must be in the paper's transformed form.** PDA reproduced
+  the Hong Kong CEPA effect (2.48% vs the paper's 2.65%) because `HongKong.csv`
+  *is* the HCW panel, but did **not** reproduce the luxury-watch −27.92% because
+  the shipped China series is not the paper's YoY-growth / `T1=24` form. Check
+  the outcome transformation and pre-period length, not just column names.
+- **Benchmarks pin reality; prose drifts — re-measure when graduating.** This
+  round found a stale worked example (`docs/masc.rst` claimed MASC ATT −$641; the
+  code gave −$816) and an *unbacked* catalogue claim (TASC "4.5× margin"; the
+  durable measurement was ~1.1–1.2×). Graduating a prose/test claim means
+  *running it and correcting the docs to what the code does*.
+- **"Graduate the test" usually means "run on the real dataset and capture".**
+  Estimator tests mostly assert *structural* properties on synthetic panels
+  (weights sum to 1, ATT≈planted), not the paper's numbers — so the durable case
+  is a fresh empirical/MC run, not a promoted assertion.
+
+### Runtime
+
+- **Profile one fit before sizing `M`; the cost is usually solve *count*, not the
+  solver.** NSC/MASC inner QPs already use Clarabel with cached skeletons — the
+  9 s/fit at `J=50` was the CV grid × leave-one-out × iterations. Reduce solves
+  (fix hyperparameters, the paper's CV-once-per-structure trick), don't rewrite
+  the solver. Bayesian/MCMC cases are the real runtime wall: BVSS's 3000-iter
+  MCMC on 87 donors exceeded 9 min and is **not** a practical durable case
+  without a fast-MCMC config; conformal inference is heavy too (`sparse_sc_prop99`
+  ≈ 208 s — acceptable, but know it going in).
+
+### Triage before committing to a case
+
+Split the un-benchmarked estimators into **quick graduations** (shipped data +
+a crisp printed number → a durable case in ~an hour: FSCM, PDA-HK, VanillaSC)
+and **reconstruction projects** (need a reference run, data re-derivation, or a
+DGP rebuild: MLSC's reference dump, the PDA size/power simulation, BVSS
+fast-MCMC). Do the quick ones first; scope the reconstructions as their own
+workstreams.
+
+### Stacked benchmark PRs
+
+`docs/replications.rst` is the one file every benchmark PR edits, so parallel
+benchmark branches conflict there. Either keep one PR per coherent unit, or
+stack on the prior branch and, after the base squash-merges, rebase with
+`git rebase --onto <new-main> <old-base> <branch>` to drop the squashed commits
+— the per-case tolerances are content-stable, so it replays clean.
