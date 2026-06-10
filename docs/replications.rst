@@ -244,12 +244,16 @@ High-dimensional donor pools
   coverage for all three estimands where a single-source CI drops to
   :math:`63\%`.
   → dedicated page: :doc:`replications/clustersc`.
-* :doc:`mlsc` -- Bottmer (2024) multi-level SC. **Path A:**
-  matched to the reference implementation on the README DGP --
-  :math:`\widehat{\mathrm{ATT}} = +0.011930`,
-  :math:`\lambda = 1.970185`, equal to six decimals.
-  **Path B:** 200 independent draws,
-  :math:`\max |\Delta| = 5.76 \times 10^{-4}`.
+* :doc:`mlsc` -- Bottmer (2024) multi-level SC.
+  **Cross-validation** against the author's ``mlSC_estimator``
+  (``multi-level-sc-estimator``, pinned commit ``0fb2639``) on the
+  README hierarchical-factor DGP. **Path A** (one draw):
+  :math:`\widehat{\mathrm{ATT}} = +0.011930` vs the reference
+  :math:`+0.011928`, :math:`\lambda = 1.970185` to machine precision.
+  **Path B** (200 independent draws): both unbiased for the true zero
+  ATT and in near-machine agreement, :math:`\max |\Delta| = 5.76
+  \times 10^{-4}`. The case clones the reference at run time and skips
+  gracefully when it is unavailable (durable: ``mlsc_bottmer``).
 * :doc:`pda` -- Shi & Huang (2023) panel data approach.
   **Path A:** Hong Kong economic integration (HCW 24-economy
   panel, quarterly GDP growth) -- all three methods recover a
