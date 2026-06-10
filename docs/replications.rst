@@ -262,10 +262,15 @@ High-dimensional donor pools
   reproducing Shi & Wang's Appendix-E.1 headline of
   :math:`+2.65\%` (:math:`t = 8.35`); LASSO and forward
   selection bracket it at 3.3% and 3.9% (durable:
-  ``pda_hongkong``). **Path B:** Table 1
-  forward-selection vs. LASSO at 300 reps -- size = 0.047 vs.
-  the paper's :math:`\approx 0.05`; power = 0.98 at D5 vs.
-  :math:`1.0`.
+  ``pda_hongkong``). **Path B:** Table-1 size/power geometry on
+  the four-factor DGP -- forward selection stays parsimonious
+  (~4 donors) and correctly sized (≈ 0.08-0.09) under both
+  factor structures, while LASSO over-selects (9-15) and its
+  size inflates under *dynamic* factors (0.14 vs 0.065 i.i.d.),
+  matching the paper; both fully powered at ``D5`` (durable:
+  ``pda_table1``). mlsynth's LASSO is cross-validated, not the
+  paper's modified-BIC, so its LASSO cells are a CV variant, not
+  a cell-by-cell match.
 * :doc:`fscm` -- Cerulli (2024) forward-selected SC. **Path A:**
   Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} = -20.15`,
