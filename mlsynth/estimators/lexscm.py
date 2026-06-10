@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, List, Literal
 
 # Configuration and Exceptions
 from ..config_models import BaseMAREXConfig, LEXSCMConfig, WeightsResults
-from ..exceptions import MlsynthDataError, MlsynthEstimationError
+from ..exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError
 from ..utils.post_fit import to_effect_result as post_fit_to_effect_result
 from ..utils.helperutils import lexplot
 # Utilities - Data Handling
@@ -181,6 +181,12 @@ class LEXSCM:
         self.cluster_col: Optional[str] = config.cluster_col
         self.adjacency = config.adjacency
         self.spillover_threshold: float = config.spillover_threshold
+        self.stratum_col: Optional[str] = config.stratum_col
+        self.min_per_stratum: Optional[int] = config.min_per_stratum
+        self.max_per_stratum: Optional[int] = config.max_per_stratum
+        self.size_col: Optional[str] = config.size_col
+        self.min_size: Optional[float] = config.min_size
+        self.max_size: Optional[float] = config.max_size
         self.frac_E: float = config.frac_E
 
         # =========================================================
@@ -309,6 +315,25 @@ class LEXSCM:
             unitid=self.unitid
         )
 
+        # --- Treated-unit size band: drop candidates outside [min_size, max_size]
+        # from the TREATABLE pool (they remain eligible as donors). ---
+        if self.size_col is not None:
+            size_map = (self.df.groupby(self.unitid)[self.size_col]
+                        .first().to_dict())
+            sizes = np.array([size_map.get(lab, np.nan)
+                              for lab in unit_index.labels], dtype=float)
+            elig = ~np.isnan(sizes)
+            if self.min_size is not None:
+                elig &= sizes >= self.min_size
+            if self.max_size is not None:
+                elig &= sizes <= self.max_size
+            candidate_mask = np.asarray(candidate_mask, dtype=bool) & elig
+            if int(candidate_mask.sum()) < self.m:
+                raise MlsynthConfigError(
+                    f"Only {int(candidate_mask.sum())} candidate(s) fall within the "
+                    f"size band [{self.min_size}, {self.max_size}] but m={self.m}."
+                )
+
         # Step 3: Build Y matrix
         self.Y = build_Y_matrix(
             working_df=working_df,
@@ -390,6 +415,14 @@ class LEXSCM:
             spillover_threshold=self.spillover_threshold,
         )
 
+        # --- Coverage / stratification quotas (treated-set per-stratum min/max) ---
+        from ..utils.fast_scm_helpers.strata import build_strata
+        stratum_of = None
+        if self.stratum_col is not None:
+            stratum_of = (self.df.groupby(self.unitid)[self.stratum_col]
+                          .first().to_dict())
+        strata = build_strata(unit_index, stratum_of)
+
         # ---------- Stage 1: treated-tuple selection (lexsearch) ----------
         search = select_treated_designs(
             G=G,
@@ -402,6 +435,9 @@ class LEXSCM:
             method="auto",
             random_state=self.seed,
             conflict=conflict,
+            strata=strata,
+            min_per_stratum=self.min_per_stratum,
+            max_per_stratum=self.max_per_stratum,
         )
         selection_results = {"top_tuples": search["top_designs"], "stats": search["stats"]}
 
