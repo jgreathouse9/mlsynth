@@ -390,7 +390,11 @@ def select_treated_designs(
     cand = _budget_feasible_candidates(candidate_idx, m, unit_costs, budget)
     M = len(cand)
     if M < m:
-        raise ValueError(f"Only {M} budget-feasible candidates for m={m}.")
+        raise MlsynthConfigError(
+            f"Only {M} budget-feasible candidates for m={m}: the budget (with any "
+            f"size band) leaves too few treatable units. Raise the budget, relax "
+            f"the size band, or reduce m."
+        )
 
     # Coverage / stratification: fail early when the quotas admit no size-m tuple.
     required = None

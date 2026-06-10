@@ -1177,6 +1177,153 @@ Dothan as *donors*, both bordering treated markets) and the spillover-aware
 design, which spreads treatment across non-adjacent markets and keeps every
 donor clear of a treated market.
 
+Example: South & Midwest design with grouped factors
+====================================================
+
+This example exercises every selection constraint at once on real geography. We
+take the South and Midwest DMAs from the bundled map, group them by **census
+division** (South Atlantic, East/West South Central, East/West North Central),
+and draw outcomes from a **grouped linear factor model**: markets in the same
+division share factor loadings, so they co-move -- the latent-group structure the
+constraints are designed for. Each division is both a *stratum* (for coverage /
+quota) and, through the DMA borders, a source of *spillover*.
+
+Build the panel
+---------------
+
+.. code-block:: python
+
+    import numpy as np
+    import pandas as pd
+    from mlsynth import LEXSCM
+
+    DIVISION = {  # census divisions across the South + Midwest
+        "FL": "S. Atlantic", "GA": "S. Atlantic", "NC": "S. Atlantic",
+        "SC": "S. Atlantic", "VA": "S. Atlantic", "WV": "S. Atlantic",
+        "MD": "S. Atlantic",
+        "KY": "E.S. Central", "TN": "E.S. Central", "MS": "E.S. Central",
+        "AL": "E.S. Central",
+        "AR": "W.S. Central", "LA": "W.S. Central", "OK": "W.S. Central",
+        "TX": "W.S. Central",
+        "OH": "E.N. Central", "IN": "E.N. Central", "IL": "E.N. Central",
+        "MI": "E.N. Central", "WI": "E.N. Central",
+        "MN": "W.N. Central", "IA": "W.N. Central", "MO": "W.N. Central",
+        "ND": "W.N. Central", "SD": "W.N. Central", "NE": "W.N. Central",
+        "KS": "W.N. Central",
+    }
+
+    meta = pd.read_csv("basedata/markets/dma_metadata.csv")
+    adj = pd.read_csv("basedata/markets/dma_adjacency.csv", index_col=0)
+    meta = meta[meta.state.isin(DIVISION)].copy()
+    meta["division"] = meta.state.map(DIVISION)
+    names = [n for n in meta.dma_name if n in adj.index]          # 145 DMAs
+    meta = meta[meta.dma_name.isin(names)].reset_index(drop=True)
+    A = adj.loc[names, names]                                     # border matrix
+
+    # --- grouped linear factor model: same division -> shared loadings ---
+    rng = np.random.default_rng(11)
+    n, T, T_post, r = len(names), 60, 12, 4
+    div = meta.set_index("dma_name").loc[names, "division"].values
+    Lam_div = {d: rng.normal(size=r) for d in sorted(set(div))}
+    Lam = np.array([Lam_div[d] for d in div]) + 0.15 * rng.normal(size=(n, r))
+    F = np.cumsum(rng.normal(size=(T, r)), 0)                     # latent factors
+    population = np.round(rng.lognormal(12.5, 0.8, n)).astype(int)
+    cost = population * 5.0                       # $5/person intervention cost
+    Y = 100 + rng.normal(0, 5, n) + F @ Lam.T + rng.normal(0, 1.0, (T, n))
+    cand = sorted(rng.choice(n, 18, replace=False).tolist())     # eligible markets
+
+    df = pd.DataFrame([
+        {"market": names[j], "week": t, "sales": Y[t, j],
+         "eligible": int(j in cand), "post": int(t >= T - T_post),
+         "division": div[j], "population": int(population[j]),
+         "cost": float(cost[j])}
+        for j in range(n) for t in range(T)
+    ])
+
+    base = dict(df=df, outcome="sales", unitid="market", time="week",
+                candidate_col="eligible", post_col="post", top_K=8, verbose=False)
+
+Each constraint, one at a time
+------------------------------
+
+.. code-block:: python
+
+    # 1. Spillover: no two treated markets share a border, and no donor borders a
+    #    treated market (the DMA adjacency matrix).
+    LEXSCM({**base, "m": 3, "adjacency": A}).fit()
+
+    # 2. Coverage: at least one treated market in EVERY census division
+    #    (m must be >= the 5 divisions).
+    LEXSCM({**base, "m": 5, "stratum_col": "division", "min_per_stratum": 1}).fit()
+
+    # 3. Quota: at most one treated market per division (a spread-out design).
+    LEXSCM({**base, "m": 4, "stratum_col": "division", "max_per_stratum": 1}).fit()
+
+    # 4. Size band: only treat markets at or above the median population.
+    LEXSCM({**base, "m": 3, "size_col": "population",
+            "min_size": int(np.median(population))}).fit()
+
+    # 5. Compose constraints: cover all five divisions (min 1) AND at most two
+    #    per division (max 2), at m=6 -- exactly one division carries two.
+    LEXSCM({**base, "m": 6, "stratum_col": "division",
+            "min_per_stratum": 1, "max_per_stratum": 2}).fit()
+
+    # 6. With a size band on top, a division may lose all its eligible markets;
+    #    coverage then only requires the divisions that still HAVE a large enough
+    #    market (here East-South-Central drops out, so four divisions are covered).
+    LEXSCM({**base, "m": 4, "stratum_col": "division", "min_per_stratum": 1,
+            "size_col": "population", "min_size": int(np.median(population))}).fit()
+
+With the grouped factors, an unconstrained design tends to concentrate treatment
+in whichever division is easiest to balance; the coverage and quota constraints
+force it to spread across divisions (so the experiment speaks to the whole
+footprint), the adjacency rule keeps treated markets from contaminating each
+other, and the size band drops markets too small to power -- or too large to
+reproduce from the rest. All compose on the same Stage-1 admissible-tuple layer,
+and an impossible combination (for example ``min_per_stratum=1`` with ``m`` below
+the division count) raises :class:`~mlsynth.exceptions.MlsynthConfigError`.
+
+Under a budget
+--------------
+
+Experiments cost money, and the cost is largely **driven by market size** -- a
+bigger DMA means a bigger population to treat. Here ``cost`` is :math:`\$5` per
+person, and the program carries a hard :math:`\$10\text{M}` knapsack
+(``unit_cost_col`` + ``budget``) that composes with everything above.
+
+.. code-block:: python
+
+    BUDGET = 10_000_000
+    bud = {**base, "unit_cost_col": "cost", "budget": BUDGET}
+
+    # budget alone: the most balanced affordable design (here ~$6.9M of $10M)
+    LEXSCM({**bud, "m": 4}).fit()
+
+    # budget + coverage: one market per division AND total cost <= $10M -- the
+    # knapsack pushes the design toward the *cheaper* (smaller) market in each
+    # division (here ~$8.3M, all five divisions covered)
+    LEXSCM({**bud, "m": 5, "stratum_col": "division", "min_per_stratum": 1}).fit()
+
+The constraints can genuinely **conflict**: requiring coverage of all five
+divisions *and* only above-median markets *and* a $10M cap asks for five large
+(expensive) markets that the budget cannot afford, so the fit fails loudly
+rather than silently dropping a criterion.
+
+.. code-block:: python
+
+    from mlsynth.exceptions import MlsynthConfigError
+
+    try:
+        LEXSCM({**bud, "m": 5, "stratum_col": "division", "min_per_stratum": 1,
+                "size_col": "population",
+                "min_size": int(np.median(population))}).fit()
+    except MlsynthConfigError as e:
+        print("infeasible:", e)     # budget can't fund five above-median markets
+
+Every infeasibility -- budget, spillover, coverage, or size -- raises the same
+:class:`~mlsynth.exceptions.MlsynthConfigError`, so a caller can catch one
+exception type and report which design ask was impossible.
+
 References
 ----------
 

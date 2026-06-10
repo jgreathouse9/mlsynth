@@ -23,7 +23,9 @@ import pytest
 from mlsynth import RESCM  # not used; placeholder to confirm import path
 from mlsynth.estimators.lexscm import LEXSCM
 from mlsynth.config_models import LEXSCMConfig
-from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
+from mlsynth.exceptions import (
+    MlsynthConfigError, MlsynthDataError, MlsynthEstimationError,
+)
 
 from mlsynth.utils.fast_scm_helpers.fast_scm_bb_helpers import Precomputed, Solution
 from mlsynth.utils.fast_scm_helpers.fast_scm_control import (
@@ -1079,7 +1081,7 @@ class TestLexSearchEdges:
 
     def test_select_treated_designs_not_enough_candidates(self):
         G = self._G(J=3)
-        with pytest.raises(ValueError, match="budget-feasible"):
+        with pytest.raises(MlsynthConfigError, match="budget-feasible"):
             select_treated_designs(G=G, candidate_idx=np.arange(3), m=5,
                                      top_K=3, unit_costs=None, budget=None,
                                      unit_index=None, method="auto")
