@@ -54,18 +54,32 @@ def _build_detrend_matrix(T0: int, T: int, df: int) -> np.ndarray:
     return B[rows]
 
 
-def _instruments(y: np.ndarray, D_pre: Optional[np.ndarray], T0: int) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+def _poly_basis(u: np.ndarray, degree: int) -> np.ndarray:
+    """Polynomial sieve ``[u, u^2, ..., u^degree]`` of a 1-D instrument.
+
+    ``degree=1`` reproduces the linear single-proxy instrument (the reference's
+    default ``Y.basis``); ``degree>=2`` is the **nonparametric** (series/sieve)
+    SPSC instrument of Park & Tchetgen Tchetgen's supplement S1.6, which spans
+    a richer space of the treated outcome and so over-identifies the bridge.
+    """
+    u = np.asarray(u, dtype=float).ravel()
+    return np.column_stack([u ** k for k in range(1, degree + 1)])
+
+
+def _instruments(y: np.ndarray, D_pre: Optional[np.ndarray], T0: int,
+                 degree: int = 1) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """Pre-period instrument matrix ``g`` and detrend coefficients ``eta``.
 
-    With detrend, ``g = [D, y - D eta]`` (trend basis plus the detrended
-    treated residual). Without detrend, ``g = y``.
+    With detrend, ``g = [D, phi(y - D eta)]`` (trend basis plus a sieve basis of
+    the detrended treated residual). Without detrend, ``g = phi(y)``. The sieve
+    ``phi`` is the degree-``degree`` polynomial basis (``degree=1`` is linear).
     """
     y_pre = y[:T0]
     if D_pre is None:
-        return y_pre.reshape(-1, 1), None
+        return _poly_basis(y_pre, degree), None
     eta = np.linalg.lstsq(D_pre, y_pre, rcond=None)[0]
     residual = y_pre - D_pre @ eta
-    return np.column_stack([D_pre, residual]), eta
+    return np.column_stack([D_pre, _poly_basis(residual, degree)]), eta
 
 
 def _ridge_gamma(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, lam: float) -> np.ndarray:
@@ -100,12 +114,12 @@ def _cv_lambda(g_pre: np.ndarray, y_pre: np.ndarray, W_pre: np.ndarray, grid: np
     return float(best_lam)
 
 
-def _effect(y, W, A, D, lam, lam_grid):
+def _effect(y, W, A, D, lam, lam_grid, degree=1):
     """One estimation pass: detrend, ridge gamma, constant-ATT beta."""
     pre = A == 0
     T0 = int(pre.sum())
     D_pre = D[pre] if D is not None else None
-    g_pre, eta = _instruments(y, D_pre, T0)
+    g_pre, eta = _instruments(y, D_pre, T0, degree)
     y_pre, W_pre = y[pre], W[pre]
     if lam is None:
         lam = _cv_lambda(g_pre, y_pre, W_pre, lam_grid)
@@ -114,7 +128,7 @@ def _effect(y, W, A, D, lam, lam_grid):
     return dict(eta=eta, gamma=gamma, beta=beta, lam=lam)
 
 
-def _psi(theta, y, W, A, D, B_post) -> np.ndarray:
+def _psi(theta, y, W, A, D, B_post, degree=1) -> np.ndarray:
     """Stacked moment matrix (rows = periods). Mirrors the reference ``Psi.Ft``."""
     pre = 1 - A
     gamma, beta = theta["gamma"], theta["beta"]
@@ -124,14 +138,15 @@ def _psi(theta, y, W, A, D, B_post) -> np.ndarray:
         eta = theta["eta"]
         blocks.append((pre[:, None] * D) * (y - D @ eta)[:, None])      # YDT
         blocks.append((pre[:, None] * D) * res_gamma[:, None])           # GDT
-    # GYb instrument is the ORIGINAL treated outcome (phi = identity), per the reference.
-    blocks.append((pre[:, None] * y[:, None]) * res_gamma[:, None])      # GYb
+    # GYb instrument is the sieve basis of the ORIGINAL treated outcome, per the
+    # reference ``Psi.Ft`` (degree=1 is the identity / linear single proxy).
+    blocks.append((pre[:, None] * _poly_basis(y, degree)) * res_gamma[:, None])  # GYb
     res_beta = y - W @ gamma - B_post @ beta
     blocks.append((A[:, None] * B_post) * res_beta[:, None])             # Beta
     return np.column_stack(blocks)
 
 
-def _grad_psi(theta, y, W, A, D, B_post, eps: float = 1e-6) -> np.ndarray:
+def _grad_psi(theta, y, W, A, D, B_post, degree=1, eps: float = 1e-6) -> np.ndarray:
     """Numerical Jacobian of the mean moments w.r.t. (eta, gamma, beta)."""
     detrend = theta["eta"] is not None
     nd = len(theta["eta"]) if detrend else 0
@@ -143,15 +158,15 @@ def _grad_psi(theta, y, W, A, D, B_post, eps: float = 1e-6) -> np.ndarray:
                "gamma": v[nd: nd + ng], "beta": v[nd + ng:]}
         return out
 
-    ncol = _psi(theta, y, W, A, D, B_post).shape[1]
+    ncol = _psi(theta, y, W, A, D, B_post, degree).shape[1]
     G = np.zeros((ncol, len(vec)))
     for j in range(len(vec)):
         vp, vm = vec.copy(), vec.copy()
         vp[j] += eps
         vm[j] -= eps
         G[:, j] = (
-            _psi(unpack(vp), y, W, A, D, B_post).mean(0)
-            - _psi(unpack(vm), y, W, A, D, B_post).mean(0)
+            _psi(unpack(vp), y, W, A, D, B_post, degree).mean(0)
+            - _psi(unpack(vm), y, W, A, D, B_post, degree).mean(0)
         ) / (2 * eps)
     return G
 
@@ -209,6 +224,7 @@ def estimate_spsc(
     detrend: bool = True,
     spline_df: int = 5,
     ridge_lambda: Optional[float] = None,
+    basis_degree: int = 1,
 ) -> Tuple[np.ndarray, np.ndarray, float, float, np.ndarray, float]:
     """Single Proxy Synthetic Control estimate.
 
@@ -228,6 +244,12 @@ def estimate_spsc(
     ridge_lambda : float or None, default None
         log10 ridge penalty. ``None`` selects it by leave-one-out CV over
         ``10**[-6, ..., 2]``.
+    basis_degree : int, default 1
+        Degree of the polynomial sieve applied to the treated-outcome
+        instrument (the reference's ``Y.basis``). ``1`` is the linear single
+        proxy; ``>=2`` is the **nonparametric** (series) SPSC, which spans a
+        richer space of the outcome and over-identifies the bridge -- useful
+        when the synthetic-control bridge is nonlinear in the donor outcomes.
 
     Returns
     -------
@@ -245,6 +267,10 @@ def estimate_spsc(
         Selected log10 ridge penalty.
     """
 
+    if int(basis_degree) < 1:
+        raise ValueError("basis_degree must be a positive integer.")
+    degree = int(basis_degree)
+
     y = np.asarray(outcome_vector, dtype=float).ravel()
     W = np.asarray(donor_outcomes, dtype=float)
     T, N = W.shape
@@ -254,21 +280,23 @@ def estimate_spsc(
     B_post = A.reshape(-1, 1)  # constant-ATT basis
 
     D = _build_detrend_matrix(T0, T, spline_df) if detrend else None
-    theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID)
+    theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, degree)
     nd = len(theta["eta"]) if detrend else 0
 
     # Detrend rescaling: balance the trend-moment and proxy-moment magnitudes
-    # before the variance step (reference SPSC(), "Scale").
+    # before the variance step (reference SPSC(), "Scale"): the ratio of the
+    # mean GYb-block diagonal to the mean YDT-block diagonal of the meat.
     if detrend and T1 > 1:
-        Psi0 = _psi(theta, y, W, A, D, B_post)
+        Psi0 = _psi(theta, y, W, A, D, B_post, degree)
         Sig0 = _hac_meat(Psi0, [Psi0.shape[1] - 1])
         diag = np.diag(Sig0)
         ydt_mean = np.mean(diag[0:nd])
-        scale = np.sqrt(diag[2 * nd] / ydt_mean) if ydt_mean > 0 else 1.0
+        gyb_mean = np.mean(diag[2 * nd: 2 * nd + degree])
+        scale = np.sqrt(gyb_mean / ydt_mean) if ydt_mean > 0 else 1.0
         if not np.isfinite(scale):
             scale = 1.0
         D = D * scale
-        theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID)
+        theta = _effect(y, W, A, D, ridge_lambda, _LAMBDA_GRID, degree)
 
     gamma = theta["gamma"]
     counterfactual = W @ gamma
@@ -278,8 +306,8 @@ def estimate_spsc(
     se = np.nan
     if T1 > 1:
         ng = N
-        G = _grad_psi(theta, y, W, A, D, B_post)
-        Psi = _psi(theta, y, W, A, D, B_post)
+        G = _grad_psi(theta, y, W, A, D, B_post, degree)
+        Psi = _psi(theta, y, W, A, D, B_post, degree)
         Sigma = _hac_meat(Psi, [Psi.shape[1] - 1])
         npar = nd + ng + 1
         grad_lambda = np.zeros((npar, npar))

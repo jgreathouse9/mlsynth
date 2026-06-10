@@ -94,6 +94,7 @@ class PROXIMAL:
         self.spsc_detrend: bool = config.spsc_detrend
         self.spsc_lambda = config.spsc_lambda
         self.spsc_spline_df: int = config.spsc_spline_df
+        self.spsc_basis_degree: int = config.spsc_basis_degree
         self.spsc_conformal: bool = config.spsc_conformal
         self.spsc_conformal_periods = config.spsc_conformal_periods
 
@@ -116,6 +117,7 @@ class PROXIMAL:
                 spsc_detrend=self.spsc_detrend,
                 spsc_lambda=self.spsc_lambda,
                 spsc_spline_df=self.spsc_spline_df,
+                spsc_basis_degree=self.spsc_basis_degree,
                 spsc_conformal=self.spsc_conformal,
                 spsc_conformal_periods=self.spsc_conformal_periods,
             )

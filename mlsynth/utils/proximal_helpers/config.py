@@ -24,6 +24,7 @@ class PROXIMALConfig(BaseEstimatorConfig):
     spsc_detrend: bool = Field(default=True, description="Whether SPSC detrends the treated outcome against a B-spline time trend (SPSC-DT vs SPSC-NoDT).")
     spsc_lambda: Optional[float] = Field(default=None, description="log10 ridge penalty for SPSC. If None, selected by leave-one-out cross-validation.")
     spsc_spline_df: int = Field(default=5, ge=3, description="Degrees of freedom of the SPSC detrend B-spline basis.")
+    spsc_basis_degree: int = Field(default=1, ge=1, description="Degree of the polynomial sieve applied to the SPSC treated-outcome instrument. 1 is the linear single proxy; >=2 is the nonparametric (series) SPSC that over-identifies a nonlinear bridge.")
     spsc_conformal: bool = Field(default=False, description="Whether to compute SPSC conformal prediction intervals for the per-period treatment effect.")
     spsc_conformal_periods: Optional[List[int]] = Field(default=None, description="Absolute post-period indices to cover with SPSC conformal intervals. If None, every post-treatment period is covered.")
 

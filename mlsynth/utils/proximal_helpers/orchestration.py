@@ -96,11 +96,16 @@ def _run_spsc(inputs: PROXIMALInputs) -> ProximalMethodFit:
         detrend=inputs.spsc_detrend,
         spline_df=inputs.spsc_spline_df,
         ridge_lambda=inputs.spsc_lambda,
+        basis_degree=inputs.spsc_basis_degree,
     )
     gap = inputs.y - cf
+    variant = "SPSC-DT" if inputs.spsc_detrend else "SPSC-NoDT"
+    if inputs.spsc_basis_degree > 1:
+        variant += f"-NP{inputs.spsc_basis_degree}"   # nonparametric sieve degree
     metadata = {
-        "variant": "SPSC-DT" if inputs.spsc_detrend else "SPSC-NoDT",
+        "variant": variant,
         "detrend": inputs.spsc_detrend,
+        "basis_degree": inputs.spsc_basis_degree,
         "ridge_lambda": lam,
         "trend": trend,
     }
@@ -110,6 +115,7 @@ def _run_spsc(inputs: PROXIMALInputs) -> ProximalMethodFit:
             gamma=gamma, ridge_lambda=lam,
             detrend=inputs.spsc_detrend, spline_df=inputs.spsc_spline_df,
             att_se=se, periods=inputs.spsc_conformal_periods,
+            basis_degree=inputs.spsc_basis_degree,
         )
     return ProximalMethodFit(
         name=SPSC,

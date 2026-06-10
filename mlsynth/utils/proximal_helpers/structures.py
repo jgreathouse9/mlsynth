@@ -83,6 +83,9 @@ class PROXIMALInputs:
         log10 ridge penalty for SPSC; ``None`` selects it by LOO-CV.
     spsc_spline_df : int
         Degrees of freedom of the SPSC detrend B-spline basis.
+    spsc_basis_degree : int
+        Degree of the polynomial sieve on the SPSC treated-outcome instrument
+        (1 = linear single proxy; >=2 = nonparametric / series SPSC).
     spsc_conformal : bool
         Whether to compute SPSC conformal prediction intervals.
     spsc_conformal_periods : Sequence of int or None
@@ -105,6 +108,7 @@ class PROXIMALInputs:
     spsc_detrend: bool = True
     spsc_lambda: Optional[float] = None
     spsc_spline_df: int = 5
+    spsc_basis_degree: int = 1
     spsc_conformal: bool = False
     spsc_conformal_periods: Optional[Sequence[int]] = None
 
