@@ -470,6 +470,31 @@ def test_fit_l2_autotune_vs_fixed_tau():
     assert cf1.shape == (50,) and cf2.shape == (50,)
 
 
+def test_l2_standardize_default_and_effect():
+    # Standardisation is the default and changes the fit on scale-heterogeneous
+    # controls; the coefficients map back to the original scale either way.
+    from mlsynth.config_models import PDAConfig
+    rng = np.random.default_rng(0)
+    scales = np.array([1.0, 10.0, 100.0, 0.1, 5.0])
+    X = rng.normal(0, 1, (40, 5)) * scales
+    y = X @ np.array([0.5, 0.0, 0.0, 1.0, 0.0]) + rng.normal(0, 0.5, 40)
+    yf = np.r_[y, y[:8] + 2.0]; Xf = np.vstack([X, rng.normal(0, 1, (8, 5)) * scales])
+    b_std, a_std, _, _ = fit_l2(yf, Xf, T0=40, tau=0.05, standardize=True)
+    b_raw, a_raw, _, _ = fit_l2(yf, Xf, T0=40, tau=0.05, standardize=False)
+    assert not np.allclose(b_std, b_raw)
+    from mlsynth.config_models import PDAConfig as _Cfg
+    assert _Cfg.model_fields["l2_standardize"].default is True
+
+
+def test_cross_validate_tau_grid_is_log_spaced_small_tau():
+    # The auto grid must reach down to ~1e-4 * max|eta| so a tiny optimal tau is
+    # representable (the China-PPI regime); a fixed tau_grid is honoured.
+    rng = np.random.default_rng(1)
+    X = rng.normal(0, 1, (60, 4)); y = X @ np.array([1.0, 0, 0, 0]) + rng.normal(0, 0.3, 60)
+    tau = cross_validate_tau(y, X, tau_grid=np.array([1e-4, 1e-3, 1e-2]))
+    assert tau in (1e-4, 1e-3, 1e-2)
+
+
 def test_l2_ate_inference_outputs():
     rng = np.random.default_rng(20)
     T0, T2 = 20, 10

@@ -136,7 +136,24 @@ violation :math:`\tau` of the OLS moment condition shrinks the variance. At
 \mathbf{0}`. ``mlsynth`` picks :math:`\tau` by **sequential out-of-sample
 validation** on the tail of the training window (the validated :math:`\tau`
 tracks the infeasible-optimal one, and both shrink toward zero as the sample
-grows).
+grows) over a log-spaced grid down to :math:`10^{-4}\max|\hat{\boldsymbol{\eta}}|`
+(the optimum is often a tiny fraction of the cap). This is **time-respecting** --
+the fit never sees periods later than the validation tail -- unlike the
+released ``L2relax.CV``, whose 5-block K-fold trains on both past *and* future
+of each block.
+
+.. note::
+
+   **Standardisation.** Following the authors' released ``L2relax``, the treated
+   and control series are **standardised** (demeaned and scaled to unit
+   variance) before forming :math:`\hat{\boldsymbol{\Sigma}}` /
+   :math:`\hat{\boldsymbol{\eta}}`, and the solution is mapped back to the
+   original scale. This is the default (``l2_standardize=True``) -- the
+   :math:`\ell_2` penalty is scale-sensitive, so standardisation is both
+   recommended and what reproduces the paper's empirical results; on the Hong
+   Kong panel it moves the L2 estimate from :math:`2.48\%` to :math:`2.61\%`
+   (closer to Shi & Wang's :math:`2.65\%`). Set ``l2_standardize=False`` for the
+   raw-scale variant.
 
 **Assumptions** (Shi & Wang).
 
