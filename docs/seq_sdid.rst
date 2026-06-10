@@ -304,6 +304,21 @@ emits a :class:`UserWarning` naming any donor-starved cohort and the largest
 ``a_max`` that keeps every estimated cohort balanced — report, don't silently
 relax.
 
+Verification
+------------
+
+**Path B** — the paper's Section-5.2.2 calibrated-panel Monte Carlo (Table 1)
+is reconstructed from its description (the authors' CPS log-wage panel is not
+public). Under an interactive-fixed-effects violation of parallel trends with
+adoption correlated to the leading loading, standard DiD's 95% CI coverage
+collapses (:math:`\approx 0.45`; paper :math:`\approx 0.70`) while Sequential
+SDiD stays near nominal (:math:`0.945`) with roughly five-times-smaller bias
+and lower RMSE — the paper's "DiD severely biased, Sequential SDiD reliable"
+result. A noiseless rank-one IFE corollary pins exact machine-precision
+recovery for every donor-balanced cohort. The durable check is
+``benchmarks/cases/seq_sdid_mc.py``; see the dedicated replication page,
+:doc:`replications/seq_sdid`, for the design, code, and the full table.
+
 Core API
 --------
 
