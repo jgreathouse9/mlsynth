@@ -37,6 +37,7 @@ from ..exceptions import (
     MlsynthEstimationError,
     MlsynthPlottingError,
 )
+from ..utils.mlsc_helpers.crossval import select_lambda_cv
 from ..utils.mlsc_helpers.inference import counterfactual_path, summarize_effects
 from ..utils.mlsc_helpers.optimization import solve_mlsc
 from ..utils.mlsc_helpers.penalty import build_penalty_matrix
@@ -108,6 +109,8 @@ class MLSC:
 
         self.lambda_est: str = config.lambda_est
         self.lambda_val: float = config.lambda_val
+        self.lambda_grid = config.lambda_grid
+        self.cv_holdout_periods: int = config.cv_holdout_periods
         self.solver: Any = config.solver
 
         self.display_graphs: bool = config.display_graphs
@@ -140,19 +143,28 @@ class MLSC:
         try:
             sigma_eps2, sigma_y2 = estimate_variance_components(inputs)
 
-            if self.lambda_est == "heuristic":
-                lambda_used = heuristic_lambda(sigma_eps2, sigma_y2)
-            elif self.lambda_est == "fixed":
-                lambda_used = float(self.lambda_val)
-            else:  # defensive; pydantic Literal should have caught this
-                raise MlsynthConfigError(
-                    f"Unsupported lambda_est value: {self.lambda_est!r}."
-                )
-
             Q = build_penalty_matrix(
                 v_population=inputs.v_population,
                 disagg_to_agg=inputs.disagg_to_agg,
             )
+
+            if self.lambda_est == "heuristic":
+                lambda_used = heuristic_lambda(sigma_eps2, sigma_y2)
+            elif self.lambda_est == "fixed":
+                lambda_used = float(self.lambda_val)
+            elif self.lambda_est == "cross-validation":
+                lambda_used = select_lambda_cv(
+                    inputs=inputs,
+                    Q=Q,
+                    sigma_y2=sigma_y2,
+                    lambda_grid=self.lambda_grid,
+                    cv_holdout_periods=self.cv_holdout_periods,
+                    solver=self.solver,
+                )
+            else:  # defensive; pydantic Literal should have caught this
+                raise MlsynthConfigError(
+                    f"Unsupported lambda_est value: {self.lambda_est!r}."
+                )
 
             omega, aggregate_weights, status = solve_mlsc(
                 inputs=inputs,

@@ -35,7 +35,11 @@ import pytest
 
 from mlsynth import MLSC
 from mlsynth.config_models import EffectResult, MLSCConfig, MlsynthResult
-from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.exceptions import (
+    MlsynthConfigError,
+    MlsynthDataError,
+    MlsynthEstimationError,
+)
 from mlsynth.utils.mlsc_helpers.penalty import build_block, build_penalty_matrix
 from mlsynth.utils.mlsc_helpers.setup import prepare_mlsc_inputs
 from mlsynth.utils.mlsc_helpers.structures import (
@@ -513,7 +517,7 @@ class TestPublicAPI:
         d = res.design
         assert d.omega.shape == (res.inputs.M,)
         assert d.aggregate_weights.shape == (res.inputs.S,)
-        assert d.lambda_est in ("heuristic", "fixed")
+        assert d.lambda_est in ("heuristic", "fixed", "cross-validation")
         assert isinstance(d.solver_status, str)
 
     def test_dict_config_round_trip(self):
@@ -525,3 +529,64 @@ class TestPublicAPI:
         res_obj = MLSC(cfg_obj).fit()
         assert res_dict.att == pytest.approx(res_obj.att)
         assert res_dict.pre_rmse == pytest.approx(res_obj.pre_rmse)
+
+
+# ---------------------------------------------------------------------------
+# Layer 4: cross-validation-over-time penalty selection (Section 5.2)
+# ---------------------------------------------------------------------------
+class TestCrossValidation:
+    """``lambda_est='cross-validation'`` -- the Section-5.2 rolling CV."""
+
+    def test_config_accepts_cross_validation(self):
+        df_agg, df_disagg = _make_panel()
+        cfg = MLSCConfig(**_base_config(df_agg, df_disagg,
+                                        lambda_est="cross-validation"))
+        assert cfg.lambda_est == "cross-validation"
+        assert cfg.cv_holdout_periods == 1          # reference default
+        assert cfg.lambda_grid is None              # -> reference grid
+
+    def test_cv_runs_and_selects_grid_penalty(self):
+        from mlsynth.utils.mlsc_helpers.crossval import _DEFAULT_GRID
+        df_agg, df_disagg = _make_panel()
+        res = MLSC(_base_config(df_agg, df_disagg,
+                                lambda_est="cross-validation")).fit()
+        assert res.design.lambda_est == "cross-validation"
+        # The selected penalty is a member of the (default) grid.
+        assert np.min(np.abs(_DEFAULT_GRID - res.design.lambda_used)) < 1e-12
+        assert np.isclose(res.design.omega.sum(), 1.0)
+        assert np.all(res.design.omega >= -1e-8)
+
+    def test_custom_grid_is_respected(self):
+        df_agg, df_disagg = _make_panel()
+        grid = [0.01, 1.0, 100.0]
+        res = MLSC(_base_config(df_agg, df_disagg, lambda_est="cross-validation",
+                                lambda_grid=grid)).fit()
+        assert res.design.lambda_used in grid
+
+    def test_holdout_too_long_raises(self):
+        # T0 == 18 here; holding out all of it leaves no training period.
+        df_agg, df_disagg = _make_panel(T0=18)
+        with pytest.raises((MlsynthEstimationError, ValueError)):
+            MLSC(_base_config(df_agg, df_disagg, lambda_est="cross-validation",
+                              cv_holdout_periods=18)).fit()
+
+    def test_selector_unit_matches_objective_argmin(self):
+        # The helper returns the grid penalty minimizing the held-out MSE.
+        from mlsynth.utils.mlsc_helpers.crossval import select_lambda_cv
+        from mlsynth.utils.mlsc_helpers.penalty import build_penalty_matrix
+        from mlsynth.utils.mlsc_helpers.setup import prepare_mlsc_inputs
+        from mlsynth.utils.mlsc_helpers.variance import estimate_variance_components
+
+        df_agg, df_disagg = _make_panel(seed=3)
+        inputs = prepare_mlsc_inputs(
+            df_agg=df_agg, df_disagg=df_disagg, outcome="y", time="year",
+            treat="treated", unitid_agg="state", unitid_disagg="county",
+            agg_id="state", weight_col=None,
+        )
+        _, sigma_y2 = estimate_variance_components(inputs)
+        Q = build_penalty_matrix(v_population=inputs.v_population,
+                                 disagg_to_agg=inputs.disagg_to_agg)
+        grid = [0.01, 1.0, 50.0, 500.0]
+        lam = select_lambda_cv(inputs, Q, sigma_y2, lambda_grid=grid,
+                               cv_holdout_periods=2)
+        assert lam in grid

@@ -16,7 +16,10 @@ effect is injected, so the true ATT is zero and Path B is an unbiasedness check.
 
 * **Path A** (one draw, ``rng=default_rng(42)``): the selected penalty and the
   reported ATT match the reference -- ``dtau`` is solver noise on the ATT,
-  ``dlambda`` is machine precision on the penalty.
+  ``dlambda`` is machine precision on the penalty. The ``path_a_cv_*`` cells
+  repeat the check for ``lambda_est="cross-validation"`` (the Section-5.2
+  rolling selector, a port of the reference ``get_lambda_cv``): both pick the
+  same grid penalty (316.23) and agree on the ATT.
 * **Path B** (``M = 200`` draws): both estimators are unbiased for the true zero
   ATT and stay in near-machine agreement throughout (worst-case ``|dtau|``).
 
@@ -39,7 +42,7 @@ SEED_A = 42      # Path A: the README's exact panel
 M = 200          # Path B: independent draws
 
 
-def _ml_fit(sample):
+def _ml_fit(sample, lambda_est="heuristic"):
     from mlsynth import MLSC
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -47,7 +50,7 @@ def _ml_fit(sample):
             "df_agg": sample.df_agg, "df_disagg": sample.df_disagg,
             "outcome": "y", "time": "time", "treat": "treated",
             "unitid_agg": "state", "unitid_disagg": "county",
-            "agg_id": "state", "lambda_est": "heuristic",
+            "agg_id": "state", "lambda_est": lambda_est,
             "display_graphs": False,
         }).fit()
 
@@ -60,13 +63,13 @@ def run() -> dict:
     ref = import_mlsc()
     mlSC_estimator = ref.mlSC_estimator
 
-    def ref_tau_lambda(sample):
+    def ref_tau_lambda(sample, lambda_est="heuristic"):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             try:
                 tau, lam, _ = mlSC_estimator(
                     sample.data_s, sample.data_c, sample.idx,
-                    sample.n_c, sample.t, sample.w_c, lambda_est="heuristic",
+                    sample.n_c, sample.t, sample.w_c, lambda_est=lambda_est,
                 )
             except Exception as exc:  # pragma: no cover - reference solve failure
                 raise BenchmarkSkipped(f"reference mlSC_estimator failed: {exc}")
@@ -80,6 +83,16 @@ def run() -> dict:
         "path_a_dtau": float(abs(res_a.att - tau_ref_a)),
         "path_a_dlambda": float(abs(res_a.design.lambda_used - lam_ref_a)),
     }
+
+    # --- Cross-validation-over-time path: the Section-5.2 selector --------
+    # mlsynth's ``lambda_est="cross-validation"`` ports the reference
+    # ``get_lambda_cv``; on the seed-42 panel both pick the same grid penalty.
+    tau_ref_cv, lam_ref_cv = ref_tau_lambda(s, lambda_est="cross-validation")
+    res_cv = _ml_fit(s, lambda_est="cross-validation")
+    out["path_a_cv_dtau"] = float(abs(res_cv.att - tau_ref_cv))
+    out["path_a_cv_lambda_rel"] = float(
+        abs(res_cv.design.lambda_used - lam_ref_cv) / max(lam_ref_cv, 1e-12)
+    )
 
     # --- Path B: M independent draws, unbiasedness + agreement -----------
     tau_ref = np.empty(M)
@@ -99,12 +112,15 @@ def run() -> dict:
 
 
 # Two independent implementations of the same penalized program on a shared DGP.
-# The cross-validation cells (dtau/dlambda/max_dtau/drmse) pin the agreement to
-# SCS solver precision; the unbiasedness cell pins the deterministic M=200 mean,
-# which sits within one MC SE (sigma/sqrt(200) ~ 0.012) of the true zero ATT.
+# The agreement cells (dtau/dlambda/cv/max_dtau/drmse) pin mlsynth to the
+# reference to SCS solver precision under both the heuristic and the
+# cross-validation penalty paths; the unbiasedness cell pins the deterministic
+# M=200 mean, within one MC SE (sigma/sqrt(200) ~ 0.012) of the true zero ATT.
 EXPECTED = {
     "path_a_dtau": (0.0, 5e-3),        # measured 1.5e-6 (ATT solver noise)
     "path_a_dlambda": (0.0, 1e-6),     # measured 4.4e-16 (machine precision)
+    "path_a_cv_dtau": (0.0, 5e-3),     # CV path: ATT agrees (measured ~1e-6)
+    "path_a_cv_lambda_rel": (0.0, 0.3),  # same grid penalty (316.23); 0.3 allows 1 grid step
     "path_b_max_dtau": (0.0, 5e-3),    # measured 5.76e-4 (worst of 200)
     "path_b_mean_ml": (-0.0103, 0.02), # ~0; |bias| < 1 MC SE
     "path_b_rmse_ml": (0.1662, 0.02),  # matches reference RMSE
