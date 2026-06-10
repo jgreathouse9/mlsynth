@@ -440,10 +440,25 @@ Identification under endogeneity
   PIPost :math:`-1.220` (matching the reference to ``1e-8``); the
   no-proxy SPSC (:math:`-0.892`), doubly-robust DR (:math:`-1.194`)
   and PIPW (:math:`-0.854`) are pinned alongside (durable:
-  ``proximal_panic1907``). **Path B:** Single-Proxy SC (SPSC) plus
-  Doubly-Robust and PIPW Monte Carlo --
-  SPSC-DT :math:`\widehat{\mathrm{ATT}} = -0.815` against
-  :math:`-0.816`.
+  ``proximal_panic1907``).
+  **Path B (PI/PIS/PIPost):** the authors' ``freshtaste/proximal``
+  surrogates DGP (Sec. 4.1, trending :math:`\log t` factor,
+  :math:`\mathrm{True.ATT}=1`) -- the proximal trio recovers the
+  truth with near-nominal coverage and PIS attains the lowest MSE,
+  while classical SC is biased by the trend (durable:
+  ``proximal_surrogates_mc``). **Path B (SPSC):** the authors' own
+  interactive-fixed-effects Monte Carlo (the ``qkrcks0218/SPSC``
+  README DGP, :math:`\mathrm{True.ATT}=3`) -- over 60 draws SPSC
+  recovers the truth essentially without bias under either
+  detrending choice, and the detrended **SPSC-DT** covers near the
+  nominal 95% while the un-detrended **SPSC-NoDT** under-covers under
+  the trend (durable: ``spsc_ifem_mc``). **Path B (DR/PIPW):** the
+  authors' ``DR_Proximal_SC/simulation/normal`` design
+  (:math:`\mathrm{True.ATE}=2`) -- DR and PIPW recover the truth with
+  near-nominal Wald coverage, and DR is robust to an outcome-bridge
+  misspecification that collapses the outcome-only PI
+  (:math:`\approx 4.2` vs. DR :math:`\approx 2.0`; durable:
+  ``dr_proximal_mc``).
 
 .. _replications-design:
 
