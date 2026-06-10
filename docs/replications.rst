@@ -251,7 +251,13 @@ High-dimensional donor pools
   :math:`\max |\Delta| = 5.76 \times 10^{-4}`.
 * :doc:`pda` -- Shi & Huang (2023) panel data approach.
   **Path A:** Hong Kong economic integration (HCW 24-economy
-  panel, quarterly GDP growth). **Path B:** Table 1
+  panel, quarterly GDP growth) -- all three methods recover a
+  positive, highly significant CEPA effect, with the
+  L2-relaxation estimate (2.48%, :math:`t \approx 7.7`)
+  reproducing Shi & Wang's Appendix-E.1 headline of
+  :math:`+2.65\%` (:math:`t = 8.35`); LASSO and forward
+  selection bracket it at 3.3% and 3.9% (durable:
+  ``pda_hongkong``). **Path B:** Table 1
   forward-selection vs. LASSO at 300 reps -- size = 0.047 vs.
   the paper's :math:`\approx 0.05`; power = 0.98 at D5 vs.
   :math:`1.0`.
