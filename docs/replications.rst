@@ -251,7 +251,13 @@ High-dimensional donor pools
   :math:`\max |\Delta| = 5.76 \times 10^{-4}`.
 * :doc:`pda` -- Shi & Huang (2023) panel data approach.
   **Path A:** Hong Kong economic integration (HCW 24-economy
-  panel, quarterly GDP growth). **Path B:** Table 1
+  panel, quarterly GDP growth) -- all three methods recover a
+  positive, highly significant CEPA effect, with the
+  L2-relaxation estimate (2.48%, :math:`t \approx 7.7`)
+  reproducing Shi & Wang's Appendix-E.1 headline of
+  :math:`+2.65\%` (:math:`t = 8.35`); LASSO and forward
+  selection bracket it at 3.3% and 3.9% (durable:
+  ``pda_hongkong``). **Path B:** Table 1
   forward-selection vs. LASSO at 300 reps -- size = 0.047 vs.
   the paper's :math:`\approx 0.05`; power = 0.98 at D5 vs.
   :math:`1.0`.
@@ -259,7 +265,7 @@ High-dimensional donor pools
   Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} = -20.15`,
   pre-:math:`R^2 = 0.970`, CV RMSPE :math:`= 1.605` vs. the
-  full-pool baseline 2.916.
+  full-pool baseline 2.916 (durable: ``fscm_prop99``).
 * :doc:`sparse_sc` -- Sparse SC. **Path A:** California
   Proposition 99 with an over-rich augmented predictor set, with
   conformal inference -- the L1 penalty prunes to 6 of 33 predictors
