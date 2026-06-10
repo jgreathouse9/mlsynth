@@ -1085,6 +1085,32 @@ combine. If the constraint admits no conflict-free ``m``-tuple (for instance
 ``m`` larger than the number of regions), the fit raises
 :class:`~mlsynth.exceptions.MlsynthConfigError`.
 
+A ready-made matrix ships with mlsynth -- you don't need a shapefile or GIS
+toolchain. ``basedata/markets/dma_adjacency.csv`` is a 206 x 206 border matrix
+over US Nielsen Designated Market Areas (built from the public TopoJSON via
+shared-arc contiguity; see ``basedata/markets/build_dma_adjacency.py``), so
+"no two treated markets may share a border" is one ``read_csv`` away:
+
+.. code-block:: python
+
+    import pandas as pd
+
+    adj = pd.read_csv("basedata/markets/dma_adjacency.csv", index_col=0)
+    meta = pd.read_csv("basedata/markets/dma_metadata.csv")          # state, lat, long
+    se = [n for n in meta.loc[meta.state.isin({"FL","GA","AL","MS","SC","NC","TN"}),
+                              "dma_name"] if n in adj.index]
+    A = adj.loc[se, se]                                              # induced subgraph
+
+    LEXSCM({"df": df, "outcome": "sales", "unitid": "dma", "time": "week",
+            "candidate_col": "eligible", "m": 4, "adjacency": A}).fit()
+
+On a spatially-correlated Southeast panel this is the difference between an
+unconstrained design that co-treats a cluster of bordering Gulf-Coast markets
+(Hattiesburg, Jackson, Mobile-Pensacola, Montgomery -- with Biloxi-Gulfport and
+Dothan as *donors*, both bordering treated markets) and the spillover-aware
+design, which spreads treatment across non-adjacent markets and keeps every
+donor clear of a treated market.
+
 References
 ----------
 
