@@ -96,7 +96,8 @@ class PDA:
         methods = resolve_methods(self.config.method, self.config.methods)
         fits = run_pda(inputs, methods, tau=self.config.tau, alpha=self.config.alpha,
                        fs_intercept=self.config.fs_intercept,
-                       lrvar_lag=self.config.lrvar_lag)
+                       lrvar_lag=self.config.lrvar_lag,
+                       l2_standardize=self.config.l2_standardize)
         results = assemble_pda_results(inputs, fits, selected_variant=methods[0])
 
         if self.display_graphs:

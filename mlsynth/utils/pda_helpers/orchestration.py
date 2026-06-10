@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
@@ -28,6 +28,7 @@ def _weights_dict(beta: np.ndarray, labels: np.ndarray) -> Dict[Any, float]:
 def run_pda(
     inputs: PDAInputs, methods: List[str], tau: Optional[float], alpha: float,
     fs_intercept: bool = False, lrvar_lag: Optional[int] = None,
+    l2_standardize: bool = True, l2_tau_grid: Optional[Sequence[float]] = None,
 ) -> Dict[str, PDAMethodFit]:
     """Fit each requested PDA variant with its own paper's inference."""
     y, X, T0 = inputs.y, inputs.X, inputs.T0
@@ -38,7 +39,9 @@ def run_pda(
         meta: Dict[str, Any] = {}
         selected = None
         if m == L2:
-            beta, intercept, cf, tau_used = fit_l2(y, X, T0, tau=tau)
+            beta, intercept, cf, tau_used = fit_l2(
+                y, X, T0, tau=tau, standardize=l2_standardize,
+                tau_grid=l2_tau_grid)
             att, se, ci, p = l2_ate_inference(y, cf, T0, alpha=alpha)
             meta["tau"] = tau_used
         elif m == LASSO:

@@ -277,7 +277,14 @@ High-dimensional donor pools
   :math:`-3.09\%`, matching Shi & Huang's Section 5 cell-for-cell;
   with the prewhitened Newey-West variance from their application
   script the effect is significant (:math:`t = -2.51` vs the paper's
-  :math:`-2.457`; durable: ``pda_luxurywatch``).
+  :math:`-2.457`; durable: ``pda_luxurywatch``). **Path A (l2):** the
+  Shi & Wang (2024) China PPI / real-estate-regulation study on
+  ``china_ppi_long.csv`` -- with the authors' standardisation the
+  L2-relaxation recovers a large significant negative monthly PPI
+  effect, :math:`-5.95\%` (:math:`t = -4.48`), against their
+  :math:`-6.40\%` (:math:`t = -3.61`); the gap is mlsynth's
+  time-respecting sequential CV vs the paper's future-leaking 5-block
+  K-fold (durable: ``pda_ppi``).
 * :doc:`fscm` -- Cerulli (2024) forward-selected SC. **Path A:**
   Proposition 99 --
   :math:`\widehat{\mathrm{ATT}} = -20.15`,

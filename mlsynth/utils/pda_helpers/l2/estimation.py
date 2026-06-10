@@ -4,11 +4,17 @@ Solves the L2-relaxation primal (their Eq. 3)
 
     min_beta  (1/2) ||beta||_2^2   s.t.   || eta_hat - Sigma_hat beta ||_inf <= tau,
 
-with ``Sigma_hat = X'X / T1`` and ``eta_hat = X'y / T1`` over the pre-period,
-intercept ``alpha_hat = mean(y) - mean(X beta)`` (zero-mean residuals), and OOS
-prediction ``y_hat_t = alpha_hat + x_t' beta``. The tuning parameter ``tau`` is
-chosen by sequential out-of-sample validation on the tail of the training
-window.
+with ``Sigma_hat = X'X / T1`` and ``eta_hat = X'y / T1`` over the pre-period.
+
+Following the authors' released ``L2relax`` (https://github.com/ishwang1/L2relax-PDA),
+the treated and control series are **standardised** (demeaned and scaled to unit
+variance) before forming ``Sigma`` / ``eta``, and the solution is mapped back to
+the original scale: ``beta = sd_y * (beta_tilde / sd_X)`` and intercept
+``alpha = mean_y - mean_X . beta``. Standardisation is the default (it is what
+the replication code does and what reproduces the paper's empirical results);
+set ``standardize=False`` for the raw-scale variant. The tuning parameter
+``tau`` is chosen by out-of-sample validation over a log-spaced grid (the
+optimal ``tau`` is often a tiny fraction of ``max|eta|``).
 """
 
 from __future__ import annotations
@@ -21,11 +27,29 @@ import cvxpy as cp
 from ....exceptions import MlsynthEstimationError
 
 
-def l2_relax(y_pre: np.ndarray, X_pre: np.ndarray, tau: float) -> Tuple[np.ndarray, float]:
+def _standardize(y: np.ndarray, X: np.ndarray, standardize: bool):
+    """Return ``(mu_y, Mu_X, sd_y, Sd_X)`` for the L2relax (de)standardisation."""
+    mu_y = float(np.mean(y))
+    Mu_X = X.mean(axis=0)
+    if standardize:
+        sd_y = float(np.std(y, ddof=1)) or 1.0
+        Sd_X = X.std(axis=0, ddof=1)
+        Sd_X = np.where(Sd_X > 0, Sd_X, 1.0)
+    else:
+        sd_y, Sd_X = 1.0, np.ones(X.shape[1])
+    return mu_y, Mu_X, sd_y, Sd_X
+
+
+def l2_relax(
+    y_pre: np.ndarray, X_pre: np.ndarray, tau: float, standardize: bool = True,
+) -> Tuple[np.ndarray, float]:
     """Solve the L2-relaxation primal for coefficients and intercept."""
     T1 = X_pre.shape[0]
-    Sigma = (X_pre.T @ X_pre) / T1
-    eta = (X_pre.T @ y_pre) / T1
+    mu_y, Mu_X, sd_y, Sd_X = _standardize(y_pre, X_pre, standardize)
+    yt = (y_pre - mu_y) / sd_y
+    Xt = (X_pre - Mu_X) / Sd_X
+    Sigma = (Xt.T @ Xt) / T1
+    eta = (Xt.T @ yt) / T1
     beta = cp.Variable(X_pre.shape[1])
     prob = cp.Problem(
         cp.Minimize(0.5 * cp.sum_squares(beta)),
@@ -40,43 +64,69 @@ def l2_relax(y_pre: np.ndarray, X_pre: np.ndarray, tau: float) -> Tuple[np.ndarr
             continue
     if beta.value is None:
         raise MlsynthEstimationError("L2-relaxation failed: all solvers diverged.")
-    b = np.asarray(beta.value).ravel()
-    intercept = float(np.mean(y_pre) - np.mean(X_pre @ b))
-    return b, intercept
+    beta_tilde = np.asarray(beta.value).ravel()
+    beta_hat = sd_y * (beta_tilde / Sd_X)
+    intercept = mu_y - float(Mu_X @ beta_hat)
+    return beta_hat, intercept
 
 
 def cross_validate_tau(
     y_pre: np.ndarray, X_pre: np.ndarray, val_frac: float = 0.2,
-    n_coarse: int = 40, n_fine: int = 40,
+    n_coarse: int = 40, n_fine: int = 40, standardize: bool = True,
+    tau_grid: Optional[np.ndarray] = None,
 ) -> float:
-    """Sequential OOS validation for tau (coarse grid, then zoom)."""
+    """Validate ``tau`` by **sequential** out-of-sample validation on the tail.
+
+    The training window is split in time order -- fit on the earlier
+    ``1 - val_frac`` fraction, validate on the most-recent ``val_frac`` tail --
+    so no future period informs an earlier counterfactual (unlike a K-fold split
+    over contiguous blocks, which trains on both past and future of each fold).
+    ``tau_grid`` overrides the automatic log-spaced grid (e.g. to match a
+    reference grid); otherwise the grid is log-spaced up to ``max|eta|`` (the
+    optimal ``tau`` is often a tiny fraction of that).
+    """
     T1 = y_pre.shape[0]
     n_val = max(2, int(round(val_frac * T1)))
     yt, Xt = y_pre[:-n_val], X_pre[:-n_val]
     yv, Xv = y_pre[-n_val:], X_pre[-n_val:]
-    eta = (Xt.T @ yt) / Xt.shape[0]
-    tau_max = float(np.max(np.abs(eta)))
 
     def val_mse(tau: float) -> float:
         try:
-            b, a = l2_relax(yt, Xt, tau)
+            b, a = l2_relax(yt, Xt, tau, standardize=standardize)
         except MlsynthEstimationError:
             return np.inf
         return float(np.mean((yv - (Xv @ b + a)) ** 2))
 
-    coarse = np.linspace(1e-4 * tau_max, tau_max, n_coarse)
-    best = min(coarse, key=val_mse)
-    width = tau_max / n_coarse
-    fine = np.linspace(max(0.0, best - width), best + width, n_fine)
-    return float(min(fine, key=val_mse))
+    if tau_grid is not None:
+        grid = np.asarray(tau_grid, dtype=float)
+        return float(grid[int(np.argmin([val_mse(t) for t in grid]))])
+
+    coarse = _auto_tau_grid(yt, Xt, standardize, n_coarse)
+    mse = [val_mse(t) for t in coarse]
+    k = int(np.argmin(mse))
+    fine = np.linspace(coarse[max(k - 1, 0)], coarse[min(k + 1, n_coarse - 1)], n_fine)
+    return float(fine[int(np.argmin([val_mse(t) for t in fine]))])
+
+
+def _auto_tau_grid(y: np.ndarray, X: np.ndarray, standardize: bool, n: int) -> np.ndarray:
+    """Log-spaced grid up to ``max|eta|`` on the (standardised) moments."""
+    _, _, sd_y, Sd_X = _standardize(y, X, standardize)
+    eta = ((X - X.mean(0)) / Sd_X).T @ ((y - y.mean()) / sd_y) / X.shape[0]
+    tau_max = float(np.max(np.abs(eta)))
+    return np.logspace(np.log10(max(tau_max * 1e-4, 1e-12)), np.log10(tau_max), n)
 
 
 def fit_l2(
-    y: np.ndarray, X: np.ndarray, T0: int, tau: Optional[float] = None
+    y: np.ndarray, X: np.ndarray, T0: int, tau: Optional[float] = None,
+    standardize: bool = True, tau_grid: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, float, np.ndarray, float]:
     """Fit L2-relaxation; return ``(beta, intercept, counterfactual, tau)``."""
     y_pre, X_pre = y[:T0], X[:T0]
-    tau_used = cross_validate_tau(y_pre, X_pre) if tau is None else float(tau)
-    beta, intercept = l2_relax(y_pre, X_pre, tau_used)
+    if tau is None:
+        tau_used = cross_validate_tau(
+            y_pre, X_pre, standardize=standardize, tau_grid=tau_grid)
+    else:
+        tau_used = float(tau)
+    beta, intercept = l2_relax(y_pre, X_pre, tau_used, standardize=standardize)
     counterfactual = X @ beta + intercept
     return beta, intercept, counterfactual, tau_used

@@ -69,7 +69,7 @@ def run() -> dict:
 # the paper's +2.65% (t ~ 7.7 vs 8.35) -- the small gap is the L2 tuning. The
 # LASSO and forward-selection estimates (3.3%, 3.9%) bracket it.
 EXPECTED = {
-    "l2_ate_pct": (2.48, 0.5),                 # paper L2: 2.65%
+    "l2_ate_pct": (2.61, 0.5),                 # paper L2: 2.65% (standardised l2)
     "lasso_ate_pct": (3.30, 0.6),
     "fs_ate_pct": (3.95, 0.7),
     "l2_pvalue": (0.0, 0.01),                  # rejects no-effect null
