@@ -21,16 +21,16 @@ from typing import Dict, Optional, Sequence
 
 import numpy as np
 
-from .estimation import _build_detrend_matrix
+from .estimation import _build_detrend_matrix, _poly_basis
 
 
-def _refit_gamma(y_aug, W_aug, D_aug, lam, detrend):
+def _refit_gamma(y_aug, W_aug, D_aug, lam, detrend, degree=1):
     """Re-fit the ridge SC weights on an augmented all-pre sample (fixed lam)."""
     if detrend:
         eta = np.linalg.lstsq(D_aug, y_aug, rcond=None)[0]
-        g = np.column_stack([D_aug, y_aug - D_aug @ eta])
+        g = np.column_stack([D_aug, _poly_basis(y_aug - D_aug @ eta, degree)])
     else:
-        g = y_aug.reshape(-1, 1)
+        g = _poly_basis(y_aug, degree)
     N = W_aug.shape[1]
     GY = (g * y_aug[:, None]).mean(0)
     GW = np.stack([(g * W_aug[:, n: n + 1]).mean(0) for n in range(N)], axis=1)
@@ -60,6 +60,7 @@ def conformal_intervals(
     alpha: float = 0.05,
     window: float = 25.0,
     grid_size: int = 101,
+    basis_degree: int = 1,
 ) -> Dict[str, np.ndarray]:
     """Pointwise conformal prediction intervals for the per-period effect.
 
@@ -121,7 +122,7 @@ def conformal_intervals(
         y_aug[-1] = y[idx] - xi
         W_aug = W[rows]
         D_aug = D_full[rows] if detrend else None
-        g = _refit_gamma(y_aug, W_aug, D_aug, ridge_lambda, detrend)
+        g = _refit_gamma(y_aug, W_aug, D_aug, ridge_lambda, detrend, basis_degree)
         return _conformal_pvalue(y_aug - W_aug @ g)
 
     def interval_for(idx: int):

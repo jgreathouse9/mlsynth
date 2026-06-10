@@ -810,6 +810,21 @@ the paper's Figure 3 (≈ 0.07 for SPSC-DT). The inversion re-fits the
 weights on a grid of candidate effects per period, so it is opt-in for
 cost.
 
+**Nonparametric (series) SPSC.** By default the treated unit's own outcome
+enters the moment conditions linearly -- the reference's identity
+``Y.basis``. Park & Tchetgen Tchetgen's supplement (S1.6) notes that a
+**rich basis** of the outcome -- "polynomials, trigonometric functions,
+splines, or wavelets" -- spans a larger space of the latent factor and so
+identifies a bridge that need not be linear. Set ``spsc_basis_degree=p``
+(:math:`p \ge 2`) to replace the instrument with the polynomial sieve
+:math:`[\,y,\,y^2,\,\dots,\,y^p\,]`. This **over-identifies** the
+ridge-GMM (more moments than donor weights) and is the right choice when
+the synthetic-control relationship is nonlinear in the donor outcomes;
+``spsc_basis_degree=1`` (the default) is bit-for-bit the linear single
+proxy. The fitted variant is labelled accordingly
+(``res.spsc.metadata["variant"]`` becomes e.g. ``"SPSC-DT-NP3"``), and the
+detrending and conformal machinery carry the same sieve.
+
 Doubly Robust Proximal Synthetic Control (DR & PIPW)
 ----------------------------------------------------
 

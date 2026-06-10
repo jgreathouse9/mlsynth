@@ -158,6 +158,29 @@ def test_proximal_spsc_conformal(sample_proximal_data: pd.DataFrame) -> None:
     assert np.all(cf["upper"] >= cf["lower"])
 
 
+@pytest.mark.parametrize("detrend,prefix", [(True, "SPSC-DT"), (False, "SPSC-NoDT")])
+def test_proximal_spsc_nonparametric_variant(
+    sample_proximal_data: pd.DataFrame, detrend: bool, prefix: str
+) -> None:
+    """spsc_basis_degree>1 runs the nonparametric sieve and labels the variant."""
+    results = PROXIMAL(PROXIMALConfig(**_base(
+        sample_proximal_data, methods=["SPSC"], spsc_detrend=detrend,
+        spsc_basis_degree=3))).fit()
+    fit = results.spsc
+    assert np.isfinite(fit.att)
+    assert fit.metadata["basis_degree"] == 3
+    assert fit.metadata["variant"] == f"{prefix}-NP3"
+
+
+def test_proximal_spsc_basis_degree_must_be_positive(
+    sample_proximal_data: pd.DataFrame,
+) -> None:
+    """The config rejects a non-positive sieve degree (Pydantic ge=1)."""
+    with pytest.raises(Exception):
+        PROXIMALConfig(**_base(sample_proximal_data, methods=["SPSC"],
+                               spsc_basis_degree=0))
+
+
 # --- DR + PIPW (doubly robust proximal) ---
 
 def test_proximal_dr_pipw_path(sample_proximal_data: pd.DataFrame) -> None:
