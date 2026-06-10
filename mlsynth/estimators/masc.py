@@ -142,6 +142,8 @@ class MASC:
                 forecast_minlength=self.config.forecast_minlength,
                 forecast_maxlength=self.config.forecast_maxlength,
                 solver=self.config.solver,
+                sc_backend=self.config.sc_backend,
+                match_on=self.config.match_on,
             )
         except (MlsynthDataError, MlsynthEstimationError):
             raise

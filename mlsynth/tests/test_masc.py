@@ -23,6 +23,7 @@ from mlsynth.config_models import MASCConfig
 from mlsynth.exceptions import (
     MlsynthConfigError,
     MlsynthDataError,
+    MlsynthEstimationError,
 )
 from mlsynth.utils.masc_helpers import (
     MASCFit,
@@ -296,6 +297,34 @@ class TestEstimatorPipeline:
         res = MASC(_cfg(panel_with_cov, covariates=["x1", "x2"])).fit()
         assert isinstance(res, MASCResults)
         assert np.isclose(res.weights_vector.sum(), 1.0)
+
+
+class TestBackendAndMatchToggles:
+    """``sc_backend`` and ``match_on`` options (MSCMT/covariate-match)."""
+
+    def test_config_defaults(self, panel):
+        cfg = MASCConfig(**_cfg(panel))
+        assert cfg.sc_backend == "mscmt"
+        assert cfg.match_on == "outcomes"
+
+    def test_both_sc_backends_run_and_simplex(self, panel_with_cov):
+        for backend in ("mscmt", "bilevel"):
+            res = MASC(_cfg(panel_with_cov, covariates=["x1", "x2"],
+                            sc_backend=backend)).fit()
+            assert np.isclose(res.weights_vector.sum(), 1.0)
+
+    def test_covariate_match_runs_and_simplex(self, panel_with_cov):
+        res = MASC(_cfg(panel_with_cov, covariates=["x1", "x2"],
+                        match_on="covariates")).fit()
+        assert np.isclose(res.weights_vector.sum(), 1.0)
+
+    def test_match_on_covariates_requires_covariates(self, panel):
+        with pytest.raises((MlsynthConfigError, MlsynthEstimationError)):
+            MASC(_cfg(panel, match_on="covariates")).fit()
+
+    def test_invalid_sc_backend_rejected(self, panel):
+        with pytest.raises(MlsynthConfigError):
+            MASC(_cfg(panel, sc_backend="not_a_solver"))
 
 
 # --------------------------------------------------------------------------- #

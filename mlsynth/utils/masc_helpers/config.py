@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import Field
 from ...config_models import BaseEstimatorConfig
 
@@ -97,5 +97,28 @@ class MASCConfig(BaseEstimatorConfig):
         description=(
             "cvxpy solver name forwarded to the SC simplex QP. "
             "Defaults to CLARABEL when unset."
+        ),
+    )
+    match_on: Literal["outcomes", "covariates"] = Field(
+        default="outcomes",
+        description=(
+            "Feature space for the nearest-neighbour match. 'outcomes' "
+            "(default) matches on the pre-treatment outcome path (the R "
+            "reference's default ``Wbar``); 'covariates' matches on the "
+            "row-standardised predictor block (the reference's "
+            "``solve.covmatch``, used in the Kellogg et al. (2020) Basque "
+            "application). Requires ``covariates`` when set to "
+            "'covariates'."
+        ),
+    )
+    sc_backend: Literal["mscmt", "bilevel"] = Field(
+        default="mscmt",
+        description=(
+            "Predictor-weight (V) optimiser for the covariate SC step. "
+            "'mscmt' (default) uses the MSCMT global search, matching "
+            "Abadie's synth() / the Kellogg et al. (2020) reference; "
+            "'bilevel' uses the Malo et al. solver shared with FSCM. "
+            "Both jointly optimise V and W; they can differ on hard "
+            "predictor sets. Ignored when no covariates are supplied."
         ),
     )

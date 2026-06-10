@@ -88,13 +88,14 @@ Canonical workhorses
   → dedicated page: :doc:`replications/vanillasc`.
 * :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)
   matching + synthetic control. **Path A:** the KMPT Section-5
-  Basque Country / ETA-terrorism study on ``basque_jasa.csv`` --
-  the Cataluna-dominated donor pool and pre-period RMSE
-  (:math:`\approx \$89` vs the paper's :math:`\$94`) agree, and the
-  ATT (:math:`-\$816`/capita) shares the paper's sign and
-  :math:`\$600`-:math:`\$800` magnitude; the level differs because
-  the SC predictor-weight (``V``) optimiser is non-unique
-  (durable: ``masc_basque``).
+  Basque Country / ETA-terrorism study on ``basque_jasa.csv``,
+  reproduced **value for value** when run as the authors did
+  (MSCMT/``synth`` SC + covariate matching): the CV selects pure SC
+  (:math:`\hat\varphi = 0`, as in KMPT), Cataluna + Madrid carry all
+  the weight (1.00 vs 0.85 + 0.15), pre-RMSE :math:`\$89` vs
+  :math:`\$94`, and ATT :math:`-\$585` vs the paper's
+  :math:`-\$580`. The ``sc_backend`` and ``match_on`` toggles expose
+  both optimiser/matching choices (durable: ``masc_basque``).
 * :doc:`fdid` -- Li (2024) Forward Difference-in-Differences.
   **Path A:** the author's public Hong Kong GDP companion replication
   reproduced cell by cell (FDID ATT :math:`0.0254`, :math:`53.84\%`,
