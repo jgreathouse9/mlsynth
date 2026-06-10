@@ -331,7 +331,10 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
     if strata is not None and min_per is not None:
         pool = {S: v for S, v in pool.items()
                 if _strata.satisfies(strata, S, min_per, max_per, required)}
-        if not pool:
+        # Defensive: a cross-stratum (covering) tuple is essentially always at
+        # least as balanced as a single-stratum one, so the heuristic does not
+        # leave the pool empty here in practice; enumeration is exact anyway.
+        if not pool:  # pragma: no cover
             return [], work[0], consensus
     ranked = sorted(pool.items(), key=lambda kv: kv[1])[:top_K]
     return [(np.array(S), L) for S, L in ranked], work[0], consensus
@@ -429,9 +432,10 @@ def select_treated_designs(
             f"constraint, or widen the candidate pool."
         )
 
-    # Coverage feasibility: the quotas can be jointly infeasible with the budget /
-    # spillover constraints even when each alone is satisfiable.
-    if strata is not None and not raw:
+    # Coverage feasibility backstop: ``_strata.check_feasible`` (and the budget
+    # presolve) already reject infeasible quotas up front, so this post-search
+    # guard is essentially unreachable -- kept as defence in depth.
+    if strata is not None and not raw:  # pragma: no cover
         raise MlsynthConfigError(
             f"No treated {m}-tuple satisfies the per-stratum quotas "
             f"(min_per_stratum={min_per_stratum}, max_per_stratum={max_per_stratum}) "
