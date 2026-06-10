@@ -7,7 +7,7 @@ Co-located with the helper package; re-exported from
 from __future__ import annotations
 
 from typing import Any, List, Literal, Optional
-from pydantic import Field
+from pydantic import Field, model_validator
 from ...config_models import BaseMAREXConfig
 
 
@@ -81,6 +81,76 @@ class LEXSCMConfig(BaseMAREXConfig):
         description="Adjacency entries strictly above this value count as a "
                     "spillover conflict (default 0.0: any positive entry)."
     )
+
+    # =========================================================
+    # COVERAGE / STRATIFICATION (treated-set quotas across strata)
+    # =========================================================
+
+    stratum_col: Optional[str] = Field(
+        default=None,
+        description="Optional column assigning each unit to a stratum (e.g. "
+                    "region/tier/segment; constant within unit) for coverage "
+                    "quotas on the treated set. Requires at least one of "
+                    "`min_per_stratum` / `max_per_stratum`."
+    )
+
+    min_per_stratum: Optional[int] = Field(
+        default=None, ge=1,
+        description="Require at least this many treated units from EVERY stratum "
+                    "that contains a candidate ('test in every region')."
+    )
+
+    max_per_stratum: Optional[int] = Field(
+        default=None, ge=1,
+        description="Allow at most this many treated units from any single "
+                    "stratum (a quota)."
+    )
+
+    # =========================================================
+    # TREATED-UNIT SIZE BANDS (eligibility by scale)
+    # =========================================================
+
+    size_col: Optional[str] = Field(
+        default=None,
+        description="Optional column giving each unit's size (population, revenue, "
+                    "...; constant within unit). Units outside [`min_size`, "
+                    "`max_size`] are excluded from TREATMENT (they may still serve "
+                    "as donors). Required if `min_size`/`max_size` are set."
+    )
+
+    min_size: Optional[float] = Field(
+        default=None,
+        description="Treatment-eligibility floor: a power/operational minimum size."
+    )
+
+    max_size: Optional[float] = Field(
+        default=None,
+        description="Treatment-eligibility ceiling: units too large to be "
+                    "reproduced by a convex combination of others (e.g. mega-markets)."
+    )
+
+    @model_validator(mode="after")
+    def _validate_coverage_and_size(self) -> "LEXSCMConfig":
+        if (self.min_per_stratum is not None or self.max_per_stratum is not None) \
+                and self.stratum_col is None:
+            raise ValueError(
+                "min_per_stratum / max_per_stratum require `stratum_col`."
+            )
+        if (self.min_per_stratum is not None and self.max_per_stratum is not None
+                and self.min_per_stratum > self.max_per_stratum):
+            raise ValueError(
+                f"min_per_stratum ({self.min_per_stratum}) cannot exceed "
+                f"max_per_stratum ({self.max_per_stratum})."
+            )
+        if (self.min_size is not None or self.max_size is not None) \
+                and self.size_col is None:
+            raise ValueError("min_size / max_size require `size_col`.")
+        if (self.min_size is not None and self.max_size is not None
+                and self.min_size > self.max_size):
+            raise ValueError(
+                f"min_size ({self.min_size}) cannot exceed max_size ({self.max_size})."
+            )
+        return self
 
     seed: int = 42
 

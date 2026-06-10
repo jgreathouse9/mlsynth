@@ -48,6 +48,7 @@ from typing import Any, Dict, List, Optional, Sequence
 import numpy as np
 
 from .conflict import is_independent
+from . import strata as _strata
 from ...exceptions import MlsynthConfigError
 
 
@@ -183,7 +184,8 @@ def _budget_feasible_candidates(candidate_idx, m, unit_costs, budget):
 # ======================================================================
 
 def _enumerate(G, cand, m, top_K, unit_costs, budget, iters, chunk=300_000,
-               conflict=None):
+               conflict=None, strata=None, min_per=None, max_per=None,
+               required=None):
     cand = np.sort(np.asarray(cand))
     from itertools import combinations, chain
     combs = np.fromiter(chain.from_iterable(combinations(cand.tolist(), m)), dtype=int)
@@ -197,6 +199,9 @@ def _enumerate(G, cand, m, top_K, unit_costs, budget, iters, chunk=300_000,
         iu = np.triu_indices(m, k=1)
         pair_conf = conflict[combs[:, iu[0]], combs[:, iu[1]]]   # (N, n_pairs)
         combs = combs[~pair_conf.any(axis=1)]
+    # Coverage / stratification quotas (min / max treated per stratum).
+    if strata is not None and len(combs):
+        combs = combs[_strata.satisfies_many(strata, combs, min_per, max_per, required)]
     if len(combs) == 0:
         return [], 0
     losses = np.empty(len(combs))
@@ -216,7 +221,8 @@ def _cost_ok(idx_list, unit_costs, budget):
     return float(unit_costs[list(idx_list)].sum()) <= budget + 1e-12
 
 def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
-                  n_kicks=4, conflict=None):
+                  n_kicks=4, conflict=None, strata=None, min_per=None,
+                  max_per=None, required=None):
     """Multi-start best-improvement swap search with basin-hopping kicks.
 
     Returns (ranked_designs, n_distinct_subsets, consensus) where ``consensus``
@@ -230,7 +236,11 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
     cand = list(np.sort(np.asarray(cand)))
 
     def _ok(S):
-        return _cost_ok(S, unit_costs, budget) and is_independent(conflict, S)
+        # max-per-stratum is partial-safe (prunes during construction); the min
+        # coverage quota is a full-tuple property, filtered after the search.
+        return (_cost_ok(S, unit_costs, budget)
+                and is_independent(conflict, S)
+                and _strata.within_max(strata, S, max_per))
     diag = np.diag(G)
     pool: Dict[tuple, float] = {}
     work = [0]                      # total subsets scored ("simplex iterations")
@@ -315,6 +325,14 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
     }
     consensus["consensus_rate"] = (consensus["starts_reaching_incumbent"]
                                    / max(consensus["n_starts"], 1))
+    # Enforce the min-coverage quota on the final pool (a full-tuple property the
+    # incremental ``_ok`` cannot check); the heuristic is best-effort here, exact
+    # enumeration is the gold standard for coverage constraints.
+    if strata is not None and min_per is not None:
+        pool = {S: v for S, v in pool.items()
+                if _strata.satisfies(strata, S, min_per, max_per, required)}
+        if not pool:
+            return [], work[0], consensus
     ranked = sorted(pool.items(), key=lambda kv: kv[1])[:top_K]
     return [(np.array(S), L) for S, L in ranked], work[0], consensus
 
@@ -338,6 +356,9 @@ def select_treated_designs(
     random_state: int = 0,
     unit_index: Optional[Any] = None,
     conflict: Optional[np.ndarray] = None,
+    strata: Optional[np.ndarray] = None,
+    min_per_stratum: Optional[int] = None,
+    max_per_stratum: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Select the ``top_K`` treated m-tuples with smallest imbalance.
 
@@ -368,6 +389,12 @@ def select_treated_designs(
     if M < m:
         raise ValueError(f"Only {M} budget-feasible candidates for m={m}.")
 
+    # Coverage / stratification: fail early when the quotas admit no size-m tuple.
+    required = None
+    if strata is not None:
+        _strata.check_feasible(strata, cand, m, min_per_stratum, max_per_stratum)
+        required = _strata.required_codes(strata, cand)
+
     total = comb(M, m)
     if method == "auto":
         method = "enumerate" if total <= enumerate_max else "heuristic"
@@ -375,12 +402,17 @@ def select_treated_designs(
     consensus = None
     if method == "enumerate":
         raw, n_eval = _enumerate(G, cand, m, top_K, unit_costs, budget, iters,
-                                 conflict=conflict)
+                                 conflict=conflict, strata=strata,
+                                 min_per=min_per_stratum, max_per=max_per_stratum,
+                                 required=required)
         exact = True
     elif method == "heuristic":
         raw, n_eval, consensus = _local_search(G, cand, m, top_K, unit_costs,
                                                budget, n_starts, rng, iters,
-                                               conflict=conflict)
+                                               conflict=conflict, strata=strata,
+                                               min_per=min_per_stratum,
+                                               max_per=max_per_stratum,
+                                               required=required)
         exact = False
     else:
         raise ValueError(f"unknown method {method!r}")
@@ -395,6 +427,16 @@ def select_treated_designs(
             f"units: the spillover 'no interference' constraint admits no "
             f"independent set of size m={m}. Reduce m, relax the cluster/adjacency "
             f"constraint, or widen the candidate pool."
+        )
+
+    # Coverage feasibility: the quotas can be jointly infeasible with the budget /
+    # spillover constraints even when each alone is satisfiable.
+    if strata is not None and not raw:
+        raise MlsynthConfigError(
+            f"No treated {m}-tuple satisfies the per-stratum quotas "
+            f"(min_per_stratum={min_per_stratum}, max_per_stratum={max_per_stratum}) "
+            f"together with the other constraints. Relax the quotas, increase m, or "
+            f"widen the candidate pool."
         )
 
     # finalise weights to high precision for the returned designs
