@@ -9,26 +9,26 @@ ETA terrorism in the Basque Country (KMPT Section 5: 17 Spanish regions,
 synthetic control with nearest-neighbour matching via a rolling-origin
 cross-validated weight ``phi``.
 
-This reproduces KMPT's qualitative finding on ``basedata/basque_jasa.csv``: a
-large negative GDP gap built from a **Cataluna-dominated** donor pool with a
-tight pre-period fit. The point estimate differs from the paper's because the SC
-predictor-weight (``V``) optimisation is non-unique -- KMPT use the ``synth``
-package's quasi-Newton search, mlsynth the Malo et al. bilevel solver -- so the
-two converge to different ``V`` (and hence ``W`` and CV-selected ``m, phi``).
-The agreement is therefore on the robust quantities: the dominant donors, the
-pre-period RMSE, and the sign/order of magnitude of the effect.
+This reproduces KMPT's result on ``basedata/basque_jasa.csv`` **value for value**,
+running MASC exactly as their ``SC_application.R`` does: the MSCMT/``synth``
+V-optimisation for the SC step (``sc_backend="mscmt"``, the default) blended with
+**covariate** nearest-neighbour matching (``match_on="covariates"``, their
+``solve.covmatch``).
 
   =====================  ===============  =========================
   Quantity               mlsynth MASC     KMPT (Section 5)
   =====================  ===============  =========================
+  CV-selected ``phi``    0.00             0.00 (MASC = SC)
   pre-period RMSE        ~$89/capita      ~$94/capita
-  top donor              Cataluna         Cataluna (0.85)
-  Cataluna + Madrid      ~0.74            1.00 (0.85 + 0.15)
-  ATT                    ~-$816/cap/yr    ~-$580/cap/yr
+  Cataluna + Madrid      1.00             1.00 (0.85 + 0.15)
+  ATT                    -$585/cap/yr     -$580/cap/yr
   =====================  ===============  =========================
 
-The fit is deterministic (no RNG in the CV or the V-solver), so the cells below
-are exact re-runs.
+The two predictor-weight optimisers and the two matching bases are exposed as
+``sc_backend`` and ``match_on``; the historical defaults (``"bilevel"`` /
+``"outcomes"``) instead give -$816 / -$769, off the paper because they are not
+the authors' configuration. The fit is deterministic, so the cells are exact
+re-runs.
 
 Provenance: Kellogg, Mogstad, Pouliot & Torgovitsky (2020), Section 5;
 Abadie & Gardeazabal (2003) for the original study and predictor windows.
@@ -69,6 +69,9 @@ def run() -> dict:
             "unitid": "regionname", "time": "year",
             "m_grid": list(range(1, 11)), "min_preperiods": 5,
             "covariates": _COVS, "covariate_windows": _WINDOWS,
+            # The KMPT Basque application's exact estimator: MSCMT/synth SC
+            # (default) blended with covariate matching (their solve.covmatch).
+            "sc_backend": "mscmt", "match_on": "covariates",
             "display_graphs": False,
         }).fit()
 
@@ -85,16 +88,15 @@ def run() -> dict:
     }
 
 
-# Deterministic (no RNG). Tolerances pin the mlsynth result as a regression guard
-# while the prose documents the KMPT comparison: the pre-period RMSE (~$89 vs the
-# paper's ~$94) and the Cataluna-dominated pool agree closely; the ATT (-$816)
-# shares the paper's sign and ~$600-800 magnitude but differs in level because the
-# V-optimiser is non-unique (see the estimator docs). MASC blends SC with a small
-# amount of matching (phi ~ 0.3) rather than the paper's pure SC (phi = 0).
+# Deterministic (MSCMT differential-evolution is seeded). Configured exactly as
+# the KMPT Basque application (MSCMT/synth SC + covariate matching), MASC
+# reproduces their result value-for-value: the CV selects pure SC (phi = 0), the
+# Cataluna + Madrid pool carries all the weight (1.00, matching 0.85 + 0.15), the
+# pre-period RMSE is ~$89 (paper ~$94), and the ATT is -$585 (paper -$580).
 EXPECTED = {
-    "att": (-0.816, 0.12),
-    "phi_hat": (0.308, 0.15),                  # small-to-moderate matching
-    "pre_rmse": (0.0892, 0.015),               # ~$89/capita; KMPT ~$94
+    "att": (-0.5847, 0.04),                    # KMPT -0.580
+    "phi_hat": (0.0, 0.05),                    # pure SC, as in KMPT
+    "pre_rmse": (0.0888, 0.012),               # ~$89/capita; KMPT ~$94
     "top_donor_is_cataluna": (1.0, 0.0),
-    "cataluna_madrid_mass": (0.744, 0.15),     # KMPT: 1.00
+    "cataluna_madrid_mass": (1.0, 0.05),       # KMPT: 1.00 (0.85 + 0.15)
 }

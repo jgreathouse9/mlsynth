@@ -96,6 +96,7 @@ def sc_simplex_weights(
     X_treated: Optional[np.ndarray] = None,
     X_donors: Optional[np.ndarray] = None,
     solver: Optional[str] = None,
+    sc_backend: str = "mscmt",
 ) -> np.ndarray:
     """Standard SC simplex QP on pre-period outcomes or covariates.
 
@@ -143,12 +144,14 @@ def sc_simplex_weights(
         w_hat = np.clip(np.asarray(w.value).flatten(), 0.0, None)
         return w_hat / w_hat.sum()
 
-    # Covariate branch -- delegate to the FSCM/Malo bilevel solver so
-    # ``V`` is jointly optimised with ``W`` against the outcome-fit
-    # objective. This matches Abadie's ``synth()`` V-optimisation (the R
-    # reference's ``custom.v = NULL`` path) instead of fixing ``V`` to
-    # the heuristic inverse-variance default.
-    from ..fscm_helpers.bilevel import BilevelProblem, solve_bilevel
+    # Covariate branch -- jointly optimise ``V`` with ``W`` against the
+    # outcome-fit objective, matching Abadie's ``synth()`` V-optimisation
+    # (the R reference's ``custom.v = NULL`` path) instead of fixing ``V``
+    # to the heuristic inverse-variance default. ``sc_backend="mscmt"``
+    # (default) uses the MSCMT global search, which reproduces synth() /
+    # the Kellogg et al. (2020) reference; ``"bilevel"`` uses the Malo et
+    # al. solver shared with FSCM.
+    from ..fscm_helpers.bilevel import BilevelProblem
     Pt, Pd = _standardize_predictors(X_treated, X_donors)
     prob = BilevelProblem(
         y1_pre=Y_treated_pre,
@@ -156,7 +159,16 @@ def sc_simplex_weights(
         X1=Pt,
         X0=Pd,
     )
-    sol = solve_bilevel(prob)
+    if sc_backend == "mscmt":
+        from ..fscm_helpers.bilevel.mscmt import solve_mscmt
+        sol = solve_mscmt(prob, canonical_v="min.loss.w")
+    elif sc_backend == "bilevel":
+        from ..fscm_helpers.bilevel import solve_bilevel
+        sol = solve_bilevel(prob)
+    else:
+        raise ValueError(
+            f"Unknown sc_backend {sc_backend!r}; use 'mscmt' or 'bilevel'."
+        )
     return np.clip(sol.W, 0.0, None) / np.clip(sol.W, 0.0, None).sum()
 
 

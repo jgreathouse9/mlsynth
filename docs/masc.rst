@@ -381,6 +381,10 @@ donor candidates), 1955-1997, with the JASA predictor specification
        "min_preperiods": 5,
        "covariates": covariates,
        "covariate_windows": covariate_windows,
+       # The KMPT Basque application's exact estimator: the MSCMT/synth SC
+       # optimiser (the default) blended with covariate matching.
+       "sc_backend": "mscmt",
+       "match_on": "covariates",
        "display_graphs": False,
    }).fit()
 
@@ -395,51 +399,47 @@ donor candidates), 1955-1997, with the JASA predictor specification
 
 This prints::
 
-   Selected m   : 3
-   Selected phi : 0.308
+   Selected m   : 1
+   Selected phi : 0.000
    Pre-RMSE     : $89/capita
-   ATT          : $-816/capita/year
+   ATT          : $-585/capita/year
    Top donors:
-     Cataluna                         0.446
-     Madrid (Comunidad De)            0.298
-     Baleares (Islas)                 0.211
+     Cataluna                         0.831
+     Madrid (Comunidad De)            0.169
 
-The paper [KMPT2021]_, Section 5, reports MASC ≡ SCE
-(:math:`\hat\varphi = 0`), pre-RMSE :math:`\approx \$94`, ATT
-:math:`\approx -\$580`/capita/year, with donor weights ``Cataluna 0.85``,
-``Madrid 0.15``. The agreement is on the robust quantities: Cataluna is the
-dominant donor in both, Cataluna + Madrid carry most of the SC weight
-(:math:`0.45 + 0.30 = 0.74` here vs.\ :math:`0.85 + 0.15` in KMPT), and the
-pre-RMSE matches (:math:`\$89` vs.\ :math:`\$94`). The ATT :math:`-\$816`
-shares the paper's sign and :math:`\$600`-:math:`\$800` magnitude but sits
-below the published :math:`-\$580`; the level difference is the V-optimiser
-non-uniqueness documented below (mlsynth's CV prefers a small amount of
-matching, :math:`\hat\varphi \approx 0.31`, :math:`m = 3`, rather than the
-paper's pure SC). The durable check is ``benchmarks/cases/masc_basque.py``.
+Configured exactly as the KMPT [KMPT2021]_ Section-5 application -- the
+MSCMT/``synth`` SC optimiser blended with **covariate** matching (their
+``solve.covmatch``) -- MASC reproduces their result value for value. The paper
+reports MASC :math:`\equiv` SC (:math:`\hat\varphi = 0`), pre-RMSE
+:math:`\approx \$94`, ATT :math:`\approx -\$580`/capita/year with donor weights
+``Cataluna 0.85`` / ``Madrid 0.15``; mlsynth's CV likewise selects pure SC
+(:math:`\hat\varphi = 0`), pre-RMSE :math:`\$89`, ATT :math:`-\$585`, Cataluna
+:math:`0.83` / Madrid :math:`0.17`. The durable check is
+``benchmarks/cases/masc_basque.py``.
 
 .. note::
 
-   **Why our :math:`\hat\varphi` is small but non-zero.** The JASA paper
-   computes :math:`\boldsymbol{\omega}_{\mathrm{SC}}` via the ``synth()``
-   package's quasi-Newton search over the predictor-weight matrix
-   :math:`\mathbf{V}`. ``mlsynth`` delegates the V-optimisation to the
-   Malo et al. [malo2023computing]_ bilevel solver (the same solver used by
-   ``FSCM``). Both are mathematically valid V-optimisation strategies; on
-   this problem they converge to slightly different :math:`\mathbf{V}` and
-   therefore slightly different :math:`\mathbf{W}` (Cataluna 0.64 + Madrid
-   0.23 vs.\ 0.85 + 0.15). The rolling-origin CV then prefers a small
-   amount of nearest-neighbour matching (:math:`\hat\varphi \approx 0.32`,
-   :math:`m=1`) rather than pure SC.
+   **Two optimiser choices, both exposed.** Reproducing KMPT exactly turns
+   on matching the authors' two algorithmic choices, each a config toggle:
 
-   This is the **non-uniqueness phenomenon** documented by Becker & Kloessner
-   and discussed in Malo et al.: when the SC problem is over-parameterised
-   (here 12 predictors over 16 donors) the upper-level loss is flat over many
-   feasible :math:`\mathbf{V}`, and different V-optimisers converge to
-   different :math:`\mathbf{W}`. Bit-perfect replication of JASA's Section 5
-   would require a true ADH ``synth()`` port; the present implementation is
-   a faithful port of the MASC *algorithm* (matching, rolling-origin CV,
-   closed-form :math:`\varphi`) on top of mlsynth's bilevel V solver, with
-   the documented caveat above.
+   * ``sc_backend`` -- the predictor-weight (:math:`\mathbf{V}`) optimiser
+     for the SC step. ``"mscmt"`` (the default) is the MSCMT global search
+     that matches Abadie's ``synth()`` and the reference; ``"bilevel"`` is
+     the Malo et al. [malo2023computing]_ solver shared with ``FSCM``. They
+     can converge to different :math:`\mathbf{V}` (hence :math:`\mathbf{W}`)
+     when the SC problem is over-parameterised (here 12 predictors over 16
+     donors), the non-uniqueness phenomenon documented by Becker & Kloessner.
+   * ``match_on`` -- the nearest-neighbour feature space. ``"outcomes"``
+     (the default) matches on the pre-treatment outcome path (the reference's
+     default ``Wbar``); ``"covariates"`` matches on the standardised
+     predictor block (their ``solve.covmatch``), which the KMPT Basque
+     application uses.
+
+   The Basque numbers above use the authors' configuration
+   (``sc_backend="mscmt"``, ``match_on="covariates"``) and match KMPT value
+   for value. The historical defaults (``"bilevel"`` / ``"outcomes"``) give
+   :math:`-\$816` / :math:`-\$769` and a small positive :math:`\hat\varphi`,
+   off the paper only because they are not the authors' choices.
 
 Verification
 ------------

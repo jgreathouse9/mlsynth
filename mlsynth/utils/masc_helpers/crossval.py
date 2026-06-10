@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import numpy as np
 
 from .estimation import (
+    _standardize_predictors,
     analytic_phi,
     nearest_neighbor_weights,
     sc_simplex_weights,
@@ -77,6 +78,8 @@ def _build_sc_cache(
     forecast_minlength: int,
     forecast_maxlength: int,
     solver: Optional[str],
+    sc_backend: str = "mscmt",
+    match_on: str = "outcomes",
     cov_treated_panel: Optional[np.ndarray] = None,
     cov_donors_panel: Optional[np.ndarray] = None,
     covariate_names: Sequence[Any] = (),
@@ -109,14 +112,24 @@ def _build_sc_cache(
         w_sc = sc_simplex_weights(
             Y0_pre, YJ_pre,
             X_treated=X_treated, X_donors=X_donors,
-            solver=solver,
+            solver=solver, sc_backend=sc_backend,
         )
+        # Matching features: the outcome path (default) or the
+        # row-standardised covariate block (the reference's solve.covmatch).
+        if match_on == "covariates":
+            if X_treated is None:
+                raise ValueError(
+                    "match_on='covariates' requires covariates."
+                )
+            M0, MJ = _standardize_predictors(X_treated, X_donors)
+        else:
+            M0, MJ = Y0_pre, YJ_pre
         Y0_post = Y_treated[idx_post]
         YJ_post = Y_donors[idx_post]
         Y_sc_fold = YJ_post @ w_sc
         n_per = Y0_post.shape[0]
         obj_w = np.full(n_per, fold_weights[fold_idx] / n_per)
-        cache.append((Y0_pre, YJ_pre, Y0_post, YJ_post, Y_sc_fold, obj_w))
+        cache.append((M0, MJ, Y0_post, YJ_post, Y_sc_fold, obj_w))
     return cache
 
 
@@ -195,6 +208,8 @@ def cross_validate(
     forecast_minlength: int = 1,
     forecast_maxlength: int = 1,
     solver: Optional[str] = None,
+    sc_backend: str = "mscmt",
+    match_on: str = "outcomes",
     cov_treated_panel: Optional[np.ndarray] = None,
     cov_donors_panel: Optional[np.ndarray] = None,
     covariate_names: Sequence[Any] = (),
@@ -250,6 +265,8 @@ def cross_validate(
         forecast_minlength=forecast_minlength,
         forecast_maxlength=forecast_maxlength,
         solver=solver,
+        sc_backend=sc_backend,
+        match_on=match_on,
         cov_treated_panel=cov_treated_panel,
         cov_donors_panel=cov_donors_panel,
         covariate_names=covariate_names,

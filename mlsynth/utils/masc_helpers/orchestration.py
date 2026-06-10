@@ -8,6 +8,7 @@ import numpy as np
 
 from .crossval import _aggregate_covariates, cross_validate
 from .estimation import (
+    _standardize_predictors,
     masc_combine,
     nearest_neighbor_weights,
     sc_simplex_weights,
@@ -25,6 +26,8 @@ def run_masc(
     forecast_minlength: int = 1,
     forecast_maxlength: int = 1,
     solver: Optional[str] = None,
+    sc_backend: str = "mscmt",
+    match_on: str = "outcomes",
 ) -> MASCFit:
     """Run MASC end-to-end on ``inputs``.
 
@@ -44,6 +47,8 @@ def run_masc(
         forecast_minlength=forecast_minlength,
         forecast_maxlength=forecast_maxlength,
         solver=solver,
+        sc_backend=sc_backend,
+        match_on=match_on,
         cov_treated_panel=inputs.cov_treated_panel,
         cov_donors_panel=inputs.cov_donors_panel,
         covariate_names=inputs.covariate_names,
@@ -53,7 +58,6 @@ def run_masc(
 
     Y0_pre = Y_treated[:T0]
     YJ_pre = Y_donors[:T0]
-    w_match = nearest_neighbor_weights(Y0_pre, YJ_pre, m_hat)
     # For the final refit, aggregate covariates over the entire pre-period
     # (matches the R reference's behaviour outside the CV folds).
     X_treated, X_donors = _aggregate_covariates(
@@ -62,10 +66,17 @@ def run_masc(
         pre_end_period=T0,
         covariate_windows=inputs.covariate_windows,
     )
+    if match_on == "covariates":
+        if X_treated is None:
+            raise ValueError("match_on='covariates' requires covariates.")
+        M_treated, M_donors = _standardize_predictors(X_treated, X_donors)
+    else:
+        M_treated, M_donors = Y0_pre, YJ_pre
+    w_match = nearest_neighbor_weights(M_treated, M_donors, m_hat)
     w_sc = sc_simplex_weights(
         Y0_pre, YJ_pre,
         X_treated=X_treated, X_donors=X_donors,
-        solver=solver,
+        solver=solver, sc_backend=sc_backend,
     )
     w_masc = masc_combine(w_match, w_sc, phi_hat)
 
