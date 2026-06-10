@@ -970,12 +970,28 @@ Replication Status
    intervals of [SPSC]_ are also ported and reproduce the average interval
    width of the paper's Figure 3 (≈ 0.07 for SPSC-DT).
 
+   **SPSC (Path B, durable IFEM Monte Carlo).** The authors ship a
+   self-contained interactive-fixed-effects DGP in their package README
+   (the *"Toy Example from Interactive Fixed Effect Models,"*
+   :math:`\mathrm{True.ATT}=3`, a trending donor pool). The durable
+   benchmark ``spsc_ifem_mc`` redraws it 60 times and drives ``mlsynth``'s
+   SPSC: both SPSC-DT and SPSC-NoDT recover the true ATT essentially without
+   bias (biases ≈ 0.006 and 0.008), but only the detrended **SPSC-DT**
+   delivers honest inference -- its 95% Wald intervals cover near nominal
+   while **SPSC-NoDT** under-covers because its constant-gap model is forced
+   through a trending counterfactual. This reproduces the supplement's
+   central finding ([SPSC]_ Figures S2-S6): detrending is what buys correct
+   coverage when the untreated trajectories drift.
+
    **Simulation (Path B).** The robustness claim of [LiuTchetgenVar]_ Sec.
-   4.1 reproduces: under a trending latent factor
-   (:math:`\boldsymbol{\lambda}_t \sim N(\log t, 1)`), classical SC and
-   SC-with-surrogates lose all coverage (→ 0%) while PI/PIS/PIPost remain
-   near nominal with low MSE; PIS attains the lowest MSE in most cells. See
-   *Example* for a one-draw illustration.
+   4.1 reproduces, and is pinned by the **durable** benchmark
+   ``proximal_surrogates_mc`` (the authors' ``freshtaste/proximal`` ``dgp.py``):
+   under a trending latent factor
+   (:math:`\boldsymbol{\lambda}_t \sim N(\log t, 1)`), classical SC is biased
+   by the trend (mean ATT ≈ 1.30 against the true 1.0, MSE ≈ 0.19) while
+   PI/PIS/PIPost recover the truth (biases ≲ 0.003) with near-nominal Wald
+   coverage and lower MSE; **PIS attains the lowest MSE** of the three
+   (≈ 0.05). See *Example* for a one-draw illustration.
 
    **DR & PIPW (Path B) -- runnable proof, not a claim.** The DR/PIPW
    agreement is demonstrated by the **runnable Monte Carlo above** (the
@@ -988,8 +1004,11 @@ Replication Status
    misspecifying the outcome bridge (``Y`` nonlinear in the confounder)
    biases the outcome-only ``PI`` estimator (mean ATT ``≈ 4.3``) while
    ``DR`` stays at ``1.99``, rescued by the correct treatment-confounding
-   bridge. Copy-paste the block to re-derive these numbers. The
-   over-identified empirical analyses (Brazil/Florida/Kansas) are not
+   bridge. Copy-paste the block to re-derive these numbers, or run the
+   **durable** benchmark ``dr_proximal_mc`` -- it drives the same DGP through
+   the packaged estimators and pins recovery, coverage, and the
+   double-robustness collapse (PI ≈ 4.23 vs DR ≈ 1.96 under misspecification).
+   The over-identified empirical analyses (Brazil/Florida/Kansas) are not
    bit-reproducible cross-language (ill-conditioned GMM; see the admonition
    above), so DR/PIPW rest on this synthetic validation.
 
