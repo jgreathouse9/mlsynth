@@ -270,7 +270,19 @@ High-dimensional donor pools
   matching the paper; both fully powered at ``D5`` (durable:
   ``pda_table1``). mlsynth's LASSO is cross-validated, not the
   paper's modified-BIC, so its LASSO cells are a CV variant, not
-  a cell-by-cell match. **Path A (fsPDA):** the China luxury-watch
+  a cell-by-cell match. **Path B (LASSO):** Li & Bell (2017) Table 2
+  on a dense three-factor DGP with :math:`N=31 > T_1=25` -- the LASSO
+  control-unit selection stays parsimonious (~7 of 30) and its
+  out-of-sample PMSE scales with the idiosyncratic noise
+  (:math:`\approx 1.5 / 0.97 / 0.18` at :math:`\sigma^2 = 1 / 0.5 /
+  0.1`, vs the paper's :math:`1.77 / 0.96 / 0.22`; durable:
+  ``pda_lasso_sim``). **Path B (l2):** Shi & Wang (2024) Table 2 on a
+  dense strong-factor DGP (:math:`N=100`) -- the L2-relaxation test's
+  size shrinks toward nominal as :math:`T_1` grows (:math:`0.20` at
+  :math:`T_1=50` → :math:`0.10` at :math:`200`, vs the paper's
+  :math:`0.142 \to 0.072`) and its power matches (:math:`0.567` vs
+  :math:`0.570` at :math:`T_1=50`; durable: ``pda_l2_sim``).
+  **Path A (fsPDA):** the China luxury-watch
   study (anti-corruption campaign, Jan-2013) on
   ``china_watches_long.csv`` -- forward selection picks 3 controls,
   in-sample :math:`R^2 = 0.777` and monthly ATE

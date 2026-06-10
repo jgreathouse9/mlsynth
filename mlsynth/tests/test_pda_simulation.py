@@ -90,3 +90,68 @@ class TestHelpers:
     def test_shock_unknown_raises(self):
         with pytest.raises(ValueError):
             _shock("D9", 10, np.random.default_rng(0))
+
+
+class TestLibellDgp3:
+    """Li & Bell (2017) DGP3 simulator (the LASSO-PDA OOS-prediction design)."""
+
+    def test_shape_treated_and_controls(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_libell_panel
+        df = simulate_libell_panel(N=31, T1=25, T2=10, seed=0)
+        assert df["unit"].nunique() == 31 and df["time"].nunique() == 35
+        tr = df[df["unit"] == "treated"].sort_values("time")
+        assert tr["treat"].tolist() == [0] * 25 + [1] * 10
+        assert (df[df["unit"] != "treated"]["treat"] == 0).all()
+
+    def test_deterministic(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_libell_panel
+        a = simulate_libell_panel(seed=7)["y"].to_numpy()
+        b = simulate_libell_panel(seed=7)["y"].to_numpy()
+        np.testing.assert_array_equal(a, b)
+
+    def test_sigma2_scales_idiosyncratic_variance(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_libell_panel
+        lo = simulate_libell_panel(sigma2=0.1, seed=1)["y"].var()
+        hi = simulate_libell_panel(sigma2=4.0, seed=1)["y"].var()
+        assert hi > lo
+
+    def test_factors_shape(self):
+        from mlsynth.utils.pda_helpers.simulation import _libell_factors
+        f = _libell_factors(50, np.random.default_rng(0))
+        assert f.shape == (50, 3)
+
+
+class TestShiWangDgp:
+    """Shi & Wang (2024) Table-2 simulator (the L2-relaxation size/power design)."""
+
+    def test_shapes_and_default(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_shiwang_panel
+        y, Yc, T1 = simulate_shiwang_panel(N=100, T1=50, seed=0)
+        assert y.shape == (100,) and Yc.shape == (100, 100) and T1 == 50
+
+    def test_deterministic(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_shiwang_panel
+        a = simulate_shiwang_panel(T1=40, seed=7)[0]
+        b = simulate_shiwang_panel(T1=40, seed=7)[0]
+        np.testing.assert_array_equal(a, b)
+
+    def test_d4_adds_constant_post_shift(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_shiwang_panel
+        y0 = simulate_shiwang_panel(T1=50, shock="D1", seed=3)[0]
+        y4 = simulate_shiwang_panel(T1=50, shock="D4", seed=3)[0]
+        np.testing.assert_allclose(y4[:50], y0[:50])
+        np.testing.assert_allclose(y4[50:], y0[50:] + 0.3)
+
+    def test_unknown_shock_raises(self):
+        from mlsynth.utils.pda_helpers.simulation import simulate_shiwang_panel
+        with pytest.raises(ValueError):
+            simulate_shiwang_panel(shock="D99", seed=0)
+
+    def test_factors_and_loadings(self):
+        from mlsynth.utils.pda_helpers.simulation import (
+            _shiwang_factors, _shiwang_loadings)
+        f = _shiwang_factors(60, np.random.default_rng(0))
+        assert f.shape == (60, 4)
+        lam = _shiwang_loadings(50, np.random.default_rng(0))
+        assert lam.shape == (50, 4)
+        assert np.all((np.abs(lam) >= 0.3) & (np.abs(lam) <= 0.5))
