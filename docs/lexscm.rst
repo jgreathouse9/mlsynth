@@ -1318,11 +1318,23 @@ rather than silently dropping a criterion.
                 "size_col": "population",
                 "min_size": int(np.median(population))}).fit()
     except MlsynthConfigError as e:
-        print("infeasible:", e)     # budget can't fund five above-median markets
+        print(e)
 
-Every infeasibility -- budget, spillover, coverage, or size -- raises the same
-:class:`~mlsynth.exceptions.MlsynthConfigError`, so a caller can catch one
-exception type and report which design ask was impossible.
+prints the **binding constraint and by how much**, not just "infeasible"::
+
+    LEXSCM design is infeasible -- the binding constraint(s):
+      - budget: the 5 cheapest eligible markets cost $10,100,765, over the
+        $10,000,000 budget by $100,765. Raise the budget to >= $10,100,765,
+        reduce m, or relax the size band.
+
+Every infeasibility -- candidate pool, budget, coverage, quota, or spillover --
+is audited up front and reported in this same ``have vs need -> minimal fix``
+shape, and **all** binding constraints are listed together (so you fix them in
+one pass rather than one error at a time). The audit only *reports*: it never
+silently relaxes a constraint you set. All of them raise the one
+:class:`~mlsynth.exceptions.MlsynthConfigError`, so a caller catches a single
+type and surfaces exactly which design ask was impossible and the smallest change
+that would satisfy it.
 
 References
 ----------

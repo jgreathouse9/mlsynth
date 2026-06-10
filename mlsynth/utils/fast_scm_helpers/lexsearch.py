@@ -49,6 +49,7 @@ import numpy as np
 
 from .conflict import is_independent
 from . import strata as _strata
+from .feasibility import audit_feasibility
 from ...exceptions import MlsynthConfigError
 
 
@@ -362,6 +363,7 @@ def select_treated_designs(
     strata: Optional[np.ndarray] = None,
     min_per_stratum: Optional[int] = None,
     max_per_stratum: Optional[int] = None,
+    size_band: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Select the ``top_K`` treated m-tuples with smallest imbalance.
 
@@ -387,20 +389,23 @@ def select_treated_designs(
     t0 = time.time()
     G = np.asarray(G, dtype=float)
     rng = np.random.default_rng(random_state)
+
+    # Up-front feasibility audit: one itemised error naming EVERY binding
+    # constraint (candidate pool / budget / coverage / quota / spillover), each
+    # with its have-vs-need and the minimal fix. Runs on the full eligible pool
+    # so the budget line can report the actual cheapest-m bill.
+    audit_feasibility(
+        candidate_idx, m, unit_costs=unit_costs, budget=budget, conflict=conflict,
+        strata=strata, min_per_stratum=min_per_stratum,
+        max_per_stratum=max_per_stratum, size_band=size_band,
+    )
+
     cand = _budget_feasible_candidates(candidate_idx, m, unit_costs, budget)
     M = len(cand)
-    if M < m:
-        raise MlsynthConfigError(
-            f"Only {M} budget-feasible candidates for m={m}: the budget (with any "
-            f"size band) leaves too few treatable units. Raise the budget, relax "
-            f"the size band, or reduce m."
-        )
+    if M < m:  # pragma: no cover - the audit already raised on budget infeasibility
+        raise MlsynthConfigError(f"Only {M} budget-feasible candidates for m={m}.")
 
-    # Coverage / stratification: fail early when the quotas admit no size-m tuple.
-    required = None
-    if strata is not None:
-        _strata.check_feasible(strata, cand, m, min_per_stratum, max_per_stratum)
-        required = _strata.required_codes(strata, cand)
+    required = (_strata.required_codes(strata, cand) if strata is not None else None)
 
     total = comb(M, m)
     if method == "auto":
@@ -427,13 +432,17 @@ def select_treated_designs(
     # Spillover feasibility: with the "No interference" constraint active, an
     # admissible design must be a size-m independent set of the conflict graph.
     # If the search found none, that constraint (alone or with the budget) is
-    # infeasible -- fail loudly rather than silently returning an empty design.
+    # infeasible -- fail loudly, in the same ``have vs need`` shape as the audit,
+    # reporting the largest conflict-free set actually found.
     if conflict is not None and not raw:
+        from .conflict import greedy_independent_set_size
+        largest = greedy_independent_set_size(conflict, cand)
         raise MlsynthConfigError(
-            f"No conflict-free treated {m}-tuple exists among the {M} candidate "
-            f"units: the spillover 'no interference' constraint admits no "
-            f"independent set of size m={m}. Reduce m, relax the cluster/adjacency "
-            f"constraint, or widen the candidate pool."
+            "LEXSCM design is infeasible -- the binding constraint(s):\n  - "
+            f"spillover: no conflict-free treated {m}-tuple exists among the {M} "
+            f"candidates (largest conflict-free set found is {largest} < m={m}). "
+            f"Relax the cluster/adjacency constraint, widen the candidate pool, or "
+            f"reduce m."
         )
 
     # Coverage feasibility backstop: ``_strata.check_feasible`` (and the budget

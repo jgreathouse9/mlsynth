@@ -328,11 +328,21 @@ class LEXSCM:
             if self.max_size is not None:
                 elig &= sizes <= self.max_size
             candidate_mask = np.asarray(candidate_mask, dtype=bool) & elig
-            if int(candidate_mask.sum()) < self.m:
-                raise MlsynthConfigError(
-                    f"Only {int(candidate_mask.sum())} candidate(s) fall within the "
-                    f"size band [{self.min_size}, {self.max_size}] but m={self.m}."
-                )
+        size_band = (None if self.size_col is None
+                     else (self.min_size, self.max_size))
+
+        # The candidate pool is needed before the matrices are built, so report a
+        # too-small pool here in the SAME shape the Stage-1 audit uses for every
+        # other binding constraint (e.g. when a size band leaves fewer than m).
+        n_elig = int(np.asarray(candidate_mask, dtype=bool).sum())
+        if n_elig < self.m:
+            within = "" if size_band is None else \
+                f" within the size band [{self.min_size}, {self.max_size}]"
+            raise MlsynthConfigError(
+                "LEXSCM design is infeasible -- the binding constraint(s):\n  - "
+                f"candidate pool: only {n_elig} eligible market(s){within}, but "
+                f"m={self.m}. Widen eligibility / the size band, or reduce m."
+            )
 
         # Step 3: Build Y matrix
         self.Y = build_Y_matrix(
@@ -438,6 +448,7 @@ class LEXSCM:
             strata=strata,
             min_per_stratum=self.min_per_stratum,
             max_per_stratum=self.max_per_stratum,
+            size_band=size_band,
         )
         selection_results = {"top_tuples": search["top_designs"], "stats": search["stats"]}
 

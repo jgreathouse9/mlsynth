@@ -96,32 +96,45 @@ def satisfies_many(codes: Optional[np.ndarray], combs: np.ndarray,
     return ok
 
 
-def check_feasible(codes: Optional[np.ndarray], cand: Sequence[int], m: int,
-                   min_per: Optional[int], max_per: Optional[int]) -> None:
-    """Raise :class:`MlsynthConfigError` if the quotas admit no size-``m`` tuple."""
+def feasibility_problems(codes: Optional[np.ndarray], cand: Sequence[int], m: int,
+                         min_per: Optional[int], max_per: Optional[int]) -> list:
+    """Coverage/quota infeasibilities as ``have vs need`` strings (empty if OK)."""
     if codes is None:
-        return
+        return []
     cand = np.asarray(cand, dtype=int)
     req = required_codes(codes, cand)
+    out = []
     if min_per is not None:
         if min_per * len(req) > m:
-            raise MlsynthConfigError(
-                f"min_per_stratum={min_per} across {len(req)} candidate strata "
-                f"needs at least {min_per * len(req)} treated units, but m={m}."
+            out.append(
+                f"coverage: min {min_per}/stratum across {len(req)} candidate "
+                f"strata needs at least {min_per * len(req)} treated, but m={m}. "
+                f"Lower min_per_stratum, raise m, or merge strata."
             )
-        for k in req:
-            avail = int((codes[cand] == k).sum())
-            if avail < min_per:
-                raise MlsynthConfigError(
-                    f"A candidate stratum has only {avail} unit(s) but "
-                    f"min_per_stratum={min_per}."
-                )
+        else:
+            for k in req:
+                avail = int((codes[cand] == k).sum())
+                if avail < min_per:
+                    out.append(
+                        f"coverage: a candidate stratum has only {avail} unit(s) "
+                        f"but min_per_stratum={min_per}. Lower min_per_stratum or "
+                        f"add eligible units in that stratum."
+                    )
     if max_per is not None:
         cap = int((codes[cand] < 0).sum())             # unstratified: uncapped
         for k in req:
             cap += min(int((codes[cand] == k).sum()), max_per)
         if cap < m:
-            raise MlsynthConfigError(
-                f"max_per_stratum={max_per} caps the treatable capacity at "
-                f"{cap} < m={m}."
+            out.append(
+                f"quota: max {max_per}/stratum caps the treatable capacity at "
+                f"{cap} < m={m}. Raise max_per_stratum or m."
             )
+    return out
+
+
+def check_feasible(codes: Optional[np.ndarray], cand: Sequence[int], m: int,
+                   min_per: Optional[int], max_per: Optional[int]) -> None:
+    """Raise :class:`MlsynthConfigError` if the quotas admit no size-``m`` tuple."""
+    problems = feasibility_problems(codes, cand, m, min_per, max_per)
+    if problems:
+        raise MlsynthConfigError(problems[0])
