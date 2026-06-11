@@ -129,9 +129,11 @@ The two-stage estimator (Section 2.3) is orchestrated by
    local-linear kernel regression, with the bandwidth chosen by
    leave-one-out cross-validation (``bandwidth_grid``).
 2. **Blocks.** Build the treated block and the :math:`N` historical blocks.
-3. **Matching.** Select and weight the historical blocks by the
-   stepwise-matching procedure (Eqs. 32-34), yielding sparse simplex
-   weights.
+3. **Matching.** Weight *all* :math:`N` historical blocks by the
+   simplex-constrained matching QP (Eq. 23), solving the nearest-PD
+   approximation :math:`\widehat{\boldsymbol L}_{\mathrm{pre}}^{\top}
+   \widehat{\boldsymbol L}_{\mathrm{pre}} + \varsigma C_2 C_2^{\top}`; the
+   simplex constraint itself zeroes out the irrelevant blocks.
 4. **Augmentation (optional).** ``use_augmented=True`` adds an
    ASHC ridge refinement on top of the simplex weights.
 5. **Counterfactual.** Apply the weights to the historical forward
@@ -296,8 +298,8 @@ Developer API
 =============
 
 Internal optimization and tuning routines for SHC and ASHC. When
-``use_augmented`` is true, the original SHC weights chosen by forward
-selection are passed to the ASHC ridge refinement for bias correction.
+``use_augmented`` is true, the simplex SHC weights from the matching QP
+are passed to the ASHC ridge refinement for bias correction.
 
 .. autofunction:: mlsynth.utils.inferutils.shc_conformal_test
 .. autofunction:: mlsynth.utils.estutils._solve_SHC_QP
