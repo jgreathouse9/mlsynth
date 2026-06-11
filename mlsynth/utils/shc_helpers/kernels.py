@@ -35,23 +35,54 @@ def smooth(y_pre, bw):
 
 
 def loocv_bandwidth(y_pre, bandwidth_grid):
-    """Leave-one-out CV choice of smoother bandwidth over ``bandwidth_grid``."""
-    T_pre = len(y_pre)
+    """Leave-one-out CV choice of smoother bandwidth over ``bandwidth_grid``.
+
+    Each held-out fit is a local-linear (intercept + slope) weighted regression
+    whose intercept -- the prediction -- is invariant to the weight
+    normalisation, so the leave-one-out prediction has the closed form
+
+    .. math::
+
+        \\widehat y_i^{(-i)} = \\frac{S2_i A_i - S1_i B_i}{S0_i S2_i - S1_i^2},
+
+    with the point-``i``-excluded local moments
+    ``S0_i = \\sum_{j\\ne i} w_{ij}``, ``S1_i = \\sum_{j\\ne i} w_{ij} d_{ij}``,
+    ``S2_i = \\sum_{j\\ne i} w_{ij} d_{ij}^2`` and
+    ``A_i = \\sum_{j\\ne i} w_{ij} y_j``, ``B_i = \\sum_{j\\ne i} w_{ij} d_{ij} y_j``
+    (``d_{ij} = t_j - t_i``). This is the explicit refit-without-``i``, written as
+    a handful of vectorised ``(T, T)`` operations per bandwidth instead of a
+    ``T``-deep refit loop -- reproducing the original to machine precision at
+    every bandwidth.
+    """
+    y = np.asarray(y_pre, dtype=float)
+    T = len(y)
+    t = np.arange(T, dtype=float)
+    d = t[None, :] - t[:, None]                 # d[i, j] = t_j - t_i
+
     cv_errors = []
     for h in bandwidth_grid:
-        errors = []
-        for i in range(T_pre):
-            y_train = np.delete(y_pre, i)
-            idx = np.arange(T_pre) != i
-            w = np.exp(-0.5 * ((np.where(idx)[0] - i) / h) ** 2)
-            w /= w.sum()
-            X = np.vstack([np.ones(T_pre - 1), np.where(idx)[0] - i]).T
-            W = np.diag(w)
-            beta = np.linalg.pinv(X.T @ W @ X) @ X.T @ W @ y_train
-            y_pred = beta[0]
-            errors.append((y_pre[i] - y_pred) ** 2)
-        cv_errors.append(np.mean(errors))
-    best_h = bandwidth_grid[np.argmin(cv_errors)]
+        w = np.exp(-0.5 * (d / h) ** 2)         # (T, T) kernel weights
+        np.fill_diagonal(w, 0.0)                # leave point i out
+        # Row-normalise exactly as the original (avoids underflow at tiny h,
+        # where the kernel weights are O(1e-87) but non-zero).
+        wn = w / w.sum(axis=1, keepdims=True)
+        wd = wn * d
+        # Per-i weighted local-linear normal equations XᵀWX β = XᵀWy with
+        # X = [1, d]; solved by the Moore-Penrose pseudo-inverse exactly as the
+        # original loop (so rank-deficient designs at tiny h are handled
+        # identically). The prediction is the intercept β₀.
+        s0 = wn.sum(axis=1)                       # == 1 after normalisation
+        s1 = wd.sum(axis=1)
+        s2 = (wd * d).sum(axis=1)
+        XtWX = np.empty((T, 2, 2))
+        XtWX[:, 0, 0] = s0
+        XtWX[:, 0, 1] = XtWX[:, 1, 0] = s1
+        XtWX[:, 1, 1] = s2
+        XtWy = np.stack([wn @ y, wd @ y], axis=1)        # (T, 2)
+        beta0 = np.einsum("tij,tj->ti", np.linalg.pinv(XtWX), XtWy)[:, 0]
+        cv_errors.append(float(np.mean((y - beta0) ** 2)))
+
+    best_h = bandwidth_grid[int(np.argmin(cv_errors))]
     return best_h, cv_errors
 
 

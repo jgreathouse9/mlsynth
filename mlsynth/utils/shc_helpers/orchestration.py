@@ -1,15 +1,15 @@
 """End-to-end Synthetic Historical Control procedure (Chen-Yang-Yang 2024).
 
 Composes the estimator's stages (Section 2.3) using the shared numerical
-kernels in :mod:`mlsynth.utils.shc_helpers.kernels`, :mod:`mlsynth.utils.datautils`,
-and :mod:`mlsynth.utils.shc_helpers.selection`:
+kernels in :mod:`mlsynth.utils.shc_helpers.kernels` and
+:mod:`mlsynth.utils.datautils`:
 
     1. LOOCV-select a kernel bandwidth and smooth the pre-period into the
        latent trend ``ell_hat`` (Eq. 21).
     2. Build the treated block and the overlapping historical blocks
        (Eq. 7).
-    3. Stepwise-match the treated pre-segment with a simplex combination
-       of historical pre-segments (Eqs. 32-34).
+    3. Match the treated pre-segment with a simplex combination of *all*
+       historical pre-segments by solving the nearest-PD QP (Eq. 23).
     4. (Optional) augment with a ridge refinement (ASHC).
     5. Apply the weights to the historical forward segments to obtain the
        post-intervention counterfactual.
@@ -30,7 +30,6 @@ from .kernels import (
     tune_lambda_ashc,
 )
 from ..resultutils import effects
-from .selection import stepwise_donor_selection
 from .structures import SHCDesign, SHCInputs
 
 _DEFAULT_BANDWIDTH_GRID = np.linspace(0.05, 1.0, 50)
@@ -76,11 +75,16 @@ def solve_shc(
     # Step 2: treated + historical blocks.
     L_full, L_post, ell_eval = build_donor_segments(ell_hat, m, T0, n)
 
-    # Step 3: stepwise simplex matching.
-    selection = stepwise_donor_selection(L_full, L_post, ell_eval, m)
-    selected = selection["best_donors"]
-    weights = np.zeros(L_full.shape[1])
-    weights[selected] = selection["best_weights"]
+    # Step 3: simplex matching over *all* historical blocks -- the nearest-PD
+    # "all-in" QP of the paper (Eq. 23); the simplex constraint zeroes out the
+    # irrelevant blocks on its own. The paper also offers a greedy forward
+    # (BIC-stopped) donor selection, but empirically it does not improve MSE
+    # over this all-in fit, so we omit it (it cost a ~1,870-solve inner loop).
+    weights, _ = _solve_SHC_QP(L_full, ell_eval)
+    if weights is None:
+        raise MlsynthEstimationError(
+            "SHC: the simplex matching QP (Eq. 23) failed to solve."
+        )
 
     # Step 4: optional ridge refinement.
     best_lambda: Optional[float] = None
