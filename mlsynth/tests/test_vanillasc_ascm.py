@@ -136,6 +136,18 @@ def test_placebo_with_covariates():
 # --------------------------------------------------------------------------- #
 # Edge cases
 # --------------------------------------------------------------------------- #
+def test_per_covariate_windows_use_independent_means():
+    # two covariates with *different* windows -> the joint-na.omit path can't
+    # apply, so means are taken independently (per-covariate fallback).
+    df = _panel(seed=3).copy()
+    df["x2"] = df["x1"] + 0.5
+    res = VanillaSC({"df": df, **_BASE, "covariates": ["x1", "x2"],
+                     "covariate_windows": {"x1": (0, 6), "x2": (0, 10)},
+                     "backend": "mscmt", "mscmt_maxiter": 5, "mscmt_popsize": 5,
+                     "inference": False}).fit()
+    assert np.isfinite(res.effects.att)
+
+
 def test_covariate_window_out_of_range_falls_back():
     # a window outside the pre-period range -> no years match -> fall back to all
     res = VanillaSC({"df": _panel(), **_BASE, "covariates": ["x1"],
@@ -255,3 +267,40 @@ def test_scpi_direct_no_misspecification_and_degenerate_donors():
     # u_missp=False also exercises the zero-mean residual branch.
     sc = scpi_intervals(y, Y0, pre, W, sims=30, u_missp=False, seed=0)
     assert sc.lower.shape == sc.upper.shape
+
+
+# --------------------------------------------------------------------------- #
+# augsynth Kansas ladder -- reproduced through the PUBLIC API (not the engine).
+# This is the definition of done for the augsynth port: all four cells must
+# match augsynth via VanillaSC(...).fit(), with the user log-transforming the
+# covariates beforehand (mlsynth's covariate convention -- plain column names).
+# --------------------------------------------------------------------------- #
+_KANSAS = os.path.join(os.path.dirname(__file__), "..", "..", "basedata", "kansas_ascm.csv")
+
+
+@pytest.mark.skipif(not os.path.exists(_KANSAS), reason="Kansas data not present")
+def test_augsynth_kansas_ladder_public_api():
+    df = pd.read_csv(_KANSAS)
+    # augsynth Kansas spec: lngdpcapita + log(revstate/revlocal/avgwkly) +
+    # estabs + emplvl. The user logs the three columns before input.
+    for c in ("revstatecapita", "revlocalcapita", "avgwklywagecapita"):
+        df[c] = np.log(df[c])
+    covs = ["lngdpcapita", "revstatecapita", "revlocalcapita",
+            "avgwklywagecapita", "estabscapita", "emplvlcapita"]
+    base = dict(df=df, outcome="lngdpcapita", treat="treated", unitid="fips",
+                time="year_qtr", display_graphs=False, inference=False)
+
+    def att(cfg):
+        return float(VanillaSC({**base, **cfg}).fit().effects.att)
+
+    scm = att({})
+    ridge = att({"augment": "ridge"})
+    cov = att({"augment": "ridge", "covariates": covs})
+    rez = att({"augment": "ridge", "covariates": covs, "residualize": True})
+
+    assert abs(scm - (-0.0294)) < 0.003, f"SCM {scm}"
+    assert abs(ridge - (-0.0401)) < 0.003, f"ridge {ridge}"
+    assert abs(cov - (-0.0629)) < 0.004, f"covariate {cov}"
+    assert abs(rez - (-0.0572)) < 0.004, f"residualized {rez}"
+    # the de-biasing ladder is monotone in |ATT|
+    assert abs(scm) < abs(ridge) < abs(cov)

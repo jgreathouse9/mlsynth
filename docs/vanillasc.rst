@@ -105,7 +105,7 @@ over-interpreted.
 Inference
 ---------
 
-Two inference modes are available via ``inference=``:
+Four inference modes are available via ``inference=``:
 
 ``"placebo"`` (default, ``inference=True``)
     Abadie's in-space placebo test: the synthetic control is refit treating
@@ -113,6 +113,33 @@ Two inference modes are available via ``inference=``:
     is ranked against the placebo distribution to give a p-value. Simple and
     assumption-light, but the smallest achievable p-value is about
     :math:`1/(J+1)`.
+
+``"conformal"`` -- prediction intervals (Chernozhukov, Wüthrich & Zhu 2021)
+    The ``augsynth`` default for Augmented SCM, and a *distribution-free* test
+    by inversion. For a sharp null :math:`H_0:\ \tau_t = \tau_0` the post-period
+    treated outcome is adjusted by :math:`\tau_0`, the weights are refit on the
+    adjusted data, and the post-period residual is checked for whether it
+    **conforms** with the pre-treatment residuals -- its rank among them is the
+    :math:`p`-value,
+
+    .. math::
+
+       p(\tau_0) = \frac{1 + \#\{\,t \le T_0 : |\hat u_t| \ge
+       |\hat u_{\mathrm{post}}(\tau_0)|\,\}}{T_0 + 1}.
+
+    Inverting the test (the :math:`\tau_0` not rejected at level :math:`\alpha`)
+    gives a **per-period prediction interval** for the random counterfactual
+    :math:`Y_{1T}(0)`; the same machinery returns one joint-null :math:`p`-value
+    for the whole effect path. It is *exactly valid* when the residuals are
+    exchangeable, and finite-sample bounded otherwise -- the ridge penalty
+    controls the SCM-vs-ASCM weight difference, so validity holds as
+    :math:`T_0 \to \infty`. Unlike the placebo test it needs no donor pool, and
+    unlike asymptotic intervals no normality; in the Kansas calibrations its
+    intervals attain near-nominal coverage where plain SCM under-covers from
+    poor-fit bias. The bands are returned in
+    ``res.inference.details["counterfactual_lower" / "counterfactual_upper"]``
+    (shaded on the plot) alongside the joint ``["joint_p_value"]`` --
+    :func:`mlsynth.utils.bilevel.ridge_inference.conformal_intervals`.
 
 ``"scpi"`` -- prediction intervals (Cattaneo, Feng & Titiunik 2021)
     Treats :math:`\tau_T` as a *predictand* (a random variable) and builds
@@ -473,11 +500,90 @@ leave-one-period-out cross-validation (augsynth's 1-SE rule); inference is by
 the conformal permutation test of Chernozhukov, Wüthrich & Zhu (2021)
 (:func:`mlsynth.utils.bilevel.ridge_inference.conformal_pvalue`).
 
+When to prefer augmentation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Plain SCM is justified only when the pre-treatment fit is **excellent**: when
+the treated unit lies inside the convex hull of the donors' lagged outcomes the
+simplex weights balance :math:`X_1` exactly and the estimator is (near) unbiased
+(Abadie, Diamond & Hainmueller 2010). Outside the hull -- few donors, a long or
+high-dimensional pre-period, an outlying treated unit -- no convex combination
+fits, and the residual imbalance :math:`X_1 - X_0^\top\hat\gamma^{\mathrm{scm}}`
+turns into bias. SCM has no way to correct it.
+
+Augmented SCM is the middle ground. With :math:`\hat m` the ridge outcome model,
+the ASCM estimate is the SCM estimate **plus an estimate of that bias**,
+
+.. math::
+
+   \hat Y_{1T}^{\mathrm{aug}}(0) = \underbrace{\textstyle\sum_{W_i=0}
+   \hat\gamma_i^{\mathrm{scm}} Y_{iT}}_{\text{SCM}}
+   + \Big( \hat m_T - \textstyle\sum_{W_i=0}\hat\gamma_i^{\mathrm{scm}}
+   \hat m_{iT} \Big),
+
+exactly analogous to bias correction for inexact matching (Abadie & Imbens 2011)
+and connected to doubly-robust estimation (Robins, Rotnitzky & Zhao 1994). Ridge
+ASCM is itself a *penalized* SCM whose penalty is on **deviations from the
+simplex weights**: it starts at the SCM solution and extrapolates beyond the
+hull (admitting negative weights) only as far as needed. :math:`\lambda` sets the
+amount -- :math:`\lambda \to \infty` recovers plain SCM (no extrapolation),
+:math:`\lambda \to 0` drives the pre-fit to zero (full extrapolation). That is a
+bias-variance dial: augmentation removes imbalance bias at the cost of a larger
+weight norm / extrapolation variance, and :math:`\lambda` (leave-one-period-out
+CV, one-standard-error rule) negotiates it.
+
+The authors' practical rule -- and ours -- is to **decide from the estimated bias
+itself**: it is the imbalance term above, in the units of the estimand, and the
+first quantity ASCM computes. If it is large relative to the effect you expect,
+augment; if pre-fit is already excellent the correction is negligible and ASCM
+and SCM coincide. Two diagnostics accompany it: the pre-treatment RMSE
+(:math:`\lVert X_1 - X_0^\top\hat\gamma\rVert/\sqrt{T_0}`, the imbalance that
+remains) and the extrapolation distance
+(:math:`\lVert\hat\gamma^{\mathrm{aug}} - \hat\gamma^{\mathrm{scm}}\rVert
+/\sqrt{N_0}`, how far the weights left the simplex). Across the paper's calibrated
+DGPs, ASCM has both lower bias *and* lower RMSE than SCM -- gains largest under
+misspecification and poor fit, modest when SCM already fits well.
+
 Auxiliary covariates enter in either of augsynth's two ways: **parallel**
 (``residualize=False``, the default) standardizes the covariates to the
 outcome scale and stacks them as extra matching rows; **residualized**
 (``residualize=True``) regresses the covariates out of the outcomes, matches on
 the residuals, and restores covariate balance with an add-back on the weights.
+
+Example
+^^^^^^^
+
+Augmented SCM is a *mode* of :class:`~mlsynth.estimators.vanillasc.VanillaSC` --
+set ``augment="ridge"`` (and ``inference="conformal"`` for the CWZ prediction
+intervals). Covariates are passed by column name; following mlsynth's
+convention, apply any transforms (e.g. ``log``) to the DataFrame yourself first.
+``residualize=True`` switches parallel inclusion for the residualized variant.
+The four-cell augsynth Kansas ladder, reproduced **through the public API**:
+
+.. code-block:: python
+
+   import numpy as np, pandas as pd
+   from mlsynth import VanillaSC
+
+   df = pd.read_csv("basedata/kansas_ascm.csv")          # long fips x quarter panel
+   for c in ("revstatecapita", "revlocalcapita", "avgwklywagecapita"):
+       df[c] = np.log(df[c])                             # log the covariates up front
+   covs = ["lngdpcapita", "revstatecapita", "revlocalcapita",
+           "avgwklywagecapita", "estabscapita", "emplvlcapita"]
+   base = dict(df=df, outcome="lngdpcapita", treat="treated",
+               unitid="fips", time="year_qtr")
+
+   VanillaSC({**base}).fit().effects.att                              # -0.029  classic SCM
+   VanillaSC({**base, "augment": "ridge"}).fit().effects.att          # -0.040  ridge ASCM
+   VanillaSC({**base, "augment": "ridge",
+              "covariates": covs}).fit().effects.att                  # -0.063  covariate ASCM
+   VanillaSC({**base, "augment": "ridge", "covariates": covs,
+              "residualize": True}).fit().effects.att                 # -0.057  residualized
+
+   # conformal prediction intervals (and a plotted band with display_graphs=True):
+   res = VanillaSC({**base, "augment": "ridge", "inference": "conformal"}).fit()
+   res.inference.ci_lower, res.inference.ci_upper        # ATT prediction interval
+   res.inference.details["joint_p_value"]                # conformal joint-null p-value
 
 .. _vanillasc-ascm-verification:
 
@@ -491,9 +597,12 @@ classic SCM (ATT :math:`-0.029`), ridge ASCM (:math:`-0.040`), covariate ASCM
 value-for-value, with pre-fit :math:`L_2` imbalance falling monotonically from
 :math:`0.083` to :math:`0.054`. The paper's Section-7 thesis (near-nominal
 coverage and bias reduction across calibrated DGPs) is reproduced as a Path-B
-simulation. See the dedicated page :doc:`replications/ascm_kansas`; durable
-cases ``ascm_kansas`` (cross-validation vs augsynth) and ``augsynth_calibrated``
-(Path B), locked in ``mlsynth/tests/test_bilevel_ridge.py``.
+simulation. The full ladder is reproduced **through the public API** -- pinned
+in ``mlsynth/tests/test_vanillasc_ascm.py::test_augsynth_kansas_ladder_public_api``
+-- not just at the engine level. See the dedicated page
+:doc:`replications/ascm_kansas`; durable cases ``ascm_kansas`` (cross-validation
+vs augsynth) and ``augsynth_calibrated`` (Path B), locked in
+``mlsynth/tests/test_bilevel_ridge.py``.
 
 Core API
 --------

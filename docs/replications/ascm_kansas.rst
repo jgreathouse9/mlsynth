@@ -43,20 +43,33 @@ with each covariate transformed per row and aggregated to a pre-period mean per
 unit (rows carrying a missing — sparsely reported — revenue value are dropped
 before averaging, R's ``model.frame`` ``na.omit`` default).
 
+The whole ladder is reproduced **through mlsynth's public API** -- Augmented SCM
+is a mode of :class:`~mlsynth.estimators.vanillasc.VanillaSC` (``augment="ridge"``).
+Covariates are passed by column name; the user applies augsynth's per-row ``log``
+transforms to the DataFrame first (mlsynth's covariate convention), and the
+shared-window aggregation drops a pre-period whenever *any* covariate is missing
+there, matching augsynth's ``na.omit``. ``residualize=True`` selects the
+residualized variant:
+
 .. code-block:: python
 
    import numpy as np, pandas as pd
-   from mlsynth.utils.bilevel import simplex_qp, build_matching
-   from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+   from mlsynth import VanillaSC
 
-   df = pd.read_csv("basedata/kansas_ascm.csv")
-   # ... pivot to (unit x time), split pre/post, build the covariate matrix Z ...
-   B, A = build_matching(y_pre, Y0_pre)
-   w_scm = simplex_qp(B, A)                                            # classic SCM
-   w_ridge = ridge_augment_weights(y_pre, Y0_pre).W                   # ridge ASCM
-   w_cov = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1).W       # + covariates
-   w_res = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1,
-                                 residualize=True).W                  # residualized
+   df = pd.read_csv("basedata/kansas_ascm.csv")          # long fips x quarter panel
+   for c in ("revstatecapita", "revlocalcapita", "avgwklywagecapita"):
+       df[c] = np.log(df[c])                             # augsynth's log transforms
+   covs = ["lngdpcapita", "revstatecapita", "revlocalcapita",
+           "avgwklywagecapita", "estabscapita", "emplvlcapita"]
+   base = dict(df=df, outcome="lngdpcapita", treat="treated",
+               unitid="fips", time="year_qtr")
+
+   att = lambda cfg: VanillaSC({**base, **cfg}).fit().effects.att
+   att({})                                               # classic SCM    -0.029
+   att({"augment": "ridge"})                             # ridge ASCM     -0.040
+   att({"augment": "ridge", "covariates": covs})         # covariate ASCM -0.063
+   att({"augment": "ridge", "covariates": covs,
+        "residualize": True})                            # residualized   -0.057
 
 The reproduced ladder (mlsynth vs ``augsynth``):
 
