@@ -449,6 +449,52 @@ replication page, :doc:`replications/vanillasc`, for the full datasets, code and
 donor-weight tables. These are locked as regression tests in
 ``mlsynth/tests/test_vanillasc_replications.py``.
 
+Ridge augmentation (Augmented SCM)
+----------------------------------
+
+The ridge-augmented synthetic control of Ben-Michael, Feller & Rothstein
+(2021) -- ``progfunc="Ridge"`` in the ``augsynth`` R package -- is **not** a
+separate estimator but a **bias-correction layer on top of the simplex SCM**.
+Given simplex weights :math:`W` and the centered pre-treatment outcomes
+:math:`A = X_1 - \bar X`, :math:`B = X_0 - \bar X`, it adds a ridge correction
+that closes the residual pre-treatment imbalance the simplex cannot,
+
+.. math::
+
+   W_{\text{aug}} = W + (A - B^\top W)^\top
+       \left(B B^\top + \lambda I\right)^{-1} B,
+
+at the cost of leaving the simplex (the augmented weights may go negative and
+need not sum to one). Because any base :math:`W` can be augmented, the
+capability lives in the bilevel engine
+(:func:`mlsynth.utils.bilevel.ridge_augment.ridge_augment_weights`) and rides
+along wherever the solver goes. The penalty :math:`\lambda` is chosen by
+leave-one-period-out cross-validation (augsynth's 1-SE rule); inference is by
+the conformal permutation test of Chernozhukov, Wüthrich & Zhu (2021)
+(:func:`mlsynth.utils.bilevel.ridge_inference.conformal_pvalue`).
+
+Auxiliary covariates enter in either of augsynth's two ways: **parallel**
+(``residualize=False``, the default) standardizes the covariates to the
+outcome scale and stacks them as extra matching rows; **residualized**
+(``residualize=True``) regresses the covariates out of the outcomes, matches on
+the residuals, and restores covariate balance with an add-back on the weights.
+
+.. _vanillasc-ascm-verification:
+
+Verification
+^^^^^^^^^^^^
+
+The augmentation is validated against ``augsynth`` on its flagship Kansas
+tax-cut study (quarterly log GDP per capita): the de-biasing **ladder** --
+classic SCM (ATT :math:`-0.029`), ridge ASCM (:math:`-0.040`), covariate ASCM
+(:math:`-0.061`) and the residualized variant (:math:`-0.055`) -- is reproduced
+value-for-value, with pre-fit :math:`L_2` imbalance falling monotonically from
+:math:`0.083` to :math:`0.054`. The paper's Section-7 thesis (near-nominal
+coverage and bias reduction across calibrated DGPs) is reproduced as a Path-B
+simulation. See the dedicated page :doc:`replications/ascm_kansas`; durable
+cases ``ascm_kansas`` (cross-validation vs augsynth) and ``augsynth_calibrated``
+(Path B), locked in ``mlsynth/tests/test_bilevel_ridge.py``.
+
 Core API
 --------
 

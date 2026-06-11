@@ -27,6 +27,9 @@ cp = pytest.importorskip("cvxpy")  # ridge base is an exact simplex QP
 _KANSAS = os.path.join(
     os.path.dirname(__file__), "..", "..", "basedata", "kansas_taxcut.csv"
 )
+_KANSAS_ASCM = os.path.join(
+    os.path.dirname(__file__), "..", "..", "basedata", "kansas_ascm.csv"
+)
 
 
 def _toy(seed: int = 0, T0: int = 20, J: int = 6):
@@ -228,3 +231,50 @@ def test_augsynth_kansas_conformal_pvalue():
     # augsynth vignette joint-null p-value for Ridge ASCM: 0.071 (permutation
     # test -> reproduced to Monte-Carlo precision).
     assert p == pytest.approx(0.071, abs=0.02)
+
+
+# --------------------------------------------------------------------------- #
+# Covariates: parallel (residualize=False) vs residualized (residualize=True)
+# --------------------------------------------------------------------------- #
+def test_residualize_returns_donor_weights_off_simplex():
+    y_pre, Y0_pre, _, _ = _toy(seed=7, T0=24, J=8)
+    J = Y0_pre.shape[1]
+    Z0 = np.column_stack([Y0_pre.mean(0), Y0_pre[-1], Y0_pre[0]])   # (J, 3)
+    z1 = np.array([y_pre.mean(), y_pre[-1], y_pre[0]])
+    par = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1, residualize=False)
+    res = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1, residualize=True)
+    assert res.W.shape == (J,)                       # weights stay over donors
+    # residualize differs from parallel inclusion, and (as ASCM) leaves simplex
+    assert not np.allclose(res.W, par.W)
+    assert res.W.sum() == pytest.approx(1.0, abs=1e-6)   # add-back preserves sum-1
+
+
+def _kansas_ascm_covariates():
+    pd = pytest.importorskip("pandas")
+    df = pd.read_csv(_KANSAS_ASCM)
+    piv = df.pivot(index="fips", columns="year_qtr", values="lngdpcapita").sort_index()
+    times = np.array(sorted(df["year_qtr"].unique())); pre = times < 2012.25
+    units = piv.index.to_numpy(); trt = units == 20.0
+    Y = piv.to_numpy(); y, Y0 = Y[trt][0], Y[~trt]
+    y_pre, Y0_pre = y[: pre.sum()], Y0[:, : pre.sum()].T
+    y_post, Y0_post = y[pre.sum():], Y0[:, pre.sum():]
+    specs = [("lngdpcapita", None), ("revstatecapita", np.log), ("revlocalcapita", np.log),
+             ("avgwklywagecapita", np.log), ("estabscapita", None), ("emplvlcapita", None)]
+    layers = []
+    for n, fn in specs:
+        m = df.pivot(index="fips", columns="year_qtr", values=n).sort_index().to_numpy()[:, pre]
+        layers.append(fn(m) if fn else m)
+    st = np.stack(layers, axis=2)
+    ok = ~np.isnan(st).any(2)
+    Zall = np.array([st[u][ok[u]].mean(0) for u in range(st.shape[0])])
+    return y_pre, Y0_pre, y_post, Y0_post, Zall[~trt], Zall[trt][0]
+
+
+def test_augsynth_kansas_covariate_ladder():
+    y_pre, Y0_pre, y_post, Y0_post, Z0, z1 = _kansas_ascm_covariates()
+    att = lambda w: float(np.mean(y_post - Y0_post.T @ w))
+    cov = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1)
+    res = ridge_augment_weights(y_pre, Y0_pre, Z0=Z0, z1=z1, residualize=True)
+    # augsynth Kansas ladder: Covariate ASCM -0.061, Residualized -0.055.
+    assert att(cov.W) == pytest.approx(-0.061, abs=3e-3)
+    assert att(res.W) == pytest.approx(-0.055, abs=3e-3)

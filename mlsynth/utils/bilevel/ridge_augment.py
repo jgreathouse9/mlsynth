@@ -304,12 +304,44 @@ def build_matching(
     return B, A
 
 
+def _residualized_matching(
+    y_pre: np.ndarray, Y0_pre: np.ndarray, Z0: np.ndarray, z1: np.ndarray
+):
+    """augsynth ``residualize=TRUE``: regress the centered outcomes on the
+    centered covariates (across units, per period) and match on the residuals,
+    returning the residualized ``(B, A)`` and a closure that adds the covariate
+    add-back to the residual-ASCM weights (``fit_ridgeaug_formatted`` lines
+    79-98 and 135-140).
+    """
+    y_pre = np.asarray(y_pre, dtype=float).ravel()
+    Y0_pre = np.asarray(Y0_pre, dtype=float)
+    mu = Y0_pre.mean(axis=1)
+    Xc = (Y0_pre - mu[:, None]).T                 # (J, T0) centered donor outcomes
+    X1 = (y_pre - mu)[None, :]                     # (1, T0) centered treated
+    Z0 = np.asarray(Z0, dtype=float)               # (J, K)
+    z1 = np.asarray(z1, dtype=float).ravel()       # (K,)
+    zmu = Z0.mean(axis=0)
+    Zc = Z0 - zmu[None, :]                          # (J, K) centered by control mean
+    z1c = z1 - zmu                                  # (K,)
+    ZtZi = np.linalg.inv(Zc.T @ Zc)
+    proj = ZtZi @ Zc.T @ Xc                         # (K, T0) regression coefficients
+    resc = Xc - Zc @ proj                           # (J, T0) residualized donors
+    rest = X1 - z1c[None, :] @ proj                 # (1, T0) residualized treated
+    B, A = resc.T, rest.ravel()                     # (T0, J), (T0,)
+
+    def add_back(W: np.ndarray) -> np.ndarray:
+        return (z1c - Zc.T @ W) @ ZtZi @ Zc.T       # (J,) covariate-balance weights
+
+    return B, A, add_back
+
+
 def ridge_augment_weights(
     y_pre: np.ndarray,
     Y0_pre: np.ndarray,
     *,
     Z0: Optional[np.ndarray] = None,
     z1: Optional[np.ndarray] = None,
+    residualize: bool = False,
     base_weights_fn=None,
     lambda_: Optional[float] = None,
     n_lambda: int = 20,
@@ -347,14 +379,34 @@ def ridge_augment_weights(
     if base_weights_fn is None:
         base_weights_fn = simplex_qp
 
-    # Centered (and covariate-stacked) matching matrices. The base simplex fit
-    # is invariant to the per-period centering (sum w = 1), but the ridge
-    # correction is not.
-    B, A = build_matching(y_pre, Y0_pre, Z0, z1)
+    has_cov = Z0 is not None and z1 is not None and np.asarray(Z0).size
+    add_back = None
+    cv: Optional[Dict[str, Any]] = None
+    if residualize and has_cov:
+        # Regress covariates out of the outcomes and match on the residuals;
+        # the covariate balance is restored by an add-back on the final weights.
+        B, A, add_back = _residualized_matching(y_pre, Y0_pre, Z0, z1)
+        if lambda_ is None:
+            # Tune the penalty on the OUTCOME scale, not the residuals. After
+            # residualizing out K covariates the residual Gram is rank-deficient
+            # (T0 rows, rank <= J-K), so a CV on the residuals is ill-posed and
+            # drifts to the grid floor. augsynth's residual CV lands at the
+            # outcome-scale penalty anyway; tuning there is the robust choice.
+            Bo, Ao = build_matching(y_pre, Y0_pre)
+            lo = generate_lambdas(Bo, lambda_min_ratio=lambda_min_ratio,
+                                  n_lambda=n_lambda)
+            lo, mo, so = cross_validate(base_weights_fn, Bo, Ao, lo,
+                                        holdout_len=holdout_length)
+            lambda_ = best_lambda(lo, mo, so, min_1se=min_1se)
+            cv = {"lambdas": lo, "errors_mean": mo, "errors_se": so}
+    else:
+        # Centered (and, with covariates, parallel-stacked) matching matrices.
+        # The base simplex fit is invariant to the per-period centering
+        # (sum w = 1), but the ridge correction is not.
+        B, A = build_matching(y_pre, Y0_pre, Z0, z1)
 
     W_base = np.asarray(base_weights_fn(B, A), dtype=float).ravel()
 
-    cv: Optional[Dict[str, Any]] = None
     if lambda_ is None:
         lambdas = generate_lambdas(B, lambda_min_ratio=lambda_min_ratio,
                                    n_lambda=n_lambda)
@@ -365,7 +417,10 @@ def ridge_augment_weights(
         cv = {"lambdas": lambdas, "errors_mean": mean, "errors_se": se}
 
     W_ridge = solve_ridge(A, B, W_base, float(lambda_))
+    W = W_base + W_ridge
+    if add_back is not None:                 # residualize: restore covariate balance
+        W = W + add_back(W)
     return RidgeAugmentResult(
-        W=W_base + W_ridge, W_base=W_base, W_ridge=W_ridge,
+        W=W, W_base=W_base, W_ridge=W_ridge,
         lambda_=float(lambda_), cv=cv,
     )
