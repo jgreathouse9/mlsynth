@@ -54,7 +54,7 @@ _EPS = 1e-12
 RESIDUALIZE_COND_MAX = 4.0e2
 
 
-def simplex_qp(B: np.ndarray, A: np.ndarray) -> np.ndarray:
+def simplex_qp(B: np.ndarray, A: np.ndarray, warm_start=None) -> np.ndarray:
     """Exact simplex SCM weights: ``min ||A - B @ w||^2`` s.t. ``w >= 0``,
     ``sum w = 1``.
 
@@ -81,7 +81,7 @@ def simplex_qp(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     """
     from .active_set import solve_simplex_qp
 
-    w, info = solve_simplex_qp(B, A, return_info=True)
+    w, info = solve_simplex_qp(B, A, warm_start=warm_start, return_info=True)
     if info["converged"]:
         return w
     return _simplex_qp_cvxpy(B, A)  # pragma: no cover - rare degenerate fallback
@@ -372,6 +372,7 @@ def ridge_augment_weights(
     lambda_min_ratio: float = 1e-8,
     holdout_length: int = 1,
     min_1se: bool = True,
+    warm_start: Optional[np.ndarray] = None,
 ) -> RidgeAugmentResult:
     """Ridge-augment a simplex SCM fit on the pre-treatment outcomes.
 
@@ -434,7 +435,13 @@ def ridge_augment_weights(
         # (sum w = 1), but the ridge correction is not.
         B, A = build_matching(y_pre, Y0_pre, Z0, z1)
 
-    W_base = np.asarray(base_weights_fn(B, A), dtype=float).ravel()
+    # Warm-start the base solve from a neighbouring fit (e.g. the previous
+    # tau0 in a conformal grid sweep) when the base solver accepts it.
+    if warm_start is not None:
+        W_base = np.asarray(base_weights_fn(B, A, warm_start=warm_start),
+                            dtype=float).ravel()
+    else:
+        W_base = np.asarray(base_weights_fn(B, A), dtype=float).ravel()
 
     if lambda_ is None:
         lambdas = generate_lambdas(B, lambda_min_ratio=lambda_min_ratio,
