@@ -14,6 +14,9 @@ import pytest
 from mlsynth.utils.bilevel import (
     BilevelSCM,
     best_lambda,
+    build_matching,
+    conformal_intervals,
+    conformal_pvalue,
     generate_lambdas,
     ridge_augment_weights,
     solve_ridge,
@@ -139,6 +142,55 @@ def test_engine_ridge_fixed_lambda():
 
 
 # --------------------------------------------------------------------------- #
+# Covariates (parallel-inclusion stacking)
+# --------------------------------------------------------------------------- #
+def test_build_matching_stacks_and_standardizes_covariates():
+    y_pre, Y0_pre, _, _ = _toy(T0=18, J=7)
+    J = Y0_pre.shape[1]
+    Z0 = np.column_stack([Y0_pre.mean(0), Y0_pre[-1]])     # (J, 2)
+    z1 = np.array([y_pre.mean(), y_pre[-1]])
+    B, A = build_matching(y_pre, Y0_pre, Z0, z1)
+    assert B.shape == (18 + 2, J)                          # 2 covariate rows stacked
+    assert A.shape == (18 + 2,)
+    # the stacked covariate rows are standardized to the centered-outcome scale
+    B_out = Y0_pre - Y0_pre.mean(1)[:, None]
+    sdx = B_out.std(ddof=1)
+    assert B[-2:].std(axis=1, ddof=1) == pytest.approx(np.full(2, sdx), rel=0.3)
+
+
+def test_engine_ridge_with_covariates_changes_fit():
+    y_pre, Y0_pre, _, _ = _toy(seed=4, T0=20, J=8)
+    J = Y0_pre.shape[1]
+    X0 = np.vstack([Y0_pre.mean(0), Y0_pre[-1]])           # (P=2, J)
+    X1 = np.array([y_pre.mean(), y_pre[-1]])
+    r0 = BilevelSCM("outcome-only", augment="ridge").fit(y_pre, Y0_pre)
+    rc = BilevelSCM("outcome-only", augment="ridge").fit(y_pre, Y0_pre, X1=X1, X0=X0)
+    assert rc.W.shape == (J,)                              # weights stay over donors
+    assert not np.allclose(rc.W, r0.W)                     # covariates move the fit
+
+
+# --------------------------------------------------------------------------- #
+# Conformal inference
+# --------------------------------------------------------------------------- #
+def test_conformal_pvalue_in_unit_interval():
+    y_pre, Y0_pre, y, Y0 = _toy(T0=20, J=6)
+    pre = 20
+    p = conformal_pvalue(y, Y0, pre, lambda_=1.0, ns=200, seed=0)
+    assert 0.0 <= p <= 1.0
+
+
+def test_conformal_intervals_smoke():
+    y_pre, Y0_pre, y, Y0 = _toy(T0=18, J=6)
+    pre = 18
+    ci = conformal_intervals(y, Y0, pre, lambda_=1.0, ns=100, grid_size=6, seed=0)
+    n_post = len(y) - pre
+    assert ci.att.shape == (n_post,)
+    assert ci.lower.shape == (n_post,) and ci.upper.shape == (n_post,)
+    assert np.all(ci.lower <= ci.upper)
+    assert 0.0 <= ci.joint_p_value <= 1.0
+
+
+# --------------------------------------------------------------------------- #
 # Regression: augsynth R Kansas tax-cut (single_augsynth, progfunc="Ridge")
 # --------------------------------------------------------------------------- #
 def test_augsynth_kansas_replication():
@@ -159,3 +211,20 @@ def test_augsynth_kansas_replication():
     assert att_base == pytest.approx(-0.0294, abs=5e-4)
     assert att == pytest.approx(-0.0401, abs=5e-4)
     assert r.lambda_ == pytest.approx(0.0787, abs=5e-3)
+
+
+def test_augsynth_kansas_conformal_pvalue():
+    pd = pytest.importorskip("pandas")
+    df = pd.read_csv(_KANSAS)
+    piv = df.pivot(index="fips", columns="year_qtr", values="lngdpcapita").sort_index()
+    times = np.array(sorted(df["year_qtr"].unique()))
+    pre = int((times < 2012.25).sum())
+    y = piv.loc[20.0].to_numpy()
+    Y0 = piv.drop(index=20.0).to_numpy().T
+
+    r = BilevelSCM("outcome-only", augment="ridge").fit(y[:pre], Y0[:pre])
+    # augsynth reuses the fitted penalty in the conformal refit (no re-CV).
+    p = conformal_pvalue(y, Y0, pre, lambda_=r.lambda_, ns=2000, seed=0)
+    # augsynth vignette joint-null p-value for Ridge ASCM: 0.071 (permutation
+    # test -> reproduced to Monte-Carlo precision).
+    assert p == pytest.approx(0.071, abs=0.02)

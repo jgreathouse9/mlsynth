@@ -251,10 +251,65 @@ class RidgeAugmentResult:
     cv: Optional[Dict[str, Any]] = field(default=None)
 
 
+def build_matching(
+    y_pre: np.ndarray,
+    Y0_pre: np.ndarray,
+    Z0: Optional[np.ndarray] = None,
+    z1: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Build the centered (and covariate-stacked) ASCM matching matrices.
+
+    The outcomes are centered each period by their donor (control) mean
+    (augsynth ``X_cent``). Auxiliary covariates, when supplied, are centered by
+    their control mean, standardized to each have the centered-outcome standard
+    deviation, and **stacked as extra matching rows** -- the parallel-inclusion
+    default of augsynth (``residualize=FALSE``) / Ben-Michael et al. (2021) §6.
+
+    Parameters
+    ----------
+    y_pre : np.ndarray, shape (T0,)
+        Treated pre-treatment outcomes.
+    Y0_pre : np.ndarray, shape (T0, J)
+        Donor pre-treatment outcomes.
+    Z0 : np.ndarray, optional, shape (J, K)
+        Donor auxiliary covariates (``K`` covariates).
+    z1 : np.ndarray, optional, shape (K,)
+        Treated auxiliary covariates.
+
+    Returns
+    -------
+    (B, A) : tuple of np.ndarray
+        ``B`` shape ``(T0 [+K], J)`` donor matching matrix, ``A`` shape
+        ``(T0 [+K],)`` treated matching vector.
+    """
+    y_pre = np.asarray(y_pre, dtype=float).ravel()
+    Y0_pre = np.asarray(Y0_pre, dtype=float)
+    mu = Y0_pre.mean(axis=1)
+    B = Y0_pre - mu[:, None]          # centered donor matrix (T0, J)
+    A = y_pre - mu                    # centered treated vector (T0,)
+
+    if Z0 is not None and z1 is not None and np.asarray(Z0).size:
+        Z0 = np.asarray(Z0, dtype=float)          # (J, K)
+        z1 = np.asarray(z1, dtype=float).ravel()  # (K,)
+        zmu = Z0.mean(axis=0)                      # control mean per covariate
+        Z0c = Z0 - zmu[None, :]
+        z1c = z1 - zmu
+        sdx = float(B.std(ddof=1))                 # centered-outcome scale (scalar)
+        sdz = Z0c.std(axis=0, ddof=1)              # per-covariate scale
+        sdz = np.where(sdz < _EPS, 1.0, sdz)
+        Z0n = sdx * Z0c / sdz                       # (J, K) standardized to outcome scale
+        z1n = sdx * z1c / sdz                       # (K,)
+        B = np.vstack([B, Z0n.T])                   # stack covariates as rows -> (T0+K, J)
+        A = np.concatenate([A, z1n])                # (T0+K,)
+    return B, A
+
+
 def ridge_augment_weights(
     y_pre: np.ndarray,
     Y0_pre: np.ndarray,
     *,
+    Z0: Optional[np.ndarray] = None,
+    z1: Optional[np.ndarray] = None,
     base_weights_fn=None,
     lambda_: Optional[float] = None,
     n_lambda: int = 20,
@@ -264,10 +319,11 @@ def ridge_augment_weights(
 ) -> RidgeAugmentResult:
     """Ridge-augment a simplex SCM fit on the pre-treatment outcomes.
 
-    Centers the outcomes (each period minus its donor mean), fits the base
-    simplex SCM, selects the ridge penalty by leave-one-period-out CV when
-    ``lambda_`` is ``None`` (augsynth's 1-SE rule by default), and returns the
-    augmented weights. The base SCM (and each CV fold) is solved by
+    Centers the outcomes (each period minus its donor mean), optionally stacks
+    standardized auxiliary covariates (augsynth's parallel-inclusion default),
+    fits the base simplex SCM, selects the ridge penalty by leave-one-period-out
+    CV when ``lambda_`` is ``None`` (augsynth's 1-SE rule by default), and
+    returns the augmented weights. The base SCM (and each CV fold) is solved by
     ``base_weights_fn``; the default :func:`simplex_qp` is an exact QP, since
     Augmented SCM augments an accurately-solved simplex (augsynth uses quadprog).
 
@@ -277,6 +333,10 @@ def ridge_augment_weights(
         Treated pre-treatment outcomes.
     Y0_pre : np.ndarray, shape (T0, J)
         Donor pre-treatment outcomes.
+    Z0 : np.ndarray, optional, shape (J, K)
+        Donor auxiliary covariates; stacked into the matching matrix.
+    z1 : np.ndarray, optional, shape (K,)
+        Treated auxiliary covariates.
     base_weights_fn : callable, optional
         ``(B, A) -> W`` base-weight solver; defaults to :func:`simplex_qp`.
     lambda_ : float, optional
@@ -284,17 +344,13 @@ def ridge_augment_weights(
     n_lambda, lambda_min_ratio, holdout_length, min_1se
         CV / grid hyper-parameters (augsynth defaults).
     """
-    y_pre = np.asarray(y_pre, dtype=float).ravel()
-    Y0_pre = np.asarray(Y0_pre, dtype=float)
     if base_weights_fn is None:
         base_weights_fn = simplex_qp
 
-    # Center each period by its donor (control) mean -- augsynth's
-    # ``X_cent <- apply(X, 2, x - mean(x[trt==0]))``. The base simplex fit is
-    # invariant to this shift (sum w = 1), but the ridge correction is not.
-    mu = Y0_pre.mean(axis=1)
-    B = Y0_pre - mu[:, None]          # centered donor matrix (T0, J)
-    A = y_pre - mu                    # centered treated vector (T0,)
+    # Centered (and covariate-stacked) matching matrices. The base simplex fit
+    # is invariant to the per-period centering (sum w = 1), but the ridge
+    # correction is not.
+    B, A = build_matching(y_pre, Y0_pre, Z0, z1)
 
     W_base = np.asarray(base_weights_fn(B, A), dtype=float).ravel()
 

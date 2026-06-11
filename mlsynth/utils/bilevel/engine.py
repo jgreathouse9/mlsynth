@@ -213,6 +213,11 @@ class BilevelSCM:
         backend = self.backend
         if backend == "auto":
             backend = "mscmt" if has_cov else "outcome-only"
+        if self.augment == "ridge":
+            # Ridge ASCM solves its own (covariate-stacked) simplex base, so the
+            # backend's predictor-weight search is neither needed nor used; keep
+            # the base cheap. Covariates still flow to the ridge layer below.
+            backend = "outcome-only"
         if backend in ("malo", "mscmt") and not has_cov:
             raise ValueError(
                 f"backend {backend!r} needs covariates (X1/X0); for outcome-only "
@@ -272,8 +277,14 @@ class BilevelSCM:
         if self.augment == "ridge":
             from .ridge_augment import ridge_augment_weights
 
+            # Auxiliary covariates (if any) are stacked into the matching matrix
+            # (augsynth parallel-inclusion default). X0 is (P, J), X1 is (P,);
+            # the ridge layer wants donor covariates as (J, K).
+            Z0 = X0.T if has_cov else None
+            z1 = X1 if has_cov else None
             ra = ridge_augment_weights(
                 y_pre, Y0_pre,
+                Z0=Z0, z1=z1,
                 lambda_=self.ridge_lambda,
                 n_lambda=self.n_lambda,
                 lambda_min_ratio=self.lambda_min_ratio,
