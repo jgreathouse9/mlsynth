@@ -405,11 +405,15 @@ Staggered adoption
   effect (:math:`\approx -1605`) more negative than the naive gap, with
   Austria removed from the donor pool but assigned a negative spillover
   (durable: ``spillsynth_grossi_germany``).
-  **SAR Bayesian (``method='sar'``, Sakaguchi & Tagawa 2026), Path B:**
-  the paper's spatial-autoregressive simulation -- the posterior
-  :math:`\widehat\rho` recovers the true :math:`\rho = 0.6`, the SAR ATT
-  beats the spillover-biased naive SCM, and the estimator nests ordinary
-  SCM at :math:`\rho = 0` (durable: ``spillsynth_sar_mc``).
+  **SAR Bayesian (``method='sar'``, Sakaguchi & Tagawa 2026), Path B
+  (cross-validation):** mlsynth runs the authors' own spatial-AR
+  simulation DGP (rook lattice, ``sigma2=1``) and reproduces their
+  published Section-5.2 cells (``N=16, T0=20``) -- the proposed method is
+  unbiased at every :math:`\rho` (paper :math:`|\text{bias}|\le 0.003`)
+  with ~95% coverage, while ordinary SCM's bias grows with the spillover
+  (mlsynth :math:`+0.10/+0.57` vs the paper's :math:`+0.092/+0.504` at
+  :math:`\rho=0.3/0.8`); the proposed estimator de-biases SCM and nests
+  it at :math:`\rho=0` (durable: ``spillsynth_sar_mc``).
 * :doc:`seq_sdid` -- Arkhangelsky & Samkov (2025) Sequential
   Synthetic DiD. **Path B:** the Section-5.2.2 calibrated-panel
   Monte Carlo (Table 1) reconstructed from the paper's description
