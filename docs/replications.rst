@@ -369,15 +369,30 @@ Staggered adoption
   to the ``augsynth`` R-package vignette (:math:`\nu = 0.2607`,
   average ATT :math:`= -0.011`) to four decimals.
 * :doc:`ssc` -- Cao, Lu & Wu (2026) staggered synthetic control.
-  **Path A:** the Guanajuato police-reform application (Section 4;
-  :math:`N = 33`, 10 staggered adopters) -- event-time ATT estimates
-  match the authors' reference output for all seven outcomes, to
+  **Path A (cross-validation):** the Guanajuato police-reform
+  application (Section 4; :math:`N = 33`, 10 staggered adopters),
+  cross-validated against the authors' committed reference output
+  (``jcao0/staggered_synthetic_control``, pinned commit ``74e77d4``)
+  -- event-time ATT estimates match for all seven outcomes, to
   :math:`\approx 10^{-4}` for the homicide (:math:`T_0 = 174`) and
   theft rates and :math:`\approx 10^{-3}` for the annual cartel
-  outcomes, with end-of-sample bands present/``NaN`` exactly as in
-  the reference. **Path B:** the paper's staggered AR(1)-factor DGP
-  (Section 3) -- the event-time ATT path :math:`\tau = 1 + e` is
-  recovered, using all units (including not-yet-treated) as donors.
+  outcomes, and the smallest SSC Gram eigenvalue per outcome matches
+  the reference ``Table1_eigenvalue.csv`` to :math:`\approx 10^{-4}`
+  (durable: ``ssc_guanajuato``). **Path B:** the paper's staggered
+  AR(1)-factor DGP (Section 3) -- the event-time ATT path
+  :math:`\tau = 1 + e` is recovered, using all units (including
+  not-yet-treated) as donors.
+* :doc:`spillsynth` -- spillover-aware SC, a four-method dispatcher.
+  **Path A (cross-validation, Cao-Dowd ``method='cd'``):** Proposition
+  99 with spillover on the 51-unit panel (50 states + DC, 1970-2000),
+  cross-validated against the authors' committed MATLAB output
+  (``jcao0/synthetic-control-spillover``, pinned commit ``60bbebe``)
+  -- the California spillover-adjusted ATT path reproduces
+  ``spillover.csv`` to :math:`\approx 10^{-4}`; the headline reproduces,
+  the spillover-adjusted ATT (avg :math:`-9.44`) is attenuated relative
+  to vanilla SCM (:math:`-10.81`) and near zero in the first four post
+  years (:math:`-0.85`) where spillover to Nevada/Oregon/DC inflates the
+  classical estimate (durable: ``spillsynth_prop99``).
 * :doc:`seq_sdid` -- Arkhangelsky & Samkov (2025) Sequential
   Synthetic DiD. **Path B:** the Section-5.2.2 calibrated-panel
   Monte Carlo (Table 1) reconstructed from the paper's description

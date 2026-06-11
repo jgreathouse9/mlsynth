@@ -534,6 +534,13 @@ Verification
       Avg ATT 1989-2000:  SP_R = -9.4399   SP_Py = -9.4399
       Avg ATT 1989-1992:  SP_R = -0.8471   SP_Py = -0.8471
 
+   This equivalence is pinned **durably** by the ``spillsynth_prop99``
+   benchmark, which clones the authors' repository
+   (``jcao0/synthetic-control-spillover``, pinned commit ``60bbebe``) and
+   checks mlsynth's live ``method='cd'`` fit against the committed MATLAB
+   output ``spillover.csv`` (the California spillover-adjusted ATT path,
+   reproduced to :math:`\approx 10^{-4}`).
+
 .. _spillsynth-inference:
 
 Inference: the Cao-Dowd P-test
