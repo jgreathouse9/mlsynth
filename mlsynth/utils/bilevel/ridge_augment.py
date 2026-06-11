@@ -56,12 +56,17 @@ RESIDUALIZE_COND_MAX = 4.0e2
 
 def simplex_qp(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     """Exact simplex SCM weights: ``min ||A - B @ w||^2`` s.t. ``w >= 0``,
-    ``sum w = 1``, solved as a QP with cvxpy/CLARABEL.
+    ``sum w = 1``.
 
-    Augmented SCM augments an *accurately solved* simplex SCM (augsynth uses
-    quadprog). The bilevel package's iterative FISTA primitive
-    (``simplex_lstsq``) under-converges on ill-conditioned, long pre-periods, so
-    the ridge base is solved exactly here.
+    Solved by the pure-NumPy active-set method
+    (:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`), which avoids
+    cvxpy's per-call canonicalisation overhead in the hot conformal /
+    market-selection loops and is warm-startable. Augmented SCM augments an
+    *accurately solved* simplex SCM (augsynth uses quadprog), and the bilevel
+    package's FISTA primitive under-converges on long pre-periods, so the base
+    is solved exactly here. Falls back to cvxpy if the active set fails to
+    certify convergence (degenerate cycling), keeping the result no worse than
+    before.
 
     Parameters
     ----------
@@ -74,6 +79,16 @@ def simplex_qp(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     -------
     numpy.ndarray, shape (J,)
     """
+    from .active_set import solve_simplex_qp
+
+    w, info = solve_simplex_qp(B, A, return_info=True)
+    if info["converged"]:
+        return w
+    return _simplex_qp_cvxpy(B, A)  # pragma: no cover - rare degenerate fallback
+
+
+def _simplex_qp_cvxpy(B: np.ndarray, A: np.ndarray) -> np.ndarray:
+    """Reference simplex QP via cvxpy/CLARABEL -- the fallback / oracle."""
     import cvxpy as cp
 
     B = np.asarray(B, dtype=float)
