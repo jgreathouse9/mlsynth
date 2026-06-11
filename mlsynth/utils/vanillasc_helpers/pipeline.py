@@ -35,23 +35,50 @@ def _covariate_means(
     unitid: str,
     time: str,
 ) -> np.ndarray:
-    """Per-unit covariate means over each covariate's window -> ``(P, N)``."""
-    rows = []
+    """Per-unit covariate means over each covariate's window -> ``(K, N)``.
+
+    With a single shared window (the default, and augsynth's covariate spec) the
+    aggregation is a joint ``na.omit``: a pre-period contributes to the means
+    only if *every* covariate is observed there, matching augsynth's
+    ``X <- na.omit(...)`` (which drops a row carrying any missing covariate
+    before averaging). Per-covariate windows fall back to independent means.
+    """
     for cov in covariates:
         if cov not in df.columns:
             raise MlsynthDataError(f"Covariate {cov!r} not in DataFrame.")
+
+    def _years(cov):
         win = windows.get(cov)
         if win is None:
-            years = pre_labels
-        else:
-            lo, hi = win
-            years = [t for t in pre_labels if lo <= t <= hi]
-            if not years:
-                years = pre_labels
+            return list(pre_labels)
+        lo, hi = win
+        return [t for t in pre_labels if lo <= t <= hi] or list(pre_labels)
+
+    year_sets = [_years(c) for c in covariates]
+
+    if all(ys == year_sets[0] for ys in year_sets):
+        # joint na.omit over the shared window (augsynth convention)
+        years = year_sets[0]
         sub = df[df[time].isin(years)]
-        g = sub.groupby(unitid)[cov].mean()
-        rows.append([float(g.get(u, np.nan)) for u in units])
-    X = np.asarray(rows, dtype=float)
+        stack = np.stack(
+            [sub.pivot_table(index=unitid, columns=time, values=cov)
+                .reindex(index=units, columns=years).to_numpy()
+             for cov in covariates],
+            axis=2,
+        )                                            # (N, T_win, K)
+        row_ok = ~np.isnan(stack).any(axis=2)        # period kept iff no NA
+        means = np.full((len(units), len(covariates)), np.nan)
+        for u in range(len(units)):
+            if row_ok[u].any():
+                means[u] = stack[u][row_ok[u]].mean(0)
+        X = means.T                                  # (K, N)
+    else:
+        rows = []
+        for cov, years in zip(covariates, year_sets):
+            g = df[df[time].isin(years)].groupby(unitid)[cov].mean()
+            rows.append([float(g.get(u, np.nan)) for u in units])
+        X = np.asarray(rows, dtype=float)
+
     if not np.all(np.isfinite(X)):
         raise MlsynthDataError("Covariate means contain NaN (check windows/coverage).")
     return X
