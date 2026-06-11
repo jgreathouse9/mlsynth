@@ -121,6 +121,43 @@ def test_solve_shc_qp_alias_is_same_function():
     assert _solve_SHC_QP is solve_shc_qp
 
 
+def test_solve_shc_qp_osqp_matches_cvxpy():
+    """The OSQP fast path reproduces the cvxpy reference to high precision."""
+    from scipy.linalg import eigh
+
+    from mlsynth.utils.shc_helpers.kernels import _solve_shc_qp_cvxpy
+
+    rng = np.random.default_rng(3)
+    for _ in range(8):
+        m, N = int(rng.integers(8, 24)), int(rng.integers(3, 12))
+        L = rng.standard_normal((m, N))
+        ell = rng.standard_normal(m)
+        ev, evec = eigh(L.T @ L)
+        C = evec[:, ev < 1e-8]
+        # SHC (simplex)
+        w_fast, _ = solve_shc_qp(L, ell)
+        w_ref, _ = _solve_shc_qp_cvxpy(L, ell, C, False, None, None, 1e-6)
+        assert np.max(np.abs(w_fast - w_ref)) < 1e-3
+        # ASHC (augmented)
+        w_shc = np.full(N, 1.0 / N)
+        wa, _ = solve_shc_qp(L, ell, use_augmented=True, w_shc=w_shc, lam=0.5)
+        wb, _ = _solve_shc_qp_cvxpy(L, ell, C, True, w_shc, 0.5, 1e-6)
+        assert np.max(np.abs(wa - wb)) < 1e-3
+
+
+def test_solve_shc_qp_falls_back_when_osqp_unavailable(monkeypatch):
+    """If the OSQP path returns None, the cvxpy fallback still solves."""
+    from mlsynth.utils.shc_helpers import kernels
+
+    monkeypatch.setattr(kernels, "_solve_shc_qp_osqp", lambda *a, **k: None)
+    rng = np.random.default_rng(0)
+    L = rng.standard_normal((8, 4))
+    ell = rng.standard_normal(8)
+    w, obj = solve_shc_qp(L, ell)
+    assert w is not None and np.isclose(w.sum(), 1.0, atol=1e-6)
+    assert np.isfinite(obj)
+
+
 # --------------------------------------------------------------------------
 # solve_shc_qp -- ASHC (augmented, ridge toward w_shc)
 # --------------------------------------------------------------------------

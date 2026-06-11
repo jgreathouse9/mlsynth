@@ -55,9 +55,84 @@ def loocv_bandwidth(y_pre, bandwidth_grid):
     return best_h, cv_errors
 
 
+def _shc_objective(L, ell_eval, w, C, use_augmented, w_shc, lam, varsigma):
+    """The SHC/ASHC objective value at ``w`` (matches the cvxpy formulation)."""
+    obj = float(np.sum((ell_eval - L @ w) ** 2))
+    if use_augmented:
+        obj += float((1.0 / (2.0 * lam)) * np.sum((w - w_shc) ** 2))
+    if C.size > 0:
+        obj += float(varsigma * np.sum((C.T @ w) ** 2))
+    return obj
+
+
+def _solve_shc_qp_osqp(P, q, N, nonneg):
+    """Solve ``min ½ wᵀP w + qᵀw`` s.t. ``1ᵀw = 1`` (and ``w ≥ 0`` if ``nonneg``)
+    with a direct OSQP factorization. Returns ``w`` or ``None`` on failure.
+
+    OSQP avoids cvxpy's per-call canonicalization overhead -- the SHC donor
+    selector solves this micro-QP ~2000 times per fit, where that overhead, not
+    the arithmetic, dominates.
+    """
+    try:
+        import osqp
+        import scipy.sparse as sp
+    except ImportError:  # pragma: no cover - osqp/scipy are hard deps
+        return None
+    rows = [np.ones((1, N))]
+    lo, hi = [1.0], [1.0]
+    if nonneg:
+        rows.append(np.eye(N))
+        lo += [0.0] * N
+        hi += [np.inf] * N
+    A = sp.csc_matrix(np.vstack(rows))
+    P_csc = sp.triu(sp.csc_matrix(P), format="csc")
+    prob = osqp.OSQP()
+    try:
+        prob.setup(P=P_csc, q=np.asarray(q, dtype=float), A=A,
+                   l=np.asarray(lo, dtype=float), u=np.asarray(hi, dtype=float),
+                   verbose=False, eps_abs=1e-9, eps_rel=1e-9,
+                   max_iter=20000, polish=True)
+        res = prob.solve()
+    except Exception:  # pragma: no cover - defensive
+        return None
+    status = getattr(res.info, "status_val", None)
+    if status in (1, 2) and res.x is not None and np.all(np.isfinite(res.x)):
+        return np.asarray(res.x, dtype=float)
+    return None
+
+
+def _solve_shc_qp_cvxpy(L, ell_eval, C, use_augmented, w_shc, lam, varsigma):
+    """Reference cvxpy solve -- the robustness fallback for the OSQP path."""
+    N = L.shape[1]
+    w = cp.Variable(N)
+    fit_term = cp.sum_squares(ell_eval - L @ w)
+    deviation = (1 / (2 * lam)) * cp.sum_squares(w - w_shc) if use_augmented else 0
+    penalty = varsigma * cp.sum_squares(C.T @ w) if C.size > 0 else 0
+    constraints = [cp.sum(w) == 1]
+    if not use_augmented:
+        constraints.append(w >= 0)
+    prob = cp.Problem(cp.Minimize(fit_term + deviation + penalty), constraints)
+    prob.solve(solver=cp.CLARABEL)
+    return (w.value, prob.value) if w.value is not None else (None, None)
+
+
 def solve_shc_qp(L, ell_eval, use_augmented=False, w_shc=None, lam=None,
                  varsigma=1e-6, tol=1e-8):
     """Solve the SHC (convex-hull) or ASHC (ridge-augmented) quadratic program.
+
+    .. math::
+
+       \\min_w\\ \\lVert \\boldsymbol{\\ell} - L w\\rVert_2^2
+         + \\mathbb{1}_{\\text{ASHC}}\\tfrac{1}{2\\lambda}\\lVert w - w_{\\text{shc}}\\rVert_2^2
+         + \\varsigma\\lVert C^\\top w\\rVert_2^2
+       \\quad\\text{s.t.}\\quad \\mathbf{1}^\\top w = 1,\\ \\
+       w \\ge 0 \\ (\\text{SHC only}),
+
+    where ``C`` spans the (near-)null directions of ``LᵀL``. Solved by a direct
+    OSQP factorization (the SHC donor selector calls this thousands of times per
+    fit, so cvxpy's per-call canonicalization overhead dominates); falls back to
+    cvxpy if OSQP is unavailable or does not converge, so the result is
+    unchanged.
 
     Parameters
     ----------
@@ -80,31 +155,29 @@ def solve_shc_qp(L, ell_eval, use_augmented=False, w_shc=None, lam=None,
     (w_opt, obj_val) : tuple
         Optimal weights and objective value (``(None, None)`` if infeasible).
     """
+    if use_augmented and (lam is None or w_shc is None):
+        raise ValueError("lam and w_shc must be provided for ASHC.")
+
     N = L.shape[1]
-    w = cp.Variable(N)
-
-    if use_augmented:
-        if lam is None or w_shc is None:
-            raise ValueError("lam and w_shc must be provided for ASHC.")
-        fit_term = cp.sum_squares(ell_eval - L @ w)
-        deviation = (1 / (2 * lam)) * cp.sum_squares(w - w_shc)
-    else:
-        fit_term = cp.sum_squares(ell_eval - L @ w)
-        deviation = 0
-
     G = L.T @ L
     eigvals, eigvecs = eigh(G)
     C = eigvecs[:, eigvals < tol]
-    penalty = varsigma * cp.sum_squares(C.T @ w) if C.size > 0 else 0
 
-    objective = cp.Minimize(fit_term + deviation + penalty)
-    constraints = [cp.sum(w) == 1]
-    if not use_augmented:
-        constraints.append(w >= 0)
+    # 0.5 wᵀP w + qᵀw form of the objective above.
+    P = 2.0 * G
+    q = -2.0 * (L.T @ ell_eval)
+    if C.size > 0:
+        P = P + (2.0 * varsigma) * (C @ C.T)
+    if use_augmented:
+        P = P + (1.0 / lam) * np.eye(N)
+        q = q - (1.0 / lam) * np.asarray(w_shc, dtype=float)
 
-    prob = cp.Problem(objective, constraints)
-    prob.solve(solver=cp.CLARABEL)
-    return (w.value, prob.value) if w.value is not None else (None, None)
+    w_opt = _solve_shc_qp_osqp(P, q, N, nonneg=not use_augmented)
+    if w_opt is None:                       # robustness fallback (no result drift)
+        return _solve_shc_qp_cvxpy(L, ell_eval, C, use_augmented, w_shc, lam, varsigma)
+    obj = _shc_objective(L, ell_eval, w_opt, C, use_augmented, w_shc, lam, varsigma)
+    return w_opt, obj
+
 
 
 def tune_lambda_ashc(L, ell_eval, w_shc, lambda_grid=None, split_ratio=0.5):
