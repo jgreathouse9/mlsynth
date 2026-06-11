@@ -19,6 +19,42 @@ The guiding principle is:
 
 ---
 
+# Test-Driven Development (test-first is the default)
+
+**Write the tests before the code.** Whenever you add a new feature, helper,
+function, estimator branch, config option, or inference mode, its tests come
+*first*: write them, run them, and watch them fail for the right reason (red),
+then implement until they pass (green). Tests are part of the unit of work, not
+a follow-up chore — this is what keeps the contract pinned before the
+implementation can drift, and turns every case into a permanent regression
+guard.
+
+Every new unit of behavior ships with **at least** these levels:
+
+- **Smoke** — it runs end-to-end on a minimal valid input and returns the
+  expected type / a finite result. Proves the happy path is wired.
+- **Unit** — its core invariants hold: feasibility, normalization
+  (`weights.sum() == 1`), dimensional correctness, the specific contract the
+  function promises. Assert *invariants*, not brittle floats (see below).
+- **Edge** — boundary and degenerate inputs: empty donor pool, single donor,
+  no pre-periods, treatment at the first period, near-singular / collinear
+  matrices, target outside the donor hull, `J > T0`. Econometric code fails at
+  the edges; cover them deliberately.
+- **Failure** — invalid inputs raise the correct *translated* exception
+  (`MlsynthConfigError` / `MlsynthDataError` / `MlsynthEstimationError`), and a
+  test asserts the failure is **reported** (right type, informative message),
+  never silently swallowed or leaked as a raw solver / NumPy / CVXPY error.
+
+A change is not "done" until it is red→green across these levels **and** the new
+code is fully covered. Genuinely unreachable / defensive branches are excluded
+with `# pragma: no cover` plus a one-line reason — never with an untested gap.
+Measure with the per-estimator coverage command in `CLAUDE.md`.
+
+The layered architecture below says *where* each level lives; this section says
+the levels are *non-optional* and come *first*.
+
+---
+
 # Core Testing Philosophy
 
 The architecture of `mlsynth` is intentionally layered:
