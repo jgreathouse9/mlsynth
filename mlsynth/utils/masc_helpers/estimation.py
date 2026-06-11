@@ -151,7 +151,7 @@ def sc_simplex_weights(
     # (default) uses the MSCMT global search, which reproduces synth() /
     # the Kellogg et al. (2020) reference; ``"bilevel"`` uses the Malo et
     # al. solver shared with FSCM.
-    from ..fscm_helpers.bilevel import BilevelProblem
+    from ..bilevel import BilevelProblem
     Pt, Pd = _standardize_predictors(X_treated, X_donors)
     prob = BilevelProblem(
         y1_pre=Y_treated_pre,
@@ -160,10 +160,10 @@ def sc_simplex_weights(
         X0=Pd,
     )
     if sc_backend == "mscmt":
-        from ..fscm_helpers.bilevel.mscmt import solve_mscmt
+        from ..bilevel.mscmt import solve_mscmt
         sol = solve_mscmt(prob, canonical_v="min.loss.w")
     elif sc_backend == "bilevel":
-        from ..fscm_helpers.bilevel import solve_bilevel
+        from ..bilevel import solve_bilevel
         sol = solve_bilevel(prob)
     else:
         raise ValueError(

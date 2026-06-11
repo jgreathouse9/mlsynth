@@ -23,7 +23,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from ...fscm_helpers.bilevel import (
+from ...bilevel import (
     BilevelProblem, bias_corrected_gaps, penalized_weights, simplex_lstsq,
     solve_penalized,
 )

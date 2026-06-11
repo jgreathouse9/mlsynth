@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from mlsynth.utils.fscm_helpers.bilevel import (
+from mlsynth.utils.bilevel import (
     BilevelProblem,
     BilevelSolution,
     project_simplex,
@@ -11,7 +11,7 @@ from mlsynth.utils.fscm_helpers.bilevel import (
     solve_bilevel,
     lower_level_weights,
 )
-from mlsynth.utils.fscm_helpers.bilevel.simplex import mspe
+from mlsynth.utils.bilevel.simplex import mspe
 
 
 # --------------------------------------------------------------------------- #
@@ -174,7 +174,7 @@ def test_mscmt_deterministic_with_seed():
 def test_sunny_mask_drops_shady_donors():
     # 1-D predictors: treated at 0, donors at 1, 2, 3. Only the nearest donor
     # (1) is visible from X1; donors 2 and 3 sit in its shadow -> shady.
-    from mlsynth.utils.fscm_helpers.bilevel.mscmt import _sunny_mask
+    from mlsynth.utils.bilevel.mscmt import _sunny_mask
     X1 = np.array([0.0])
     X0 = np.array([[1.0, 2.0, 3.0]])
     mask = _sunny_mask(X1, X0)
@@ -204,7 +204,7 @@ def test_mscmt_prune_shady_leaves_optimum_unchanged():
 # --------------------------------------------------------------------------- #
 # penalized backend (Abadie & L'Hour 2021)
 # --------------------------------------------------------------------------- #
-from mlsynth.utils.fscm_helpers.bilevel import (  # noqa: E402
+from mlsynth.utils.bilevel import (  # noqa: E402
     bias_corrected_gaps, solve_penalized,
 )
 
@@ -300,23 +300,23 @@ def test_bias_correction_removes_bias_when_covariates_informative():
 # --------------------------------------------------------------------------- #
 import numpy as _np  # noqa: E402
 
-from mlsynth.utils.fscm_helpers.bilevel.simplex import (  # noqa: E402
+from mlsynth.utils.bilevel.simplex import (  # noqa: E402
     _lipschitz_constant,
     project_simplex as _project_simplex,
     _EPS as _SIMPLEX_EPS,
 )
-from mlsynth.utils.fscm_helpers.bilevel.penalized import (  # noqa: E402
+from mlsynth.utils.bilevel.penalized import (  # noqa: E402
     _spectral_radius,
     _simplex_qp,
     _build_block,
     solve_penalized as _solve_penalized,
 )
-from mlsynth.utils.fscm_helpers.bilevel.stages import (  # noqa: E402
+from mlsynth.utils.bilevel.stages import (  # noqa: E402
     tykhonov_refine,
     corner_solutions,
     unconstrained_feasibility,
 )
-from mlsynth.utils.fscm_helpers.bilevel.structure import (  # noqa: E402
+from mlsynth.utils.bilevel.structure import (  # noqa: E402
     BilevelProblem as _BP,
     BilevelSolution as _BS,
 )
@@ -366,7 +366,7 @@ def test_project_simplex_nonunit_radius():
 # --------------------------------------------------------------------------- #
 def test_spectral_radius_zero_initial_vector_returns_one(monkeypatch):
     # penalized.py:59
-    import mlsynth.utils.fscm_helpers.bilevel.penalized as _pen
+    import mlsynth.utils.bilevel.penalized as _pen
     monkeypatch.setattr(_pen.np.random, "default_rng", lambda seed=0: _ZeroRng())
     assert _spectral_radius(_np.eye(3)) == pytest.approx(1.0)
 

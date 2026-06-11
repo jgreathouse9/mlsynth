@@ -29,10 +29,13 @@ from .determine_v import (
     max_order_v,
     min_loss_w_v,
 )
+from .engine import BilevelSCM, BilevelSCMResult
 
 __all__ = [
     "BilevelProblem",
     "BilevelSolution",
+    "BilevelSCM",
+    "BilevelSCMResult",
     "project_simplex",
     "simplex_lstsq",
     "mspe",

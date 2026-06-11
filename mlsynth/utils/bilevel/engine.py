@@ -1,8 +1,8 @@
-"""Bilevel SCM engine for the ``VanillaSC`` estimator.
+"""Bilevel SCM engine -- shared high-level entry point to the bilevel solver.
 
 A thin, ``dataprep``-agnostic wrapper that turns the self-contained bilevel
-machinery (:mod:`mlsynth.utils.fscm_helpers.bilevel`) into the *standard*
-single-treated synthetic control, with a selectable predictor-weight backend:
+machinery (:mod:`mlsynth.utils.bilevel`) into the *standard* single-treated
+synthetic control, with a selectable predictor-weight backend:
 
 * ``"outcome-only"`` -- no covariates: the donor weights solve the convex
   simplex least-squares fit on the pre-treatment outcomes (Abadie's outcome
@@ -25,12 +25,10 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from ..fscm_helpers.bilevel import (
-    BilevelProblem,
-    canonical_v_diagnostics,
-    solve_bilevel,
-)
-from ..fscm_helpers.bilevel.simplex import simplex_lstsq
+from .structure import BilevelProblem
+from .determine_v import canonical_v_diagnostics
+from .solver import solve_bilevel
+from .simplex import simplex_lstsq
 
 _BACKENDS = ("auto", "outcome-only", "malo", "mscmt", "penalized")
 # Keyword arguments each bilevel backend accepts (others are filtered out so a
@@ -101,7 +99,7 @@ class BilevelSCM:
     canonical_v : bool or {"min.loss.w", "max.order"}
         Canonicalise the (non-identified) predictor weights ``V`` for the
         ``mscmt`` backend (see
-        :func:`mlsynth.utils.fscm_helpers.bilevel.determine_v.canonical_v`).
+        :func:`mlsynth.utils.bilevel.determine_v.canonical_v`).
         Ignored by other backends. Default ``False``.
     seed : int
         RNG seed for the ``mscmt`` differential-evolution search.

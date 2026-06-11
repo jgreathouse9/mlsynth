@@ -16,15 +16,15 @@ import numpy as np
 import pytest
 
 from mlsynth.exceptions import MlsynthDataError
-from mlsynth.utils.fscm_helpers.bilevel import (
+from mlsynth.utils.bilevel import (
     BilevelProblem,
     project_simplex,
     simplex_lstsq,
     solve_bilevel,
     penalized_weights,
 )
-from mlsynth.utils.fscm_helpers.bilevel.penalized import _simplex_qp
-from mlsynth.utils.fscm_helpers.bilevel.stages import warn_on_gap
+from mlsynth.utils.bilevel.penalized import _simplex_qp
+from mlsynth.utils.bilevel.stages import warn_on_gap
 
 
 # --------------------------------------------------------------------------- #

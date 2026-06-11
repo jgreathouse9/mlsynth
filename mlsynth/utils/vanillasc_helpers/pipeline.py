@@ -24,7 +24,7 @@ from ...exceptions import MlsynthDataError
 from ..datautils import dataprep
 from ..helperutils import IndexSet
 from ..results_helpers import make_weights_results
-from .engine import BilevelSCM
+from ..bilevel import BilevelSCM
 
 _EPS = 1e-12
 
