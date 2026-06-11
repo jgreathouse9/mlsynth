@@ -322,6 +322,16 @@ High-dimensional donor pools
   :math:`[-21.3, -15.4]`) on the ADH donor pool (durable:
   ``sparse_sc_prop99``). See the
   :doc:`dedicated page <replications/sparse_sc>`.
+* :doc:`msqrt` -- Shen, Song & Abadie (2025) multivariate
+  square-root-Lasso SC for high-dimensional disaggregated data.
+  **Path B:** the Section-6 simulation (true ATT = 0) -- the
+  estimator is **unbiased** (mean bias within Monte-Carlo noise of
+  zero) and the imputed-counterfactual RMSE stays near the
+  :math:`\sigma = 0.5` noise floor and roughly flat in the number of
+  treated units :math:`m`, the property that makes the
+  many-treated regime work (durable: ``msqrt_sim``; run at a reduced
+  :math:`n = 80` regime -- the paper's exact :math:`n = 400` RMSE level
+  is :math:`\approx 0.72`).
 
 .. _replications-time:
 
@@ -481,6 +491,16 @@ Identification under endogeneity
   paper's 0.111 / 0.218 / 0.360 essentially exactly, with
   SIV's debiasing far below 2SLS at every level (durable:
   ``siv_syria_mc``).
+* :doc:`dscar` -- Zheng & Chen (2024) dynamic SC for
+  auto-regressive processes. **Path A:** Beijing heavy-pollution
+  **alerts** on station-level PM2.5 -- the *orange* alert reproduces
+  the paper value for value (ATT :math:`-33.78` vs :math:`-33.8`, a
+  24.3% reduction; counterfactual 139.1 vs 139.0, treated mean 105.3
+  vs 105.3), while the *red* alert recovers a large negative effect
+  (:math:`-55.7`, ~22% reduction) whose magnitude differs from the
+  paper's :math:`-70.4` (the released code omits a per-unit de-meaning
+  step), pinned as a qualitative + regression guard (durable:
+  ``dscar_beijing``).
 * :doc:`proximal` -- Proximal SC. **Path A (cross-validation):**
   Panic of 1907 on the Trust panel, cross-validated against the
   authors' Python reference (``freshtaste/proximal``, pinned commit

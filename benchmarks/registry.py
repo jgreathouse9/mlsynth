@@ -64,6 +64,8 @@ CASES = {
     "fma_coverage_mc": "benchmarks.cases.fma_coverage_mc",      # Path B: FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
     "pangeo_supergeo_mc": "benchmarks.cases.pangeo_supergeo_mc",  # Path B: PANGEO trajectory match vs scalar (Chen et al.)
     "shc_recovery_mc": "benchmarks.cases.shc_recovery_mc",      # Path B: SHC latent-confounder recovery (Chen-Yang-Yang Sec 3.1)
+    "dscar_beijing": "benchmarks.cases.dscar_beijing",      # Path A: DSCAR Beijing PM2.5 alerts (Zheng-Chen)
+    "msqrt_sim": "benchmarks.cases.msqrt_sim",                # Path B: MSQRT unbiasedness + RMSE noise-floor (Shen-Song-Abadie Sec 6)
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
 }
 
