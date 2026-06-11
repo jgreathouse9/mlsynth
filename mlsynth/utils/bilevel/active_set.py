@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Optional
 
 import numpy as np
+from scipy.linalg import lstsq as _lstsq
 
 
 def solve_simplex_qp(
@@ -110,12 +111,16 @@ def solve_simplex_qp(
         if nF == 1:
             wF = np.array([1.0])
         else:
-            wF0 = np.full(nF, 1.0 / nF)           # particular solution, 1'wF0 = 1
-            Z = np.zeros((nF, nF - 1))            # null-space basis of 1'
-            Z[:nF - 1] = np.eye(nF - 1)
-            Z[nF - 1] = -1.0
-            v, *_ = np.linalg.lstsq(BF @ Z, A - BF @ wF0, rcond=None)
-            wF = wF0 + Z @ v
+            # Null space of 1' via the difference basis Z[:, j] = e_j - e_{nF-1}.
+            # Then BF @ Z = BF[:, :-1] - BF[:, -1:] and the uniform particular
+            # solution gives BF @ wF0 = mean(BF) -- both without forming Z or a
+            # matmul. Rank-revealing QR (LAPACK gelsy) is ~3x faster than SVD
+            # lstsq and robust to a rank-deficient system (collinear free donors).
+            M = BF[:, :nF - 1] - BF[:, nF - 1:nF]
+            v = _lstsq(M, A - BF.mean(axis=1), lapack_driver="gelsy")[0]
+            wF = np.empty(nF)
+            wF[:nF - 1] = 1.0 / nF + v
+            wF[nF - 1] = 1.0 / nF - v.sum()
 
         if wF.min() >= -tol:
             # Full step to the free-set optimum.
