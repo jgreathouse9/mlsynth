@@ -16,6 +16,7 @@ from .cd.inference import (
 from .cd.sensitivity import PureDonorSensitivity, pure_donor_sensitivity
 from .grossi import run_grossi
 from .iscm import build_omega, build_unit_sc, run_iscm, solve_inclusive
+from .iterative import run_iterative
 from .plotter import plot_spillsynth
 from .sar import (
     SARFit, SARInputs, prepare_sar_inputs, run_sar,
@@ -25,12 +26,14 @@ from .setup import (
     build_A_per_unit, prepare_spillsynth_inputs,
 )
 from .structures import (
-    CDFit, GrossiFit, ISCMFit, SpillSynthInputs, SpillSynthResults)
+    CDFit, GrossiFit, ISCMFit, IterativeFit, SpillSynthInputs,
+    SpillSynthResults)
 
 __all__ = [
     "CDFit",
     "GrossiFit",
     "ISCMFit",
+    "IterativeFit",
     "KappaATestResult",
     "PTestResult",
     "PureDonorSensitivity",
@@ -54,6 +57,7 @@ __all__ = [
     "run_cd",
     "run_grossi",
     "run_iscm",
+    "run_iterative",
     "select_A_by_kappa",
     "signed_ci",
     "solve_inclusive",

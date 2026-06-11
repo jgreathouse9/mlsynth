@@ -51,7 +51,7 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
     Pretreatment Fit.* Quantitative Economics, 12(4), 1197-1221.
     """
 
-    method: Literal["cd", "iscm", "grossi", "sar"] = Field(
+    method: Literal["cd", "iscm", "grossi", "sar", "iterative"] = Field(
         default="cd",
         description="Spillover-aware SCM method. 'cd' = Cao & Dowd (2023); "
                     "'iscm' = inclusive SCM (Di Stefano & Mellace 2024); "
@@ -59,10 +59,13 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
                     "under partial interference (penalized SC on far controls); "
                     "'sar' = Sakaguchi & Tagawa (2026) spatial-autoregressive "
                     "Bayesian SCM (relaxes SUTVA via a SAR model on the control "
-                    "outcomes; needs spatial_W/spatial_w). "
-                    "For 'grossi', affected_units lists the treated unit's "
-                    "cluster-mates (excluded from the donor pool, given "
-                    "spillover effects).",
+                    "outcomes; needs spatial_W/spatial_w); "
+                    "'iterative' = Melnychuk (2024) iterative 'waterfall' SCM "
+                    "(clean each affected donor's post outcomes with its own "
+                    "spillover-free synthetic, then refit the treated unit on "
+                    "the cleaned pool). "
+                    "For 'grossi'/'iterative', affected_units lists the spillover-"
+                    "exposed controls.",
     )
     spatial_W: Optional[Any] = Field(
         default=None,

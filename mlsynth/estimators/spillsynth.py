@@ -36,6 +36,7 @@ from ..utils.datautils import balance
 from ..utils.spillsynth_helpers.cd import run_cd
 from ..utils.spillsynth_helpers.grossi import run_grossi
 from ..utils.spillsynth_helpers.iscm import run_iscm
+from ..utils.spillsynth_helpers.iterative import run_iterative
 from ..utils.spillsynth_helpers.plotter import plot_spillsynth
 from ..utils.spillsynth_helpers.sar.pipeline import run_sar
 from ..utils.spillsynth_helpers.sar.setup import prepare_sar_inputs
@@ -175,6 +176,13 @@ class SPILLSYNTH:
                 )
                 results = SpillSynthResults(
                     inputs=inputs, method="sar", sar=fit,
+                )
+            elif self.method == "iterative":
+                fit = run_iterative(inputs, bilevel_solver=self.bilevel_solver,
+                                    bias_correct=self.bias_correct,
+                                    intercept=self.iscm_intercept)
+                results = SpillSynthResults(
+                    inputs=inputs, method="iterative", iterative=fit,
                 )
             else:                                            # pragma: no cover
                 raise MlsynthConfigError(

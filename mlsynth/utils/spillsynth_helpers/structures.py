@@ -409,6 +409,75 @@ class GrossiFit:
 
 
 @dataclass(frozen=True)
+class IterativeFit:
+    """Melnychuk (2024) Iterative ("waterfall") SCM.
+
+    Each spillover-affected control is **cleaned** in turn: a synthetic control
+    is built for it from the clean controls (and already-cleaned affected units,
+    excluding the treated unit), and its **post-treatment** outcomes are replaced
+    by that spillover-free synthetic (its pre-treatment outcomes are kept). The
+    treated unit's synthetic control is then refit on the cleaned donor pool, so
+    the affected donors no longer carry the treatment's spillover. Because the
+    pre-period outcomes are untouched, the refit weights equal the naive ones --
+    the correction enters only through the cleaned post-period counterfactual.
+
+    Attributes
+    ----------
+    att : float
+        Iterative ATT on the treated unit (post-period mean), cleaned pool.
+    att_scm : float
+        Naive SCM ATT (same weights, original contaminated donor outcomes).
+    gap, gap_scm : np.ndarray
+        Per-period iterative / naive treatment effect, shape ``(T1,)``.
+    counterfactual, counterfactual_scm : np.ndarray
+        Post-period counterfactuals (cleaned / naive).
+    spillover_panel : dict
+        Per-affected-unit cleaned synthetic post-period trajectory ``(T1,)``.
+    spillover_att : dict
+        Per-affected-unit post-period mean of (observed - cleaned synthetic),
+        i.e. the spillover removed from that donor.
+    donor_weights : dict
+        Treated unit's synthetic-control weights over the cleaned pool.
+    cleaned_units : list
+        Affected units cleaned, in waterfall order.
+    n_clean : int
+        Number of clean (never-affected) controls.
+    pre_rmspe : float
+        Treated unit's pre-treatment RMSPE on the cleaned pool.
+    bilevel_solver : str
+        Backend used for the per-unit SCM (``"mscmt"`` / ``"malo"`` /
+        ``"outcome-only"``).
+    """
+
+    att: float
+    att_scm: float
+    gap: np.ndarray
+    gap_scm: np.ndarray
+    counterfactual: np.ndarray
+    counterfactual_scm: np.ndarray
+    spillover_panel: Dict[Any, np.ndarray]
+    spillover_att: Dict[Any, float]
+    donor_weights: Dict[Any, float]
+    cleaned_units: list
+    n_clean: int
+    pre_rmspe: float
+    bilevel_solver: str = "mscmt"
+
+    # SP-dialect aliases for the shared accessors / plotter.
+    @property
+    def att_sp(self) -> float:
+        return self.att
+
+    @property
+    def gap_sp(self) -> np.ndarray:
+        return self.gap
+
+    @property
+    def counterfactual_sp(self) -> np.ndarray:
+        return self.counterfactual
+
+
+@dataclass(frozen=True)
 class SpillSynthResults:
     """Top-level SPILLSYNTH result container.
 
@@ -433,6 +502,7 @@ class SpillSynthResults:
     iscm: Optional["ISCMFit"] = None
     grossi: Optional["GrossiFit"] = None
     sar: Optional["SARFit"] = None
+    iterative: Optional["IterativeFit"] = None
 
     # ------------------------------------------------------------------
     # Convenience accessors (route to the active method's fit).
@@ -463,6 +533,12 @@ class SpillSynthResults:
                     "SPILLSYNTH method='sar' but no SAR spillover fit present."
                 )
             return self.sar
+        if self.method == "iterative":
+            if self.iterative is None:
+                raise AttributeError(
+                    "SPILLSYNTH method='iterative' but no Iterative-SCM fit present."
+                )
+            return self.iterative
         raise AttributeError(f"Unknown SPILLSYNTH method {self.method!r}.")
 
     @property
