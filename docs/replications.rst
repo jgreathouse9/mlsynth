@@ -382,17 +382,34 @@ Staggered adoption
   AR(1)-factor DGP (Section 3) -- the event-time ATT path
   :math:`\tau = 1 + e` is recovered, using all units (including
   not-yet-treated) as donors.
-* :doc:`spillsynth` -- spillover-aware SC, a four-method dispatcher.
-  **Path A (cross-validation, Cao-Dowd ``method='cd'``):** Proposition
+* :doc:`spillsynth` -- spillover-aware SC, a four-method dispatcher,
+  each method benchmarked.
+  **Cao-Dowd (``method='cd'``), Path A cross-validation:** Proposition
   99 with spillover on the 51-unit panel (50 states + DC, 1970-2000),
   cross-validated against the authors' committed MATLAB output
   (``jcao0/synthetic-control-spillover``, pinned commit ``60bbebe``)
   -- the California spillover-adjusted ATT path reproduces
-  ``spillover.csv`` to :math:`\approx 10^{-4}`; the headline reproduces,
-  the spillover-adjusted ATT (avg :math:`-9.44`) is attenuated relative
-  to vanilla SCM (:math:`-10.81`) and near zero in the first four post
-  years (:math:`-0.85`) where spillover to Nevada/Oregon/DC inflates the
+  ``spillover.csv`` to :math:`\approx 10^{-4}`; the spillover-adjusted
+  ATT (avg :math:`-9.44`) is attenuated relative to vanilla SCM
+  (:math:`-10.81`) and near zero in the first four post years
+  (:math:`-0.85`) where spillover to Nevada/Oregon/DC inflates the
   classical estimate (durable: ``spillsynth_prop99``).
+  **Inclusive SCM (``method='iscm'``, Di Stefano & Mellace 2024), Path
+  A:** German reunification keeping Austria in the donor pool -- Austria
+  carries :math:`\approx 0.33` of synthetic West Germany and West Germany
+  :math:`\approx 0.32` of synthetic Austria (:math:`\det\Omega \approx
+  0.90`), and the inclusive ATT is more negative than the naive gap
+  (durable: ``spillsynth_iscm_germany``).
+  **Grossi et al. (``method='grossi'``, 2025), Path A:** the
+  direct/spillover decomposition on German reunification -- a direct
+  effect (:math:`\approx -1605`) more negative than the naive gap, with
+  Austria removed from the donor pool but assigned a negative spillover
+  (durable: ``spillsynth_grossi_germany``).
+  **SAR Bayesian (``method='sar'``, Sakaguchi & Tagawa 2026), Path B:**
+  the paper's spatial-autoregressive simulation -- the posterior
+  :math:`\widehat\rho` recovers the true :math:`\rho = 0.6`, the SAR ATT
+  beats the spillover-biased naive SCM, and the estimator nests ordinary
+  SCM at :math:`\rho = 0` (durable: ``spillsynth_sar_mc``).
 * :doc:`seq_sdid` -- Arkhangelsky & Samkov (2025) Sequential
   Synthetic DiD. **Path B:** the Section-5.2.2 calibrated-panel
   Monte Carlo (Table 1) reconstructed from the paper's description

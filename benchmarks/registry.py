@@ -54,6 +54,9 @@ CASES = {
     "proximal_surrogates_mc": "benchmarks.cases.proximal_surrogates_mc",  # Path B: PI/PIS/PIPost vs SC under trending factor (Liu et al.)
     "ssc_guanajuato": "benchmarks.cases.ssc_guanajuato",      # cross-val vs jcao0/staggered_synthetic_control (criminality Sec 4)
     "spillsynth_prop99": "benchmarks.cases.spillsynth_prop99",  # cross-val vs jcao0/synthetic-control-spillover (Cao-Dowd Prop 99)
+    "spillsynth_iscm_germany": "benchmarks.cases.spillsynth_iscm_germany",  # Path A: inclusive SCM German reunification (Di Stefano-Mellace)
+    "spillsynth_grossi_germany": "benchmarks.cases.spillsynth_grossi_germany",  # Path A: grossi direct+spillover German reunification (Grossi et al.)
+    "spillsynth_sar_mc": "benchmarks.cases.spillsynth_sar_mc",  # Path B: SAR spillover recovery + SCM nesting (Sakaguchi-Tagawa)
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
 }
 
