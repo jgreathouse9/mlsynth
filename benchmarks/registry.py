@@ -59,6 +59,11 @@ CASES = {
     "spillsynth_grossi_germany": "benchmarks.cases.spillsynth_grossi_germany",  # Path A: grossi direct+spillover German reunification (Grossi et al.)
     "spillsynth_iterative_germany": "benchmarks.cases.spillsynth_iterative_germany",  # Path A: iterative waterfall SCM German reunification (Melnychuk)
     "spillsynth_sar_mc": "benchmarks.cases.spillsynth_sar_mc",  # Path B: SAR spillover recovery + SCM nesting (Sakaguchi-Tagawa)
+    "ctsc_powell_mc": "benchmarks.cases.ctsc_powell_mc",      # Path B: CTSC vs two-way FE bias (Powell 2022 Table 1)
+    "siv_syria_mc": "benchmarks.cases.siv_syria_mc",          # Path B: SIV vs 2SLS-TWFE bias (Gulek-Vives Table 1)
+    "fma_coverage_mc": "benchmarks.cases.fma_coverage_mc",      # Path B: FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
+    "pangeo_supergeo_mc": "benchmarks.cases.pangeo_supergeo_mc",  # Path B: PANGEO trajectory match vs scalar (Chen et al.)
+    "shc_recovery_mc": "benchmarks.cases.shc_recovery_mc",      # Path B: SHC latent-confounder recovery (Chen-Yang-Yang Sec 3.1)
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
 }
 
