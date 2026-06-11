@@ -171,7 +171,14 @@ Generalising the estimand, treatment, or unit
   Table 1 Monte Carlo across Models 1-4 with factor structure and
   true average effect :math:`= 0`; CTSC bias :math:`\approx 0.00`
   against the paper's :math:`0.005`-:math:`0.011` range, vs.
-  fixed-effects bias :math:`\approx 0.80`.
+  fixed-effects bias :math:`\approx 0.80` (durable: ``ctsc_powell_mc``).
+* :doc:`shc` -- Chen, Yang & Yang (2024) Synthetic Historical
+  Control. **Path B:** the Section-3.1 effect-free simulation --
+  with :math:`\delta_t = 0`, SHC recovers the latent confounder
+  :math:`\ell_t` to :math:`\approx 10^{-3}` matching error pre and
+  post (``MSE_pre`` / ``MSE_post`` near zero, rising only mildly with
+  the horizon, as the bias bound predicts; durable:
+  ``shc_recovery_mc``).
 * :doc:`dsc` -- Distributional SC. **Path B:** Gunsilius (2023)
   Figure 4 reproduction -- the 2-Wasserstein-squared distance
   collapses at :math:`J = 30` against the rough fit at
@@ -324,7 +331,9 @@ Time-aware and factor models
 * :doc:`fma` -- Li & Sonnier (2023) factor model approach.
   **Path B:** coverage study under DGP1 (stationary) and DGP2
   (non-stationary), 1000 reps; coverage at :math:`M = 1000`
-  equals 0.947 against the nominal 0.95.
+  equals 0.947 against the nominal 0.95 -- and stays near nominal
+  across the equal / treated-smaller / treated-larger variance
+  regimes where Xu's interval fails (durable: ``fma_coverage_mc``).
 * :doc:`tasc` -- Rho et al. (2026) time-aware SC. **Path A:**
   Proposition 99 -- pre-RMSE 0.767, ATT -16.793, gap of -24
   packs by 2000 against the paper's Figure 10 gap of -25 to -30.
@@ -469,7 +478,9 @@ Identification under endogeneity
   :math:`-0.89 / -0.72 / -0.75`. **Path B:** Section 6 Syrian-
   calibrated Monte Carlo across :math:`r \in \{0.5, 0.7, 0.9\}`
   at 200 reps; TSLS-TWFE bias 0.111 / 0.228 / 0.387 matches the
-  paper's 0.111 / 0.218 / 0.360 essentially exactly.
+  paper's 0.111 / 0.218 / 0.360 essentially exactly, with
+  SIV's debiasing far below 2SLS at every level (durable:
+  ``siv_syria_mc``).
 * :doc:`proximal` -- Proximal SC. **Path A (cross-validation):**
   Panic of 1907 on the Trust panel, cross-validated against the
   authors' Python reference (``freshtaste/proximal``, pinned commit
@@ -519,7 +530,7 @@ Experimental design
   trajectories; PANGEO RMSE :math:`\approx 0.2` against scalar-
   matching RMSE :math:`\approx 6` at :math:`\tau = 4` (a
   :math:`30\times` improvement); pre-period parallelism
-  :math:`R^2 \in [0.90, 0.98]`.
+  :math:`R^2 \in [0.90, 0.98]` (durable: ``pangeo_supergeo_mc``).
 * :doc:`spcd` -- Synthetic Principal Component Design.
   **Path B:** Lu-Li-Ying-Blanchet linear-factor model with
   :math:`\tau = 1`, :math:`\sigma = 1` -- SPCD mean
