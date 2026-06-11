@@ -369,15 +369,53 @@ Staggered adoption
   to the ``augsynth`` R-package vignette (:math:`\nu = 0.2607`,
   average ATT :math:`= -0.011`) to four decimals.
 * :doc:`ssc` -- Cao, Lu & Wu (2026) staggered synthetic control.
-  **Path A:** the Guanajuato police-reform application (Section 4;
-  :math:`N = 33`, 10 staggered adopters) -- event-time ATT estimates
-  match the authors' reference output for all seven outcomes, to
+  **Path A (cross-validation):** the Guanajuato police-reform
+  application (Section 4; :math:`N = 33`, 10 staggered adopters),
+  cross-validated against the authors' committed reference output
+  (``jcao0/staggered_synthetic_control``, pinned commit ``74e77d4``)
+  -- event-time ATT estimates match for all seven outcomes, to
   :math:`\approx 10^{-4}` for the homicide (:math:`T_0 = 174`) and
   theft rates and :math:`\approx 10^{-3}` for the annual cartel
-  outcomes, with end-of-sample bands present/``NaN`` exactly as in
-  the reference. **Path B:** the paper's staggered AR(1)-factor DGP
-  (Section 3) -- the event-time ATT path :math:`\tau = 1 + e` is
-  recovered, using all units (including not-yet-treated) as donors.
+  outcomes, and the smallest SSC Gram eigenvalue per outcome matches
+  the reference ``Table1_eigenvalue.csv`` to :math:`\approx 10^{-4}`
+  (durable: ``ssc_guanajuato``). **Path B:** the paper's staggered
+  AR(1)-factor DGP (Section 3) -- the event-time ATT path
+  :math:`\tau = 1 + e` is recovered, using all units (including
+  not-yet-treated) as donors.
+* :doc:`spillsynth` -- spillover-aware SC, a four-method dispatcher,
+  each method benchmarked.
+  **Cao-Dowd (``method='cd'``), Path A cross-validation:** Proposition
+  99 with spillover on the 51-unit panel (50 states + DC, 1970-2000),
+  cross-validated against the authors' committed MATLAB output
+  (``jcao0/synthetic-control-spillover``, pinned commit ``60bbebe``)
+  -- the California spillover-adjusted ATT path reproduces
+  ``spillover.csv`` to :math:`\approx 10^{-4}`; the spillover-adjusted
+  ATT (avg :math:`-9.44`) is attenuated relative to vanilla SCM
+  (:math:`-10.81`) and near zero in the first four post years
+  (:math:`-0.85`) where spillover to Nevada/Oregon/DC inflates the
+  classical estimate (durable: ``spillsynth_prop99``).
+  **Inclusive SCM (``method='iscm'``, Di Stefano & Mellace 2024), Path
+  A:** German reunification keeping Austria in the donor pool, the
+  **outcome-only** inclusive fit (the no-covariates regime Melnychuk's
+  reference also reports; distinct from the *Iterative* SCM and from the
+  with-covariates Table-2 spec) -- Austria carries :math:`\approx 0.33` of
+  synthetic West Germany and West Germany :math:`\approx 0.32` of synthetic
+  Austria (:math:`\det\Omega \approx 0.90`), and the inclusive ATT is more
+  negative than the naive gap (durable: ``spillsynth_iscm_germany``).
+  **Grossi et al. (``method='grossi'``, 2025), Path A:** the
+  direct/spillover decomposition on German reunification -- a direct
+  effect (:math:`\approx -1605`) more negative than the naive gap, with
+  Austria removed from the donor pool but assigned a negative spillover
+  (durable: ``spillsynth_grossi_germany``).
+  **SAR Bayesian (``method='sar'``, Sakaguchi & Tagawa 2026), Path B
+  (cross-validation):** mlsynth runs the authors' own spatial-AR
+  simulation DGP (rook lattice, ``sigma2=1``) and reproduces their
+  published Section-5.2 cells (``N=16, T0=20``) -- the proposed method is
+  unbiased at every :math:`\rho` (paper :math:`|\text{bias}|\le 0.003`)
+  with ~95% coverage, while ordinary SCM's bias grows with the spillover
+  (mlsynth :math:`+0.10/+0.57` vs the paper's :math:`+0.092/+0.504` at
+  :math:`\rho=0.3/0.8`); the proposed estimator de-biases SCM and nests
+  it at :math:`\rho=0` (durable: ``spillsynth_sar_mc``).
 * :doc:`seq_sdid` -- Arkhangelsky & Samkov (2025) Sequential
   Synthetic DiD. **Path B:** the Section-5.2.2 calibrated-panel
   Monte Carlo (Table 1) reconstructed from the paper's description

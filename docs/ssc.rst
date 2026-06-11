@@ -341,7 +341,12 @@ Verification
    simplex-weight solver, cvxpy here vs. the reference's ``fmincon``). The bands
    are reported exactly where the reference has them: present for homicide and
    the cartel outcomes, and ``NaN`` for theft, where :math:`T_0 < S` leaves no
-   pre-treatment placebo window.
+   pre-treatment placebo window. This cross-validation is pinned **durably** by
+   the ``ssc_guanajuato`` benchmark, which clones the authors' repository
+   (``jcao0/staggered_synthetic_control``, pinned commit ``74e77d4``) and checks
+   mlsynth's live fit against the committed ``results_ssc.csv`` (the 357
+   event-time ATT cells) and ``Table1_eigenvalue.csv`` (the per-outcome Gram
+   min-eigenvalue diagnostic).
 
    **Inference.** The end-of-sample band is calibrated on pre-treatment
    residual windows, so coverage does not require point-identification of the
