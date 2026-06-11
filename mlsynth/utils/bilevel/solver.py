@@ -67,7 +67,7 @@ def solve_bilevel(
         ``lb``, ``maxiter``, ``popsize``, ``tol``, ``seed``, ``polish``,
         ``feas_tol``. For ``"penalized"``: ``lam`` (default ``"loo"``),
         ``lam_grid``, ``max_iter``, ``tol`` (see
-        :func:`mlsynth.utils.fscm_helpers.bilevel.penalized.solve_penalized`).
+        :func:`mlsynth.utils.bilevel.penalized.solve_penalized`).
 
     Returns
     -------

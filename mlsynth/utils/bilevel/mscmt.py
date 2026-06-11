@@ -149,7 +149,7 @@ def solve_mscmt(
     canonical_v : bool or {"min.loss.w", "max.order"}
         If truthy, replace the raw optimiser ``V`` with an MSCMT canonical
         predictor-weight vector (see
-        :func:`mlsynth.utils.fscm_helpers.bilevel.determine_v.canonical_v`).
+        :func:`mlsynth.utils.bilevel.determine_v.canonical_v`).
         ``True`` selects ``"min.loss.w"`` (predictor-loss-minimising, sparse);
         ``"max.order"`` selects the leximin (balanced) vector. The predictor
         weights ``V`` are generically non-identified -- a whole polytope

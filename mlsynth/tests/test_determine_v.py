@@ -5,7 +5,7 @@ import warnings
 import numpy as np
 import pytest
 
-from mlsynth.utils.fscm_helpers.bilevel import (
+from mlsynth.utils.bilevel import (
     BilevelProblem,
     canonical_v,
     canonical_v_diagnostics,
@@ -15,7 +15,7 @@ from mlsynth.utils.fscm_helpers.bilevel import (
     min_loss_w_v,
     solve_bilevel,
 )
-from mlsynth.utils.fscm_helpers.bilevel.mscmt import _inner_weights
+from mlsynth.utils.bilevel.mscmt import _inner_weights
 
 
 def _problem(seed: int = 0, K: int = 6, J: int = 8, T: int = 14) -> BilevelProblem:

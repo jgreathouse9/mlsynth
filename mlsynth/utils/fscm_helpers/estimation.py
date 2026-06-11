@@ -30,7 +30,7 @@ from ...config_models import (
     TimeSeriesResults,
     WeightsResults,
 )
-from .bilevel import BilevelProblem, lower_level_weights, simplex_lstsq, solve_bilevel
+from ..bilevel import BilevelProblem, lower_level_weights, simplex_lstsq, solve_bilevel
 from .structures import FSCMInputs, FSCMResults, FSCMSelectionPath
 
 _EPS = 1e-12

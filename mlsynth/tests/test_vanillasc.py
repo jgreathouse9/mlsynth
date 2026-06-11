@@ -187,7 +187,7 @@ def test_vanillasc_integer_unit_ids_with_covariates():
 
 def test_scpi_intervals_module():
     from mlsynth.utils.vanillasc_helpers.scpi import scpi_intervals
-    from mlsynth.utils.fscm_helpers.bilevel.simplex import simplex_lstsq
+    from mlsynth.utils.bilevel.simplex import simplex_lstsq
     rng = np.random.default_rng(5)
     T, T0, J = 30, 22, 6
     Y0 = rng.normal(5, 1, size=(T, J))

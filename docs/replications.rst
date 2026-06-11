@@ -49,6 +49,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/fdid
    replications/tssc
    replications/vanillasc
+   replications/ascm_kansas
    replications/sparse_sc
    replications/nsc
    replications/sdid
@@ -86,6 +87,17 @@ Canonical workhorses
   Connecticut 0.068, each within 0.005 of the paper; durable:
   ``vanillasc_prop99``).
   → dedicated page: :doc:`replications/vanillasc`.
+* :doc:`ascm_kansas` -- Ben-Michael, Feller & Rothstein (2021) Augmented SCM
+  (the ridge-augmentation layer on VanillaSC). **Cross-validation vs**
+  ``augsynth``\ **:** the canonical Kansas tax-cut ladder reproduced
+  value-for-value -- classic SCM (ATT :math:`-0.029`), ridge ASCM
+  (:math:`-0.040`), covariate ASCM (:math:`-0.061`) and residualized
+  (:math:`-0.055`), pre-fit :math:`L_2` falling :math:`0.083 \to 0.054`; the
+  ridge conformal :math:`p`-value (:math:`0.071`) also matches. **Path B:** the
+  Section-7 thesis -- near-nominal coverage (:math:`\approx 0.90`–:math:`0.96`)
+  and bias reduction across four Kansas-calibrated DGPs. **Status: done.**
+  → dedicated page: :doc:`replications/ascm_kansas`; durable cases
+  ``ascm_kansas`` and ``augsynth_calibrated``.
 * :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)
   matching + synthetic control. **Path A:** the KMPT Section-5
   Basque Country / ETA-terrorism study on ``basque_jasa.csv``,

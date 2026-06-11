@@ -182,6 +182,8 @@ class Plotter:
         labels: Optional[Sequence[str]] = None,
         treated_label: Any = "Treated",
         intervention: Optional[Any] = None,
+        interval: Optional[Sequence[np.ndarray]] = None,
+        interval_label: str = "Prediction interval",
         outcome: str = "",
         time: str = "",
         title: str = "Observed vs. counterfactual",
@@ -191,8 +193,9 @@ class Plotter:
 
         The workhorse archetype: a treated/observed line plus any number of
         dashed counterfactual lines, with an optional vertical intervention
-        marker. Pass ``ax`` to draw into an existing subplot (for multi-panel
-        figures); otherwise a standalone figure is created.
+        marker and an optional shaded prediction-interval band around the first
+        counterfactual. Pass ``ax`` to draw into an existing subplot (for
+        multi-panel figures); otherwise a standalone figure is created.
 
         Parameters
         ----------
@@ -209,6 +212,12 @@ class Plotter:
             Identifier shown for the observed series.
         intervention : Any, optional
             X position of the intervention marker; omitted if None.
+        interval : sequence of np.ndarray, optional
+            ``(lower, upper)`` band (each shape ``(T,)``) shaded around the
+            **first** counterfactual -- e.g. conformal / SCPI prediction
+            intervals. ``NaN`` entries (e.g. the pre-period) are not shaded.
+        interval_label : str, default "Prediction interval"
+            Legend label for the shaded band.
         outcome, time : str
             Axis labels.
         title : str
@@ -241,6 +250,13 @@ class Plotter:
                     linewidth=self.counterfactual_linewidth,
                     linestyle=self.counterfactual_linestyle,
                     color=color, label=labels[i])
+        if interval is not None:
+            lower = np.asarray(interval[0], dtype=float).reshape(-1)
+            upper = np.asarray(interval[1], dtype=float).reshape(-1)
+            band = self.counterfactual_colors[0]
+            ax.fill_between(times, lower, upper, where=~np.isnan(lower),
+                            color=band, alpha=0.18, linewidth=0,
+                            label=interval_label)
         if intervention is not None:
             ax.axvline(intervention, color=self.intervention_color,
                        linestyle=":", linewidth=1.2, label="Intervention")

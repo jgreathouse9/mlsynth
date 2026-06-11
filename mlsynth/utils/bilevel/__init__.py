@@ -29,10 +29,37 @@ from .determine_v import (
     max_order_v,
     min_loss_w_v,
 )
+from .engine import BilevelSCM, BilevelSCMResult
+from .ridge_augment import (
+    RidgeAugmentResult,
+    best_lambda,
+    build_matching,
+    generate_lambdas,
+    ridge_augment_weights,
+    simplex_qp,
+    solve_ridge,
+)
+from .ridge_inference import (
+    ConformalIntervals,
+    conformal_intervals,
+    conformal_pvalue,
+)
 
 __all__ = [
     "BilevelProblem",
     "BilevelSolution",
+    "BilevelSCM",
+    "BilevelSCMResult",
+    "RidgeAugmentResult",
+    "ridge_augment_weights",
+    "build_matching",
+    "simplex_qp",
+    "solve_ridge",
+    "conformal_pvalue",
+    "conformal_intervals",
+    "ConformalIntervals",
+    "generate_lambdas",
+    "best_lambda",
     "project_simplex",
     "simplex_lstsq",
     "mspe",

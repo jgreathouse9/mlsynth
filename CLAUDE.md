@@ -59,6 +59,22 @@ python benchmarks/run_benchmarks.py --all     # durable paper/reference validati
    Canonical references: `MAREXConfig`, `LEXSCMConfig`, `RESCMConfig`, the
    `BaseEstimatorResults` hierarchy, and `mcnnm`/`vanillasc` for layout.
 
+## Testing & TDD (test-first is mandatory)
+
+Write tests **before** the code. Any new feature, helper, function, estimator
+branch, or config option lands test-first — write the tests, watch them fail for
+the right reason, then implement to green. Each new unit of behavior ships with,
+at minimum: a **smoke** test (end-to-end on minimal input, right type / finite
+output), **unit** tests of its invariants (assert invariants, not brittle
+floats), **edge-case** tests (empty / degenerate inputs: no donors, single
+donor, no pre-periods, near-singular / collinear, treatment at `t=0`), and
+**failure** tests (invalid input raises the correct translated `Mlsynth*Error`
+and a test asserts the failure is *reported*, not swallowed). A change is not
+done until it is red→green across these levels and the new code is fully
+covered — defensive / unreachable branches get `# pragma: no cover` with a
+stated reason, never an untested gap. The layered architecture, patterns, and
+exception contract live in `agents/agents_tests.md`.
+
 ## The replication contract
 
 Every estimator is validated by one of (see `docs/replications.rst`):

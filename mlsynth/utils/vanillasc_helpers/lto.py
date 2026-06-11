@@ -176,21 +176,21 @@ def lto_placebo_test(
     n_pairs = 0
     for a, b in pairs:
         pool = [k for k in range(J) if k != a and k != b]
-        if not pool:
+        if not pool:  # pragma: no cover - pool size = J-2 >= 1 when J >= 3
             continue
         try:
             R_I = _resid(y, pool, X1)
             R_a = _resid(Y0[:, a], pool, (X0[:, a] if X0 is not None else None))
             R_b = _resid(Y0[:, b], pool, (X0[:, b] if X0 is not None else None))
-        except Exception:
+        except Exception:  # pragma: no cover - defensive donor-refit guard
             continue
-        if not np.isfinite(R_I):
+        if not np.isfinite(R_I):  # pragma: no cover - donor with zero pre-error
             R_I = np.finfo(float).max
         n_pairs += 1
         if not (R_I > max(R_a, R_b)):     # treated unit did not win the triple
             losses += 1
 
-    if n_pairs == 0:
+    if n_pairs == 0:  # pragma: no cover - unreachable when J >= 3
         raise ValueError("LTO placebo test: no leave-two-out subproblem could be fit.")
 
     p_naive = losses / n_pairs
