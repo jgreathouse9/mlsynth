@@ -109,6 +109,20 @@ def test_display_graphs_show(monkeypatch):
     assert shown["n"] == 1
 
 
+def test_plot_title_names_the_variant():
+    # the plot title must say *which* SCM variant was run
+    from types import SimpleNamespace
+    from mlsynth.utils.vanillasc_helpers.pipeline import _variant_label
+    def cfg(**k):
+        return SimpleNamespace(**{"augment": None, "covariates": None,
+                                  "residualize": False, **k})
+    assert _variant_label(cfg()) == "Synthetic Control"
+    assert _variant_label(cfg(augment="ridge")) == "Ridge ASCM"
+    assert _variant_label(cfg(augment="ridge", covariates=["x1"])) == "Ridge ASCM (covariates)"
+    assert _variant_label(cfg(augment="ridge", covariates=["x1"],
+                              residualize=True)) == "Ridge ASCM (residualized covariates)"
+
+
 # --------------------------------------------------------------------------- #
 # Other inference modes (scpi, lto, placebo) + their edge knobs
 # --------------------------------------------------------------------------- #
