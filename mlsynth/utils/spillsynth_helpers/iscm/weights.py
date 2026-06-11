@@ -41,6 +41,7 @@ def build_unit_sc(
     predictor_names: Optional[List] = None,
     solver: str = "malo",
     bias_correct: bool = False,
+    intercept: bool = False,
 ):
     """Synthetic control for ``target_idx`` built from donors ``donor_idx``.
 
@@ -50,6 +51,15 @@ def build_unit_sc(
         If True (and covariates are supplied), apply the Abadie-L'Hour bias
         correction to the gap, removing the part attributable to residual
         covariate imbalance.
+    intercept : bool
+        If True (outcome-only mode), fit a **demeaned** simplex synthetic
+        control with an unpenalised level shift -- each series is centred by its
+        own pre-period mean before the simplex least squares, and the fitted
+        intercept ``a = mean(y1_pre) - mean(Y0_pre) . w`` is added back. This is
+        the SCM-with-intercept of Doudchenko & Imbens (2016) and the backend of
+        Di Stefano & Mellace's inclusive SCM reference (Melnychuk's
+        ``scm_weights``); it generally assigns the affected neighbour a larger
+        weight than the plain simplex. Ignored in covariate mode.
 
     Returns
     -------
@@ -69,9 +79,16 @@ def build_unit_sc(
     Y0 = Y[donor_idx].T                       # (T, J)
 
     if predictors is None:
-        w = simplex_lstsq(Y0[:T0], y1[:T0])
         sol = None
-        gap = y1 - Y0 @ w
+        if intercept:
+            mu1 = y1[:T0].mean()
+            mu0 = Y0[:T0].mean(axis=0)         # per-donor pre-period mean
+            w = simplex_lstsq(Y0[:T0] - mu0, y1[:T0] - mu1)
+            a = float(mu1 - mu0 @ w)           # unpenalised level shift
+            gap = y1 - (a + Y0 @ w)
+        else:
+            w = simplex_lstsq(Y0[:T0], y1[:T0])
+            gap = y1 - Y0 @ w
     else:
         X1, X0 = _standardize(predictors[target_idx], predictors[donor_idx].T)
         prob = BilevelProblem(

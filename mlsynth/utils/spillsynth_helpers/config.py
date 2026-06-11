@@ -142,6 +142,17 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
                     "covariates. Requires 'covariates'; most useful when the "
                     "covariates genuinely explain the outcome.",
     )
+    iscm_intercept: bool = Field(
+        default=False,
+        description="(method='iscm', outcome-only) Fit a demeaned simplex SCM "
+                    "with an unpenalised level shift (the SCM-with-intercept of "
+                    "Doudchenko-Imbens 2016, and the backend of Di Stefano & "
+                    "Mellace's inclusive-SCM reference). Each series is centred "
+                    "by its own pre-period mean before the simplex fit; the "
+                    "fitted intercept is added back. Tends to give the affected "
+                    "neighbour a larger weight than the plain simplex. Ignored "
+                    "in covariate mode.",
+    )
     n_boot: int = Field(
         default=0, ge=0,
         description="(method='grossi') Residual-resampling draws for the "

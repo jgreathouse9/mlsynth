@@ -88,6 +88,7 @@ class SPILLSYNTH:
         self.covariate_windows = getattr(config, "covariate_windows", None)
         self.bilevel_solver: str = getattr(config, "bilevel_solver", "malo")
         self.bias_correct: bool = getattr(config, "bias_correct", False)
+        self.iscm_intercept: bool = getattr(config, "iscm_intercept", False)
         self.n_boot: int = getattr(config, "n_boot", 0)
         self.ci_level: float = getattr(config, "ci_level", 0.90)
         self.seed: int = getattr(config, "seed", 0)
@@ -150,7 +151,8 @@ class SPILLSYNTH:
                 )
             elif self.method == "iscm":
                 fit = run_iscm(inputs, bilevel_solver=self.bilevel_solver,
-                               bias_correct=self.bias_correct)
+                               bias_correct=self.bias_correct,
+                               intercept=self.iscm_intercept)
                 results = SpillSynthResults(
                     inputs=inputs, method="iscm", iscm=fit,
                 )
