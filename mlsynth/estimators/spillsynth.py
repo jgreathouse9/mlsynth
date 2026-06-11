@@ -36,6 +36,7 @@ from ..utils.datautils import balance
 from ..utils.spillsynth_helpers.cd import run_cd
 from ..utils.spillsynth_helpers.grossi import run_grossi
 from ..utils.spillsynth_helpers.iscm import run_iscm
+from ..utils.spillsynth_helpers.iterative import run_iterative
 from ..utils.spillsynth_helpers.plotter import plot_spillsynth
 from ..utils.spillsynth_helpers.sar.pipeline import run_sar
 from ..utils.spillsynth_helpers.sar.setup import prepare_sar_inputs
@@ -88,6 +89,7 @@ class SPILLSYNTH:
         self.covariate_windows = getattr(config, "covariate_windows", None)
         self.bilevel_solver: str = getattr(config, "bilevel_solver", "malo")
         self.bias_correct: bool = getattr(config, "bias_correct", False)
+        self.iscm_intercept: bool = getattr(config, "iscm_intercept", False)
         self.n_boot: int = getattr(config, "n_boot", 0)
         self.ci_level: float = getattr(config, "ci_level", 0.90)
         self.seed: int = getattr(config, "seed", 0)
@@ -150,7 +152,8 @@ class SPILLSYNTH:
                 )
             elif self.method == "iscm":
                 fit = run_iscm(inputs, bilevel_solver=self.bilevel_solver,
-                               bias_correct=self.bias_correct)
+                               bias_correct=self.bias_correct,
+                               intercept=self.iscm_intercept)
                 results = SpillSynthResults(
                     inputs=inputs, method="iscm", iscm=fit,
                 )
@@ -173,6 +176,13 @@ class SPILLSYNTH:
                 )
                 results = SpillSynthResults(
                     inputs=inputs, method="sar", sar=fit,
+                )
+            elif self.method == "iterative":
+                fit = run_iterative(inputs, bilevel_solver=self.bilevel_solver,
+                                    bias_correct=self.bias_correct,
+                                    intercept=self.iscm_intercept)
+                results = SpillSynthResults(
+                    inputs=inputs, method="iterative", iterative=fit,
                 )
             else:                                            # pragma: no cover
                 raise MlsynthConfigError(

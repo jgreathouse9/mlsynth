@@ -104,6 +104,28 @@ def test_iscm_outcome_only_west_germany(german_panel):
     assert f.bilevel_solver == "outcome-only"
 
 
+def test_iscm_intercept_demeaned_backend(german_panel):
+    """The demeaned-intercept SCM reproduces the inclusive-SCM reference.
+
+    Melnychuk's reference ``scm_weights`` is a demeaned simplex SCM with a level
+    shift; on German reunification it gives Austria ~0.45 of synthetic West
+    Germany (vs ~0.33 for the plain simplex), much closer to Di Stefano &
+    Mellace's covariate-based 0.42. Cross-validated against an independent port
+    of that backend (Austria 0.454, inclusive ATT -1275.5).
+    """
+    plain = SPILLSYNTH(_cfg(german_panel)).fit()
+    demean = SPILLSYNTH(_cfg(german_panel, iscm_intercept=True)).fit()
+    # the demeaned backend lifts Austria's weight toward the reference 0.45
+    w_plain = plain.iscm.cross_weights["Austria in West Germany"]
+    w_demean = demean.iscm.cross_weights["Austria in West Germany"]
+    assert w_demean > w_plain
+    assert demean.iscm.cross_weights["Austria in West Germany"] == pytest.approx(0.454, abs=0.03)
+    assert demean.iscm.cross_weights["West Germany in Austria"] == pytest.approx(0.355, abs=0.03)
+    # inclusive ATT matches the reference port (-1275.5) within solver slack
+    assert demean.att == pytest.approx(-1275.5, abs=15.0)
+    assert demean.att_scm == pytest.approx(-1474.4, abs=20.0)
+
+
 def test_iscm_covariates_malo_returns_predictor_weights(german_panel):
     cov = ["trade", "infrate", "industry", "schooling", "invest80"]
     res = SPILLSYNTH(_cfg(german_panel, covariates=cov, bilevel_solver="malo")).fit()

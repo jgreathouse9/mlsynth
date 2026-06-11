@@ -31,7 +31,7 @@ _OMEGA_DET_WARN = 1e-6
 
 
 def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
-             bias_correct: bool = False) -> ISCMFit:
+             bias_correct: bool = False, intercept: bool = False) -> ISCMFit:
     """Run inclusive SCM and assemble an :class:`ISCMFit`.
 
     Parameters
@@ -67,7 +67,7 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
         w, cf, gap, pre_rmspe, sol = build_unit_sc(
             i, donor_idx, Y, T0,
             predictors=P, predictor_names=pnames, solver=bilevel_solver,
-            bias_correct=bias_correct,
+            bias_correct=bias_correct, intercept=intercept,
         )
         gaps[si] = gap
         # weight that each *other* affected-set unit receives in unit i's SC
@@ -113,7 +113,7 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
         _, _, _, pre_rmspe_restr, _ = build_unit_sc(
             0, clean_idx, Y, T0,
             predictors=P, predictor_names=pnames, solver=bilevel_solver,
-            bias_correct=bias_correct,
+            bias_correct=bias_correct, intercept=intercept,
         )
     else:                                                  # pragma: no cover
         # Unreachable through the public pipeline: "no clean controls"
