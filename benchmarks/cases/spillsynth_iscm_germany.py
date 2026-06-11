@@ -1,22 +1,27 @@
 """SPILLSYNTH (inclusive SCM) Path-A: German reunification with Austria spillover.
 
-Reproduces the empirical illustration of Di Stefano & Mellace (2024), *"The
-inclusive Synthetic Control Method"* (arXiv 2403.17624): re-estimating the
-effect of the 1990 German reunification on West-German GDP per capita while
-**keeping Austria -- the classic affected neighbour -- in the donor pool** and
-de-contaminating the spillover, rather than dropping it.
+Exercises the **Inclusive** Synthetic Control Method of Di Stefano & Mellace
+(2024), *"The inclusive Synthetic Control Method"* (arXiv 2403.17624) -- mlsynth's
+``SPILLSYNTH(method="iscm")`` -- on the 1990 German reunification: it **keeps
+Austria, the affected neighbour, in the donor pool** and de-contaminates the
+spillover (solving the 2x2 cross-weight system by Cramer's rule), rather than
+dropping Austria as a restricted SCM would.
 
-mlsynth's ``SPILLSYNTH(method="iscm")`` reproduces the paper's neighbourhood on
-``basedata/repgermany.dta``: Austria carries :math:`\\approx 0.33` of synthetic
-West Germany and West Germany :math:`\\approx 0.32` of synthetic Austria, the
-:math:`2\\times 2` cross-weight system has :math:`\\det\\Omega \\approx 0.90`,
-and the inclusive (de-contaminated) ATT is **more negative** than the naive SCM
-gap -- because the naive synthetic borrows from a contaminated Austria.
+This is distinct from the **Iterative** SCM of Melnychuk (2024) -- a different,
+"waterfall" method whose German headline is a ~1,970 USD reduction -- which
+mlsynth does not implement. It is also distinct from the *with-covariates*
+inclusive specification of Di Stefano & Mellace's Table 2 (which, using Abadie et
+al.'s special-predictor weights, assigns Austria a 0.42 weight): that exact spec
+is **not** pinned here.
 
-Path A (the paper's empirical illustration): the inclusive method has no separate
-reference implementation (the authors note it composes with any SCM backend), so
-this case pins mlsynth's reproduction of the paper's neighbourhood and the
-de-contamination direction as a durable regression guard.
+What this case pins is the **outcome-only** inclusive fit on
+``basedata/repgermany.dta`` -- the no-covariates regime that Melnychuk's reference
+also reports: Austria carries :math:`\\approx 0.33` of synthetic West Germany and
+West Germany :math:`\\approx 0.32` of synthetic Austria, the cross-weight system
+has :math:`\\det\\Omega \\approx 0.90`, and the inclusive (de-contaminated) ATT is
+**more negative** than the naive SCM gap, because the naive synthetic borrows from
+a contaminated Austria. A durable regression / machinery guard for the inclusive
+correction, not a cross-validation of the with-covariates Table-2 weights.
 """
 from __future__ import annotations
 
