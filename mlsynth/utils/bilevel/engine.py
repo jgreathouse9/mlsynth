@@ -68,6 +68,16 @@ class BilevelSCMResult:
         outcome-only.
     diagnostics : dict
         Free-form solver diagnostics (stage, gap, lower bound, ...).
+    augment : str or None
+        Augmentation applied to the base weights, e.g. ``"ridge"`` for Augmented
+        SCM (Ben-Michael, Feller & Rothstein 2021); ``None`` for plain SCM.
+    W_base : np.ndarray or None
+        The base (simplex) weights *before* augmentation; ``None`` when no
+        augmentation was applied (``W`` is already the base in that case).
+    lambda_ : float or None
+        Ridge penalty used by the ``"ridge"`` augmentation.
+    augment_diagnostics : dict
+        Augmentation-specific outputs (e.g. the CV curve for ``"ridge"``).
     """
 
     W: np.ndarray
@@ -78,6 +88,15 @@ class BilevelSCMResult:
     pre_rmspe: float
     v_agreement: Optional[float] = None
     diagnostics: Dict[str, Any] = field(default_factory=dict)
+    augment: Optional[str] = None
+    W_base: Optional[np.ndarray] = None
+    lambda_: Optional[float] = None
+    augment_diagnostics: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_simplex(self) -> bool:
+        """Whether the reported ``W`` lies on the simplex (no augmentation)."""
+        return self.augment is None
 
     def counterfactual(self, donor_matrix: np.ndarray) -> np.ndarray:
         """Synthetic outcome path ``donor_matrix @ W`` over all periods.
@@ -103,6 +122,18 @@ class BilevelSCM:
         Ignored by other backends. Default ``False``.
     seed : int
         RNG seed for the ``mscmt`` differential-evolution search.
+    augment : {None, "ridge"}
+        Augmentation layer applied to the base donor weights. ``"ridge"`` turns
+        any backend into Augmented SCM (Ben-Michael, Feller & Rothstein 2021):
+        a ridge bias-correction that closes the residual pre-treatment imbalance,
+        leaving the simplex (the augmented ``W`` may go negative / not sum to
+        one). Default ``None`` (plain SCM).
+    ridge_lambda : float, optional
+        Fixed ridge penalty for ``augment="ridge"``; ``None`` (default) selects
+        it by leave-one-period-out cross-validation.
+    n_lambda, lambda_min_ratio, holdout_length, min_1se
+        Ridge CV / grid hyper-parameters (augsynth defaults: ``20``, ``1e-8``,
+        ``1``, ``True``).
     solver_kwargs
         Extra keyword arguments forwarded to the backend (e.g. ``maxiter``,
         ``popsize`` for ``mscmt``; ``lam`` for ``penalized``).
@@ -114,15 +145,31 @@ class BilevelSCM:
         *,
         canonical_v=False,
         seed: int = 0,
+        augment: Optional[str] = None,
+        ridge_lambda: Optional[float] = None,
+        n_lambda: int = 20,
+        lambda_min_ratio: float = 1e-8,
+        holdout_length: int = 1,
+        min_1se: bool = True,
         **solver_kwargs: Any,
     ) -> None:
         if backend not in _BACKENDS:
             raise ValueError(
                 f"unknown backend {backend!r}; expected one of {_BACKENDS}."
             )
+        if augment not in (None, "ridge"):
+            raise ValueError(
+                f"unknown augment {augment!r}; expected None or 'ridge'."
+            )
         self.backend = backend
         self.canonical_v = canonical_v
         self.seed = seed
+        self.augment = augment
+        self.ridge_lambda = ridge_lambda
+        self.n_lambda = n_lambda
+        self.lambda_min_ratio = lambda_min_ratio
+        self.holdout_length = holdout_length
+        self.min_1se = min_1se
         self.solver_kwargs = solver_kwargs
 
     def fit(
@@ -213,6 +260,32 @@ class BilevelSCM:
                 v_agreement = None  # canonicalisation did not certify
 
         W = np.asarray(W, dtype=float).ravel()
+
+        # Optional ridge augmentation (Augmented SCM): a bias-correction layer
+        # over an *accurately solved* simplex SCM. augsynth's ridge augments the
+        # simplex outcome-SCM (progfunc="Ridge", scm=T); the layer owns that base
+        # (exact QP) and its leave-one-period-out CV, so the base does not depend
+        # on the backend's iterative solve.
+        W_base = None
+        lambda_ = None
+        augment_diagnostics: Dict[str, Any] = {}
+        if self.augment == "ridge":
+            from .ridge_augment import ridge_augment_weights
+
+            ra = ridge_augment_weights(
+                y_pre, Y0_pre,
+                lambda_=self.ridge_lambda,
+                n_lambda=self.n_lambda,
+                lambda_min_ratio=self.lambda_min_ratio,
+                holdout_length=self.holdout_length,
+                min_1se=self.min_1se,
+            )
+            W_base = ra.W_base
+            W = ra.W
+            lambda_ = ra.lambda_
+            if ra.cv is not None:
+                augment_diagnostics["cv"] = ra.cv
+
         pre_rmspe = float(np.sqrt(np.mean((y_pre - Y0_pre @ W) ** 2)))
         donor_weights = {
             donor_names[j]: float(W[j]) for j in range(J) if abs(W[j]) > _EPS
@@ -226,4 +299,8 @@ class BilevelSCM:
             pre_rmspe=pre_rmspe,
             v_agreement=(float(v_agreement) if v_agreement is not None else None),
             diagnostics=diagnostics,
+            augment=self.augment,
+            W_base=W_base,
+            lambda_=lambda_,
+            augment_diagnostics=augment_diagnostics,
         )

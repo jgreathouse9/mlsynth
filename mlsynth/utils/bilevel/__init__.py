@@ -30,12 +30,26 @@ from .determine_v import (
     min_loss_w_v,
 )
 from .engine import BilevelSCM, BilevelSCMResult
+from .ridge_augment import (
+    RidgeAugmentResult,
+    best_lambda,
+    generate_lambdas,
+    ridge_augment_weights,
+    simplex_qp,
+    solve_ridge,
+)
 
 __all__ = [
     "BilevelProblem",
     "BilevelSolution",
     "BilevelSCM",
     "BilevelSCMResult",
+    "RidgeAugmentResult",
+    "ridge_augment_weights",
+    "simplex_qp",
+    "solve_ridge",
+    "generate_lambdas",
+    "best_lambda",
     "project_simplex",
     "simplex_lstsq",
     "mspe",
