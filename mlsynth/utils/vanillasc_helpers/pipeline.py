@@ -396,6 +396,16 @@ def _full_band(arr, T: int, pre: int) -> np.ndarray:
     return full
 
 
+def _variant_label(config) -> str:
+    """Human-readable name of the SCM variant run, for plot titles."""
+    if getattr(config, "augment", None) != "ridge":
+        return "Synthetic Control"
+    if config.covariates:
+        return ("Ridge ASCM (residualized covariates)" if config.residualize
+                else "Ridge ASCM (covariates)")
+    return "Ridge ASCM"
+
+
 def _plot_vanillasc(config, y, counterfactual, time_labels, pre,
                     treated_name, backend, inference) -> None:
     """Render the observed-vs-synthetic plot through the shared Plotter,
@@ -420,7 +430,7 @@ def _plot_vanillasc(config, y, counterfactual, time_labels, pre,
             labels=[f"Synthetic {treated_name}"], treated_label=treated_name,
             intervention=intervention, interval=interval,
             outcome=config.outcome, time=config.time,
-            title=f"VanillaSC[{backend}]: {treated_name}",
+            title=f"{_variant_label(config)}: {treated_name}",
         )
         fig = ax.figure
         if config.save:
