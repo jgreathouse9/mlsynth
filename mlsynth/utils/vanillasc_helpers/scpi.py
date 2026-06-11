@@ -228,7 +228,7 @@ def scpi_intervals(
     B = Y0[:T0]
     P = Y0[T0:]                                       # (T_post, J)
     T_post = P.shape[0]
-    if T_post < 1:
+    if T_post < 1:  # pragma: no cover - VanillaSC guarantees a post period
         raise ValueError("SCPI needs at least one post-treatment period.")
     u = A - B @ W                                    # pre-period residuals
 
@@ -240,7 +240,7 @@ def scpi_intervals(
     # --- regularisation parameter and localised lower bounds ---
     rho = _regularization_rho(u, B, d0)
     idxw = W > rho
-    if not idxw.any():                               # regularize_check
+    if not idxw.any():  # pragma: no cover - degenerate: every weight below rho
         idxw = np.zeros(J, dtype=bool)
         idxw[int(np.argmax(W))] = True
     lb = np.where(W < rho, W, 0.0)
@@ -266,7 +266,7 @@ def scpi_intervals(
     x = cp.Variable(J)
     c = cp.Parameter(J)
     Gstar = cp.Parameter(J)
-    if Qreg is None:                                 # degenerate (no variation)
+    if Qreg is None:  # pragma: no cover - degenerate Q (no donor variation)
         quad = cp.Constant(0.0)
     else:
         quad = scale * cp.sum_squares(Qreg @ (x - W))

@@ -28,7 +28,7 @@ import numpy as np
 from .structure import BilevelProblem
 from .determine_v import canonical_v_diagnostics
 from .solver import solve_bilevel
-from .simplex import simplex_lstsq
+from .ridge_augment import simplex_qp
 
 _BACKENDS = ("auto", "outcome-only", "malo", "mscmt", "penalized")
 # Keyword arguments each bilevel backend accepts (others are filtered out so a
@@ -131,6 +131,11 @@ class BilevelSCM:
     ridge_lambda : float, optional
         Fixed ridge penalty for ``augment="ridge"``; ``None`` (default) selects
         it by leave-one-period-out cross-validation.
+    residualize : bool
+        With ``augment="ridge"`` and auxiliary covariates, how the covariates
+        enter: ``False`` (default) stacks them as matching rows (augsynth's
+        parallel-inclusion default); ``True`` regresses them out of the outcomes
+        and matches on the residuals (augsynth ``residualize=TRUE``).
     n_lambda, lambda_min_ratio, holdout_length, min_1se
         Ridge CV / grid hyper-parameters (augsynth defaults: ``20``, ``1e-8``,
         ``1``, ``True``).
@@ -147,6 +152,7 @@ class BilevelSCM:
         seed: int = 0,
         augment: Optional[str] = None,
         ridge_lambda: Optional[float] = None,
+        residualize: bool = False,
         n_lambda: int = 20,
         lambda_min_ratio: float = 1e-8,
         holdout_length: int = 1,
@@ -166,6 +172,7 @@ class BilevelSCM:
         self.seed = seed
         self.augment = augment
         self.ridge_lambda = ridge_lambda
+        self.residualize = residualize
         self.n_lambda = n_lambda
         self.lambda_min_ratio = lambda_min_ratio
         self.holdout_length = holdout_length
@@ -231,7 +238,12 @@ class BilevelSCM:
 
         if backend == "outcome-only" or not has_cov:
             backend = "outcome-only"
-            W = simplex_lstsq(Y0_pre, y_pre)
+            # Exact simplex QP (cvxpy). The FISTA primitive ``simplex_lstsq``
+            # under-converges on long, ill-conditioned pre-windows (e.g. the
+            # 89-quarter Kansas panel: -0.006 vs the exact -0.029), so the
+            # outcome-only base -- which Augmented SCM also augments -- is solved
+            # exactly, matching augsynth's quadprog.
+            W = simplex_qp(Y0_pre, y_pre)
         else:
             X1 = np.asarray(X1, dtype=float).ravel()
             X0 = np.asarray(X0, dtype=float)
@@ -285,6 +297,7 @@ class BilevelSCM:
             ra = ridge_augment_weights(
                 y_pre, Y0_pre,
                 Z0=Z0, z1=z1,
+                residualize=self.residualize,
                 lambda_=self.ridge_lambda,
                 n_lambda=self.n_lambda,
                 lambda_min_ratio=self.lambda_min_ratio,

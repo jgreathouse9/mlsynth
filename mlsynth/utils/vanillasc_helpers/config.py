@@ -102,11 +102,30 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "reduction) before the outer search. Leaves the optimum "
                     "unchanged; shrinks the inner solve.",
     )
+    augment: Optional[Literal["ridge"]] = Field(
+        default=None,
+        description="Augmentation layer: 'ridge' turns the fit into Augmented "
+                    "SCM (Ben-Michael, Feller & Rothstein 2021) -- a ridge "
+                    "bias-correction over the simplex base; None -> plain SCM.",
+    )
+    ridge_lambda: Optional[float] = Field(
+        default=None, ge=0.0,
+        description="Fixed ridge penalty for augment='ridge'; None -> select by "
+                    "leave-one-period-out CV (augsynth's 1-SE rule).",
+    )
+    residualize: bool = Field(
+        default=False,
+        description="With augment='ridge' and covariates: stack covariates as "
+                    "matching rows (False, augsynth parallel default) or regress "
+                    "them out and match on residuals (True, residualize=TRUE).",
+    )
     inference: Union[bool, str] = Field(
         default=True,
         description="Inference: True/'placebo' (in-space placebo), 'scpi' "
-                    "(Cattaneo-Feng-Titiunik prediction intervals), 'lto' "
-                    "(Lei-Sudijono leave-two-out refined placebo), or False.",
+                    "(Cattaneo-Feng-Titiunik prediction intervals), 'conformal' "
+                    "(Chernozhukov-Wuthrich-Zhu test-inversion intervals, the "
+                    "augsynth default for ASCM), 'lto' (Lei-Sudijono leave-two-"
+                    "out refined placebo), or False.",
     )
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,

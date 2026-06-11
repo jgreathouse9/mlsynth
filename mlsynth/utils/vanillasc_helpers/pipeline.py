@@ -14,16 +14,13 @@ import pandas as pd
 
 from ...config_models import (
     BaseEstimatorResults,
-    EffectsResults,
-    FitDiagnosticsResults,
     InferenceResults,
     MethodDetailsResults,
-    TimeSeriesResults,
 )
 from ...exceptions import MlsynthDataError
 from ..datautils import dataprep
 from ..helperutils import IndexSet
-from ..results_helpers import make_weights_results
+from ..results_helpers import build_effect_submodels, make_weights_results
 from ..bilevel import BilevelSCM
 
 _EPS = 1e-12
@@ -163,6 +160,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         config.backend,
         canonical_v=config.canonical_v,
         seed=config.seed,
+        augment=config.augment,
+        ridge_lambda=config.ridge_lambda,
+        residualize=config.residualize,
         maxiter=config.mscmt_maxiter,
         popsize=config.mscmt_popsize,
         prune_shady=config.mscmt_prune_shady,
@@ -177,12 +177,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
 
     counterfactual = res.counterfactual(Y0)
     gap = y - counterfactual
-    att = float(np.mean(gap[pre:])) if gap[pre:].size else float("nan")
     pre_r, post_r, ratio_tr = _rmspe_ratio(y, counterfactual, pre)
-    base_pre = float(np.mean(y[:pre]))
-    att_pct = (100.0 * att / base_pre) if abs(base_pre) > _EPS else None
-    ss_tot = float(np.sum((y[:pre] - y[:pre].mean()) ** 2))
-    r2_pre = float(1.0 - np.sum(gap[:pre] ** 2) / (ss_tot + _EPS))
 
     mode = config.inference
     mode = "placebo" if mode is True else ("none" if not mode else str(mode).lower())
@@ -213,6 +208,43 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "in_sample_lower": sc.M1_lower, "in_sample_upper": sc.M1_upper,
                 "out_of_sample_lower": sc.M2_lower, "out_of_sample_upper": sc.M2_upper,
                 "sims": sc.metadata["sims"], "e_method": sc.metadata["e_method"],
+            },
+        )
+
+    # Conformal test-inversion prediction intervals (Chernozhukov, Wuthrich &
+    # Zhu 2021; augsynth's default ASCM inference). Reuses the fitted ridge
+    # penalty across refits, matching augsynth.
+    if mode == "conformal" and gap[pre:].size:
+        from ..bilevel import conformal_intervals
+        Z0 = X0.T if X0 is not None else None
+        z1 = X1 if X1 is not None else None
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ci = conformal_intervals(
+                y, Y0, pre, lambda_=res.lambda_, Z0=Z0, z1=z1,
+                alpha=config.alpha, ns=config.scpi_sims, seed=config.seed,
+                ridge_kwargs={"residualize": config.residualize},
+            )
+        # per-period counterfactual bands: gap tau in [lower, upper] => cf in
+        # [y - upper, y - lower]; pre-period left as NaN (no interval).
+        cf_lower = np.full_like(y, np.nan, dtype=float)
+        cf_upper = np.full_like(y, np.nan, dtype=float)
+        cf_lower[pre:] = y[pre:] - ci.upper
+        cf_upper[pre:] = y[pre:] - ci.lower
+        inference = InferenceResults(
+            ci_lower=float(np.nanmean(ci.lower)) if ci.lower.size else None,
+            ci_upper=float(np.nanmean(ci.upper)) if ci.upper.size else None,
+            p_value=float(ci.joint_p_value),
+            confidence_level=1.0 - config.alpha,
+            method="conformal prediction intervals (Chernozhukov-Wuthrich-Zhu 2021)",
+            details={
+                "periods": list(time_labels[pre:]),
+                "tau": ci.att, "pi_lower": ci.lower, "pi_upper": ci.upper,
+                "counterfactual_lower": cf_lower,
+                "counterfactual_upper": cf_upper,
+                "period_p_value": ci.p_value,
+                "joint_p_value": ci.joint_p_value,
+                "lambda": res.lambda_,
             },
         )
 
@@ -262,7 +294,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 _, _, ratio_j = _rmspe_ratio(yj, cfj, pre)
                 if np.isfinite(ratio_j):
                     ratios.append(ratio_j)
-            except Exception:
+            except Exception:  # pragma: no cover - defensive placebo-refit guard
                 continue
         all_ratios = np.array(ratios + [ratio_tr], dtype=float)
         p_value = float(np.mean(all_ratios >= ratio_tr))
@@ -289,20 +321,21 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             "v_agreement": res.v_agreement,
         },
     )
+    # Canonical effect / fit / time-series sub-models (results_helpers is the
+    # single source of truth for the series-derived quantities).
+    submodels = build_effect_submodels(
+        observed_outcome=y, counterfactual_outcome=counterfactual,
+        n_pre_periods=pre, n_post_periods=int(len(y) - pre),
+        time_periods=time_labels, weights=weights, inference=inference,
+        additional_effects={"rmspe_ratio": ratio_tr},
+    )
     results = BaseEstimatorResults(
-        effects=EffectsResults(att=att, att_percent=att_pct,
-                               additional_effects={"rmspe_ratio": ratio_tr}),
-        fit_diagnostics=FitDiagnosticsResults(
-            rmse_pre=pre_r, r_squared_pre=r2_pre, rmse_post=post_r),
-        time_series=TimeSeriesResults(
-            observed_outcome=y, counterfactual_outcome=counterfactual,
-            estimated_gap=gap, time_periods=time_labels),
-        weights=weights,
-        inference=inference,
+        **submodels,
         method_details=MethodDetailsResults(
             method_name=f"VanillaSC[{res.backend}]",
             parameters_used={
                 "backend": res.backend,
+                "augment": config.augment,
                 "covariates": covariates,
                 "canonical_v": config.canonical_v,
                 "v_agreement": res.v_agreement,
@@ -319,4 +352,54 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             ),
         },
     )
+
+    if config.display_graphs or config.save:
+        _plot_vanillasc(config, y, counterfactual, time_labels, pre,
+                        treated_name, res.backend, inference)
     return results
+
+
+def _full_band(arr, T: int, pre: int) -> np.ndarray:
+    """Align a (possibly post-only) band array to the full T-length axis."""
+    a = np.asarray(arr, dtype=float).ravel()
+    if a.size == T:
+        return a
+    full = np.full(T, np.nan)
+    full[pre:pre + a.size] = a
+    return full
+
+
+def _plot_vanillasc(config, y, counterfactual, time_labels, pre,
+                    treated_name, backend, inference) -> None:
+    """Render the observed-vs-synthetic plot through the shared Plotter,
+    shading the prediction-interval band when conformal/SCPI inference ran."""
+    import matplotlib.pyplot as plt
+
+    from ..plotting import Plotter, mlsynth_style
+
+    T = len(time_labels)
+    interval = None
+    if inference is not None and getattr(inference, "details", None):
+        lo = inference.details.get("counterfactual_lower")
+        hi = inference.details.get("counterfactual_upper")
+        if lo is not None and hi is not None:
+            interval = (_full_band(lo, T, pre), _full_band(hi, T, pre))
+
+    intervention = time_labels[pre] if 0 <= pre < T else None
+    with mlsynth_style():
+        plotter = Plotter.from_config(getattr(config, "plot", None))
+        ax = plotter.observed_vs_counterfactual(
+            times=time_labels, observed=y, counterfactuals=[counterfactual],
+            labels=[f"Synthetic {treated_name}"], treated_label=treated_name,
+            intervention=intervention, interval=interval,
+            outcome=config.outcome, time=config.time,
+            title=f"VanillaSC[{backend}]: {treated_name}",
+        )
+        fig = ax.figure
+        if config.save:
+            fname = (config.save if isinstance(config.save, str)
+                     else f"VanillaSC_{treated_name}.png")
+            fig.savefig(fname, bbox_inches="tight")
+        if config.display_graphs:
+            plt.show()
+        plt.close(fig)

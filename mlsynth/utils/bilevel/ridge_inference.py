@@ -203,16 +203,23 @@ def conformal_intervals(
     T = y.shape[0]
     post = list(range(pre, T))
 
-    # point estimates (gaps from the all-period refit, augsynth's convention)
-    gaps = _augmented_gaps(y, Y0, Z0, z1, ridge_kwargs)
-    att = gaps[pre:]
-    post_sd = float(np.sqrt(np.mean(att ** 2)))
+    # Point effect from the standard pre-period ASCM fit -- the same
+    # counterfactual that is plotted -- so the inversion interval is centered on
+    # (and contains) it. The earlier all-period refit over-fits the post period,
+    # collapsing the gaps toward zero and mis-centering the search grid.
+    ra = ridge_augment_weights(y[:pre], Y0[:pre], Z0=Z0, z1=z1, **ridge_kwargs)
+    gap_full = y - Y0 @ ra.W
+    att = gap_full[pre:]
+    # Grid width from the noise scale (pre-period RMSE), wide enough to bracket
+    # the non-rejected region around each period's point effect.
+    scale = float(np.sqrt(np.mean(gap_full[:pre] ** 2)))
+    half = max(6.0 * scale, 2.0 * float(np.sqrt(np.mean(att ** 2))), 1e-9)
 
     lower = np.full(len(post), np.nan)
     upper = np.full(len(post), np.nan)
     pvals = np.full(len(post), np.nan)
     for k, j in enumerate(post):
-        grid = np.linspace(att[k] - 2 * post_sd, att[k] + 2 * post_sd, grid_size)
+        grid = np.linspace(att[k] - half, att[k] + half, grid_size)
         grid = np.append(grid, 0.0)
         ps = np.array([
             _period_pvalue(y, Y0, pre, j, tau0, Z0, z1, q, ns, seed, ridge_kwargs)

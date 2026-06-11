@@ -44,6 +44,15 @@ import numpy as np
 
 _EPS = 1e-12
 
+# Max condition number of the ridge Gram ``B B^T + lambda I`` tolerated when
+# tuning the penalty in the *residualized* covariate path, whose Gram is
+# rank-deficient (see ``ridge_augment_weights``). Penalties below the implied
+# floor (``lambda >= sigma_max^2 / (RESIDUALIZE_COND_MAX - 1)``) are dropped
+# from the CV grid so the search cannot collapse onto the degenerate,
+# near-singular tail; the 1-SE rule then lands in the stable region (for the
+# augsynth Kansas study, the outcome-scale penalty lambda ~ 0.075).
+RESIDUALIZE_COND_MAX = 4.0e2
+
 
 def simplex_qp(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     """Exact simplex SCM weights: ``min ||A - B @ w||^2`` s.t. ``w >= 0``,
@@ -387,18 +396,23 @@ def ridge_augment_weights(
         # the covariate balance is restored by an add-back on the final weights.
         B, A, add_back = _residualized_matching(y_pre, Y0_pre, Z0, z1)
         if lambda_ is None:
-            # Tune the penalty on the OUTCOME scale, not the residuals. After
-            # residualizing out K covariates the residual Gram is rank-deficient
-            # (T0 rows, rank <= J-K), so a CV on the residuals is ill-posed and
-            # drifts to the grid floor. augsynth's residual CV lands at the
-            # outcome-scale penalty anyway; tuning there is the robust choice.
-            Bo, Ao = build_matching(y_pre, Y0_pre)
-            lo = generate_lambdas(Bo, lambda_min_ratio=lambda_min_ratio,
-                                  n_lambda=n_lambda)
-            lo, mo, so = cross_validate(base_weights_fn, Bo, Ao, lo,
-                                        holdout_len=holdout_length)
-            lambda_ = best_lambda(lo, mo, so, min_1se=min_1se)
-            cv = {"lambdas": lo, "errors_mean": mo, "errors_se": so}
+            # Conditioning guard. After residualizing out K covariates the
+            # residual Gram ``B B^T`` is rank-deficient (T0 rows, rank <= J-K),
+            # so for small lambda ``(B B^T + lambda I)`` is near-singular: the
+            # ridge solve overfits and a CV on the residuals drifts to that
+            # degenerate grid floor. Restrict the grid to penalties that keep
+            # the ridge solve well-conditioned (cond <= RESIDUALIZE_COND_MAX),
+            # then apply the usual leave-one-out CV / 1-SE rule on the rest.
+            lambdas = generate_lambdas(B, lambda_min_ratio=lambda_min_ratio,
+                                       n_lambda=n_lambda)
+            ev_max = float(np.linalg.eigvalsh(B @ B.T)[-1])     # min eig ~ 0
+            cond = (ev_max + lambdas) / lambdas
+            keep = cond <= RESIDUALIZE_COND_MAX
+            lambdas = lambdas[keep] if keep.any() else lambdas[:1]
+            lambdas, mean, se = cross_validate(
+                base_weights_fn, B, A, lambdas, holdout_len=holdout_length)
+            lambda_ = best_lambda(lambdas, mean, se, min_1se=min_1se)
+            cv = {"lambdas": lambdas, "errors_mean": mean, "errors_se": se}
     else:
         # Centered (and, with covariates, parallel-stacked) matching matrices.
         # The base simplex fit is invariant to the per-period centering
