@@ -136,6 +136,29 @@ def test_estimator_end_to_end():
     assert res.report is not None                            # DesignResult.report set
 
 
+def test_single_cell_reduces_to_single_realize():
+    """One cell is *identical* to the single-cell realize: same treated set, same
+    (all-other-units) donor pool, so the same fit, ATT, p, and weights."""
+    from mlsynth.utils.geolift_helpers.marketselect.realize import realize_design
+
+    df, pre = _panel(effA=8.0)
+    df = df.copy()
+    df.loc[df["cell"] == "B", "cell"] = ""                  # B -> control: one cell left
+    prep = multicell_dataprep(df, "location", "time", "Y",
+                              cell_column_name="cell", post_col="post")
+    assert set(prep["cell_map"]) == {"A"}
+    mc = analyze_multicell(prep["Ywide"], prep["cell_map"], prep["control_units"],
+                           prep["pre_periods"], how="mean", ns=200, seed=0)
+    single = realize_design(prep["Ywide"], frozenset(prep["cell_map"]["A"]),
+                            prep["pre_periods"], how="mean", fixed_effects=True,
+                            ns=200, seed=0)
+    a = mc.cells["A"]
+    assert a.effects.att == pytest.approx(single.effects.att)
+    assert a.inference.p_value == single.inference.p_value
+    assert a.weights.donor_weights == single.weights.donor_weights
+    assert mc.winner is None and mc.comparison == []        # nothing to compare
+
+
 def test_estimator_bad_config_raises():
     df, _ = _panel()
     with pytest.raises(MlsynthConfigError):
