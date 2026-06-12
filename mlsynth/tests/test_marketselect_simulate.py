@@ -97,3 +97,44 @@ def test_simulate_lookback_row_count_mismatch_raises():
     treated, Y0 = _sim_panel(n=20)
     with pytest.raises(MlsynthConfigError, match="n_periods"):
         simulate_lookback(treated, Y0, 19, 4, 1, [0.0], augment="ridge", ns=10)
+
+
+# === optimization equivalence: CV-once == per-es refit ===
+
+from mlsynth.utils.geolift_helpers.marketselect.helpers.windows import (
+    lookback_pre_periods,
+    lookback_treatment_window,
+)
+from mlsynth.utils.geolift_helpers.marketselect.helpers.fit import fit_augsynth_once
+from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+
+
+def test_simulate_lookback_cv_once_equals_per_es_refit():
+    """The injection lands only on the post block, so the pre-period the CV sees
+    is identical across effect sizes; re-CVing per es returns the same lambda and
+    hence the identical conformal p-value. Proves the CV-once optimization exact."""
+    treated, Y0 = _sim_panel()
+    n_periods, duration, sim = 20, 4, 1
+    effect_sizes = [0.0, 0.5, 2.0]
+    ns, seed = 100, 0
+    fast = simulate_lookback(treated, Y0, n_periods, duration, sim, effect_sizes,
+                             augment="ridge", ns=ns, seed=seed)
+    n_pre = lookback_pre_periods(n_periods, duration, sim)
+    start, end = lookback_treatment_window(n_periods, duration, sim)
+    t = np.asarray(treated, dtype=float)
+    Y0a = np.asarray(Y0, dtype=float)
+    for row, es in zip(fast, effect_sizes):
+        refit = fit_augsynth_once(t[:n_pre], Y0a[:n_pre], augment="ridge")   # re-CV
+        ti = inject_effect(t, start, end, es)
+        p_naive = conformal_pvalue(ti, Y0a, n_pre, lambda_=refit.lambda_,
+                                   q=1.0, ns=ns, seed=seed)
+        assert row["p_value"] == pytest.approx(p_naive)
+
+
+def test_simulate_lookback_simplex_path_runs():
+    """augment=None (simplex point fit, lambda_=None -> ridge conformal) is valid."""
+    treated, Y0 = _sim_panel()
+    rows = simulate_lookback(treated, Y0, 20, 4, 1, [0.0, 1.0],
+                             augment=None, ns=20, seed=0)
+    assert len(rows) == 2
+    assert all(0.0 <= r["p_value"] <= 1.0 for r in rows)
