@@ -52,6 +52,8 @@ is the mechanics ("what to run"); that doc is the process ("when is it done").
         linf_crossval_ref.py        # cross-val: mlsynth LINF/L1LINF vs LinfinitySC (Wang-Xing-Ye)
         linf_prop99.py              # Path A: dense L-inf weighting vs sparse SC (Prop 99)
         linf_sim.py                 # Path B: L-inf beats SC in dense DGPs (Wang-Xing-Ye Table 4)
+        ascm_kansas.py              # cross-val: ridge-ASCM ladder vs augsynth (Kansas)
+        geolift.py                  # cross-val: GeoLift_Walkthrough realized report vs GeoLift/augsynth
       reference/            # Python reference implementations (cloned on demand)
         clone_spsydid.py    # pin + clone serenini/spatial_SDID (no licence -> not vendored)
         clone_linfinitysc.py # pin + clone BioAlgs/LinfinitySC (no packaging -> not vendored)

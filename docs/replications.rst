@@ -589,9 +589,9 @@ Experimental design
   :math:`p = 0.01`. The match needs unit fixed effects (per-unit demeaning),
   a mean-of-units fit target, the all-period conformal refit, and augsynth's
   period-space ridge ASCM; the conformal test is shown calibrated by a
-  40-market placebo study.
-  → dedicated page: :doc:`replications/geolift`; durable check
-  ``test_geolift_walkthrough``.
+  40-market placebo study. **Status: done.**
+  → dedicated page: :doc:`replications/geolift`; durable case
+  ``geolift_walkthrough`` (plus ``test_geolift_walkthrough``).
 
 Coverage summary
 ----------------

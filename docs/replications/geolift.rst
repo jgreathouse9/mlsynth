@@ -11,8 +11,10 @@ GEOLIFT — Meta's GeoLift walkthrough (augsynth cross-validation)
 :Replication type: **Cross-validation** — match an authoritative reference
    implementation (GeoLift/augsynth) value-for-value on the package's own
    published example.
-:Status: **Fully verified** — the realized effect report reproduces GeoLift's
-   walkthrough ATT, percent lift, incremental, and conformal p-value.
+:Status: **Done** — fully verified; the realized effect report reproduces
+   GeoLift's walkthrough ATT, percent lift, incremental, and conformal p-value.
+:Durable check: ``benchmarks/cases/geolift.py`` (``geolift_walkthrough``) and
+   ``mlsynth/tests/test_geolift_walkthrough.py``.
 
 Why this is the replication target
 ----------------------------------
