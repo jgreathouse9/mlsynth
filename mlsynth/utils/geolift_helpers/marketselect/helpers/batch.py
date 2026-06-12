@@ -19,6 +19,7 @@ from .simulate import simulate_lookback
 _COLUMNS = [
     "candidate", "duration", "sim", "effect_size",
     "p_value", "placebo_mean_effect", "detected_lift", "scaled_l2", "pre_rmspe",
+    "investment",
 ]
 
 
@@ -36,6 +37,7 @@ def run_simulations(
     seed: int = 0,
     conformal_type: str = "iid",
     fixed_effects: bool = False,
+    cpic: Optional[float] = None,
 ) -> pd.DataFrame:
     """Run the simulation grid and stack the results into one long table.
 
@@ -88,13 +90,16 @@ def run_simulations(
     records: List[dict] = []
     for candidate in candidates:
         treated = aggregate_treated(Ywide, candidate, how=fit_how)
+        # CPIC investment uses the *summed* treated volume (GeoLift's
+        # sum(Y[D==1])), independent of the fit aggregation.
+        treated_total = aggregate_treated(Ywide, candidate, how="sum").to_numpy()
         donors = donor_matrix(Ywide, candidate)
         for duration in durations:
             for sim in range(1, int(lookback_window) + 1):
                 for row in simulate_lookback(
                     treated, donors, n_periods, duration, sim, effect_sizes,
                     augment=augment, q=q, ns=ns, seed=seed, conformal_type=conformal_type,
-                    fixed_effects=fixed_effects,
+                    fixed_effects=fixed_effects, cpic=cpic, treated_total=treated_total,
                 ):
                     row["candidate"] = candidate
                     records.append(row)

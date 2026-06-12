@@ -56,6 +56,8 @@ def simulate_lookback(
     seed: int = 0,
     conformal_type: str = "iid",
     fixed_effects: bool = False,
+    cpic: Optional[float] = None,
+    treated_total: Optional[np.ndarray] = None,
 ) -> List[dict]:
     """Simulate one lookback placement across a grid of effect sizes.
 
@@ -108,6 +110,15 @@ def simulate_lookback(
                             fixed_effects=fixed_effects)
     counterfactual = fit.predict(donors_arr)
 
+    # CPIC investment volume: GeoLift's ``sum(data_aux$Y[D == 1])`` -- the
+    # *summed* treated outcome over the treatment window, on the baseline
+    # (pre-injection) series. ``treated_total`` carries that summed series (the
+    # fit series is the per-unit mean under fixed effects); fall back to the fit
+    # series when it is not supplied (e.g. an already-summed aggregate).
+    total_arr = (np.asarray(treated_total, dtype=float).ravel()
+                 if treated_total is not None else treated_arr)
+    window_volume = float(np.sum(total_arr[start : end + 1]))
+
     rows: List[dict] = []
     for es in effect_sizes:
         treated_injected = inject_effect(treated_arr, start, end, es)
@@ -130,6 +141,9 @@ def simulate_lookback(
                 "detected_lift": detected_lift,
                 "scaled_l2": fit.scaled_l2,
                 "pre_rmspe": fit.pre_rmspe,
+                # investment = cpic * es * summed-treated-volume (GeoLift pvalueCalc)
+                "investment": (cpic * float(es) * window_volume
+                               if cpic is not None else float("nan")),
             }
         )
     return rows

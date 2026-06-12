@@ -70,6 +70,7 @@ CASES = {
     "augsynth_calibrated": "benchmarks.cases.augsynth_calibrated",  # Path B: ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
     "geolift_walkthrough": "benchmarks.cases.geolift",  # cross-val vs GeoLift/augsynth: GeoLift_Walkthrough realized report (fixedeff ASCM + conformal)
     "geolift_augsynth_ref": "benchmarks.cases.geolift_augsynth_ref",  # cross-val vs LIVE augsynth (Rscript): lambda/weights/ATT (skips if absent)
+    "geolift_cpic": "benchmarks.cases.geolift_cpic",  # cross-val vs GeoLiftMarketSelection: CPIC investment value-for-value
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
 }
 

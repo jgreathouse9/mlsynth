@@ -81,9 +81,11 @@ def run_design(config: GeoLiftConfig) -> GEOLIFTResults:
         Ywide, candidates, config.durations, config.lookback_window, config.effect_sizes,
         how=config.how, augment=config.augment, ns=config.ns, seed=config.seed,
         conformal_type=config.conformal_type, fixed_effects=config.fixed_effects,
+        cpic=config.cpic,
     )
     power_table = compute_power(cube, alpha=config.alpha)
-    shortlist = compute_rank(power_table, power_threshold=config.power_threshold)
+    shortlist = compute_rank(power_table, power_threshold=config.power_threshold,
+                             budget=config.budget)
 
     # Per-candidate deployable design fit (full pre-period).
     designs = {

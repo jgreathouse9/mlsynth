@@ -61,6 +61,17 @@ class GeoLiftConfig(BaseMAREXConfig):
     )
     alpha: float = Field(default=0.1, description="Significance level for detection.")
     power_threshold: float = Field(default=0.8, description="Power needed to 'detect' an effect (MDE).")
+    cpic: Optional[float] = Field(
+        default=None,
+        description="Cost per incremental conversion. When set, each candidate's "
+        "required investment = cpic x effect_size x summed-treated-volume is "
+        "reported (GeoLift's budget-planning layer).",
+    )
+    budget: Optional[float] = Field(
+        default=None,
+        description="Spend cap. When set (with cpic), candidates whose detectable "
+        "investment exceeds the budget are dropped from the design.",
+    )
     ns: int = Field(default=1000, description="Conformal permutation count (iid only).")
     conformal_type: str = Field(
         default="iid",
@@ -103,4 +114,11 @@ class GeoLiftConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 f"conformal_type must be 'iid' or 'block'; got {self.conformal_type!r}."
             )
+        if self.cpic is not None and self.cpic < 0:
+            raise MlsynthConfigError(f"cpic must be >= 0; got {self.cpic}.")
+        if self.budget is not None:
+            if self.budget <= 0:
+                raise MlsynthConfigError(f"budget must be > 0; got {self.budget}.")
+            if self.cpic is None:
+                raise MlsynthConfigError("budget requires cpic to be set.")
         return self
