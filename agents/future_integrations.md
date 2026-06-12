@@ -213,6 +213,104 @@ loadings-as-slopes specification against ``zhan-gao/classo`` first.
 
 ---
 
+## 3. DSC -- Dynamic Synthetic Control (DTW speed-warping)
+
+**Status: Parked (demonstrate-first DONE; blocked on a `dtw-python` vs R-`dtw`
+`open.end` library difference -- not worth finishing until that is resolved).**
+
+### Source
+
+> Cao, J. & Chadefaux, T. (2025). "Dynamic Synthetic Controls: Accounting for
+> Varying Speeds in Comparative Case Studies." *Political Analysis* 33, 18-31.
+
+Reference package (cloned, read in full; pin downstream, never vendor):
+**https://github.com/conflictlab/dsc** -- `R/{TFDTW,dsc,misc,synth}.R`.
+
+### The idea in one line
+
+Standard SCM assumes every unit reacts to common shocks at the **same speed**;
+when donors adapt at different rates the target depends on donor *lags* (Eq. 1),
+so omitting them biases the effect and inflates SEs. DSC uses **Dynamic Time
+Warping** to learn each donor's pre-period speed warp vs. the treated unit,
+**warps the donor outcome series** to align speeds, then runs **ordinary `Synth`
+on the warped donors**. It removes *inherent* speed differences while preserving
+treatment-induced ones (so the post-period effect survives).
+
+### Naming (do not collide)
+
+`DSC` is taken (**Distributional** SC) and `DSCAR` is taken (**dynamic SC for
+AR** processes, Zheng-Chen). The Cao-Chadefaux method needs a third name -- e.g.
+**`DTWSC`**. Three "dynamic-ish" SCs will share mindspace; disambiguate in docs.
+
+### Demonstrate-first findings (the reason it is parked) -- KEEP THESE
+
+The novelty is entirely the warping; the SC half is plain `Synth`, which mlsynth
+already replicates (VanillaSC). The warping ports through **`dtw-python`** (Toni
+Giorgino's official Python port of R `dtw`, identical step patterns
+`symmetricP1`/`asymmetricP2`). Validated against the R package, cell by cell:
+
+* **Bit-exact (synthetic AND real Basque):** `first.dtw`, `warp2weight`,
+  `warpWITHweight`, the cutoff, and the pre-period speed weights `weight.a`. On
+  Basque the **pre-period warped donors match R to ~1e-15** (confirmed on the
+  worst donor: `weight.a` and the pre-warp `0, 0.2036, ..., 2.1799` identical).
+* **NOT bit-reproducible: `second.dtw`** (the post-period double-sliding-window).
+  The *entire* residual is one library-level disagreement: **`dtw-python`'s
+  `open.end=TRUE` alignment covers the full query, while R `dtw` lets the
+  open-ended alignment stop short.** This changes `RefTooShort`'s window-include
+  decision, so the post-period `avg.weight` (and hence the warped post series)
+  diverges. The 0-vs-1-index `+1` patch in `RefTooShort` fixes the overlap
+  window but then *over-includes* the short boundary window everywhere (it wins
+  the cost search with a spuriously cheap open-ended match) -- one fix trades for
+  another, because the libraries genuinely terminate open ends differently.
+
+**Reference numbers (R `dsc`, gold, full Abadie 14-predictor spec, Synth's
+`basque`, Spain dropped -> 16 donors):**
+
+| Method | pre-RMSE | post-ATT |
+|---|---|---|
+| Standard SC | 0.0888 | -0.585 |
+| DSC (R) | **0.0728** | **-0.537** |
+
+This **reproduces the paper**: DSC tightens the fit (-18% RMSE) and lands
+ATT ~ SC (the Basque section's "similar ATT, better counterfactual"). Because
+the pre-warp is bit-exact, a Python port already matches the **pre-RMSE 0.0728
+exactly**; only the ATT rides on the un-portable `second.dtw` (the warp gap moved
+an outcome-only ATT from R's -0.480 to Python's -0.573, so it is *not* negligible
+-- bitwise matters here).
+
+### Build path if resumed
+
+1. **Resolve the `open.end` blocker** -- the only real obstacle. Hand-roll the
+   DTW open-end recursion to replicate R's exact truncation/tie-breaking, or
+   vendor R's step-pattern open-end logic. Uncertain payoff; reverse-engineering
+   R `dtw`'s open-end termination point by point. *Everything else is done.*
+2. Port `preprocessing` (S-G filter `scipy.signal.savgol_filter` 2nd-deriv --
+   matches up to a constant that DTW re-normalizes away; the `auto.arima`
+   edge-buffer is the one inherently-fuzzy piece, ~2 edge points, approximate it).
+3. SC on warped donors -> **reuse mlsynth's `Synth` replication** (predictors).
+4. Scaffold to the estimator contract; cross-validate the warped donors + ATT
+   against the R package as a `benchmarks/` case.
+
+### R reference install (figured out; reuse it)
+
+`Synth` chain on Ubuntu + R 4.3 (CRAN blocked, apt+GitHub open): `apt` for
+`libnlopt-dev r-cran-nloptr r-cran-pracma r-cran-quadprog ...`; compile from the
+GitHub `cran` mirror in order `pracma, nloptr, optimx -> kernlab, rgenoud ->
+Synth`; plus `signal, forecast` (forecast pulls `tseries/quantmod/urca`) and
+`dtw`. `dtw-python` is a plain `pip install dtw-python`. Run `dsc()` with
+`parallel=FALSE` to avoid `furrr`. (augsynth's install recipe in
+`benchmarks/R/install_augsynth.sh` is the template.)
+
+### Verdict
+
+The method is worth having (genuine gap, top venue, recent, reproduces cleanly)
+and is ~90% ported -- but **do not finish it until the `open.end` library
+difference is solved**, because without it the post-period is not bit-faithful to
+R and the ATT is only *close*. Revisit when there is appetite to hand-roll the
+open-end DTW.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
