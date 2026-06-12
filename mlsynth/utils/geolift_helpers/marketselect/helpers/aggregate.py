@@ -18,7 +18,7 @@ import pandas as pd
 
 _POWER_COLUMNS = [
     "candidate", "duration", "effect_size",
-    "power", "placebo_mean_effect", "scaled_l2", "pre_rmspe",
+    "power", "placebo_mean_effect", "detected_lift", "scaled_l2", "pre_rmspe",
 ]
 
 
@@ -52,6 +52,7 @@ def compute_power(cube: pd.DataFrame, *, alpha: float = 0.1) -> pd.DataFrame:
     ).agg(
         power=("_detected", "mean"),
         placebo_mean_effect=("placebo_mean_effect", "mean"),
+        detected_lift=("detected_lift", "mean"),
         scaled_l2=("scaled_l2", "mean"),
         pre_rmspe=("pre_rmspe", "mean"),
     )
@@ -102,3 +103,55 @@ def compute_mde(power_table: pd.DataFrame, *, power_threshold: float = 0.8) -> p
                 mde = positive_mde
         rows.append({"candidate": candidate, "duration": duration, "mde": mde})
     return pd.DataFrame(rows)
+
+
+_RANK_COLUMNS = [
+    "candidate", "duration", "mde", "power", "detected_lift", "abs_lift_in_zero",
+    "scaled_l2", "pre_rmspe",
+    "rank_mde", "rank_pvalue", "rank_abszero", "rank",
+]
+
+
+def compute_rank(power_table: pd.DataFrame, *, power_threshold: float = 0.8) -> pd.DataFrame:
+    """Rank candidate designs, haircut-faithful to ``GeoLiftMarketSelection``.
+
+    Builds the per-(candidate, duration) MDE row, then the GeoLift composite
+    rank: the mean of three ``dense_rank`` components -- ``|mde|``, ``power`` (at
+    the MDE; ascending, as in GeoLift), and ``abs_lift_in_zero`` (the recovery
+    error ``|AvgDetectedLift - mde|`` at the MDE). ``scaled_l2`` / ``pre_rmspe``
+    are carried for reporting but are **not** ranked. Candidates with no
+    detectable effect (``mde`` NaN) are dropped. Lower ``rank`` = better.
+
+    Parameters
+    ----------
+    power_table : pd.DataFrame
+        Output of :func:`compute_power`.
+    power_threshold : float, default 0.8
+        Forwarded to :func:`compute_mde`.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per ranked (candidate, duration), sorted by ``rank``.
+    """
+    if power_table.empty:
+        return pd.DataFrame(columns=_RANK_COLUMNS)
+
+    mde_table = compute_mde(power_table, power_threshold=power_threshold)
+    merged = mde_table.merge(power_table, on=["candidate", "duration"])
+    # Keep only each group's MDE row (drops NaN-MDE groups: NaN != any effect).
+    at_mde = merged[merged["effect_size"] == merged["mde"]].copy()
+    if at_mde.empty:
+        return pd.DataFrame(columns=_RANK_COLUMNS)
+
+    at_mde["abs_lift_in_zero"] = (at_mde["detected_lift"] - at_mde["mde"]).abs().round(3)
+
+    # GeoLift dense ranks (ascending; lower value -> rank 1). Note rank_pvalue
+    # ranks power ascending, i.e. lower power-at-MDE ranks better.
+    at_mde["rank_mde"] = at_mde["mde"].abs().rank(method="dense")
+    at_mde["rank_pvalue"] = at_mde["power"].rank(method="dense")
+    at_mde["rank_abszero"] = at_mde["abs_lift_in_zero"].rank(method="dense")
+    mean_rank = at_mde[["rank_mde", "rank_pvalue", "rank_abszero"]].mean(axis=1)
+    at_mde["rank"] = mean_rank.rank(method="min")
+
+    return at_mde[_RANK_COLUMNS].sort_values("rank").reset_index(drop=True)

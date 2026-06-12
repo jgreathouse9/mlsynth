@@ -80,7 +80,9 @@ def simulate_lookback(
     -------
     list of dict
         One row per effect size with ``sim``, ``duration``, ``effect_size``,
-        ``p_value``, ``placebo_mean_effect``, ``scaled_l2``, ``pre_rmspe``.
+        ``p_value``, ``placebo_mean_effect``, ``detected_lift`` (proportional:
+        ``placebo_mean_effect / mean(counterfactual_post)``), ``scaled_l2``,
+        ``pre_rmspe``.
 
     Raises
     ------
@@ -110,7 +112,10 @@ def simulate_lookback(
             treated_injected, donors_arr, n_pre,
             lambda_=fit.lambda_, q=q, ns=ns, seed=seed,
         )
-        placebo_mean_effect = float(np.mean((treated_injected - counterfactual)[start : end + 1]))
+        gap_post = (treated_injected - counterfactual)[start : end + 1]
+        placebo_mean_effect = float(np.mean(gap_post))
+        baseline = float(np.mean(counterfactual[start : end + 1]))
+        detected_lift = placebo_mean_effect / baseline if baseline != 0.0 else float("nan")
         rows.append(
             {
                 "sim": sim,
@@ -118,6 +123,7 @@ def simulate_lookback(
                 "effect_size": float(es),
                 "p_value": float(p_value),
                 "placebo_mean_effect": placebo_mean_effect,
+                "detected_lift": detected_lift,
                 "scaled_l2": fit.scaled_l2,
                 "pre_rmspe": fit.pre_rmspe,
             }

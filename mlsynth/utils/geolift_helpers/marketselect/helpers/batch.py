@@ -18,7 +18,7 @@ from .simulate import simulate_lookback
 
 _COLUMNS = [
     "candidate", "duration", "sim", "effect_size",
-    "p_value", "placebo_mean_effect", "scaled_l2", "pre_rmspe",
+    "p_value", "placebo_mean_effect", "detected_lift", "scaled_l2", "pre_rmspe",
 ]
 
 
