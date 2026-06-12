@@ -10,13 +10,21 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from mlsynth.utils.plotting import mlsynth_style
 
-def plot_design(result, report=None, *, figsize=(11, 7), save_path=None, show=False):
-    """Plot the recommended design (design phase, or realized post phase)."""
+
+def plot_design(result, report=None, *, theme=None, figsize=(11, 7), save_path=None, show=False):
+    """Plot the recommended design (design phase, or realized post phase).
+
+    Rendered in the mlsynth house style by default (:func:`mlsynth_style`) for a
+    consistent look across the library; pass ``theme`` (an rcParams dict or a
+    named Matplotlib style) to override.
+    """
     report = report if report is not None else getattr(result, "report", None)
-    if report is not None:
-        return _plot_post(result, report, figsize=figsize, save_path=save_path, show=show)
-    return _plot_design_phase(result, figsize=figsize, save_path=save_path, show=show)
+    with mlsynth_style(theme):
+        if report is not None:
+            return _plot_post(result, report, figsize=figsize, save_path=save_path, show=show)
+        return _plot_design_phase(result, figsize=figsize, save_path=save_path, show=show)
 
 
 def _finish(fig, save_path, show):
@@ -41,7 +49,7 @@ def _plot_design_phase(result, *, figsize, save_path, show):
 
     fig, ax = plt.subplots(figsize=figsize)
     ax.plot(x, obs, color="black", lw=1.6, label="Observed (test markets)")
-    ax.plot(x, cf, color="C3", ls="--", lw=1.6, label="Synthetic counterfactual")
+    ax.plot(x, cf, color="red", ls="--", lw=1.6, label="Synthetic counterfactual")
     ax.set_ylabel("Outcome")
     ax.set_xlabel("Time")
     ax.legend(frameon=False)
@@ -73,11 +81,11 @@ def _plot_post(result, report, *, figsize, save_path, show):
 
     # Panel 1: observed vs synthetic, with the conformal band on the counterfactual.
     ax1.plot(x, obs, color="black", lw=1.6, label="Observed (test markets)")
-    ax1.plot(x, cf, color="C3", ls="--", lw=1.6, label="Synthetic counterfactual")
+    ax1.plot(x, cf, color="red", ls="--", lw=1.6, label="Synthetic counterfactual")
     if post.size:
         # effect CI [lower, upper] -> counterfactual band obs - [upper, lower]
         ax1.fill_between(post, obs[post] - upper, obs[post] - lower,
-                         color="C3", alpha=0.2, label="Conformal interval")
+                         color="red", alpha=0.2, label="Conformal interval")
     ax1.axvline(intervention_x, color="gray", ls=":", lw=1.0)
     ax1.set_ylabel("Outcome")
     ax1.legend(frameon=False)
@@ -86,7 +94,7 @@ def _plot_post(result, report, *, figsize, save_path, show):
     ax2.plot(x, gap, color="black", lw=1.4)
     ax2.axhline(0.0, color="gray", lw=0.8)
     if post.size:
-        ax2.fill_between(post, lower, upper, color="C3", alpha=0.2)
+        ax2.fill_between(post, lower, upper, color="red", alpha=0.2)
     ax2.axvline(intervention_x, color="gray", ls=":", lw=1.0)
     ax2.set_ylabel("Effect (obs − synthetic)")
     ax2.set_xlabel("Time")
