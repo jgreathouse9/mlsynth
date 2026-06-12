@@ -66,6 +66,49 @@ Result
 :class:`EffectResult`, ``comparison`` is the pairwise table, ``winner`` the
 overall winner, and ``report`` is the representative (winner / largest) cell.
 
+Reading the results — per-cell plots and the comparison
+-------------------------------------------------------
+
+Each cell's report is a full GeoLift :class:`EffectResult`, so every single-cell
+view (observed vs synthetic, the gap with its conformal band, the donor weights —
+see :doc:`geolift`) works per cell. ``plot_multicell`` stacks the
+observed-vs-synthetic panels, one row per cell:
+
+.. code-block:: python
+
+   from mlsynth.utils.geolift_helpers.multicell.plotter import plot_multicell
+
+   plot_multicell(res, show=True)                        # one panel per cell
+
+   # per-cell numbers and views
+   res.cells["A"].effects.att, res.cells["A"].inference.p_value
+   res.cells["A"].time_series.estimated_gap              # cell A's gap path
+   res.cells["A"].weights.donor_weights                  # cell A's controls
+
+   # cross-cell comparison and the overall winner
+   res.comparison        # [{cell_a, cell_b, att_a, att_b, att_diff, winner}, ...]
+   res.winner            # the cell that wins every pairwise comparison, or None
+
+A ``winner`` of ``None`` is the honest, common outcome: each cell is measured
+well, but **declaring** one better needs its ATT interval to clear the other's
+(GeoLift's non-overlapping-CI rule), which a single test rarely supports.
+
+Not voodoo — one cell *is* the single-cell case
+-----------------------------------------------
+
+Multi-cell strictly generalizes single-cell: with one cell, every other unit is
+a control (no other cells to exclude), so ``MULTICELLGEOLIFT`` makes the *same*
+fit as the single-cell :doc:`geolift` realize — same treated set, same donor
+pool, hence the **same ATT, conformal p, and weights** (pinned in
+``test_multicell.py``):
+
+.. code-block:: python
+
+   # one cell A, everyone else control  ==  single-cell GEOLIFT on {chicago, portland}
+   res.cells["A"].effects.att        # 156.805165  (identical to the realize ATT)
+   res.cells["A"].inference.p_value  # 0.0115       (identical)
+   res.winner                        # None — nothing to compare against
+
 Verification
 ------------
 

@@ -409,6 +409,72 @@ The synthetic tracks the test markets, :math:`\widehat{\tau} \approx 0`, and the
 joint conformal p-value is far from significant — the correct null over a placebo
 post period.
 
+Reading the results — plots, tables, and weights
+------------------------------------------------
+
+Everything the design and the realized report produce is on the result object,
+so you can use the built-in plot or pull the arrays and draw your own.
+
+**The built-in plot.** ``display_graphs=True`` (default) plots during ``fit``;
+you can also call it explicitly. In the **design** phase it shows the test
+markets vs their synthetic counterfactual over the pre-period; once a
+``post_col`` realizes the design, it shows **observed vs synthetic over pre+post
+with the conformal band, plus the effect (gap) underneath**:
+
+.. code-block:: python
+
+   from mlsynth.utils.geolift_helpers.marketselect.plotter import plot_design
+
+   plot_design(res, report=res.report, show=True)        # or save_path="design.png"
+
+**Power / MDE / budget table.** The ranked shortlist (one row per candidate ×
+duration) carries the power, the minimum detectable effect, and — when ``cpic``
+is set — the required investment:
+
+.. code-block:: python
+
+   res.power[["candidate", "duration", "mde", "power", "investment"]]
+   res.search.winner.mde, res.search.winner.power        # the recommended design
+
+**Observed vs predicted.** The realized report's time series are plain arrays:
+
+.. code-block:: python
+
+   import matplotlib.pyplot as plt
+
+   ts = res.report.time_series
+   plt.plot(ts.time_periods, ts.observed_outcome, color="black", label="observed")
+   plt.plot(ts.time_periods, ts.counterfactual_outcome, "r--", label="synthetic")
+   plt.axvline(ts.intervention_time, color="grey", ls=":"); plt.legend()
+
+**Gap (effect) with the conformal band.** The per-period effect and its
+conformal prediction interval come from ``inference.details``:
+
+.. code-block:: python
+
+   d = res.report.inference.details                      # post-period arrays
+   plt.plot(ts.time_periods, ts.estimated_gap, color="black")     # tau_hat_t
+   plt.fill_between(d["periods"], d["lower"], d["upper"], alpha=0.3)  # conformal CI
+   plt.axhline(0, color="grey", ls=":")
+   res.report.effects.att, res.report.inference.p_value  # ATT, joint conformal p
+
+**Donor weights.** The synthetic control's weights are a ``{market: weight}``
+dict — sort and bar-plot the contributors:
+
+.. code-block:: python
+
+   w = res.report.weights.donor_weights
+   top = dict(sorted(w.items(), key=lambda kv: -abs(kv[1]))[:10])
+   plt.bar(top.keys(), top.values()); plt.xticks(rotation=45, ha="right")
+
+**Budget (CPIC).** With ``cpic`` set, the realized spend is on the report; the
+design-time investment per candidate is the ``investment`` column above:
+
+.. code-block:: python
+
+   ss = res.report.weights.summary_stats
+   ss["cpic"], ss["cost"]                                # cost = cpic x incremental
+
 Verification
 ------------
 
