@@ -40,6 +40,7 @@ def realize_design(
     seed: int = 0,
     conformal_type: str = "iid",
     fixed_effects: bool = False,
+    cpic: Optional[float] = None,
 ) -> BaseEstimatorResults:
     """Realize one candidate design on the full (pre+post) panel.
 
@@ -101,6 +102,11 @@ def realize_design(
     intervention = time_labels[pre_periods] if pre_periods < n_periods else None
     att = float(np.mean(gap[pre_periods:])) if pre_periods < n_periods else None
 
+    # CPIC: realized spend = cpic x summed incremental outcome over the post window.
+    incremental_summed = (float(np.sum(gap_fit[pre_periods:])) * n_units
+                          if pre_periods < n_periods else 0.0)
+    cost = float(cpic) * incremental_summed if cpic is not None else None
+
     donor_weights = {
         str(name): float(w)
         for name, w in zip(donors.columns, fit.weights)
@@ -134,6 +140,8 @@ def realize_design(
                 "intercept": float(fit.intercept),
                 "augment": augment,
                 "fixed_effects": fixed_effects,
+                "cpic": cpic,
+                "cost": cost,
             },
         ),
         fit_diagnostics=FitDiagnosticsResults(

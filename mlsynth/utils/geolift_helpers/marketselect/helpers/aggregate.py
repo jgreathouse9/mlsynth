@@ -11,7 +11,7 @@ Pure array/groupby reductions on the long p-value cube from
 (The composite rank is built on top of these.)
 """
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -19,6 +19,7 @@ import pandas as pd
 _POWER_COLUMNS = [
     "candidate", "duration", "effect_size",
     "power", "placebo_mean_effect", "detected_lift", "scaled_l2", "pre_rmspe",
+    "investment",
 ]
 
 
@@ -46,16 +47,21 @@ def compute_power(cube: pd.DataFrame, *, alpha: float = 0.1) -> pd.DataFrame:
     if cube.empty:
         return pd.DataFrame(columns=_POWER_COLUMNS)
     tmp = cube.assign(_detected=(cube["p_value"] < alpha).astype(float))
-    # sort=False: candidate keys are frozensets (unorderable).
-    return tmp.groupby(
-        ["candidate", "duration", "effect_size"], as_index=False, sort=False
-    ).agg(
+    has_investment = "investment" in cube.columns
+    aggs = dict(
         power=("_detected", "mean"),
         placebo_mean_effect=("placebo_mean_effect", "mean"),
         detected_lift=("detected_lift", "mean"),
         scaled_l2=("scaled_l2", "mean"),
         pre_rmspe=("pre_rmspe", "mean"),
     )
+    if has_investment:
+        # investment = cpic * es * volume is constant across lookback placements.
+        aggs["investment"] = ("investment", "mean")
+    # sort=False: candidate keys are frozensets (unorderable).
+    return tmp.groupby(
+        ["candidate", "duration", "effect_size"], as_index=False, sort=False
+    ).agg(**aggs)
 
 
 def compute_mde(power_table: pd.DataFrame, *, power_threshold: float = 0.8) -> pd.DataFrame:
@@ -107,12 +113,13 @@ def compute_mde(power_table: pd.DataFrame, *, power_threshold: float = 0.8) -> p
 
 _RANK_COLUMNS = [
     "candidate", "duration", "mde", "power", "detected_lift", "abs_lift_in_zero",
-    "scaled_l2", "pre_rmspe",
+    "scaled_l2", "pre_rmspe", "investment",
     "rank_mde", "rank_pvalue", "rank_abszero", "rank",
 ]
 
 
-def compute_rank(power_table: pd.DataFrame, *, power_threshold: float = 0.8) -> pd.DataFrame:
+def compute_rank(power_table: pd.DataFrame, *, power_threshold: float = 0.8,
+                 budget: Optional[float] = None) -> pd.DataFrame:
     """Rank candidate designs, haircut-faithful to ``GeoLiftMarketSelection``.
 
     Builds the per-(candidate, duration) MDE row, then the GeoLift composite
@@ -137,12 +144,24 @@ def compute_rank(power_table: pd.DataFrame, *, power_threshold: float = 0.8) -> 
     if power_table.empty:
         return pd.DataFrame(columns=_RANK_COLUMNS)
 
+    # CPIC budget gate (GeoLift: filter abs(budget) > abs(Investment)). Drop the
+    # over-budget effect-size rows *before* the MDE, so a candidate whose
+    # cheapest detectable effect still busts the budget falls out entirely.
+    if budget is not None and "investment" in power_table.columns:
+        power_table = power_table[
+            power_table["investment"].abs() < abs(budget)
+        ].copy()
+        if power_table.empty:
+            return pd.DataFrame(columns=_RANK_COLUMNS)
+
     mde_table = compute_mde(power_table, power_threshold=power_threshold)
     merged = mde_table.merge(power_table, on=["candidate", "duration"])
     # Keep only each group's MDE row (drops NaN-MDE groups: NaN != any effect).
     at_mde = merged[merged["effect_size"] == merged["mde"]].copy()
     if at_mde.empty:
         return pd.DataFrame(columns=_RANK_COLUMNS)
+    if "investment" not in at_mde.columns:          # cpic not supplied
+        at_mde["investment"] = float("nan")
 
     at_mde["abs_lift_in_zero"] = (at_mde["detected_lift"] - at_mde["mde"]).abs().round(3)
 

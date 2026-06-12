@@ -291,6 +291,28 @@ Identifying assumptions
    transports to the real experiment only if the pre-period dynamics resemble the
    experiment window — the usual SC stability assumption.
 
+Budget planning (CPIC)
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Setting ``cpic`` (cost per incremental conversion) turns each candidate's MDE
+into a spend, faithful to ``GeoLiftMarketSelection``:
+
+.. math::
+
+   \mathrm{investment} \;=\; \mathrm{cpic} \times \delta \times
+   \sum_{i \in \mathcal{S}} \sum_{t \in \mathcal{W}} Y_{it},
+
+i.e. cost-per-incremental :math:`\times` effect size :math:`\times` the
+**summed** treated volume over the (lookback) window — the baseline outcome, on
+the total scale, independent of the mean-of-units fit. The shortlist carries an
+``investment`` column; supplying ``budget`` drops candidates whose detectable
+investment exceeds it (GeoLift's ``abs(budget) > abs(Investment)`` gate). The
+realized report adds the post-test ``cost`` :math:`= \mathrm{cpic} \times`
+incremental outcome. The investment is a deterministic data transform, so it
+matches ``GeoLiftMarketSelection`` **to the cent** (durable case
+``geolift_cpic``); ROI (a value/margin per conversion) is a planned extension
+beyond GeoLift's cost-only ``cpic``.
+
 Inference and the realized design
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
