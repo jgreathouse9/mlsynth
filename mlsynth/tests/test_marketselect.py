@@ -45,6 +45,39 @@ def test_correlation_matrix_smoke_and_labels():
     assert C.loc["A", "C"] == pytest.approx(-1.0)
 
 
+def test_correlation_matrix_symmetric_bounded_unit_diagonal():
+    """Invariants: symmetric, unit diagonal, off-diagonals within [-1, 1]."""
+    M = correlation_matrix(planted_panel()).to_numpy()
+    assert_allclose(M, M.T)                       # symmetric
+    assert_allclose(np.diag(M), 1.0)              # unit diagonal
+    off = M[~np.eye(M.shape[0], dtype=bool)]
+    assert np.all((off >= -1 - 1e-12) & (off <= 1 + 1e-12))
+
+
+def test_correlation_matrix_identical_units_are_one():
+    """Affine-identical and exactly-duplicated series correlate at +1."""
+    Ywide = planted_panel()
+    assert correlation_matrix(Ywide).loc["A", "B"] == pytest.approx(1.0)  # B = 2A+1
+    Ywide = Ywide.assign(A2=Ywide["A"])           # exact duplicate column
+    assert correlation_matrix(Ywide).loc["A", "A2"] == pytest.approx(1.0)
+
+
+def test_correlation_matrix_constant_unit_is_nan():
+    """A zero-variance unit has undefined correlation -> NaN row/column."""
+    Ywide = planted_panel().assign(E=7.0)         # constant series
+    C = correlation_matrix(Ywide)
+    assert np.isnan(C.loc["E"].drop("E")).all()   # E vs every other unit
+    assert np.isnan(C.loc["A", "E"])
+
+
+def test_correlation_matrix_single_unit_returns_one_by_one():
+    """The matrix maker does not itself require >=2 units (the ranker does);
+    a single column yields a 1x1 frame with a unit diagonal."""
+    C = correlation_matrix(planted_panel()[["A"]])
+    assert C.shape == (1, 1)
+    assert C.loc["A", "A"] == pytest.approx(1.0)
+
+
 # === rank_markets_by_correlation ===
 
 def test_rank_markets_shape_index_and_self_excluded():
