@@ -61,6 +61,13 @@ class GeoLiftConfig(BaseMAREXConfig):
     stochastic_mode: str = Field(default="global", description="'global' (faithful) or 'per_anchor' (corrected).")
     seed: int = Field(default=0, description="RNG seed (candidate sampling + conformal permutations).")
 
+    # --- display ---
+    display_graphs: bool = Field(
+        default=True,
+        description="Plot the recommended design during fit (design phase, or the "
+        "realized post phase when post_col leaves a post window).",
+    )
+
     @model_validator(mode="after")
     def _check_design(self):
         if self.treatment_size < 1:

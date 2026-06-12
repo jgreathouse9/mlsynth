@@ -289,20 +289,24 @@ Inference and the realized design
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The design phase reports :math:`\delta^\ast` and :math:`\beta` per candidate.
-Once outcomes are observed, :meth:`GEOLIFT.realize` applies the winner's
-pre-period weights :math:`\mathbf{w}^\ast` to the **full** panel and runs
-conformal inference: the per-period effect :math:`\tau_t` for
-:math:`t \in \mathcal{T}_2`, prediction intervals by test inversion (a grid of
-nulls :math:`\tau_0`, the interval being the non-rejected range at level
-:math:`\alpha`), and the joint-null p-value :math:`p`. A design over a
-*no-effect* post window should return :math:`p` non-significant and intervals
-covering zero.
+When a ``post_col`` leaves a post window, :meth:`GEOLIFT.fit` **realizes** the
+winning design *under the hood* — applying the winner's pre-period weights
+:math:`\mathbf{w}^\ast` to the **full** panel and running conformal inference:
+the per-period effect :math:`\tau_t` for :math:`t \in \mathcal{T}_2`, prediction
+intervals by test inversion (a grid of nulls :math:`\tau_0`, the interval being
+the non-rejected range at level :math:`\alpha`), and the joint-null p-value
+:math:`p` — exposed on ``result.report`` (the ``DesignResult`` resolving to its
+``EffectResult``). A design over a *no-effect* post window returns :math:`p`
+non-significant and intervals covering zero.
 
 Pipeline and Options
 --------------------
 
 The estimator is a thin front door over the helper pipeline; each stage above is
-a tested leaf in ``mlsynth/utils/geolift_helpers/``.
+a tested leaf in ``mlsynth/utils/geolift_helpers/``. The public surface is a
+single :meth:`GEOLIFT.fit` — realization and plotting are handled inside it,
+driven by the data and config (a ``post_col`` triggers realization;
+``display_graphs`` triggers the plot).
 
 * ``treatment_size`` :math:`k`, ``durations`` :math:`\{\ell\}`, ``effect_sizes``
   :math:`\{\delta\}`, ``lookback_window`` :math:`L`.
@@ -328,12 +332,15 @@ Scanning several ``durations`` yields an MDE *per duration*
 Plotting
 ~~~~~~~~
 
-:meth:`GEOLIFT.plot` renders in the mlsynth house style
+With ``display_graphs`` (default ``True``), :meth:`GEOLIFT.fit` plots the
+recommended design in the mlsynth house style
 (:func:`mlsynth.utils.plotting.mlsynth_style`): the **design phase** shows
 :math:`\mathbf{y}^{\mathcal{S}}` vs :math:`\widehat{\mathbf{y}}^{\mathcal{S}}`
-over :math:`\mathcal{T}_1`; the **post phase** (after :meth:`realize`) adds the
-conformal band and the per-period gap :math:`\tau_t` over :math:`\mathcal{T}_2`,
-with the intervention line at :math:`T_0`.
+over :math:`\mathcal{T}_1`; the **post phase** (when the design was realized)
+adds the conformal band and the per-period gap :math:`\tau_t` over
+:math:`\mathcal{T}_2`, with the intervention line at :math:`T_0`. The standalone
+helper :func:`mlsynth.utils.geolift_helpers.marketselect.plotter.plot_design`
+re-draws from a result on demand.
 
 Example: GeoLift's 40-Market Panel
 ----------------------------------
@@ -360,12 +367,12 @@ The package ships GeoLift's example panel
        "treatment_size": 3, "durations": [14], "effect_sizes": [0.0, 0.1, 0.2],
        "lookback_window": 3, "how": "mean", "augment": "ridge", "ns": 100,
    })
-   res = geo.fit()
+   res = geo.fit()              # designs, auto-realizes (post window) and plots
    print(res.selected_units, res.search.winner.mde, res.search.winner.power)
+   print("joint conformal p:", round(res.report.inference.p_value, 3))   # ~0.83 -> null
 
-   report = geo.realize()                  # apply the winner to the full panel
-   print("joint conformal p:", round(report.inference.p_value, 3))   # ~0.83 -> null
-   geo.plot(save_path="geolift.png")
+Without a ``post_col`` the same call returns a design-only result
+(``res.report is None``); set ``display_graphs=False`` to suppress the plot.
 
 The synthetic tracks the test markets, :math:`\widehat{\tau} \approx 0`, and the
 joint conformal p-value is far from significant — the correct null over a placebo
@@ -392,7 +399,7 @@ Core API
 --------
 
 .. autoclass:: mlsynth.GEOLIFT
-   :members: fit, realize, plot
+   :members: fit
 
 .. autoclass:: mlsynth.utils.geolift_helpers.config.GeoLiftConfig
    :members:

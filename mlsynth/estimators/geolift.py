@@ -6,7 +6,6 @@ from typing import Optional, Union
 
 from pydantic import ValidationError
 
-from ..config_models import BaseEstimatorResults
 from ..exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError
 from ..utils.datautils import geoex_dataprep
 from ..utils.geolift_helpers.config import GeoLiftConfig
@@ -52,54 +51,40 @@ class GEOLIFT:
         self._result: Optional[GEOLIFTResults] = None
 
     def fit(self) -> GEOLIFTResults:
-        """Run the market-selection design (design phase) and return the result."""
+        """Run the market-selection design and return the result.
+
+        Behaviour is driven by the data and config, not by manual sequencing:
+
+        * always runs the **design** (candidate nomination -> power -> MDE ->
+          rank -> per-candidate synthetic controls);
+        * when a ``post_col`` leaves a post-treatment window, **realizes** the
+          winning design on the full panel under the hood, populating
+          ``result.report`` (conformal effect report) -- the ``DesignResult``
+          resolving to its ``EffectResult``;
+        * when ``display_graphs`` is set, **plots** the recommended design
+          (design phase, or the realized post phase).
+        """
         try:
-            self._result = run_design(self.config)
-            return self._result
+            result = run_design(self.config)
+            winner = result.search.winner
+            if winner is not None:
+                # Resolve the design to its effect report iff post outcomes exist.
+                full = geoex_dataprep(
+                    self.config.df, self.config.unitid, self.config.time,
+                    self.config.outcome,
+                )["Ywide"]
+                pre = result.metadata["pre_periods"]
+                if pre < full.shape[0]:
+                    result.report = realize_design(
+                        full, winner.candidate, pre,
+                        how=self.config.how, augment=self.config.augment,
+                        alpha=self.config.alpha, ns=self.config.ns, seed=self.config.seed,
+                    )
+                if self.config.display_graphs:
+                    plot_design(result, report=result.report, show=True)
+            self._result = result
+            return result
         except (MlsynthDataError, MlsynthConfigError):
             raise
         except Exception as exc:  # pragma: no cover - defensive
-            raise MlsynthEstimationError(f"GEOLIFT design failed: {exc}") from exc
-
-    def realize(self) -> BaseEstimatorResults:
-        """Realize the winning design on the full (pre+post) panel.
-
-        Requires a ``post_col`` that leaves post-treatment periods. Populates and
-        returns ``result.report`` (ATT, conformal intervals, joint p-value).
-        """
-        if self._result is None:
-            self.fit()
-        winner = self._result.search.winner
-        if winner is None:
-            raise MlsynthEstimationError("no winning design to realize.")
-        pre = self._result.metadata["pre_periods"]
-        full = geoex_dataprep(
-            self.config.df, self.config.unitid, self.config.time, self.config.outcome
-        )["Ywide"]
-        if pre >= full.shape[0]:
-            raise MlsynthConfigError(
-                "no post-treatment periods to realize; set post_col to leave a post window."
-            )
-        try:
-            report = realize_design(
-                full, winner.candidate, pre,
-                how=self.config.how, augment=self.config.augment,
-                alpha=self.config.alpha, ns=self.config.ns, seed=self.config.seed,
-            )
-        except (MlsynthDataError, MlsynthConfigError):
-            raise
-        except Exception as exc:  # pragma: no cover - defensive
-            raise MlsynthEstimationError(f"GEOLIFT realize failed: {exc}") from exc
-        self._result.report = report
-        return report
-
-    def plot(self, *, report: Optional[BaseEstimatorResults] = None, **kwargs):
-        """Plot the recommended design (design phase, or realized post phase).
-
-        Renders in the mlsynth house style. Pass a realized ``report`` (or call
-        :meth:`realize` first) to draw the post phase with conformal intervals.
-        """
-        if self._result is None:
-            self.fit()
-        report = report if report is not None else self._result.report
-        return plot_design(self._result, report=report, **kwargs)
+            raise MlsynthEstimationError(f"GEOLIFT failed: {exc}") from exc
