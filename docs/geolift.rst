@@ -207,8 +207,12 @@ permutations :math:`\Pi` of the residual path,
    \mathbf{1}\!\bigl\{\, S_q(\boldsymbol{\tau}_{\mathcal{T}_2})
    \le S_q\bigl((\Pi\boldsymbol{\tau})_{\mathcal{T}_2}\bigr) \,\bigr\},
 
-and an effect is *detected* when :math:`p < \alpha`. **Power** is the detection
-rate across the :math:`L` lookback placements,
+and an effect is *detected* when :math:`p < \alpha`. The permutation set
+:math:`\Pi` follows ``conformal_type``: ``"iid"`` (the augsynth/GeoLift default —
+:math:`n_s` independent draws) or ``"block"`` (the :math:`T` moving-block cyclic
+shifts :math:`\Pi_k(t) = ((t + k) \bmod T)`, which preserve serial dependence
+and are deterministic, ignoring :math:`n_s`). **Power** is the detection rate
+across the :math:`L` lookback placements,
 
 .. math::
 
@@ -320,6 +324,9 @@ driven by the data and config (a ``post_col`` triggers realization;
   ``augment`` (``"ridge"`` / ``None``), ``alpha`` :math:`\alpha`,
   ``power_threshold`` :math:`\beta_0`, ``ns`` :math:`n_s`,
   ``run_stochastic`` / ``stochastic_mode``.
+* ``conformal_type`` — the conformal permutation scheme, ``"iid"`` (default,
+  matching GeoLift) or ``"block"`` (moving-block cyclic shifts for
+  serially-dependent residuals; GeoLift's ``conformal_type = "block"`` option).
 
 Scanning several ``durations`` yields an MDE *per duration*
 (":math:`\ell = 7` detects 10%, but :math:`\ell = 14` is needed for 5%"):

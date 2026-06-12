@@ -54,7 +54,13 @@ class GeoLiftConfig(BaseMAREXConfig):
     )
     alpha: float = Field(default=0.1, description="Significance level for detection.")
     power_threshold: float = Field(default=0.8, description="Power needed to 'detect' an effect (MDE).")
-    ns: int = Field(default=1000, description="Conformal permutation count.")
+    ns: int = Field(default=1000, description="Conformal permutation count (iid only).")
+    conformal_type: str = Field(
+        default="iid",
+        description="Conformal permutation scheme: 'iid' (independent, augsynth/GeoLift "
+        "default) or 'block' (the T moving-block cyclic shifts, for serially-dependent "
+        "residuals).",
+    )
 
     # --- candidate generation ---
     run_stochastic: bool = Field(default=False, description="Use GeoLift's stochastic paired-jitter generation.")
@@ -86,4 +92,8 @@ class GeoLiftConfig(BaseMAREXConfig):
             raise MlsynthConfigError(f"how must be 'sum' or 'mean'; got {self.how!r}.")
         if self.augment not in ("ridge", None):
             raise MlsynthConfigError(f"augment must be 'ridge' or None; got {self.augment!r}.")
+        if self.conformal_type not in ("iid", "block"):
+            raise MlsynthConfigError(
+                f"conformal_type must be 'iid' or 'block'; got {self.conformal_type!r}."
+            )
         return self

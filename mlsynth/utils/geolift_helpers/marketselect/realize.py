@@ -38,6 +38,7 @@ def realize_design(
     q: float = 1.0,
     ns: int = 1000,
     seed: int = 0,
+    conformal_type: str = "iid",
 ) -> BaseEstimatorResults:
     """Realize one candidate design on the full (pre+post) panel.
 
@@ -75,6 +76,7 @@ def realize_design(
     ci = conformal_intervals(
         treated, Y0, pre_periods,
         lambda_=fit.lambda_, alpha=alpha, q=q, ns=ns, seed=seed,
+        conformal_type=conformal_type,
     )
 
     time_labels = np.asarray(Ywide_full.index)

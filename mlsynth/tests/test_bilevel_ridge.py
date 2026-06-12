@@ -278,3 +278,52 @@ def test_augsynth_kansas_covariate_ladder():
     # augsynth Kansas ladder: Covariate ASCM -0.061, Residualized -0.055.
     assert att(cov.W) == pytest.approx(-0.061, abs=3e-3)
     assert att(res.W) == pytest.approx(-0.055, abs=3e-3)
+
+
+# === moving-block (cyclic) conformal permutation (augsynth type="block") ===
+
+def _conf_panel(T=20, J=4, pre=15, seed=3):
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    Y0 = rng.normal(size=(T, J)) + np.arange(T)[:, None] * 0.2
+    y = Y0 @ np.array([0.4, 0.3, 0.2, 0.1]) + rng.normal(scale=0.05, size=T)
+    return y, Y0, pre
+
+
+def test_conformal_pvalue_block_is_seed_invariant():
+    """Block uses the deterministic T cyclic shifts, not random draws."""
+    import numpy as np
+    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    y, Y0, pre = _conf_panel()
+    a = conformal_pvalue(y, Y0, pre, conformal_type="block", ns=100, seed=0)
+    b = conformal_pvalue(y, Y0, pre, conformal_type="block", ns=100, seed=12345)
+    assert a == b                                   # deterministic across seeds
+
+
+def test_conformal_pvalue_iid_depends_on_seed():
+    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    y, Y0, pre = _conf_panel()
+    a = conformal_pvalue(y, Y0, pre, conformal_type="iid", ns=50, seed=0)
+    b = conformal_pvalue(y, Y0, pre, conformal_type="iid", ns=50, seed=999)
+    assert 0.0 <= a <= 1.0 and 0.0 <= b <= 1.0      # both valid p-values
+
+
+def test_conformal_pvalue_block_matches_cyclic_shift_reference():
+    """The block p-value equals mean(obs <= stat over the T np.roll shifts)."""
+    import numpy as np
+    from mlsynth.utils.bilevel.ridge_inference import (
+        conformal_pvalue, _augmented_gaps, _stat,
+    )
+    y, Y0, pre = _conf_panel()
+    p = conformal_pvalue(y, Y0, pre, conformal_type="block")
+    resids = _augmented_gaps(y, Y0, None, None, {})
+    obs = _stat(resids[pre:], 1.0)
+    ref = np.array([_stat(np.roll(resids, s)[pre:], 1.0) for s in range(resids.shape[0])])
+    assert p == pytest.approx(float(np.mean(obs <= ref)))
+
+
+def test_conformal_pvalue_bad_type_raises():
+    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    y, Y0, pre = _conf_panel()
+    with pytest.raises(ValueError, match="conformal_type"):
+        conformal_pvalue(y, Y0, pre, conformal_type="bootstrap")

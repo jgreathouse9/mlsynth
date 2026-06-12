@@ -34,6 +34,7 @@ def run_simulations(
     q: float = 1.0,
     ns: int = 1000,
     seed: int = 0,
+    conformal_type: str = "iid",
 ) -> pd.DataFrame:
     """Run the simulation grid and stack the results into one long table.
 
@@ -88,7 +89,7 @@ def run_simulations(
             for sim in range(1, int(lookback_window) + 1):
                 for row in simulate_lookback(
                     treated, donors, n_periods, duration, sim, effect_sizes,
-                    augment=augment, q=q, ns=ns, seed=seed,
+                    augment=augment, q=q, ns=ns, seed=seed, conformal_type=conformal_type,
                 ):
                     row["candidate"] = candidate
                     records.append(row)

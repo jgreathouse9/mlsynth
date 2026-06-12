@@ -138,3 +138,13 @@ def test_simulate_lookback_simplex_path_runs():
                              augment=None, ns=20, seed=0)
     assert len(rows) == 2
     assert all(0.0 <= r["p_value"] <= 1.0 for r in rows)
+
+
+def test_simulate_lookback_block_conformal_seed_invariant():
+    """conformal_type='block' is deterministic -> p-values don't depend on seed."""
+    treated, Y0 = _sim_panel()
+    a = simulate_lookback(treated, Y0, 20, 4, 1, [0.0, 1.0],
+                          augment="ridge", ns=50, seed=0, conformal_type="block")
+    b = simulate_lookback(treated, Y0, 20, 4, 1, [0.0, 1.0],
+                          augment="ridge", ns=50, seed=777, conformal_type="block")
+    assert [r["p_value"] for r in a] == [r["p_value"] for r in b]

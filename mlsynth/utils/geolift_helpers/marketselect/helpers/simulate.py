@@ -54,6 +54,7 @@ def simulate_lookback(
     q: float = 1.0,
     ns: int = 1000,
     seed: int = 0,
+    conformal_type: str = "iid",
 ) -> List[dict]:
     """Simulate one lookback placement across a grid of effect sizes.
 
@@ -110,7 +111,7 @@ def simulate_lookback(
         treated_injected = inject_effect(treated_arr, start, end, es)
         p_value = conformal_pvalue(
             treated_injected, donors_arr, n_pre,
-            lambda_=fit.lambda_, q=q, ns=ns, seed=seed,
+            lambda_=fit.lambda_, q=q, ns=ns, seed=seed, conformal_type=conformal_type,
         )
         gap_post = (treated_injected - counterfactual)[start : end + 1]
         placebo_mean_effect = float(np.mean(gap_post))

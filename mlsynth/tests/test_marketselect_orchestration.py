@@ -74,6 +74,7 @@ from mlsynth.exceptions import MlsynthConfigError as _MCE
     ({"power_threshold": 0.0}, "power_threshold"),
     ({"how": "median"}, "how"),
     ({"augment": "lasso"}, "augment"),
+    ({"conformal_type": "bootstrap"}, "conformal_type"),
 ])
 def test_geolift_config_validation_branches(kwargs, msg):
     base = dict(df=_long_panel(), outcome="Y", unitid="unit", time="time",

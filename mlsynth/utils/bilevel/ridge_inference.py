@@ -35,6 +35,30 @@ def _stat(x: np.ndarray, q: float = 1.0) -> float:
     return float((np.sum(np.abs(x) ** q) / np.sqrt(x.size)) ** (1.0 / q))
 
 
+def _reference_stats(resids, post_slice, q, *, conformal_type, ns, seed):
+    """Reference statistics for the conformal test (augsynth's permutation set).
+
+    ``"iid"`` draws ``ns`` random permutations of the residual path;
+    ``"block"`` uses the ``T`` **cyclic shifts** of the path (the moving-block
+    scheme, ``resids[(0:T-1+j) %% T]`` in augsynth) -- deterministic, preserving
+    serial dependence. The post-block statistic is taken on ``post_slice`` of
+    each permuted/shifted path.
+    """
+    if conformal_type == "block":
+        n = resids.shape[0]
+        return np.array(
+            [_stat(np.roll(resids, s)[post_slice], q) for s in range(n)],
+            dtype=float,
+        )
+    if conformal_type == "iid":
+        rng = np.random.default_rng(seed)
+        return np.fromiter(
+            (_stat(rng.permutation(resids)[post_slice], q) for _ in range(ns)),
+            dtype=float, count=ns,
+        )
+    raise ValueError(f"conformal_type must be 'iid' or 'block'; got {conformal_type!r}.")
+
+
 def _augmented_gaps(
     y: np.ndarray,
     Y0: np.ndarray,
@@ -72,6 +96,7 @@ def conformal_pvalue(
     q: float = 1.0,
     ns: int = 1000,
     seed: Optional[int] = 0,
+    conformal_type: str = "iid",
     ridge_kwargs: Optional[Dict[str, Any]] = None,
 ) -> float:
     """Conformal p-value for the joint null of no post-treatment effect.
@@ -110,10 +135,8 @@ def conformal_pvalue(
         ridge_kwargs["lambda_"] = lambda_
     resids = _augmented_gaps(y, Y0, Z0, z1, ridge_kwargs)
     obs = _stat(resids[pre:], q)
-    rng = np.random.default_rng(seed)
-    perm = np.fromiter(
-        (_stat(rng.permutation(resids)[pre:], q) for _ in range(ns)),
-        dtype=float, count=ns,
+    perm = _reference_stats(
+        resids, slice(pre, None), q, conformal_type=conformal_type, ns=ns, seed=seed
     )
     return float(np.mean(obs <= perm))
 
@@ -160,6 +183,7 @@ def _period_pvalue(
     seed: Optional[int],
     ridge_kwargs: Dict[str, Any],
     warm_start: Optional[np.ndarray] = None,
+    conformal_type: str = "iid",
 ):
     """Conformal p-value for ``H0: tau_j = tau0`` at a single post period ``j``.
 
@@ -178,10 +202,8 @@ def _period_pvalue(
     resids, w_base = _augmented_gaps(y_fit, Y0_fit, Z0, z1, ridge_kwargs,
                                      warm_start=warm_start, return_base=True)
     obs = _stat(resids[-1:], q)
-    rng = np.random.default_rng(seed)
-    perm = np.fromiter(
-        (_stat(rng.permutation(resids)[-1:], q) for _ in range(ns)),
-        dtype=float, count=ns,
+    perm = _reference_stats(
+        resids, slice(-1, None), q, conformal_type=conformal_type, ns=ns, seed=seed
     )
     return float(np.mean(obs <= perm)), w_base
 
@@ -199,6 +221,7 @@ def conformal_intervals(
     ns: int = 1000,
     grid_size: int = 50,
     seed: Optional[int] = 0,
+    conformal_type: str = "iid",
     ridge_kwargs: Optional[Dict[str, Any]] = None,
 ) -> ConformalIntervals:
     """Per-period conformal confidence intervals by test inversion (Eq. 29).
@@ -241,7 +264,7 @@ def conformal_intervals(
         for gi, tau0 in enumerate(grid):
             ps[gi], w_prev = _period_pvalue(
                 y, Y0, pre, j, tau0, Z0, z1, q, ns, seed, ridge_kwargs,
-                warm_start=w_prev,
+                warm_start=w_prev, conformal_type=conformal_type,
             )
         kept = grid[ps >= alpha]
         if kept.size:
@@ -250,7 +273,8 @@ def conformal_intervals(
         pvals[k] = float(ps[grid == 0.0][0])
 
     joint_p = conformal_pvalue(
-        y, Y0, pre, Z0=Z0, z1=z1, q=q, ns=ns, seed=seed, ridge_kwargs=ridge_kwargs
+        y, Y0, pre, Z0=Z0, z1=z1, q=q, ns=ns, seed=seed,
+        conformal_type=conformal_type, ridge_kwargs=ridge_kwargs,
     )
     return ConformalIntervals(
         periods=post, att=att, lower=lower, upper=upper,
