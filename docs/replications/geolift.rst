@@ -40,24 +40,46 @@ Incremental Y (summed)         ``4667``
 Conformal p-value              ``0.01``
 ============================  =================
 
-``mlsynth`` reproduces this with ``fixed_effects=True`` (the default):
+The walkthrough's public call (``GeoLift`` names the locations and the post
+window — it is an *analysis* of a given test region, not a market search):
+
+.. code-block:: r
+
+   GeoLift_Test <- GeoLift(Y_id = "Y", data = GeoTestData_Test,
+                           locations = c("chicago", "portland"),
+                           treatment_start_time = 91, treatment_end_time = 105)
+   summary(GeoLift_Test)   # ATT 155.556, Lift 5.4%, Incremental 4667, p 0.01
+
+``mlsynth`` reaches the same numbers through its **public estimator** —
+``GEOLIFT(...).fit()`` with ``fixed_effects=True`` (the default). The estimator is
+a market-selection *design*, so the two markets are pinned with ``to_be_treated``
++ ``treatment_size`` (the only candidate of that size) and the post window is
+marked by ``post_col``; ``res.report`` is the realized effect report — the
+analogue of ``summary(GeoLift_Test)``:
 
 .. code-block:: python
 
    import pandas as pd
-   from mlsynth.utils.datautils import geoex_dataprep
-   from mlsynth.utils.geolift_helpers.marketselect.realize import realize_design
+   from mlsynth import GEOLIFT
 
    df = pd.read_csv("basedata/geolift_test_data.csv")          # GeoLift_Test
-   Ywide = geoex_dataprep(df, "location", "date", "Y")["Ywide"]
-   rep = realize_design(Ywide, frozenset({"chicago", "portland"}), pre_periods=90,
-                        how="mean", augment="ridge", fixed_effects=True,
-                        ns=2000, seed=0, conformal_type="iid")
-   rep.effects.att          # 156.8  (GeoLift per-unit ATT 155.6)
-   rep.inference.p_value     # 0.011  (GeoLift 0.01)
+   dates = sorted(df["date"].unique())
+   df["post"] = df["date"].isin(set(dates[90:])).astype(int)   # days 91-105
+
+   res = GEOLIFT({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "treatment_size": 2, "to_be_treated": ["chicago", "portland"],
+       "durations": [15], "effect_sizes": [0.0, 0.10], "post_col": "post",
+       "how": "mean", "fixed_effects": True, "display_graphs": False,
+   }).fit()
+
+   res.selected_units            # ['chicago', 'portland']
+   res.report.effects.att        # 156.8  (GeoLift per-unit ATT 155.6)
+   res.report.inference.p_value  # 0.011  (GeoLift 0.01)
    # how="sum" reports the summed incremental: ATT 313.6/period, p identical.
 
-Pinned in ``mlsynth/tests/test_geolift_walkthrough.py``.
+Pinned end-to-end through the public API in ``benchmarks/cases/geolift.py``
+(``geolift_walkthrough``) and ``mlsynth/tests/test_geolift_walkthrough.py``.
 
 What it took to match — the four ingredients
 --------------------------------------------
