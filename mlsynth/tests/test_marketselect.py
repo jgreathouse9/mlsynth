@@ -8,7 +8,10 @@ from mlsynth.utils.geolift_helpers.marketselect.helpers.similarity import (
     correlation_matrix,
     rank_markets_by_correlation,
 )
-from mlsynth.exceptions import MlsynthDataError
+from mlsynth.utils.geolift_helpers.marketselect.helpers.candidates import (
+    generate_candidate_markets,
+)
+from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 
 
 def planted_panel():
@@ -133,3 +136,112 @@ def test_rank_markets_too_few_units_raises():
     Ywide = planted_panel()[["A"]]
     with pytest.raises(MlsynthDataError, match="at least 2"):
         rank_markets_by_correlation(Ywide)
+
+
+# === generate_candidate_markets (Function 2) ===
+
+def test_candidates_smoke_deterministic():
+    """End-to-end: deterministic N=2 -> list of size-2 frozensets."""
+    ranked = rank_markets_by_correlation(planted_panel())
+    out = generate_candidate_markets(ranked, 2)
+    assert isinstance(out, list)
+    assert all(isinstance(s, frozenset) for s in out)
+    assert all(len(s) == 2 for s in out)
+
+
+def test_candidates_deterministic_is_anchor_plus_top_neighbors():
+    """Each anchor's set = {anchor} + its top (N-1) ranked neighbors."""
+    ranked = rank_markets_by_correlation(planted_panel())
+    N = 3
+    out = generate_candidate_markets(ranked, N)
+    for anchor in ranked.index:
+        expected = frozenset([anchor, *ranked.loc[anchor].iloc[: N - 1]])
+        assert expected in out
+
+
+def test_candidates_size_equals_treatment_size():
+    ranked = rank_markets_by_correlation(planted_panel())
+    for N in (1, 2, 3):
+        out = generate_candidate_markets(ranked, N)
+        assert all(len(s) == N for s in out)
+
+
+def test_candidates_members_are_valid_units():
+    Ywide = planted_panel()
+    ranked = rank_markets_by_correlation(Ywide)
+    units = set(Ywide.columns)
+    for s in generate_candidate_markets(ranked, 2):
+        assert s <= units
+
+
+def test_candidates_deduplicates_mutual_pairs():
+    """When two anchors are each other's closest, {A,B} appears once."""
+    t = np.arange(1, 9, dtype=float)
+    Ywide = pd.DataFrame(
+        {"A": t, "B": 2 * t, "C": t ** 2, "D": np.cos(t)},
+        index=pd.Index(range(1, 9), name="time"),
+    )
+    Ywide.columns.name = "unit"
+    ranked = rank_markets_by_correlation(Ywide)
+    out = generate_candidate_markets(ranked, 2)
+    assert sum(1 for s in out if s == frozenset(["A", "B"])) == 1
+
+
+def test_candidates_n1_singletons():
+    """N=1 deterministic -> exactly one singleton per unit."""
+    Ywide = planted_panel()
+    ranked = rank_markets_by_correlation(Ywide)
+    out = generate_candidate_markets(ranked, 1)
+    assert set(out) == {frozenset([u]) for u in Ywide.columns}
+
+
+def test_candidates_stochastic_global_seeded_reproducible():
+    ranked = rank_markets_by_correlation(planted_panel())
+    a = generate_candidate_markets(ranked, 2, run_stochastic=True, rng=0)
+    b = generate_candidate_markets(ranked, 2, run_stochastic=True, rng=0)
+    assert a == b
+    assert all(len(s) == 2 for s in a)
+
+
+def test_candidates_stochastic_per_anchor_runs_and_sizes():
+    ranked = rank_markets_by_correlation(planted_panel())
+    out = generate_candidate_markets(
+        ranked, 2, run_stochastic=True, stochastic_mode="per_anchor", rng=1
+    )
+    assert all(len(s) == 2 for s in out)
+    assert all(isinstance(s, frozenset) for s in out)
+
+
+def test_candidates_accepts_generator_object():
+    """rng may be a pre-built numpy Generator, not just a seed."""
+    ranked = rank_markets_by_correlation(planted_panel())
+    out = generate_candidate_markets(
+        ranked, 2, run_stochastic=True, rng=np.random.default_rng(7)
+    )
+    assert all(len(s) == 2 for s in out)
+
+
+def test_candidates_deterministic_too_large_raises():
+    ranked = rank_markets_by_correlation(planted_panel())  # 4 units
+    with pytest.raises(MlsynthConfigError, match="exceed"):
+        generate_candidate_markets(ranked, 5)
+
+
+def test_candidates_stochastic_over_half_raises():
+    ranked = rank_markets_by_correlation(planted_panel())  # 4 units -> N <= 2
+    with pytest.raises(MlsynthConfigError, match="half"):
+        generate_candidate_markets(ranked, 3, run_stochastic=True)
+
+
+def test_candidates_treatment_size_below_one_raises():
+    ranked = rank_markets_by_correlation(planted_panel())
+    with pytest.raises(MlsynthConfigError, match="must be >= 1"):
+        generate_candidate_markets(ranked, 0)
+
+
+def test_candidates_invalid_stochastic_mode_raises():
+    ranked = rank_markets_by_correlation(planted_panel())
+    with pytest.raises(MlsynthConfigError, match="stochastic_mode"):
+        generate_candidate_markets(
+            ranked, 2, run_stochastic=True, stochastic_mode="bogus"
+        )
