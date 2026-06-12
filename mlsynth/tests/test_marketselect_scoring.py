@@ -10,6 +10,9 @@ from mlsynth.utils.geolift_helpers.marketselect.helpers.shaping import (
     aggregate_treated,
     donor_matrix,
 )
+from mlsynth.utils.geolift_helpers.marketselect.helpers.diagnostics import (
+    scaled_l2_imbalance,
+)
 from mlsynth.utils.datautils import geoex_dataprep
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 
@@ -203,3 +206,51 @@ def test_shaping_composes_with_geoex_dataprep():
     assert list(donors.columns) == ["C", "D"]
     # the window helper keys off the same n_periods
     assert lookback_pre_periods(n_periods, 2, 1) == n_periods - 2
+
+
+# === scaled_l2_imbalance ===
+
+def test_scaled_l2_equals_one_at_uniform_weights():
+    X0 = np.array([[1.0, 3], [2, 5], [4, 9]])
+    X1 = np.array([2.0, 4, 7])
+    assert scaled_l2_imbalance(X1, X0, [0.5, 0.5]) == pytest.approx(1.0)
+
+
+def test_scaled_l2_zero_at_perfect_fit():
+    X0 = np.array([[1.0, 3], [2, 5], [4, 9]])
+    w = np.array([0.25, 0.75])
+    X1 = X0 @ w
+    assert scaled_l2_imbalance(X1, X0, w) == pytest.approx(0.0)
+
+
+def test_scaled_l2_matches_formula():
+    X0 = np.array([[1.0, 3], [2, 5], [4, 9]])
+    X1 = np.array([2.0, 4, 7])
+    w = np.array([1.0, 0.0])
+    num = float(np.linalg.norm(X0 @ w - X1))
+    den = float(np.linalg.norm(X0 @ np.full(2, 0.5) - X1))
+    assert scaled_l2_imbalance(X1, X0, w) == pytest.approx(num / den)
+
+
+def test_scaled_l2_degenerate_denominator_is_nan():
+    X0 = np.array([[1.0, 3], [2, 5], [4, 9]])
+    X1 = X0 @ np.full(2, 0.5)                 # uniform average exactly -> denom 0
+    assert np.isnan(scaled_l2_imbalance(X1, X0, [1.0, 0.0]))
+
+
+def test_scaled_l2_weights_shape_mismatch_raises():
+    X0 = np.array([[1.0, 3], [2, 5], [4, 9]])
+    X1 = np.array([2.0, 4, 7])
+    with pytest.raises(MlsynthConfigError, match="weights"):
+        scaled_l2_imbalance(X1, X0, [1.0, 0.0, 0.0])
+
+
+def test_scaled_l2_treated_length_mismatch_raises():
+    X0 = np.array([[1.0, 3], [2, 5], [4, 9]])
+    with pytest.raises(MlsynthConfigError, match="treated_pre"):
+        scaled_l2_imbalance(np.array([2.0, 4]), X0, [0.5, 0.5])
+
+
+def test_scaled_l2_donor_not_2d_raises():
+    with pytest.raises(MlsynthConfigError, match="2-D"):
+        scaled_l2_imbalance(np.array([1.0, 2, 3]), np.array([1.0, 2, 3]), [1.0])
