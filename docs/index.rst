@@ -234,7 +234,6 @@ headline numbers.
 
    lexscm
    marex
-   geolift
    syndes
    pangeo
    spcd
