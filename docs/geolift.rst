@@ -390,12 +390,17 @@ post period.
 Verification
 ------------
 
-GeoLift's market-selection routine has no published empirical benchmark or Monte
-Carlo table, so there is no Path-A/Path-B replication. ``GEOLIFT`` is a **faithful
-port** of the methodology (Stages 1–4), validated end-to-end on GeoLift's own
-example data, with each documented divergence (mean aggregation, the CV-once
-optimization *proven exact*, the corrected per-anchor RNG) available as an opt-in,
-tested swap.
+The realized effect report is **cross-validated against GeoLift/augsynth
+value-for-value** on the package's own ``GeoLift_Walkthrough`` example: with
+``fixed_effects=True`` (the default), ``GEOLIFT`` reproduces the walkthrough's
+per-unit ATT (155.6), percent lift (5.4%), summed incremental (4667), and
+conformal p-value (0.01). See :doc:`replications/geolift` for the four
+ingredients required to match (unit fixed effects, mean-of-units fit target, the
+all-period conformal refit, and augsynth's period-space ridge ASCM) and the
+calibration/placebo evidence behind them. The market-*selection* stages (no
+published table) remain a **faithful port** validated end-to-end on GeoLift's own
+data, with each documented divergence (the CV-once optimization *proven exact*,
+the corrected per-anchor RNG) available as an opt-in, tested swap.
 
 .. [BMFR2021] Ben-Michael, E., Feller, A., & Rothstein, J. (2021). The Augmented
    Synthetic Control Method. *Journal of the American Statistical Association*.

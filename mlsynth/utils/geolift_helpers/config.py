@@ -52,6 +52,13 @@ class GeoLiftConfig(BaseMAREXConfig):
     augment: Optional[str] = Field(
         default="ridge", description="Point-fit estimator: 'ridge' (ASCM) or None (simplex)."
     )
+    fixed_effects: bool = Field(
+        default=True,
+        description="Unit fixed effects (augsynth/GeoLift 'fixed_effects=TRUE', the "
+        "default): demean every unit by its own pre-period mean before fitting. With "
+        "the mean-of-units treated aggregate this reproduces augsynth's effect "
+        "estimate and conformal p-value.",
+    )
     alpha: float = Field(default=0.1, description="Significance level for detection.")
     power_threshold: float = Field(default=0.8, description="Power needed to 'detect' an effect (MDE).")
     ns: int = Field(default=1000, description="Conformal permutation count (iid only).")

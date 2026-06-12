@@ -97,6 +97,7 @@ def conformal_pvalue(
     ns: int = 1000,
     seed: Optional[int] = 0,
     conformal_type: str = "iid",
+    fixed_effects: bool = False,
     ridge_kwargs: Optional[Dict[str, Any]] = None,
 ) -> float:
     """Conformal p-value for the joint null of no post-treatment effect.
@@ -122,6 +123,11 @@ def conformal_pvalue(
         Number of i.i.d. residual permutations (augsynth default ``1000``).
     seed : int, optional
         RNG seed for the permutations.
+    fixed_effects : bool, default False
+        Unit fixed effects (augsynth ``fixed_effects=TRUE``): demean every unit
+        by its mean over the full matching window before the refit, so the donor
+        pool cannot absorb a post-period level shift. Use the same value as the
+        point fit.
     ridge_kwargs : dict, optional
         Other hyper-parameters forwarded to :func:`ridge_augment_weights`.
 
@@ -133,6 +139,14 @@ def conformal_pvalue(
     ridge_kwargs = dict(ridge_kwargs or {})
     if lambda_ is not None:
         ridge_kwargs["lambda_"] = lambda_
+    y = np.asarray(y, dtype=float)
+    Y0 = np.asarray(Y0, dtype=float)
+    if fixed_effects:
+        # augsynth's conformal refit (``cbind(X, y)`` then ``fixedeff``) demeans
+        # every unit by its mean over the *whole* matching window -- here the
+        # full path -- so the donor pool cannot absorb a post-period level shift.
+        y = y - y.mean()
+        Y0 = Y0 - Y0.mean(axis=0)
     resids = _augmented_gaps(y, Y0, Z0, z1, ridge_kwargs)
     obs = _stat(resids[pre:], q)
     perm = _reference_stats(
@@ -184,6 +198,7 @@ def _period_pvalue(
     ridge_kwargs: Dict[str, Any],
     warm_start: Optional[np.ndarray] = None,
     conformal_type: str = "iid",
+    fixed_effects: bool = False,
 ):
     """Conformal p-value for ``H0: tau_j = tau0`` at a single post period ``j``.
 
@@ -199,6 +214,10 @@ def _period_pvalue(
     y_fit = y[idx].copy()
     y_fit[-1] -= tau0
     Y0_fit = Y0[idx]
+    if fixed_effects:
+        # demean by the mean over this matching window (augsynth fixedeff refit)
+        y_fit = y_fit - y_fit.mean()
+        Y0_fit = Y0_fit - Y0_fit.mean(axis=0)
     resids, w_base = _augmented_gaps(y_fit, Y0_fit, Z0, z1, ridge_kwargs,
                                      warm_start=warm_start, return_base=True)
     obs = _stat(resids[-1:], q)
@@ -222,6 +241,7 @@ def conformal_intervals(
     grid_size: int = 50,
     seed: Optional[int] = 0,
     conformal_type: str = "iid",
+    fixed_effects: bool = False,
     ridge_kwargs: Optional[Dict[str, Any]] = None,
 ) -> ConformalIntervals:
     """Per-period conformal confidence intervals by test inversion (Eq. 29).
@@ -242,9 +262,19 @@ def conformal_intervals(
     # Point effect from the standard pre-period ASCM fit -- the same
     # counterfactual that is plotted -- so the inversion interval is centered on
     # (and contains) it. The earlier all-period refit over-fits the post period,
-    # collapsing the gaps toward zero and mis-centering the search grid.
-    ra = ridge_augment_weights(y[:pre], Y0[:pre], Z0=Z0, z1=z1, **ridge_kwargs)
-    gap_full = y - Y0 @ ra.W
+    # collapsing the gaps toward zero and mis-centering the search grid. Under
+    # fixed effects, demean each unit by its pre-period mean and restore the
+    # level (the residual gap is invariant to the treated mean), mirroring
+    # ``fit_augsynth_once(fixed_effects=True)``.
+    if fixed_effects:
+        y_pre_m = y[:pre].mean()
+        Y0_pre_m = Y0[:pre].mean(axis=0)
+        ra = ridge_augment_weights(y[:pre] - y_pre_m, Y0[:pre] - Y0_pre_m,
+                                   Z0=Z0, z1=z1, **ridge_kwargs)
+        gap_full = (y - y_pre_m) - (Y0 - Y0_pre_m) @ ra.W
+    else:
+        ra = ridge_augment_weights(y[:pre], Y0[:pre], Z0=Z0, z1=z1, **ridge_kwargs)
+        gap_full = y - Y0 @ ra.W
     att = gap_full[pre:]
     # Grid width from the noise scale (pre-period RMSE), wide enough to bracket
     # the non-rejected region around each period's point effect.
@@ -265,6 +295,7 @@ def conformal_intervals(
             ps[gi], w_prev = _period_pvalue(
                 y, Y0, pre, j, tau0, Z0, z1, q, ns, seed, ridge_kwargs,
                 warm_start=w_prev, conformal_type=conformal_type,
+                fixed_effects=fixed_effects,
             )
         kept = grid[ps >= alpha]
         if kept.size:
@@ -274,7 +305,8 @@ def conformal_intervals(
 
     joint_p = conformal_pvalue(
         y, Y0, pre, Z0=Z0, z1=z1, q=q, ns=ns, seed=seed,
-        conformal_type=conformal_type, ridge_kwargs=ridge_kwargs,
+        conformal_type=conformal_type, fixed_effects=fixed_effects,
+        ridge_kwargs=ridge_kwargs,
     )
     return ConformalIntervals(
         periods=post, att=att, lower=lower, upper=upper,
