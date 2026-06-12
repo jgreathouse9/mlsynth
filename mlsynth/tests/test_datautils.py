@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from numpy.testing import assert_array_almost_equal
 from mlsynth.utils.datautils import dataprep, geoex_dataprep, balance, logictreat, clean_surrogates2, proxy_dataprep
-from mlsynth.exceptions import MlsynthDataError
+from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 
 # === Test Data Functions===
 
@@ -433,3 +433,66 @@ def test_geoex_dataprep_duplicate_rows_raise():
     df = pd.concat([make_untreated_panel(), make_untreated_panel().iloc[[0]]])
     with pytest.raises(MlsynthDataError, match="Duplicate"):
         geoex_dataprep(df, 'unit', 'time', 'outcome')
+
+
+# === geoex_dataprep post_col (pre/post split) ===
+
+def make_post_panel():
+    """Balanced panel with a post indicator: pre = times 1-3, post = 4-5."""
+    post = {1: 0, 2: 0, 3: 0, 4: 1, 5: 1}
+    offset = {'A': 0, 'B': 10, 'C': 20}
+    rows = [{'unit': u, 'time': t, 'outcome': float(t + off), 'post': post[t]}
+            for u, off in offset.items() for t in (1, 2, 3, 4, 5)]
+    return pd.DataFrame(rows)
+
+
+def test_geoex_dataprep_post_col_matches_pre_only_panel():
+    """Same pre-period design panel with post_col present or a pre-only panel."""
+    full = make_post_panel()
+    out_post = geoex_dataprep(full, 'unit', 'time', 'outcome', post_col='post')
+    pre_only = full[full['post'] == 0].drop(columns='post')
+    out_pre = geoex_dataprep(pre_only, 'unit', 'time', 'outcome')
+    assert out_post["Ywide"].equals(out_pre["Ywide"])
+    assert out_post["n_periods"] == out_pre["n_periods"] == 3
+    assert list(out_post["time_labels"]) == [1, 2, 3]
+    assert out_post["pre_periods"] == 3
+
+
+def test_geoex_dataprep_post_col_slices_to_pre_and_labels():
+    out = geoex_dataprep(make_post_panel(), 'unit', 'time', 'outcome', post_col='post')
+    assert out["Ywide"].shape == (3, 3)
+    assert list(out["Ywide"].index) == [1, 2, 3]
+    assert out["post_col"] == 'post'
+    assert out["pre_periods"] == out["n_periods"] == 3
+
+
+def test_geoex_dataprep_no_post_col_is_all_pre():
+    out = geoex_dataprep(make_untreated_panel(), 'unit', 'time', 'outcome')
+    assert out["pre_periods"] == out["n_periods"]
+    assert out["post_col"] is None
+
+
+def test_geoex_dataprep_post_col_missing_raises():
+    with pytest.raises(MlsynthDataError, match="post_col"):
+        geoex_dataprep(make_post_panel(), 'unit', 'time', 'outcome', post_col='nope')
+
+
+def test_geoex_dataprep_post_col_all_post_raises():
+    df = make_post_panel()
+    df['post'] = 1
+    with pytest.raises(MlsynthConfigError, match="no pre-period"):
+        geoex_dataprep(df, 'unit', 'time', 'outcome', post_col='post')
+
+
+def test_geoex_dataprep_post_col_noncontiguous_raises():
+    df = make_post_panel()
+    df.loc[df['time'] == 2, 'post'] = 1        # post at t=2, pre again at t=3
+    with pytest.raises(MlsynthConfigError, match="contiguous"):
+        geoex_dataprep(df, 'unit', 'time', 'outcome', post_col='post')
+
+
+def test_geoex_dataprep_post_col_nan_raises():
+    df = make_post_panel()
+    df.loc[df['time'] == 3, 'post'] = np.nan
+    with pytest.raises(MlsynthDataError, match="defined for every"):
+        geoex_dataprep(df, 'unit', 'time', 'outcome', post_col='post')
