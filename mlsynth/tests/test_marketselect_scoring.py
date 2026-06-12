@@ -1,11 +1,28 @@
 import pytest
 import numpy as np
+import pandas as pd
 
 from mlsynth.utils.geolift_helpers.marketselect.helpers.windows import (
     lookback_pre_periods,
     lookback_treatment_window,
 )
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.utils.geolift_helpers.marketselect.helpers.shaping import (
+    aggregate_treated,
+    donor_matrix,
+)
+from mlsynth.utils.datautils import geoex_dataprep
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+
+
+def _panel():
+    """A small balanced wide panel (6 periods, 4 units)."""
+    t = np.arange(1, 7, dtype=float)
+    Ywide = pd.DataFrame(
+        {"A": t, "B": 2 * t, "C": t + 5, "D": -t},
+        index=pd.Index(range(1, 7), name="time"),
+    )
+    Ywide.columns.name = "unit"
+    return Ywide
 
 
 # === lookback_pre_periods ===
@@ -79,3 +96,110 @@ def test_treatment_window_sim1_ends_at_last_period():
 def test_treatment_window_inherits_off_start_guard():
     with pytest.raises(MlsynthConfigError, match="runs off the start"):
         lookback_treatment_window(5, 4, 2)
+
+
+# === aggregate_treated ===
+
+def test_aggregate_treated_sum_smoke():
+    Y = _panel()
+    s = aggregate_treated(Y, frozenset(["A", "B"]))
+    assert isinstance(s, pd.Series)
+    assert len(s) == 6
+    assert s.index.equals(Y.index)
+    np.testing.assert_allclose(s.to_numpy(), (Y["A"] + Y["B"]).to_numpy())
+
+
+def test_aggregate_treated_mean():
+    Y = _panel()
+    s = aggregate_treated(Y, frozenset(["A", "B"]), how="mean")
+    np.testing.assert_allclose(s.to_numpy(), ((Y["A"] + Y["B"]) / 2).to_numpy())
+
+
+def test_aggregate_treated_sum_equals_mean_times_k():
+    Y = _panel()
+    cand = frozenset(["A", "B", "C"])
+    s = aggregate_treated(Y, cand, how="sum")
+    m = aggregate_treated(Y, cand, how="mean")
+    np.testing.assert_allclose(s.to_numpy(), m.to_numpy() * len(cand))
+
+
+def test_aggregate_treated_single_unit_sum_eq_mean():
+    Y = _panel()
+    s = aggregate_treated(Y, frozenset(["C"]), how="sum")
+    m = aggregate_treated(Y, frozenset(["C"]), how="mean")
+    np.testing.assert_allclose(s.to_numpy(), Y["C"].to_numpy())
+    np.testing.assert_allclose(m.to_numpy(), Y["C"].to_numpy())
+
+
+def test_aggregate_treated_invalid_how_raises():
+    with pytest.raises(MlsynthConfigError, match="sum.*mean"):
+        aggregate_treated(_panel(), frozenset(["A"]), how="median")
+
+
+def test_aggregate_treated_empty_candidate_raises():
+    with pytest.raises(MlsynthConfigError, match="at least one unit"):
+        aggregate_treated(_panel(), frozenset())
+
+
+def test_aggregate_treated_unknown_unit_raises():
+    with pytest.raises(MlsynthDataError, match="not found"):
+        aggregate_treated(_panel(), frozenset(["A", "Z"]))
+
+
+# === donor_matrix ===
+
+def test_donor_matrix_smoke():
+    Y = _panel()
+    D = donor_matrix(Y, frozenset(["A", "B"]))
+    assert isinstance(D, pd.DataFrame)
+    assert list(D.columns) == ["C", "D"]
+    assert D.shape == (6, 2)
+    assert D.index.equals(Y.index)
+
+
+def test_donor_matrix_excludes_candidate_preserves_order():
+    Y = _panel()
+    D = donor_matrix(Y, frozenset(["C"]))
+    assert list(D.columns) == ["A", "B", "D"]   # panel order, C removed
+
+
+def test_donor_matrix_no_donors_raises():
+    Y = _panel()
+    with pytest.raises(MlsynthDataError, match="No donor"):
+        donor_matrix(Y, frozenset(["A", "B", "C", "D"]))
+
+
+def test_donor_matrix_unknown_unit_raises():
+    with pytest.raises(MlsynthDataError, match="not found"):
+        donor_matrix(_panel(), frozenset(["Z"]))
+
+
+def test_donor_matrix_empty_candidate_raises():
+    with pytest.raises(MlsynthConfigError, match="at least one unit"):
+        donor_matrix(_panel(), frozenset())
+
+
+# === composition with geoex_dataprep (the real entry path) ===
+
+def test_shaping_composes_with_geoex_dataprep():
+    """Shaping + window helpers consume geoex_dataprep's canonical output."""
+    long_df = pd.DataFrame(
+        {
+            "unit": ["A"] * 6 + ["B"] * 6 + ["C"] * 6 + ["D"] * 6,
+            "time": list(range(6)) * 4,
+            "outcome": list(np.arange(1, 7))
+            + list(2 * np.arange(1, 7))
+            + list(np.arange(1, 7) + 5)
+            + list(-np.arange(1, 7.0)),
+        }
+    )
+    prep = geoex_dataprep(long_df, "unit", "time", "outcome")
+    Ywide, n_periods = prep["Ywide"], prep["n_periods"]
+
+    treated = aggregate_treated(Ywide, frozenset(["A", "B"]), how="mean")
+    donors = donor_matrix(Ywide, frozenset(["A", "B"]))
+
+    assert len(treated) == n_periods
+    assert list(donors.columns) == ["C", "D"]
+    # the window helper keys off the same n_periods
+    assert lookback_pre_periods(n_periods, 2, 1) == n_periods - 2
