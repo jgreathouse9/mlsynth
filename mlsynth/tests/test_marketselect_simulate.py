@@ -57,7 +57,7 @@ def test_simulate_lookback_smoke():
     rows = simulate_lookback(treated, Y0, 20, 4, 1, [0.0, 0.5],
                              augment="ridge", ns=30, seed=0)
     assert len(rows) == 2
-    keys = {"sim", "duration", "effect_size", "p_value", "att", "scaled_l2", "pre_rmspe"}
+    keys = {"sim", "duration", "effect_size", "p_value", "placebo_mean_effect", "scaled_l2", "pre_rmspe"}
     assert all(keys <= set(r) for r in rows)
     assert all(0.0 <= r["p_value"] <= 1.0 for r in rows)
     assert rows[0]["effect_size"] == 0.0 and rows[1]["effect_size"] == 0.5
@@ -71,11 +71,11 @@ def test_simulate_lookback_larger_effect_lowers_pvalue():
     assert rows[1]["p_value"] < rows[0]["p_value"]
 
 
-def test_simulate_lookback_att_grows_with_effect():
+def test_simulate_lookback_placebo_effect_grows_with_es():
     treated, Y0 = _sim_panel()
     rows = simulate_lookback(treated, Y0, 20, 4, 1, [0.0, 0.5],
                              augment="ridge", ns=30, seed=0)
-    assert rows[1]["att"] > rows[0]["att"]
+    assert rows[1]["placebo_mean_effect"] > rows[0]["placebo_mean_effect"]
 
 
 def test_simulate_lookback_metrics_constant_across_effects():

@@ -18,7 +18,7 @@ from .simulate import simulate_lookback
 
 _COLUMNS = [
     "candidate", "duration", "sim", "effect_size",
-    "p_value", "att", "scaled_l2", "pre_rmspe",
+    "p_value", "placebo_mean_effect", "scaled_l2", "pre_rmspe",
 ]
 
 
@@ -61,7 +61,7 @@ def run_simulations(
     -------
     pd.DataFrame
         Long-form table with columns ``candidate``, ``duration``, ``sim``,
-        ``effect_size``, ``p_value``, ``att``, ``scaled_l2``, ``pre_rmspe`` --
+        ``effect_size``, ``p_value``, ``placebo_mean_effect``, ``scaled_l2``, ``pre_rmspe`` --
         one row per (candidate, duration, sim, effect size).
 
     Raises

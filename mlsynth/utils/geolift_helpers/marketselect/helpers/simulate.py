@@ -6,7 +6,7 @@ injecting each onto the post block and computing a conformal p-value at the
 *fixed* penalty -- exactly augsynth's behaviour, minus GeoLift's redundant
 re-cross-validation. The fit-once point estimates (``scaled_l2``, ``pre_rmspe``)
 are identical across effect sizes; only the injected effect (hence the p-value
-and ATT) varies.
+and placebo_mean_effect) varies.
 """
 
 from typing import List, Optional
@@ -80,7 +80,7 @@ def simulate_lookback(
     -------
     list of dict
         One row per effect size with ``sim``, ``duration``, ``effect_size``,
-        ``p_value``, ``att``, ``scaled_l2``, ``pre_rmspe``.
+        ``p_value``, ``placebo_mean_effect``, ``scaled_l2``, ``pre_rmspe``.
 
     Raises
     ------
@@ -110,14 +110,14 @@ def simulate_lookback(
             treated_injected, donors_arr, n_pre,
             lambda_=fit.lambda_, q=q, ns=ns, seed=seed,
         )
-        att = float(np.mean((treated_injected - counterfactual)[start : end + 1]))
+        placebo_mean_effect = float(np.mean((treated_injected - counterfactual)[start : end + 1]))
         rows.append(
             {
                 "sim": sim,
                 "duration": duration,
                 "effect_size": float(es),
                 "p_value": float(p_value),
-                "att": att,
+                "placebo_mean_effect": placebo_mean_effect,
                 "scaled_l2": fit.scaled_l2,
                 "pre_rmspe": fit.pre_rmspe,
             }

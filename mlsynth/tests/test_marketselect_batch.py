@@ -23,7 +23,7 @@ def test_run_simulations_smoke_and_columns():
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 2 * 1 * 2 * 2                  # cands x durs x sims x es
     assert list(df.columns) == ["candidate", "duration", "sim", "effect_size",
-                                "p_value", "att", "scaled_l2", "pre_rmspe"]
+                                "p_value", "placebo_mean_effect", "scaled_l2", "pre_rmspe"]
     assert ((df["p_value"] >= 0) & (df["p_value"] <= 1)).all()
 
 
@@ -81,4 +81,4 @@ def test_run_simulations_no_candidates_returns_empty_framed():
                          effect_sizes=[0.0], ns=10, seed=0)
     assert df.empty
     assert list(df.columns) == ["candidate", "duration", "sim", "effect_size",
-                                "p_value", "att", "scaled_l2", "pre_rmspe"]
+                                "p_value", "placebo_mean_effect", "scaled_l2", "pre_rmspe"]
