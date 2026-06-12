@@ -59,3 +59,25 @@ def test_geolift_config_rejects_bad_treatment_size():
     with pytest.raises(MlsynthConfigError, match="treatment_size"):
         GeoLiftConfig(df=_long_panel(), outcome="Y", unitid="unit", time="time",
                       treatment_size=0, durations=[4], effect_sizes=[0.0])
+
+
+import pytest as _pytest
+from mlsynth.exceptions import MlsynthConfigError as _MCE
+
+
+@_pytest.mark.parametrize("kwargs,msg", [
+    ({"durations": []}, "durations"),
+    ({"durations": [0]}, "durations"),
+    ({"effect_sizes": []}, "effect_sizes"),
+    ({"lookback_window": 0}, "lookback_window"),
+    ({"alpha": 1.5}, "alpha"),
+    ({"power_threshold": 0.0}, "power_threshold"),
+    ({"how": "median"}, "how"),
+    ({"augment": "lasso"}, "augment"),
+])
+def test_geolift_config_validation_branches(kwargs, msg):
+    base = dict(df=_long_panel(), outcome="Y", unitid="unit", time="time",
+                treatment_size=2, durations=[4], effect_sizes=[0.0])
+    base.update(kwargs)
+    with _pytest.raises(_MCE, match=msg):
+        GeoLiftConfig(**base)

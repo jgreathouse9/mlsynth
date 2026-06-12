@@ -62,3 +62,17 @@ def test_plot_design_saves_file(tmp_path):
     out = tmp_path / "design.png"
     plot_design(_result(), save_path=str(out))
     assert out.exists()
+
+
+import pytest
+
+
+def test_plot_design_no_winner_raises():
+    search = MarketSelectSearch(shortlist=pd.DataFrame(), candidates=[], winner=None)
+    result = GEOLIFTResults(selected_units=None, search=search)
+    with pytest.raises(ValueError, match="no winning design"):
+        plot_design(result)
+
+
+def test_plot_design_show_true_is_noop_under_agg():
+    plot_design(_result(), show=True)   # Agg backend -> plt.show() is a no-op
