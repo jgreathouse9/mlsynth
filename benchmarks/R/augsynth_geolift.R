@@ -5,7 +5,9 @@
 # and emits a machine-parseable dump (LAMBDA / ATT / PVAL / W <name> <weight>)
 # for benchmarks/cases/geolift_augsynth_ref.py to cross-check mlsynth against.
 #
-# Install the reference once with benchmarks/R/install_augsynth.sh.
+# Reference pinned to augsynth 0.2.0 @ 7a90ea4 (frozen 2026-06-12); install with
+# benchmarks/R/install_augsynth.sh, which fixes every source-compiled dep to a
+# commit SHA so this reference is byte-reproducible run to run.
 suppressMessages({library(augsynth); library(dplyr)})
 
 args <- commandArgs(trailingOnly = TRUE)

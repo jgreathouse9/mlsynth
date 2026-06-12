@@ -9,10 +9,15 @@ panel -- the gold-standard cross-validation the replication contract asks for.
 It shells out to ``benchmarks/R/augsynth_geolift.R`` (install the reference once
 with ``benchmarks/R/install_augsynth.sh``) and compares the CV-selected ridge
 penalty, the donor weights, and the post-period ATT. mlsynth matches augsynth to
-floating-point on lambda (rel-diff ~1e-7), to ~5 decimals on every weight, and to
-4 sig figs on the ATT -- so the gaps are pinned near zero, not at the looser
+floating-point on lambda (rel-diff ~1e-11), to ~7 decimals on every weight, and
+to 4 sig figs on the ATT -- so the gaps are pinned near zero, not at the looser
 "published walkthrough" tolerances. (The vignette's printed ATT 155.556 is an
 older augsynth release; today's augsynth returns 156.8, which mlsynth reproduces.)
+
+The reference is **commit-pinned** -- the install script freezes augsynth (and
+every source-compiled dep) to a SHA -- so this is a stable timestamp, not a moving
+tip. Numbers below are augsynth ``0.2.0 @ 7a90ea4`` (frozen 2026-06-12); refresh
+by re-pinning ``install_augsynth.sh`` and updating ``EXPECTED``.
 
 Skips itself (``BenchmarkSkipped``) when ``Rscript`` or ``augsynth`` is absent, so
 it is a no-op in CI and runs only where the reference is installed.
