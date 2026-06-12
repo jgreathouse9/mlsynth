@@ -119,8 +119,13 @@ Donor weights (max ``Δ``)  13 non-zero           ``4.3e-7``
 
 Install the reference once with ``benchmarks/R/install_augsynth.sh`` (augsynth
 only — GeoLift's fit *is* augsynth, so the heavy ``MarketMatching`` → ``Boom``
-chain is not needed). The case skips itself when ``Rscript`` / ``augsynth`` is
-absent, so it is a no-op in CI and runs only where the reference is installed.
+chain is not needed). The install is **commit-pinned** — augsynth ``0.2.0 @
+7a90ea4`` and every source-compiled dependency frozen to a SHA (``S7``,
+``LiblineaR``, ``osqp``) as of 2026-06-12 — so the cross-check runs the *same*
+reference code every time, rather than a moving ``master`` tip (an unpinned tip
+is exactly the drift that staled the vignette's number). The case skips itself
+when ``Rscript`` / ``augsynth`` is absent, so it is a no-op in CI and runs only
+where the reference is installed.
 This is what licenses the strong claim above: ``mlsynth``'s ridge ASCM, its CV
 λ-selection (the 1-SE rule), and its fixed-effect conformal refit are not merely
 *close* to augsynth — they are the **same computation**, to ~7–11 significant
