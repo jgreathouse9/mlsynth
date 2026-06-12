@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 # Add `Literal` to the existing typing import:
 from typing import Optional, Dict, List, Tuple, Any, Literal
-from mlsynth.exceptions import MlsynthDataError
+from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
 
 # Constants for dictionary keys used in logictreat and dataprep
 KEY_NUM_TREATED_UNITS = "Num Treated Units"
@@ -542,6 +542,8 @@ def geoex_dataprep(
     unit_id_column_name: str,
     time_period_column_name: str,
     outcome_column_name: str,
+    *,
+    post_col: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Organize a balanced panel into a wide outcome matrix, *without*
     knowing who is treated.
@@ -567,11 +569,20 @@ def geoex_dataprep(
         Name of the column in ``df`` that identifies time periods.
     outcome_column_name : str
         Name of the column in ``df`` for the outcome variable.
+    post_col : str, optional
+        Name of a 0/1 column marking post-treatment time periods (à la MAREX /
+        lexscm). When supplied, the returned panel is **restricted to the
+        pre-treatment period** so the design reproduces identically whether the
+        caller hands over a full post-treatment panel (flagged by ``post_col``)
+        or a pre-only panel. ``None`` (default) treats every period as
+        pre-treatment.
 
     Returns
     -------
     Dict[str, Any]
-        A dictionary with the treatment-agnostic panel:
+        A dictionary with the treatment-agnostic panel. When ``post_col`` is
+        given, ``Ywide`` / ``Y`` / ``time_labels`` / ``n_units`` / ``n_periods``
+        describe the **pre-treatment slice only**:
 
         ``Ywide`` : pd.DataFrame
             Wide outcome matrix of shape ``(n_periods, n_units)``; the index is
@@ -586,14 +597,25 @@ def geoex_dataprep(
         ``n_units`` : int
             Number of units (columns).
         ``n_periods`` : int
-            Number of time periods (rows).
+            Number of time periods (rows) in the returned panel.
+        ``pre_periods`` : int
+            Number of pre-treatment periods (equals ``n_periods``; derived from
+            ``post_col`` when given, else the full panel length).
+        ``post_col`` : str or None
+            Echo of the ``post_col`` argument, so callers can tell whether the
+            panel was sliced to the pre-period.
 
     Raises
     ------
     MlsynthDataError
-        - If any of the named columns are absent from ``df``.
+        - If any of the named columns (including ``post_col``) are absent.
         - If the panel is not strongly balanced or contains duplicate
           unit-time observations (delegated to :func:`balance`).
+        - If ``post_col`` is undefined (NaN) for any time period.
+    MlsynthConfigError
+        - If ``post_col`` marks every period as post-treatment (no pre-period).
+        - If ``post_col``'s post periods are not a single contiguous block at
+          the end of the panel.
     """
     missing_columns = [
         column_name
@@ -617,6 +639,37 @@ def geoex_dataprep(
         values=outcome_column_name,
     )
 
+    # Optional pre/post split: restrict to the pre-period so the design is
+    # identical with a full post-treatment panel (flagged by ``post_col``) or a
+    # pre-only panel. Mirrors the MAREX / lexscm post_col handling.
+    if post_col is not None:
+        if post_col not in df.columns:
+            raise MlsynthDataError(f"post_col '{post_col}' is not present in df.")
+        post_by_time = (
+            df[[time_period_column_name, post_col]]
+            .drop_duplicates(subset=[time_period_column_name])
+            .set_index(time_period_column_name)[post_col]
+            .reindex(outcome_matrix_wide.index)
+        )
+        if post_by_time.isna().any():
+            raise MlsynthDataError(
+                "post_col must be defined for every time period in the panel."
+            )
+        post_mask = post_by_time.astype(bool).to_numpy()
+        if post_mask.all():
+            raise MlsynthConfigError(
+                "post_col marks every period as post-treatment; no pre-period."
+            )
+        pre_periods = int((~post_mask).sum())
+        if post_mask[:pre_periods].any() or not post_mask[pre_periods:].all():
+            raise MlsynthConfigError(
+                "post_col must mark a single contiguous block of post-treatment "
+                "periods at the end of the panel (all pre-periods first)."
+            )
+        outcome_matrix_wide = outcome_matrix_wide.iloc[:pre_periods]
+    else:
+        pre_periods = outcome_matrix_wide.shape[0]
+
     return {
         "Ywide": outcome_matrix_wide,
         "Y": outcome_matrix_wide.to_numpy(dtype=float),
@@ -624,6 +677,8 @@ def geoex_dataprep(
         "time_labels": outcome_matrix_wide.index,
         "n_units": outcome_matrix_wide.shape[1],
         "n_periods": outcome_matrix_wide.shape[0],
+        "pre_periods": pre_periods,
+        "post_col": post_col,
     }
 
 

@@ -245,3 +245,65 @@ def test_candidates_invalid_stochastic_mode_raises():
         generate_candidate_markets(
             ranked, 2, run_stochastic=True, stochastic_mode="bogus"
         )
+
+
+# === generate_candidate_markets: forced units (to_be_treated / not_to_be_treated) ===
+
+def test_candidates_to_be_treated_in_every_set():
+    ranked = rank_markets_by_correlation(planted_panel())   # units A, B, C, D
+    out = generate_candidate_markets(ranked, 3, to_be_treated={"A"})
+    assert all("A" in s for s in out)
+    assert all(len(s) == 3 for s in out)
+
+
+def test_candidates_forced_treated_plus_free_from_pool():
+    ranked = rank_markets_by_correlation(planted_panel())
+    out = generate_candidate_markets(ranked, 2, to_be_treated={"A"})
+    for s in out:
+        assert "A" in s and len(s) == 2
+        assert (s - {"A"}).issubset({"B", "C", "D"})
+
+
+def test_candidates_not_to_be_treated_never_appears():
+    ranked = rank_markets_by_correlation(planted_panel())
+    out = generate_candidate_markets(ranked, 2, not_to_be_treated={"C"})
+    assert all("C" not in s for s in out)
+    assert all(len(s) == 2 for s in out)
+
+
+def test_candidates_both_constraints():
+    ranked = rank_markets_by_correlation(planted_panel())
+    out = generate_candidate_markets(ranked, 2, to_be_treated={"A"}, not_to_be_treated={"C"})
+    for s in out:
+        assert "A" in s and "C" not in s and len(s) == 2
+        assert (s - {"A"}).issubset({"B", "D"})
+
+
+def test_candidates_to_be_treated_equals_treatment_size_single_set():
+    ranked = rank_markets_by_correlation(planted_panel())
+    out = generate_candidate_markets(ranked, 2, to_be_treated={"A", "B"})
+    assert out == [frozenset({"A", "B"})]
+
+
+def test_candidates_forced_unknown_unit_raises():
+    ranked = rank_markets_by_correlation(planted_panel())
+    with pytest.raises(MlsynthConfigError, match="not in the panel"):
+        generate_candidate_markets(ranked, 2, to_be_treated={"Z"})
+
+
+def test_candidates_forced_overlap_raises():
+    ranked = rank_markets_by_correlation(planted_panel())
+    with pytest.raises(MlsynthConfigError, match="both"):
+        generate_candidate_markets(ranked, 2, to_be_treated={"A"}, not_to_be_treated={"A"})
+
+
+def test_candidates_to_be_treated_exceeds_treatment_size_raises():
+    ranked = rank_markets_by_correlation(planted_panel())
+    with pytest.raises(MlsynthConfigError, match="cannot exceed treatment_size"):
+        generate_candidate_markets(ranked, 1, to_be_treated={"A", "B"})
+
+
+def test_candidates_free_pool_too_small_raises():
+    ranked = rank_markets_by_correlation(planted_panel())   # A, B, C, D
+    with pytest.raises(MlsynthConfigError, match="free pool"):
+        generate_candidate_markets(ranked, 3, not_to_be_treated={"C", "D"})

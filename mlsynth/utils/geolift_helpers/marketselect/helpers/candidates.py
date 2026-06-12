@@ -15,7 +15,7 @@ is irrelevant for a test region, and immutability makes whole-batch
 de-duplication a one-liner.
 """
 
-from typing import List, Optional, Union
+from typing import Iterable, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -32,10 +32,68 @@ def _as_generator(
     return np.random.default_rng(rng)
 
 
+def _generate_from_ranked(
+    ranked: pd.DataFrame,
+    n: int,
+    *,
+    run_stochastic: bool,
+    stochastic_mode: str,
+    rng: Optional[Union[int, np.random.Generator]],
+) -> List[frozenset]:
+    """Core generator: anchor + neighbours from a ranked table, no constraints.
+
+    Assumes ``n >= 1``. Used directly when there are no forced units, and on the
+    free-pool ranked table when there are.
+    """
+    anchors = ranked.index
+    num_units = len(anchors)
+
+    augmented = np.column_stack([anchors.to_numpy(), ranked.to_numpy()])
+
+    if not run_stochastic:
+        if n > num_units:
+            raise MlsynthConfigError(
+                f"treatment_size ({n}) cannot exceed the number of units "
+                f"({num_units}) in deterministic mode."
+            )
+        selected = augmented[:, :n]
+    else:
+        if stochastic_mode not in ("global", "per_anchor"):
+            raise MlsynthConfigError(
+                "stochastic_mode must be 'global' or 'per_anchor'; "
+                f"got {stochastic_mode!r}."
+            )
+        if 2 * n > num_units:
+            raise MlsynthConfigError(
+                f"treatment_size ({n}) must be <= half the number of units "
+                f"({num_units}) in stochastic mode."
+            )
+        generator = _as_generator(rng)
+        tier_base = 2 * np.arange(n)
+        if stochastic_mode == "global":
+            columns = tier_base + generator.integers(0, 2, size=n)
+            selected = augmented[:, columns]
+        else:  # per_anchor
+            coins = generator.integers(0, 2, size=(num_units, n))
+            columns = tier_base[None, :] + coins
+            selected = np.take_along_axis(augmented, columns, axis=1)
+
+    seen: set = set()
+    candidates: List[frozenset] = []
+    for row in selected:
+        candidate = frozenset(row.tolist())
+        if candidate not in seen:
+            seen.add(candidate)
+            candidates.append(candidate)
+    return candidates
+
+
 def generate_candidate_markets(
     ranked: pd.DataFrame,
     treatment_size: int,
     *,
+    to_be_treated: Optional[Iterable] = None,
+    not_to_be_treated: Optional[Iterable] = None,
     run_stochastic: bool = False,
     stochastic_mode: str = "global",
     rng: Optional[Union[int, np.random.Generator]] = None,
@@ -50,6 +108,13 @@ def generate_candidate_markets(
         cell holds a neighbor unit id (self excluded, descending correlation).
     treatment_size : int
         Number of markets ``N`` in each candidate test set (anchor included).
+    to_be_treated : iterable, optional
+        Units forced into **every** candidate test set (GeoLift's "include"
+        markets). The remaining ``N - len(to_be_treated)`` slots are filled from
+        the free pool. Must not exceed ``treatment_size``.
+    not_to_be_treated : iterable, optional
+        Units forbidden from **any** candidate (GeoLift's "exclude" markets);
+        they remain available as donors. Must be disjoint from ``to_be_treated``.
     run_stochastic : bool, default False
         If ``False`` (deterministic), each anchor's set is the anchor plus its
         top ``N - 1`` neighbors. If ``True``, the set is built by GeoLift's
@@ -80,54 +145,76 @@ def generate_candidate_markets(
         walk indexes up to position ``2N - 1``); or if ``stochastic_mode`` is
         not recognized.
     """
-    anchors = ranked.index
-    num_units = len(anchors)
     n = treatment_size
-
     if n < 1:
         raise MlsynthConfigError(f"treatment_size must be >= 1; got {n}.")
 
-    # Reconstruct GeoLift's per-anchor "similarity_matrix" row: the anchor at
-    # position 0, then its ranked neighbors. Shape (num_units, num_units).
-    augmented = np.column_stack([anchors.to_numpy(), ranked.to_numpy()])
+    units = set(ranked.index)
+    forced_in = frozenset(to_be_treated or ())
+    forced_out = frozenset(not_to_be_treated or ())
 
-    if not run_stochastic:
-        if n > num_units:
-            raise MlsynthConfigError(
-                f"treatment_size ({n}) cannot exceed the number of units "
-                f"({num_units}) in deterministic mode."
-            )
-        # Anchor + top (N-1) neighbors: the first N consecutive positions.
-        selected = augmented[:, :n]
-    else:
-        if stochastic_mode not in ("global", "per_anchor"):
-            raise MlsynthConfigError(
-                "stochastic_mode must be 'global' or 'per_anchor'; "
-                f"got {stochastic_mode!r}."
-            )
-        # The paired walk indexes positions up to 2N - 1.
-        if 2 * n > num_units:
-            raise MlsynthConfigError(
-                f"treatment_size ({n}) must be <= half the number of units "
-                f"({num_units}) in stochastic mode."
-            )
-        generator = _as_generator(rng)
-        tier_base = 2 * np.arange(n)  # positions {0,2,4,...}; pair is base+{0,1}
-        if stochastic_mode == "global":
-            columns = tier_base + generator.integers(0, 2, size=n)
-            selected = augmented[:, columns]
-        else:  # per_anchor
-            coins = generator.integers(0, 2, size=(num_units, n))
-            columns = tier_base[None, :] + coins
-            selected = np.take_along_axis(augmented, columns, axis=1)
+    unknown = (forced_in | forced_out) - units
+    if unknown:
+        raise MlsynthConfigError(
+            "to_be_treated/not_to_be_treated contain units not in the panel: "
+            f"{sorted(map(str, unknown))}."
+        )
+    overlap = forced_in & forced_out
+    if overlap:
+        raise MlsynthConfigError(
+            "units cannot be both to_be_treated and not_to_be_treated: "
+            f"{sorted(map(str, overlap))}."
+        )
+    if len(forced_in) > n:
+        raise MlsynthConfigError(
+            f"to_be_treated ({len(forced_in)}) cannot exceed treatment_size ({n})."
+        )
 
-    # Canonicalize each row into an order-independent set and de-duplicate,
-    # preserving first-seen order for a stable, reproducible result.
+    # No constraints: the plain anchor + neighbours generator.
+    if not (forced_in or forced_out):
+        return _generate_from_ranked(
+            ranked, n, run_stochastic=run_stochastic,
+            stochastic_mode=stochastic_mode, rng=rng,
+        )
+
+    # Forced-in units join every candidate; the remaining "free" slots are
+    # generated from the pool with both forced-in and forced-out units removed.
+    free_size = n - len(forced_in)
+    if free_size == 0:
+        return [frozenset(forced_in)]
+
+    excluded = forced_in | forced_out
+    free_pool = [u for u in ranked.index if u not in excluded]
+    if free_size > len(free_pool):
+        raise MlsynthConfigError(
+            f"free pool ({len(free_pool)}) too small for {free_size} free "
+            f"market(s) (treatment_size {n} minus {len(forced_in)} forced-in)."
+        )
+
+    # Restrict each anchor's neighbour list to the free pool (uniform length,
+    # since every unit appears in every original row), then generate + re-attach
+    # the forced-in units.
+    free_pool_set = set(free_pool)
+    rows = [
+        [neighbor for neighbor in ranked.loc[anchor].tolist()
+         if neighbor in free_pool_set]
+        for anchor in free_pool
+    ]
+    filtered_ranked = pd.DataFrame(
+        rows, index=pd.Index(free_pool, name=ranked.index.name)
+    )
+    filtered_ranked.columns = range(1, filtered_ranked.shape[1] + 1)
+
+    free_candidates = _generate_from_ranked(
+        filtered_ranked, free_size, run_stochastic=run_stochastic,
+        stochastic_mode=stochastic_mode, rng=rng,
+    )
+
     seen: set = set()
-    candidates: List[frozenset] = []
-    for row in selected:
-        candidate = frozenset(row.tolist())
+    out: List[frozenset] = []
+    for free in free_candidates:
+        candidate = forced_in | free
         if candidate not in seen:
             seen.add(candidate)
-            candidates.append(candidate)
-    return candidates
+            out.append(candidate)
+    return out
