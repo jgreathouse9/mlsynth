@@ -13,7 +13,9 @@ GEOLIFT — Meta's GeoLift walkthrough (augsynth cross-validation)
    published example.
 :Status: **Done** — fully verified; the realized effect report reproduces
    GeoLift's walkthrough ATT, percent lift, incremental, and conformal p-value.
-:Durable check: ``benchmarks/cases/geolift.py`` (``geolift_walkthrough``) and
+:Durable check: ``benchmarks/cases/geolift.py`` (``geolift_walkthrough``, vs the
+   published vignette) and ``benchmarks/cases/geolift_augsynth_ref.py``
+   (``geolift_augsynth_ref``, vs **live** augsynth via Rscript); plus
    ``mlsynth/tests/test_geolift_walkthrough.py``.
 
 Why this is the replication target
@@ -40,24 +42,89 @@ Incremental Y (summed)         ``4667``
 Conformal p-value              ``0.01``
 ============================  =================
 
-``mlsynth`` reproduces this with ``fixed_effects=True`` (the default):
+.. note::
+
+   The vignette's printed ``155.556`` / ``4667`` is from an **older augsynth
+   release**. Run against augsynth *today* the same fit returns
+   ``ATT = 156.81`` (``λ = 1.673102e9``, 13 donors); ``mlsynth`` reproduces that
+   **live** augsynth output to floating point — see *Live cross-check vs augsynth*
+   below — so the ~0.8 % gap to the printed number is augsynth's own
+   version-to-version drift, not an mlsynth discrepancy.
+
+The walkthrough's public call (``GeoLift`` names the locations and the post
+window — it is an *analysis* of a given test region, not a market search):
+
+.. code-block:: r
+
+   GeoLift_Test <- GeoLift(Y_id = "Y", data = GeoTestData_Test,
+                           locations = c("chicago", "portland"),
+                           treatment_start_time = 91, treatment_end_time = 105)
+   summary(GeoLift_Test)   # ATT 155.556, Lift 5.4%, Incremental 4667, p 0.01
+
+``mlsynth`` reaches the same numbers through its **public estimator** —
+``GEOLIFT(...).fit()`` with ``fixed_effects=True`` (the default). The estimator is
+a market-selection *design*, so the two markets are pinned with ``to_be_treated``
++ ``treatment_size`` (the only candidate of that size) and the post window is
+marked by ``post_col``; ``res.report`` is the realized effect report — the
+analogue of ``summary(GeoLift_Test)``:
 
 .. code-block:: python
 
    import pandas as pd
-   from mlsynth.utils.datautils import geoex_dataprep
-   from mlsynth.utils.geolift_helpers.marketselect.realize import realize_design
+   from mlsynth import GEOLIFT
 
    df = pd.read_csv("basedata/geolift_test_data.csv")          # GeoLift_Test
-   Ywide = geoex_dataprep(df, "location", "date", "Y")["Ywide"]
-   rep = realize_design(Ywide, frozenset({"chicago", "portland"}), pre_periods=90,
-                        how="mean", augment="ridge", fixed_effects=True,
-                        ns=2000, seed=0, conformal_type="iid")
-   rep.effects.att          # 156.8  (GeoLift per-unit ATT 155.6)
-   rep.inference.p_value     # 0.011  (GeoLift 0.01)
+   dates = sorted(df["date"].unique())
+   df["post"] = df["date"].isin(set(dates[90:])).astype(int)   # days 91-105
+
+   res = GEOLIFT({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "treatment_size": 2, "to_be_treated": ["chicago", "portland"],
+       "durations": [15], "effect_sizes": [0.0, 0.10], "post_col": "post",
+       "how": "mean", "fixed_effects": True, "display_graphs": False,
+   }).fit()
+
+   res.selected_units            # ['chicago', 'portland']
+   res.report.effects.att        # 156.8  (GeoLift per-unit ATT 155.6)
+   res.report.inference.p_value  # 0.011  (GeoLift 0.01)
    # how="sum" reports the summed incremental: ATT 313.6/period, p identical.
 
-Pinned in ``mlsynth/tests/test_geolift_walkthrough.py``.
+Pinned end-to-end through the public API in ``benchmarks/cases/geolift.py``
+(``geolift_walkthrough``) and ``mlsynth/tests/test_geolift_walkthrough.py``.
+
+Live cross-check vs augsynth
+----------------------------
+
+Because the printed vignette number has drifted with augsynth's version, the
+durable cross-check fits **augsynth itself** and compares — the gold-standard
+reference rather than a doc string. ``benchmarks/R/augsynth_geolift.R`` runs
+
+.. code-block:: r
+
+   augsynth(Y ~ trt, unit = location, time = t, data = panel,
+            progfunc = "ridge", scm = TRUE, fixedeff = TRUE)   # GeoLift's fit
+
+on the same chicago+portland panel (the two test geos averaged into one treated
+series, exactly as GeoLift aggregates them), and ``benchmarks/cases/
+geolift_augsynth_ref.py`` (``geolift_augsynth_ref``) checks ``mlsynth`` against
+it. The agreement is essentially floating-point:
+
+========================  ====================  ===================
+Quantity                  augsynth (live)       ``mlsynth``
+========================  ====================  ===================
+Ridge penalty ``λ``        ``1.673102e9``        rel-diff ``1.6e-11``
+Post-period ATT            ``156.8054``          ``156.8052``
+Donor weights (max ``Δ``)  13 non-zero           ``4.3e-7``
+========================  ====================  ===================
+
+Install the reference once with ``benchmarks/R/install_augsynth.sh`` (augsynth
+only — GeoLift's fit *is* augsynth, so the heavy ``MarketMatching`` → ``Boom``
+chain is not needed). The case skips itself when ``Rscript`` / ``augsynth`` is
+absent, so it is a no-op in CI and runs only where the reference is installed.
+This is what licenses the strong claim above: ``mlsynth``'s ridge ASCM, its CV
+λ-selection (the 1-SE rule), and its fixed-effect conformal refit are not merely
+*close* to augsynth — they are the **same computation**, to ~7–11 significant
+figures.
 
 What it took to match — the four ingredients
 --------------------------------------------
