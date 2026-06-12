@@ -52,8 +52,23 @@ napoleon_use_rtype = False
 
 latex_elements = {"preamble": r"\usepackage{mathtools}"}
 
-def setup(app):
-    app.add_js_file("static/custom_mathjax.js")
+# HTML math is rendered by MathJax (sphinx.ext.mathjax). MathJax v3 reads its
+# config from ``window.MathJax`` only at *load* time, so a config added via
+# ``app.add_js_file`` loads too late and is ignored (that is why ``\coloneqq``
+# and other mathtools macros rendered raw). ``mathjax3_config`` is injected by
+# Sphinx *before* the MathJax script, so the macros register correctly. Mirror
+# the LaTeX preamble's mathtools symbols here for HTML.
+mathjax3_config = {
+    "tex": {
+        "tags": "ams",
+        "inlineMath": [["$", "$"], ["\\(", "\\)"]],
+        "macros": {
+            # mathtools/unicode commands MathJax does not ship by default
+            "coloneqq": r"\mathrel{:=}",
+            "eqqcolon": r"\mathrel{=:}",
+        },
+    },
+}
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
