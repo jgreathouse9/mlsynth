@@ -65,6 +65,10 @@ class AugsynthFit:
         Scaled L2 imbalance of the fit (intercept-adjusted).
     augment : str or None
         The augmentation used (``"ridge"`` or ``None``).
+    lambda_ : float or None
+        The CV-selected ridge penalty (``augment="ridge"``); ``None`` for the
+        simplex fit. Reuse it for the conformal refits so they fix the penalty
+        instead of re-cross-validating (augsynth's behaviour).
     """
 
     weights: np.ndarray
@@ -73,6 +77,7 @@ class AugsynthFit:
     pre_rmspe: float
     scaled_l2: float
     augment: Optional[str]
+    lambda_: Optional[float] = None
 
     def predict(self, Y0) -> np.ndarray:
         """Counterfactual path ``intercept + Y0 @ weights`` over all rows of ``Y0``."""
@@ -141,4 +146,5 @@ def fit_augsynth_once(
         pre_rmspe=float(res.pre_rmspe),
         scaled_l2=float(scaled_l2_imbalance(A, B, W)),
         augment=augment,
+        lambda_=(float(res.lambda_) if res.lambda_ is not None else None),
     )

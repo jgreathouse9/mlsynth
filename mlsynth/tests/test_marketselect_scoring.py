@@ -355,3 +355,15 @@ def test_fit_augsynth_once_shape_mismatch_raises():
     y, Y0, _ = _synthesizable()
     with pytest.raises(MlsynthConfigError, match="Y0_pre"):
         fit_augsynth_once(y[:-1], Y0, augment="ridge")
+
+
+def test_fit_augsynth_once_ridge_exposes_lambda():
+    y, Y0, _ = _synthesizable()
+    fit = fit_augsynth_once(y, Y0, augment="ridge")
+    assert fit.lambda_ is not None and fit.lambda_ >= 0.0
+
+
+def test_fit_augsynth_once_simplex_lambda_none():
+    y, Y0, _ = _synthesizable()
+    fit = fit_augsynth_once(y, Y0, augment=None)
+    assert fit.lambda_ is None
