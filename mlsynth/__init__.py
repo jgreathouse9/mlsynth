@@ -42,6 +42,7 @@ from .estimators.snn import SNN
 from .estimators.mcnnm import MCNNM
 from .estimators.pangeo import PANGEO
 from .estimators.hsc import HSC
+from .estimators.geolift import GEOLIFT
 from .utils.spcd_helpers.plotter import (
     plot_spcd_design,
     plot_mde_bars,
@@ -54,6 +55,7 @@ __all__ = [
     "plot_mde_bars",
     "plot_power_curves",
     "plot_detectability",
+    "GEOLIFT",
     "HSC",
     "TSSC",
     "FMA",
