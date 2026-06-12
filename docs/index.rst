@@ -238,6 +238,8 @@ headline numbers.
    pangeo
    spcd
    musc
+   geolift
+   multicellgeolift
 
 .. toctree::
    :hidden:
