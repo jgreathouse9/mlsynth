@@ -8,13 +8,18 @@ Two estimators, selectable per fit:
 
 - ``augment="ridge"`` (default) -- Augmented SCM (augsynth). The bilevel engine
   centers per period by the donor mean internally, so the level is absorbed
-  into the weights; the wrapper intercept is ``0`` and the prediction is
-  ``Y0 @ W``.
+  into the weights; without fixed effects the wrapper intercept is ``0`` and
+  the prediction is ``Y0 @ W``.
 - ``augment=None`` -- plain simplex SCM **with an intercept**. The outcomes are
   centered by their own pre-period means, the simplex weights are fit on the
   centered data, and the prediction is ``intercept + Y0 @ W`` (the demeaned /
   fixed-effect SCM). Fitting on centered data means ``pre_rmspe`` and
   ``scaled_l2`` come out already intercept-adjusted.
+
+Orthogonally, ``fixed_effects=True`` (augsynth ``fixed_effects=TRUE``, GeoLift's
+default) applies the same per-unit pre-period demeaning + intercept add-back to
+the ``augment="ridge"`` path -- matching *shapes* not *levels*, so the donor pool
+cannot absorb a treated-unit level shift. The simplex path is always demeaned.
 """
 
 from dataclasses import dataclass
@@ -90,6 +95,7 @@ def fit_augsynth_once(
     *,
     augment: Optional[str] = "ridge",
     donor_names: Optional[List[str]] = None,
+    fixed_effects: bool = False,
 ) -> AugsynthFit:
     """Fit the synthetic control once on a pseudo-experiment's pre-period.
 
@@ -104,6 +110,14 @@ def fit_augsynth_once(
         intercept (demeaned SCM).
     donor_names : list of str, optional
         Donor labels (default ``donor_0 ...``).
+    fixed_effects : bool, default False
+        Unit fixed effects (augsynth ``fixed_effects=TRUE``): demean every unit
+        (treated and each donor) by its own pre-period mean before fitting, and
+        add the treated mean back in the prediction. This is what GeoLift uses by
+        default, and -- combined with a mean-of-units treated aggregate -- is what
+        reproduces augsynth's effect estimate and conformal p-value. The plain
+        simplex path (``augment=None``) is always demeaned (it *is* the
+        fixed-effect SCM), so this flag only changes the ``augment="ridge"`` path.
 
     Returns
     -------
@@ -127,17 +141,22 @@ def fit_augsynth_once(
     if donor_names is None:
         donor_names = [f"donor_{j}" for j in range(J)]
 
-    # Pick the matching matrices: raw for ridge (it centers internally), or
-    # mean-centered for the simplex-with-intercept path. Fitting on the centered
-    # matrices makes pre_rmspe / scaled_l2 already intercept-adjusted.
-    if augment == "ridge":
-        A, B = y, Y0
-    else:
+    # Unit fixed effects (augsynth fixedeff): demean each unit by its own
+    # pre-period mean and fit on the residuals, restoring the level with an
+    # intercept (``predict`` = ``intercept + Y0 @ W`` with the residual gap
+    # invariant to the treated mean). The simplex path is always demeaned -- it
+    # is the fixed-effect SCM -- so ``fixed_effects`` only switches the ridge
+    # path. Fitting on the centered matrices makes pre_rmspe / scaled_l2 already
+    # intercept-adjusted.
+    demean = fixed_effects or augment is None
+    if demean:
         A, B = y - y.mean(), Y0 - Y0.mean(axis=0)
+    else:
+        A, B = y, Y0
 
     res = BilevelSCM(augment=augment).fit(A, B, donor_names=donor_names)
     W = np.asarray(res.W, dtype=float)
-    intercept = 0.0 if augment == "ridge" else fit_intercept(y, Y0, W)
+    intercept = fit_intercept(y, Y0, W) if demean else 0.0
 
     return AugsynthFit(
         weights=W,

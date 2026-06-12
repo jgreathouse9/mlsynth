@@ -35,6 +35,7 @@ def run_simulations(
     ns: int = 1000,
     seed: int = 0,
     conformal_type: str = "iid",
+    fixed_effects: bool = False,
 ) -> pd.DataFrame:
     """Run the simulation grid and stack the results into one long table.
 
@@ -80,16 +81,20 @@ def run_simulations(
             f"lookback_window must be a positive integer; got {lookback_window!r}."
         )
 
+    # augsynth fixedeff fits the mean of the treated units; keep the simulation
+    # consistent with the realized report so power/MDE reflect the same model.
+    fit_how = "mean" if fixed_effects else how
     n_periods = Ywide.shape[0]
     records: List[dict] = []
     for candidate in candidates:
-        treated = aggregate_treated(Ywide, candidate, how=how)
+        treated = aggregate_treated(Ywide, candidate, how=fit_how)
         donors = donor_matrix(Ywide, candidate)
         for duration in durations:
             for sim in range(1, int(lookback_window) + 1):
                 for row in simulate_lookback(
                     treated, donors, n_periods, duration, sim, effect_sizes,
                     augment=augment, q=q, ns=ns, seed=seed, conformal_type=conformal_type,
+                    fixed_effects=fixed_effects,
                 ):
                     row["candidate"] = candidate
                     records.append(row)

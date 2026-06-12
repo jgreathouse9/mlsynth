@@ -61,6 +61,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/scmo
    replications/rescm
    replications/linf
+   replications/geolift
 
 .. _replications-canonical:
 
@@ -580,6 +581,17 @@ Experimental design
   for the single-treated-unit design falling to :math:`\approx 0.16` at
   :math:`m=2` (Table-2 monotonicity).
   → dedicated page: :doc:`replications/lexscm`.
+* :doc:`geolift` -- Meta's GeoLift market-selection design (augsynth
+  Augmented SCM + conformal inference). **Cross-validation vs**
+  ``GeoLift``/``augsynth``\ **:** the ``GeoLift_Walkthrough`` realized report
+  reproduced value-for-value with ``fixed_effects=True`` -- per-unit ATT
+  155.6, percent lift 5.4%, summed incremental 4667, conformal
+  :math:`p = 0.01`. The match needs unit fixed effects (per-unit demeaning),
+  a mean-of-units fit target, the all-period conformal refit, and augsynth's
+  period-space ridge ASCM; the conformal test is shown calibrated by a
+  40-market placebo study.
+  → dedicated page: :doc:`replications/geolift`; durable check
+  ``test_geolift_walkthrough``.
 
 Coverage summary
 ----------------

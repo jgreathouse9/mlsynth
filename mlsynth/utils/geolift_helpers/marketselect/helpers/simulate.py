@@ -55,6 +55,7 @@ def simulate_lookback(
     ns: int = 1000,
     seed: int = 0,
     conformal_type: str = "iid",
+    fixed_effects: bool = False,
 ) -> List[dict]:
     """Simulate one lookback placement across a grid of effect sizes.
 
@@ -103,7 +104,8 @@ def simulate_lookback(
         )
 
     # Fit once: CV the penalty here; reuse it for every conformal refit below.
-    fit = fit_augsynth_once(treated_arr[:n_pre], donors_arr[:n_pre], augment=augment)
+    fit = fit_augsynth_once(treated_arr[:n_pre], donors_arr[:n_pre], augment=augment,
+                            fixed_effects=fixed_effects)
     counterfactual = fit.predict(donors_arr)
 
     rows: List[dict] = []
@@ -112,6 +114,7 @@ def simulate_lookback(
         p_value = conformal_pvalue(
             treated_injected, donors_arr, n_pre,
             lambda_=fit.lambda_, q=q, ns=ns, seed=seed, conformal_type=conformal_type,
+            fixed_effects=fixed_effects,
         )
         gap_post = (treated_injected - counterfactual)[start : end + 1]
         placebo_mean_effect = float(np.mean(gap_post))

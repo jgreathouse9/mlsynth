@@ -80,6 +80,7 @@ class GEOLIFT:
                         how=self.config.how, augment=self.config.augment,
                         alpha=self.config.alpha, ns=self.config.ns, seed=self.config.seed,
                         conformal_type=self.config.conformal_type,
+                        fixed_effects=self.config.fixed_effects,
                     )
                 if self.config.display_graphs:
                     plot_design(result, report=result.report, show=True)

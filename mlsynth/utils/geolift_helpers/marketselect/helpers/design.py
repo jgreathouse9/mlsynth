@@ -58,6 +58,7 @@ def design_fit(
     *,
     how: str = "sum",
     augment: Optional[str] = "ridge",
+    fixed_effects: bool = False,
 ) -> CandidateDesign:
     """Fit the deployable synthetic control for one candidate on the pre-period.
 
@@ -71,6 +72,9 @@ def design_fit(
         Treated-aggregation (match the value used for scoring).
     augment : {"ridge", None}, default "ridge"
         Point-fit estimator.
+    fixed_effects : bool, default False
+        Unit fixed effects (augsynth ``fixed_effects=TRUE``). When set, the SCM
+        is fit on the mean of the treated units (matching the realized report).
 
     Returns
     -------
@@ -78,13 +82,14 @@ def design_fit(
         Standardized per-candidate result (weights + intercept + time series +
         fit diagnostics).
     """
-    treated = aggregate_treated(Ywide, candidate, how=how)
+    treated = aggregate_treated(Ywide, candidate, how=("mean" if fixed_effects else how))
     donors = donor_matrix(Ywide, candidate)
     y = treated.to_numpy()
     Y0 = donors.to_numpy()
 
     fit = fit_augsynth_once(
-        y, Y0, augment=augment, donor_names=[str(c) for c in donors.columns]
+        y, Y0, augment=augment, donor_names=[str(c) for c in donors.columns],
+        fixed_effects=fixed_effects,
     )
 
     donor_weights = {
