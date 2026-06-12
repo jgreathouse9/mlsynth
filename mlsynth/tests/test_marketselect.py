@@ -4,7 +4,7 @@ import pytest
 from numpy.testing import assert_allclose
 
 from mlsynth.utils.datautils import geoex_dataprep
-from mlsynth.utils.marketselect_helpers.similarity import (
+from mlsynth.utils.geolift_helpers.marketselect.helpers.similarity import (
     correlation_matrix,
     rank_markets_by_correlation,
 )
