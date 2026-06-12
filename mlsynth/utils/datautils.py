@@ -537,6 +537,96 @@ def dataprep(
         return out_multi
 
 
+def geoex_dataprep(
+    df: pd.DataFrame,
+    unit_id_column_name: str,
+    time_period_column_name: str,
+    outcome_column_name: str,
+) -> Dict[str, Any]:
+    """Organize a balanced panel into a wide outcome matrix, *without*
+    knowing who is treated.
+
+    ``dataprep`` is the workhorse for estimators, but it needs a treatment
+    indicator to split treated/donor units and pre/post periods. Experimental
+    *design* tools — geo-experiment market selection, pre-experiment power,
+    clustering, exploratory diagnostics — run *before* anyone is assigned to
+    treatment, so they only need the treatment-agnostic core: a strongly
+    balanced ``time x unit`` outcome matrix. ``geoex_dataprep`` returns exactly
+    that, sharing column/index conventions with ``dataprep`` (``Ywide`` /
+    ``time_labels``) so the two are interchangeable across modules.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input panel data in long format. Must contain columns for unit
+        identifiers, time periods, and the outcome variable.
+    unit_id_column_name : str
+        Name of the column in ``df`` that identifies units (e.g. geos /
+        markets).
+    time_period_column_name : str
+        Name of the column in ``df`` that identifies time periods.
+    outcome_column_name : str
+        Name of the column in ``df`` for the outcome variable.
+
+    Returns
+    -------
+    Dict[str, Any]
+        A dictionary with the treatment-agnostic panel:
+
+        ``Ywide`` : pd.DataFrame
+            Wide outcome matrix of shape ``(n_periods, n_units)``; the index is
+            the sorted time labels and the columns are the unit ids.
+        ``Y`` : np.ndarray
+            ``Ywide`` as a ``(n_periods, n_units)`` float array — the form the
+            correlation / similarity tools consume directly.
+        ``unit_names`` : pd.Index
+            Unit ids — the ``Ywide`` column index.
+        ``time_labels`` : pd.Index
+            Sorted time labels — the ``Ywide`` row index.
+        ``n_units`` : int
+            Number of units (columns).
+        ``n_periods`` : int
+            Number of time periods (rows).
+
+    Raises
+    ------
+    MlsynthDataError
+        - If any of the named columns are absent from ``df``.
+        - If the panel is not strongly balanced or contains duplicate
+          unit-time observations (delegated to :func:`balance`).
+    """
+    missing_columns = [
+        column_name
+        for column_name in (
+            unit_id_column_name,
+            time_period_column_name,
+            outcome_column_name,
+        )
+        if column_name not in df.columns
+    ]
+    if missing_columns:
+        raise MlsynthDataError(f"Column(s) not found in DataFrame: {missing_columns}")
+
+    # Reject duplicate unit-time rows and unbalanced panels up front, so the
+    # pivot below is guaranteed rectangular and gap-free.
+    balance(df, unit_id_column_name, time_period_column_name)
+
+    outcome_matrix_wide = df.pivot(
+        index=time_period_column_name,
+        columns=unit_id_column_name,
+        values=outcome_column_name,
+    )
+
+    return {
+        "Ywide": outcome_matrix_wide,
+        "Y": outcome_matrix_wide.to_numpy(dtype=float),
+        "unit_names": outcome_matrix_wide.columns,
+        "time_labels": outcome_matrix_wide.index,
+        "n_units": outcome_matrix_wide.shape[1],
+        "n_periods": outcome_matrix_wide.shape[0],
+    }
+
+
 def balance(df: pd.DataFrame, unit_id_column_name: str, time_period_column_name: str) -> None:
     """Check if the panel is strongly balanced.
 

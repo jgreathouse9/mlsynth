@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from numpy.testing import assert_array_almost_equal
-from mlsynth.utils.datautils import dataprep, balance, logictreat, clean_surrogates2, proxy_dataprep
+from mlsynth.utils.datautils import dataprep, geoex_dataprep, balance, logictreat, clean_surrogates2, proxy_dataprep
 from mlsynth.exceptions import MlsynthDataError
 
 # === Test Data Functions===
@@ -359,3 +359,77 @@ def test_proxy_dataprep_empty_surrogate_units():
     X, Z1 = proxy_dataprep(df, empty_surrogate_units, proxy_variable_column_names_map=proxy_vars, unit_id_column_name='Artist', time_period_column_name='Date')
     assert X.shape == (0,0) # Empty DataFrame pivot results in (0,0) array
     assert Z1.shape == (0,0) # Empty DataFrame pivot results in (0,0) array
+
+
+# === geoex_dataprep Tests ===
+
+def make_untreated_panel():
+    """Balanced panel with NO treatment column — the geo-experiment design case."""
+    data = {
+        'unit': ['A'] * 4 + ['B'] * 4 + ['C'] * 4,
+        'time': [1, 2, 3, 4] * 3,
+        'outcome': [10, 11, 12, 13, 20, 21, 22, 23, 30, 31, 32, 33],
+    }
+    return pd.DataFrame(data)
+
+
+def test_geoex_dataprep_smoke():
+    """End-to-end on a minimal balanced panel: right keys, shapes, finite."""
+    out = geoex_dataprep(make_untreated_panel(), 'unit', 'time', 'outcome')
+    assert set(out) >= {"Ywide", "Y", "unit_names", "time_labels", "n_units", "n_periods"}
+    assert out["n_units"] == 3
+    assert out["n_periods"] == 4
+    assert out["Y"].shape == (4, 3)
+    assert np.isfinite(out["Y"]).all()
+
+
+def test_geoex_dataprep_needs_no_treatment_column():
+    """Core promise: organizes the panel without knowing who is treated."""
+    df = make_untreated_panel()
+    assert 'treat' not in df.columns
+    out = geoex_dataprep(df, 'unit', 'time', 'outcome')  # must not raise
+    assert list(out["unit_names"]) == ['A', 'B', 'C']
+
+
+def test_geoex_dataprep_Y_matches_Ywide_and_labels():
+    """Y mirrors Ywide; columns/index align with unit_names/time_labels."""
+    out = geoex_dataprep(make_untreated_panel(), 'unit', 'time', 'outcome')
+    assert_array_almost_equal(out["Y"], out["Ywide"].to_numpy())
+    # units and time are the DataFrame's native pd.Index objects (compact reuse)
+    assert isinstance(out["unit_names"], pd.Index)
+    assert isinstance(out["time_labels"], pd.Index)
+    assert out["unit_names"].equals(out["Ywide"].columns)
+    assert out["time_labels"].equals(out["Ywide"].index)
+    assert list(out["time_labels"]) == [1, 2, 3, 4]
+
+
+def test_geoex_dataprep_wide_orientation_time_by_unit():
+    """Rows are time, columns are units — the orientation correlations need."""
+    out = geoex_dataprep(make_untreated_panel(), 'unit', 'time', 'outcome')
+    assert out["Ywide"].shape == (4, 3)  # (n_periods, n_units)
+    assert_array_almost_equal(out["Ywide"]['A'].to_numpy(), [10, 11, 12, 13])
+
+
+def test_geoex_dataprep_single_unit_ok():
+    """Degenerate but valid: a one-unit panel is organized, not rejected."""
+    df = pd.DataFrame({'unit': ['A'] * 3, 'time': [1, 2, 3], 'outcome': [1.0, 2.0, 3.0]})
+    out = geoex_dataprep(df, 'unit', 'time', 'outcome')
+    assert out["n_units"] == 1
+    assert out["Y"].shape == (3, 1)
+
+
+def test_geoex_dataprep_missing_outcome_column_raises():
+    with pytest.raises(MlsynthDataError, match="not found"):
+        geoex_dataprep(make_untreated_panel(), 'unit', 'time', 'nope')
+
+
+def test_geoex_dataprep_unbalanced_raises():
+    df = make_untreated_panel().iloc[1:]  # drop one unit-time -> unbalanced
+    with pytest.raises(MlsynthDataError, match="balanced"):
+        geoex_dataprep(df, 'unit', 'time', 'outcome')
+
+
+def test_geoex_dataprep_duplicate_rows_raise():
+    df = pd.concat([make_untreated_panel(), make_untreated_panel().iloc[[0]]])
+    with pytest.raises(MlsynthDataError, match="Duplicate"):
+        geoex_dataprep(df, 'unit', 'time', 'outcome')
