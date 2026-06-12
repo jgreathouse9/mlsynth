@@ -41,15 +41,24 @@ def _augmented_gaps(
     Z0: Optional[np.ndarray],
     z1: Optional[np.ndarray],
     ridge_kwargs: Dict[str, Any],
-) -> np.ndarray:
+    warm_start: Optional[np.ndarray] = None,
+    return_base: bool = False,
+):
     """Refit ridge ASCM matching on the full (given) outcome window; return gaps.
 
     Passing the *entire* outcome path as the matching window is exactly augsynth's
     conformal refit (``X <- cbind(X, y)``): the ASCM balances every period and
     the residuals are the treated-minus-synthetic gaps over the whole window.
+    ``warm_start`` seeds the base simplex solve (e.g. the previous tau0 in a grid
+    sweep); ``return_base`` also returns the base weights so the caller can chain
+    the warm start. The default (no warm start, gaps only) is unchanged.
     """
-    ra = ridge_augment_weights(y, Y0, Z0=Z0, z1=z1, **ridge_kwargs)
-    return np.asarray(y, dtype=float) - np.asarray(Y0, dtype=float) @ ra.W
+    ra = ridge_augment_weights(y, Y0, Z0=Z0, z1=z1, warm_start=warm_start,
+                               **ridge_kwargs)
+    gaps = np.asarray(y, dtype=float) - np.asarray(Y0, dtype=float) @ ra.W
+    if return_base:
+        return gaps, ra.W_base
+    return gaps
 
 
 def conformal_pvalue(
@@ -150,11 +159,14 @@ def _period_pvalue(
     ns: int,
     seed: Optional[int],
     ridge_kwargs: Dict[str, Any],
-) -> float:
+    warm_start: Optional[np.ndarray] = None,
+):
     """Conformal p-value for ``H0: tau_j = tau0`` at a single post period ``j``.
 
     Matches on the pre-periods plus post period ``j`` (with its treated outcome
     adjusted by ``tau0``); the post-block here is the single period ``j``.
+    Returns ``(p_value, base_weights)``; ``warm_start`` seeds the base solve and
+    the returned base weights chain the warm start across a tau0 grid.
     """
     y = np.asarray(y, dtype=float).copy()
     Y0 = np.asarray(Y0, dtype=float)
@@ -163,14 +175,15 @@ def _period_pvalue(
     y_fit = y[idx].copy()
     y_fit[-1] -= tau0
     Y0_fit = Y0[idx]
-    resids = _augmented_gaps(y_fit, Y0_fit, Z0, z1, ridge_kwargs)
+    resids, w_base = _augmented_gaps(y_fit, Y0_fit, Z0, z1, ridge_kwargs,
+                                     warm_start=warm_start, return_base=True)
     obs = _stat(resids[-1:], q)
     rng = np.random.default_rng(seed)
     perm = np.fromiter(
         (_stat(rng.permutation(resids)[-1:], q) for _ in range(ns)),
         dtype=float, count=ns,
     )
-    return float(np.mean(obs <= perm))
+    return float(np.mean(obs <= perm)), w_base
 
 
 def conformal_intervals(
@@ -221,10 +234,15 @@ def conformal_intervals(
     for k, j in enumerate(post):
         grid = np.linspace(att[k] - half, att[k] + half, grid_size)
         grid = np.append(grid, 0.0)
-        ps = np.array([
-            _period_pvalue(y, Y0, pre, j, tau0, Z0, z1, q, ns, seed, ridge_kwargs)
-            for tau0 in grid
-        ])
+        # Sweep the tau0 grid warm-starting each base solve from the previous
+        # (nearly identical) one -- the refits collapse to ~0 pivots.
+        ps = np.empty(grid.size)
+        w_prev = None
+        for gi, tau0 in enumerate(grid):
+            ps[gi], w_prev = _period_pvalue(
+                y, Y0, pre, j, tau0, Z0, z1, q, ns, seed, ridge_kwargs,
+                warm_start=w_prev,
+            )
         kept = grid[ps >= alpha]
         if kept.size:
             lower[k] = float(kept.min())
