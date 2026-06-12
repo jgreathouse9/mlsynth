@@ -579,10 +579,10 @@ def geoex_dataprep(
         ``Y`` : np.ndarray
             ``Ywide`` as a ``(n_periods, n_units)`` float array — the form the
             correlation / similarity tools consume directly.
-        ``unit_names`` : tuple
-            Unit ids in ``Ywide`` column order.
+        ``unit_names`` : pd.Index
+            Unit ids — the ``Ywide`` column index.
         ``time_labels`` : pd.Index
-            Sorted time labels (the ``Ywide`` index).
+            Sorted time labels — the ``Ywide`` row index.
         ``n_units`` : int
             Number of units (columns).
         ``n_periods`` : int
@@ -620,7 +620,7 @@ def geoex_dataprep(
     return {
         "Ywide": outcome_matrix_wide,
         "Y": outcome_matrix_wide.to_numpy(dtype=float),
-        "unit_names": tuple(outcome_matrix_wide.columns),
+        "unit_names": outcome_matrix_wide.columns,
         "time_labels": outcome_matrix_wide.index,
         "n_units": outcome_matrix_wide.shape[1],
         "n_periods": outcome_matrix_wide.shape[0],

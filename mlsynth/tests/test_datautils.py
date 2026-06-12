@@ -388,14 +388,18 @@ def test_geoex_dataprep_needs_no_treatment_column():
     df = make_untreated_panel()
     assert 'treat' not in df.columns
     out = geoex_dataprep(df, 'unit', 'time', 'outcome')  # must not raise
-    assert out["unit_names"] == ('A', 'B', 'C')
+    assert list(out["unit_names"]) == ['A', 'B', 'C']
 
 
 def test_geoex_dataprep_Y_matches_Ywide_and_labels():
     """Y mirrors Ywide; columns/index align with unit_names/time_labels."""
     out = geoex_dataprep(make_untreated_panel(), 'unit', 'time', 'outcome')
     assert_array_almost_equal(out["Y"], out["Ywide"].to_numpy())
-    assert list(out["Ywide"].columns) == list(out["unit_names"])
+    # units and time are the DataFrame's native pd.Index objects (compact reuse)
+    assert isinstance(out["unit_names"], pd.Index)
+    assert isinstance(out["time_labels"], pd.Index)
+    assert out["unit_names"].equals(out["Ywide"].columns)
+    assert out["time_labels"].equals(out["Ywide"].index)
     assert list(out["time_labels"]) == [1, 2, 3, 4]
 
 
