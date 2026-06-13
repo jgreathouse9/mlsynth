@@ -355,3 +355,99 @@ def test_run_design_no_cluster_col_unchanged():
     again = run_design(GeoLiftConfig(df=df, **common))
     assert {cd.candidate for cd in base.search.candidates} == \
            {cd.candidate for cd in again.search.candidates}
+
+
+# === orchestration: coverage quotas + size bands (end-to-end) ===
+
+_REGION_OF = {"u0": "R1", "u1": "R1", "u2": "R2", "u3": "R2", "u4": "R3", "u5": "R3"}
+_SIZE_OF = {"u0": 10.0, "u1": 50.0, "u2": 60.0, "u3": 70.0, "u4": 500.0, "u5": 80.0}
+
+
+def _stratified_long(seed=5, T=24):
+    rng = np.random.default_rng(seed)
+    base = np.arange(T) * 0.3
+    rows = []
+    for i in range(6):
+        u = f"u{i}"
+        s = base + rng.normal(scale=1.0, size=T) + i
+        for t in range(T):
+            rows.append({"unit": u, "time": t, "Y": float(s[t]),
+                         "region": _REGION_OF[u], "size": _SIZE_OF[u]})
+    return pd.DataFrame(rows)
+
+
+def test_run_design_size_band_restricts_treatment_not_donors():
+    cfg = GeoLiftConfig(df=_stratified_long(), outcome="Y", unitid="unit", time="time",
+                        treatment_size=2, durations=[4], effect_sizes=[0.0, 0.5],
+                        lookback_window=1, ns=20, seed=0,
+                        size_col="size", min_size=40.0, max_size=100.0)
+    res = run_design(cfg)
+    treated_ever = set()
+    for cd in res.search.candidates:
+        treated_ever |= {str(u) for u in cd.candidate}
+    assert "u0" not in treated_ever and "u4" not in treated_ever   # out of band
+    # but the out-of-band markets remain available as donors somewhere
+    donors_seen = set()
+    for cd in res.search.candidates:
+        donors_seen |= {str(d) for d in cd.weights.donor_weights}
+    assert "u0" in donors_seen or "u4" in donors_seen
+
+
+def test_run_design_max_per_stratum():
+    cfg = GeoLiftConfig(df=_stratified_long(), outcome="Y", unitid="unit", time="time",
+                        treatment_size=2, durations=[4], effect_sizes=[0.0, 0.5],
+                        lookback_window=1, ns=20, seed=0,
+                        stratum_col="region", max_per_stratum=1)
+    res = run_design(cfg)
+    for cd in res.search.candidates:
+        regions = [_REGION_OF[str(u)] for u in cd.candidate]
+        assert len(regions) == len(set(regions))         # never two from one region
+
+
+def test_run_design_min_per_stratum_covers_every_region():
+    cfg = GeoLiftConfig(df=_stratified_long(), outcome="Y", unitid="unit", time="time",
+                        treatment_size=3, durations=[4], effect_sizes=[0.0, 0.5],
+                        lookback_window=1, ns=20, seed=0,
+                        stratum_col="region", min_per_stratum=1)
+    res = run_design(cfg)
+    assert len(res.search.candidates) >= 1
+    for cd in res.search.candidates:
+        assert {_REGION_OF[str(u)] for u in cd.candidate} == {"R1", "R2", "R3"}
+
+
+def test_run_design_min_per_stratum_infeasible_raises():
+    """Cover 3 regions but only treat 2 -> impossible -> reported."""
+    with pytest.raises(MlsynthConfigError, match="constraint"):
+        run_design(GeoLiftConfig(
+            df=_stratified_long(), outcome="Y", unitid="unit", time="time",
+            treatment_size=2, durations=[4], effect_sizes=[0.0],
+            lookback_window=1, ns=20, seed=0,
+            stratum_col="region", min_per_stratum=1))
+
+
+def test_run_design_size_band_too_tight_raises():
+    with pytest.raises(MlsynthConfigError, match="size"):
+        run_design(GeoLiftConfig(
+            df=_stratified_long(), outcome="Y", unitid="unit", time="time",
+            treatment_size=2, durations=[4], effect_sizes=[0.0],
+            lookback_window=1, ns=20, seed=0,
+            size_col="size", min_size=1000.0))
+
+
+# === config validation for the new constraint fields ===
+
+@pytest.mark.parametrize("kwargs,msg", [
+    ({"stratum_col": "region", "min_per_stratum": 0}, "min_per_stratum"),
+    ({"stratum_col": "region", "max_per_stratum": 0}, "max_per_stratum"),
+    ({"min_per_stratum": 1}, "stratum_col"),               # quota without stratum_col
+    ({"max_per_stratum": 1}, "stratum_col"),
+    ({"min_size": 5.0}, "size_col"),                       # band without size_col
+    ({"max_size": 5.0}, "size_col"),
+    ({"size_col": "size", "min_size": 100.0, "max_size": 10.0}, "max_size"),
+])
+def test_constraint_config_validation(kwargs, msg):
+    base = dict(df=_stratified_long(), outcome="Y", unitid="unit", time="time",
+                treatment_size=2, durations=[4], effect_sizes=[0.0])
+    base.update(kwargs)
+    with pytest.raises(MlsynthConfigError, match=msg):
+        GeoLiftConfig(**base)

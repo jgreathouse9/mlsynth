@@ -49,6 +49,31 @@ class GeoLiftConfig(BaseMAREXConfig):
         description="Off-diagonal `adjacency` entries strictly above this mark an "
         "interfering pair.",
     )
+    stratum_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit column of stratum labels (region / tier / segment) for "
+        "coverage quotas via `min_per_stratum` / `max_per_stratum`.",
+    )
+    min_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Require at least this many treated markets from every stratum "
+        "that contains a treatment-eligible market ('test in every region').",
+    )
+    max_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Allow at most this many treated markets from any stratum (a quota).",
+    )
+    size_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit column of market sizes for a treated-unit size band; "
+        "out-of-band markets stay available as donors.",
+    )
+    min_size: Optional[float] = Field(
+        default=None, description="Lower bound of the treated-unit size band (inclusive)."
+    )
+    max_size: Optional[float] = Field(
+        default=None, description="Upper bound of the treated-unit size band (inclusive)."
+    )
 
     # --- power-simulation grid ---
     durations: List[int] = Field(
@@ -142,4 +167,22 @@ class GeoLiftConfig(BaseMAREXConfig):
                 raise MlsynthConfigError(f"budget must be > 0; got {self.budget}.")
             if self.cpic is None:
                 raise MlsynthConfigError("budget requires cpic to be set.")
+        # design constraints
+        if self.min_per_stratum is not None and self.min_per_stratum < 1:
+            raise MlsynthConfigError(
+                f"min_per_stratum must be >= 1; got {self.min_per_stratum}.")
+        if self.max_per_stratum is not None and self.max_per_stratum < 1:
+            raise MlsynthConfigError(
+                f"max_per_stratum must be >= 1; got {self.max_per_stratum}.")
+        if (self.min_per_stratum is not None or self.max_per_stratum is not None) \
+                and self.stratum_col is None:
+            raise MlsynthConfigError(
+                "min_per_stratum / max_per_stratum require stratum_col.")
+        if (self.min_size is not None or self.max_size is not None) \
+                and self.size_col is None:
+            raise MlsynthConfigError("min_size / max_size require size_col.")
+        if self.min_size is not None and self.max_size is not None \
+                and self.min_size > self.max_size:
+            raise MlsynthConfigError(
+                f"min_size ({self.min_size}) must be <= max_size ({self.max_size}).")
         return self
