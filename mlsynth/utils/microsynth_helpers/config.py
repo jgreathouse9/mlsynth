@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 from pydantic import Field
 from ...config_models import BaseEstimatorConfig
 
@@ -74,6 +74,20 @@ class MicroSynthConfig(BaseEstimatorConfig):
         default=1e-8,
         gt=0.0,
         description="L-BFGS-B gradient tolerance.",
+    )
+    weight_method: Literal["simplex", "raking"] = Field(
+        default="simplex",
+        description=(
+            "Control-weight scheme. ``'simplex'`` (default) is mlsynth's "
+            "min-variance simplex balancing (weights >= 0 summing to 1; the "
+            "weighted-mean ATT used for holdout-style studies). ``'raking'`` is "
+            "the microsynth panel method (Robbins et al.): raking/GREG "
+            "calibration weights that exactly match the treated group's column "
+            "TOTALS on the covariates and each pre-period outcome, summing to the "
+            "treated count, with per-period total treatment effects over the "
+            "post-window. Pair with ``outcome_lag_periods`` set to the full "
+            "pre-period window to balance the outcome trajectory."
+        ),
     )
     run_inference: bool = Field(
         default=True,

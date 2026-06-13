@@ -263,6 +263,51 @@ class TestSetup:
 # Layer 3: integration / synthetic recovery
 # ---------------------------------------------------------------------------
 
+class TestRakingPanel:
+    """The microsynth panel method (weight_method='raking'): balance the full
+    pre-period outcome trajectory, report per-period TOTAL effects."""
+
+    def _panel(self, n_c=80, n_t=8, T0=6, T_post=3, eff=2.0, seed=0):
+        rng = np.random.default_rng(seed)
+        F = rng.normal(size=(T0 + T_post, 2))            # 2 latent time factors
+        rows = []
+        for i in range(n_c + n_t):
+            load = rng.normal(size=2)
+            base = F @ load + 0.05 * rng.normal(size=T0 + T_post)
+            treated = i >= n_c
+            for t in range(T0 + T_post):
+                post = treated and t >= T0
+                rows.append({"unit": i, "time": t,
+                             "y": float(base[t] + (eff if post else 0.0)),
+                             "treat": int(post)})
+        return pd.DataFrame(rows), eff, n_t
+
+    def test_raking_balance_weights_and_effect(self):
+        df, eff, n_t = self._panel()
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+            "time": "time", "covariates": [],
+            "outcome_lag_periods": list(range(6)),       # full pre-period window
+            "weight_method": "raking", "run_inference": False,
+            "display_graphs": False,
+        }).fit()
+        # raking weights sum to the treated count and exactly balance the pre-fit
+        assert res.design.w.sum() == pytest.approx(float(n_t), abs=1e-3)
+        assert np.max(np.abs(res.design.smd_after)) < 1e-2
+        # per-period contrast is on totals -> ~ n_t * per-unit effect
+        assert res.att == pytest.approx(n_t * eff, rel=0.25)
+        assert res.gap_trajectory.shape == (3,)          # one per post period
+
+    def test_simplex_default_unchanged(self):
+        df, eff, n_t = self._panel()
+        cfg = dict(df=df, outcome="y", treat="treat", unitid="unit", time="time",
+                   covariates=[], outcome_lag_periods=list(range(6)),
+                   run_inference=False, display_graphs=False)
+        res = MicroSynth(cfg).fit()                       # default simplex
+        assert res.design.w.sum() == pytest.approx(1.0, abs=1e-6)  # simplex weights
+        assert res.att == pytest.approx(eff, rel=0.25)            # per-unit-mean effect
+
+
 class TestSyntheticRecovery:
     def test_recovers_true_lift(self, small_panel):
         df, true_lift = small_panel

@@ -33,8 +33,12 @@ from ..utils.microsynth_helpers.diagnostics import (
     max_weight,
     standardized_mean_difference,
 )
-from ..utils.microsynth_helpers.dual_solver import solve_microsynth_dual
+from ..utils.microsynth_helpers.dual_solver import (
+    DualSolverResult,
+    solve_microsynth_dual,
+)
 from ..utils.microsynth_helpers.inference import paired_bootstrap_ci
+from ..utils.microsynth_helpers.raking import solve_raking_weights
 from ..utils.microsynth_helpers.plotter import plot_microsynth
 from ..utils.microsynth_helpers.setup import prepare_microsynth_inputs
 from ..utils.microsynth_helpers.structures import (
@@ -115,6 +119,7 @@ class MicroSynth:
         self.covariates: List[str] = config.covariates
         self.outcome_lag_periods = config.outcome_lag_periods
         self.standardize_covariates: bool = config.standardize_covariates
+        self.weight_method: str = config.weight_method
         self.balance_tol: float = config.balance_tol
         self.max_iter: int = config.max_iter
         self.gtol: float = config.gtol
@@ -141,18 +146,41 @@ class MicroSynth:
                 standardize=self.standardize_covariates,
             )
 
-            xbar_T = inputs.X_T.mean(axis=0)
-            dual = solve_microsynth_dual(
-                inputs.X_C, xbar_T,
-                max_iter=self.max_iter, gtol=self.gtol,
-            )
+            if self.weight_method == "raking":
+                # microsynth panel method: raking/GREG calibration on TOTALS.
+                # Augment with an intercept so the count is calibrated (weights
+                # sum to the treated count) and target the treated column totals.
+                n_T = inputs.X_T.shape[0]
+                X_C_aug = np.column_stack([np.ones(inputs.X_C.shape[0]), inputs.X_C])
+                targets = np.concatenate([[float(n_T)], inputs.X_T.sum(axis=0)])
+                raking = solve_raking_weights(
+                    X_C_aug, targets, max_iter=self.max_iter,
+                )
+                # Reuse the dual-result container fields the design expects; the
+                # raking weights are the primal, lambda the dual multipliers.
+                dual = DualSolverResult(
+                    w=raking.w, dual_lambda=raking.dual_lambda, dual_nu=0.0,
+                    n_iterations=raking.n_iter, converged=raking.converged,
+                )
+            else:
+                xbar_T = inputs.X_T.mean(axis=0)
+                dual = solve_microsynth_dual(
+                    inputs.X_C, xbar_T,
+                    max_iter=self.max_iter, gtol=self.gtol,
+                )
 
+            # Raking weights sum to the treated count; the balance diagnostics
+            # (mean comparison / ESS) are defined for unit-sum weights, so feed
+            # them the normalized weights while keeping the raw calibration
+            # weights for the total-scale per-period effects below.
+            is_raking = self.weight_method == "raking"
+            w_diag = dual.w / dual.w.sum() if is_raking else dual.w
             smd_before = standardized_mean_difference(inputs.X_T, inputs.X_C)
             smd_after = standardized_mean_difference(
-                inputs.X_T, inputs.X_C, w=dual.w
+                inputs.X_T, inputs.X_C, w=w_diag
             )
-            ess = effective_sample_size(dual.w)
-            mw = max_weight(dual.w)
+            ess = effective_sample_size(w_diag)
+            mw = max_weight(w_diag)
             feasible, feasibility_msg = feasibility_check(
                 smd_after, self.balance_tol
             )
@@ -171,21 +199,25 @@ class MicroSynth:
                 converged=dual.converged,
             )
 
-            # Counterfactual + gap per post-period.
+            # Counterfactual + gap per post-period. For raking (microsynth panel
+            # method) the contrast is on TOTALS: treated-area total minus the
+            # calibrated control total (weights sum to the treated count). For
+            # simplex it is the per-treated-unit weighted-mean contrast.
+            treated_agg = inputs.Y_T.sum if is_raking else inputs.Y_T.mean
             if inputs.Y_T.ndim == 1:
                 cf = float(dual.w @ inputs.Y_C)
                 cf_arr = np.asarray(cf)
-                gap = float(inputs.Y_T.mean() - cf)
+                gap = float(treated_agg() - cf)
                 gap_arr = np.asarray(gap)
                 gap_traj = np.asarray([gap], dtype=float)
                 att = float(gap)
             else:
                 cf_arr = dual.w @ inputs.Y_C  # shape (T_post,)
-                gap_arr = inputs.Y_T.mean(axis=0) - cf_arr
+                gap_arr = treated_agg(axis=0) - cf_arr
                 gap_traj = gap_arr.copy()
                 att = float(gap_traj.mean())
 
-            if self.run_inference:
+            if self.run_inference and not is_raking:
                 se, ci, boot_atts, n_complete = paired_bootstrap_ci(
                     X_T=inputs.X_T, X_C=inputs.X_C,
                     Y_T=inputs.Y_T, Y_C=inputs.Y_C,
