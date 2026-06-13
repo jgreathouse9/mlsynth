@@ -59,6 +59,7 @@ def design_fit(
     how: str = "sum",
     augment: Optional[str] = "ridge",
     fixed_effects: bool = False,
+    exclude: Optional[frozenset] = None,
 ) -> CandidateDesign:
     """Fit the deployable synthetic control for one candidate on the pre-period.
 
@@ -75,6 +76,10 @@ def design_fit(
     fixed_effects : bool, default False
         Unit fixed effects (augsynth ``fixed_effects=TRUE``). When set, the SCM
         is fit on the mean of the treated units (matching the realized report).
+    exclude : frozenset, optional
+        Extra units to drop from the donor pool (the candidate's spillover
+        conflict-neighbours); ``None`` leaves the donor pool as the candidate
+        complement.
 
     Returns
     -------
@@ -83,7 +88,7 @@ def design_fit(
         fit diagnostics).
     """
     treated = aggregate_treated(Ywide, candidate, how=("mean" if fixed_effects else how))
-    donors = donor_matrix(Ywide, candidate)
+    donors = donor_matrix(Ywide, candidate, exclude=exclude)
     y = treated.to_numpy()
     Y0 = donors.to_numpy()
 

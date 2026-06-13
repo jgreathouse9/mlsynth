@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+import pandas as pd
 from pydantic import Field, model_validator
 
 from ...config_models import BaseMAREXConfig
@@ -27,6 +28,26 @@ class GeoLiftConfig(BaseMAREXConfig):
     )
     not_to_be_treated: Optional[List] = Field(
         default=None, description="Units forbidden from any candidate (stay donors)."
+    )
+
+    # --- design constraints (geography / interference) ---
+    cluster_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit column of cluster labels (e.g. DMA / state). Markets "
+        "in the same cluster interfere: at most one per candidate (treatment "
+        "criterion), and a treated market's same-cluster geos are dropped from its "
+        "donor pool (control criterion).",
+    )
+    adjacency: Optional[pd.DataFrame] = Field(
+        default=None,
+        description="Square unit-by-unit spillover matrix (index/columns are market "
+        "labels). Pairs above `spillover_threshold` interfere, combined with "
+        "`cluster_col` by logical OR.",
+    )
+    spillover_threshold: float = Field(
+        default=0.0,
+        description="Off-diagonal `adjacency` entries strictly above this mark an "
+        "interfering pair.",
     )
 
     # --- power-simulation grid ---

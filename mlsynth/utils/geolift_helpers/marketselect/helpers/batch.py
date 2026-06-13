@@ -13,6 +13,7 @@ import pandas as pd
 
 from mlsynth.exceptions import MlsynthConfigError
 
+from .constraints import ConflictGraph, conflict_neighbors
 from .shaping import aggregate_treated, donor_matrix
 from .simulate import simulate_lookback
 
@@ -38,6 +39,7 @@ def run_simulations(
     conformal_type: str = "iid",
     fixed_effects: bool = False,
     cpic: Optional[float] = None,
+    conflict: Optional[ConflictGraph] = None,
 ) -> pd.DataFrame:
     """Run the simulation grid and stack the results into one long table.
 
@@ -60,6 +62,9 @@ def run_simulations(
         Effect sizes to inject.
     how, augment, q, ns, seed
         Forwarded to the shaping / fit / inference layers.
+    conflict : ConflictGraph, optional
+        Market interference graph; when given, each candidate's conflict-
+        neighbours are excluded from its donor pool (spillover exclusion).
 
     Returns
     -------
@@ -93,7 +98,8 @@ def run_simulations(
         # CPIC investment uses the *summed* treated volume (GeoLift's
         # sum(Y[D==1])), independent of the fit aggregation.
         treated_total = aggregate_treated(Ywide, candidate, how="sum").to_numpy()
-        donors = donor_matrix(Ywide, candidate)
+        exclude = conflict_neighbors(candidate, conflict) if conflict else None
+        donors = donor_matrix(Ywide, candidate, exclude=exclude)
         for duration in durations:
             for sim in range(1, int(lookback_window) + 1):
                 for row in simulate_lookback(

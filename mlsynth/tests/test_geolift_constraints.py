@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.geolift_helpers.marketselect.helpers.constraints import (
     build_conflict_graph,
     conflict_neighbors,
@@ -19,7 +19,11 @@ from mlsynth.utils.geolift_helpers.marketselect.helpers.constraints import (
     eligible_by_size,
     satisfies_quota,
     admissible_candidates,
+    unit_attribute_map,
 )
+from mlsynth.utils.geolift_helpers.marketselect.helpers.shaping import donor_matrix
+from mlsynth.utils.geolift_helpers.config import GeoLiftConfig
+from mlsynth.utils.geolift_helpers.marketselect.orchestration import run_design
 
 
 # === build_conflict_graph ===
@@ -226,3 +230,128 @@ def test_admissible_candidates_drops_on_quota_alone():
 def test_admissible_candidates_no_constraints_returns_all():
     cands = [frozenset({"a", "b"}), frozenset({"c"})]
     assert admissible_candidates(cands) == cands
+
+
+# === unit_attribute_map ===
+
+def test_unit_attribute_map_constant_per_unit():
+    df = pd.DataFrame({"unit": ["a", "a", "b", "b"], "t": [0, 1, 0, 1],
+                       "g": ["X", "X", "Y", "Y"]})
+    assert unit_attribute_map(df, "unit", "g") == {"a": "X", "b": "Y"}
+
+
+def test_unit_attribute_map_varying_raises():
+    df = pd.DataFrame({"unit": ["a", "a"], "t": [0, 1], "g": ["X", "Y"]})
+    with pytest.raises(MlsynthDataError, match="constant per unit"):
+        unit_attribute_map(df, "unit", "g")
+
+
+def test_unit_attribute_map_missing_col_raises():
+    df = pd.DataFrame({"unit": ["a"], "t": [0]})
+    with pytest.raises(MlsynthConfigError, match="nope"):
+        unit_attribute_map(df, "unit", "nope")
+
+
+# === donor_matrix spillover exclusion ===
+
+def _wide(units, T=20, seed=1):
+    rng = np.random.default_rng(seed)
+    base = np.arange(T) * 0.3
+    return pd.DataFrame({u: base + rng.normal(scale=1.0, size=T) + i
+                         for i, u in enumerate(units)})
+
+
+def test_donor_matrix_exclude_drops_extra_units():
+    Yw = _wide(["a", "b", "c", "d"])
+    dm = donor_matrix(Yw, frozenset({"a"}), exclude={"b"})
+    assert list(dm.columns) == ["c", "d"]            # candidate a + excluded b gone
+
+
+def test_donor_matrix_exclude_none_is_unchanged():
+    Yw = _wide(["a", "b", "c", "d"])
+    assert list(donor_matrix(Yw, frozenset({"a"})).columns) == ["b", "c", "d"]
+
+
+def test_donor_matrix_exclude_emptying_pool_raises():
+    Yw = _wide(["a", "b"])
+    with pytest.raises(MlsynthDataError):
+        donor_matrix(Yw, frozenset({"a"}), exclude={"b"})
+
+
+# === orchestration: cluster / spillover wiring (end-to-end) ===
+
+def _clustered_long(seed=3, T=24):
+    """6 units in 3 clusters of 2: u0,u1 -> C0; u2,u3 -> C1; u4,u5 -> C2."""
+    rng = np.random.default_rng(seed)
+    base = np.arange(T) * 0.3
+    rows = []
+    for i in range(6):
+        s = base + rng.normal(scale=1.0, size=T) + i
+        for t in range(T):
+            rows.append({"unit": f"u{i}", "time": t, "Y": float(s[t]),
+                         "cluster": f"C{i // 2}"})
+    return pd.DataFrame(rows)
+
+
+_CLUSTER_OF = {f"u{i}": f"C{i // 2}" for i in range(6)}
+
+
+def test_run_design_cluster_constraint_yields_independent_sets():
+    cfg = GeoLiftConfig(df=_clustered_long(), outcome="Y", unitid="unit", time="time",
+                        treatment_size=2, durations=[4], effect_sizes=[0.0, 0.5],
+                        lookback_window=1, ns=20, seed=0, cluster_col="cluster")
+    res = run_design(cfg)
+    assert len(res.search.candidates) >= 1
+    for cd in res.search.candidates:
+        cl = [_CLUSTER_OF[str(u)] for u in cd.candidate]
+        assert len(cl) == len(set(cl))               # never two from one cluster
+
+
+def test_run_design_spillover_excludes_same_cluster_donors():
+    cfg = GeoLiftConfig(df=_clustered_long(), outcome="Y", unitid="unit", time="time",
+                        treatment_size=2, durations=[4], effect_sizes=[0.0, 0.5],
+                        lookback_window=1, ns=20, seed=0, cluster_col="cluster")
+    res = run_design(cfg)
+    for cd in res.search.candidates:
+        treated_clusters = {_CLUSTER_OF[str(u)] for u in cd.candidate}
+        for donor in cd.weights.donor_weights:       # nonzero donors only
+            assert _CLUSTER_OF[str(donor)] not in treated_clusters
+
+
+def test_run_design_infeasible_cluster_raises():
+    """Treat 4 with one-per-cluster but only 3 clusters -> no admissible region."""
+    with pytest.raises(MlsynthConfigError, match="constraint"):
+        run_design(GeoLiftConfig(
+            df=_clustered_long(), outcome="Y", unitid="unit", time="time",
+            treatment_size=4, durations=[4], effect_sizes=[0.0],
+            lookback_window=1, ns=20, seed=0, cluster_col="cluster"))
+
+
+def test_run_design_adjacency_excludes_spillover_donor():
+    """A thresholded adjacency edge u0~u1 forbids them together and drops u1
+    from u0's donor pool."""
+    units = [f"u{i}" for i in range(6)]
+    adj = pd.DataFrame(0.0, index=units, columns=units)
+    adj.loc["u0", "u1"] = adj.loc["u1", "u0"] = 0.9   # only this pair conflicts
+    cfg = GeoLiftConfig(df=_clustered_long(), outcome="Y", unitid="unit", time="time",
+                        treatment_size=2, durations=[4], effect_sizes=[0.0, 0.5],
+                        lookback_window=1, ns=20, seed=0,
+                        adjacency=adj, spillover_threshold=0.5)
+    res = run_design(cfg)
+    cands = {cd.candidate for cd in res.search.candidates}
+    assert frozenset({"u0", "u1"}) not in cands       # adjacency forbids the pair
+    for cd in res.search.candidates:
+        if "u0" in cd.candidate:
+            assert "u1" not in cd.weights.donor_weights   # u1 excluded as donor
+
+
+def test_run_design_no_cluster_col_unchanged():
+    """Without constraint fields the design is identical to the baseline run."""
+    common = dict(outcome="Y", unitid="unit", time="time", treatment_size=2,
+                  durations=[4], effect_sizes=[0.0, 0.5], lookback_window=1,
+                  ns=20, seed=0)
+    df = _clustered_long()
+    base = run_design(GeoLiftConfig(df=df, **common))
+    again = run_design(GeoLiftConfig(df=df, **common))
+    assert {cd.candidate for cd in base.search.candidates} == \
+           {cd.candidate for cd in again.search.candidates}

@@ -6,7 +6,7 @@ treated series and the donor pool. Each helper does a single trivial reshaping
 step — and nothing else — so they stay easy to reason about, debug, and test.
 """
 
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 
 import pandas as pd
 
@@ -52,8 +52,16 @@ def aggregate_treated(
     return treated
 
 
-def donor_matrix(Ywide: pd.DataFrame, candidate: Iterable) -> pd.DataFrame:
+def donor_matrix(
+    Ywide: pd.DataFrame, candidate: Iterable, exclude: Optional[Iterable] = None
+) -> pd.DataFrame:
     """The donor pool: every unit NOT in the candidate, in panel-column order.
+
+    ``exclude`` drops additional units beyond the candidate — the spillover
+    "exclusion restriction": a treated geo's conflict-neighbours
+    (:func:`~mlsynth.utils.geolift_helpers.marketselect.helpers.constraints.conflict_neighbors`)
+    must not enter its synthetic control. ``None`` (the default) leaves the donor
+    pool exactly as the candidate complement.
 
     Raises
     ------
@@ -61,11 +69,11 @@ def donor_matrix(Ywide: pd.DataFrame, candidate: Iterable) -> pd.DataFrame:
         If the candidate is empty.
     MlsynthDataError
         If any candidate unit is absent from ``Ywide``, or if removing the
-        candidate leaves no donors.
+        candidate (and any excluded units) leaves no donors.
     """
     _validate_candidate(Ywide, candidate)
-    candidate_set = set(candidate)
-    donors = [unit for unit in Ywide.columns if unit not in candidate_set]
+    removed = set(candidate) | set(exclude or ())
+    donors = [unit for unit in Ywide.columns if unit not in removed]
     if len(donors) == 0:
         raise MlsynthDataError(
             "No donor units remain after removing the candidate from the panel."

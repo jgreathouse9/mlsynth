@@ -26,11 +26,40 @@ from typing import Dict, Hashable, Iterable, List, Mapping, Optional
 
 import pandas as pd
 
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 
 # A conflict graph maps each market label to the frozenset of labels it
 # conflicts with (interferes with). Symmetric, with no self-loops.
 ConflictGraph = Dict[Hashable, frozenset]
+
+
+def unit_attribute_map(
+    df: pd.DataFrame, unit_id_column_name: str, attr_col: str
+) -> Dict[Hashable, Hashable]:
+    """Resolve a **per-unit constant** attribute column to a ``{unit: value}`` map.
+
+    Cluster / stratum / size constraints all read a per-unit attribute (a market's
+    region, tier, or size) from a column of the long panel. The attribute is a
+    property of the market, so it must be constant over that market's rows.
+
+    Raises
+    ------
+    MlsynthConfigError
+        If ``attr_col`` is not a column of ``df``.
+    MlsynthDataError
+        If the attribute varies within any unit.
+    """
+    if attr_col not in df.columns:
+        raise MlsynthConfigError(f"column {attr_col!r} not found in df.")
+    grp = df.groupby(unit_id_column_name)[attr_col]
+    varying = grp.nunique(dropna=False)
+    if (varying > 1).any():
+        bad = list(varying[varying > 1].index)[:5]
+        raise MlsynthDataError(
+            f"column {attr_col!r} must be constant per unit; it varies for "
+            f"units {bad}."
+        )
+    return {unit: value for unit, value in grp.first().items()}
 
 
 def build_conflict_graph(

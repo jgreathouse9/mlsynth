@@ -13,6 +13,7 @@ from typing import List, Optional
 import pandas as pd
 
 from mlsynth.config_models import DesignResult
+from mlsynth.exceptions import MlsynthConfigError
 from mlsynth.utils.datautils import geoex_dataprep
 
 from ..config import GeoLiftConfig
@@ -20,6 +21,12 @@ from .helpers.similarity import rank_markets_by_correlation
 from .helpers.candidates import generate_candidate_markets
 from .helpers.batch import run_simulations
 from .helpers.aggregate import compute_power, compute_rank
+from .helpers.constraints import (
+    admissible_candidates,
+    build_conflict_graph,
+    conflict_neighbors,
+    unit_attribute_map,
+)
 from .helpers.design import design_fit, CandidateDesign
 
 
@@ -77,20 +84,47 @@ def run_design(config: GeoLiftConfig) -> GEOLIFTResults:
         rng=config.seed,
     )
 
+    # Design constraints (geography / interference). The conflict graph drives
+    # both the Stage-1 no-interference filter on candidates (treatment criterion)
+    # and the Stage-2 spillover donor exclusion (control criterion). Absent any
+    # constraint config the graph is empty and nothing changes.
+    conflict = None
+    if config.cluster_col is not None or config.adjacency is not None:
+        cluster_map = (
+            unit_attribute_map(config.df, config.unitid, config.cluster_col)
+            if config.cluster_col is not None else None
+        )
+        conflict = build_conflict_graph(
+            Ywide.columns, cluster_map=cluster_map, adjacency=config.adjacency,
+            spillover_threshold=config.spillover_threshold,
+        )
+        candidates = admissible_candidates(candidates, conflict=conflict)
+        if not candidates:
+            raise MlsynthConfigError(
+                "no candidate test region satisfies the design constraints "
+                "(e.g. treatment_size exceeds the number of clusters, or the "
+                "forced-in markets interfere). Relax the constraint or the "
+                "treatment_size."
+            )
+
     cube = run_simulations(
         Ywide, candidates, config.durations, config.lookback_window, config.effect_sizes,
         how=config.how, augment=config.augment, ns=config.ns, seed=config.seed,
         conformal_type=config.conformal_type, fixed_effects=config.fixed_effects,
-        cpic=config.cpic,
+        cpic=config.cpic, conflict=conflict,
     )
     power_table = compute_power(cube, alpha=config.alpha)
     shortlist = compute_rank(power_table, power_threshold=config.power_threshold,
                              budget=config.budget)
 
-    # Per-candidate deployable design fit (full pre-period).
+    # Per-candidate deployable design fit (full pre-period), with the same
+    # spillover donor exclusion the scoring stage used.
     designs = {
-        candidate: design_fit(Ywide, candidate, how=config.how, augment=config.augment,
-                               fixed_effects=config.fixed_effects)
+        candidate: design_fit(
+            Ywide, candidate, how=config.how, augment=config.augment,
+            fixed_effects=config.fixed_effects,
+            exclude=(conflict_neighbors(candidate, conflict) if conflict else None),
+        )
         for candidate in candidates
     }
 
