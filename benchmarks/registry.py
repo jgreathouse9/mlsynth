@@ -74,6 +74,7 @@ CASES = {
     "shc_recovery_mc": "benchmarks.cases.shc_recovery_mc",      # Path B: SHC latent-confounder recovery (Chen-Yang-Yang Sec 3.1)
     "dscar_beijing": "benchmarks.cases.dscar_beijing",      # Path A: DSCAR Beijing PM2.5 alerts (Zheng-Chen)
     "msqrt_sim": "benchmarks.cases.msqrt_sim",                # Path B: MSQRT unbiasedness + RMSE noise-floor (Shen-Song-Abadie Sec 6)
+    "dsc_dube": "benchmarks.cases.dsc_dube",                  # Path A: DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
     "ascm_kansas": "benchmarks.cases.ascm_kansas",            # cross-val vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
     "augsynth_calibrated": "benchmarks.cases.augsynth_calibrated",  # Path B: ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
     "geolift_walkthrough": "benchmarks.cases.geolift",  # cross-val vs GeoLift/augsynth: GeoLift_Walkthrough realized report (fixedeff ASCM + conformal)
