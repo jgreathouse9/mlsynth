@@ -66,6 +66,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/ppscm
    replications/snn
    replications/syndes
+   replications/spcd
 
 .. _replications-canonical:
 

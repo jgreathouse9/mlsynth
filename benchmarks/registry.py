@@ -5,6 +5,7 @@ import importlib
 
 # name -> "benchmarks.cases.<module>"  (pure-Python unless noted needs_reference)
 CASES = {
+    "spcd_prop99": "benchmarks.cases.spcd_prop99",      # Path A: SPCD design vs random/SC on Prop 99 (Lu et al. 2022)
     "syndes_bls": "benchmarks.cases.syndes_bls",        # Path B: Doudchenko et al. 2021 Monte Carlo (BLS unemployment)
     "si_prop99": "benchmarks.cases.si_prop99",          # cross-val vs Agarwal-Shah-Shen 2026 authors' code (Prop 99)
     "snn_prop99": "benchmarks.cases.snn_prop99",        # cross-val vs deshen24/syntheticNN (Prop 99)
