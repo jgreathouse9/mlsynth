@@ -44,7 +44,7 @@ def _universal_rank(s: np.ndarray, shape: Tuple[int, int]) -> int:
     if min(m, n) == 0:
         return 0
     beta = min(m, n) / max(m, n)
-    omega = 0.56 * beta ** 3 - 0.95 * beta ** 2 + 1.43 * beta + 1.82
+    omega = 0.56 * beta ** 3 - 0.95 * beta ** 2 + 1.82 * beta + 1.43
     thresh = omega * np.median(s) if s.size else 0.0
     r = int((s > thresh).sum())
     return max(r, 1)

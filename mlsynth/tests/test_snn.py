@@ -13,6 +13,8 @@ Layered per agents/agents_tests.md:
 
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -78,6 +80,20 @@ class TestEngine:
         completed, feasible = snn_complete(X)
         # Almost everything is infeasible (no observed anchor block).
         assert feasible.sum() < X.size
+
+    def test_universal_rank_matches_gavish_donoho(self):
+        """The Donoho-Gavish (2014) omega is 0.56b^3 - 0.95b^2 + 1.82b + 1.43
+        (linear coeff 1.82, constant 1.43 -- not swapped). This spectrum +
+        non-square shape picks a different rank under the swapped coefficients,
+        so it pins the correct formula (and matches deshen24/syntheticNN)."""
+        from mlsynth.utils.snn_helpers.completion import _universal_rank
+        s = np.array([10.0, 1.8, 1.0, 0.5, 0.1])
+        shape = (5, 50)                      # beta = 0.1, strongly non-square
+        beta = 0.1
+        omega = 0.56 * beta ** 3 - 0.95 * beta ** 2 + 1.82 * beta + 1.43
+        expected = max(int((s > omega * np.median(s)).sum()), 1)
+        assert expected == 2                 # guards the discriminator itself
+        assert _universal_rank(s, shape) == expected
 
 
 # ----------------------------------------------------------------------
@@ -157,6 +173,37 @@ class TestEstimator:
 # ----------------------------------------------------------------------
 # Layer 4: public API contracts
 # ----------------------------------------------------------------------
+
+_PROP99 = os.path.join(os.path.dirname(__file__), "..", "..", "basedata", "smoking_data.csv")
+
+
+@pytest.mark.skipif(not os.path.exists(_PROP99), reason="Prop99 data not present")
+class TestReferenceProp99:
+    """Cross-validation against deshen24/syntheticNN on the Prop 99 panel.
+
+    On block missingness (California's post-period the only NaN block) the
+    reference's NetworkX max-biclique and mlsynth's greedy anchor search both
+    return the full control x pre-period block, so -- with the corrected
+    Donoho-Gavish rank -- the imputed counterfactual matches the reference to
+    machine precision. Values below come from a live run of the reference
+    implementation (n_neighbors=1, universal rank)."""
+
+    REF_ATT = -18.4341
+    REF_GAP_2000 = -29.3258
+
+    def _fit(self):
+        df = pd.read_csv(_PROP99)
+        return SNN({"df": df, "outcome": "cigsale", "treat": "Proposition 99",
+                    "unitid": "state", "time": "year", "display_graphs": False}).fit()
+
+    def test_matches_reference_att(self):
+        res = self._fit()
+        assert res.att == pytest.approx(self.REF_ATT, abs=1e-3)
+
+    def test_matches_reference_gap_2000(self):
+        res = self._fit()
+        assert res.att_by_period[2000] == pytest.approx(self.REF_GAP_2000, abs=1e-3)
+
 
 class TestPublicAPI:
     def test_top_level_import(self):
