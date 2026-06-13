@@ -60,14 +60,21 @@ def run() -> dict:
     cov = ["TotalPop", "BLACK", "HISPANIC", "Males_1521", "HOUSEHOLDS",
            "FAMILYHOUS", "FEMALE_HOU", "RENTER_HOU", "VACANT_HOU"]
 
+    cfg = {
+        "df": df, "outcome": "any_crime", "treat": "Intervention",
+        "unitid": "ID", "time": "time", "covariates": cov,
+        "outcome_lag_periods": list(range(1, 13)),        # full pre-window 1..12
+        "weight_method": "panel", "display_graphs": False,
+    }
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        res = MicroSynth({
-            "df": df, "outcome": "any_crime", "treat": "Intervention",
-            "unitid": "ID", "time": "time", "covariates": cov,
-            "outcome_lag_periods": list(range(1, 13)),    # full pre-window 1..12
-            "weight_method": "panel", "run_inference": False,
-            "display_graphs": False,
+        res = MicroSynth({**cfg, "run_inference": False}).fit()
+        # placebo-permutation inference (microsynth perm); modest n_perm keeps
+        # the case fast -- the effect is ~7 SDs out, so it beats every placebo
+        # and the p-value sits at the 1/(1+n_perm) floor.
+        res_inf = MicroSynth({
+            **cfg, "run_inference": True, "n_permutations": 24,
+            "permutation_test": "lower", "seed": 99,
         }).fit()
 
     eff = np.asarray(res.gap_trajectory, dtype=float)     # per-period totals 13..16
@@ -81,6 +88,8 @@ def run() -> dict:
         # mlsynth-pinned descriptors (deterministic on this panel)
         "att": float(res.att),
         "ess": float(res.design.ess),
+        # placebo-permutation inference: significant crime reduction (one-sided)
+        "perm_pvalue_lower": float(res_inf.inference.p_value),
     }
 
 
@@ -96,4 +105,5 @@ EXPECTED = {
     "max_abs_smd_after": (0.0, 1e-6),
     "att": (-54.43, 0.5),
     "ess": (377.7, 25.0),
+    "perm_pvalue_lower": (0.04, 0.001),       # 1/(1+24): beats every placebo
 }

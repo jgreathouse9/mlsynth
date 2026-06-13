@@ -104,14 +104,49 @@ class MicroSynthConfig(BaseEstimatorConfig):
             "dominate."
         ),
     )
+    propensity_mode: bool = Field(
+        default=False,
+        description=(
+            "Propensity-score-type weighting (microsynth's ``match.out=FALSE`` "
+            "cross-sectional usage). When ``True`` the weights are computed from "
+            "the **covariates only** (lagged outcomes are ignored), the data may "
+            "be a single-period cross-section, and the balancing weights "
+            "(``donor_weights`` / ``design.w``) are the deliverable -- "
+            "covariate-balancing weights on the controls usable as inverse-"
+            "propensity-style weights downstream. Forces the panel QP."
+        ),
+    )
     run_inference: bool = Field(
         default=True,
-        description="Whether to compute a bootstrap confidence interval.",
+        description=(
+            "Whether to run inference. For ``weight_method='simplex'`` this is a "
+            "paired stratified bootstrap CI; for ``weight_method='panel'`` it is "
+            "a placebo-permutation test (see ``n_permutations`` / "
+            "``permutation_test``)."
+        ),
     )
     n_bootstrap: int = Field(
         default=500,
         ge=2,
-        description="Bootstrap replications for CI.",
+        description="Bootstrap replications for the simplex CI.",
+    )
+    n_permutations: int = Field(
+        default=250,
+        ge=0,
+        description=(
+            "Number of placebo permutation groups for the panel-method "
+            "inference (microsynth's ``perm``). Each draws a random set of "
+            "``n_T`` controls as a placebo treated area and refits the QP, so "
+            "cost scales with this times the QP solve; 0 disables it."
+        ),
+    )
+    permutation_test: Literal["lower", "upper", "twosided"] = Field(
+        default="twosided",
+        description=(
+            "Tail of the placebo-permutation p-value for the panel method "
+            "(microsynth's ``test``): ``'lower'`` (effect below placebos), "
+            "``'upper'`` (above), or ``'twosided'`` (magnitude)."
+        ),
     )
     seed: int = Field(
         default=1400,

@@ -67,6 +67,12 @@ quantities both packages pin agree exactly: weights sum to the treated count
 The ridge-selected optimum has effective sample size ≈ 378 (the most diffuse
 control consistent with the fit).
 
+The placebo-permutation test (mlsynth ``run_inference=True``,
+``permutation_test="lower"``) finds the crime reduction significant: the
+observed ATT lies well below every placebo group (≈ 7 placebo SDs out), so the
+one-sided p-value sits at the ``1/(1 + n_permutations)`` floor — matching the
+R package's reported significant reductions on this example.
+
 .. note::
 
    **R reference is baked in, not run in CI.** ``microsynth`` does not install

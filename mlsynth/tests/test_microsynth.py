@@ -20,6 +20,9 @@ from mlsynth.utils.microsynth_helpers.diagnostics import (
 )
 from mlsynth.exceptions import MlsynthEstimationError
 from mlsynth.utils.microsynth_helpers.dual_solver import solve_microsynth_dual
+from mlsynth.utils.microsynth_helpers.panel_inference import (
+    panel_permutation_test,
+)
 from mlsynth.utils.microsynth_helpers.panel_qp import solve_panel_qp
 from mlsynth.utils.microsynth_helpers.setup import prepare_microsynth_inputs
 from mlsynth.utils.microsynth_helpers.structures import (
@@ -373,6 +376,165 @@ class TestPanelMethod:
         res = MicroSynth(cfg).fit()                       # default simplex
         assert res.design.w.sum() == pytest.approx(1.0, abs=1e-6)  # simplex weights
         assert res.att == pytest.approx(eff, rel=0.25)            # per-unit-mean effect
+
+
+def _factor_panel(n_c=60, n_t=6, T0=5, T_post=3, eff=0.0, seed=0):
+    """Latent-factor panel as a long DataFrame (treated effect = ``eff``)."""
+    rng = np.random.default_rng(seed)
+    F = rng.normal(size=(T0 + T_post, 2))
+    rows = []
+    for i in range(n_c + n_t):
+        load = rng.normal(size=2)
+        base = F @ load + 0.05 * rng.normal(size=T0 + T_post)
+        treated = i >= n_c
+        for t in range(T0 + T_post):
+            post = treated and t >= T0
+            rows.append({"unit": i, "time": t,
+                         "y": float(base[t] + (eff if post else 0.0)),
+                         "treat": int(post)})
+    return pd.DataFrame(rows), eff, n_t
+
+
+class TestPanelPermutation:
+    """Placebo-permutation inference for the panel method (microsynth perm)."""
+
+    def _blocks(self, n_C=80, n_T=8, T0=5, T_post=3, eff=0.0, seed=0):
+        rng = np.random.default_rng(seed)
+        F = rng.normal(size=(T0 + T_post, 2))
+        cov = rng.uniform(0, 1, (n_C + n_T, 2))
+        Y = np.empty((n_C + n_T, T0 + T_post))
+        for i in range(n_C + n_T):
+            Y[i] = F @ rng.normal(size=2) + 0.05 * rng.normal(size=T0 + T_post)
+        # treated = last n_T; add effect on the post block
+        Y[n_C:, T0:] += eff
+        cov_C, lag_C = cov[:n_C], Y[:n_C, :T0]
+        # observed effect: treated total minus a panel-QP synthetic control
+        from mlsynth.utils.microsynth_helpers.panel_qp import solve_panel_qp
+        hard_C = np.column_stack([np.ones(n_C), cov_C])
+        hard_t = np.concatenate([[float(n_T)], cov[n_C:].sum(0)])
+        sol = solve_panel_qp(hard_C, hard_t, lag_C, Y[n_C:, :T0].sum(0), ridge=1e-6)
+        obs_traj = Y[n_C:, T0:].sum(0) - sol.w @ Y[:n_C, T0:]
+        return cov_C, lag_C, Y[:n_C, T0:], n_T, obs_traj, float(obs_traj.mean())
+
+    def test_pvalue_small_for_strong_effect(self):
+        args = self._blocks(eff=3.0, seed=1)
+        cov_C, lag_C, Yc, n_T, traj, att = args
+        res = panel_permutation_test(
+            cov_C=cov_C, lag_C=lag_C, Y_C_post=Yc, n_T=n_T,
+            obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+            n_perm=120, test="upper", seed=0,
+        )
+        assert 0.0 <= res.p_value <= 1.0
+        assert res.p_value < 0.10                       # strong effect is detected
+        assert res.p_values_by_period.shape == (3,)
+        assert res.placebo_atts.size == res.n_perm
+        assert np.isfinite(res.se) and res.se > 0
+        # covariates-only (empty lag block) still runs the lower-tail test
+        res_lo = panel_permutation_test(
+            cov_C=cov_C, lag_C=np.empty((cov_C.shape[0], 0)), Y_C_post=Yc,
+            n_T=n_T, obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+            n_perm=80, test="lower", seed=0,
+        )
+        assert 0.0 <= res_lo.p_value <= 1.0
+
+    def test_pvalue_large_under_null(self):
+        cov_C, lag_C, Yc, n_T, traj, att = self._blocks(eff=0.0, seed=2)
+        res = panel_permutation_test(
+            cov_C=cov_C, lag_C=lag_C, Y_C_post=Yc, n_T=n_T,
+            obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+            n_perm=120, test="twosided", seed=0,
+        )
+        assert res.p_value > 0.10                        # no spurious effect
+
+    def test_requires_positive_perm_and_pool(self):
+        cov_C, lag_C, Yc, n_T, traj, att = self._blocks(seed=3)
+        with pytest.raises(MlsynthEstimationError):
+            panel_permutation_test(
+                cov_C=cov_C, lag_C=lag_C, Y_C_post=Yc, n_T=n_T,
+                obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+                n_perm=0, test="lower",
+            )
+        with pytest.raises(MlsynthEstimationError):
+            panel_permutation_test(
+                cov_C=cov_C[:3], lag_C=lag_C[:3], Y_C_post=Yc[:3], n_T=10,
+                obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+                n_perm=5, test="lower",
+            )
+
+
+class TestPanelInferenceIntegration:
+    def test_permutation_inference_via_fit(self):
+        df, eff, n_t = _factor_panel(eff=2.0, seed=0)
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+            "time": "time", "covariates": [],
+            "outcome_lag_periods": list(range(5)),
+            "weight_method": "panel", "run_inference": True,
+            "n_permutations": 60, "permutation_test": "twosided", "seed": 3,
+            "display_graphs": False,
+        }).fit()
+        assert res.inference.method == "permutation"
+        assert 0.0 <= res.inference.p_value <= 1.0
+        assert res.inference.p_values_by_period.shape == (3,)
+        assert res.inference.test == "twosided"
+        assert np.isfinite(res.inference.se)
+        lo, hi = res.inference.ci
+        assert lo <= hi
+
+    def test_panel_no_inference_when_disabled(self):
+        df, _, _ = _factor_panel(seed=0)
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+            "time": "time", "covariates": [],
+            "outcome_lag_periods": list(range(5)),
+            "weight_method": "panel", "run_inference": False,
+            "display_graphs": False,
+        }).fit()
+        assert res.inference.method == "none"
+
+
+def _cross_section(n=400, seed=0):
+    """Single-period cross-section with propensity-selected treatment."""
+    rng = np.random.default_rng(seed)
+    z1, z2 = rng.standard_normal(n), rng.standard_normal(n)
+    p = 1.0 / (1.0 + np.exp(-(0.8 * z1 - 0.5 * z2)))
+    treat = (rng.uniform(size=n) < p).astype(int)
+    y = 0.5 * z1 - 0.3 * z2 + 2.0 * treat + rng.standard_normal(n)
+    return pd.DataFrame({"id": np.arange(n), "time": 0, "Intervention": treat,
+                         "y": y, "z1": z1, "z2": z2})
+
+
+class TestPropensityMode:
+    def test_cross_sectional_balancing_weights(self):
+        df = _cross_section(seed=0)
+        n_t = int(df.Intervention.sum())
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "Intervention", "unitid": "id",
+            "time": "time", "covariates": ["z1", "z2"],
+            "propensity_mode": True, "run_inference": False,
+            "display_graphs": False,
+        }).fit()
+        # propensity-type weights: sum to treated count, exact covariate balance
+        assert res.design.w.sum() == pytest.approx(float(n_t), abs=1e-3)
+        assert (res.design.w >= -1e-7).all()
+        assert np.max(np.abs(res.design.smd_after)) < 1e-2
+        assert len(res.donor_weights) > 0
+
+    def test_propensity_ignores_lagged_outcomes(self):
+        # Even if outcome_lag_periods are supplied, propensity mode uses
+        # covariates only (match.out=FALSE) -- so a panel run with lags differs.
+        df, _, _ = _factor_panel(seed=5)
+        # add a time-invariant covariate
+        rng = np.random.default_rng(1)
+        zmap = {u: rng.standard_normal() for u in df["unit"].unique()}
+        df = df.assign(z=df["unit"].map(zmap))
+        common = dict(df=df, outcome="y", treat="treat", unitid="unit",
+                      time="time", covariates=["z"],
+                      outcome_lag_periods=list(range(5)),
+                      run_inference=False, display_graphs=False)
+        w_prop = MicroSynth({**common, "propensity_mode": True}).fit().design.w
+        w_panel = MicroSynth({**common, "weight_method": "panel"}).fit().design.w
+        assert not np.allclose(w_prop, w_panel)
 
 
 class TestSyntheticRecovery:

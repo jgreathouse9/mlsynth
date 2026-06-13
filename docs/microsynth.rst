@@ -384,17 +384,36 @@ lagged-outcome fit. This both makes the estimate reproducible and coincides
 with the R package's ``LowRankQP`` interior-point solution to 3–4 significant
 figures (see :doc:`replications/microsynth`).
 
-Inference for the panel method (permutation tests, as in the R package) is not
-yet wired up; ``run_inference`` is honored only for the simplex method.
+**Inference (placebo permutation).** With ``run_inference=True`` the panel
+method runs a placebo-permutation test (microsynth's ``perm`` / ``test``):
+``n_permutations`` random sets of :math:`n_T` controls are each treated as a
+placebo "treated area", the QP is refit from the remaining controls, and the
+observed ATT is ranked against the resulting null distribution of placebo
+effects. ``permutation_test`` selects the tail (``"lower"`` / ``"upper"`` /
+``"twosided"``); the result carries the ATT p-value (``inference.p_value``),
+per-post-period p-values (``inference.p_values_by_period``), a permutation SE,
+and a placebo-based CI. Cost scales with ``n_permutations`` times the QP solve,
+so on a large control pool keep it modest (it parallelizes trivially across
+permutations).
 
-Inference
----------
+**Propensity-score mode.** Setting ``propensity_mode=True`` reproduces
+microsynth's ``match.out=FALSE`` cross-sectional usage: weights are computed
+from the **covariates only** (lagged outcomes are ignored), the data may be a
+single-period cross-section, and the balancing weights
+(``res.donor_weights`` / ``res.design.w``) are the deliverable — non-negative
+covariate-balancing weights on the controls (summing to the treated count) that
+exactly match the treated group's covariate totals, usable as
+inverse-propensity-style weights in a downstream analysis. The placebo
+permutation test applies here too.
 
-The default ``run_inference=True`` runs a **paired stratified
-bootstrap**: resample :math:`n_T` treated users and :math:`n_C`
-control users separately, refit the dual, repeat ``n_bootstrap``
-times. The percentile CI and SE come from the bootstrap
-distribution.
+Inference (simplex)
+-------------------
+
+For the default ``weight_method="simplex"``, ``run_inference=True`` runs a
+**paired stratified bootstrap**: resample :math:`n_T` treated users and
+:math:`n_C` control users separately, refit the dual, repeat ``n_bootstrap``
+times. The percentile CI and SE come from the bootstrap distribution. (The
+panel method uses the placebo-permutation test described above instead.)
 
 Each bootstrap rep is fast because the dual ascent re-converges
 quickly from cold start (the dual is convex and low-dimensional);
@@ -428,6 +447,10 @@ Helper Modules
    :undoc-members:
 
 .. automodule:: mlsynth.utils.microsynth_helpers.panel_qp
+   :members:
+   :undoc-members:
+
+.. automodule:: mlsynth.utils.microsynth_helpers.panel_inference
    :members:
    :undoc-members:
 

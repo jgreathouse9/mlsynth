@@ -38,6 +38,7 @@ from ..utils.microsynth_helpers.dual_solver import (
     solve_microsynth_dual,
 )
 from ..utils.microsynth_helpers.inference import paired_bootstrap_ci
+from ..utils.microsynth_helpers.panel_inference import panel_permutation_test
 from ..utils.microsynth_helpers.panel_qp import solve_panel_qp
 from ..utils.microsynth_helpers.plotter import plot_microsynth
 from ..utils.microsynth_helpers.setup import prepare_microsynth_inputs
@@ -121,11 +122,14 @@ class MicroSynth:
         self.standardize_covariates: bool = config.standardize_covariates
         self.weight_method: str = config.weight_method
         self.panel_ridge: float = config.panel_ridge
+        self.propensity_mode: bool = config.propensity_mode
         self.balance_tol: float = config.balance_tol
         self.max_iter: int = config.max_iter
         self.gtol: float = config.gtol
         self.run_inference: bool = config.run_inference
         self.n_bootstrap: int = config.n_bootstrap
+        self.n_permutations: int = config.n_permutations
+        self.permutation_test: str = config.permutation_test
         self.seed: int = config.seed
 
         self.display_graphs: bool = config.display_graphs
@@ -147,7 +151,9 @@ class MicroSynth:
                 standardize=self.standardize_covariates,
             )
 
-            is_panel = self.weight_method == "panel"
+            # Propensity-score mode (microsynth match.out=FALSE) is a panel QP
+            # on covariates only; it implies the panel weighting.
+            is_panel = self.weight_method == "panel" or self.propensity_mode
             if is_panel:
                 # microsynth panel method (Robbins et al.): a non-negative QP on
                 # TOTALS. Hard block = intercept + raw covariates (exact balance,
@@ -159,7 +165,9 @@ class MicroSynth:
                 hard_targets = np.concatenate(
                     [[float(n_T)], inputs.cov_T_raw.sum(axis=0)]
                 )
-                soft_C = inputs.lag_C_raw if inputs.lag_C_raw.shape[1] else None
+                # Propensity mode ignores lagged outcomes (match.out=FALSE).
+                use_lags = inputs.lag_C_raw.shape[1] and not self.propensity_mode
+                soft_C = inputs.lag_C_raw if use_lags else None
                 soft_targets = (
                     inputs.lag_T_raw.sum(axis=0) if soft_C is not None else None
                 )
@@ -226,7 +234,36 @@ class MicroSynth:
                 gap_traj = gap_arr.copy()
                 att = float(gap_traj.mean())
 
-            if self.run_inference and not is_panel:
+            if self.run_inference and is_panel and self.n_permutations > 0:
+                # Panel method: placebo-permutation inference (microsynth perm).
+                Y_C_post = (
+                    inputs.Y_C.reshape(-1, 1)
+                    if inputs.Y_C.ndim == 1 else inputs.Y_C
+                )
+                perm = panel_permutation_test(
+                    cov_C=inputs.cov_C_raw,
+                    lag_C=soft_C,
+                    Y_C_post=Y_C_post,
+                    n_T=inputs.n_T,
+                    obs_gap_trajectory=gap_traj,
+                    obs_att=att,
+                    ridge=self.panel_ridge,
+                    n_perm=self.n_permutations,
+                    test=self.permutation_test,
+                    seed=self.seed,
+                )
+                inference = MicroSynthInference(
+                    method="permutation",
+                    att=att,
+                    se=perm.se,
+                    ci=perm.ci,
+                    n_bootstrap=perm.n_perm,
+                    bootstrap_atts=perm.placebo_atts,
+                    p_value=perm.p_value,
+                    p_values_by_period=perm.p_values_by_period,
+                    test=perm.test,
+                )
+            elif self.run_inference and not is_panel:
                 se, ci, boot_atts, n_complete = paired_bootstrap_ci(
                     X_T=inputs.X_T, X_C=inputs.X_C,
                     Y_T=inputs.Y_T, Y_C=inputs.Y_C,

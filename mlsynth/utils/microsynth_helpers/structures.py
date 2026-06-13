@@ -140,14 +140,18 @@ class MicroSynthDesign:
 
 @dataclass(frozen=True)
 class MicroSynthInference:
-    """Bootstrap confidence interval and standard error."""
+    """Inference summary: bootstrap (simplex) or permutation (panel)."""
 
-    method: str                     # "paired_bootstrap" or "none"
+    method: str                     # "paired_bootstrap", "permutation", or "none"
     att: float                       # point estimate
-    se: float                        # bootstrap SE
+    se: float                        # bootstrap / permutation SE
     ci: np.ndarray                   # [low, high]
-    n_bootstrap: int                 # successful reps
-    bootstrap_atts: np.ndarray       # full distribution
+    n_bootstrap: int                 # successful reps (bootstrap or permutation)
+    bootstrap_atts: np.ndarray       # full distribution (bootstrap or placebo)
+    # Panel-method permutation extras (NaN / empty for other methods).
+    p_value: float = float("nan")            # ATT-level placebo p-value
+    p_values_by_period: Optional[np.ndarray] = None  # per-post-period p-values
+    test: Optional[str] = None               # "lower" / "upper" / "twosided"
 
 
 @dataclass(frozen=True)
