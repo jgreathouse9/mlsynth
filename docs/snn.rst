@@ -203,8 +203,16 @@ counterfactual by matrix completion, and reports the ATT. With
 
 The default ``universal_rank=True`` (Donoho-Gavish hard threshold) keeps
 the rank well-calibrated for this small (39 x 31) low-rank panel; it
-returns an average ATT of about ``-19`` packs/capita, widening to roughly
-``-31`` by 2000 -- consistent with Abadie, Diamond & Hainmueller (2010).
+returns an average ATT of about ``-18`` packs/capita, widening to roughly
+``-29`` by 2000 -- consistent with Abadie, Diamond & Hainmueller (2010).
+
+Verification
+------------
+
+Cross-validated against the reference implementation
+(`deshen24/syntheticNN <https://github.com/deshen24/syntheticNN>`_): on the
+Prop 99 block-missingness pattern mlsynth reproduces the reference's imputed
+counterfactual to machine precision. See :doc:`replications/snn`.
 
 The same SNN engine performs general (non-causal) matrix completion on
 any matrix with ``NaN`` for the missing entries:

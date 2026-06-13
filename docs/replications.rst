@@ -64,6 +64,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/geolift
    replications/rolldid
    replications/ppscm
+   replications/snn
 
 .. _replications-canonical:
 
