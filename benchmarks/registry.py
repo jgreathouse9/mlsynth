@@ -5,6 +5,7 @@ import importlib
 
 # name -> "benchmarks.cases.<module>"  (pure-Python unless noted needs_reference)
 CASES = {
+    "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
     "sdid_prop99": "benchmarks.cases.sdid_prop99",      # cross-val vs causaltensor

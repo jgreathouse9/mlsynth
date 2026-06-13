@@ -31,6 +31,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **FDID** — Forward Difference-in-Differences (FDID) estimator.  (config: FDIDConfig)
 - **FMA** — Factor Model Approach (Li & Sonnier 2023) estimator.  (config: FMAConfig)
 - **FSCM** — Forward-Selected Synthetic Control estimator.  (config: FSCMConfig)
+- **GEOLIFT** — GeoLift market-selection design.
 - **HSC** — Harmonic Synthetic Control (HSC) estimator.  (config: HSCConfig)
 - **ISCM** — Imperfect Synthetic Controls estimator.  (config: ISCMConfig)
 - **LEXSCM** — Lexicographic Synthetic Control (LEXSCM) estimator.  (config: LEXSCMConfig)
@@ -39,6 +40,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **MCNNM** — Matrix Completion with Nuclear Norm Minimization estimator.  (config: MCNNMConfig)
 - **MLSC** — Multi-Level Synthetic Control (mlSC) estimator.  (config: MLSCConfig)
 - **MSQRT** — Multivariate Square-root Lasso Synthetic Control estimator.  (config: MSQRTConfig)
+- **MULTICELLGEOLIFT** — Multi-cell GeoLift: measure several treatment cells at once.
 - **MUSC** — Modified Unbiased Synthetic Control estimator.  (config: MUSCConfig)
 - **MicroSynth** — User-level balancing synthetic control estimator.  (config: MicroSynthConfig)
 - **NSC** — Nonlinear Synthetic Control (Tian 2023) estimator.  (config: NSCConfig)
@@ -48,6 +50,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **PROXIMAL** — Proximal Inference (PROXIMAL) estimator.  (config: PROXIMALConfig)
 - **RESCM** — Relaxed/penalized synthetic-control estimator.  (config: RESCMConfig)
 - **RMSI** — Robust Matrix estimation with Side Information.  (config: RMSIConfig)
+- **ROLLDID** — Rolling-transformation difference-in-differences.  (config: ROLLDIDConfig)
 - **SBC** — Synthetic Business Cycle (SBC) estimator.  (config: SBCConfig)
 - **SCMO** — Synthetic Control with Multiple Outcomes estimator.  (config: SCMOConfig)
 - **SDID** — Synthetic Difference-in-Differences estimator with event-study output.  (config: SDIDConfig)

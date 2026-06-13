@@ -240,6 +240,7 @@ headline numbers.
    musc
    geolift
    multicellgeolift
+   rolldid
 
 .. toctree::
    :hidden:
