@@ -48,6 +48,18 @@ class MicroSynthConfig(BaseEstimatorConfig):
             "outcome predictors. Appended after ``covariates``."
         ),
     )
+    match_outcomes: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Panel method only. Additional outcome columns whose pre-period "
+            "values (at ``outcome_lag_periods``) are balanced jointly with the "
+            "primary ``outcome`` -- microsynth's multi-outcome ``match.out``. "
+            "The synthetic control then matches every listed outcome's "
+            "trajectory simultaneously (one shared weight vector); the reported "
+            "effect is still for the primary ``outcome``. Defaults to the "
+            "primary outcome alone."
+        ),
+    )
     standardize_covariates: bool = Field(
         default=True,
         description=(

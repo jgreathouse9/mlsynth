@@ -89,6 +89,7 @@ def prepare_microsynth_inputs(
     covariates: Sequence[str],
     outcome_lag_periods: Optional[Sequence[Any]] = None,
     standardize: bool = True,
+    match_outcomes: Optional[Sequence[str]] = None,
 ) -> MicroSynthInputs:
     """Build MicroSynth inputs from a long-format panel.
 
@@ -106,6 +107,10 @@ def prepare_microsynth_inputs(
         become additional balancing constraints.
     standardize : bool
         Z-score covariates across all users before fitting.
+    match_outcomes : Sequence[str], optional
+        Outcome columns whose pre-period values (at
+        ``outcome_lag_periods``) are balanced jointly. Defaults to the
+        primary ``outcome`` alone (current single-outcome behaviour).
 
     Returns
     -------
@@ -159,30 +164,37 @@ def prepare_microsynth_inputs(
             f"(before cohort time {cohort_time}); these are not: "
             f"{bad_lags}"
         )
+    # Which outcomes' pre-period values to balance (microsynth multi-outcome
+    # match.out). Defaults to the primary outcome only.
+    lag_outcomes = list(match_outcomes) if match_outcomes else [outcome]
+    for oc in lag_outcomes:
+        if oc not in df.columns:
+            raise MlsynthDataError(f"match_outcomes column '{oc}' not in df.")
     lag_T_cols = []
     lag_C_cols = []
-    for lag in outcome_lag_periods:
-        row = df.loc[df[time] == lag, [unitid, outcome]]
-        if row.empty:
-            raise MlsynthDataError(
-                f"outcome_lag_periods entry {lag!r} not found in '{time}'."
+    for oc in lag_outcomes:
+        for lag in outcome_lag_periods:
+            row = df.loc[df[time] == lag, [unitid, oc]]
+            if row.empty:
+                raise MlsynthDataError(
+                    f"outcome_lag_periods entry {lag!r} not found in '{time}'."
+                )
+            lag_series = (
+                row.drop_duplicates(subset=[unitid])
+                .set_index(unitid)[oc]
             )
-        lag_series = (
-            row.drop_duplicates(subset=[unitid])
-            .set_index(unitid)[outcome]
-        )
-        try:
-            lag_T_cols.append(
-                lag_series.reindex(treated_units).to_numpy(dtype=float)
-            )
-            lag_C_cols.append(
-                lag_series.reindex(control_units).to_numpy(dtype=float)
-            )
-        except Exception as exc:
-            raise MlsynthDataError(
-                f"Failed to align outcome at lag {lag!r}: {exc}"
-            ) from exc
-        cov_names.append(f"{outcome}@{lag}")
+            try:
+                lag_T_cols.append(
+                    lag_series.reindex(treated_units).to_numpy(dtype=float)
+                )
+                lag_C_cols.append(
+                    lag_series.reindex(control_units).to_numpy(dtype=float)
+                )
+            except Exception as exc:
+                raise MlsynthDataError(
+                    f"Failed to align outcome {oc!r} at lag {lag!r}: {exc}"
+                ) from exc
+            cov_names.append(f"{oc}@{lag}")
 
     # Keep the raw (un-standardized) covariate and lag blocks separate; the
     # panel-method QP balances treated *totals* and needs raw values, and it

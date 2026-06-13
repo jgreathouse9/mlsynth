@@ -52,6 +52,13 @@ _R_EFFECTS = np.array([-33.059, -74.351, -45.450, -64.892])
 _R_ATT = float(_R_EFFECTS.mean())                    # -54.438
 _R_WEIGHT_SUM = 39.0                                 # weights sum to treated count
 
+# --- JSS Table 2 top panel: multi-outcome joint match (summary(sea1)) ---------
+# Cumulative Pct.Chng over post window 13:16, from microsynth_table2.R.
+_TABLE2_PCT = {                                       # outcome -> Pct.Chng (%)
+    "i_felony": -32.6, "i_misdemea": -37.3, "i_drugs": -15.8, "any_crime": -20.1,
+}
+_MATCH_OUT = ["i_felony", "i_misdemea", "i_drugs", "any_crime"]
+
 
 def run() -> dict:
     from mlsynth import MicroSynth
@@ -77,8 +84,27 @@ def run() -> dict:
             "permutation_test": "lower", "seed": 99,
         }).fit()
 
+    # --- JSS Table 2 top panel: 4-outcome joint match (one shared synthetic
+    # control), cumulative Pct.Chng per outcome. ---
+    pct_diffs = []
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for o in _MATCH_OUT:
+            r = MicroSynth({
+                "df": df, "outcome": o, "treat": "Intervention", "unitid": "ID",
+                "time": "time", "covariates": cov,
+                "outcome_lag_periods": list(range(1, 13)),
+                "match_outcomes": _MATCH_OUT, "weight_method": "panel",
+                "run_inference": False, "display_graphs": False,
+            }).fit()
+            trt = float(np.sum(r.inputs.Y_T))
+            con = float(np.sum(r.counterfactual))
+            pct = 100.0 * (trt - con) / con
+            pct_diffs.append(abs(pct - _TABLE2_PCT[o]))
+
     eff = np.asarray(res.gap_trajectory, dtype=float)     # per-period totals 13..16
     return {
+        "table2_max_pct_diff_vs_R": float(max(pct_diffs)),
         # cross-validation vs R microsynth: per-period effects and ATT match
         "max_abs_effect_diff_vs_R": float(np.max(np.abs(eff - _R_EFFECTS))),
         "att_diff_vs_R": float(abs(res.att - _R_ATT)),
@@ -106,4 +132,6 @@ EXPECTED = {
     "att": (-54.43, 0.5),
     "ess": (377.7, 25.0),
     "perm_pvalue_lower": (0.04, 0.001),       # 1/(1+24): beats every placebo
+    # JSS Table 2 top panel: joint-match cumulative Pct.Chng matches to <0.5pp
+    "table2_max_pct_diff_vs_R": (0.06, 0.5),
 }

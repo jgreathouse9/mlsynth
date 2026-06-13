@@ -73,6 +73,40 @@ observed ATT lies well below every placebo group (≈ 7 placebo SDs out), so the
 one-sided p-value sits at the ``1/(1 + n_permutations)`` floor — matching the
 R package's reported significant reductions on this example.
 
+JSS Table 2 (multi-outcome joint match)
+---------------------------------------
+
+The package's headline analysis (``sea1`` in the JSS vignette) matches **all
+four outcomes jointly** — one synthetic control balancing every outcome's
+pre-period trajectory plus the covariates — and reports a cumulative effect per
+outcome (Table 2, top panel). mlsynth reproduces it with ``match_outcomes`` set
+to the four outcomes (run once per primary ``outcome``; the shared weight vector
+is identical across runs). Cumulative ``Pct.Chng`` over the post window 13–16:
+
+==============  =========  ================
+Outcome         mlsynth    R ``microsynth``
+==============  =========  ================
+i_felony        −32.6%     −32.6%
+i_misdemea      −37.3%     −37.3%
+i_drugs         −15.9%     −15.8%
+any_crime       −20.1%     −20.1%
+==============  =========  ================
+
+All four match to <0.5 percentage points (``Trt``/``Con`` levels agree to ~0.1
+crimes). As in the paper, the permutation test flags felonies, misdemeanors and
+total crime as significant reductions but **not** drug crimes — the JSS
+``Perm.pVal`` column (felony 0.020, misdemea 0.008, drugs 0.304, any_crime
+0.020) under ``test="lower"``.
+
+.. note::
+
+   **What is and isn't reproduced.** The top panel's point estimates
+   (``Trt``/``Con``/``Pct.Chng``) are reproduced exactly. The top panel's
+   *Linear* p-values/CIs are a survey Taylor-linearization variance estimate
+   that mlsynth does not implement; mlsynth's inference is the placebo
+   permutation, so it is the package's ``Perm`` column that is the comparison
+   target.
+
 .. note::
 
    **R reference is baked in, not run in CI.** ``microsynth`` does not install
@@ -88,5 +122,6 @@ Reproduce
 .. code-block:: bash
 
    python benchmarks/run_benchmarks.py --case microsynth_seattle
-   # regenerate the R reference (needs R microsynth installed):
-   Rscript benchmarks/R/microsynth_seattle.R
+   # regenerate the R references (needs R microsynth installed):
+   Rscript benchmarks/R/microsynth_seattle.R    # single-outcome any_crime
+   Rscript benchmarks/R/microsynth_table2.R     # JSS Table 2 joint match

@@ -119,6 +119,7 @@ class MicroSynth:
 
         self.covariates: List[str] = config.covariates
         self.outcome_lag_periods = config.outcome_lag_periods
+        self.match_outcomes = config.match_outcomes
         self.standardize_covariates: bool = config.standardize_covariates
         self.weight_method: str = config.weight_method
         self.panel_ridge: float = config.panel_ridge
@@ -149,6 +150,7 @@ class MicroSynth:
                 covariates=self.covariates,
                 outcome_lag_periods=self.outcome_lag_periods,
                 standardize=self.standardize_covariates,
+                match_outcomes=self.match_outcomes,
             )
 
             # Propensity-score mode (microsynth match.out=FALSE) is a panel QP

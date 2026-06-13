@@ -378,6 +378,64 @@ class TestPanelMethod:
         assert res.att == pytest.approx(eff, rel=0.25)            # per-unit-mean effect
 
 
+class TestMultiOutcomeMatch:
+    """Panel method joint multi-outcome match (microsynth match.out vector)."""
+
+    def _two_outcome_panel(self, n_c=70, n_t=7, T0=5, T_post=3, seed=0):
+        rng = np.random.default_rng(seed)
+        F = rng.normal(size=(T0 + T_post, 2))
+        rows = []
+        for i in range(n_c + n_t):
+            load = rng.normal(size=2)
+            a = F @ load + 0.05 * rng.normal(size=T0 + T_post)
+            b = F @ rng.normal(size=2) + 0.05 * rng.normal(size=T0 + T_post)
+            treated = i >= n_c
+            for t in range(T0 + T_post):
+                post = treated and t >= T0
+                rows.append({"unit": i, "time": t,
+                             "ya": float(a[t] + (2.0 if post else 0.0)),
+                             "yb": float(b[t] + (1.0 if post else 0.0)),
+                             "treat": int(post)})
+        return pd.DataFrame(rows)
+
+    def test_shared_weights_across_primary_outcome(self):
+        df = self._two_outcome_panel()
+        common = dict(df=df, treat="treat", unitid="unit", time="time",
+                      covariates=[], outcome_lag_periods=list(range(5)),
+                      match_outcomes=["ya", "yb"], weight_method="panel",
+                      run_inference=False, display_graphs=False)
+        ra = MicroSynth({**common, "outcome": "ya"}).fit()
+        rb = MicroSynth({**common, "outcome": "yb"}).fit()
+        # one shared synthetic control: weights identical regardless of which
+        # outcome the effect is reported for
+        assert np.allclose(ra.design.w, rb.design.w, atol=1e-7)
+        # each outcome's pre-period trajectory is balanced by the shared weights
+        assert np.max(np.abs(ra.design.smd_after)) < 1e-2
+
+    def test_unknown_match_outcome_rejected(self):
+        df = self._two_outcome_panel()
+        with pytest.raises(MlsynthDataError, match="match_outcomes"):
+            MicroSynth({
+                "df": df, "outcome": "ya", "treat": "treat", "unitid": "unit",
+                "time": "time", "covariates": [],
+                "outcome_lag_periods": list(range(5)),
+                "match_outcomes": ["ya", "nope"], "weight_method": "panel",
+                "run_inference": False, "display_graphs": False,
+            }).fit()
+
+    def test_joint_match_differs_from_single(self):
+        df = self._two_outcome_panel(seed=1)
+        common = dict(df=df, outcome="ya", treat="treat", unitid="unit",
+                      time="time", covariates=[],
+                      outcome_lag_periods=list(range(5)),
+                      weight_method="panel", run_inference=False,
+                      display_graphs=False)
+        single = MicroSynth(common).fit()
+        joint = MicroSynth({**common, "match_outcomes": ["ya", "yb"]}).fit()
+        # matching both outcomes generally changes the synthetic control
+        assert not np.allclose(single.design.w, joint.design.w)
+
+
 def _factor_panel(n_c=60, n_t=6, T0=5, T_post=3, eff=0.0, seed=0):
     """Latent-factor panel as a long DataFrame (treated effect = ``eff``)."""
     rng = np.random.default_rng(seed)
