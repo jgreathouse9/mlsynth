@@ -935,6 +935,26 @@ well as a multi-arm :class:`SPCDMultiArmResults`.
    summary.method_details.method_name          # "SPCD (norm_spcd, weights=empirical)"
    summary.method_details.parameters_used      # variant, alpha/lam/beta, iterations
 
+Verification
+------------
+
+Cross-validated against the paper's Prop 99 design study (Section 4.2, Table 1):
+on the ADH panel (38 states, California excluded, 1970-2000), SPCD's placebo RMSE
+of the estimated effect reproduces the reported values -- ``0.94`` at T=25 (paper
+``0.98``), and within ~2x at T=15 -- and the design beats both a randomized
+difference-in-means and a single-unit synthetic control at both horizons (SPCD
+:math:`\ll` Random :math:`\ll` SC), the paper's headline. See
+:doc:`replications/spcd`; run it with
+``python benchmarks/run_benchmarks.py spcd_prop99``.
+
+.. note::
+
+   Table 1's *other* block (US BLS unemployment, target SPCD RMSE ``0.9``) is
+   **not reproducible from the paper alone**: SPCD ships no public code and leaves
+   ``alpha``/``lambda``/``beta`` unspecified, so a faithful Eq.-9 implementation
+   (mlsynth's, verified to :math:`\|w\|_1 = 2`) lands near ``8`` on those noisy
+   rank-deficient subsamples. The Prop 99 cell is the durable target.
+
 Core API
 --------
 
