@@ -19,7 +19,7 @@ The durable case ``benchmarks/cases/spotsynth_real_data.py`` reproduces three
 figures of the paper.
 
 Figure 6 — real-data screening (Path A, semi-synthetic)
-------------------------------------------------------
+-------------------------------------------------------
 
 On the three canonical Abadie panels -- **German Reunification**
 (``german_reunification.csv``), **California Tobacco Control**
