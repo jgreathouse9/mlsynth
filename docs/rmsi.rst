@@ -185,6 +185,12 @@ Verification
    :math:`-32` by 2000), matching the Abadie-Diamond-Hainmueller [ABADIE2010]_
    baseline and the other ``mlsynth`` estimators on the same panel.
 
+Both paths are pinned in the durable benchmark ``benchmarks/cases/rmsi_sim.py``:
+the Section-5.1 robustness sweep (side information beats the no-side-info baseline
+in every seed x weight-regime cell, near the noise floor) and the Prop 99 ATT.
+See :doc:`replications/rmsi`; run it with
+``python benchmarks/run_benchmarks.py rmsi_sim``.
+
 Core API
 --------
 
