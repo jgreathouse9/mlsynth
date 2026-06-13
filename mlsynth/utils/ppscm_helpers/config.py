@@ -7,8 +7,9 @@ Co-located with the helper package; re-exported from
 from __future__ import annotations
 
 from typing import Any, Literal, Optional, Union
-from pydantic import Field
+from pydantic import Field, model_validator
 from ...config_models import BaseEstimatorConfig
+from ...exceptions import MlsynthConfigError
 
 
 class PPSCMConfig(BaseEstimatorConfig):
@@ -75,9 +76,25 @@ class PPSCMConfig(BaseEstimatorConfig):
     run_inference: bool = Field(
         default=True,
         description=(
-            "Whether to run the paper's delete-one jackknife inference "
-            "(refits the estimator dropping each unit; can be slow)."
+            "Whether to run inference (see ``inference_method``); refits or "
+            "reweights the estimator, can be slow for the jackknife."
         ),
+    )
+    inference_method: str = Field(
+        default="jackknife",
+        description=(
+            "Inference procedure: 'jackknife' (delete-one, refit per unit) or "
+            "'bootstrap' (augsynth's default Mammen wild/multiplier bootstrap; "
+            "reweights the single fit, no refit). The augsynth multisynth "
+            "vignette prints the bootstrap SEs."
+        ),
+    )
+    n_boot: int = Field(
+        default=1000, ge=1,
+        description="Bootstrap replications when ``inference_method='bootstrap'``.",
+    )
+    seed: int = Field(
+        default=0, description="RNG seed for the bootstrap multipliers.",
     )
     alpha: float = Field(
         default=0.05,
@@ -85,3 +102,11 @@ class PPSCMConfig(BaseEstimatorConfig):
         lt=1.0,
         description="Significance level for the Wald confidence band.",
     )
+
+    @model_validator(mode="after")
+    def _check_inference_method(self):
+        if self.inference_method not in ("jackknife", "bootstrap"):
+            raise MlsynthConfigError(
+                "inference_method must be 'jackknife' or 'bootstrap'; got "
+                f"{self.inference_method!r}.")
+        return self

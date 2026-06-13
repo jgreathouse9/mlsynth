@@ -63,6 +63,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/linf
    replications/geolift
    replications/rolldid
+   replications/ppscm
 
 .. _replications-canonical:
 

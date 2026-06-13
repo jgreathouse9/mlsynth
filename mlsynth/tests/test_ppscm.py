@@ -133,6 +133,37 @@ def test_jackknife_inference_runs(panel):
     assert lo < res.att < hi
 
 
+def test_bootstrap_inference_runs(panel):
+    res = PPSCM(_cfg(panel, run_inference=True, inference_method="bootstrap",
+                     n_boot=200, seed=0)).fit()
+    assert res.inference.method == "bootstrap"
+    assert np.isfinite(res.inference.se) and res.inference.se > 0
+    lo, hi = res.inference.ci
+    assert lo < res.att < hi
+    assert np.all(np.isfinite(res.event_study.se))
+
+
+def test_invalid_inference_method_raises(panel):
+    from mlsynth.exceptions import MlsynthConfigError
+    with pytest.raises(MlsynthConfigError, match="inference_method"):
+        PPSCM(_cfg(panel, inference_method="bogus"))
+
+
+def test_predict_tau_unit_weights_match_point_estimate(panel):
+    """predict_tau with all-ones bs_weight reproduces run_multisynth's per_time
+    (guards the refactor that the bootstrap shares)."""
+    from mlsynth.utils.ppscm_helpers.engine import predict_tau
+    inp = prepare_ppscm_inputs(panel, outcome="y", treat="tr", unitid="unit", time="year")
+    H = inp.Xy.shape[1] - inp.n_pre
+    fit = run_multisynth(inp.Xy, inp.trt, inp.n_pre, H, inp.n_pre,
+                         fixedeff=True, time_cohort=False, nu=None)
+    _, per_time, att = predict_tau(fit["res"], fit["groups"], fit["adopt_of"],
+                                   fit["members"], fit["donors"], fit["weights"],
+                                   fit["n1"], H, fit["n"])
+    np.testing.assert_allclose(per_time, fit["per_time"], atol=1e-12)
+    assert att == pytest.approx(fit["att"], abs=1e-12)
+
+
 def test_requires_treated_unit(panel):
     df = panel.copy(); df["tr"] = 0
     with pytest.raises(MlsynthDataError):
@@ -161,3 +192,40 @@ def test_matches_augsynth_vignette():
     rt = PPSCM({**common, "time_cohort": True}).fit()
     assert rt.design.nu_used == pytest.approx(0.3939, abs=2e-3)
     assert rt.att == pytest.approx(-0.018, abs=2e-3)
+
+
+# augsynth jackknife per-horizon SE (inf_type="jackknife"), relative time 0..10
+_AUG_JACK_SE = np.array([0.01857, 0.01553, 0.01577, 0.02042, 0.02236, 0.02538,
+                         0.02683, 0.03015, 0.03494, 0.03187, 0.03495])
+# augsynth DEFAULT bootstrap per-horizon SE (inf_type="bootstrap"), relative time 0..10
+_AUG_BOOT_SE = np.array([0.02247, 0.02139, 0.02404, 0.02461, 0.02561, 0.02445,
+                         0.02491, 0.02811, 0.03171, 0.02916, 0.03245])
+
+
+def _vignette_cfg(**kw):
+    df = pd.read_csv(_DATA)
+    d = df[~df.State.isin(["DC", "WI"])].copy()
+    d = d[(d.year >= 1959) & (d.year <= 1997)].copy()
+    d["cbr"] = (d["year"] >= d["YearCBrequired"].fillna(np.inf)).astype(int)
+    base = dict(df=d, outcome="lnppexpend", treat="cbr", unitid="State",
+                time="year", display_graphs=False, run_inference=True)
+    base.update(kw)
+    return base
+
+
+@pytest.mark.skipif(not os.path.exists(_DATA), reason="Paglayan data not present")
+def test_jackknife_se_matches_augsynth_vignette():
+    """mlsynth's delete-one jackknife reproduces augsynth's inf_type='jackknife'."""
+    r = PPSCM(_vignette_cfg(inference_method="jackknife")).fit()
+    assert r.inference.method == "jackknife"
+    assert np.max(np.abs(np.asarray(r.event_study.se, float) - _AUG_JACK_SE)) < 1.5e-3
+
+
+@pytest.mark.skipif(not os.path.exists(_DATA), reason="Paglayan data not present")
+def test_bootstrap_se_matches_augsynth_vignette():
+    """The ported Mammen wild/multiplier bootstrap reproduces augsynth's default
+    inf_type='bootstrap' (the vignette's printed SEs)."""
+    r = PPSCM(_vignette_cfg(inference_method="bootstrap", n_boot=2000, seed=0)).fit()
+    assert r.inference.method == "bootstrap"
+    assert r.inference.se == pytest.approx(0.022, abs=2e-3)
+    assert np.max(np.abs(np.asarray(r.event_study.se, float) - _AUG_BOOT_SE)) < 4e-3
