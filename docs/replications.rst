@@ -67,6 +67,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/snn
    replications/syndes
    replications/spcd
+   replications/spotsynth
 
 .. _replications-canonical:
 
