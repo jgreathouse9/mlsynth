@@ -23,9 +23,10 @@ cross-validation rather than a comparison of solver artifacts.
 
 Provenance / scope
 ------------------
-* Data: ``basedata/seattledmi.csv`` -- the R ``microsynth`` package's
+* Data: ``basedata/seattledmi.parquet`` -- the R ``microsynth`` package's
   ``seattledmi`` dataset (``data(seattledmi)``), trimmed to the columns this
-  case uses (ID/time/Intervention/any_crime + the 9 census covariates). Full
+  case uses (ID/time/Intervention + the four Table 2 outcomes + the 9 census
+  covariates). Full
   panel: 9642 blocks x 16 periods, 39 treated (``Intervention`` turns on at
   ``time >= 13``).
 * Reference: R ``microsynth`` 2.0.51 run via ``benchmarks/R/microsynth_seattle.R``
@@ -44,7 +45,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-_DATA = Path(__file__).resolve().parents[2] / "basedata" / "seattledmi.csv"
+_DATA = Path(__file__).resolve().parents[2] / "basedata" / "seattledmi.parquet"
 
 # --- R microsynth 2.0.51 reference (single-outcome any_crime) ----------------
 # Plot.Stats$Difference[any_crime, 13:16] from microsynth_seattle.R.
@@ -63,7 +64,7 @@ _MATCH_OUT = ["i_felony", "i_misdemea", "i_drugs", "any_crime"]
 def run() -> dict:
     from mlsynth import MicroSynth
 
-    df = pd.read_csv(_DATA)
+    df = pd.read_parquet(_DATA)
     cov = ["TotalPop", "BLACK", "HISPANIC", "Males_1521", "HOUSEHOLDS",
            "FAMILYHOUS", "FEMALE_HOU", "RENTER_HOU", "VACANT_HOU"]
 

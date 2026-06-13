@@ -35,11 +35,11 @@ solver artifacts.
 Data
 ----
 
-``basedata/seattledmi.csv`` — the R ``microsynth`` package's ``seattledmi``
+``basedata/seattledmi.parquet`` — the R ``microsynth`` package's ``seattledmi``
 dataset (``data(seattledmi)``), trimmed to the columns this case uses
-(ID/time/Intervention/any_crime + the 9 census covariates). Full panel: 9642
-census blocks × 16 periods, 39 treated blocks, ``Intervention`` on from
-``time >= 13``.
+(ID/time/Intervention + the four Table 2 outcomes + the 9 census covariates).
+Full panel: 9642 census blocks × 16 periods, 39 treated blocks,
+``Intervention`` on from ``time >= 13``.
 
 Configuration matches mlsynth's one-outcome MicroSynth exactly:
 ``match.out = c("any_crime")``, ``match.covar`` = the 9 census covariates,
