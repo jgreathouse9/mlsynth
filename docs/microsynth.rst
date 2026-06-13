@@ -38,96 +38,151 @@ users.
 Mathematical Formulation
 ------------------------
 
-Setup
-^^^^^
+Notation
+^^^^^^^^
 
-Let :math:`\mathcal{T}` and :math:`\mathcal{C}` denote the sets of
-treated and control users, with sizes :math:`n_T` and :math:`n_C`.
-For each user :math:`i` we observe a covariate vector
-:math:`X_i \in \mathbb{R}^d` and a post-treatment outcome
-:math:`Y_i`. The treatment indicator is the *actual* exposure
-(impressions, not assignment), so contamination of a randomized
-holdout is absorbed: a holdout-arm user who actually saw the ad is
-treated; a treated-arm user who in fact got no impressions is a
-control.
+We follow the mlsynth notation canon (``agents/agents_docs.md``); MicroSynth's
+unit model is a *group* of treated units against a large control pool, so a few
+page-specific symbols are fixed here.
 
-The estimand is the population ATT on the actually-exposed group:
+* **Units.** :math:`\mathcal{I}_1` is the set of treated units (users, blocks,
+  or areas) with :math:`|\mathcal{I}_1| = n_T`; :math:`\mathcal{I}_0` is the
+  control pool with :math:`|\mathcal{I}_0| = n_C`, typically
+  :math:`n_C \gg n_T`. (*Bridge:* the canon's single treated unit
+  :math:`j = 1` generalises here to the whole set :math:`\mathcal{I}_1`.)
+* **Covariates.** Each unit :math:`j` carries
+  :math:`\mathbf{x}_j \in \mathbb{R}^d`; stack the controls as
+  :math:`\mathbf{X}_0 \in \mathbb{R}^{n_C \times d}` and the treated as
+  :math:`\mathbf{X}_1 \in \mathbb{R}^{n_T \times d}` (one row per unit).
+* **Time and outcomes.** :math:`t \in \mathcal{T} \coloneqq \{1,\dots,T\}`,
+  split at :math:`T_0` into pre-period :math:`\mathcal{T}_1` and post-period
+  :math:`\mathcal{T}_2`. The outcome of unit :math:`j` at time :math:`t` is
+  :math:`y_{jt}`.
+* **Weights.** Control weights :math:`\mathbf{w} \in \mathbb{R}^{n_C}_{\ge 0}`,
+  with optimiser :math:`\mathbf{w}^\ast`. The treated units are not reweighted
+  (each carries weight 1).
+
+Every weighting program below is an instance of the canon's SC-family shape
 
 .. math::
 
-   \tau = \mathbb{E}\bigl[Y_i(1) - Y_i(0) \,\big|\, \text{actually exposed}\bigr].
+   \mathbf{w}^\ast \in \operatorname*{argmin}_{\mathbf{w}\in\mathcal{C}}
+      \; \mathcal{L}(\mathbf{w}) + \mathcal{P}(\mathbf{w})
+      \quad\text{s.t.}\quad \mathcal{B}(\mathbf{w}) = \mathbf{0},
 
-Primal QP
-^^^^^^^^^
+with fit loss :math:`\mathcal{L}`, penalty :math:`\mathcal{P}`, balance map
+:math:`\mathcal{B}`, and feasible set :math:`\mathcal{C}`.
 
-MicroSynth solves a constrained quadratic program for non-negative
-simplex weights on the controls:
+Two weighting modes
+^^^^^^^^^^^^^^^^^^^^
+
+MicroSynth exposes two weight schemes through ``weight_method``, for two
+distinct regimes; they share the data-ingestion and diagnostics machinery but
+solve different programs and report on different scales.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 41 41
+
+   * -
+     - ``"simplex"`` (default)
+     - ``"panel"``
+   * - Regime
+     - Micro/holdout study: many individual users, one cross-section of
+       exposure
+     - Aggregated-area panel (the R ``microsynth`` port): repeated
+       cross-sections, treated *area* vs synthetic area
+   * - Feasible set
+     - simplex :math:`\Delta^{n_C}` (:math:`\mathbf{w}\ge 0`,
+       :math:`\|\mathbf{w}\|_1 = 1`)
+     - non-negative cone :math:`\mathbb{R}^{n_C}_{\ge 0}`,
+       :math:`\|\mathbf{w}\|_1 = n_T`
+   * - Balance
+     - covariate **means** :math:`\bar{\mathbf{x}}_1`
+     - covariate **totals** + lagged-outcome **totals**
+   * - Contrast
+     - per-unit weighted **mean** ATT
+     - treated-area **total** minus synthetic total, per period
+   * - Inference
+     - paired stratified bootstrap
+     - placebo permutation
+
+Mode A --- simplex (micro / holdout studies)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Here the treatment indicator is the *actual* exposure (impressions, not
+assignment), so contamination of a randomized holdout is absorbed: a
+holdout-arm user who actually saw the ad is treated; a treated-arm user who in
+fact got no impressions is a control. The estimand is the population ATT on the
+actually-exposed group,
 
 .. math::
 
-   \min_{w \in \mathbb{R}^{n_C}}\;
-       & \tfrac{1}{2} \left\| w - \tfrac{1}{n_C}\mathbf{1} \right\|_2^2 \\
+   \tau = \mathbb{E}\bigl[y_j(1) - y_j(0) \,\big|\, \text{actually exposed}\bigr].
+
+MicroSynth solves a min-variance balancing QP for non-negative simplex weights
+on the controls --- the canon shape with
+:math:`\mathcal{C} = \Delta^{n_C}`,
+:math:`\mathcal{P}(\mathbf{w}) = \tfrac12\|\mathbf{w} - n_C^{-1}\mathbf{1}\|_2^2`,
+:math:`\mathcal{L} \equiv 0`, and balance map
+:math:`\mathcal{B}(\mathbf{w}) = \mathbf{X}_0^{\!\top}\mathbf{w} -
+\bar{\mathbf{x}}_1`:
+
+.. math::
+
+   \mathbf{w}^\ast \in \operatorname*{argmin}_{\mathbf{w} \in \mathbb{R}^{n_C}}\;
+       & \tfrac{1}{2} \bigl\| \mathbf{w} - n_C^{-1}\mathbf{1} \bigr\|_2^2 \\
    \text{s.t.}\quad
-       & X_C^{\!\top} w = \bar{X}_T, \\
-       & \mathbf{1}^{\!\top} w = 1, \\
-       & w_i \geq 0,\quad i = 1, \dots, n_C,
+       & \mathbf{X}_0^{\!\top} \mathbf{w} = \bar{\mathbf{x}}_1, \\
+       & \mathbf{1}^{\!\top} \mathbf{w} = 1, \quad \mathbf{w} \ge \mathbf{0},
 
-where :math:`\bar{X}_T = (1/n_T) \sum_{i \in \mathcal{T}} X_i` is
-the treated group's covariate mean and :math:`X_C \in
-\mathbb{R}^{n_C \times d}` stacks the control covariates.
+where :math:`\bar{\mathbf{x}}_1 = n_T^{-1} \sum_{j \in \mathcal{I}_1}
+\mathbf{x}_j` is the treated group's covariate mean. The equality constraints
+**exactly** balance every covariate moment between treated and reweighted
+controls; the simplex constraints preserve the "synthetic" interpretation; and
+the quadratic penalty pulls weights toward the uniform :math:`n_C^{-1}` baseline
+so the solution does not collapse onto a single user.
 
-The objective pulls weights toward the uniform :math:`1/n_C`
-baseline (so the solution doesn't collapse onto one user); the
-equality constraints exactly balance every covariate moment
-between treated and reweighted controls; the simplex constraints
-preserve the "synthetic" interpretation (non-negative,
-sum-to-one).
-
-The square-loss penalty makes :math:`w` *sparse*: most controls
-end up with :math:`w_i = 0` and only the controls genuinely close
-to the treated profile receive mass. This is the "Synth" in
-MicroSynth.
-
-Dual Ascent
-^^^^^^^^^^^
-
-The primal is high-dimensional (:math:`n_C` variables can be in
-the millions). The dual is low-dimensional: one Lagrange
-multiplier per equality constraint, so :math:`\theta = (\lambda,
-\nu) \in \mathbb{R}^{d+1}`. Solving the dual via L-BFGS-B with the
-analytical gradient is fast and parallelizable in :math:`n_C`. The
-primal weights recover in closed form via the KKT relationship:
+**Dual ascent.** The primal is high-dimensional (:math:`n_C` can be in the
+millions) but the dual is :math:`(d+1)`-dimensional --- one multiplier
+:math:`\boldsymbol{\lambda} \in \mathbb{R}^d` per covariate balance constraint
+plus :math:`\nu` for the sum-to-one constraint. ``solve_microsynth_dual``
+minimises the dual potential with L-BFGS-B (analytical gradient, parallelisable
+in :math:`n_C`); the primal weights recover in closed form from the KKT
+conditions,
 
 .. math::
 
-   w_i = \max\!\left(0,\;
-       \tfrac{1}{n_C} - x_i^{\!\top} \lambda - \nu
+   w_j^\ast = \max\!\left(0,\;
+       n_C^{-1} - \mathbf{x}_j^{\!\top} \boldsymbol{\lambda} - \nu
    \right),
 
-normalized so :math:`\sum_i w_i = 1`.
+renormalised so :math:`\mathbf{1}^{\!\top}\mathbf{w}^\ast = 1`. The
+:math:`\max(0,\cdot)` makes :math:`\mathbf{w}^\ast` *sparse*: only controls
+genuinely close to the treated profile receive mass. This dimension-reduction
+(work in :math:`\mathbb{R}^{d+1}` regardless of :math:`n_C`) is what makes
+single-machine MicroSynth tractable on millions of users.
 
-Counterfactual and ATT
-^^^^^^^^^^^^^^^^^^^^^^
-
-With :math:`\hat{w}` solved, the synthetic counterfactual outcome
-and ATT are:
+**Counterfactual and ATT.** With :math:`\mathbf{w}^\ast` solved, the per-period
+synthetic counterfactual is the weighted-mean control outcome and the
+per-period effect is the canon's :math:`\tau_t`:
 
 .. math::
 
-   \hat{Y}^{\text{counterfactual}}_T
-   = \sum_{i \in \mathcal{C}} \hat{w}_i Y_i,
+   \widehat{y}_{1t} = \sum_{j \in \mathcal{I}_0} w_j^\ast\, y_{jt},
    \qquad
-   \widehat{\mathrm{ATT}}
-   = \bar{Y}_T - \hat{Y}^{\text{counterfactual}}_T.
+   \tau_t = \bar{y}_{1t} - \widehat{y}_{1t},
+   \qquad
+   \widehat{\tau} = |\mathcal{T}_2|^{-1}\!\!\sum_{t \in \mathcal{T}_2} \tau_t,
 
-When there are multiple post-treatment periods, the same
-:math:`\hat{w}` is applied to every post-period outcome and the
-final scalar ``att`` is the mean of the per-period gaps. The full
-per-period vector is exposed on
+with :math:`\bar{y}_{1t} = n_T^{-1}\sum_{j\in\mathcal{I}_1} y_{jt}` the treated
+mean. The same :math:`\mathbf{w}^\ast` is applied to every post-period; the
+scalar ``att`` is :math:`\widehat{\tau}` and the per-period vector
+:math:`(\tau_t)` is exposed on
 :py:attr:`MicroSynthResults.gap_trajectory`.
 
-Identifying Assumption
-^^^^^^^^^^^^^^^^^^^^^^
+Identifying assumptions (simplex mode)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Selection-on-observables: conditional on :math:`X`, treatment
 exposure is independent of the potential outcomes. In marketing
@@ -357,68 +412,256 @@ matrix — achieve all balance constraints to numerical precision.
   ``balance_tol`` — diagnoses convex-hull violations where no
   reweighting can equalize covariates.
 
-Panel method (``weight_method="panel"``)
-----------------------------------------
+Mode B --- panel method (the R ``microsynth`` port)
+---------------------------------------------------
 
-The default ``weight_method="simplex"`` is mlsynth's min-variance simplex
-balancing — non-negative weights summing to **one**, a weighted-**mean** ATT,
-intended for holdout-style user-level studies (above). Setting
-``weight_method="panel"`` switches to a faithful port of the **panel-data**
-weighting in the R ``microsynth`` package (Robbins et al.), for the
-aggregated-area / repeated-cross-section setting (e.g. the Seattle Drug Market
-Intervention).
+Setting ``weight_method="panel"`` switches to a faithful port of the
+**panel-data** weighting in the R ``microsynth`` package (Robbins et al.), for
+the aggregated-area / repeated-cross-section setting --- e.g. the Seattle Drug
+Market Intervention, where a treated *area* (a set of census blocks) is compared
+to a synthetic area built from the untreated blocks.
 
-The panel weights solve a **non-negative quadratic program**: exactly balance
-the treated group's covariate **totals** (an intercept column makes the weights
-sum to the treated count) and **least-squares**-fit each pre-period outcome
-(supply them via ``outcome_lag_periods`` set to the full pre-window). The
-contrast is then on **totals** — the treated area's total outcome minus the
-weighted control total, per post-period.
+The weight program
+^^^^^^^^^^^^^^^^^^^
 
-That QP is rank-deficient when the control pool is large (it pins only a few
-totals across many controls), so the counterfactual is **not identified by the
-constraints alone**. A strictly-convex ridge (``panel_ridge``, default 1e-6)
-selects the unique **minimum-norm / maximum-ESS** optimum — the most diffuse
-synthetic control consistent with exact covariate balance and the best
-lagged-outcome fit. This both makes the estimate reproducible and coincides
-with the R package's ``LowRankQP`` interior-point solution to 3–4 significant
-figures (see :doc:`replications/microsynth`).
+Reading the R source (``microsynth/R/weights.r``), the panel weights come from
+``my.qp`` (a ``LowRankQP`` solve), **not** from raking calibration: a
+non-negative QP that **exactly** balances the covariate totals (hard equality)
+and **least-squares**-fits the pre-period outcomes (soft). Write
+:math:`\mathbf{G}_0 = [\mathbf{1}\ \ \mathbf{X}_0] \in \mathbb{R}^{n_C\times(d+1)}`
+(controls' covariates with an intercept column) and, for the matched outcomes,
+the control lagged-outcome matrix
+:math:`\mathbf{L}_0 \in \mathbb{R}^{n_C \times m}` whose columns are
+:math:`\{y_{j t}\}` for :math:`t \in \mathcal{T}_1` (and, with multiple matched
+outcomes, stacked across them --- see below, so :math:`m = (\#\text{outcomes})
+\times |\mathcal{T}_1|`). The treated-area **totals** are
+:math:`\mathbf{h} = \bigl(n_T,\ \mathbf{1}^{\!\top}\mathbf{X}_1\bigr)^{\!\top}`
+and :math:`\boldsymbol{\ell} = \mathbf{1}^{\!\top}\mathbf{L}_1`. The program is
+the canon shape with :math:`\mathcal{C} = \mathbb{R}^{n_C}_{\ge 0}`, a
+least-squares fit loss, a ridge penalty, and an exact-balance map:
 
-**Inference (placebo permutation).** With ``run_inference=True`` the panel
-method runs a placebo-permutation test (microsynth's ``perm`` / ``test``):
-``n_permutations`` random sets of :math:`n_T` controls are each treated as a
-placebo "treated area", the QP is refit from the remaining controls, and the
-observed ATT is ranked against the resulting null distribution of placebo
-effects. ``permutation_test`` selects the tail (``"lower"`` / ``"upper"`` /
-``"twosided"``); the result carries the ATT p-value (``inference.p_value``),
-per-post-period p-values (``inference.p_values_by_period``), a permutation SE,
-and a placebo-based CI. Cost scales with ``n_permutations`` times the QP solve,
-so on a large control pool keep it modest (it parallelizes trivially across
-permutations).
+.. math::
 
-**Propensity-score mode.** Setting ``propensity_mode=True`` reproduces
-microsynth's ``match.out=FALSE`` cross-sectional usage: weights are computed
-from the **covariates only** (lagged outcomes are ignored), the data may be a
-single-period cross-section, and the balancing weights
-(``res.donor_weights`` / ``res.design.w``) are the deliverable — non-negative
-covariate-balancing weights on the controls (summing to the treated count) that
-exactly match the treated group's covariate totals, usable as
-inverse-propensity-style weights in a downstream analysis. The placebo
-permutation test applies here too.
+   \mathbf{w}^\ast \in \operatorname*{argmin}_{\mathbf{w} \ge \mathbf{0}}\;
+       \underbrace{\tfrac12\bigl\|\mathbf{L}_0^{\!\top}\mathbf{w}
+           - \boldsymbol{\ell}\bigr\|_2^2}_{\mathcal{L}(\mathbf{w})}
+       + \underbrace{\tfrac{\rho}{2}\|\mathbf{w}\|_2^2}_{\mathcal{P}(\mathbf{w})}
+       \quad\text{s.t.}\quad
+       \underbrace{\mathbf{G}_0^{\!\top}\mathbf{w} = \mathbf{h}}_{\mathcal{B}(\mathbf{w})=\mathbf{0}} .
 
-Inference (simplex)
--------------------
+The intercept row of :math:`\mathbf{G}_0^{\!\top}\mathbf{w} = \mathbf{h}` forces
+:math:`\mathbf{1}^{\!\top}\mathbf{w} = n_T`, so the weights sum to the treated
+count rather than to one. ``solve_panel_qp`` solves this with cvxpy's CLARABEL
+interior-point solver; an infeasible covariate target (the treated totals lie
+outside the non-negative cone spanned by the controls) raises
+:class:`~mlsynth.exceptions.MlsynthEstimationError` rather than returning a
+degenerate fit.
 
-For the default ``weight_method="simplex"``, ``run_inference=True`` runs a
-**paired stratified bootstrap**: resample :math:`n_T` treated users and
-:math:`n_C` control users separately, refit the dual, repeat ``n_bootstrap``
-times. The percentile CI and SE come from the bootstrap distribution. (The
-panel method uses the placebo-permutation test described above instead.)
+Why a ridge: non-identification of the counterfactual
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Each bootstrap rep is fast because the dual ascent re-converges
-quickly from cold start (the dual is convex and low-dimensional);
-with ``n_bootstrap = 500`` on 100K users + 20 covariates, total
-inference time is in the low minutes.
+The fit loss :math:`\mathcal{L}` depends on :math:`\mathbf{w}` only through the
+:math:`m` lagged-outcome totals :math:`\mathbf{L}_0^{\!\top}\mathbf{w}`, and the
+balance map pins only :math:`d+1` covariate totals --- together
+:math:`O(m + d)` linear functionals of an :math:`n_C`-vector. Over a large
+control pool (:math:`n_C \gg m + d`) the optimum is therefore a
+high-dimensional face, not a point: **the counterfactual is not identified by
+the constraints alone**. On the Seattle panel, solving the LP that minimises and
+maximises the post-period synthetic total over the exact-balance feasible set
+gives a feasible range for the period-13 effect of roughly
+:math:`[-392,\ +153]` --- the R package's ``LowRankQP`` merely returns whichever
+interior-point iterate it lands on.
+
+mlsynth removes this ambiguity with the strictly-convex ridge
+:math:`\tfrac{\rho}{2}\|\mathbf{w}\|_2^2` (``panel_ridge``, default
+:math:`\rho = 10^{-6}`), which selects the unique **minimum-norm /
+maximum-ESS** point on that face --- the most diffuse synthetic control
+consistent with exact covariate balance and the best lagged-outcome fit. This
+makes the estimate reproducible *and*, because ``LowRankQP``'s interior-point
+iterate is itself near the minimum-norm point, it coincides with the R package's
+output to 3--4 significant figures (see :doc:`replications/microsynth`).
+
+Effects on totals
+^^^^^^^^^^^^^^^^^
+
+The panel contrast is on **totals**, not per-unit means: the treated-area total
+minus the weighted control total, per post-period,
+
+.. math::
+
+   \tau_t = \sum_{j\in\mathcal{I}_1} y_{jt}
+            - \sum_{j\in\mathcal{I}_0} w_j^\ast\, y_{jt},
+            \qquad t \in \mathcal{T}_2,
+
+with ``att`` :math:`= |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t`. The
+package's reported ``Pct.Chng`` is :math:`100(\mathrm{Trt}-\mathrm{Con})/
+\mathrm{Con}` over the post window, where :math:`\mathrm{Trt} =
+\sum_{t\in\mathcal{T}_2}\sum_{j\in\mathcal{I}_1} y_{jt}` and :math:`\mathrm{Con}
+= \sum_{t\in\mathcal{T}_2}\sum_{j\in\mathcal{I}_0} w_j^\ast y_{jt}`.
+
+Multi-outcome joint match
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``match_outcomes`` reproduces microsynth's multi-outcome ``match.out``: the soft
+block :math:`\mathbf{L}_0` stacks the pre-period values of *every* listed
+outcome, so one shared :math:`\mathbf{w}^\ast` balances every outcome's
+trajectory simultaneously. The reported effect is for the primary ``outcome``;
+running once per outcome with the same ``match_outcomes`` set yields the
+*identical* weight vector and the package's per-outcome results table (the JSS
+Table 2 reproduction in :doc:`replications/microsynth`).
+
+Identifying assumptions (panel mode)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+*Assumption B1 (overlap / feasibility).* The treated-area covariate totals
+:math:`\mathbf{h}` lie in the non-negative cone spanned by the control rows, so
+the exact-balance constraint :math:`\mathbf{G}_0^{\!\top}\mathbf{w}=\mathbf{h}`
+admits a :math:`\mathbf{w}\ge\mathbf{0}` solution. *Remark.* This is the
+aggregate-SC convex-hull condition transposed to totals; when it fails CLARABEL
+reports infeasibility and the fit raises rather than returning a biased
+near-solution.
+
+*Assumption B2 (pre-period fit / parallel trends).* Matching every pre-period
+outcome total drives the treated and synthetic areas onto the same
+pre-intervention trajectory, so absent treatment they would have moved in
+parallel and :math:`\sum_j w_j^\ast y_{jt}` is a credible counterfactual for
+:math:`t \in \mathcal{T}_2`. *Remark.* This is why the soft block should be the
+**full** pre-window (``outcome_lag_periods`` :math:`= \mathcal{T}_1`); a
+non-flat pre-period gap is the diagnostic that B2 is failing.
+
+*Assumption B3 (regularisation selects a credible point).* Because the
+counterfactual is not identified by the constraints (above), the reported effect
+is the one implied by the maximum-ESS tie-break. *Remark.* The ridge is not a
+nuisance knob to tune: with :math:`\rho` small the lagged-outcome fit and exact
+covariate balance dominate, and the tie-break only chooses *among* equally
+balanced, equally well-fitting weightings --- the most diffuse one, which
+maximises effective sample size. Report the achieved imbalance (it is ~0) and
+the ESS alongside the effect.
+
+Propensity-score mode (``propensity_mode=True``)
+------------------------------------------------
+
+Setting ``propensity_mode=True`` reproduces microsynth's ``match.out=FALSE``
+cross-sectional usage. The soft block is dropped
+(:math:`\mathbf{L}_0` empty, :math:`\mathcal{L}\equiv 0`), so the program reduces
+to the minimum-norm non-negative weighting that exactly balances the covariate
+totals,
+
+.. math::
+
+   \mathbf{w}^\ast \in \operatorname*{argmin}_{\mathbf{w}\ge\mathbf{0}}\;
+       \tfrac{\rho}{2}\|\mathbf{w}\|_2^2
+       \quad\text{s.t.}\quad \mathbf{G}_0^{\!\top}\mathbf{w} = \mathbf{h} ,
+
+and the data may be a single-period **cross-section** (no pre/post window
+needed). The deliverable is the balancing weights themselves
+(``res.donor_weights`` / ``res.design.w``): non-negative covariate-balancing
+weights on the controls, summing to the treated count, that exactly match the
+treated group's covariate totals --- usable as inverse-propensity-style weights
+in a downstream analysis. The placebo-permutation test applies here too.
+
+Inference
+---------
+
+``run_inference=True`` (the default) attaches a
+:class:`~mlsynth.utils.microsynth_helpers.structures.MicroSynthInference`. The
+method depends on the weight scheme: a paired stratified bootstrap for the
+simplex mode, a placebo-permutation test for the panel/propensity mode. Both
+populate ``res.inference`` with ``method``, ``att``, ``se``, ``ci``; the
+permutation path additionally fills ``p_value``, ``p_values_by_period`` and
+``test``.
+
+Simplex mode --- paired stratified bootstrap
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:func:`~mlsynth.utils.microsynth_helpers.inference.paired_bootstrap_ci` resamples
+the treated and control **blocks separately** with replacement, preserving the
+original :math:`(n_T, n_C)` allocation (a stratified, or "paired", bootstrap ---
+pairing the two strata rather than resampling the pooled sample, which would
+perturb the treated fraction). For replication
+:math:`b = 1, \dots, B` (``n_bootstrap``):
+
+#. draw :math:`n_T` treated rows and :math:`n_C` control rows i.i.d. uniformly
+   with replacement;
+#. refit the dual on the resampled controls and recompute the ATT
+   :math:`\widehat{\tau}^{(b)}`.
+
+Replications whose dual fails to converge are dropped; the surviving
+:math:`B' \le B` estimates form the bootstrap distribution. The standard error
+is its sample SD (``ddof=1``) and the CI is the percentile interval at
+``ci_level`` (default 95%):
+
+.. math::
+
+   \widehat{\mathrm{se}} = \operatorname{sd}\bigl(\widehat{\tau}^{(b)}\bigr),
+   \qquad
+   \mathrm{CI}_{1-\alpha} = \Bigl[\,
+       q_{\alpha/2}\bigl(\widehat{\tau}^{(b)}\bigr),\;
+       q_{1-\alpha/2}\bigl(\widehat{\tau}^{(b)}\bigr)
+   \Bigr].
+
+Each rep is cheap --- the dual re-converges quickly from a cold start because it
+is convex and :math:`(d+1)`-dimensional --- so ``n_bootstrap = 500`` on 100K
+users and 20 covariates runs in the low minutes. Single-user weight
+bootstrapping is deliberately *not* used: it would require re-standardisation
+that complicates the comparison; block resampling is the standard ATT bootstrap
+(Wang--Zubizarreta 2019) and matches the Robbins--Davenport reference.
+
+Panel / propensity mode --- placebo permutation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:func:`~mlsynth.utils.microsynth_helpers.panel_inference.panel_permutation_test`
+ports microsynth's ``perm`` / ``test`` inference: the treated area is compared to
+**placebo areas** drawn from the control pool. For
+:math:`r = 1, \dots, R` (``n_permutations``):
+
+#. sample :math:`n_T` controls uniformly **without replacement** as a placebo
+   "treated area"; the remaining :math:`n_C - n_T` controls are the placebo donor
+   pool;
+#. refit the panel QP from the donor pool (same :math:`\rho`, same hard/soft
+   blocks) and record the placebo per-period effects
+   :math:`\tau_t^{(r)}` and placebo ATT
+   :math:`\widehat{\tau}^{(r)} = |\mathcal{T}_2|^{-1}\sum_t \tau_t^{(r)}`.
+
+Placebo groups whose QP is infeasible are skipped. The collection
+:math:`\{\widehat{\tau}^{(r)}\}` is the null distribution against which the
+observed ATT :math:`\widehat{\tau}` is ranked. The ``permutation_test`` tail sets
+the p-value, with the **add-one** convention (so it is never exactly zero and is
+valid as a finite-sample randomisation test):
+
+.. math::
+
+   p_{\text{lower}}    &= \frac{1 + \#\{r : \widehat{\tau}^{(r)} \le \widehat{\tau}\}}{1 + R}, \\
+   p_{\text{upper}}    &= \frac{1 + \#\{r : \widehat{\tau}^{(r)} \ge \widehat{\tau}\}}{1 + R}, \\
+   p_{\text{twosided}} &= \frac{1 + \#\{r : |\widehat{\tau}^{(r)}| \ge |\widehat{\tau}|\}}{1 + R}.
+
+Per-period p-values (``p_values_by_period``) apply the same rule to each
+:math:`\tau_t` against :math:`\{\tau_t^{(r)}\}`. The permutation SE is the SD of
+the placebo ATTs, and the CI inverts the placebo distribution (which is centred
+near zero under the sharp null) around the observed effect:
+
+.. math::
+
+   \widehat{\mathrm{se}} = \operatorname{sd}\bigl(\widehat{\tau}^{(r)}\bigr),
+   \qquad
+   \mathrm{CI}_{1-\alpha} = \Bigl[\,
+       \widehat{\tau} - q_{1-\alpha/2}\bigl(\widehat{\tau}^{(r)}\bigr),\;
+       \widehat{\tau} - q_{\alpha/2}\bigl(\widehat{\tau}^{(r)}\bigr)
+   \Bigr].
+
+.. note::
+
+   **Convention vs. the R package.** microsynth's ``get.pval`` reports the bare
+   fraction :math:`\#\{\cdot\}/R` (no add-one), so its floor is 0; mlsynth uses
+   the add-one randomisation-test form, floor :math:`1/(1+R)`. The two agree on
+   the conclusion --- on the Seattle DMI joint match both flag felonies,
+   misdemeanors and total crime as significant reductions and drug crimes as
+   not (:doc:`replications/microsynth`).
+
+Cost scales as :math:`R` times one QP solve, so on a large control pool keep
+``n_permutations`` modest; the placebo draws are independent and parallelise
+trivially. Set ``n_permutations=0`` (or ``run_inference=False``) to skip
+inference and return ``method="none"``.
 
 Core API
 --------
@@ -432,6 +675,47 @@ Configuration
 -------------
 
 .. autoclass:: mlsynth.config_models.MicroSynthConfig
+   :members:
+   :undoc-members:
+
+Result Containers
+-----------------
+
+``MicroSynth.fit()`` returns a
+:class:`~mlsynth.utils.microsynth_helpers.structures.MicroSynthResults` ---
+MicroSynth is an *observational* estimator, so this is an ``EffectResult``-style
+container (it reports a realised effect, not an experimental design). The surface
+is grouped so each quantity has one home.
+
+* ``res.att`` --- the scalar ATT :math:`\widehat{\tau}` (mean of the per-period
+  effects); ``res.gap_trajectory`` --- the per-period vector :math:`(\tau_t)`
+  over :math:`\mathcal{T}_2`; ``res.counterfactual`` --- the synthetic
+  trajectory :math:`(\widehat{y}_{1t})`; ``res.gap`` --- the per-period
+  contrast in result shape.
+* ``res.design``
+  (:class:`~mlsynth.utils.microsynth_helpers.structures.MicroSynthDesign`) ---
+  the weighting: ``w`` (:math:`\mathbf{w}^\ast`), the dual variables
+  ``dual_lambda`` / ``dual_nu``, the balance diagnostics ``smd_before`` /
+  ``smd_after``, ``ess``, ``max_weight``, the ``feasible`` flag with
+  ``feasibility_message``, and the solver ``converged`` / ``n_iterations``.
+* ``res.inference``
+  (:class:`~mlsynth.utils.microsynth_helpers.structures.MicroSynthInference`) ---
+  ``method`` (``"paired_bootstrap"`` / ``"permutation"`` / ``"none"``), ``se``,
+  ``ci``, the distribution ``bootstrap_atts`` (bootstrap or placebo), and ---
+  for the permutation path --- ``p_value``, ``p_values_by_period`` and ``test``.
+* ``res.donor_weights`` --- ``{control_id: w_j}`` for every control with
+  positive weight; ``res.inputs`` --- the pre-processed matrices
+  (:class:`~mlsynth.utils.microsynth_helpers.structures.MicroSynthInputs`).
+
+.. autoclass:: mlsynth.utils.microsynth_helpers.structures.MicroSynthResults
+   :members:
+   :undoc-members:
+
+.. autoclass:: mlsynth.utils.microsynth_helpers.structures.MicroSynthDesign
+   :members:
+   :undoc-members:
+
+.. autoclass:: mlsynth.utils.microsynth_helpers.structures.MicroSynthInference
    :members:
    :undoc-members:
 
@@ -470,10 +754,6 @@ Seattle Drug Market Intervention example — see :doc:`replications/microsynth`
    :undoc-members:
 
 .. automodule:: mlsynth.utils.microsynth_helpers.plotter
-   :members:
-   :undoc-members:
-
-.. automodule:: mlsynth.utils.microsynth_helpers.structures
    :members:
    :undoc-members:
 
