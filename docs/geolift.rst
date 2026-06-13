@@ -101,6 +101,77 @@ unioned with the forced-in set, so every candidate satisfies
 :math:`\mathcal{S}_{\mathrm{in}} \subseteq \mathcal{S}` and
 :math:`\mathcal{S} \cap \mathcal{S}_{\mathrm{out}} = \varnothing`.
 
+Stage 1b — Design constraints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Beyond hard forcing lists, the rule-based constraints restrict the admissible
+regions and donor pools (the prose walkthrough with runnable examples is in
+*Design constraints (geography, coverage, size)* below). Each is one of two kinds,
+following the LEXSCM constraint algebra (:doc:`lexscm`): a **treatment
+criterion** filtering admissible :math:`\mathcal{S}`, or a **control criterion**
+restricting the donor pool. None enters the inner weight program of Stage 2.
+
+**Interference graph.** Encode market interference by a symmetric
+:math:`\mathbf{A} = [A_{ij}] \in \{0,1\}^{N \times N}` with zero diagonal, where
+:math:`A_{ij} = 1` iff markets :math:`i, j` interfere. It is built from a cluster
+labelling :math:`c : \mathcal{N} \to \mathcal{C}` (``cluster_col``,
+:math:`A_{ij} = 1` iff :math:`c(i) = c(j)`) and/or a spillover matrix
+:math:`\mathbf{W}` (``adjacency``, :math:`A_{ij} = 1` iff
+:math:`W_{ij} > \theta`, the ``spillover_threshold``), combined entrywise by
+logical OR. The **conflict-neighbours** of a region are
+
+.. math::
+
+   \mathcal{A}(\mathcal{S}) \coloneqq
+   \bigl\{\, k \in \mathcal{N} : A_{jk} = 1 \ \text{for some}\ j \in \mathcal{S}
+   \,\bigr\} \setminus \mathcal{S}.
+
+*Treatment criterion — no interference.* The treated region must be an
+**independent set** of :math:`\mathbf{A}`:
+:math:`A_{ij} = 0 \ \forall\, i, j \in \mathcal{S}` (at most one market per
+cluster). *Control criterion — spillover exclusion.* The donor pool drops the
+conflict-neighbours, refining the Stage-2 pool to
+
+.. math::
+
+   \mathcal{N}_0(\mathcal{S}) \;=\;
+   \mathcal{N} \setminus \bigl(\mathcal{S} \cup \mathcal{A}(\mathcal{S})\bigr),
+
+so a treated market's interferers can be neither co-treated nor used as its own
+donors.
+
+**Coverage quotas.** With a stratum labelling :math:`g : \mathcal{N} \to
+\mathcal{G}` (``stratum_col``) and the strata that contain an eligible market
+:math:`\mathcal{G}_{\mathrm{elig}}`, the region must satisfy, for the bounds
+:math:`q_{\min}` (``min_per_stratum``) and :math:`q_{\max}` (``max_per_stratum``),
+
+.. math::
+
+   q_{\min} \le \bigl|\{\, j \in \mathcal{S} : g(j) = s \,\}\bigr|
+   \quad \forall\, s \in \mathcal{G}_{\mathrm{elig}},
+   \qquad
+   \bigl|\{\, j \in \mathcal{S} : g(j) = s \,\}\bigr| \le q_{\max}
+   \quad \forall\, s \in \mathcal{G}.
+
+**Size band.** With market sizes :math:`z_j` (``size_col``) and bounds
+:math:`[\underline{z}, \overline{z}]` (``min_size`` / ``max_size``), only in-band
+markets are **treatment-eligible**,
+:math:`\mathcal{N}_{\mathrm{size}} \coloneqq \{\, j : \underline{z} \le z_j \le
+\overline{z} \,\}`, so :math:`\mathcal{S} \subseteq \mathcal{N}_{\mathrm{size}}`;
+out-of-band markets remain available as donors. The ceiling
+:math:`\overline{z}` is the a-priori analogue of the synthesizability the scaled
+L2 imbalance :math:`\kappa(\mathcal{S})` (below) measures post-hoc.
+
+All three treatment criteria act on the admissible supports — they sit exactly
+where the cardinality constraint :math:`|\mathcal{S}| = k` already lives and only
+*shrink* the candidate set. If no region satisfies them (e.g.
+:math:`k` exceeds :math:`|\mathcal{C}|` or :math:`|\mathcal{G}_{\mathrm{elig}}|`,
+or :math:`|\mathcal{N}_{\mathrm{size}}| < k`) the design reports infeasibility
+(:class:`~mlsynth.exceptions.MlsynthConfigError`) rather than returning a
+degenerate region. With none of the constraints supplied,
+:math:`\mathbf{A} = \mathbf{0}` and every region is admissible — the unconstrained
+nomination.
+
 Stage 2 — The synthetic control
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
