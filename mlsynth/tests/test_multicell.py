@@ -204,6 +204,25 @@ def test_estimator_display_graphs_does_not_raise():
     assert isinstance(res, MultiCellResults)
 
 
+def test_multicell_weight_vector_per_cell():
+    """Each cell's control weights are available as a dense numpy vector matching
+    its donor_weights, and the report aliases a cell (no duplicate object)."""
+    df, _ = _panel(effA=10.0, effB=0.0)
+    res = MULTICELLGEOLIFT({
+        "df": df, "outcome": "Y", "unitid": "location", "time": "time",
+        "cell_column_name": "cell", "post_col": "post", "ns": 200,
+        "display_graphs": False,
+    }).fit()
+    for label in ("A", "B"):
+        w = res.cells[label].weights
+        vec = w.weight_vector
+        assert isinstance(vec, np.ndarray)
+        assert vec.shape == (len(w.donor_weights),)
+        assert np.allclose(vec, list(w.donor_weights.values()))
+    # the representative report is the same object as a cell (a reference, not a copy)
+    assert any(res.report is res.cells[c] for c in res.cells)
+
+
 def test_plot_multicell_empty_cells_returns_none():
     """The empty-result guard: nothing to plot -> None, no figure."""
     import types

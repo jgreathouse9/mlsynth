@@ -83,6 +83,12 @@ class GEOLIFT:
                         fixed_effects=self.config.fixed_effects,
                         cpic=self.config.cpic,
                     )
+                    # The realized SC *is* the chosen design's SC, so point the
+                    # design-weights front door at the report's weights — one
+                    # object, not a second identical donor dict. (Pre-realization
+                    # design_weights remains the winner's design-fit weights, which
+                    # are themselves a reference to ``search.winner.weights``.)
+                    result.design_weights = result.report.weights
                 if self.config.display_graphs:
                     plot_design(result, report=result.report, show=True)
             self._result = result

@@ -73,17 +73,27 @@ Pearson correlation matrix :math:`\mathbf{P} = [\rho_{ij}] \in \mathbb{R}^{N \ti
          \sqrt{\sum_{t \in \mathcal{T}_1}(y_{jt} - \bar{y}_j)^2}},
    \qquad \bar{y}_i \coloneqq T_0^{-1}\!\!\sum_{t \in \mathcal{T}_1} y_{it}.
 
-For each **anchor** :math:`i`, let :math:`\pi_i` order the other markets by
-descending correlation,
-:math:`\rho_{i,\pi_i(1)} \ge \rho_{i,\pi_i(2)} \ge \dots \ge \rho_{i,\pi_i(N-1)}`.
-The **deterministic** nominee anchored at :math:`i` is that market plus its
-:math:`k-1` nearest neighbours,
+For each **anchor** :math:`i`, the :math:`k-1` **nearest neighbours** are the
+solution of a per-anchor selection problem — pick the :math:`k-1` other markets
+of greatest correlation to the anchor:
 
 .. math::
 
-   \mathcal{S}_i \coloneqq \{i\} \cup \bigl\{\pi_i(1), \dots, \pi_i(k-1)\bigr\},
+   \mathcal{S}_i \coloneqq \{i\} \cup
+   \operatorname*{arg\,max}_{\substack{\mathcal{T} \subseteq \mathcal{N}
+   \setminus \{i\} \\ |\mathcal{T}| = k-1}}
+   \sum_{j \in \mathcal{T}} \rho_{ij},
 
-and the shortlist is :math:`\{\mathcal{S}_i\}_{i \in \mathcal{N}}` deduplicated —
+which, because the objective is additively separable in :math:`j`, is solved
+exactly by ranking: with :math:`\pi_i` ordering the other markets by descending
+correlation
+(:math:`\rho_{i,\pi_i(1)} \ge \dots \ge \rho_{i,\pi_i(N-1)}`),
+:math:`\mathcal{S}_i = \{i\} \cup \{\pi_i(1), \dots, \pi_i(k-1)\}`. This is the
+``mlsynth`` substitute for the intractable global
+:math:`\operatorname{arg\,min}_{\mathcal{S}} L(\mathcal{S})` (Stage 2's imbalance
+:math:`L`) over all :math:`\binom{N}{k}` regions — :math:`N` anchored top-:math:`k`
+problems instead, each closed-form. The shortlist is
+:math:`\{\mathcal{S}_i\}_{i \in \mathcal{N}}` deduplicated —
 :math:`N` candidates instead of :math:`\binom{N}{k}`. The **stochastic**
 ("paired-jitter") variant replaces ranks :math:`1, \dots, k-1` by one draw from
 each adjacent pair :math:`\{1,2\}, \{3,4\}, \dots`, exploring near-rank neighbours
@@ -194,7 +204,20 @@ A base simplex SCM is solved on the pre-period,
    \Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
    \|\mathbf{w}\|_1 = 1\},
 
-then ridge-augmented to close the residual pre-period imbalance,
+then **ridge-augmented**. The augmented weights are themselves the solution of an
+optimization problem — a ridge-penalized balance objective *anchored* at the
+simplex fit, dropping the simplex constraint so the correction can debias
+(augsynth's ASCM, hence the possible small negative weights):
+
+.. math::
+
+   \mathbf{w}^\ast \;=\;
+   \operatorname*{arg\,min}_{\mathbf{w} \in \mathbb{R}^{N_0}}
+   \;\bigl\| \widetilde{\mathbf{y}}^{\mathcal{S}}_{\mathcal{T}_1}
+         - \widetilde{\mathbf{Y}}_{0,\mathcal{T}_1}\mathbf{w} \bigr\|_2^2
+   \;+\; \lambda\,\bigl\| \mathbf{w} - \mathbf{w}^{\mathrm{scm}} \bigr\|_2^2 ,
+
+whose stationarity condition has the closed form (push-through identity)
 
 .. math::
 
@@ -205,7 +228,9 @@ then ridge-augmented to close the residual pre-period imbalance,
    \bigl(\widetilde{\mathbf{y}}^{\mathcal{S}}_{\mathcal{T}_1}
    - \widetilde{\mathbf{Y}}_{0,\mathcal{T}_1}\mathbf{w}^{\mathrm{scm}}\bigr),
 
-with the penalty :math:`\lambda` chosen by leave-one-period-out cross-validation.
+with the penalty :math:`\lambda` chosen by leave-one-period-out cross-validation
+(:math:`\lambda \to 0` recovers the plain simplex SCM; :math:`\lambda \to \infty`
+pulls back to :math:`\mathbf{w}^{\mathrm{scm}}`).
 The counterfactual and gap follow the canon,
 
 .. math::
