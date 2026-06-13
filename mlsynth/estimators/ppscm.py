@@ -29,7 +29,7 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.ppscm_helpers.engine import run_multisynth
-from ..utils.ppscm_helpers.inference import jackknife_inference
+from ..utils.ppscm_helpers.inference import jackknife_inference, bootstrap_inference
 from ..utils.ppscm_helpers.plotter import plot_ppscm
 from ..utils.ppscm_helpers.setup import prepare_ppscm_inputs
 from ..utils.ppscm_helpers.structures import (
@@ -79,6 +79,9 @@ class PPSCM:
         self.lam: float = config.lam
         self.solver: Any = config.solver
         self.run_inference: bool = config.run_inference
+        self.inference_method: str = config.inference_method
+        self.n_boot: int = config.n_boot
+        self.seed: int = config.seed
         self.alpha: float = config.alpha
 
         self.display_graphs: bool = config.display_graphs
@@ -121,7 +124,13 @@ class PPSCM:
 
             per_time = fit["per_time"]
             att = fit["att"]
-            if self.run_inference:
+            if self.run_inference and self.inference_method == "bootstrap":
+                att, se, ci, pt_se, pt_ci = bootstrap_inference(
+                    fit, alpha=self.alpha, n_boot=self.n_boot, seed=self.seed,
+                    per_time_full=per_time, att_full=att,
+                )
+                method = "bootstrap"
+            elif self.run_inference:
                 att, se, ci, pt_se, pt_ci = jackknife_inference(
                     Xy, trt, d, n_leads, n_lags,
                     fixedeff=self.fixedeff, time_cohort=self.time_cohort,

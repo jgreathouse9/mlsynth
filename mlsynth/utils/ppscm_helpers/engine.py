@@ -96,6 +96,36 @@ def solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
     return W
 
 
+def predict_tau(res, groups, adopt_of, members, donors, W, n1, H, n, bs_weight=None):
+    """Relative-time ``tau`` per cohort, plus the n1-weighted event study and ATT.
+
+    With ``bs_weight`` (per-unit multipliers, default all ones) this is augsynth's
+    ``predict.multisynth(bs_weight=...)`` written in residual space: the
+    fixed-effect terms cancel between the treated mean and the synthetic, leaving
+    the treated residuals (scaled by ``bs_weight``, averaged over the cohort) minus
+    the donor residuals weighted by ``W[g] * bs_weight``. ``bs_weight = ones``
+    reproduces the point estimate exactly.
+    """
+    if bs_weight is None:
+        bs_weight = np.ones(n)
+    J = len(groups)
+    tau_rel = np.full((J, H), np.nan)
+    for k, g in enumerate(groups):
+        tj = adopt_of[g]
+        resid = res[tj]
+        mem = members[g]
+        mu1 = (bs_weight[mem, None] * resid[mem]).sum(axis=0) / n1[k]
+        mu0 = (W[g] * bs_weight) @ resid
+        tt = mu1 - mu0
+        hi = min(tj + H, resid.shape[1])
+        tau_rel[k, : hi - tj] = tt[tj:hi]
+    denom = np.array([np.nansum(n1 * ~np.isnan(tau_rel[:, h])) for h in range(H)])
+    per_time = np.array([np.nansum(n1 * tau_rel[:, h]) / denom[h] if denom[h] > 0 else np.nan
+                         for h in range(H)])
+    att = float(np.nanmean(per_time))
+    return tau_rel, per_time, att
+
+
 def run_multisynth(
     Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
     *, fixedeff: bool = True, time_cohort: bool = False,
@@ -144,21 +174,13 @@ def run_multisynth(
 
     # predict: relative-time tau per cohort, n1-weighted per-horizon average
     H = n_leads
-    tau_rel = np.full((J, H), np.nan)
-    for k, g in enumerate(groups):
-        tj = adopt_of[g]; resid = res[tj]
-        treated_resid = resid[members[g]].mean(axis=0)
-        tt = treated_resid - W[g] @ resid
-        hi = min(tj + H, Xy.shape[1])
-        tau_rel[k, : hi - tj] = tt[tj:hi]
-    denom = np.array([np.nansum(n1 * ~np.isnan(tau_rel[:, h])) for h in range(H)])
-    per_time = np.array([np.nansum(n1 * tau_rel[:, h]) / denom[h] if denom[h] > 0 else np.nan
-                         for h in range(H)])
-    att = float(np.nanmean(per_time))
+    tau_rel, per_time, att = predict_tau(
+        res, groups, adopt_of, members, donors, W, n1, H, n)
 
     return {
         "groups": groups, "members": members, "adopt_of": adopt_of, "donors": donors,
         "weights": W, "n1": n1, "tau_rel": tau_rel, "per_time": per_time, "att": att,
         "nu_used": nu_used, "global_l2": fin_global, "ind_l2": fin_ind,
         "scaled_global_l2": fin_global / unif_global, "scaled_ind_l2": fin_ind / unif_ind,
+        "res": res, "n": n, "n_leads": n_leads,
     }
