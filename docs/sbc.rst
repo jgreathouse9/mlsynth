@@ -641,7 +641,7 @@ trend:
    import numpy as np
    import pandas as pd
 
-   from mlsynth import CLUSTERSC, SBC
+   from mlsynth import VanillaSC, SBC
 
 
    def panel(*, mode, n_donors=10, T0=40, T1=20, seed=0):
@@ -675,10 +675,8 @@ trend:
        s = SBC({"df": df, "outcome": "y", "treat": "treat",
                   "unitid": "unit", "time": "t",
                   "display_graphs": False}).fit()
-       sc = CLUSTERSC({"df": df, "outcome": "y", "treat": "treat",
+       sc = VanillaSC({"df": df, "outcome": "y", "treat": "treat",
                          "unitid": "unit", "time": "t",
-                         "method": "PCR", "objective": "SIMPLEX",
-                         "cluster": False,
                          "display_graphs": False}).fit()
        print(f"\n{label}  (true ATT = 0)")
        print(f"  SC   ATT = {sc.att:+7.3f}")
@@ -687,11 +685,11 @@ trend:
 prints (deterministic with the seed above)::
 
    shared stochastic trend (donors trace treated)  (true ATT = 0)
-     SC   ATT =  -0.082
+     SC   ATT =  -0.022
      SBC  ATT =  -0.644
 
    idiosyncratic stochastic trend (independent RW)  (true ATT = 0)
-     SC   ATT = -13.364
+     SC   ATT = -13.383
      SBC  ATT =  -2.423
 
 Three takeaways:
@@ -705,7 +703,7 @@ Three takeaways:
    to zero in expectation but not pointwise.
 2. SBC pays a small efficiency cost in the easy regime. When the
    trend is genuinely shared (Panel A), SBC's :math:`-0.64` is a
-   little farther from the true zero ATT than SC's :math:`-0.08`,
+   little farther from the true zero ATT than SC's :math:`-0.02`,
    because the cycle-only fit discards the shared trend variation
    that SC exploits. This is the unavoidable price of insurance.
 3. The diagnostic is the agreement between SC and SBC. When
@@ -735,7 +733,7 @@ choice:
   trend variation by construction, so on a panel where donors really
   do span the treated unit's trend SBC pays a permanent efficiency
   cost (its 'Panel A' bias in the diagnostic above:
-  :math:`-0.64` vs SC's :math:`-0.08`). HSC's CV picks
+  :math:`-0.64` vs SC's :math:`-0.02`). HSC's CV picks
   :math:`\rho^* \to 1` in exactly that case and recovers level-matched
   SC's efficiency without giving up the spurious-matching insurance.
 * Your outcome is outside the Hamilton filter's comfort zone.
