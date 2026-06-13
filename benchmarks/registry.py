@@ -81,6 +81,7 @@ CASES = {
     "geolift_augsynth_ref": "benchmarks.cases.geolift_augsynth_ref",  # cross-val vs LIVE augsynth (Rscript): lambda/weights/ATT (skips if absent)
     "geolift_cpic": "benchmarks.cases.geolift_cpic",  # cross-val vs GeoLiftMarketSelection: CPIC investment value-for-value
     "geolift_multicell": "benchmarks.cases.geolift_multicell",  # cross-val vs augsynth: multi-cell per-cell ATT + donor exclusion
+    "microsynth_seattle": "benchmarks.cases.microsynth_seattle",  # cross-val vs R microsynth panel method (Seattle DMI)
     # "synth_prop99": "benchmarks.cases.synth_prop99",   # needs R (cross-validation)
 }
 

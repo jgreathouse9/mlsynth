@@ -188,6 +188,13 @@ class TestPanelQP:
         with pytest.raises(MlsynthEstimationError):
             solve_panel_qp(hard_C, hard_t, None, None, ridge=1e-6)
 
+    def test_nonpositive_ridge_rejected(self):
+        rng = np.random.default_rng(3)
+        hard_C = np.column_stack([np.ones(20), rng.standard_normal(20)])
+        hard_t = np.array([5.0, 0.0])
+        with pytest.raises(MlsynthEstimationError, match="ridge"):
+            solve_panel_qp(hard_C, hard_t, None, None, ridge=0.0)
+
 
 class TestDiagnostics:
     def test_smd_zero_when_balanced(self):

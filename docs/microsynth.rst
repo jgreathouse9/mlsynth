@@ -357,6 +357,36 @@ matrix — achieve all balance constraints to numerical precision.
   ``balance_tol`` — diagnoses convex-hull violations where no
   reweighting can equalize covariates.
 
+Panel method (``weight_method="panel"``)
+----------------------------------------
+
+The default ``weight_method="simplex"`` is mlsynth's min-variance simplex
+balancing — non-negative weights summing to **one**, a weighted-**mean** ATT,
+intended for holdout-style user-level studies (above). Setting
+``weight_method="panel"`` switches to a faithful port of the **panel-data**
+weighting in the R ``microsynth`` package (Robbins et al.), for the
+aggregated-area / repeated-cross-section setting (e.g. the Seattle Drug Market
+Intervention).
+
+The panel weights solve a **non-negative quadratic program**: exactly balance
+the treated group's covariate **totals** (an intercept column makes the weights
+sum to the treated count) and **least-squares**-fit each pre-period outcome
+(supply them via ``outcome_lag_periods`` set to the full pre-window). The
+contrast is then on **totals** — the treated area's total outcome minus the
+weighted control total, per post-period.
+
+That QP is rank-deficient when the control pool is large (it pins only a few
+totals across many controls), so the counterfactual is **not identified by the
+constraints alone**. A strictly-convex ridge (``panel_ridge``, default 1e-6)
+selects the unique **minimum-norm / maximum-ESS** optimum — the most diffuse
+synthetic control consistent with exact covariate balance and the best
+lagged-outcome fit. This both makes the estimate reproducible and coincides
+with the R package's ``LowRankQP`` interior-point solution to 3–4 significant
+figures (see :doc:`replications/microsynth`).
+
+Inference for the panel method (permutation tests, as in the R package) is not
+yet wired up; ``run_inference`` is honored only for the simplex method.
+
 Inference
 ---------
 
@@ -396,6 +426,17 @@ Helper Modules
 .. automodule:: mlsynth.utils.microsynth_helpers.dual_solver
    :members:
    :undoc-members:
+
+.. automodule:: mlsynth.utils.microsynth_helpers.panel_qp
+   :members:
+   :undoc-members:
+
+Verification
+------------
+
+The panel method is cross-validated against the R ``microsynth`` package on the
+Seattle Drug Market Intervention example — see :doc:`replications/microsynth`
+(durable case ``benchmarks/cases/microsynth_seattle.py``).
 
 .. automodule:: mlsynth.utils.microsynth_helpers.diagnostics
    :members:

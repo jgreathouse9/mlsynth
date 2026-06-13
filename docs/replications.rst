@@ -70,6 +70,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/spotsynth
    replications/marex
    replications/dsc
+   replications/microsynth
 
 .. _replications-canonical:
 
