@@ -389,14 +389,18 @@ the number of clusters (no conflict-free `k`-tuple); `min_per_stratum` is impose
 over more strata than `k`; fewer than `k` markets lie inside the size band; or the
 spillover exclusions empty a candidate's donor pool.
 
-### Shared module (the architectural payoff)
+### LEXSCM is reference-only -- do not modify it
 
 LEXSCM already implements all of these primitives (conflict graph, independent-set
-filter, stratum-quota validator, size-band mask, aligned to its IndexSet). The
-durable move is to **extract them into `utils/design_constraints/`** -- a reusable
-"design-constraint algebra" -- and have both LEXSCM and GEOLIFT consume it (and
-later SYNDES / MAREX / PANGEO). Refactor LEXSCM onto it **behavior-preserving
-first** (its replication tests are the guard), then wire GEOLIFT in.
+filter, stratum-quota validator, size-band mask, aligned to its IndexSet). **Read
+it for the logic; do not touch its code, tests, or behaviour.** It is
+replication-pinned and there is no reason to disturb a working estimator. GEOLIFT
+gets its **own self-contained** constraint primitives inside `geolift_helpers/`
+(informed by LEXSCM, copying nothing structural). A little duplication is the
+accepted price for zero risk to LEXSCM. Consolidating the two implementations into
+a shared `utils/design_constraints/` algebra across the MAREX family (LEXSCM,
+GEOLIFT, later SYNDES / MAREX / PANGEO) is a **deliberate later step**, taken only
+once both are stable and with LEXSCM's replication tests as the guard.
 
 ### Test plan (test-first, per the contract)
 
@@ -406,18 +410,20 @@ Per constraint: a **smoke** test (constraint on, runs, design respects it), an
 exactly one feasible region), a **failure** test (each infeasibility above raises
 the translated error and the failure is *reported*), and a **no-op** test
 (constraint columns present but trivially satisfied → identical shortlist to the
-unconstrained run). Plus a cross-check that LEXSCM's outputs are unchanged after
-the shared-module refactor.
+unconstrained run).
 
 ### Suggested implementation order
 
-1. Extract `utils/design_constraints/` from LEXSCM; refactor LEXSCM onto it
-   (no behaviour change; replication tests green).
+1. Build GEOLIFT's **own** constraint primitives in `geolift_helpers/`
+   (conflict graph, independent-set filter, stratum-quota validator, size-band
+   mask), test-first. **LEXSCM is not modified.**
 2. Wire the **cluster/spillover pair** into GEOLIFT (highest-value geographic
    constraint), with docs + tests.
 3. Add **coverage quotas**, then **size bands**.
 4. Docs: extend `docs/geolift.rst` with a "Design constraints" section paralleling
    the LEXSCM treatment, each example a full MRE.
+5. *(Later, optional)* consolidate GEOLIFT's and LEXSCM's primitives into a shared
+   `utils/design_constraints/` module once both are stable.
 
 ### Out of scope / caveats
 
