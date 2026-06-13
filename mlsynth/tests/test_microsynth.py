@@ -19,6 +19,7 @@ from mlsynth.utils.microsynth_helpers.diagnostics import (
     standardized_mean_difference,
 )
 from mlsynth.utils.microsynth_helpers.dual_solver import solve_microsynth_dual
+from mlsynth.utils.microsynth_helpers.raking import solve_raking_weights
 from mlsynth.utils.microsynth_helpers.setup import prepare_microsynth_inputs
 from mlsynth.utils.microsynth_helpers.structures import (
     MicroSynthDesign,
@@ -123,6 +124,38 @@ class TestDualSolver:
         xbar_T = X_C.mean(axis=0)
         res = solve_microsynth_dual(X_C, xbar_T)
         assert np.allclose(res.w, 1 / n_C, atol=1e-4)
+
+
+class TestRakingCalibration:
+    """The microsynth (Robbins et al.) raking/GREG calibration weight solve."""
+
+    def test_exact_balance_and_entropy_form(self):
+        rng = np.random.default_rng(0)
+        n_C, n_T, d = 300, 40, 4
+        X_C = np.column_stack([np.ones(n_C), rng.standard_normal((n_C, d - 1))])
+        X_T = np.column_stack([np.ones(n_T), 0.8 * rng.standard_normal((n_T, d - 1))])
+        targets = X_T.sum(axis=0)                         # treated column totals
+        sol = solve_raking_weights(X_C, targets)
+        assert sol.converged
+        # exact calibration: weighted control totals == treated targets
+        assert np.allclose(X_C.T @ sol.w, targets, atol=1e-6)
+        # raking weights are a positive exponential tilt of the base weights
+        assert np.all(sol.w > 0)
+        assert np.allclose(sol.w, np.exp(np.clip(X_C @ sol.dual_lambda, -50, 50)), atol=1e-9)
+        # intercept target makes the weights sum to the treated count
+        assert sol.w.sum() == pytest.approx(float(n_T), abs=1e-5)
+
+    def test_base_weight_tilt(self):
+        # With non-uniform base weights, w_i = base_i * exp(x_i . lambda).
+        rng = np.random.default_rng(1)
+        n_C, d = 150, 3
+        X_C = np.column_stack([np.ones(n_C), rng.standard_normal((n_C, d - 1))])
+        targets = np.array([20.0, 1.5, -0.7])
+        base = rng.uniform(0.5, 2.0, n_C)
+        sol = solve_raking_weights(X_C, targets, base_weight=base)
+        # calibration is exact to microsynth's tolerance (cal.epsilon = 1e-4)
+        assert np.allclose(X_C.T @ sol.w, targets, atol=1e-3)
+        assert np.allclose(sol.w, base * np.exp(np.clip(X_C @ sol.dual_lambda, -50, 50)), atol=1e-9)
 
 
 class TestDiagnostics:
