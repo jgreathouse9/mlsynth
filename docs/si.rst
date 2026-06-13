@@ -663,8 +663,15 @@ The bridge is design rather than luck: ``mlsynth`` reuses the same HSVT
 truncation, the authors' exact Gavish-Donoho rank rule
 (``rank_method="donoho"``, :math:`\beta = T_0/N_d`), QR-pivot subset selection,
 pseudo-inverse fit, and degrees-of-freedom-weighted variance
-(``variance="double"``). The one-time side-by-side harness above ran against the
-authors' replication package (``opre.2025.1590.cd``).
+(``variance="double"``).
+
+This side-by-side harness is now a **durable benchmark**, not a one-time check:
+``benchmarks/cases/si_prop99.py`` runs the authors' own code -- vendored verbatim
+under ``benchmarks/reference/synth_iv_OR25`` from ``opre.2025.1590.cd`` -- against
+mlsynth's public :class:`~mlsynth.SI` API for all five program states under the
+control and tax interventions, and confirms agreement to **machine precision**
+(max\|diff\| ``1.4e-14``). Run it with
+``python benchmarks/run_benchmarks.py si_prop99``.
 
 The **durable replication does not depend on the authors' code**. Both paths are
 reproduced from public data and mlsynth's own DGPs, and locked in as a test
