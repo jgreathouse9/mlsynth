@@ -23,7 +23,7 @@ def plot_multicell(result, *, show: bool = True, theme: Optional[dict] = None):
         return None
 
     labels = sorted(cells)
-    with plt.style.context(mlsynth_style() if theme is None else theme):
+    with mlsynth_style(theme):
         fig, axes = plt.subplots(len(labels), 1, figsize=(8, 2.6 * len(labels)),
                                  squeeze=False)
         for ax, label in zip(axes[:, 0], labels):

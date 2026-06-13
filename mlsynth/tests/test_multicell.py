@@ -165,3 +165,40 @@ def test_estimator_bad_config_raises():
         MULTICELLGEOLIFT({"df": df, "outcome": "Y", "unitid": "location",
                           "time": "time", "cell_column_name": "cell",
                           "post_col": "post", "how": "bogus"}).fit()
+
+
+# === plotting ===
+
+def test_plot_multicell_returns_figure():
+    """The default ``display_graphs=True`` path must plot without raising.
+
+    ``mlsynth_style()`` is itself a context manager, so the plotter must use it
+    directly (``with mlsynth_style(theme):``) — not feed it to
+    ``plt.style.context``. Regression guard for that double-wrap.
+    """
+    import matplotlib
+    matplotlib.use("Agg")                                   # headless, non-blocking
+    from mlsynth.utils.geolift_helpers.multicell.plotter import plot_multicell
+
+    df, _ = _panel(effA=10.0, effB=0.0)
+    res = MULTICELLGEOLIFT({
+        "df": df, "outcome": "Y", "unitid": "location", "time": "time",
+        "cell_column_name": "cell", "post_col": "post", "ns": 200,
+        "display_graphs": False,
+    }).fit()
+    fig = plot_multicell(res, show=False)
+    assert fig is not None
+    assert len(fig.axes) == 2                                # one panel per cell (A, B)
+
+
+def test_estimator_display_graphs_does_not_raise():
+    """End-to-end with the default plotting on must not crash."""
+    import matplotlib
+    matplotlib.use("Agg")
+    df, _ = _panel(effA=10.0, effB=0.0)
+    res = MULTICELLGEOLIFT({
+        "df": df, "outcome": "Y", "unitid": "location", "time": "time",
+        "cell_column_name": "cell", "post_col": "post", "ns": 200,
+        "display_graphs": True,
+    }).fit()
+    assert isinstance(res, MultiCellResults)

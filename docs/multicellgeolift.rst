@@ -25,10 +25,21 @@ A unit-level **cell-membership** column plus a treatment-window indicator:
 
 .. code-block:: python
 
+   import pandas as pd
    from mlsynth import MULTICELLGEOLIFT
 
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_test_data.csv")
+   df = pd.read_csv(url)                                   # GeoLift_Test: 40 mkts x 105 days
+   dates = sorted(df["date"].unique())
+   df["post"] = df["date"].isin(dates[90:]).astype(int)   # last 15 days = treatment window
+
+   #   cell A -> social-media markets, cell B -> paid-search markets, blank = control
+   cell = {"chicago": "A", "portland": "A", "atlanta": "B", "boston": "B"}
+   df["cell"] = df["location"].map(cell).fillna("")        # blank = shared control pool
+
    res = MULTICELLGEOLIFT({
-       "df": panel, "outcome": "Y", "unitid": "location", "time": "date",
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
        "cell_column_name": "cell",   # "A"/"B"/... ; blank = control
        "post_col": "post",
        "fixed_effects": True,         # augsynth/GeoLift default
@@ -76,7 +87,22 @@ observed-vs-synthetic panels, one row per cell:
 
 .. code-block:: python
 
+   import pandas as pd
+   from mlsynth import MULTICELLGEOLIFT
    from mlsynth.utils.geolift_helpers.multicell.plotter import plot_multicell
+
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_test_data.csv")
+   df = pd.read_csv(url)                                   # GeoLift_Test: 40 mkts x 105 days
+   dates = sorted(df["date"].unique())
+   df["post"] = df["date"].isin(dates[90:]).astype(int)   # last 15 days = treatment window
+   cell = {"chicago": "A", "portland": "A", "atlanta": "B", "boston": "B"}
+   df["cell"] = df["location"].map(cell).fillna("")        # blank = shared control pool
+
+   res = MULTICELLGEOLIFT({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "cell_column_name": "cell", "post_col": "post", "fixed_effects": True,
+   }).fit()
 
    plot_multicell(res, show=True)                        # one panel per cell
 
@@ -104,9 +130,26 @@ pool, hence the **same ATT, conformal p, and weights** (pinned in
 
 .. code-block:: python
 
+   import pandas as pd
+   from mlsynth import MULTICELLGEOLIFT
+
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_test_data.csv")
+   df = pd.read_csv(url)                                   # GeoLift_Test: 40 mkts x 105 days
+   dates = sorted(df["date"].unique())
+   df["post"] = df["date"].isin(dates[90:]).astype(int)   # last 15 days = treatment window
+
+   # one cell A only; every other geo is a control (no other cells to exclude)
+   df["cell"] = df["location"].map({"chicago": "A", "portland": "A"}).fillna("")
+
+   res = MULTICELLGEOLIFT({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "cell_column_name": "cell", "post_col": "post", "fixed_effects": True,
+   }).fit()
+
    # one cell A, everyone else control  ==  single-cell GEOLIFT on {chicago, portland}
    res.cells["A"].effects.att        # 156.805165  (identical to the realize ATT)
-   res.cells["A"].inference.p_value  # 0.0115       (identical)
+   res.cells["A"].inference.p_value  # 0.006        (identical)
    res.winner                        # None — nothing to compare against
 
 Verification
