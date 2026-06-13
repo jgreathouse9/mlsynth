@@ -99,9 +99,23 @@ migration or refactor PR.
 - One `docs/<name>.rst` per estimator: When-to-use → Notation → Assumptions
   (numbered, each with a Remark) → Inference/diagnostics → runnable Example →
   Verification pointer → Core API autodoc. Follow `agents/agents_docs.md`
-  — the **binding** math-notation canon (symbols derived from the `qdocs`
+  — the binding math-notation canon (symbols derived from the `qdocs`
   blog; Shi–Huang for expository structure).
-- Section underlines must be **≥** the title length (RST requirement).
+- No bold in prose. Never use RST bold (`**...**`) on doc pages or in README
+  prose — the author does not write in bold. Bold is reserved for mathematics
+  (`\mathbf{}` in math). For emphasis use wording, not weight; for terms-of-art
+  use ``literal`` or *italic* sparingly. (Table content and section headings are
+  fine; the rule is about emphasis in prose.)
+- Write for a non-expert reader: assume the reader wants to learn what the
+  method is and does, not that they already know synthetic control. Define
+  jargon on first use.
+- Link every estimator page to its verification: the benchmark case
+  (`benchmarks/cases/<name>.py`, link the source on GitHub) and/or its
+  replication page, so readers can see it is validated and inspect the outputs.
+  Keep the benchmarks index page current as cases are added.
+- Keep the decision tree (`docs/choose.rst`) current as estimators are added or
+  change regime — it is the primary "which estimator do I use" navigation.
+- Section underlines must be ≥ the title length (RST requirement).
 
 ## Git
 

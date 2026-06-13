@@ -48,6 +48,25 @@ Operators and symbols: norms `\|\cdot\|_1`, `\|\cdot\|_2`, squared
 `\mathbf{1}\{\cdot\}`; standard-normal CDF `\Phi(\cdot)`; expectation
 `\mathbb{E}[\cdot]`; Moore–Penrose pseudoinverse `(\cdot)^{+}`.
 
+### Prose emphasis — no bold
+
+**Bold is for mathematics only.** Outside of math (`\mathbf{}` vectors and
+matrices), never use RST bold (`**...**`) in the prose of a doc page or in
+README prose — the author does not write in bold, so a page full of `**…**`
+reads as not-them. This is binding for every page you touch: when migrating a
+page, strip non-math bold along with the symbol conversion.
+
+* For emphasis, choose the *word*, not the weight. If a sentence needs bold to
+  land, rewrite the sentence.
+* For a term of art or an API name use a ``literal`` (double-backtick) role;
+  use *italic* (single asterisk) only sparingly for genuine emphasis on first
+  definition.
+* Section headings, and the cells/headers of `list-table` / grid tables, are
+  fine — the rule is specifically about `**bold**` emphasis runs in sentences.
+
+(The heading above is itself bold only because this is an agent instruction
+file, not a rendered doc page; do not copy that style into `docs/`.)
+
 ### Units
 
 * `\mathcal{N} \coloneqq \{1,\dots,N\}` — all `N` units.

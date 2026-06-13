@@ -1,11 +1,8 @@
 # Sphinx dependencies
-# Pin to known-good ranges: Sphinx 9 currently breaks the build, and the
-# extensions below need a modern Sphinx (and a modern sphinxcontrib-bibtex).
+# Pin to known-good ranges: Sphinx 9 currently breaks the build.
 sphinx>=7,<9
 sphinx-book-theme>=1.1
-sphinxcontrib-bibtex>=2.5
 sphinx-copybutton>=0.5
-sphinx-gallery>=0.15
 
 pandas
 numpy
