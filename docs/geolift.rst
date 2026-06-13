@@ -409,6 +409,83 @@ The synthetic tracks the test markets, :math:`\widehat{\tau} \approx 0`, and the
 joint conformal p-value is far from significant — the correct null over a placebo
 post period.
 
+Every option at once — the full market-selection call
+-----------------------------------------------------
+
+GeoLift's ``GeoLiftMarketSelection`` exposes the whole design surface in one
+call:
+
+.. code-block:: r
+
+   MarketSelections <- GeoLiftMarketSelection(data = GeoTestData_PreTest,
+       treatment_periods = c(10, 15),
+       N = c(2, 3, 4, 5),
+       Y_id = "Y", location_id = "location", time_id = "time",
+       effect_size = seq(0, 0.2, 0.05),
+       lookback_window = 1,
+       include_markets = c("chicago"),
+       exclude_markets = c("honolulu"),
+       cpic = 7.50, budget = 100000,
+       alpha = 0.1, Correlations = TRUE,
+       fixed_effects = TRUE, side_of_test = "two_sided")
+
+Every argument maps onto a ``GEOLIFT`` config field:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import GEOLIFT
+
+   df = pd.read_csv("basedata/geolift_market_data.csv")   # GeoLift_PreTest, 40 mkts x 90d
+
+   cfg = {
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "durations": [10, 15],                       # treatment_periods
+       "effect_sizes": [0.0, 0.05, 0.10, 0.15, 0.20],
+       "lookback_window": 1,
+       "to_be_treated": ["chicago"],                # include_markets
+       "not_to_be_treated": ["honolulu"],           # exclude_markets
+       "cpic": 7.50, "budget": 100000.0,            # budget planning
+       "alpha": 0.1,
+       "fixed_effects": True,                       # GeoLift default
+       "how": "mean", "augment": "ridge",
+       "conformal_type": "iid",                     # two-sided |stat| permutation
+       "display_graphs": False,
+   }
+   # N = c(2,3,4,5): GEOLIFT takes one treatment_size; scan by looping it.
+   shortlist = pd.concat(
+       GEOLIFT({**cfg, "treatment_size": k}).fit().search.shortlist for k in (2, 3, 4, 5)
+   ).sort_values("rank")
+   shortlist[["candidate", "duration", "mde", "power", "investment", "scaled_l2", "rank"]]
+
+A few argument notes: ``Correlations=TRUE`` is GeoLift's correlation ranking,
+which mlsynth always uses to nominate candidates (Stage 1); ``side_of_test =
+"two_sided"`` is the default conformal statistic (the symmetric :math:`|x|^q`
+norm); ``cpic`` + ``budget`` drop candidates whose detectable investment busts
+the budget (see *Budget planning* above).
+
+The recommended designs (GeoLift's ``BestMarkets`` table; mlsynth's
+``shortlist`` carries the same candidates and reproduces ``Investment`` **to the
+cent**, see :doc:`replications/geolift`):
+
+================================================  ===  ==========  =======  =====  =====
+Test markets                                      Dur  Investment  AvgATT   L2     Rank
+================================================  ===  ==========  =======  =====  =====
+chicago, cincinnati, houston, portland            15   74,118.38   159.36   0.197  1
+chicago, portland                                 15   64,563.75   290.01   0.174  1
+chicago, cincinnati, houston, portland            10   99,027.75   316.62   0.197  3
+chicago, portland                                 10   43,646.25   300.94   0.168  3
+chicago, houston, portland                        10   75,389.25   350.31   0.231  5
+chicago, cincinnati, houston, nashville, san d.   15   95,755.50   146.80   0.270  6
+atlanta, chicago                                  15   81,348.75   336.78   0.446  7
+atlanta, chicago, cleveland, las vegas            15   86,661.75   220.82   0.532  7
+================================================  ===  ==========  =======  =====  =====
+
+(28 designs total; the maximum surviving investment is $99,321.75 < the $100k
+budget, so the budget gate held.) Lower ``Rank`` is better; the smallest, lowest-
+imbalance region that clears power wins — here ``chicago, portland``.
+
+
 Reading the results — plots, tables, and weights
 ------------------------------------------------
 
@@ -435,6 +512,28 @@ is set — the required investment:
 
    res.power[["candidate", "duration", "mde", "power", "investment"]]
    res.search.winner.mde, res.search.winner.power        # the recommended design
+
+**Power curve (GeoLift's ``GeoLiftPower`` plot).** The shortlist reports power at
+the MDE; for the full **power-vs-effect-size curve** of a region, run the
+scoring helpers directly and plot — power rising through the threshold marks the
+MDE:
+
+.. code-block:: python
+
+   import matplotlib.pyplot as plt
+   from mlsynth.utils.datautils import geoex_dataprep
+   from mlsynth.utils.geolift_helpers.marketselect.helpers.batch import run_simulations
+   from mlsynth.utils.geolift_helpers.marketselect.helpers.aggregate import compute_power
+
+   Ywide = geoex_dataprep(df, "location", "date", "Y")["Ywide"]
+   cube = run_simulations(
+       Ywide, [frozenset({"chicago", "portland"})], durations=[15],
+       lookback_window=1, effect_sizes=[0.0, 0.05, 0.10, 0.15, 0.20],
+       fixed_effects=True, ns=500)
+   pw = compute_power(cube, alpha=0.10)
+   plt.plot(pw["effect_size"], pw["power"], marker="o")
+   plt.axhline(0.8, ls="--", color="grey")             # power threshold -> MDE crossing
+   plt.xlabel("injected lift"); plt.ylabel("power")
 
 **Observed vs predicted.** The realized report's time series are plain arrays:
 
@@ -474,6 +573,39 @@ design-time investment per candidate is the ``investment`` column above:
 
    ss = res.report.weights.summary_stats
    ss["cpic"], ss["cost"]                                # cost = cpic x incremental
+
+Multi-cell designs
+------------------
+
+A **multi-cell** experiment runs several treatments at once — different channels,
+budgets, or creatives — each on its own group of geos ("cells" :math:`A, B,
+\dots`), all measured against a **shared** control pool over the same window
+(GeoLift's ``GeoLiftMultiCell``). The dedicated estimator is
+:class:`mlsynth.MULTICELLGEOLIFT`; its data model is a unit-level
+**cell-membership** column (``"A"`` / ``"B"`` / … for treated geos; blank or a
+``control_label`` for controls) plus a ``post_col`` window:
+
+.. code-block:: python
+
+   from mlsynth import MULTICELLGEOLIFT
+
+   #   cell:  "A" -> social-media markets, "B" -> paid-search markets, "" -> control
+   res = MULTICELLGEOLIFT({
+       "df": panel, "outcome": "Y", "unitid": "location", "time": "date",
+       "cell_column_name": "cell", "post_col": "post", "fixed_effects": True,
+   }).fit()
+
+   res.cells["A"].effects.att          # cell A's per-unit ATT (a full EffectResult)
+   res.cells["A"].inference.p_value    # cell A's conformal p
+   res.comparison                      # pairwise [{cell_a, cell_b, att_diff, winner}, ...]
+   res.winner                          # cell that wins every comparison, or None
+
+Each cell is measured with the same fixed-effect ASCM + conformal inference as a
+single cell, **excluding the other cells' markets from its donor pool** (they are
+treated, hence contaminated). The cross-cell ``winner`` uses GeoLift's
+non-overlapping-CI rule; with one cell it is *identical* to single-cell GEOLIFT.
+See :doc:`multicellgeolift` for the full treatment, the per-cell plots
+(``plot_multicell``), and the augsynth cross-validation.
 
 Verification
 ------------
