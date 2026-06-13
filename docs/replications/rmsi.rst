@@ -1,5 +1,5 @@
 RMSI — Robust Matrix Estimation with Side Information (Agarwal-Choi-Yuan 2026)
-=============================================================================
+==============================================================================
 
 .. currentmodule:: mlsynth
 
@@ -13,7 +13,7 @@ no reference code, so this is a Path-B reproduction of its simulations plus a
 Path-A check on the tobacco application.
 
 Path B -- Section 5.1 (robustness across component weights)
-----------------------------------------------------------
+-----------------------------------------------------------
 
 The paper writes :math:`M = a_1 M_1 + a_2 M_2 + a_3 M_3 + a_4 M_4` with each
 :math:`\|M_r\|_F = 2\sqrt{NT}` and :math:`\sum_r a_r = 1`, and shows the
@@ -32,7 +32,7 @@ Mean relative error (base)  0.32
 ==========================  ==========
 
 Path A -- Section 5.2 (tobacco)
-------------------------------
+-------------------------------
 
 On the Proposition 99 panel (``basedata/P99data.csv``), RMSI recovers California's
 tobacco ATT at **−21.4 packs/capita**, in the Abadie-Diamond-Hainmueller range
