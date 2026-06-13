@@ -313,6 +313,15 @@ open-end DTW.
 
 ## 4. Design constraints for GEOLIFT (geography / coverage / size)
 
+> **Status: implemented** (steps 1-4 below are done; whole GeoLift package at
+> 100% coverage). Constraint primitives live in
+> ``geolift_helpers/marketselect/helpers/constraints.py``; wired through
+> ``config.py`` / ``orchestration.py`` / ``shaping.py`` / ``design.py`` /
+> ``batch.py``; documented in ``docs/geolift.rst`` ("Design constraints"). The
+> **only** remaining item is the optional step 5 -- cross-family consolidation
+> into a shared ``utils/design_constraints/`` module. LEXSCM was **not**
+> modified. Learnings below are kept for that future consolidation.
+
 ### Source / motivation
 
 Meta's GeoLift exposes only **hard market lists** on the treated side

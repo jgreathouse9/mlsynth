@@ -340,6 +340,9 @@ driven by the data and config (a ``post_col`` triggers realization;
   :math:`\{\delta\}`, ``lookback_window`` :math:`L`.
 * ``to_be_treated`` / ``not_to_be_treated`` —
   :math:`\mathcal{S}_{\mathrm{in}}` / :math:`\mathcal{S}_{\mathrm{out}}`.
+* ``cluster_col`` / ``adjacency`` / ``spillover_threshold``, ``stratum_col`` /
+  ``min_per_stratum`` / ``max_per_stratum``, ``size_col`` / ``min_size`` /
+  ``max_size`` — rule-based design constraints (see *Design constraints* below).
 * ``post_col`` — a 0/1 column marking post-treatment periods; the design slices to
   :math:`\mathcal{T}_1`, so it is **identical** whether you pass the full
   post-treatment panel or a pre-only one (the "rerun after treatment"
@@ -567,6 +570,103 @@ the scoring helpers directly:
    plt.axhline(0.8, ls="--", color="grey")                # power threshold -> MDE crossing
    plt.xlabel("injected lift"); plt.ylabel("power"); plt.show()
 
+
+Design constraints (geography, coverage, size)
+----------------------------------------------
+
+Upstream GeoLift restricts the treated side only through **hard market lists**
+(``to_be_treated`` / ``not_to_be_treated``). ``mlsynth`` adds a **rule-based**
+constraint layer so the candidate nomination and donor pool can encode geography
+and other design considerations. Every restriction is one of two kinds (the
+LEXSCM vocabulary, see :doc:`lexscm`): a **treatment criterion** filtering which
+candidate test regions are admissible, or a **control criterion** restricting a
+candidate's donor pool. Neither touches the inner weight solve — they only change
+*where the design is allowed to look*. With none of these fields set, the design
+is identical to the unconstrained run.
+
+* ``cluster_col`` — a per-market cluster label (DMA / state). Markets in the same
+  cluster **interfere**: at most one may be treated per candidate (treatment
+  criterion, the *independent-set* rule) **and** a treated market's same-cluster
+  geos are dropped from its donor pool (control criterion, the *spillover
+  exclusion*). An ``adjacency`` matrix of pairwise spillover strengths, thresholded
+  by ``spillover_threshold`` and combined with ``cluster_col`` by logical OR, is
+  the continuous alternative.
+* ``stratum_col`` + ``min_per_stratum`` / ``max_per_stratum`` — **coverage
+  quotas**: require at least ``min`` treated markets in every stratum that has an
+  eligible market ("test in every region"), and/or at most ``max`` per stratum (a
+  quota). A treatment criterion.
+* ``size_col`` + ``min_size`` / ``max_size`` — a **treated-unit size band**: only
+  in-band markets are eligible for *treatment* (they remain available as donors).
+  The floor is a power / operational minimum; the ceiling encodes
+  synthesizability — a market far larger than the donors cannot sit inside their
+  convex hull, which is exactly what the scaled-L2 imbalance :math:`\kappa`
+  measures, so ``max_size`` is an a-priori version of :math:`\kappa \to 1`.
+
+When the constraints admit no candidate region (e.g. ``treatment_size`` exceeds
+the number of clusters or strata to cover, or the size band leaves too few
+markets), :meth:`GEOLIFT.fit` raises :class:`~mlsynth.exceptions.MlsynthConfigError`
+rather than returning a degenerate design.
+
+**Cluster non-interference + spillover donor exclusion.** Treat markets in
+different regions, and never let a treated market's same-region neighbours into
+its synthetic control:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import GEOLIFT
+
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_market_data.csv")
+   df = pd.read_csv(url)                                   # 40 markets x 90 days
+
+   # Per-market geography. In practice these come from your own region table /
+   # spend data; here they are derived from the panel so the example runs as-is.
+   markets = sorted(df["location"].unique())
+   region = {m: f"R{i % 4}" for i, m in enumerate(markets)}   # 4 illustrative regions
+   df["region"] = df["location"].map(region)
+
+   res = GEOLIFT({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "treatment_size": 2, "durations": [14], "effect_sizes": [0.0, 0.1],
+       "lookback_window": 1, "how": "mean", "ns": 50, "seed": 0,
+       "cluster_col": "region", "display_graphs": False,
+   }).fit()
+
+   print(res.selected_units)                              # markets in distinct regions
+   # invariant: no candidate's donors share a region with its treated markets
+   cd = res.search.candidates[0]
+   treated_regions = {region[str(u)] for u in cd.candidate}
+   assert all(region[str(d)] not in treated_regions for d in cd.weights.donor_weights)
+
+**Coverage quota + size band.** Cover distinct regions (at most one treated market
+each) and treat only mid-sized markets (drop the largest and smallest):
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import GEOLIFT
+
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_market_data.csv")
+   df = pd.read_csv(url)
+   markets = sorted(df["location"].unique())
+   df["region"] = df["location"].map({m: f"R{i % 4}" for i, m in enumerate(markets)})
+   size = df.groupby("location")["Y"].mean()              # avg daily volume = "size"
+   df["size"] = df["location"].map(size)
+   lo, hi = float(size.quantile(0.2)), float(size.quantile(0.8))
+
+   res = GEOLIFT({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "treatment_size": 3, "durations": [14], "effect_sizes": [0.0, 0.1],
+       "lookback_window": 1, "how": "mean", "ns": 50, "seed": 0,
+       "stratum_col": "region", "max_per_stratum": 1,     # <= 1 treated per region
+       "size_col": "size", "min_size": lo, "max_size": hi,  # mid-sized only
+       "display_graphs": False,
+   }).fit()
+
+   print(res.selected_units)                              # 3 markets, 3 distinct regions
+   print(res.search.shortlist[["candidate", "duration", "mde", "power"]].head())
 
 Multi-cell designs
 ------------------
