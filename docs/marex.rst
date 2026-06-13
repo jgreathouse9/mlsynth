@@ -556,6 +556,28 @@ Example
    for label, c in res.clusters.items():
        print(label, c.unit_weight_map["Treated"])
 
+Verification
+------------
+
+Validated against Abadie & Zhao's Section 4 Walmart application (their reference
+code is `jinglongzhao2/SCDesign <https://github.com/jinglongzhao2/SCDesign>`_):
+on a 10-store subset of ``walmart_weekly_sales.csv`` MAREX's exact MIQP designs a
+placebo experiment that tracks closely pre-period (pre-fit RMSE ~2.7% of mean
+sales, matching LEXSCM) and yields a placebo effect indistinguishable from zero
+(~1% of mean, CI covering zero) -- the paper's "no spurious effect" result. This
+is an independent commit-stamped check (MAREX's own optimizer) complementing the
+LEXSCM Walmart benchmark. See :doc:`replications/marex`; run it with
+``python benchmarks/run_benchmarks.py marex_walmart``.
+
+.. note::
+
+   The benchmark uses the **exact MIQP** (free SCIP), not the relaxed
+   continuous-``z`` mode: the relaxation shares the design objective but drops the
+   integrality that defines the selection, so its top-``m`` rounding is degenerate
+   and non-deterministic for small treated counts. The authors' full 45-store
+   MIQP uses Gurobi, so the validator is Path A on a subset rather than a live R
+   cross-validation.
+
 Core API
 --------
 
