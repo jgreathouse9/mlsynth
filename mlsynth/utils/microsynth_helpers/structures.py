@@ -45,6 +45,15 @@ class MicroSynthInputs:
         if standardization was disabled.
     outcome : str
         Outcome column name.
+    cov_T_raw, cov_C_raw : np.ndarray
+        Raw (un-standardized) covariate matrices, shapes ``(n_T, d_cov)``
+        and ``(n_C, d_cov)`` -- the ``covariates`` columns only, excluding
+        any lagged-outcome predictors. Used by the panel-method QP, which
+        balances treated **totals** and therefore needs raw values.
+    lag_T_raw, lag_C_raw : np.ndarray
+        Raw lagged-outcome matrices, shapes ``(n_T, m)`` and ``(n_C, m)``
+        where ``m = len(outcome_lag_periods)``. Empty (zero-column) arrays
+        when no lags were requested.
     """
 
     X_T: np.ndarray
@@ -57,6 +66,10 @@ class MicroSynthInputs:
     cohort_time: Any
     covariate_sd: Optional[np.ndarray]
     outcome: str
+    cov_T_raw: Optional[np.ndarray] = None
+    cov_C_raw: Optional[np.ndarray] = None
+    lag_T_raw: Optional[np.ndarray] = None
+    lag_C_raw: Optional[np.ndarray] = None
 
     @property
     def n_T(self) -> int:

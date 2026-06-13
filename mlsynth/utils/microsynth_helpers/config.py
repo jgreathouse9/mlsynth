@@ -75,18 +75,33 @@ class MicroSynthConfig(BaseEstimatorConfig):
         gt=0.0,
         description="L-BFGS-B gradient tolerance.",
     )
-    weight_method: Literal["simplex", "raking"] = Field(
+    weight_method: Literal["simplex", "panel"] = Field(
         default="simplex",
         description=(
             "Control-weight scheme. ``'simplex'`` (default) is mlsynth's "
             "min-variance simplex balancing (weights >= 0 summing to 1; the "
-            "weighted-mean ATT used for holdout-style studies). ``'raking'`` is "
-            "the microsynth panel method (Robbins et al.): raking/GREG "
-            "calibration weights that exactly match the treated group's column "
-            "TOTALS on the covariates and each pre-period outcome, summing to the "
-            "treated count, with per-period total treatment effects over the "
-            "post-window. Pair with ``outcome_lag_periods`` set to the full "
-            "pre-period window to balance the outcome trajectory."
+            "weighted-mean ATT used for holdout-style studies). ``'panel'`` is "
+            "the microsynth panel method (Robbins et al.): a non-negative QP "
+            "that exactly balances the treated group's column TOTALS on the "
+            "covariates (an intercept makes the weights sum to the treated "
+            "count) and least-squares-fits each pre-period outcome, reporting "
+            "per-period TOTAL treatment effects over the post-window. A "
+            "strictly-convex ridge (``panel_ridge``) selects the unique "
+            "minimum-norm / maximum-ESS optimum. Pair with "
+            "``outcome_lag_periods`` set to the full pre-period window to "
+            "balance the outcome trajectory."
+        ),
+    )
+    panel_ridge: float = Field(
+        default=1e-6,
+        gt=0.0,
+        description=(
+            "Strictly-convex ridge weight for ``weight_method='panel'``. The "
+            "microsynth QP is rank-deficient over a large control pool (the "
+            "counterfactual is not identified by the constraints alone); this "
+            "ridge pins the unique minimum-norm / maximum-ESS optimum. Keep "
+            "small so the lagged-outcome fit and exact covariate balance "
+            "dominate."
         ),
     )
     run_inference: bool = Field(

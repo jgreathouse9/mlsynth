@@ -184,10 +184,18 @@ def prepare_microsynth_inputs(
             ) from exc
         cov_names.append(f"{outcome}@{lag}")
 
+    # Keep the raw (un-standardized) covariate and lag blocks separate; the
+    # panel-method QP balances treated *totals* and needs raw values, and it
+    # treats covariates (hard equality) and lagged outcomes (soft LS) apart.
+    cov_T_raw, cov_C_raw = cov_T.copy(), cov_C.copy()
     if lag_T_cols:
-        X_T = np.column_stack([cov_T, np.column_stack(lag_T_cols)])
-        X_C = np.column_stack([cov_C, np.column_stack(lag_C_cols)])
+        lag_T_raw = np.column_stack(lag_T_cols)
+        lag_C_raw = np.column_stack(lag_C_cols)
+        X_T = np.column_stack([cov_T, lag_T_raw])
+        X_C = np.column_stack([cov_C, lag_C_raw])
     else:
+        lag_T_raw = np.empty((cov_T.shape[0], 0))
+        lag_C_raw = np.empty((cov_C.shape[0], 0))
         X_T, X_C = cov_T, cov_C
 
     if np.isnan(X_T).any() or np.isnan(X_C).any():
@@ -240,4 +248,8 @@ def prepare_microsynth_inputs(
         cohort_time=cohort_time,
         covariate_sd=cov_sd,
         outcome=outcome,
+        cov_T_raw=cov_T_raw,
+        cov_C_raw=cov_C_raw,
+        lag_T_raw=lag_T_raw,
+        lag_C_raw=lag_C_raw,
     )

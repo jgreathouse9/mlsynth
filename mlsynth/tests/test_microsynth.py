@@ -18,8 +18,9 @@ from mlsynth.utils.microsynth_helpers.diagnostics import (
     feasibility_check,
     standardized_mean_difference,
 )
+from mlsynth.exceptions import MlsynthEstimationError
 from mlsynth.utils.microsynth_helpers.dual_solver import solve_microsynth_dual
-from mlsynth.utils.microsynth_helpers.raking import solve_raking_weights
+from mlsynth.utils.microsynth_helpers.panel_qp import solve_panel_qp
 from mlsynth.utils.microsynth_helpers.setup import prepare_microsynth_inputs
 from mlsynth.utils.microsynth_helpers.structures import (
     MicroSynthDesign,
@@ -126,36 +127,66 @@ class TestDualSolver:
         assert np.allclose(res.w, 1 / n_C, atol=1e-4)
 
 
-class TestRakingCalibration:
-    """The microsynth (Robbins et al.) raking/GREG calibration weight solve."""
+class TestPanelQP:
+    """The microsynth (Robbins et al.) panel weight QP.
 
-    def test_exact_balance_and_entropy_form(self):
+    Faithful port of ``microsynth::my.qp`` (LowRankQP): exactly balance the
+    hard constraints (intercept + covariates), least-squares-fit the soft
+    constraints (lagged outcomes), with ``w >= 0``. A strictly-convex ridge
+    makes the otherwise rank-deficient solution unique (the maximum-ESS /
+    minimum-norm point on microsynth's optimal face).
+    """
+
+    def test_exact_balance_and_lag_fit(self):
+        # Construct a panel where exact balance on both blocks is achievable
+        # (treated totals lie in the cone spanned by control rows).
         rng = np.random.default_rng(0)
-        n_C, n_T, d = 300, 40, 4
-        X_C = np.column_stack([np.ones(n_C), rng.standard_normal((n_C, d - 1))])
-        X_T = np.column_stack([np.ones(n_T), 0.8 * rng.standard_normal((n_T, d - 1))])
-        targets = X_T.sum(axis=0)                         # treated column totals
-        sol = solve_raking_weights(X_C, targets)
+        n_C, n_T = 300, 40
+        cov_C = rng.uniform(0.0, 5.0, (n_C, 3))
+        lag_C = rng.uniform(0.0, 3.0, (n_C, 4))
+        # pick a known nonneg combination summing to n_T as the "truth"
+        w_true = rng.uniform(0.0, 1.0, n_C)
+        w_true *= n_T / w_true.sum()
+        hard_C = np.column_stack([np.ones(n_C), cov_C])
+        hard_t = np.array([float(n_T), *(cov_C.T @ w_true)])
+        soft_t = lag_C.T @ w_true
+        sol = solve_panel_qp(hard_C, hard_t, lag_C, soft_t, ridge=1e-8)
         assert sol.converged
-        # exact calibration: weighted control totals == treated targets
-        assert np.allclose(X_C.T @ sol.w, targets, atol=1e-6)
-        # raking weights are a positive exponential tilt of the base weights
-        assert np.all(sol.w > 0)
-        assert np.allclose(sol.w, np.exp(np.clip(X_C @ sol.dual_lambda, -50, 50)), atol=1e-9)
-        # intercept target makes the weights sum to the treated count
-        assert sol.w.sum() == pytest.approx(float(n_T), abs=1e-5)
+        assert (sol.w >= -1e-7).all()
+        # hard block exactly balanced; weights sum to the treated count
+        assert np.allclose(hard_C.T @ sol.w, hard_t, atol=1e-5)
+        assert sol.w.sum() == pytest.approx(float(n_T), abs=1e-4)
+        # soft (lagged-outcome) block fit to ~0 residual since achievable
+        assert sol.soft_residual < 1e-3
 
-    def test_base_weight_tilt(self):
-        # With non-uniform base weights, w_i = base_i * exp(x_i . lambda).
+    def test_ridge_makes_solution_unique_and_deterministic(self):
+        # Heavily under-determined: many w achieve exact balance, so the
+        # ridge term must pin a single reproducible answer.
         rng = np.random.default_rng(1)
-        n_C, d = 150, 3
-        X_C = np.column_stack([np.ones(n_C), rng.standard_normal((n_C, d - 1))])
-        targets = np.array([20.0, 1.5, -0.7])
-        base = rng.uniform(0.5, 2.0, n_C)
-        sol = solve_raking_weights(X_C, targets, base_weight=base)
-        # calibration is exact to microsynth's tolerance (cal.epsilon = 1e-4)
-        assert np.allclose(X_C.T @ sol.w, targets, atol=1e-3)
-        assert np.allclose(sol.w, base * np.exp(np.clip(X_C @ sol.dual_lambda, -50, 50)), atol=1e-9)
+        n_C, n_T = 500, 20
+        cov_C = rng.standard_normal((n_C, 2))
+        hard_C = np.column_stack([np.ones(n_C), cov_C])
+        # feasible target: totals of a known nonneg weighting
+        w0 = rng.uniform(0, 1, n_C); w0 *= n_T / w0.sum()
+        hard_t = hard_C.T @ w0
+        s1 = solve_panel_qp(hard_C, hard_t, None, None, ridge=1e-6)
+        s2 = solve_panel_qp(hard_C, hard_t, None, None, ridge=1e-6)
+        assert np.allclose(s1.w, s2.w, atol=1e-7)          # deterministic
+        # min-norm property: the ridge solution is no larger in L2 than the
+        # arbitrary feasible w0 that generated the targets.
+        assert float(s1.w @ s1.w) <= float(w0 @ w0) + 1e-6
+
+    def test_infeasible_hard_targets_raise(self):
+        # Demand a covariate total no nonneg, count-constrained weighting can
+        # reach (all controls below the per-unit target) -> infeasible QP.
+        rng = np.random.default_rng(2)
+        n_C, n_T = 100, 5
+        cov_C = rng.uniform(0.0, 1.0, (n_C, 1))
+        hard_C = np.column_stack([np.ones(n_C), cov_C])
+        # mean covariate per treated unit forced above every control value
+        hard_t = np.array([float(n_T), float(n_T) * 10.0])
+        with pytest.raises(MlsynthEstimationError):
+            solve_panel_qp(hard_C, hard_t, None, None, ridge=1e-6)
 
 
 class TestDiagnostics:
@@ -263,9 +294,10 @@ class TestSetup:
 # Layer 3: integration / synthetic recovery
 # ---------------------------------------------------------------------------
 
-class TestRakingPanel:
-    """The microsynth panel method (weight_method='raking'): balance the full
-    pre-period outcome trajectory, report per-period TOTAL effects."""
+class TestPanelMethod:
+    """The microsynth panel method (weight_method='panel'): exactly balance
+    covariates, least-squares-fit the pre-period outcome trajectory with
+    w >= 0, and report per-period TOTAL effects on the treated area."""
 
     def _panel(self, n_c=80, n_t=8, T0=6, T_post=3, eff=2.0, seed=0):
         rng = np.random.default_rng(seed)
@@ -282,21 +314,49 @@ class TestRakingPanel:
                              "treat": int(post)})
         return pd.DataFrame(rows), eff, n_t
 
-    def test_raking_balance_weights_and_effect(self):
+    def test_panel_balance_weights_and_effect(self):
         df, eff, n_t = self._panel()
         res = MicroSynth({
             "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
             "time": "time", "covariates": [],
             "outcome_lag_periods": list(range(6)),       # full pre-period window
-            "weight_method": "raking", "run_inference": False,
+            "weight_method": "panel", "run_inference": False,
             "display_graphs": False,
         }).fit()
-        # raking weights sum to the treated count and exactly balance the pre-fit
+        # panel weights are non-negative and sum to the treated count
         assert res.design.w.sum() == pytest.approx(float(n_t), abs=1e-3)
+        assert (res.design.w >= -1e-7).all()
+        # pre-period outcome trajectory fit to ~0 -> balanced
         assert np.max(np.abs(res.design.smd_after)) < 1e-2
         # per-period contrast is on totals -> ~ n_t * per-unit effect
         assert res.att == pytest.approx(n_t * eff, rel=0.25)
         assert res.gap_trajectory.shape == (3,)          # one per post period
+
+    def test_panel_deterministic(self):
+        df, _, _ = self._panel()
+        cfg = dict(df=df, outcome="y", treat="treat", unitid="unit", time="time",
+                   covariates=[], outcome_lag_periods=list(range(6)),
+                   weight_method="panel", run_inference=False, display_graphs=False)
+        r1 = MicroSynth(cfg).fit()
+        r2 = MicroSynth(cfg).fit()
+        assert np.allclose(r1.design.w, r2.design.w, atol=1e-7)
+        assert r1.att == pytest.approx(r2.att, abs=1e-9)
+
+    def test_panel_with_covariates_only(self):
+        # No lagged outcomes: pure hard covariate balance + ridge selection.
+        df, _, n_t = self._panel()
+        # add a time-invariant covariate
+        rng = np.random.default_rng(7)
+        per_unit = {u: rng.standard_normal() for u in df["unit"].unique()}
+        df = df.assign(z=df["unit"].map(per_unit))
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+            "time": "time", "covariates": ["z"],
+            "weight_method": "panel", "run_inference": False,
+            "display_graphs": False,
+        }).fit()
+        assert res.design.w.sum() == pytest.approx(float(n_t), abs=1e-3)
+        assert np.max(np.abs(res.design.smd_after)) < 1e-2
 
     def test_simplex_default_unchanged(self):
         df, eff, n_t = self._panel()
