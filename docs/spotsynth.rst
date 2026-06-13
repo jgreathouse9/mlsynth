@@ -413,6 +413,20 @@ the paper's Figure 4 (errors-in-variables) setting, this measurably
 reduces the attenuation bias that persists even under a perfect
 valid-donor selection.
 
+Durable benchmark
+^^^^^^^^^^^^^^^^^
+
+``benchmarks/cases/spotsynth_real_data.py`` reproduces three figures of the
+paper end to end: **Figure 6** (real-data screening on German Reunification,
+California, and Basque Country -- both ``S1`` and ``S2`` exclude a planted
+noisy-proxy donor and recover the canonical effect, ATT California ~ −22, Basque
+~ −1.2, while the unscreened estimate collapses toward zero); **Figure 2**
+(leave-one-out detection AUC, high under a valid majority, inverted under an
+invalid majority); and **Figure 4** (the proximal debias reduces errors-in-
+variables bias). Run it with
+``python benchmarks/run_benchmarks.py spotsynth_real_data``; see
+:doc:`replications/spotsynth`.
+
 When to use SPOTSYNTH (and when not to)
 ---------------------------------------
 
