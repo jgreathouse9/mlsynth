@@ -400,7 +400,7 @@ The package ships GeoLift's example panel
    })
    res = geo.fit()              # designs, auto-realizes (post window) and plots
    print(res.selected_units, res.search.winner.mde, res.search.winner.power)
-   print("joint conformal p:", round(res.report.inference.p_value, 3))   # ~0.83 -> null
+   print("joint conformal p:", round(res.report.inference.p_value, 3))   # ~0.66 -> null
 
 Without a ``post_col`` the same call returns a design-only result
 (``res.report is None``); set ``display_graphs=False`` to suppress the plot.
@@ -436,7 +436,10 @@ Every argument maps onto a ``GEOLIFT`` config field:
    import pandas as pd
    from mlsynth import GEOLIFT
 
-   df = pd.read_csv("basedata/geolift_market_data.csv")   # GeoLift_PreTest, 40 mkts x 90d
+   df = pd.read_csv(                                      # GeoLift_PreTest, 40 mkts x 90d
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/geolift_market_data.csv"
+   )
 
    cfg = {
        "df": df, "outcome": "Y", "unitid": "location", "time": "date",
@@ -489,90 +492,81 @@ imbalance region that clears power wins — here ``chicago, portland``.
 Reading the results — plots, tables, and weights
 ------------------------------------------------
 
-Everything the design and the realized report produce is on the result object,
-so you can use the built-in plot or pull the arrays and draw your own.
-
-**The built-in plot.** ``display_graphs=True`` (default) plots during ``fit``;
-you can also call it explicitly. In the **design** phase it shows the test
-markets vs their synthetic counterfactual over the pre-period; once a
-``post_col`` realizes the design, it shows **observed vs synthetic over pre+post
-with the conformal band, plus the effect (gap) underneath**:
+Everything the design and the realized report produce lives on the result
+object. The complete, runnable example below loads the data, realizes a design
+with a budget (``cpic``), and then draws every view — the power / MDE / budget
+table, observed vs synthetic, the effect with its conformal band, the donor
+weights, the realized cost, and the built-in plot:
 
 .. code-block:: python
 
+   import pandas as pd
+   import matplotlib.pyplot as plt
+   from mlsynth import GEOLIFT
    from mlsynth.utils.geolift_helpers.marketselect.plotter import plot_design
 
-   plot_design(res, report=res.report, show=True)        # or save_path="design.png"
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_test_data.csv")
+   df = pd.read_csv(url)                                   # GeoLift_Test: 40 mkts x 105 days
+   dates = sorted(df["date"].unique())
+   df["post"] = df["date"].isin(dates[90:]).astype(int)   # last 15 days = treatment window
 
-**Power / MDE / budget table.** The ranked shortlist (one row per candidate ×
-duration) carries the power, the minimum detectable effect, and — when ``cpic``
-is set — the required investment:
+   res = GEOLIFT({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "treatment_size": 2, "to_be_treated": ["chicago", "portland"],
+       "durations": [15], "effect_sizes": [0.0, 0.10], "post_col": "post",
+       "cpic": 7.50, "how": "mean", "fixed_effects": True, "display_graphs": False,
+   }).fit()
+
+   # headline + the power / MDE / budget shortlist (one row per candidate x duration)
+   print(res.selected_units, res.report.effects.att, res.report.inference.p_value)
+   print(res.power[["candidate", "duration", "mde", "power", "investment"]])
+   print(res.report.weights.summary_stats["cost"])        # realized spend = cpic x incremental
+
+   # observed vs synthetic
+   ts = res.report.time_series
+   plt.plot(ts.time_periods, ts.observed_outcome, "k", label="observed")
+   plt.plot(ts.time_periods, ts.counterfactual_outcome, "r--", label="synthetic")
+   plt.axvline(ts.intervention_time, color="grey", ls=":"); plt.legend(); plt.show()
+
+   # the effect (gap) with its conformal prediction band
+   d = res.report.inference.details
+   plt.plot(ts.time_periods, ts.estimated_gap, "k")
+   plt.fill_between(d["periods"], d["lower"], d["upper"], alpha=0.3)
+   plt.axhline(0, color="grey", ls=":"); plt.show()
+
+   # donor weights, biggest contributors
+   w = res.report.weights.donor_weights
+   top = dict(sorted(w.items(), key=lambda kv: -abs(kv[1]))[:10])
+   plt.bar(top.keys(), top.values()); plt.xticks(rotation=45, ha="right"); plt.show()
+
+   # the built-in plot (design + realized phases: conformal band + gap)
+   plot_design(res, report=res.report, show=True)
+
+For the full **power-vs-effect-size curve** of a region (GeoLift's
+``GeoLiftPower`` plot) — power rising through the threshold marks the MDE — run
+the scoring helpers directly:
 
 .. code-block:: python
 
-   res.power[["candidate", "duration", "mde", "power", "investment"]]
-   res.search.winner.mde, res.search.winner.power        # the recommended design
-
-**Power curve (GeoLift's ``GeoLiftPower`` plot).** The shortlist reports power at
-the MDE; for the full **power-vs-effect-size curve** of a region, run the
-scoring helpers directly and plot — power rising through the threshold marks the
-MDE:
-
-.. code-block:: python
-
+   import pandas as pd
    import matplotlib.pyplot as plt
    from mlsynth.utils.datautils import geoex_dataprep
    from mlsynth.utils.geolift_helpers.marketselect.helpers.batch import run_simulations
    from mlsynth.utils.geolift_helpers.marketselect.helpers.aggregate import compute_power
 
-   Ywide = geoex_dataprep(df, "location", "date", "Y")["Ywide"]
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_market_data.csv")
+   Ywide = geoex_dataprep(pd.read_csv(url), "location", "date", "Y")["Ywide"]
    cube = run_simulations(
        Ywide, [frozenset({"chicago", "portland"})], durations=[15],
        lookback_window=1, effect_sizes=[0.0, 0.05, 0.10, 0.15, 0.20],
        fixed_effects=True, ns=500)
    pw = compute_power(cube, alpha=0.10)
    plt.plot(pw["effect_size"], pw["power"], marker="o")
-   plt.axhline(0.8, ls="--", color="grey")             # power threshold -> MDE crossing
-   plt.xlabel("injected lift"); plt.ylabel("power")
+   plt.axhline(0.8, ls="--", color="grey")                # power threshold -> MDE crossing
+   plt.xlabel("injected lift"); plt.ylabel("power"); plt.show()
 
-**Observed vs predicted.** The realized report's time series are plain arrays:
-
-.. code-block:: python
-
-   import matplotlib.pyplot as plt
-
-   ts = res.report.time_series
-   plt.plot(ts.time_periods, ts.observed_outcome, color="black", label="observed")
-   plt.plot(ts.time_periods, ts.counterfactual_outcome, "r--", label="synthetic")
-   plt.axvline(ts.intervention_time, color="grey", ls=":"); plt.legend()
-
-**Gap (effect) with the conformal band.** The per-period effect and its
-conformal prediction interval come from ``inference.details``:
-
-.. code-block:: python
-
-   d = res.report.inference.details                      # post-period arrays
-   plt.plot(ts.time_periods, ts.estimated_gap, color="black")     # tau_hat_t
-   plt.fill_between(d["periods"], d["lower"], d["upper"], alpha=0.3)  # conformal CI
-   plt.axhline(0, color="grey", ls=":")
-   res.report.effects.att, res.report.inference.p_value  # ATT, joint conformal p
-
-**Donor weights.** The synthetic control's weights are a ``{market: weight}``
-dict — sort and bar-plot the contributors:
-
-.. code-block:: python
-
-   w = res.report.weights.donor_weights
-   top = dict(sorted(w.items(), key=lambda kv: -abs(kv[1]))[:10])
-   plt.bar(top.keys(), top.values()); plt.xticks(rotation=45, ha="right")
-
-**Budget (CPIC).** With ``cpic`` set, the realized spend is on the report; the
-design-time investment per candidate is the ``investment`` column above:
-
-.. code-block:: python
-
-   ss = res.report.weights.summary_stats
-   ss["cpic"], ss["cost"]                                # cost = cpic x incremental
 
 Multi-cell designs
 ------------------
@@ -587,11 +581,21 @@ budgets, or creatives — each on its own group of geos ("cells" :math:`A, B,
 
 .. code-block:: python
 
+   import pandas as pd
    from mlsynth import MULTICELLGEOLIFT
 
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_test_data.csv")
+   df = pd.read_csv(url)                                   # GeoLift_Test: 40 mkts x 105 days
+   dates = sorted(df["date"].unique())
+   df["post"] = df["date"].isin(dates[90:]).astype(int)   # last 15 days = treatment window
+
    #   cell:  "A" -> social-media markets, "B" -> paid-search markets, "" -> control
+   cell = {"chicago": "A", "portland": "A", "atlanta": "B", "boston": "B"}
+   df["cell"] = df["location"].map(cell).fillna("")        # blank = shared control pool
+
    res = MULTICELLGEOLIFT({
-       "df": panel, "outcome": "Y", "unitid": "location", "time": "date",
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
        "cell_column_name": "cell", "post_col": "post", "fixed_effects": True,
    }).fit()
 
