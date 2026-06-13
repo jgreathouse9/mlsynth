@@ -1,5 +1,5 @@
 Helper Utilities
-==============
+================
 
 .. automodule:: mlsynth.utils.helperutils
    :members:

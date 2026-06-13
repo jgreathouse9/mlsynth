@@ -1195,7 +1195,7 @@ Two caveats on the cell-level numbers:
    qualitative finding (placebo has near-zero power under spillover).
 
 Method: ``method='iscm'`` -- Di Stefano & Mellace (2024)
--------------------------------------------------------
+--------------------------------------------------------
 
 The inclusive synthetic control method attacks the same problem as
 Cao-Dowd from a different angle. The conventional spillover-robust recipe
@@ -1575,7 +1575,7 @@ solution); with the full AG block it agrees with malo at :math:`\approx
 -0.68`. As always, read the ``pre_rmspe`` column as the referee.
 
 Method: ``method='grossi'`` -- Grossi et al. (2025)
---------------------------------------------------
+---------------------------------------------------
 
 Grossi, Mariani, Mattei, Lattarulo & Oener (2025, *JRSS-A*) estimate direct
 *and* spillover effects under partial interference -- the third spillover
