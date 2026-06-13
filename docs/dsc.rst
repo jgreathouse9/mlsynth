@@ -394,6 +394,23 @@ Monte-Carlo plug-in is used instead. The pre-period fit
 :py:attr:`DSCResults.pre_period_wasserstein` so users can check fit quality
 before trusting any post-period contrast.
 
+Verification
+------------
+
+A durable benchmark (``benchmarks/cases/dsc_dube.py``) reproduces the ``DiSCo``
+vignette's Dube (2019) minimum-wage application: on the micro-level county-income
+panel (Alaska treated, 2003) DSC tracks closely pre-period (2-Wasserstein ~0.13)
+and the placebo permutation test fails to reject at both post years (p = 0.91 /
+0.32) -- the vignette's stated "no spurious effect". See :doc:`replications/dsc`;
+run it with ``python benchmarks/run_benchmarks.py dsc_dube``.
+
+.. note::
+
+   This is Path A on the authors' dataset/setup with mlsynth's deterministic
+   output pinned (the ``DiSCo`` R package does not install on the CI environment's
+   R version, and the vignette's weight/QTE numbers are in figures rather than
+   text). The Dube panel is subsampled to 250 obs/cell to keep it ~1 MB.
+
 Core API
 --------
 

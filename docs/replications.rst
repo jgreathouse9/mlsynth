@@ -69,6 +69,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/spcd
    replications/spotsynth
    replications/marex
+   replications/dsc
 
 .. _replications-canonical:
 
