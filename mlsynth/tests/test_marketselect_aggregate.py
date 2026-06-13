@@ -6,6 +6,7 @@ from mlsynth.utils.geolift_helpers.marketselect.helpers.aggregate import (
     compute_power,
     compute_mde,
     compute_rank,
+    _RANK_COLUMNS,
 )
 
 
@@ -163,4 +164,14 @@ def test_compute_rank_all_nondetectable_returns_empty():
     weak = _rank_power_table().assign(power=0.1)   # nothing detectable
     out = compute_rank(weak, power_threshold=0.8)
     assert out.empty
+
+
+def test_compute_rank_budget_excludes_every_candidate_returns_empty():
+    """A budget smaller than every candidate's investment filters the table to
+    empty *before* the MDE, returning the empty ranked frame (GeoLift's
+    abs(budget) > abs(Investment) gate emptying the pool)."""
+    pt = _rank_power_table().assign(investment=500_000.0)
+    out = compute_rank(pt, power_threshold=0.8, budget=1.0)
+    assert out.empty
+    assert list(out.columns) == _RANK_COLUMNS
     assert "rank" in out.columns

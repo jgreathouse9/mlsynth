@@ -13,6 +13,7 @@ from typing import List, Optional
 import pandas as pd
 
 from mlsynth.config_models import DesignResult
+from mlsynth.exceptions import MlsynthConfigError
 from mlsynth.utils.datautils import geoex_dataprep
 
 from ..config import GeoLiftConfig
@@ -20,6 +21,13 @@ from .helpers.similarity import rank_markets_by_correlation
 from .helpers.candidates import generate_candidate_markets
 from .helpers.batch import run_simulations
 from .helpers.aggregate import compute_power, compute_rank
+from .helpers.constraints import (
+    admissible_candidates,
+    build_conflict_graph,
+    conflict_neighbors,
+    eligible_by_size,
+    unit_attribute_map,
+)
 from .helpers.design import design_fit, CandidateDesign
 
 
@@ -67,30 +75,102 @@ def run_design(config: GeoLiftConfig) -> GEOLIFTResults:
     Ywide = prep["Ywide"]
 
     ranked = rank_markets_by_correlation(Ywide)
+    units = list(Ywide.columns)
+
+    # === Design constraints (geography / coverage / size) ===
+    # All optional and purely subtractive: with none set, the design is identical
+    # to the unconstrained run. Treatment criteria restrict which candidate
+    # regions are admissible (size band on the nomination pool, cluster
+    # independent-set + stratum quota on the nominated regions); the lone control
+    # criterion is the spillover donor exclusion driven by the conflict graph.
+    not_treated = set(config.not_to_be_treated or ())
+
+    # Size band -- a treated-unit eligibility filter on the *nomination* pool
+    # (out-of-band markets stay available as donors).
+    size_ineligible: set = set()
+    if config.size_col is not None and (
+        config.min_size is not None or config.max_size is not None
+    ):
+        size_map = unit_attribute_map(config.df, config.unitid, config.size_col)
+        eligible = eligible_by_size(
+            units, size_map, min_size=config.min_size, max_size=config.max_size
+        )
+        size_ineligible = set(units) - set(eligible)
+
+    eligible_for_treatment = [u for u in units
+                              if u not in (not_treated | size_ineligible)]
+    if size_ineligible and len(eligible_for_treatment) < config.treatment_size:
+        raise MlsynthConfigError(
+            f"the size band leaves only {len(eligible_for_treatment)} market(s) "
+            f"eligible for treatment, fewer than treatment_size "
+            f"({config.treatment_size}). Widen the size band."
+        )
+
     candidates = generate_candidate_markets(
         ranked,
         config.treatment_size,
         to_be_treated=config.to_be_treated,
-        not_to_be_treated=config.not_to_be_treated,
+        not_to_be_treated=(sorted(not_treated | size_ineligible) or None),
         run_stochastic=config.run_stochastic,
         stochastic_mode=config.stochastic_mode,
         rng=config.seed,
     )
 
+    # Conflict graph (cluster_col + adjacency) -> independent-set filter + the
+    # Stage-2 spillover donor exclusion.
+    conflict = None
+    if config.cluster_col is not None or config.adjacency is not None:
+        cluster_map = (
+            unit_attribute_map(config.df, config.unitid, config.cluster_col)
+            if config.cluster_col is not None else None
+        )
+        conflict = build_conflict_graph(
+            units, cluster_map=cluster_map, adjacency=config.adjacency,
+            spillover_threshold=config.spillover_threshold,
+        )
+
+    # Stratum quotas -> coverage filter on the nominated regions.
+    stratum_map = None
+    required_strata = None
+    has_quota = config.min_per_stratum is not None or config.max_per_stratum is not None
+    if config.stratum_col is not None and has_quota:
+        stratum_map = unit_attribute_map(config.df, config.unitid, config.stratum_col)
+        if config.min_per_stratum is not None:
+            required_strata = {stratum_map[u] for u in eligible_for_treatment
+                               if u in stratum_map}
+
+    if conflict is not None or (stratum_map is not None and has_quota):
+        candidates = admissible_candidates(
+            candidates, conflict=conflict, stratum_map=stratum_map,
+            min_per_stratum=config.min_per_stratum,
+            max_per_stratum=config.max_per_stratum, required_strata=required_strata,
+        )
+        if not candidates:
+            raise MlsynthConfigError(
+                "no candidate test region satisfies the design constraints "
+                "(e.g. treatment_size exceeds the number of clusters/strata to "
+                "cover, or the forced-in markets interfere). Relax the constraint "
+                "or the treatment_size."
+            )
+
     cube = run_simulations(
         Ywide, candidates, config.durations, config.lookback_window, config.effect_sizes,
         how=config.how, augment=config.augment, ns=config.ns, seed=config.seed,
         conformal_type=config.conformal_type, fixed_effects=config.fixed_effects,
-        cpic=config.cpic,
+        cpic=config.cpic, conflict=conflict,
     )
     power_table = compute_power(cube, alpha=config.alpha)
     shortlist = compute_rank(power_table, power_threshold=config.power_threshold,
                              budget=config.budget)
 
-    # Per-candidate deployable design fit (full pre-period).
+    # Per-candidate deployable design fit (full pre-period), with the same
+    # spillover donor exclusion the scoring stage used.
     designs = {
-        candidate: design_fit(Ywide, candidate, how=config.how, augment=config.augment,
-                               fixed_effects=config.fixed_effects)
+        candidate: design_fit(
+            Ywide, candidate, how=config.how, augment=config.augment,
+            fixed_effects=config.fixed_effects,
+            exclude=(conflict_neighbors(candidate, conflict) if conflict else None),
+        )
         for candidate in candidates
     }
 

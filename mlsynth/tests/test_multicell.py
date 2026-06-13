@@ -202,3 +202,111 @@ def test_estimator_display_graphs_does_not_raise():
         "display_graphs": True,
     }).fit()
     assert isinstance(res, MultiCellResults)
+
+
+def test_plot_multicell_empty_cells_returns_none():
+    """The empty-result guard: nothing to plot -> None, no figure."""
+    import types
+    from mlsynth.utils.geolift_helpers.multicell.plotter import plot_multicell
+    assert plot_multicell(types.SimpleNamespace(cells={}), show=False) is None
+
+
+# === config validation (each invalid field is reported, not swallowed) ===
+
+def _cfg(df, **over):
+    base = dict(df=df, outcome="Y", unitid="location", time="time",
+                cell_column_name="cell", post_col="post")
+    base.update(over)
+    return base
+
+
+def test_config_invalid_augment_raises():
+    df, _ = _panel()
+    with pytest.raises(MlsynthConfigError, match="augment"):
+        MULTICELLGEOLIFT(_cfg(df, augment="bogus"))
+
+
+def test_config_invalid_alpha_raises():
+    df, _ = _panel()
+    with pytest.raises(MlsynthConfigError, match="alpha"):
+        MULTICELLGEOLIFT(_cfg(df, alpha=1.5))
+
+
+def test_config_invalid_conformal_type_raises():
+    df, _ = _panel()
+    with pytest.raises(MlsynthConfigError, match="conformal_type"):
+        MULTICELLGEOLIFT(_cfg(df, conformal_type="bogus"))
+
+
+def test_config_negative_cpic_raises():
+    df, _ = _panel()
+    with pytest.raises(MlsynthConfigError, match="cpic"):
+        MULTICELLGEOLIFT(_cfg(df, cpic=-1.0))
+
+
+def test_config_unknown_field_translates_validation_error():
+    """An unknown key trips pydantic's extra='forbid'; the estimator translates
+    that ValidationError into the library's MlsynthConfigError."""
+    df, _ = _panel()
+    with pytest.raises(MlsynthConfigError):
+        MULTICELLGEOLIFT(_cfg(df, not_a_real_field=1))
+
+
+def test_estimator_rejects_non_config_non_dict():
+    """A config that is neither a dict nor a MultiCellGeoLiftConfig is rejected."""
+    with pytest.raises(MlsynthConfigError, match="MultiCellGeoLiftConfig or a dict"):
+        MULTICELLGEOLIFT(42)
+
+
+def test_estimator_fit_reraises_data_error():
+    """A data error raised inside dataprep surfaces from fit() untranslated
+    (re-raised as MlsynthDataError, not wrapped as an estimation error)."""
+    df, _ = _panel()
+    df.loc[(df["location"] == "a0") & (df["time"] == 0), "cell"] = "B"   # varies within unit
+    with pytest.raises(MlsynthDataError):
+        MULTICELLGEOLIFT(_cfg(df)).fit()
+
+
+# === dataprep edge cases ===
+
+def test_dataprep_nan_marks_control():
+    """A NaN cell value (not just blank '') marks a control geo."""
+    df, _ = _panel()
+    df.loc[df["cell"] == "", "cell"] = np.nan       # controls as NaN instead of ""
+    prep = multicell_dataprep(df, "location", "time", "Y",
+                              cell_column_name="cell", post_col="post")
+    assert set(prep["control_units"]) == {f"c{i}" for i in range(6)}
+    assert set(prep["cell_map"]) == {"A", "B"}
+
+
+def test_dataprep_no_treatment_cells_raises():
+    """Every unit a control -> no treatment cells -> reported, not a degenerate run."""
+    df, _ = _panel()
+    df["cell"] = ""                                 # everyone is a control
+    with pytest.raises(MlsynthDataError, match="no treatment cells"):
+        multicell_dataprep(df, "location", "time", "Y",
+                           cell_column_name="cell", post_col="post")
+
+
+# === cross-cell winner: the symmetric branches ===
+
+def test_analyze_winner_is_b_when_b_dominates():
+    """Mirror of A-wins: a large B effect, null A -> B's CI clears A's -> B wins."""
+    df, _ = _panel(effA=0.0, effB=8.0)
+    prep = multicell_dataprep(df, "location", "time", "Y",
+                              cell_column_name="cell", post_col="post")
+    res = analyze_multicell(prep["Ywide"], prep["cell_map"], prep["control_units"],
+                            prep["pre_periods"], ns=400, seed=0)
+    assert res.winner == "B"
+    assert res.comparison[0]["winner"] == "B"
+
+
+def test_analyze_overlapping_cis_no_winner():
+    """Both cells null -> overlapping ATT CIs -> the comparison declares no winner."""
+    df, _ = _panel(effA=0.0, effB=0.0)
+    prep = multicell_dataprep(df, "location", "time", "Y",
+                              cell_column_name="cell", post_col="post")
+    res = analyze_multicell(prep["Ywide"], prep["cell_map"], prep["control_units"],
+                            prep["pre_periods"], ns=400, seed=0)
+    assert res.comparison[0]["winner"] is None
+    assert res.winner is None

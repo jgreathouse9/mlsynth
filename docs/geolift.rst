@@ -101,6 +101,77 @@ unioned with the forced-in set, so every candidate satisfies
 :math:`\mathcal{S}_{\mathrm{in}} \subseteq \mathcal{S}` and
 :math:`\mathcal{S} \cap \mathcal{S}_{\mathrm{out}} = \varnothing`.
 
+Stage 1b — Design constraints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Beyond hard forcing lists, the rule-based constraints restrict the admissible
+regions and donor pools (the prose walkthrough with runnable examples is in
+*Design constraints (geography, coverage, size)* below). Each is one of two kinds,
+following the LEXSCM constraint algebra (:doc:`lexscm`): a **treatment
+criterion** filtering admissible :math:`\mathcal{S}`, or a **control criterion**
+restricting the donor pool. None enters the inner weight program of Stage 2.
+
+**Interference graph.** Encode market interference by a symmetric
+:math:`\mathbf{A} = [A_{ij}] \in \{0,1\}^{N \times N}` with zero diagonal, where
+:math:`A_{ij} = 1` iff markets :math:`i, j` interfere. It is built from a cluster
+labelling :math:`c : \mathcal{N} \to \mathcal{C}` (``cluster_col``,
+:math:`A_{ij} = 1` iff :math:`c(i) = c(j)`) and/or a spillover matrix
+:math:`\mathbf{W}` (``adjacency``, :math:`A_{ij} = 1` iff
+:math:`W_{ij} > \theta`, the ``spillover_threshold``), combined entrywise by
+logical OR. The **conflict-neighbours** of a region are
+
+.. math::
+
+   \mathcal{A}(\mathcal{S}) \coloneqq
+   \bigl\{\, k \in \mathcal{N} : A_{jk} = 1 \ \text{for some}\ j \in \mathcal{S}
+   \,\bigr\} \setminus \mathcal{S}.
+
+*Treatment criterion — no interference.* The treated region must be an
+**independent set** of :math:`\mathbf{A}`:
+:math:`A_{ij} = 0 \ \forall\, i, j \in \mathcal{S}` (at most one market per
+cluster). *Control criterion — spillover exclusion.* The donor pool drops the
+conflict-neighbours, refining the Stage-2 pool to
+
+.. math::
+
+   \mathcal{N}_0(\mathcal{S}) \;=\;
+   \mathcal{N} \setminus \bigl(\mathcal{S} \cup \mathcal{A}(\mathcal{S})\bigr),
+
+so a treated market's interferers can be neither co-treated nor used as its own
+donors.
+
+**Coverage quotas.** With a stratum labelling :math:`g : \mathcal{N} \to
+\mathcal{G}` (``stratum_col``) and the strata that contain an eligible market
+:math:`\mathcal{G}_{\mathrm{elig}}`, the region must satisfy, for the bounds
+:math:`q_{\min}` (``min_per_stratum``) and :math:`q_{\max}` (``max_per_stratum``),
+
+.. math::
+
+   q_{\min} \le \bigl|\{\, j \in \mathcal{S} : g(j) = s \,\}\bigr|
+   \quad \forall\, s \in \mathcal{G}_{\mathrm{elig}},
+   \qquad
+   \bigl|\{\, j \in \mathcal{S} : g(j) = s \,\}\bigr| \le q_{\max}
+   \quad \forall\, s \in \mathcal{G}.
+
+**Size band.** With market sizes :math:`z_j` (``size_col``) and bounds
+:math:`[\underline{z}, \overline{z}]` (``min_size`` / ``max_size``), only in-band
+markets are **treatment-eligible**,
+:math:`\mathcal{N}_{\mathrm{size}} \coloneqq \{\, j : \underline{z} \le z_j \le
+\overline{z} \,\}`, so :math:`\mathcal{S} \subseteq \mathcal{N}_{\mathrm{size}}`;
+out-of-band markets remain available as donors. The ceiling
+:math:`\overline{z}` is the a-priori analogue of the synthesizability the scaled
+L2 imbalance :math:`\kappa(\mathcal{S})` (below) measures post-hoc.
+
+All three treatment criteria act on the admissible supports — they sit exactly
+where the cardinality constraint :math:`|\mathcal{S}| = k` already lives and only
+*shrink* the candidate set. If no region satisfies them (e.g.
+:math:`k` exceeds :math:`|\mathcal{C}|` or :math:`|\mathcal{G}_{\mathrm{elig}}|`,
+or :math:`|\mathcal{N}_{\mathrm{size}}| < k`) the design reports infeasibility
+(:class:`~mlsynth.exceptions.MlsynthConfigError`) rather than returning a
+degenerate region. With none of the constraints supplied,
+:math:`\mathbf{A} = \mathbf{0}` and every region is admissible — the unconstrained
+nomination.
+
 Stage 2 — The synthetic control
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -340,6 +411,9 @@ driven by the data and config (a ``post_col`` triggers realization;
   :math:`\{\delta\}`, ``lookback_window`` :math:`L`.
 * ``to_be_treated`` / ``not_to_be_treated`` —
   :math:`\mathcal{S}_{\mathrm{in}}` / :math:`\mathcal{S}_{\mathrm{out}}`.
+* ``cluster_col`` / ``adjacency`` / ``spillover_threshold``, ``stratum_col`` /
+  ``min_per_stratum`` / ``max_per_stratum``, ``size_col`` / ``min_size`` /
+  ``max_size`` — rule-based design constraints (see *Design constraints* below).
 * ``post_col`` — a 0/1 column marking post-treatment periods; the design slices to
   :math:`\mathcal{T}_1`, so it is **identical** whether you pass the full
   post-treatment panel or a pre-only one (the "rerun after treatment"
@@ -567,6 +641,183 @@ the scoring helpers directly:
    plt.axhline(0.8, ls="--", color="grey")                # power threshold -> MDE crossing
    plt.xlabel("injected lift"); plt.ylabel("power"); plt.show()
 
+
+Design constraints (geography, coverage, size)
+----------------------------------------------
+
+Upstream GeoLift restricts the treated side only through **hard market lists**
+(``to_be_treated`` / ``not_to_be_treated``). ``mlsynth`` adds a **rule-based**
+constraint layer so the candidate nomination and donor pool can encode geography
+and other design considerations. Every restriction is one of two kinds (the
+LEXSCM vocabulary, see :doc:`lexscm`): a **treatment criterion** filtering which
+candidate test regions are admissible, or a **control criterion** restricting a
+candidate's donor pool. Neither touches the inner weight solve — they only change
+*where the design is allowed to look*. With none of these fields set, the design
+is identical to the unconstrained run.
+
+* ``cluster_col`` — a per-market cluster label (DMA / state). Markets in the same
+  cluster **interfere**: at most one may be treated per candidate (treatment
+  criterion, the *independent-set* rule) **and** a treated market's same-cluster
+  geos are dropped from its donor pool (control criterion, the *spillover
+  exclusion*). An ``adjacency`` matrix of pairwise spillover strengths, thresholded
+  by ``spillover_threshold`` and combined with ``cluster_col`` by logical OR, is
+  the continuous alternative.
+* ``stratum_col`` + ``min_per_stratum`` / ``max_per_stratum`` — **coverage
+  quotas**: require at least ``min`` treated markets in every stratum that has an
+  eligible market ("test in every region"), and/or at most ``max`` per stratum (a
+  quota). A treatment criterion.
+* ``size_col`` + ``min_size`` / ``max_size`` — a **treated-unit size band**: only
+  in-band markets are eligible for *treatment* (they remain available as donors).
+  The floor is a power / operational minimum; the ceiling encodes
+  synthesizability — a market far larger than the donors cannot sit inside their
+  convex hull, which is exactly what the scaled-L2 imbalance :math:`\kappa`
+  measures, so ``max_size`` is an a-priori version of :math:`\kappa \to 1`.
+
+When the constraints admit no candidate region (e.g. ``treatment_size`` exceeds
+the number of clusters or strata to cover, or the size band leaves too few
+markets), :meth:`GEOLIFT.fit` raises :class:`~mlsynth.exceptions.MlsynthConfigError`
+rather than returning a degenerate design.
+
+.. admonition:: Real geography — the bundled DMA contiguity map
+
+   ``adjacency`` is where you "literally take geography into account": pass a
+   real **bordering** matrix and treated markets are forced apart while each
+   one's neighbours are barred from its donor pool. The package ships the
+   Nielsen US market-area map at ``basedata/markets/dma_adjacency.csv`` — a
+   ``206 × 206`` symmetric 0/1 contiguity matrix indexed by DMA name (with
+   ``dma_metadata.csv`` carrying state, division, and lat/long) — so a panel
+   keyed by DMA can use true borders directly:
+   ``GEOLIFT({..., "adjacency": pd.read_csv(".../dma_adjacency.csv", index_col=0)})``.
+   The same artifact powers LEXSCM's spillover designs. A worked end-to-end check
+   on real borders lives in ``mlsynth/tests/test_geolift_dma_borders.py``. Note
+   the tension this exposes: correlation nomination favours *similar* (often
+   *bordering*) markets, so the independent-set filter does real work — it can
+   prune many nominees, and a very dense border graph can leave none (a reported
+   infeasibility, not a silent degenerate design).
+
+**A worked design on real borders.** The example below is fully self-contained:
+it pulls the real DMA contiguity map and metadata, simulates a **grouped linear
+factor model** of seasonal weekly sales — latent group structure in the loadings
+(groups = census divisions), in the spirit of Liao, Shi & Zheng (2025) — over a
+real Southeast / Mid-South DMA footprint, then designs a 3-market geo test that is
+**non-adjacent on the map** and spread across regions (at most two per division).
+It runs in a few seconds.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import GEOLIFT
+
+   base = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+           "refs/heads/main/basedata/markets")
+   A_full = pd.read_csv(f"{base}/dma_adjacency.csv", index_col=0)   # 206x206 borders
+   meta = pd.read_csv(f"{base}/dma_metadata.csv")                   # dma_name, state, ...
+
+   # Restrict to a real Southeast / Mid-South footprint; groups = census divisions.
+   division = {"GA": "S. Atlantic", "FL": "S. Atlantic",
+               "TN": "E.S. Central", "AL": "E.S. Central"}
+   meta = meta[meta["state"].isin(division)].copy()
+   meta["division"] = meta["state"].map(division)
+   names = [n for n in meta["dma_name"] if n in A_full.index]
+   meta = meta[meta["dma_name"].isin(names)].reset_index(drop=True)
+   A = A_full.loc[names, names]                                     # real contiguity
+
+   # Grouped linear factor model of seasonal weekly sales: the loadings carry a
+   # latent group structure (one loading per division), plus a shared seasonal
+   # swing and idiosyncratic noise.
+   rng = np.random.default_rng(0)
+   div = meta.set_index("dma_name").loc[names, "division"].to_numpy()
+   n, r, T = len(names), 3, 60
+   group_loading = {g: rng.normal(size=r) for g in sorted(set(div))}
+   Lambda = np.array([group_loading[g] for g in div]) + 0.1 * rng.normal(size=(n, r))
+   F = np.cumsum(rng.normal(size=(T, r)), axis=0)                   # common factors
+   season = 12 * np.sin(2 * np.pi * np.arange(T) / 52)             # annual seasonality
+   sales = (1000 + rng.normal(0, 40, n)                            # market base level
+            + F @ Lambda.T                                         # grouped factor structure
+            + season[:, None]                                      # shared seasonal swing
+            + rng.normal(0, 5, (T, n)))                            # idiosyncratic noise
+   df = pd.DataFrame([
+       {"dma": names[j], "week": t, "sales": float(sales[t, j]), "division": div[j]}
+       for j in range(n) for t in range(T)
+   ])
+
+   res = GEOLIFT({
+       "df": df, "outcome": "sales", "unitid": "dma", "time": "week",
+       "treatment_size": 3, "durations": [8], "effect_sizes": [0.0, 0.05, 0.10],
+       "lookback_window": 1, "how": "mean", "ns": 50, "seed": 0,
+       "adjacency": A,                          # true DMA borders -> non-adjacent markets
+       "stratum_col": "division", "max_per_stratum": 2,   # spread across regions
+       "display_graphs": False,
+   }).fit()
+
+   print("recommended test markets:", res.selected_units)
+   print(res.search.shortlist[["candidate", "duration", "mde", "power"]].head())
+
+   # the design honours the geography: no two test markets border each other
+   treated = res.selected_units
+   assert all(A.loc[a, b] == 0 for a in treated for b in treated if a != b)
+
+**Cluster non-interference + spillover donor exclusion.** Treat markets in
+different regions, and never let a treated market's same-region neighbours into
+its synthetic control:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import GEOLIFT
+
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_market_data.csv")
+   df = pd.read_csv(url)                                   # 40 markets x 90 days
+
+   # Per-market geography. In practice these come from your own region table /
+   # spend data; here they are derived from the panel so the example runs as-is.
+   markets = sorted(df["location"].unique())
+   region = {m: f"R{i % 4}" for i, m in enumerate(markets)}   # 4 illustrative regions
+   df["region"] = df["location"].map(region)
+
+   res = GEOLIFT({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "treatment_size": 2, "durations": [14], "effect_sizes": [0.0, 0.1],
+       "lookback_window": 1, "how": "mean", "ns": 50, "seed": 0,
+       "cluster_col": "region", "display_graphs": False,
+   }).fit()
+
+   print(res.selected_units)                              # markets in distinct regions
+   # invariant: no candidate's donors share a region with its treated markets
+   cd = res.search.candidates[0]
+   treated_regions = {region[str(u)] for u in cd.candidate}
+   assert all(region[str(d)] not in treated_regions for d in cd.weights.donor_weights)
+
+**Coverage quota + size band.** Cover distinct regions (at most one treated market
+each) and treat only mid-sized markets (drop the largest and smallest):
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import GEOLIFT
+
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/geolift_market_data.csv")
+   df = pd.read_csv(url)
+   markets = sorted(df["location"].unique())
+   df["region"] = df["location"].map({m: f"R{i % 4}" for i, m in enumerate(markets)})
+   size = df.groupby("location")["Y"].mean()              # avg daily volume = "size"
+   df["size"] = df["location"].map(size)
+   lo, hi = float(size.quantile(0.2)), float(size.quantile(0.8))
+
+   res = GEOLIFT({
+       "df": df, "outcome": "Y", "unitid": "location", "time": "date",
+       "treatment_size": 3, "durations": [14], "effect_sizes": [0.0, 0.1],
+       "lookback_window": 1, "how": "mean", "ns": 50, "seed": 0,
+       "stratum_col": "region", "max_per_stratum": 1,     # <= 1 treated per region
+       "size_col": "size", "min_size": lo, "max_size": hi,  # mid-sized only
+       "display_graphs": False,
+   }).fit()
+
+   print(res.selected_units)                              # 3 markets, 3 distinct regions
+   print(res.search.shortlist[["candidate", "duration", "mde", "power"]].head())
 
 Multi-cell designs
 ------------------
