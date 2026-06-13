@@ -53,6 +53,29 @@ def test_geolift_fit_auto_realizes_with_post_col():
     assert res.report.time_series.intervention_time is not None
 
 
+def test_geolift_weight_vector_matches_donor_dict():
+    """The numpy control-weight vector is the donor_weights values, in order."""
+    res = GEOLIFT(_cfg(post_col="post")).fit()
+    if res.search.winner is None:
+        pytest.skip("no detectable design in this tiny synthetic")
+    w = res.report.weights
+    vec = w.weight_vector
+    assert isinstance(vec, np.ndarray)
+    assert vec.shape == (len(w.donor_weights),)
+    assert np.allclose(vec, list(w.donor_weights.values()))
+    # the flat accessor on the EffectResult agrees
+    assert np.allclose(res.report.weight_vector, vec)
+
+
+def test_geolift_design_weights_not_duplicated_after_realize():
+    """After realization the design-weights front door and the report share one
+    weights object (no second identical donor dict)."""
+    res = GEOLIFT(_cfg(post_col="post")).fit()
+    if res.search.winner is None:
+        pytest.skip("no detectable design in this tiny synthetic")
+    assert res.design_weights is res.report.weights
+
+
 def test_geolift_display_graphs_runs_without_error():
     # display_graphs=True plots under the hood during fit (Agg -> no-op show)
     res = GEOLIFT(_cfg(display_graphs=True)).fit()

@@ -272,6 +272,20 @@ class WeightsResults(BaseModel):
     # For estimators returning multiple sets of weights (e.g. TSSC sub-methods), this might be part of a list or dict structure.
     # donor_names is removed as it's incorporated into donor_weights dict keys
 
+    @property
+    def weight_vector(self) -> Optional[np.ndarray]:
+        """The donor/control weights as a dense :class:`numpy.ndarray`.
+
+        A **computed view**, not a stored copy: the values of ``donor_weights``
+        in their existing key order (use ``list(donor_weights)`` for the aligned
+        labels). ``None`` when no donor weights are present. Lets callers do
+        vector math on the control weights without rebuilding the array from the
+        dict, while keeping ``donor_weights`` the single stored source.
+        """
+        if self.donor_weights is None:
+            return None
+        return np.asarray(list(self.donor_weights.values()), dtype=float)
+
     class Config:
         arbitrary_types_allowed = True
         extra = 'allow'
@@ -381,6 +395,12 @@ class BaseEstimatorResults(MlsynthResult):
     def donor_weights(self) -> Optional[Dict[str, float]]:
         """Donor weights ``{label: weight}``."""
         return self.weights.donor_weights if self.weights else None
+
+    @property
+    def weight_vector(self) -> Optional[np.ndarray]:
+        """Donor/control weights as a dense :class:`numpy.ndarray` (computed view;
+        see :attr:`WeightsResults.weight_vector`)."""
+        return self.weights.weight_vector if self.weights else None
 
     @property
     def pre_rmse(self) -> Optional[float]:
