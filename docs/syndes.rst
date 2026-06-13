@@ -492,6 +492,18 @@ Verification
    rather strong assumptions") that shrinks as the pre-period grows. The
    simulation script ships alongside the estimator's tests.
 
+A second, **data-faithful** replication reproduces the paper's own Monte Carlo
+(Section 5, Table 1) on the **exact BLS unemployment panel** the authors use
+(``basedata/urate_cps.csv``, footnote 4): each simulation samples a 10×10 panel,
+the design selects :math:`K \in \{3, 7\}` treated units on the pre-period, a
+homogeneous ``0.05`` effect is added to the treated post-periods, and the ATET
+RMSE (×1000) is compared to Table 1. mlsynth's three design modes land at
+``8.7 / 9.2 / 9.2`` (``K=3``) and ``7.7 / 9.0 / 9.0`` (``K=7``) against the
+paper's ``8.5 / 8.4 / 8.5`` and ``8.3 / 8.4 / 8.5``, and all beat the randomized
+difference-in-means baseline — the paper's headline. See
+:doc:`replications/syndes`; run it with
+``python benchmarks/run_benchmarks.py syndes_bls``.
+
 Core API
 --------
 
