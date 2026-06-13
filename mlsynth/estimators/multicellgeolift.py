@@ -44,7 +44,7 @@ class MULTICELLGEOLIFT:
         if isinstance(config, dict):
             try:
                 config = MultiCellGeoLiftConfig(**config)
-            except ValidationError as exc:  # pragma: no cover - passthrough
+            except ValidationError as exc:
                 raise MlsynthConfigError(str(exc)) from exc
         if not isinstance(config, MultiCellGeoLiftConfig):
             raise MlsynthConfigError(
