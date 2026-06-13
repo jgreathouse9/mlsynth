@@ -607,6 +607,23 @@ the number of clusters or strata to cover, or the size band leaves too few
 markets), :meth:`GEOLIFT.fit` raises :class:`~mlsynth.exceptions.MlsynthConfigError`
 rather than returning a degenerate design.
 
+.. admonition:: Real geography — the bundled DMA contiguity map
+
+   ``adjacency`` is where you "literally take geography into account": pass a
+   real **bordering** matrix and treated markets are forced apart while each
+   one's neighbours are barred from its donor pool. The package ships the
+   Nielsen US market-area map at ``basedata/markets/dma_adjacency.csv`` — a
+   ``206 × 206`` symmetric 0/1 contiguity matrix indexed by DMA name (with
+   ``dma_metadata.csv`` carrying state, division, and lat/long) — so a panel
+   keyed by DMA can use true borders directly:
+   ``GEOLIFT({..., "adjacency": pd.read_csv(".../dma_adjacency.csv", index_col=0)})``.
+   The same artifact powers LEXSCM's spillover designs. A worked end-to-end check
+   on real borders lives in ``mlsynth/tests/test_geolift_dma_borders.py``. Note
+   the tension this exposes: correlation nomination favours *similar* (often
+   *bordering*) markets, so the independent-set filter does real work — it can
+   prune many nominees, and a very dense border graph can leave none (a reported
+   infeasibility, not a silent degenerate design).
+
 **Cluster non-interference + spillover donor exclusion.** Treat markets in
 different regions, and never let a treated market's same-region neighbours into
 its synthetic control:
