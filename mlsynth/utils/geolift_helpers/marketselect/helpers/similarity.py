@@ -77,20 +77,26 @@ def rank_markets_by_correlation(Ywide: pd.DataFrame) -> pd.DataFrame:
 
     correlations = correlation_matrix(Ywide)
 
-    # For each anchor, drop self and order the remaining units by descending
-    # correlation. NaN (undefined / constant series) is mapped to -inf so it
-    # sorts last; a stable sort keeps the original column order among ties,
-    # making the ranking deterministic.
-    ranked_rows = []
-    for anchor in units:
-        anchor_correlations = correlations.loc[anchor].drop(anchor)
-        ordered = anchor_correlations.fillna(-np.inf).sort_values(
-            ascending=False, kind="stable"
-        )
-        ranked_rows.append(ordered.index.to_numpy())
+    # Vectorized ranking: a single argsort over the whole correlation matrix
+    # instead of one pandas sort per anchor. Set the diagonal to +inf so each
+    # anchor's self-correlation sorts to the front (then dropped by index, which
+    # is robust even when a constant anchor's self-correlation is NaN); map any
+    # remaining NaN (constant series) to -inf so it sorts last. ``argsort(-C,
+    # kind="stable")`` gives descending order with ties keeping the original
+    # column order -- identical to the per-anchor ``sort_values(ascending=False,
+    # kind="stable")`` it replaces.
+    C = correlations.to_numpy().astype(float, copy=True)
+    np.fill_diagonal(C, np.inf)
+    C = np.where(np.isnan(C), -np.inf, C)
+    order = np.argsort(-C, kind="stable")                  # (n_units, n_units)
+
+    n = C.shape[0]
+    keep = order != np.arange(n)[:, None]                  # drop each row's own anchor
+    neighbours = order[keep].reshape(n, n - 1)
+    ranked = units.to_numpy()[neighbours]                  # indices -> unit labels
 
     return pd.DataFrame(
-        np.vstack(ranked_rows),
+        ranked,
         index=pd.Index(units, name=units.name),
         columns=pd.Index(range(1, len(units)), name="rank"),
     )

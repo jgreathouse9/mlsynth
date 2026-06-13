@@ -138,6 +138,54 @@ def test_rank_markets_too_few_units_raises():
         rank_markets_by_correlation(Ywide)
 
 
+def _reference_rank(Ywide):
+    """The pre-vectorization per-anchor loop, kept here as a parity oracle."""
+    corr = Ywide.corr()
+    units = Ywide.columns
+    rows = []
+    for anchor in units:
+        ordered = (corr.loc[anchor].drop(anchor)
+                   .fillna(-np.inf).sort_values(ascending=False, kind="stable"))
+        rows.append(ordered.index.to_numpy())
+    return pd.DataFrame(np.vstack(rows),
+                        index=pd.Index(units, name=units.name),
+                        columns=pd.Index(range(1, len(units)), name="rank"))
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2, 3, 4])
+def test_rank_markets_vectorized_matches_reference_random(seed):
+    """The vectorized ranking is bit-identical to the per-anchor loop, including
+    tie-break (stable, original column order) and NaN-last handling."""
+    rng = np.random.default_rng(seed)
+    n_units, T = 12, 30
+    data = {f"u{j}": rng.normal(size=T) for j in range(n_units)}
+    Ywide = pd.DataFrame(data)
+    Ywide.columns.name = "unit"
+    out = rank_markets_by_correlation(Ywide)
+    assert out.equals(_reference_rank(Ywide))
+
+
+def test_rank_markets_vectorized_matches_reference_with_ties_and_constants():
+    """Duplicate (perfectly correlated) and constant (NaN-corr) columns: the
+    vectorized path resolves ties and NaNs exactly as the loop did."""
+    rng = np.random.default_rng(7)
+    T = 24
+    base = rng.normal(size=T)
+    Ywide = pd.DataFrame({
+        "a": base,
+        "b": base.copy(),                  # corr(a,b)=1, tie territory
+        "c": 2 * base + 1,                 # corr(a,c)=1 as well
+        "d": rng.normal(size=T),
+        "e": np.full(T, 3.0),              # constant -> NaN correlations
+        "f": rng.normal(size=T),
+    })
+    Ywide.columns.name = "unit"
+    out = rank_markets_by_correlation(Ywide)
+    assert out.equals(_reference_rank(Ywide))
+    assert out.loc["d"].iloc[-1] == "e"    # constant sorts last for everyone
+
+
+
 # === generate_candidate_markets (Function 2) ===
 
 def test_candidates_smoke_deterministic():
