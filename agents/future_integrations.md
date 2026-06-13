@@ -444,6 +444,69 @@ orthogonal to these support constraints.
 
 ---
 
+## 5. Rolling-transformation DiD (ROLLDID) -- scope boundary with `diff-diff`
+
+> **Status: ROLLDID shipped; broader DiD surface deliberately OUT OF SCOPE
+> (deferred to the sibling package `diff-diff`).** The small-:math:`N` exact
+> rolling-transformation DiD landed as the ``ROLLDID`` estimator (Lee &
+> Wooldridge 2026), validated Path A on California Prop 99 (Table 3) and the
+> castle laws (§7.2), 100% covered, durable case ``rolldid_lw``. This section
+> records the **decision not to grow a general DiD family** inside mlsynth and
+> the learnings behind it.
+
+### Source
+
+> Lee, S. J., & Wooldridge, J. M. (2026). "Simple Approaches to Inference with
+> Difference-in-Differences Estimators with Small Cross-Sectional Sample Sizes."
+
+Sibling package (the home for the broader DiD ecosystem):
+**https://github.com/igerber/diff-diff** (Isaac Gerber, MIT) -- Callaway-Sant'Anna,
+Sun-Abraham, Borusyak et al., Gardner, **Wooldridge ETWFE**, stacked DiD,
+de Chaisemartin-D'Haultfoeuille, honest-DiD sensitivity, and the large-:math:`N`
+staggered estimators, validated against R ``did`` / ``synthdid`` / ``fixest``.
+
+### Why ROLLDID belongs in an SCM package (keep this)
+
+The boundary is **the regime, not "DiD vs SCM."** ROLLDID's value is the
+**small-:math:`N` exact** case -- one treated region against a handful of donors,
+exact :math:`t_{N-2}` inference (valid at :math:`N_1 = 1`) -- which is exactly the
+synthetic-control use case. It collapses the panel to one cross-sectional
+observation per unit and reads the ATT off a cross-sectional regression, so it
+estimates **no donor weights at all**. That is precisely why it stays stable
+where the SC family gets fragile.
+
+**Demonstrate-first learning (castle, keep this).** On the short, donor-starved
+castle panel (T=11; cohorts of size {2005:1, 2006:13, 2007:4, 2008:2, 2009:1}),
+``SequentialSDID``'s per-cohort weight optimisation blew up -- cohort-2009
+:math:`\tau = -17.5` (:math:`\omega` going negative, :math:`\lambda \sim \pm200`),
+cohort-2008 :math:`\tau = +64.8` (:math:`\lambda \sim \pm400`) -- poisoning the
+pooled estimate to **5.47**, while ROLLDID returned **0.092** (demean) / **0.067**
+(detrend), next to the paper's own SDID of 0.099. This is the concrete
+illustration of *why* the weight-free estimator earns its place: it is the more
+trustworthy tool exactly when units/periods are scarce.
+
+### What is deliberately NOT being built (closed out)
+
+These rolling-DiD follow-ups were considered and **declined as out-of-scope** --
+they are the *large-:math:`N`, full-covariate* DiD surface, which is precisely
+what `diff-diff` already does well (it ships Wooldridge ETWFE, the large-:math:`N`
+sibling of ROLLDID's method):
+
+* **IPW / IPWRA doubly-robust estimation with covariates** (propensity scores,
+  weighted least squares). `diff-diff` covers covariate-conditioned DiD.
+* **Seasonal transforms** (``demeanq`` / ``detrendq`` / ``demeanm`` / ``detrendm``).
+* **Large-:math:`N` influence-function multiplier bootstrap** (the Lee-Wooldridge
+  2026a appendix). Needs that companion paper and only pays off at large
+  :math:`N` -- where `diff-diff`'s machinery is the better home.
+
+**Principle.** mlsynth is an SCM package whose mission is *access*, not method
+turf wars: if a simple DiD is the better tool for a problem, ship the minimal
+version that complements synthetic control and **point users to the cousin
+package for the rest**. The ``ROLLDID`` docs page carries a "See also: diff-diff"
+note to that effect.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
