@@ -10,3 +10,4 @@ screenot
 statsmodels>=0.14.0
 pydantic>=2.0.0
 ecos
+pyarrow>=14.0.0  # read basedata/*.parquet benchmark assets

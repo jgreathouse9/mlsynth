@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 from pydantic import Field
 from ...config_models import BaseEstimatorConfig
 
@@ -48,6 +48,18 @@ class MicroSynthConfig(BaseEstimatorConfig):
             "outcome predictors. Appended after ``covariates``."
         ),
     )
+    match_outcomes: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Panel method only. Additional outcome columns whose pre-period "
+            "values (at ``outcome_lag_periods``) are balanced jointly with the "
+            "primary ``outcome`` -- microsynth's multi-outcome ``match.out``. "
+            "The synthetic control then matches every listed outcome's "
+            "trajectory simultaneously (one shared weight vector); the reported "
+            "effect is still for the primary ``outcome``. Defaults to the "
+            "primary outcome alone."
+        ),
+    )
     standardize_covariates: bool = Field(
         default=True,
         description=(
@@ -75,14 +87,78 @@ class MicroSynthConfig(BaseEstimatorConfig):
         gt=0.0,
         description="L-BFGS-B gradient tolerance.",
     )
+    weight_method: Literal["simplex", "panel"] = Field(
+        default="simplex",
+        description=(
+            "Control-weight scheme. ``'simplex'`` (default) is mlsynth's "
+            "min-variance simplex balancing (weights >= 0 summing to 1; the "
+            "weighted-mean ATT used for holdout-style studies). ``'panel'`` is "
+            "the microsynth panel method (Robbins et al.): a non-negative QP "
+            "that exactly balances the treated group's column TOTALS on the "
+            "covariates (an intercept makes the weights sum to the treated "
+            "count) and least-squares-fits each pre-period outcome, reporting "
+            "per-period TOTAL treatment effects over the post-window. A "
+            "strictly-convex ridge (``panel_ridge``) selects the unique "
+            "minimum-norm / maximum-ESS optimum. Pair with "
+            "``outcome_lag_periods`` set to the full pre-period window to "
+            "balance the outcome trajectory."
+        ),
+    )
+    panel_ridge: float = Field(
+        default=1e-6,
+        gt=0.0,
+        description=(
+            "Strictly-convex ridge weight for ``weight_method='panel'``. The "
+            "microsynth QP is rank-deficient over a large control pool (the "
+            "counterfactual is not identified by the constraints alone); this "
+            "ridge pins the unique minimum-norm / maximum-ESS optimum. Keep "
+            "small so the lagged-outcome fit and exact covariate balance "
+            "dominate."
+        ),
+    )
+    propensity_mode: bool = Field(
+        default=False,
+        description=(
+            "Propensity-score-type weighting (microsynth's ``match.out=FALSE`` "
+            "cross-sectional usage). When ``True`` the weights are computed from "
+            "the **covariates only** (lagged outcomes are ignored), the data may "
+            "be a single-period cross-section, and the balancing weights "
+            "(``donor_weights`` / ``design.w``) are the deliverable -- "
+            "covariate-balancing weights on the controls usable as inverse-"
+            "propensity-style weights downstream. Forces the panel QP."
+        ),
+    )
     run_inference: bool = Field(
         default=True,
-        description="Whether to compute a bootstrap confidence interval.",
+        description=(
+            "Whether to run inference. For ``weight_method='simplex'`` this is a "
+            "paired stratified bootstrap CI; for ``weight_method='panel'`` it is "
+            "a placebo-permutation test (see ``n_permutations`` / "
+            "``permutation_test``)."
+        ),
     )
     n_bootstrap: int = Field(
         default=500,
         ge=2,
-        description="Bootstrap replications for CI.",
+        description="Bootstrap replications for the simplex CI.",
+    )
+    n_permutations: int = Field(
+        default=250,
+        ge=0,
+        description=(
+            "Number of placebo permutation groups for the panel-method "
+            "inference (microsynth's ``perm``). Each draws a random set of "
+            "``n_T`` controls as a placebo treated area and refits the QP, so "
+            "cost scales with this times the QP solve; 0 disables it."
+        ),
+    )
+    permutation_test: Literal["lower", "upper", "twosided"] = Field(
+        default="twosided",
+        description=(
+            "Tail of the placebo-permutation p-value for the panel method "
+            "(microsynth's ``test``): ``'lower'`` (effect below placebos), "
+            "``'upper'`` (above), or ``'twosided'`` (magnitude)."
+        ),
     )
     seed: int = Field(
         default=1400,

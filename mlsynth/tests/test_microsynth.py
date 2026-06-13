@@ -18,7 +18,12 @@ from mlsynth.utils.microsynth_helpers.diagnostics import (
     feasibility_check,
     standardized_mean_difference,
 )
+from mlsynth.exceptions import MlsynthEstimationError
 from mlsynth.utils.microsynth_helpers.dual_solver import solve_microsynth_dual
+from mlsynth.utils.microsynth_helpers.panel_inference import (
+    panel_permutation_test,
+)
+from mlsynth.utils.microsynth_helpers.panel_qp import solve_panel_qp
 from mlsynth.utils.microsynth_helpers.setup import prepare_microsynth_inputs
 from mlsynth.utils.microsynth_helpers.structures import (
     MicroSynthDesign,
@@ -125,6 +130,75 @@ class TestDualSolver:
         assert np.allclose(res.w, 1 / n_C, atol=1e-4)
 
 
+class TestPanelQP:
+    """The microsynth (Robbins et al.) panel weight QP.
+
+    Faithful port of ``microsynth::my.qp`` (LowRankQP): exactly balance the
+    hard constraints (intercept + covariates), least-squares-fit the soft
+    constraints (lagged outcomes), with ``w >= 0``. A strictly-convex ridge
+    makes the otherwise rank-deficient solution unique (the maximum-ESS /
+    minimum-norm point on microsynth's optimal face).
+    """
+
+    def test_exact_balance_and_lag_fit(self):
+        # Construct a panel where exact balance on both blocks is achievable
+        # (treated totals lie in the cone spanned by control rows).
+        rng = np.random.default_rng(0)
+        n_C, n_T = 300, 40
+        cov_C = rng.uniform(0.0, 5.0, (n_C, 3))
+        lag_C = rng.uniform(0.0, 3.0, (n_C, 4))
+        # pick a known nonneg combination summing to n_T as the "truth"
+        w_true = rng.uniform(0.0, 1.0, n_C)
+        w_true *= n_T / w_true.sum()
+        hard_C = np.column_stack([np.ones(n_C), cov_C])
+        hard_t = np.array([float(n_T), *(cov_C.T @ w_true)])
+        soft_t = lag_C.T @ w_true
+        sol = solve_panel_qp(hard_C, hard_t, lag_C, soft_t, ridge=1e-8)
+        assert sol.converged
+        assert (sol.w >= -1e-7).all()
+        # hard block exactly balanced; weights sum to the treated count
+        assert np.allclose(hard_C.T @ sol.w, hard_t, atol=1e-5)
+        assert sol.w.sum() == pytest.approx(float(n_T), abs=1e-4)
+        # soft (lagged-outcome) block fit to ~0 residual since achievable
+        assert sol.soft_residual < 1e-3
+
+    def test_ridge_makes_solution_unique_and_deterministic(self):
+        # Heavily under-determined: many w achieve exact balance, so the
+        # ridge term must pin a single reproducible answer.
+        rng = np.random.default_rng(1)
+        n_C, n_T = 500, 20
+        cov_C = rng.standard_normal((n_C, 2))
+        hard_C = np.column_stack([np.ones(n_C), cov_C])
+        # feasible target: totals of a known nonneg weighting
+        w0 = rng.uniform(0, 1, n_C); w0 *= n_T / w0.sum()
+        hard_t = hard_C.T @ w0
+        s1 = solve_panel_qp(hard_C, hard_t, None, None, ridge=1e-6)
+        s2 = solve_panel_qp(hard_C, hard_t, None, None, ridge=1e-6)
+        assert np.allclose(s1.w, s2.w, atol=1e-7)          # deterministic
+        # min-norm property: the ridge solution is no larger in L2 than the
+        # arbitrary feasible w0 that generated the targets.
+        assert float(s1.w @ s1.w) <= float(w0 @ w0) + 1e-6
+
+    def test_infeasible_hard_targets_raise(self):
+        # Demand a covariate total no nonneg, count-constrained weighting can
+        # reach (all controls below the per-unit target) -> infeasible QP.
+        rng = np.random.default_rng(2)
+        n_C, n_T = 100, 5
+        cov_C = rng.uniform(0.0, 1.0, (n_C, 1))
+        hard_C = np.column_stack([np.ones(n_C), cov_C])
+        # mean covariate per treated unit forced above every control value
+        hard_t = np.array([float(n_T), float(n_T) * 10.0])
+        with pytest.raises(MlsynthEstimationError):
+            solve_panel_qp(hard_C, hard_t, None, None, ridge=1e-6)
+
+    def test_nonpositive_ridge_rejected(self):
+        rng = np.random.default_rng(3)
+        hard_C = np.column_stack([np.ones(20), rng.standard_normal(20)])
+        hard_t = np.array([5.0, 0.0])
+        with pytest.raises(MlsynthEstimationError, match="ridge"):
+            solve_panel_qp(hard_C, hard_t, None, None, ridge=0.0)
+
+
 class TestDiagnostics:
     def test_smd_zero_when_balanced(self):
         rng = np.random.default_rng(0)
@@ -229,6 +303,297 @@ class TestSetup:
 # ---------------------------------------------------------------------------
 # Layer 3: integration / synthetic recovery
 # ---------------------------------------------------------------------------
+
+class TestPanelMethod:
+    """The microsynth panel method (weight_method='panel'): exactly balance
+    covariates, least-squares-fit the pre-period outcome trajectory with
+    w >= 0, and report per-period TOTAL effects on the treated area."""
+
+    def _panel(self, n_c=80, n_t=8, T0=6, T_post=3, eff=2.0, seed=0):
+        rng = np.random.default_rng(seed)
+        F = rng.normal(size=(T0 + T_post, 2))            # 2 latent time factors
+        rows = []
+        for i in range(n_c + n_t):
+            load = rng.normal(size=2)
+            base = F @ load + 0.05 * rng.normal(size=T0 + T_post)
+            treated = i >= n_c
+            for t in range(T0 + T_post):
+                post = treated and t >= T0
+                rows.append({"unit": i, "time": t,
+                             "y": float(base[t] + (eff if post else 0.0)),
+                             "treat": int(post)})
+        return pd.DataFrame(rows), eff, n_t
+
+    def test_panel_balance_weights_and_effect(self):
+        df, eff, n_t = self._panel()
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+            "time": "time", "covariates": [],
+            "outcome_lag_periods": list(range(6)),       # full pre-period window
+            "weight_method": "panel", "run_inference": False,
+            "display_graphs": False,
+        }).fit()
+        # panel weights are non-negative and sum to the treated count
+        assert res.design.w.sum() == pytest.approx(float(n_t), abs=1e-3)
+        assert (res.design.w >= -1e-7).all()
+        # pre-period outcome trajectory fit to ~0 -> balanced
+        assert np.max(np.abs(res.design.smd_after)) < 1e-2
+        # per-period contrast is on totals -> ~ n_t * per-unit effect
+        assert res.att == pytest.approx(n_t * eff, rel=0.25)
+        assert res.gap_trajectory.shape == (3,)          # one per post period
+
+    def test_panel_deterministic(self):
+        df, _, _ = self._panel()
+        cfg = dict(df=df, outcome="y", treat="treat", unitid="unit", time="time",
+                   covariates=[], outcome_lag_periods=list(range(6)),
+                   weight_method="panel", run_inference=False, display_graphs=False)
+        r1 = MicroSynth(cfg).fit()
+        r2 = MicroSynth(cfg).fit()
+        assert np.allclose(r1.design.w, r2.design.w, atol=1e-7)
+        assert r1.att == pytest.approx(r2.att, abs=1e-9)
+
+    def test_panel_with_covariates_only(self):
+        # No lagged outcomes: pure hard covariate balance + ridge selection.
+        df, _, n_t = self._panel()
+        # add a time-invariant covariate
+        rng = np.random.default_rng(7)
+        per_unit = {u: rng.standard_normal() for u in df["unit"].unique()}
+        df = df.assign(z=df["unit"].map(per_unit))
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+            "time": "time", "covariates": ["z"],
+            "weight_method": "panel", "run_inference": False,
+            "display_graphs": False,
+        }).fit()
+        assert res.design.w.sum() == pytest.approx(float(n_t), abs=1e-3)
+        assert np.max(np.abs(res.design.smd_after)) < 1e-2
+
+    def test_simplex_default_unchanged(self):
+        df, eff, n_t = self._panel()
+        cfg = dict(df=df, outcome="y", treat="treat", unitid="unit", time="time",
+                   covariates=[], outcome_lag_periods=list(range(6)),
+                   run_inference=False, display_graphs=False)
+        res = MicroSynth(cfg).fit()                       # default simplex
+        assert res.design.w.sum() == pytest.approx(1.0, abs=1e-6)  # simplex weights
+        assert res.att == pytest.approx(eff, rel=0.25)            # per-unit-mean effect
+
+
+class TestMultiOutcomeMatch:
+    """Panel method joint multi-outcome match (microsynth match.out vector)."""
+
+    def _two_outcome_panel(self, n_c=70, n_t=7, T0=5, T_post=3, seed=0):
+        rng = np.random.default_rng(seed)
+        F = rng.normal(size=(T0 + T_post, 2))
+        rows = []
+        for i in range(n_c + n_t):
+            load = rng.normal(size=2)
+            a = F @ load + 0.05 * rng.normal(size=T0 + T_post)
+            b = F @ rng.normal(size=2) + 0.05 * rng.normal(size=T0 + T_post)
+            treated = i >= n_c
+            for t in range(T0 + T_post):
+                post = treated and t >= T0
+                rows.append({"unit": i, "time": t,
+                             "ya": float(a[t] + (2.0 if post else 0.0)),
+                             "yb": float(b[t] + (1.0 if post else 0.0)),
+                             "treat": int(post)})
+        return pd.DataFrame(rows)
+
+    def test_shared_weights_across_primary_outcome(self):
+        df = self._two_outcome_panel()
+        common = dict(df=df, treat="treat", unitid="unit", time="time",
+                      covariates=[], outcome_lag_periods=list(range(5)),
+                      match_outcomes=["ya", "yb"], weight_method="panel",
+                      run_inference=False, display_graphs=False)
+        ra = MicroSynth({**common, "outcome": "ya"}).fit()
+        rb = MicroSynth({**common, "outcome": "yb"}).fit()
+        # one shared synthetic control: weights identical regardless of which
+        # outcome the effect is reported for
+        assert np.allclose(ra.design.w, rb.design.w, atol=1e-7)
+        # each outcome's pre-period trajectory is balanced by the shared weights
+        assert np.max(np.abs(ra.design.smd_after)) < 1e-2
+
+    def test_unknown_match_outcome_rejected(self):
+        df = self._two_outcome_panel()
+        with pytest.raises(MlsynthDataError, match="match_outcomes"):
+            MicroSynth({
+                "df": df, "outcome": "ya", "treat": "treat", "unitid": "unit",
+                "time": "time", "covariates": [],
+                "outcome_lag_periods": list(range(5)),
+                "match_outcomes": ["ya", "nope"], "weight_method": "panel",
+                "run_inference": False, "display_graphs": False,
+            }).fit()
+
+    def test_joint_match_differs_from_single(self):
+        df = self._two_outcome_panel(seed=1)
+        common = dict(df=df, outcome="ya", treat="treat", unitid="unit",
+                      time="time", covariates=[],
+                      outcome_lag_periods=list(range(5)),
+                      weight_method="panel", run_inference=False,
+                      display_graphs=False)
+        single = MicroSynth(common).fit()
+        joint = MicroSynth({**common, "match_outcomes": ["ya", "yb"]}).fit()
+        # matching both outcomes generally changes the synthetic control
+        assert not np.allclose(single.design.w, joint.design.w)
+
+
+def _factor_panel(n_c=60, n_t=6, T0=5, T_post=3, eff=0.0, seed=0):
+    """Latent-factor panel as a long DataFrame (treated effect = ``eff``)."""
+    rng = np.random.default_rng(seed)
+    F = rng.normal(size=(T0 + T_post, 2))
+    rows = []
+    for i in range(n_c + n_t):
+        load = rng.normal(size=2)
+        base = F @ load + 0.05 * rng.normal(size=T0 + T_post)
+        treated = i >= n_c
+        for t in range(T0 + T_post):
+            post = treated and t >= T0
+            rows.append({"unit": i, "time": t,
+                         "y": float(base[t] + (eff if post else 0.0)),
+                         "treat": int(post)})
+    return pd.DataFrame(rows), eff, n_t
+
+
+class TestPanelPermutation:
+    """Placebo-permutation inference for the panel method (microsynth perm)."""
+
+    def _blocks(self, n_C=80, n_T=8, T0=5, T_post=3, eff=0.0, seed=0):
+        rng = np.random.default_rng(seed)
+        F = rng.normal(size=(T0 + T_post, 2))
+        cov = rng.uniform(0, 1, (n_C + n_T, 2))
+        Y = np.empty((n_C + n_T, T0 + T_post))
+        for i in range(n_C + n_T):
+            Y[i] = F @ rng.normal(size=2) + 0.05 * rng.normal(size=T0 + T_post)
+        # treated = last n_T; add effect on the post block
+        Y[n_C:, T0:] += eff
+        cov_C, lag_C = cov[:n_C], Y[:n_C, :T0]
+        # observed effect: treated total minus a panel-QP synthetic control
+        from mlsynth.utils.microsynth_helpers.panel_qp import solve_panel_qp
+        hard_C = np.column_stack([np.ones(n_C), cov_C])
+        hard_t = np.concatenate([[float(n_T)], cov[n_C:].sum(0)])
+        sol = solve_panel_qp(hard_C, hard_t, lag_C, Y[n_C:, :T0].sum(0), ridge=1e-6)
+        obs_traj = Y[n_C:, T0:].sum(0) - sol.w @ Y[:n_C, T0:]
+        return cov_C, lag_C, Y[:n_C, T0:], n_T, obs_traj, float(obs_traj.mean())
+
+    def test_pvalue_small_for_strong_effect(self):
+        args = self._blocks(eff=3.0, seed=1)
+        cov_C, lag_C, Yc, n_T, traj, att = args
+        res = panel_permutation_test(
+            cov_C=cov_C, lag_C=lag_C, Y_C_post=Yc, n_T=n_T,
+            obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+            n_perm=120, test="upper", seed=0,
+        )
+        assert 0.0 <= res.p_value <= 1.0
+        assert res.p_value < 0.10                       # strong effect is detected
+        assert res.p_values_by_period.shape == (3,)
+        assert res.placebo_atts.size == res.n_perm
+        assert np.isfinite(res.se) and res.se > 0
+        # covariates-only (empty lag block) still runs the lower-tail test
+        res_lo = panel_permutation_test(
+            cov_C=cov_C, lag_C=np.empty((cov_C.shape[0], 0)), Y_C_post=Yc,
+            n_T=n_T, obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+            n_perm=80, test="lower", seed=0,
+        )
+        assert 0.0 <= res_lo.p_value <= 1.0
+
+    def test_pvalue_large_under_null(self):
+        cov_C, lag_C, Yc, n_T, traj, att = self._blocks(eff=0.0, seed=2)
+        res = panel_permutation_test(
+            cov_C=cov_C, lag_C=lag_C, Y_C_post=Yc, n_T=n_T,
+            obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+            n_perm=120, test="twosided", seed=0,
+        )
+        assert res.p_value > 0.10                        # no spurious effect
+
+    def test_requires_positive_perm_and_pool(self):
+        cov_C, lag_C, Yc, n_T, traj, att = self._blocks(seed=3)
+        with pytest.raises(MlsynthEstimationError):
+            panel_permutation_test(
+                cov_C=cov_C, lag_C=lag_C, Y_C_post=Yc, n_T=n_T,
+                obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+                n_perm=0, test="lower",
+            )
+        with pytest.raises(MlsynthEstimationError):
+            panel_permutation_test(
+                cov_C=cov_C[:3], lag_C=lag_C[:3], Y_C_post=Yc[:3], n_T=10,
+                obs_gap_trajectory=traj, obs_att=att, ridge=1e-6,
+                n_perm=5, test="lower",
+            )
+
+
+class TestPanelInferenceIntegration:
+    def test_permutation_inference_via_fit(self):
+        df, eff, n_t = _factor_panel(eff=2.0, seed=0)
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+            "time": "time", "covariates": [],
+            "outcome_lag_periods": list(range(5)),
+            "weight_method": "panel", "run_inference": True,
+            "n_permutations": 60, "permutation_test": "twosided", "seed": 3,
+            "display_graphs": False,
+        }).fit()
+        assert res.inference.method == "permutation"
+        assert 0.0 <= res.inference.p_value <= 1.0
+        assert res.inference.p_values_by_period.shape == (3,)
+        assert res.inference.test == "twosided"
+        assert np.isfinite(res.inference.se)
+        lo, hi = res.inference.ci
+        assert lo <= hi
+
+    def test_panel_no_inference_when_disabled(self):
+        df, _, _ = _factor_panel(seed=0)
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "treat", "unitid": "unit",
+            "time": "time", "covariates": [],
+            "outcome_lag_periods": list(range(5)),
+            "weight_method": "panel", "run_inference": False,
+            "display_graphs": False,
+        }).fit()
+        assert res.inference.method == "none"
+
+
+def _cross_section(n=400, seed=0):
+    """Single-period cross-section with propensity-selected treatment."""
+    rng = np.random.default_rng(seed)
+    z1, z2 = rng.standard_normal(n), rng.standard_normal(n)
+    p = 1.0 / (1.0 + np.exp(-(0.8 * z1 - 0.5 * z2)))
+    treat = (rng.uniform(size=n) < p).astype(int)
+    y = 0.5 * z1 - 0.3 * z2 + 2.0 * treat + rng.standard_normal(n)
+    return pd.DataFrame({"id": np.arange(n), "time": 0, "Intervention": treat,
+                         "y": y, "z1": z1, "z2": z2})
+
+
+class TestPropensityMode:
+    def test_cross_sectional_balancing_weights(self):
+        df = _cross_section(seed=0)
+        n_t = int(df.Intervention.sum())
+        res = MicroSynth({
+            "df": df, "outcome": "y", "treat": "Intervention", "unitid": "id",
+            "time": "time", "covariates": ["z1", "z2"],
+            "propensity_mode": True, "run_inference": False,
+            "display_graphs": False,
+        }).fit()
+        # propensity-type weights: sum to treated count, exact covariate balance
+        assert res.design.w.sum() == pytest.approx(float(n_t), abs=1e-3)
+        assert (res.design.w >= -1e-7).all()
+        assert np.max(np.abs(res.design.smd_after)) < 1e-2
+        assert len(res.donor_weights) > 0
+
+    def test_propensity_ignores_lagged_outcomes(self):
+        # Even if outcome_lag_periods are supplied, propensity mode uses
+        # covariates only (match.out=FALSE) -- so a panel run with lags differs.
+        df, _, _ = _factor_panel(seed=5)
+        # add a time-invariant covariate
+        rng = np.random.default_rng(1)
+        zmap = {u: rng.standard_normal() for u in df["unit"].unique()}
+        df = df.assign(z=df["unit"].map(zmap))
+        common = dict(df=df, outcome="y", treat="treat", unitid="unit",
+                      time="time", covariates=["z"],
+                      outcome_lag_periods=list(range(5)),
+                      run_inference=False, display_graphs=False)
+        w_prop = MicroSynth({**common, "propensity_mode": True}).fit().design.w
+        w_panel = MicroSynth({**common, "weight_method": "panel"}).fit().design.w
+        assert not np.allclose(w_prop, w_panel)
+
 
 class TestSyntheticRecovery:
     def test_recovers_true_lift(self, small_panel):
