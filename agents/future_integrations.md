@@ -311,6 +311,124 @@ open-end DTW.
 
 ---
 
+## 4. Design constraints for GEOLIFT (geography / coverage / size)
+
+### Source / motivation
+
+Meta's GeoLift exposes only **hard market lists** on the treated side
+(`include_markets` / `exclude_markets`, mirrored today by `to_be_treated` /
+`not_to_be_treated`). LEXSCM already carries a richer, *rule-based* constraint
+vocabulary -- spillover/cluster non-interference, coverage quotas, treated-unit
+size bands (see `docs/lexscm.rst`, "Spillover / interference exclusions" and
+"Coverage quotas and size bands"). Bringing that vocabulary to GEOLIFT makes
+mlsynth's market selection strictly **more expressive than the upstream R
+package**, and is the thing that makes our GeoLift genuinely *ours* rather than a
+faithful port.
+
+### The idea in one line
+
+Every design restriction reduces to **where the optimizer is allowed to look**:
+LEXSCM's constraints never enter the inner weight solve -- they are *filters on
+admissible treated supports* ("treatment criteria") and *pins in the control
+program* ("control criteria"). GEOLIFT has the same two seams, so the same
+constraint layer drops straight in.
+
+### Why this is attractive
+
+- **Two clean seams already exist.** Stage 1 (candidate nomination,
+  `marketselect/helpers/candidates.py` + `similarity.py`) builds each region
+  `S = {anchor} ∪ top-(k-1) correlated`, deduped, honoring the forced in/out
+  sets -- exactly where *treatment* criteria belong. Stage 2 (the SCM, donor pool
+  `N \ S`, in `fit.py` / `shaping.py`) is exactly where *control* criteria
+  belong.
+- **The geometry already justifies one of them.** A treated market far larger
+  than the donors cannot be reproduced by a convex combination of them -- which
+  is *precisely* what GeoLift's scaled-L2 imbalance `κ` measures post-hoc. So a
+  `max_size` ceiling is an **a-priori** version of `κ → 1`. The method's own
+  diagnostic motivates the constraint.
+- **Purely subtractive.** With none of the new fields supplied, behaviour is
+  byte-identical to today's GEOLIFT. Constraints only ever *shrink* the candidate
+  set / donor pool.
+
+### The mapping (treatment vs control criteria)
+
+| Constraint | GEOLIFT seam | Effect |
+|---|---|---|
+| **`cluster_col` no-interference** -- the treated set must be an *independent set* of the cluster conflict graph | Stage 1: when extending an anchor with correlated neighbours, skip any sharing a cluster with an already-chosen member | "at most one treated geo per DMA / state"; still `O(N)` candidates, just a shrunk neighbour set |
+| **`adjacency` / spillover exclusion** -- the donor pool drops `S ∪ A(S)` | Stage 2: pin spillover neighbours out of the donor matrix for that candidate | a treated geo's neighbours cannot contaminate its own synthetic control |
+| **`stratum_col` + `min_per_stratum` / `max_per_stratum`** (coverage quotas) | Stage 1: admit only regions meeting the per-stratum counts | "test in every region"; "≤ 2 from the Northeast" |
+| **`size_col` + `min_size` / `max_size`** (treated size bands) | Stage 1: restrict the *eligible nomination pool* (markets stay available as donors) | floor = power / operational minimum; ceiling = synthesizability (the `κ` argument above) |
+
+The conflict graph is the same object in both rows 1-2: a symmetric
+`A ∈ {0,1}^{N×N}` from `cluster_col` (`A_ij = 1` iff same cluster) **or** an
+`adjacency` matrix thresholded at `spillover_threshold`, combined by logical OR
+-- identical to LEXSCM's construction.
+
+### Config surface (additive to `GeoLiftConfig`)
+
+All optional; each defaults to `None` / off:
+
+```
+cluster_col, adjacency, spillover_threshold      # no-interference + donor exclusion
+stratum_col, min_per_stratum, max_per_stratum    # coverage quotas
+size_col, min_size, max_size                     # treated size bands
+```
+
+### Where it plugs in
+
+- `candidates.py` -- after correlation nomination, filter nominees to satisfy
+  independent-set + stratum quota + size band (all *treatment* criteria; act on
+  the support, never the weight program).
+- `fit.py` / `shaping.py` -- when assembling a candidate's donor matrix, drop
+  `A(S)` (the lone *control* criterion).
+
+### Failure modes (mirror LEXSCM exactly)
+
+Raise `MlsynthConfigError`, never return a degenerate design, when: `k` exceeds
+the number of clusters (no conflict-free `k`-tuple); `min_per_stratum` is imposed
+over more strata than `k`; fewer than `k` markets lie inside the size band; or the
+spillover exclusions empty a candidate's donor pool.
+
+### Shared module (the architectural payoff)
+
+LEXSCM already implements all of these primitives (conflict graph, independent-set
+filter, stratum-quota validator, size-band mask, aligned to its IndexSet). The
+durable move is to **extract them into `utils/design_constraints/`** -- a reusable
+"design-constraint algebra" -- and have both LEXSCM and GEOLIFT consume it (and
+later SYNDES / MAREX / PANGEO). Refactor LEXSCM onto it **behavior-preserving
+first** (its replication tests are the guard), then wire GEOLIFT in.
+
+### Test plan (test-first, per the contract)
+
+Per constraint: a **smoke** test (constraint on, runs, design respects it), an
+**invariant** test (independent-set holds / quota satisfied / sizes in band /
+`A(S)` absent from donor weights), an **edge** test (constraint that admits
+exactly one feasible region), a **failure** test (each infeasibility above raises
+the translated error and the failure is *reported*), and a **no-op** test
+(constraint columns present but trivially satisfied → identical shortlist to the
+unconstrained run). Plus a cross-check that LEXSCM's outputs are unchanged after
+the shared-module refactor.
+
+### Suggested implementation order
+
+1. Extract `utils/design_constraints/` from LEXSCM; refactor LEXSCM onto it
+   (no behaviour change; replication tests green).
+2. Wire the **cluster/spillover pair** into GEOLIFT (highest-value geographic
+   constraint), with docs + tests.
+3. Add **coverage quotas**, then **size bands**.
+4. Docs: extend `docs/geolift.rst` with a "Design constraints" section paralleling
+   the LEXSCM treatment, each example a full MRE.
+
+### Out of scope / caveats
+
+GEOLIFT's nomination is a cheap correlation heuristic, not LEXSCM's QP search, so
+constraints are applied as *post-nomination filters* -- a heavily-constrained
+problem could shrink the shortlist sharply (acceptable, and surfaced via the
+diagnostics). ROI / cost interactions with `cpic` + `budget` already exist and are
+orthogonal to these support constraints.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
