@@ -7,8 +7,8 @@ Overview
 --------
 
 The Synthetic Historical Control (SHC) method estimates the time-varying
-intervention effect on a **single treated unit using only its own time
-series** — no cross-sectional control units are required. It is the answer
+intervention effect on a single treated unit using only its own time
+series — no cross-sectional control units are required. It is the answer
 to the setting where *every* unit is treated (a nationwide policy, a global
 shock such as COVID-19) so the synthetic control method has no donor pool
 to draw on.
@@ -28,15 +28,15 @@ extrapolation whose misspecification is invisible after the intervention.
 When to use this estimator
 --------------------------
 
-Reach for SHC when **there is one treated unit and no credible untreated
-controls**, but a reasonably long pre-intervention series with **recurring
-local structure** (cycles, seasonal-like swings — not strict periodicity):
+Reach for SHC when there is one treated unit and no credible untreated
+controls, but a reasonably long pre-intervention series with recurring
+local structure (cycles, seasonal-like swings — not strict periodicity):
 
-* **Nationwide / global interventions.** A country-level minimum-wage hike,
+* Nationwide / global interventions. A country-level minimum-wage hike,
   a national pension reform, or the macroeconomic impact of a pandemic,
   where no other unit is plausibly untreated. The paper's applications are
   Brexit's effect on UK GDP growth and COVID-19's effect on US GDP growth.
-* **Cross-sectional controls exist but fail the SC matching condition.**
+* Cross-sectional controls exist but fail the SC matching condition.
   Even when donors are available, SHC can match the treated pre-period
   better than SC if the donors track the treated series poorly (the paper's
   Brexit case: SHC pre-period MSE 0.029 vs SC 0.256).
@@ -72,10 +72,10 @@ Treated and historical blocks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Fix a pre-intervention block length :math:`m` and a post horizon
-:math:`n`. The **treated block** spans :math:`[T_o - (m-1),\, T_o + n]`,
+:math:`n`. The treated block spans :math:`[T_o - (m-1),\, T_o + n]`,
 with pre-segment :math:`\boldsymbol\ell_{pre}` and post-segment
 :math:`\boldsymbol\ell_{post}`. The pre-period is sliced into
-:math:`N = T_o - n - (m-1)` overlapping **historical blocks**, each with
+:math:`N = T_o - n - (m-1)` overlapping historical blocks, each with
 the same pre/post split (Eq. 7). The SHC weights solve a simplex-matching
 problem on the latent pre-segments,
 
@@ -106,7 +106,7 @@ degree of smoothness :math:`H` controls the bias bound
 :math:`b_\epsilon(H, k) = 2\epsilon |k|^{H+1}/(H+1)!` (Proposition 1): the
 estimator is *approximately unbiased*, with bias vanishing as the latent
 component gets smoother or the post horizon :math:`k` shrinks. This is why
-SHC favors a **small post horizon** and why larger-horizon estimates
+SHC favors a small post horizon and why larger-horizon estimates
 should be read cautiously.
 
 *Assumption 2(b) (matching).* The treated pre-segment is reproducible as a
@@ -114,7 +114,7 @@ convex combination of its historical counterparts,
 :math:`\boldsymbol\ell_{pre} = \boldsymbol\ell_{pre}(\boldsymbol w_o)` for
 some :math:`\boldsymbol w_o \in \mathbb{W}`. *Remark.* This is the
 distributional analogue of the SC matching condition, transplanted from
-cross-sectional donors to historical blocks. It is **checkable** from the
+cross-sectional donors to historical blocks. It is checkable from the
 pre-period fit. It also precludes a pure growth trend (which cannot be
 reproduced by its own history), so differencing/detrending the series
 first is recommended.
@@ -125,18 +125,18 @@ Algorithm (implementation)
 The two-stage estimator (Section 2.3) is orchestrated by
 :func:`mlsynth.utils.shc_helpers.orchestration.solve_shc`:
 
-1. **Latent trend.** Estimate :math:`\widehat\ell_t` over the pre-period by
+1. Latent trend. Estimate :math:`\widehat\ell_t` over the pre-period by
    local-linear kernel regression, with the bandwidth chosen by
    leave-one-out cross-validation (``bandwidth_grid``).
-2. **Blocks.** Build the treated block and the :math:`N` historical blocks.
-3. **Matching.** Weight *all* :math:`N` historical blocks by the
+2. Blocks. Build the treated block and the :math:`N` historical blocks.
+3. Matching. Weight *all* :math:`N` historical blocks by the
    simplex-constrained matching QP (Eq. 23), solving the nearest-PD
    approximation :math:`\widehat{\boldsymbol L}_{\mathrm{pre}}^{\top}
    \widehat{\boldsymbol L}_{\mathrm{pre}} + \varsigma C_2 C_2^{\top}`; the
    simplex constraint itself zeroes out the irrelevant blocks.
-4. **Augmentation (optional).** ``use_augmented=True`` adds an
+4. Augmentation (optional). ``use_augmented=True`` adds an
    ASHC ridge refinement on top of the simplex weights.
-5. **Counterfactual.** Apply the weights to the historical forward
+5. Counterfactual. Apply the weights to the historical forward
    segments to obtain :math:`\widehat\ell_t(\widehat{\boldsymbol w})` over
    the post horizon; the gap :math:`y_t - \widehat\ell_t(\widehat{\boldsymbol w})`
    estimates :math:`\delta_t`.
@@ -154,8 +154,8 @@ statistic is
    S = n^{-1/2} \sum_{t=T_o+1}^{T_o+n} \bigl| \hat\varepsilon_t^0 \bigr|,
    \qquad \hat\varepsilon_t^0 = y_t - \widehat\ell_t,
 
-and the null distribution is built by sampling :math:`n` residuals **with
-replacement** from the :math:`T_o` pre-intervention residuals, 1,000 times.
+and the null distribution is built by sampling :math:`n` residuals with
+replacement from the :math:`T_o` pre-intervention residuals, 1,000 times.
 ``results.inference`` exposes ``p_value``, ``test_statistic``, the 1/5/10%
 ``critical_values`` and ``reject`` decisions, the resampled
 ``null_distribution``, and Andrews-Genton conformal bands for the plot.

@@ -32,7 +32,7 @@ pre-period MSE), SparseSC
 The donor weights :math:`w` solve the usual SCM simplex QP given
 :math:`v`.
 
-Inference defaults to a **moving-block conformal CI** for the ATT
+Inference defaults to a moving-block conformal CI for the ATT
 in the spirit of Chernozhukov, Wuethrich and Zhu (2021), calibrated
 on the validation-block residuals. Vives's Abadie-style placebo
 permutation is still available via ``inference_method="placebo"``.
@@ -69,7 +69,7 @@ where :math:`\Delta_N = \{w \in \mathbb{R}^N_{\ge 0} :
 QP MATLAB's ``quadprog`` solves inside
 ``sparse_synth/loss_function.m``.
 
-:mod:`mlsynth` calls **Clarabel directly** (bypassing CVXPY's
+:mod:`mlsynth` calls Clarabel directly (bypassing CVXPY's
 canonicalization layer), which is the single biggest performance
 fix versus the prior CVXPY-based implementation: CVXPY parsing
 overhead was ~10-50 ms per call for a 39-donor problem, while the
@@ -160,8 +160,8 @@ modes are available, controlled by ``use_analytical_grad``:
   the outer sweep, but the cleaner gradient lets L-BFGS-B settle at
   the first critical point near the cold init on the non-convex L1-
   penalized V-objective. The FD path's implicit gradient noise tends
-  to find better local optima at non-zero lambda, so the **default
-  is FD** for correctness. Opt in to the analytical path when
+  to find better local optima at non-zero lambda, so the default
+  is FD for correctness. Opt in to the analytical path when
   running large placebo sweeps where throughput matters more than
   exact local-optimum reproducibility. When ``use_analytical_grad =
   True``, the L-BFGS-B ``ftol`` auto-tightens to ``1e-12`` because
@@ -325,12 +325,12 @@ Like every other :mod:`mlsynth` estimator, SparseSC is fed a single
 long-format ``df`` with one row per ``(unit, time)``. Predictors are
 constructed under the hood from the same frame, in two flavors:
 
-* ``covariates`` — column names in ``df`` whose **per-unit pre-
-  treatment mean** is taken as the predictor value. Time-invariant
+* ``covariates`` — column names in ``df`` whose per-unit pre-
+  treatment mean is taken as the predictor value. Time-invariant
   unit characteristics collapse trivially; time-varying covariates
   are summarized by the pre-period mean.
 * ``outcome_lag_periods`` — specific pre-treatment time labels (as
-  found in the ``time`` column) whose **outcome values** become
+  found in the ``time`` column) whose outcome values become
   additional predictor rows. These are the canonical Abadie,
   Diamond & Hainmueller (2010) lagged-outcome predictors (e.g., the
   ``smk_75``, ``smk_80``, ``smk_88`` rows in the Prop 99 example).
@@ -360,9 +360,9 @@ fit, plus another :math:`B \approx 38` placebos under
 ``inference_method="placebo"``. Two optimizations in this build
 matter:
 
-* **Direct Clarabel** removes CVXPY canonicalization (~30-60× per
+* Direct Clarabel removes CVXPY canonicalization (~30-60× per
   call). Speedup applies universally; no correctness tradeoff.
-* **Analytical gradient** (opt-in via ``use_analytical_grad=True``)
+* Analytical gradient (opt-in via ``use_analytical_grad=True``)
   removes the :math:`2(P-1)` finite-difference factor (~5-10× on
   the outer loop). Tradeoff: the cleaner gradient can settle in
   worse local optima of the non-convex L1-penalized outer
@@ -424,7 +424,7 @@ Replication
 -----------
 
 SparseSC is verified on the canonical Proposition 99 panel: handed an
-over-rich augmented predictor set, the L1 penalty prunes to **6 of 33**
+over-rich augmented predictor set, the L1 penalty prunes to 6 of 33
 predictors and the effect lands at :math:`-17.9` packs (95% conformal CI
 :math:`[-21.3, -15.4]`) on the Abadie-Diamond-Hainmueller donor pool. See the
 dedicated :doc:`replication page <replications/sparse_sc>` for the full

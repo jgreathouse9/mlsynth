@@ -10,19 +10,19 @@ When to Use This Estimator
 Doudchenko, Imbens and Khosravi [MCNNM]_. Its argument for *when* it is the
 right tool is unifying: the authors show (their Theorem 1) that the
 unconfoundedness, synthetic-control, and difference-in-differences estimators
-all minimize the **same** least-squares objective and differ only in the
+all minimize the same least-squares objective and differ only in the
 restrictions they impose -- unconfoundedness reweights *time periods*,
 synthetic control reweights *control units*, DiD imposes parallel trends.
-MC-NNM replaces those hard restrictions with a **nuclear-norm regularization**
+MC-NNM replaces those hard restrictions with a nuclear-norm regularization
 on a low-rank factor model, exploiting the cross-sectional *and* time-series
 structure at once.
 
 The practical payoff is robustness across regimes. Because it does not commit
-to one restriction, MC-NNM performs well whether the panel is **wide**
-(``N >> T``), **tall** (``T >> N``), or roughly square (``N ~ T``) -- settings
+to one restriction, MC-NNM performs well whether the panel is wide
+(``N >> T``), tall (``T >> N``), or roughly square (``N ~ T``) -- settings
 where synthetic control, DiD, or vertical regression each individually
 degrade. Reach for it when you have a single treated unit *or* many, a single
-adoption date *or* **staggered** adoption, and you would rather regularize the
+adoption date *or* staggered adoption, and you would rather regularize the
 latent structure than assume which comparison (units vs. periods) is the right
 one. The cost is that the estimand is a low-rank *imputation* rather than an
 interpretable set of donor weights.
@@ -30,24 +30,24 @@ interpretable set of donor weights.
 Do not use MCNNM when
 ~~~~~~~~~~~~~~~~~~~~~~
 
-* **An interpretable donor-weight story is the deliverable.** MC-NNM
+* An interpretable donor-weight story is the deliverable. MC-NNM
   imputes a low-rank matrix; it does not hand you a sparse "California =
   0.4 Utah + 0.3 Montana" convex combination. If the weights *are* the
   result, use :doc:`tssc`, :doc:`scmo`, or :doc:`fdid`.
-* **There is no low-rank structure.** The nuclear-norm regularization is
+* There is no low-rank structure. The nuclear-norm regularization is
   only useful when the control matrix is approximately low rank plus noise.
   With a slowly-decaying spectrum, prefer a balancing estimator
   (:doc:`microsynth`) or a selection estimator (:doc:`fdid`).
-* **Missingness is informative (MNAR / self-masking)** -- the probability a
+* Missingness is informative (MNAR / self-masking) -- the probability a
   cell is observed depends on its own value, as in recommender systems.
   MC-NNM assumes a structured-but-exogenous missingness pattern; use
   :doc:`snn`, which is built for missing-not-at-random data.
-* **Spillovers contaminate the control block** (SUTVA fails). The low-rank
+* Spillovers contaminate the control block (SUTVA fails). The low-rank
   signal model treats controls as untreated; use :doc:`spsydid` or
   :doc:`spillsynth`.
-* **Treatment is endogenous and you have an instrument.** MC-NNM imputes
+* Treatment is endogenous and you have an instrument. MC-NNM imputes
   :math:`Y(0)` but does not break simultaneity; use :doc:`siv`.
-* **Distributional** questions (quantiles, tails) -- MC-NNM targets the mean
+* Distributional questions (quantiles, tails) -- MC-NNM targets the mean
   ATT; use :doc:`dsc`.
 
 Notation
@@ -56,7 +56,7 @@ Notation
 The outcome panel is the :math:`N \times T` matrix :math:`\mathbf{Y} = (Y_{it})`
 for units :math:`i = 1, \ldots, N` over periods :math:`t = 1, \ldots, T`. A
 treatment-indicator matrix :math:`\mathbf{D}` marks treated cells; the
-**observed** (untreated) cells form the index set :math:`\mathcal{O}`, and
+observed (untreated) cells form the index set :math:`\mathcal{O}`, and
 :math:`P_{\mathcal{O}}` is the projection that zeros out the rest
 (:math:`P_{\mathcal{O}}^{\perp}` its complement). The untreated potential
 outcomes follow a low-rank component plus two-way fixed effects,
@@ -77,7 +77,7 @@ ATT is its average over treated cells.
 The estimator
 ~~~~~~~~~~~~~
 
-Treating the treated cells as **missing**, MC-NNM solves (paper Eq. 4.3)
+Treating the treated cells as missing, MC-NNM solves (paper Eq. 4.3)
 
 .. math::
 
@@ -90,7 +90,7 @@ Treating the treated cells as **missing**, MC-NNM solves (paper Eq. 4.3)
        + \lambda \|\mathbf{L}\|_{*}.
 
 Only the low-rank part :math:`\mathbf{L}` is regularized; the unit/time fixed
-effects are estimated explicitly and left **unregularized**, which markedly
+effects are estimated explicitly and left unregularized, which markedly
 improves the imputations (paper Section 4). The counterfactual for a treated
 cell is read off the completed matrix,
 :math:`\widehat{Y}_{it}(0) = \widehat{L}_{it} + \widehat\Gamma_i + \widehat\Delta_t`.
@@ -111,7 +111,7 @@ The problem is solved by singular-value soft-thresholding [Mazumder2010]_
 
 re-fitting the fixed effects from their first-order conditions after each step
 until convergence. The regularization strength :math:`\lambda` is chosen by
-**cross-validation** over the observed cells (an ``n_lambda``-point grid,
+cross-validation over the observed cells (an ``n_lambda``-point grid,
 ``n_folds`` folds).
 
 Assumptions and remarks
@@ -156,14 +156,14 @@ staggered-aware aggregations beyond the overall ATT:
   unit's own adoption date (negative keys are pre-adoption fit checks, ~0;
   non-negative keys are the dynamic effects).
 
-With multiple adoption times, ``display_graphs=True`` draws an **event-study**
+With multiple adoption times, ``display_graphs=True`` draws an event-study
 plot (effect vs. time-since-adoption) rather than a single calendar trajectory,
 so cohorts at different event times are not blended.
 
 Inference
 ---------
 
-Setting ``inference=True`` runs a **leave-one-control jackknife** for the ATT:
+Setting ``inference=True`` runs a leave-one-control jackknife for the ATT:
 drop one control unit, refit at the cross-validation-selected :math:`\lambda`,
 recompute the ATT, and form
 :math:`\widehat{\mathrm{se}}^2 = \tfrac{q-1}{q}\sum_{q}(\hat\tau_q - \bar\tau)^2`
@@ -207,18 +207,18 @@ Verification
 
 .. note::
 
-   **Empirical (Proposition 99).** MC-NNM imputes a near-exact California
+   Empirical (Proposition 99). MC-NNM imputes a near-exact California
    pre-treatment fit and an average ATT of about :math:`-20` packs per capita,
    widening to roughly :math:`-30` by 2000 -- consistent with Abadie, Diamond &
    Hainmueller [ABADIE2010]_ and with the synthetic-control / SNN estimates
    elsewhere in ``mlsynth``. The jackknife confidence interval excludes zero.
 
-   **Regime robustness.** Because MC-NNM regularizes rather than restricts, the
+   Regime robustness. Because MC-NNM regularizes rather than restricts, the
    same estimator runs unchanged on wide (``N >> T``), tall (``T >> N``) and
    square panels and on staggered adoption, where the unconfoundedness / SC /
    DiD special cases (paper Theorem 1) individually break down.
 
-   **Cross-validation.** The Prop-99 ATT is matched to ``causaltensor``'s MC-NNM
+   Cross-validation. The Prop-99 ATT is matched to ``causaltensor``'s MC-NNM
    to ~2% and pinned in ``benchmarks/cases/mcnnm_prop99.py``; see the dedicated
    page :doc:`replications/mcnnm`.
 

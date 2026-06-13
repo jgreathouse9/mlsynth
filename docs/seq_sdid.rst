@@ -21,7 +21,7 @@ regression that knows the unobserved interactive fixed effects (Proposition
 SC-type method. Five structural differences distinguish Sequential SDiD
 from the canonical SDID estimator already in :mod:`mlsynth`:
 
-* It works on **aggregated cohort outcomes** :math:`Y_{a, t} =
+* It works on aggregated cohort outcomes :math:`Y_{a, t} =
   n_a^{-1} \sum_{i:\,A_i = a} Y_{i, t}` rather than unit-level data, with
   cohort shares :math:`\pi_a = n_a / n` carrying the unit-count information.
 * Weights satisfy only the simplex sum constraint :math:`\sum \omega = 1`
@@ -29,10 +29,10 @@ from the canonical SDID estimator already in :mod:`mlsynth`:
 * The unit-weight penalty is the population-share-scaled
   :math:`\eta^{2} \sum_j \omega_j^2 / \pi_j`; the time-weight penalty is
   :math:`\eta^{2} \sum_l \lambda_l^2`.
-* Donors for cohort :math:`a` are restricted to **later-adopting cohorts**
+* Donors for cohort :math:`a` are restricted to later-adopting cohorts
   :math:`j > a` (including the never-treated cohort), not the universe of
   controls.
-* Cohort-by-horizon effects are estimated in a **sequential cascade**:
+* Cohort-by-horizon effects are estimated in a sequential cascade:
   each :math:`\hat\tau_{a, k}^{\,SSDiD}` is computed, then the treated cell
   :math:`Y_{a, a + k}` is overwritten with :math:`Y_{a, a + k} - \hat
   \tau_{a, k}^{\,SSDiD}` so subsequent ``(a', k')`` steps see an imputed
@@ -41,23 +41,23 @@ from the canonical SDID estimator already in :mod:`mlsynth`:
 When to Use This Estimator
 --------------------------
 
-Event studies with **staggered adoption** -- units switching on at
+Event studies with staggered adoption -- units switching on at
 different dates -- are the workhorse design of applied micro. The modern
 estimators built for them (Callaway & Sant'Anna 2020, de Chaisemartin &
 d'Haultfœuille 2020, Sun & Abraham 2020, Borusyak et al. 2024) fixed the
 *heterogeneous-effects* bug in two-way fixed effects, but they still rest
-on **parallel trends**: absent treatment, treated and comparison cohorts
-would have moved together. When unobserved **interactive fixed effects**
+on parallel trends: absent treatment, treated and comparison cohorts
+would have moved together. When unobserved interactive fixed effects
 (latent unit factors loading on latent time factors) drive selection into
 treatment, parallel trends fails and those estimators are biased --
 exactly the regime Sequential SDiD (Arkhangelsky & Samkov 2025) targets.
 
 Its bet is to *model* the confounder. Within a linear interactive-fixed-
-effects model, Sequential SDiD is proven **asymptotically equivalent to
-the infeasible oracle OLS** that knows the latent factors (Prop. 3.1).
+effects model, Sequential SDiD is proven asymptotically equivalent to
+the infeasible oracle OLS that knows the latent factors (Prop. 3.1).
 That equivalence buys three things at once: robustness to parallel-trends
-violations of the IFE type, **asymptotic normality with standard
-inference**, and the first formal **efficiency** guarantee for an SC-type
+violations of the IFE type, asymptotic normality with standard
+inference, and the first formal efficiency guarantee for an SC-type
 estimator. The sequential imputation -- estimate the earliest cohort,
 subtract its effect, reuse the cleaned panel for later cohorts -- gives a
 *cohesive* analysis of the whole event study, in contrast to per-cohort SC
@@ -67,40 +67,40 @@ cohort as a separate problem.
 Reach for Sequential SDiD when
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* You have a **staggered-adoption event study** and you suspect
-  **parallel trends fails** because of unobserved confounders that look
+* You have a staggered-adoption event study and you suspect
+  parallel trends fails because of unobserved confounders that look
   like interactive fixed effects (selection on latent trends, not just
   levels).
-* Adoption **cohorts are reasonably large.** The method averages outcomes
+* Adoption cohorts are reasonably large. The method averages outcomes
   within each cohort and leans on a law of large numbers to kill
   idiosyncratic noise; this is the estimator's core requirement and its
   main limitation.
-* You want **valid, standard inference** (asymptotic normality) and a
-  defensible **efficiency** claim, plus a dynamic **event-study path** of
+* You want valid, standard inference (asymptotic normality) and a
+  defensible efficiency claim, plus a dynamic event-study path of
   cohort-by-horizon effects.
-* You are in the **fixed-:math:`T`, large-:math:`N`** regime typical of
+* You are in the fixed-:math:`T`, large-:math:`N` regime typical of
   county/firm/individual panels aggregated into a handful of adoption
   cohorts.
 
 Do not use Sequential SDiD when
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* **Cohorts are small** (few units per adoption date, or single-unit
+* Cohorts are small (few units per adoption date, or single-unit
   cohorts). The within-cohort averaging has nothing to average and the
   oracle equivalence does not engage. Use :doc:`ppscm`, whose partial
   pooling is designed for noisy per-unit cohort fits, or canonical
   :doc:`sdid` per cohort.
-* **There is a single treated unit or one common adoption time.** The
+* There is a single treated unit or one common adoption time. The
   sequential cascade has nothing to cascade; use canonical :doc:`sdid`
   (many units, one time) or classic SC (:doc:`tssc`, :doc:`fdid`,
   :doc:`scmo`) for a single unit.
-* **Parallel trends is credible** and you want the simplest transparent
+* Parallel trends is credible and you want the simplest transparent
   thing. Standard staggered-DiD (Callaway-Sant'Anna and relatives) is
   fine; on the Bailey-Goodman-Bacon application where PT holds, Sequential
   SDiD merely reproduces standard DiD.
-* **SUTVA is violated by spillovers** onto the comparison cohorts -- use
+* SUTVA is violated by spillovers onto the comparison cohorts -- use
   :doc:`spsydid` or :doc:`spillsynth`.
-* **Distributional** questions (quantiles, tails) -- use :doc:`dsc`.
+* Distributional questions (quantiles, tails) -- use :doc:`dsc`.
 
 Mathematical Formulation
 ------------------------
@@ -144,7 +144,7 @@ For each horizon :math:`k = 0, 1, \dots, K` (outer loop) and each treated
 cohort :math:`a = a_{\min}, \dots, a_{\max}` (inner loop), Sequential SDiD
 runs three steps.
 
-**Step 1: Solve two regularized QPs.** Both QPs are equality-constrained
+Step 1: Solve two regularized QPs. Both QPs are equality-constrained
 convex quadratic programs (no non-negativity). The unit-weight QP is
 
 .. math::
@@ -182,7 +182,7 @@ and the time-weight QP is
 Both are solved in closed form via their KKT linear systems in
 :mod:`mlsynth.utils.seq_sdid_helpers.weights`.
 
-**Step 2: Weighted double-difference.**
+Step 2: Weighted double-difference.
 
 .. math::
 
@@ -205,7 +205,7 @@ Both are solved in closed form via their KKT linear systems in
 This is the same SDID-style contrast as the canonical estimator, just
 evaluated on cohort-level aggregates.
 
-**Step 3: Sequential imputation.**
+Step 3: Sequential imputation.
 
 .. math::
 
@@ -290,13 +290,13 @@ staggered designs with multiple sizable cohorts.
 
 A second requirement is *donor balance*. Each treated cohort :math:`a` is
 balanced only against the cohorts adopting after it (:math:`j > a`) plus any
-never-treated cohort, so it needs at least **two** such donor cohorts to
+never-treated cohort, so it needs at least two such donor cohorts to
 balance even a rank-one interactive fixed effect — matching a one-dimensional
 loading and the intercept spans :math:`(1, \lambda)`. With a single donor the
 sum-to-one constraint forces :math:`\omega = [1]` and the cohort effect
 collapses to an unbalanced DiD, biased whenever the loadings differ; that bias
 also cascades backward through the sequential imputation. On a *noiseless*
-rank-one factor the estimator recovers the effect **exactly** for every cohort
+rank-one factor the estimator recovers the effect exactly for every cohort
 that is balanced, and the entire residual bias is attributable to the
 donor-starved late cohorts. Because the latest cohorts are the most exposed
 (the default ``a_max`` is the last adopting cohort), :meth:`SequentialSDID.fit`
@@ -307,7 +307,7 @@ relax.
 Verification
 ------------
 
-**Path B** — the paper's Section-5.2.2 calibrated-panel Monte Carlo (Table 1)
+Path B — the paper's Section-5.2.2 calibrated-panel Monte Carlo (Table 1)
 is reconstructed from its description (the authors' CPS log-wage panel is not
 public). Under an interactive-fixed-effects violation of parallel trends with
 adoption correlated to the leading loading, standard DiD's 95% CI coverage

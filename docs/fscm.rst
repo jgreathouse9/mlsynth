@@ -8,24 +8,24 @@ When to Use This Estimator
 
 The synthetic control method (SCM) of Abadie, Diamond and Hainmueller
 [ABADIE2010]_ builds a treated unit's counterfactual as a convex combination of
-donor units. Conventional practice is to start from **all** available donors
+donor units. Conventional practice is to start from all available donors
 and let the simplex weights zero out the irrelevant ones. Cerulli [FSCM]_ argues
-this is often suboptimal: the **number of initial donors is itself a complexity
-parameter** governing a bias--variance trade-off. A richer donor pool fits the
+this is often suboptimal: the number of initial donors is itself a complexity
+parameter governing a bias--variance trade-off. A richer donor pool fits the
 pre-treatment window better *in sample*, but each extra donor that is only
 weakly correlated with the treated unit injects variance into the
 counterfactual *out of sample* -- the synthetic control overfits the
 pre-period and predicts the post-period worse.
 
 ``FSCM`` resolves this by treating the donor count as a tuning parameter chosen
-by out-of-sample validation. It is the right tool when you have a **single
-treated unit and a sizeable donor pool** and suspect that not all donors
+by out-of-sample validation. It is the right tool when you have a single
+treated unit and a sizeable donor pool and suspect that not all donors
 deserve to be in the comparison set -- when you want SCM to tell you *how many*
 and *which* donors to use, rather than assuming "more is better." Because the
 selection is greedy (forward stepwise), it scales linearly in the pool size,
 unlike the :math:`2^N` exhaustive subset search.
 
-The donor (and predictor) weights are computed by the **bilevel optimization**
+The donor (and predictor) weights are computed by the bilevel optimization
 of Malo, Eskelinen, Zhou and Kuosmanen [malo2023computing]_, implemented from
 scratch in :mod:`mlsynth.utils.fscm_helpers.bilevel` -- no external QP solver
 is used. Two switches control the estimator:
@@ -33,12 +33,12 @@ is used. Two switches control the estimator:
 * ``forward_selection`` (default ``True``) -- when ``True``, run the greedy
   forward selection with rolling-origin out-of-sample validation, fitting each
   candidate donor set with the bilevel solver. When ``False``, skip selection
-  entirely and take the **full bilevel solve over all donors** (the global SCM
+  entirely and take the full bilevel solve over all donors (the global SCM
   optimum), reporting the donors that carry weight.
 * ``covariates`` / ``match_periods`` -- when given, the estimator runs in
-  **predictor mode** (Abadie's predictor matching with a bilevel-optimized
-  predictor-weight matrix :math:`\mathbf{V}`); when omitted, in **trajectory
-  mode** (matching the pre-treatment outcome path). The four combinations all
+  predictor mode (Abadie's predictor matching with a bilevel-optimized
+  predictor-weight matrix :math:`\mathbf{V}`); when omitted, in trajectory
+  mode (matching the pre-treatment outcome path). The four combinations all
   run.
 
 Notation
@@ -67,10 +67,10 @@ over an evaluation window :math:`\mathcal{E}` is
 Computing the weights: bilevel optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-With predictors, SCM jointly chooses **predictor weights** :math:`\mathbf{V}`
-(a :math:`K\times K` non-negative diagonal matrix on the simplex) and **donor
-weights** :math:`\mathbf{W}`. Malo et al. [malo2023computing]_ show this is an
-optimistic **bilevel** program: the upper level fits the outcome, the lower
+With predictors, SCM jointly chooses predictor weights :math:`\mathbf{V}`
+(a :math:`K\times K` non-negative diagonal matrix on the simplex) and donor
+weights :math:`\mathbf{W}`. Malo et al. [malo2023computing]_ show this is an
+optimistic bilevel program: the upper level fits the outcome, the lower
 level fits the :math:`\mathbf{V}`-weighted predictors,
 
 .. math::
@@ -86,20 +86,20 @@ numerically unstable. ``mlsynth`` implements the paper's globally-convergent
 iterative algorithm in three stages, short-circuiting as soon as an optimum is
 certified (the paper notes the optimum is usually a corner found early):
 
-1. **Unconstrained feasibility** (Section 3.1) -- solve the simplex regression
-   of the treated outcome on the donors, giving the lower bound :math:`L(W^{**})`
+1. Unconstrained feasibility (Section 3.1) -- solve the simplex regression
+   of the treated outcome on the donors, giving the lower bound :math:`L(W^{})`
    on the upper-level loss; an LP over :math:`\mathbf{V}` checks whether some
    predictor is already matched, which certifies optimality.
-2. **Corner solutions** (Section 3.2) -- evaluate the :math:`K` basic predictor
+2. Corner solutions (Section 3.2) -- evaluate the :math:`K` basic predictor
    weightings (all weight on one predictor) and keep the best by outcome loss.
-3. **Tykhonov-regularized descent** (Section 3.3) -- only if a gap remains,
+3. Tykhonov-regularized descent (Section 3.3) -- only if a gap remains,
    descend over :math:`\mathbf{V}` for a vanishing regularization sequence.
 
 The lower-level (and the trajectory-mode) simplex problems are solved by a
 self-contained FISTA projected-gradient routine
 (:func:`~mlsynth.utils.fscm_helpers.bilevel.simplex_lstsq`), which matches a
 reference QP solver to ~1e-8. In predictor mode the optimal :math:`\mathbf{V}`
-is computed **once on the full donor pool** and reused through forward
+is computed once on the full donor pool and reused through forward
 selection.
 
 The forward stepwise algorithm
@@ -110,28 +110,28 @@ Cerulli's procedure ([FSCM]_, Table 1):
 
 1. Start from the empty model :math:`U_0 = \varnothing`.
 2. For :math:`k = 0, 1, \ldots, J-1`: among the :math:`J-k` candidate donors not
-   yet selected, add the one whose inclusion minimizes the **in-sample**
+   yet selected, add the one whose inclusion minimizes the in-sample
    pre-period RMSPE, giving the nested model
    :math:`U_{k+1} = U_k \cup \{j^*\}`.
-3. For each nested model :math:`U_k`, compute an **out-of-sample** validation
+3. For each nested model :math:`U_k`, compute an out-of-sample validation
    RMSPE and select :math:`k^* = \operatorname*{argmin}_k \mathrm{CV}(U_k)`.
 
 The selected donor set is :math:`U_{k^*}`; ``mlsynth`` then refits the weights
-on the **full** pre-period over :math:`U_{k^*}` to form the counterfactual
+on the full pre-period over :math:`U_{k^*}` to form the counterfactual
 :math:`\hat{y}_{0t}^0 = \mathbf{Y}_{t,U_{k^*}}\boldsymbol{\omega}^*`, the gap
 :math:`\hat{\Delta}_t = y_{0t} - \hat{y}_{0t}^0`, and the ATT
 :math:`\bar{\Delta} = \mathcal{E}_{\mathcal{T}_2}(\hat{\Delta}_t)`.
 
 When ``forward_selection=False`` the selection and cross-validation are skipped:
-the estimator returns the single full bilevel solve over **all** donors (the
+the estimator returns the single full bilevel solve over all donors (the
 global SCM optimum), reporting the weight-bearing donors. This is faster and is
 the right choice when you want the canonical SCM weights rather than a
 parsimonious donor subset.
 
-**Rolling-origin cross-validation.** Cerulli's paper splits the pre-period once
+Rolling-origin cross-validation. Cerulli's paper splits the pre-period once
 (early half train, late half test). With short pre-periods (Proposition 99 has
-only 19) a single split is noisy, so ``mlsynth`` uses an **expanding-window,
-one-step-ahead** scheme instead: for each origin :math:`t` from
+only 19) a single split is noisy, so ``mlsynth`` uses an expanding-window,
+one-step-ahead scheme instead: for each origin :math:`t` from
 :math:`\lceil T_1\cdot\texttt{cv\_split}\rceil` to :math:`T_1-1`, weights are fit
 on :math:`\{1,\ldots,t-1\}` and used to forecast period :math:`t`; the
 validation score is the RMSPE of those one-step forecasts. Every late
@@ -146,7 +146,7 @@ convex-hull match for the treated unit" to the much weaker "*some*
 subset does," and the forward-stepwise selector is the device that
 finds it. The four assumptions that make the selector behave:
 
-**A1 (forward convex-hull condition -- the identifying premise).**
+A1 (forward convex-hull condition -- the identifying premise).
 There exists a non-empty subset :math:`U^* \subseteq \mathcal{N}`
 and simplex weights :math:`\omega^* \in \Delta_{U^*}` such that the
 treated unit's pre-period trajectory is (approximately) reproduced
@@ -158,24 +158,24 @@ by the corresponding donor combination,
    \quad \text{for all } t \in \mathcal{T}_1.
 
 The classical SCM hull condition is the special case
-:math:`U^* = \mathcal{N}`; FSCM operates whenever **some** subset
-(potentially a small one) supplies the hull. **If no subset of
+:math:`U^* = \mathcal{N}`; FSCM operates whenever some subset
+(potentially a small one) supplies the hull. If no subset of
 controls can form a convex hull around the target, FSCM cannot be
-used** -- and no amount of forward stepwise will rescue it. The
+used -- and no amount of forward stepwise will rescue it. The
 diagnostic is the lower envelope of in-sample RMSPE across the
 nested models :math:`\{U_k\}`: if it never falls below the noise
 floor at any size, A1 is failing.
 
-**A2 (stable pre/post relationship).** The weights that reproduce
+A2 (stable pre/post relationship). The weights that reproduce
 the treated unit on the pre-period also reproduce its untreated
 trajectory on the post-period -- the standard SCM identification
 premise carried through to the selected subset. *Remark.* This is
-what licenses using **pre-period** out-of-sample fit (the
-cross-validation test window) as a stand-in for **post-period**
+what licenses using pre-period out-of-sample fit (the
+cross-validation test window) as a stand-in for post-period
 predictive accuracy of the counterfactual, which is never
 observed.
 
-**A3 (forward-stepwise selection consistency).** Under regularity
+A3 (forward-stepwise selection consistency). Under regularity
 conditions on the donor pool and the pre-period length (Shi &
 Huang 2023, Theorem 1) [fsPDA], the forward stepwise selection rule
 recovers the oracle donor set wpa1:
@@ -185,7 +185,7 @@ recovers the oracle donor set wpa1:
    \mathbb{P}\bigl( U_{k^*} = U^* \bigr) \;\longrightarrow\; 1
    \qquad \text{as } T_1 \to \infty.
 
-*Remark.* This is the **wpa1 selection-consistency** property
+*Remark.* This is the wpa1 selection-consistency property
 that distinguishes FSCM from heuristic donor pre-screening:
 greedy forward steps are not just computationally tractable
 (:math:`1 + J(J+1)/2` fits vs. the exhaustive :math:`2^J`), they
@@ -195,7 +195,7 @@ shocks within units, and a signal-strength condition on the
 oracle weights (no donor in :math:`U^*` carries vanishing weight
 in :math:`\omega^*`).
 
-**A4 (informative cross-validation split).** The pre-period is
+A4 (informative cross-validation split). The pre-period is
 long enough, and the donor / treated dynamics stable enough
 across the split, that the test-RMSPE on the held-out interval
 is a consistent estimate of out-of-sample prediction error.
@@ -241,10 +241,10 @@ This prints::
    pre-period R^2 : 0.970
    CV RMSPE       : optimum=1.605  full pool=2.916
 
-Forward selection keeps **3 of the 38** donors and estimates a drop of about
-**20 packs per capita**, consistent with Abadie's original synthetic-control
+Forward selection keeps 3 of the 38 donors and estimates a drop of about
+20 packs per capita, consistent with Abadie's original synthetic-control
 estimate. The key diagnostic is the last line: the rolling-origin CV RMSPE at
-the optimum (1.61) is **far below using all 38 donors** (2.92) -- the
+the optimum (1.61) is far below using all 38 donors (2.92) -- the
 out-of-sample evidence for Cerulli's bias--variance argument, that the smaller
 donor set forecasts the treated unit *better* than the full pool. With
 ``display_graphs=True`` the second panel plots the CV-RMSPE curve against the
@@ -254,12 +254,12 @@ Matching on the author's full predictor specification
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``P99data.csv`` ships with Abadie's predictor specification: the covariates
-``lnincome``, ``beer``, ``age15to24``, ``retprice`` **and** cigarette sales in
+``lnincome``, ``beer``, ``age15to24``, ``retprice`` and cigarette sales in
 1975, 1980 and 1988. Abadie averages the covariates over 1980--1988 (beer over
 1984--1988); these aggregation windows are given through ``covariate_windows``,
 and the lagged smoking values through ``match_periods``. With
-``forward_selection=False`` the estimator returns the **full bilevel SCM
-optimum** over all donors:
+``forward_selection=False`` the estimator returns the full bilevel SCM
+optimum over all donors:
 
 .. code-block:: python
 
@@ -279,7 +279,7 @@ This reproduces the global optimum reported in Malo et al.
 concentrated on Utah, Montana, Nevada, Connecticut and New Hampshire -- the
 solution the standard *Synth* package fails to reach. Consistent with the
 paper's central finding, the optimal predictor weights :math:`\mathbf{V}` form a
-**corner solution** that places all weight on a single predictor: many
+corner solution that places all weight on a single predictor: many
 predictors are interchangeable at the optimum (the upper-level loss is
 non-unique in :math:`\mathbf{V}`), so the bilevel solver certifies optimality at
 a corner rather than spreading weight across predictors.
@@ -299,16 +299,16 @@ Verification
 
 .. note::
 
-   **Empirical (Proposition 99).** In trajectory mode with forward selection,
+   Empirical (Proposition 99). In trajectory mode with forward selection,
    ``FSCM`` reproduces Cerulli's regime: a small donor set (3 of 38) with a
-   rolling-origin CV RMSPE minimized **below** the full pool -- the
+   rolling-origin CV RMSPE minimized below the full pool -- the
    out-of-sample signature of the bias--variance trade-off -- and an ATT
    :math:`\approx -20`. With the full Abadie predictor spec and
    ``forward_selection=False``, the bilevel solver reproduces the global SCM
    optimum of Malo et al. [malo2023computing]_ exactly (:math:`R^2 = 0.979`,
    Table 1 donor weights), which the *Synth* package does not reach.
 
-   **Solver.** The self-contained FISTA simplex solver agrees with a reference
+   Solver. The self-contained FISTA simplex solver agrees with a reference
    QP solver to ~1e-8 over random problems; the bilevel ``unconstrained``
    feasibility certificate, corner-solution bounds, and a determinism check are
    unit-tested (``mlsynth/tests/test_fscm_bilevel.py``). All four

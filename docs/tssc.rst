@@ -9,22 +9,22 @@ When to Use This Estimator
 The synthetic control (SC) method of Abadie and Gardeazabal rests on an
 identifying assumption that can only be *partially* checked: after
 treatment, the synthetic control should track the treated unit's
-untreated outcome. The testable part is the **SC pre-trends assumption**
+untreated outcome. The testable part is the SC pre-trends assumption
 -- that the synthetic control tracks the treated unit *before*
 treatment. In practice this is usually verified by eyeballing a plot,
 which is informal and easy to get wrong; imposing SC's restrictions when
 they do not hold can bias the ATT, sometimes with the wrong sign.
 
-Use TSSC, due to Li and Shankar [TSSC]_, when you have a **single treated
-unit** observed over a panel whose outcomes may follow **nonstationary,
-nonlinear trends** (sales, market share, macro series), and you want to
+Use TSSC, due to Li and Shankar [TSSC]_, when you have a single treated
+unit observed over a panel whose outcomes may follow nonstationary,
+nonlinear trends (sales, market share, macro series), and you want to
 decide -- *formally*, not visually -- whether SC's restrictions are
 appropriate or whether you should relax them. TSSC
 
 1. runs a formal hypothesis test of the SC pre-trends assumption, and
 2. recommends the member of the SC class that best balances the dual
-   goal of **reducing bias** (relax restrictions that are violated) and
-   **increasing efficiency** (keep restrictions that hold, since each
+   goal of reducing bias (relax restrictions that are violated) and
+   increasing efficiency (keep restrictions that hold, since each
    correct restriction shrinks the estimator's variance).
 
 If the SC restrictions hold, TSSC keeps the efficient SC estimator. If
@@ -40,8 +40,8 @@ variant needed -- no more, no less.
 Notation
 --------
 
-We index units by :math:`j`, with :math:`j = 1` the sole **treated** unit
-and :math:`j = 2, \ldots, N` the **control** (donor) units. Time runs
+We index units by :math:`j`, with :math:`j = 1` the sole treated unit
+and :math:`j = 2, \ldots, N` the control (donor) units. Time runs
 over :math:`t`, partitioned by the intervention into a pre-treatment
 window :math:`\mathcal{T}_1` of length :math:`T_1` and a post-treatment
 window :math:`\mathcal{T}_2` of length :math:`T_2`, with
@@ -59,8 +59,8 @@ potential outcomes without and with treatment; we observe
 
 The regression design vector is :math:`x_t = (1, y_{2t}, \ldots,
 y_{Nt})'`, so the coefficient vector :math:`\beta = (\beta_1, \beta_2,
-\ldots, \beta_N)'` has :math:`\beta_1` as the **intercept** and
-:math:`\beta_2, \ldots, \beta_N` as the **donor slopes**. We write
+\ldots, \beta_N)'` has :math:`\beta_1` as the intercept and
+:math:`\beta_2, \ldots, \beta_N` as the donor slopes. We write
 :math:`\mathbf{1}_L` and :math:`\mathbf{0}_L` for the :math:`L`-vectors of
 ones and zeros, and :math:`\hat{\beta}_{\mathrm{MSC},T_1}` for the
 benchmark MSC(c) estimate on the pre-treatment sample. The estimand is the
@@ -80,8 +80,8 @@ The Class of Synthetic Control Methods
 Each method fits :math:`y_{1t} = x_t' \beta + e_{1t}` on the
 pre-treatment window by minimizing :math:`\sum_{t \in \mathcal{T}_1}
 (y_{1t} - x_t'\beta)^2` subject to a subset of three restrictions:
-**(1)** a zero intercept :math:`\beta_1 = 0`; **(2)** the donor weights
-sum to one :math:`\sum_{j=2}^N \beta_j = 1`; **(3)** the donor weights are
+(1) a zero intercept :math:`\beta_1 = 0`; (2) the donor weights
+sum to one :math:`\sum_{j=2}^N \beta_j = 1`; (3) the donor weights are
 non-negative :math:`\beta_j \ge 0`. The four members differ only in which
 restrictions they impose:
 
@@ -92,16 +92,16 @@ restrictions they impose:
    * - Method
      - Restrictions
      - Intercept
-   * - **SC**
+   * - SC
      - (1), (2), (3) -- the canonical Abadie estimator
      - none
-   * - **MSCa**
+   * - MSCa
      - (2), (3) -- weights sum to one
      - free
-   * - **MSCb**
+   * - MSCb
      - (1), (3) -- no adding-up
      - none
-   * - **MSCc**
+   * - MSCc
      - (3) only -- the most flexible benchmark
      - free
 
@@ -117,14 +117,14 @@ Failure modes of the convex hull: when each restriction matters
 
 The three SC restrictions -- zero intercept, weights sum to one,
 weights non-negative -- together force the synthetic counterfactual
-to lie strictly inside the **convex hull** of the donors' pre-period
+to lie strictly inside the convex hull of the donors' pre-period
 paths. Geometrically that's a useful prior when the treated unit
 *does* look like a weighted average of the donors. It is a
 *catastrophic* prior when the treated unit doesn't. Two simple
 violations cover almost every empirical case where vanilla SC goes
 wrong:
 
-* **Level shift -- treated above (or below) every donor's level.**
+* Level shift -- treated above (or below) every donor's level.
   The zero-intercept restriction pins the synthetic to a convex
   combination of the donors, which can never escape the donors'
   range. If a national chain's flagship store outsells every donor
@@ -133,29 +133,29 @@ wrong:
   RMSE blows up; the post-period ATT inherits the same gap as a
   spurious treatment effect.
 
-  *Fix:* add a free intercept. That is **MSCa** (keeps sum-to-one
+  *Fix:* add a free intercept. That is MSCa (keeps sum-to-one
   and non-negativity, drops the zero-intercept). An intercept can
   absorb an arbitrary vertical shift without inflating the donor
   weights.
 
-* **Steeper trend -- treated growing faster than the fastest
-  donor.** The sum-to-one restriction forces the synthetic to track
+* Steeper trend -- treated growing faster than the fastest
+  donor. The sum-to-one restriction forces the synthetic to track
   a *weighted average* of donor trajectories, whose slope is bounded
   above by the maximum donor slope. If the treated unit's pre-trend
   is steeper than any donor's, the SC fit is uniformly behind in
   the pre-period -- and again the post-period gap is mostly
   miscalibration, not treatment effect.
 
-  *Fix:* drop sum-to-one. That is **MSCb** (keeps the zero
+  *Fix:* drop sum-to-one. That is MSCb (keeps the zero
   intercept and non-negativity, allows the weights to sum above
   one). Weights summing above one act as a slope amplifier:
   :math:`2 \cdot \text{donor with slope 1}` reproduces slope 2.
 
-* **Both at once.** Common in practice -- the treated unit is
+* Both at once. Common in practice -- the treated unit is
   bigger in level *and* steeper in trend than every donor. Neither
   MSCa (slope still bounded) nor MSCb (no intercept) is enough.
 
-  *Fix:* relax both. That is **MSCc**, the most flexible variant
+  *Fix:* relax both. That is MSCc, the most flexible variant
   in the family, retaining only non-negativity.
 
 Side-by-side example
@@ -261,22 +261,22 @@ prints (deterministic with the seed above)::
 
 How to read the table:
 
-* In **(A)**, no restriction is binding. All four variants attain
+* In (A), no restriction is binding. All four variants attain
   similar pre-RMSE (~0.06-0.08), and TSSC's first-step test fails to
   reject the joint null -- so the recommendation is the most
   restrictive, most efficient member: SC.
-* In **(B)**, dropping the zero intercept is *all* you need. MSCa
+* In (B), dropping the zero intercept is *all* you need. MSCa
   (intercept ~+8) and MSCc (intercept ~+8) both hit a pre-RMSE of
   ~0.06. SC's pre-RMSE balloons to 7.9; MSCb tries to fake the level
   shift by inflating the weights past 1 and only partially succeeds
   (pre-RMSE 1.4). TSSC's test rejects the joint null but fails to
   reject sum-to-one, so it recommends MSCa.
-* In **(C)**, dropping sum-to-one is what's needed. The treated's
+* In (C), dropping sum-to-one is what's needed. The treated's
   slope (0.20) is 4x the donors' (0.05); only MSCb / MSCc can
   amplify weights to chase the steeper trajectory. The intercept in
   MSCc is essentially zero -- the level shift wasn't the problem.
   TSSC tests through to MSCb.
-* In **(D)** both restrictions bite. MSCa misses on slope, MSCb
+* In (D) both restrictions bite. MSCa misses on slope, MSCb
   misses on level; only MSCc (free intercept *and* weights unbound
   above 1) cleans both. The decision path runs all the way to
   the leaf of the flowchart.
@@ -296,7 +296,7 @@ The theory is developed for a nonstationary, nonlinear-trend factor model
 trend of unknown functional form, :math:`c_j` an intercept, :math:`d_j` a
 factor loading, and :math:`u_{jt}` an idiosyncratic error.
 
-**Assumption 1 (data-generating process).** The idiosyncratic errors
+Assumption 1 (data-generating process). The idiosyncratic errors
 :math:`u_{jt}` are zero-mean, serially uncorrelated, stationary with a
 finite fourth moment and uncorrelated with the common factor; the
 projection error :math:`e_{1t} = y_{1t}^0 - x_t'\beta_0` is a zero-mean,
@@ -309,9 +309,9 @@ It is what lets a linear combination of donors soak up the treated unit's
 trend and leave a stationary residual, which is exactly the parallel-
 trends condition the test targets.
 
-**Assumption 2 (trend and design regularity).** The common trend grows no
+Assumption 2 (trend and design regularity). The common trend grows no
 faster than a leading term :math:`g(t)` (e.g. a polynomial or :math:`\log
-t`, but **not** :math:`e^t`), and the pre-treatment second-moment matrix
+t`, but not :math:`e^t`), and the pre-treatment second-moment matrix
 of the donor outcomes converges to a positive-definite limit.
 
 *Remark.* The growth bound rules out trends so explosive that no fixed
@@ -319,13 +319,13 @@ linear combination of donors can track them; the positive-definite Gram
 condition rules out perfectly collinear donors so the weights are
 well-defined. Both are mild for typical marketing and macro panels.
 
-**Parallel trends.** Two nonlinear series have *parallel trends* if their
+Parallel trends. Two nonlinear series have *parallel trends* if their
 difference is a zero-mean stationary process. The SC pre-trends
 assumption is that :math:`y_{1t}` and :math:`x_t'\hat{\beta}_{\mathrm{SC}}`
 are parallel for :math:`t \in \mathcal{T}_1`.
 
 *Remark.* Under Assumptions 1-2, Li and Shankar show (Proposition 3.1)
-that the MSC(c) fitted curve is **almost always** parallel to the treated
+that the MSC(c) fitted curve is almost always parallel to the treated
 series, provided at least one donor's loading has the same sign as the
 treated unit's. MSC(c) is therefore the natural benchmark against which
 the SC restrictions are tested.
@@ -334,8 +334,8 @@ Step 1: Testing the SC Pre-Trends Assumption
 --------------------------------------------
 
 The key equivalence (Proposition 3.1) is that, with MSC(c) as benchmark,
-**the SC pre-trends assumption holds if and only if the two SC
-restrictions hold** -- the donor weights sum to one *and* the intercept is
+the SC pre-trends assumption holds if and only if the two SC
+restrictions hold -- the donor weights sum to one *and* the intercept is
 zero. So testing pre-trends reduces to a joint linear restriction on
 :math:`\hat{\beta}_{\mathrm{MSC},T_1}`:
 
@@ -358,7 +358,7 @@ statistic is the quadratic form
 Because the constrained estimator can sit on the boundary of its
 parameter space (a weight pinned at zero), its limit is the projection of
 a normal onto a convex cone -- non-standard, so the ordinary bootstrap
-fails. Li and Shankar instead use **subsampling**:
+fails. Li and Shankar instead use subsampling:
 
 .. math::
 
@@ -380,8 +380,8 @@ and the subsampling distribution :math:`S^{*}_{m,b} = \bigl(\sqrt{m}
 R(\hat{\beta}^{*}_{\mathrm{MSC},m,b} - \hat{\beta}_{\mathrm{MSC},T_1})
 \bigr)' \hat{V}^{-1} \bigl(\cdots\bigr)`. Sorting the :math:`S^{*}_{m,b}`
 gives the :math:`(1-\alpha)` acceptance region
-:math:`[S^{*}_{m,(\alpha B/2)},\, S^{*}_{m,((1-\alpha/2)B)}]`; we **reject
-:math:`H_0`** when :math:`\hat{S}_{T_1}` falls outside it.
+:math:`[S^{*}_{m,(\alpha B/2)},\, S^{*}_{m,((1-\alpha/2)B)}]`; we reject
+:math:`H_0` when :math:`\hat{S}_{T_1}` falls outside it.
 
 If the joint :math:`H_0` is rejected, the source of the violation is
 unclear, so we test the two restrictions singly. With :math:`R_a = (0,
@@ -398,9 +398,9 @@ replaced by one),
 
 with acceptance regions read off the corresponding subsampling
 distributions. TSSC then walks a decision tree: keep all SC restrictions
-if the joint test is **not** rejected (use **SC**); otherwise test
-adding-up -- not rejected gives **MSCa**; if rejected, test the zero
-intercept -- not rejected gives **MSCb**, rejected gives **MSCc**. In
+if the joint test is not rejected (use SC); otherwise test
+adding-up -- not rejected gives MSCa; if rejected, test the zero
+intercept -- not rejected gives MSCb, rejected gives MSCc. In
 words, relax exactly the restriction(s) the data reject, stopping at the
 least-flexible variant consistent with the evidence.
 
@@ -427,9 +427,9 @@ post-period idiosyncratic prediction noise. The interval is
 with :math:`q` the quantiles of the normalized statistic.
 
 *Remark.* Because each correct restriction removes estimation variance,
-the recommended variant typically has a **tighter** interval than the
+the recommended variant typically has a tighter interval than the
 fully flexible MSC(c) -- the efficiency half of TSSC's dual goal made
-visible. ``mlsynth`` reports the CI for **all four** variants
+visible. ``mlsynth`` reports the CI for all four variants
 (``att_ci_by_method()``) so this trade-off is inspectable.
 
 

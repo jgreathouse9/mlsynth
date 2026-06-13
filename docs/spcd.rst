@@ -9,31 +9,31 @@ When to Use This Estimator
 Most synthetic-control work takes the treated unit as *given* and asks only
 how to weight the donors. SPCD, due to Lu, Li, Ying and Blanchet (2022)
 [SPCD]_ `arXiv:2211.15241 <https://arxiv.org/abs/2211.15241>`_, answers the
-**prior, design-time question**: you are about to run an experiment, you
+prior, design-time question: you are about to run an experiment, you
 have a panel of pre-treatment outcomes, and you must decide *which units to
 treat* (and how to weight the rest into a synthetic comparison) so that the
 treatment-effect estimate is as precise as possible. It is a sibling of
 :doc:`syndes` — both choose the treated set rather than assume it — but where
 SYNDES solves a mixed-integer program, SPCD reformulates the design as a
-**phase-synchronization** problem and solves it with a spectrally-initialized
+phase-synchronization problem and solves it with a spectrally-initialized
 power method that converges *globally* under standard linear-factor models,
 in seconds rather than minutes.
 
-Reach for SPCD when treatment can only be applied to **coarse, expensive
-units**, randomizing at random leaves accuracy on the table, and you want a
+Reach for SPCD when treatment can only be applied to coarse, expensive
+units, randomizing at random leaves accuracy on the table, and you want a
 fast, provably-good assignment:
 
-- **Marketing / geo experiments.** You can switch a campaign on in some
-  **media markets (DMAs)**, **regions**, or **store clusters** but not at the
-  individual-customer level. SPCD reads each market's pre-period **sales** or
-  **traffic** history and picks the treated markets — and the synthetic
+- Marketing / geo experiments. You can switch a campaign on in some
+  media markets (DMAs), regions, or store clusters but not at the
+  individual-customer level. SPCD reads each market's pre-period sales or
+  traffic history and picks the treated markets — and the synthetic
   comparison — so the two groups tracked each other *before* launch. Any
   post-launch divergence is then a low-variance read on the campaign.
-- **Retail / product rollouts.** Choosing which **stores** or **SKUs** get a
+- Retail / product rollouts. Choosing which stores or SKUs get a
   new layout, price, or feature first. Treating a handful of stores is costly,
   so you want the few you pick to be maximally informative about the whole
   chain.
-- **Platform / policy pilots.** Selecting **cities** or **submarkets** for a
+- Platform / policy pilots. Selecting cities or submarkets for a
   pricing pilot, a new service tier, or a regulatory change, where
   interference rules out customer-level randomization and the number of
   treatable units is small.
@@ -41,7 +41,7 @@ fast, provably-good assignment:
 The flip side: if assignment is *already fixed* (you know who was treated and
 only need a counterfactual), this is the wrong tool — use a standard
 retrospective estimator such as :doc:`fscm`, :doc:`clustersc`, or
-:doc:`tssc`. SPCD's value is entirely in the **design** stage, before the
+:doc:`tssc`. SPCD's value is entirely in the design stage, before the
 experiment runs.
 
 Notation
@@ -51,9 +51,9 @@ We observe an outcome :math:`Y_{it}` for units :math:`i \in \{1, \dots, N\}`
 over pre-treatment periods :math:`t \in \{1, \dots, T\}`, stacked into the
 pre-treatment matrix :math:`Y \in \mathbb{R}^{N \times T}` (units in rows,
 periods in columns). At :math:`t = T` the experimenter assigns each unit a
-**sign** :math:`D_i \in \{-1, +1\}`: :math:`D_i = +1` puts unit :math:`i` in
+sign :math:`D_i \in \{-1, +1\}`: :math:`D_i = +1` puts unit :math:`i` in
 the treated group, :math:`D_i = -1` in the control group. Each unit also
-carries a non-negative **weight** :math:`w_i \ge 0`, normalized to sum to one
+carries a non-negative weight :math:`w_i \ge 0`, normalized to sum to one
 on each side. After assignment, outcomes are observed for :math:`S` further
 periods :math:`t = T+1, \dots, T+S`, with potential outcomes
 :math:`Y_{it}(-1) = \mu_{it} + e_{it}` and :math:`Y_{it}(+1) = Y_{it}(-1) +
@@ -69,7 +69,7 @@ identity, :math:`\operatorname{sgn}(\cdot)` the elementwise sign,
 
 .. note::
 
-   **Notation bridge.** The single-treated-unit synthetic-control canon
+   Notation bridge. The single-treated-unit synthetic-control canon
    (treated :math:`j=0`, donors :math:`1, \dots, N`, treatment dummy
    :math:`d_{jt} \in \{0,1\}`) does not fit a *design* problem in which the
    assignment is itself the decision variable. Following the paper, the
@@ -85,36 +85,36 @@ How SPCD Works (Plain-Language Walkthrough)
 
 Before the equations, here is the whole idea in five steps.
 
-1. **The goal is a fair pre-period match.** Split the units into a treated
+1. The goal is a fair pre-period match. Split the units into a treated
    group and a control group, and weight each unit, so that *before* the
    experiment the weighted treated history and the weighted control history
    are nearly identical curves. If the two groups move together in the
    pre-period, then after treatment the gap between them is the treatment
    effect — and a well-balanced design makes that gap a low-variance estimate.
 
-2. **Trying every split is hopeless.** With :math:`N` units there are
+2. Trying every split is hopeless. With :math:`N` units there are
    exponentially many ways to form two groups; choosing the best one is
    NP-hard. SPCD sidesteps the brute-force search with a change of variable.
 
-3. **One signed number per unit.** Pack each unit's *group label* and *weight*
-   into a single signed number :math:`W_i = w_i D_i`: its **sign** says which
-   group the unit is in, its **magnitude** is the weight. "Make the two
+3. One signed number per unit. Pack each unit's *group label* and *weight*
+   into a single signed number :math:`W_i = w_i D_i`: its sign says which
+   group the unit is in, its magnitude is the weight. "Make the two
    weighted groups match" then becomes "find a signed vector :math:`W` that is
    as small as possible against the data," i.e. minimize :math:`W^\top (Y
    Y^\top) W` subject to the groups balancing out. This is the
-   :math:`\ell_1`-PCA / **phase-synchronization** problem — a well-studied
+   :math:`\ell_1`-PCA / phase-synchronization problem — a well-studied
    shape with fast, globally-convergent solvers.
 
-4. **Solve it with a power method, warm-started by an eigenvector.** Start
+4. Solve it with a power method, warm-started by an eigenvector. Start
    from a smart first guess — the sign pattern of the smallest eigenvector of
    the data matrix (the *spectral initialization*). Then repeatedly refine the
    group labels: multiply the current sign vector by :math:`M^{-1}` and take
    signs again (the *generalized power method*). Keep going until the labels
-   stop flipping. The **normalized** variant (the package default) rescales by
+   stop flipping. The normalized variant (the package default) rescales by
    the diagonal of :math:`M^{-1}` first and is guaranteed to converge to the
    global optimum at a linear rate.
 
-5. **Read off the design, then estimate.** Once the labels are fixed, the
+5. Read off the design, then estimate. Once the labels are fixed, the
    weights follow in closed form (Eq. (9)) or from a tiny convex program
    (Eq. (6)). Treat the *smaller* of the two groups (the minority rule). Run
    the experiment. When the post-period data arrives, the treatment effect is
@@ -149,8 +149,8 @@ treatment-effect estimator decomposes as
    \;+\;
    \sigma^2 \sum_{i=1}^N w_i^2.
 
-The first term is a **bias** from imperfect pre-treatment balance; the second
-a **variance** that grows with weight concentration. Minimizing the first term
+The first term is a bias from imperfect pre-treatment balance; the second
+a variance that grows with weight concentration. Minimizing the first term
 over the *pre-treatment window* gives the mixed-integer program SPCD solves
 (Eq. (1) of the paper):
 
@@ -215,8 +215,8 @@ where :math:`\alpha` plays the role of :math:`\sigma` (noise variance) and
 
 .. note::
 
-   **Choosing** :math:`\alpha`. The paper's appendix sets the perturbation
-   ridge on the **noise** scale (:math:`\alpha = \lVert\Delta\rVert` with
+   Choosing :math:`\alpha`. The paper's appendix sets the perturbation
+   ridge on the noise scale (:math:`\alpha = \lVert\Delta\rVert` with
    :math:`\alpha \le \lVert\Delta\rVert`), so :math:`\alpha` should track the
    idiosyncratic noise variance, *not* the dominant (signal/level) eigenvalue
    of :math:`Y Y^\top`. When :math:`N > T_{\text{pre}}` the matrix
@@ -227,7 +227,7 @@ where :math:`\alpha` plays the role of :math:`\sigma` (noise variance) and
    *scale* with the Gavish-Donoho median-singular-value noise estimate
    (:func:`~mlsynth.utils.spcd_helpers.formulation.estimate_noise_variance`),
    and ``orchestration.select_alpha_by_holdout`` then picks the value on a
-   noise-scale grid that **balances a held-out tail of the pre-period best**
+   noise-scale grid that balances a held-out tail of the pre-period best
    out of sample. :math:`\lambda` and :math:`\beta` still default from the
    spectrum of :math:`Y Y^\top`. If you know the noise level (e.g. the
    simulations below fix :math:`\sigma = 1`), pass ``alpha_ridge`` explicitly
@@ -236,9 +236,9 @@ where :math:`\alpha` plays the role of :math:`\sigma` (noise variance) and
 Balancing on Covariates
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default SPCD balances the two groups on the **pre-treatment outcomes**
+By default SPCD balances the two groups on the pre-treatment outcomes
 only. Passing ``covariates`` (a list of column names) additionally balances on
-auxiliary unit characteristics. Each unit's per-covariate **pre-period mean**
+auxiliary unit characteristics. Each unit's per-covariate pre-period mean
 is taken (time-invariant covariates -- e.g. last year's market share -- collapse
 to their value), the resulting :math:`N \times P` matrix :math:`X` is z-scored
 across units, and a covariate-balance term is folded into the iteration matrix:
@@ -250,19 +250,19 @@ across units, and a covariate-balance term is folded into the iteration matrix:
    \;+\; \alpha I \;+\; \lambda \mathbf{1}\mathbf{1}^\top,
 
 where :math:`s` rescales :math:`X X^\top` to match the trace ("energy") of
-:math:`Y Y^\top`, so ``covariate_weight = 1`` weights covariates **equally** to
+:math:`Y Y^\top`, so ``covariate_weight = 1`` weights covariates equally to
 the outcomes, ``> 1`` upweights them, and ``0`` (or omitting ``covariates``)
 recovers the outcome-only design. Crucially this keeps the iteration matrix a
 quadratic form :math:`W^\top M W` with the *same* phase-synchronization
-structure, so the spectral solver **and the global-optimality theory are
-unchanged** -- the design now drives the weighted treated and control groups to
+structure, so the spectral solver and the global-optimality theory are
+unchanged -- the design now drives the weighted treated and control groups to
 agree on outcomes *and* covariates jointly. (This is the same way classical
 synthetic control balances on predictors; the relative weight ``covariate_weight``
 is the analog of SCM's :math:`V`.)
 
 .. note::
 
-   Budget / cardinality constraints are **not** supported by SPCD: they are
+   Budget / cardinality constraints are not supported by SPCD: they are
    linear constraints on the discrete assignment and break the
    phase-synchronization reduction (which is precisely what removing the
    cardinality constraint buys, per the paper's Remark 1). Use :doc:`syndes`,
@@ -451,7 +451,7 @@ SPCD's global-optimality guarantee rests on two assumptions — one structural,
 one a realizability condition — both stated formally below, each paired with a
 plain-language Remark.
 
-**Assumption 1 (linear latent-factor model).** Outcomes are generated by
+Assumption 1 (linear latent-factor model). Outcomes are generated by
 
 .. math::
 
@@ -474,7 +474,7 @@ factors in the past will keep tracking each other" a defensible basis for the
 design — exactly the structure SPCD exploits when it balances the two groups
 on pre-period outcomes.
 
-**Assumption 2 (realizable design).** There exists a *unique* parameter
+Assumption 2 (realizable design). There exists a *unique* parameter
 :math:`(w_i, D_i)_{i=1}^N` satisfying: (a) :math:`D_i \in \{-1, +1\}`; (b)
 :math:`w_i \ge 0` with :math:`\sum_i D_i w_i = 0`; (c) :math:`\|w\|_2^2 = N`
 and :math:`\epsilon \le |w_i| \le 1/\epsilon` for all :math:`i`; and (d) the
@@ -487,24 +487,24 @@ design-time analogue of the "treated unit lies in the convex hull of the
 donors" condition in retrospective SCM, and is what turns an NP-hard search
 into a problem with a recoverable global optimum.
 
-**Theorem 1 (sign recovery).** For :math:`\lambda` large enough, the global
+Theorem 1 (sign recovery). For :math:`\lambda` large enough, the global
 solution :math:`W^*` of the penalized program satisfies
 :math:`\operatorname{sgn}(W^*) = \operatorname{sgn}(\arg\min_{\|W\|_1=1} W^\top
 (YY^\top + \sigma I + \lambda \mathbf{1}\mathbf{1}^\top) W)`. *In words:* the
 quadratic penalty does not corrupt the *signs* of the optimal design, so
 recovering group membership and recovering the weights can be separated.
 
-**Theorem 2 (equivalence to phase synchronization).** The design problem is
+Theorem 2 (equivalence to phase synchronization). The design problem is
 symbolically identical to a phase-synchronization problem on the matrix
 :math:`(A^\top A)^{-1}`. *In words:* SPCD inherits the entire fast-solver
 toolkit developed for phase synchronization — most importantly the
 spectrally-initialized generalized power method.
 
-**Theorem 3 (global convergence).** Under Assumptions 1–2, if :math:`\sigma`
+Theorem 3 (global convergence). Under Assumptions 1–2, if :math:`\sigma`
 is small enough and :math:`T \ge \mathrm{poly}(N, 1/\epsilon)`, then
 ``variant="spcd"`` converges to the global optimum whenever :math:`\epsilon >
 \sqrt{3}/2 - 1`, and ``variant="norm_spcd"`` converges to the global optimum at
-a **linear rate** for any :math:`\epsilon > 0`. *In words:* the normalization
+a linear rate for any :math:`\epsilon > 0`. *In words:* the normalization
 step buys global convergence under a strictly weaker condition, which is why
 ``norm_spcd`` is the default.
 
@@ -542,7 +542,7 @@ Backwards-Compatibility Guarantee
 Because the design is fit on :math:`Y_E` alone, two callers who share the same
 pretreatment data — one in *planning mode* (no :math:`Y_{\text{post}}` yet) and
 one in *retrospective mode* (with :math:`Y_{\text{post}}`) — receive
-**identical** designs. The only difference between the two callers is whether a
+identical designs. The only difference between the two callers is whether a
 post-period ATT and its conformal CI are reported.
 
 Holdout Residuals
@@ -644,8 +644,8 @@ Example: Reproducing the Paper's RMSE Advantage
 -----------------------------------------------
 
 The paper's headline finding (Section 4.1, Table 1, Figures 2–4) is not merely
-that SPCD is unbiased — it is that **SPCD's design yields a far lower
-root-mean-square error of the treatment-effect estimate than a random design**
+that SPCD is unbiased — it is that SPCD's design yields a far lower
+root-mean-square error of the treatment-effect estimate than a random design
 on the linear latent-factor model. The block below reproduces that finding and
 is self-contained: it draws panels from the paper's data-generating process
 (:math:`Y_{it} = \text{level}_i + v_t^\top \gamma_i + e_{it}`, with a true
@@ -719,9 +719,9 @@ units SPCD selects, so the two SPCD calls per draw share an identical design.
    print(f"random mean ATT {tau + err_rand.mean():.3f}   RMSE {rmse(err_rand):.3f}")
    print(f"RMSE ratio (random / SPCD): {rmse(err_rand) / rmse(err_spcd):.1f}x")
 
-Both designs are roughly **unbiased** (mean ATT :math:`\approx 1`), but SPCD's
-RMSE is about **0.4** against the random design's **3.9** — an **order-of-
-magnitude reduction** (≈ 9–10× on this seed), reproducing the paper's central
+Both designs are roughly unbiased (mean ATT :math:`\approx 1`), but SPCD's
+RMSE is about 0.4 against the random design's 3.9 — an order-of-
+magnitude reduction (≈ 9–10× on this seed), reproducing the paper's central
 claim that SPCD "surpasses the random design by a large margin." The mechanism
 is the balance term of Eq. (1): a single draw of the random design can split
 the units so that the two group means differ substantially even before
@@ -758,8 +758,8 @@ two orthogonal modelling choices are:
   solves the convex QP Eq. (6) via ``cvxpy`` (slower; matches Algorithm 1 to
   the letter).
 
-Passing an ``arm`` column solves the SPCD design **independently within each
-arm's units** and returns an :class:`SPCDMultiArmResults` (a dict of per-arm
+Passing an ``arm`` column solves the SPCD design independently within each
+arm's units and returns an :class:`SPCDMultiArmResults` (a dict of per-arm
 :class:`SPCDResults`); when ``arm`` is ``None`` (default) a single
 :class:`SPCDResults` is returned.
 
@@ -768,18 +768,18 @@ Multi-Arm Power: the Pooled Average Effect
 
 Each arm carries its own per-arm MDE (``arm_designs[label].mde``), but those
 are *m* independent analyses with no family-wise error control. When the
-estimand of interest is the **average effect across arms** — the usual
+estimand of interest is the average effect across arms — the usual
 program-level question — :class:`SPCDMultiArmResults` also reports a single
-**pooled average-effect MDE** (``results.pooled_mde`` /
+pooled average-effect MDE (``results.pooled_mde`` /
 ``results.pooled_mde_pct``), computed by default whenever inference is enabled
 and at least two arms have a usable holdout window.
 
-It is formed by pooling the arms' **time-aligned** holdout residuals into one
+It is formed by pooling the arms' time-aligned holdout residuals into one
 contrast, :math:`g_t = \sum_a w_a\, r^{(a)}_{B,t}`, and running the ordinary
 single-series MDE on :math:`g`. Because the arms share calendar time, summing
 the *aligned* series makes the cross-arm correlation enter through
 :math:`\operatorname{Var}(g) = w^\top \Sigma\, w` automatically — which is why
-the residual **series** must be pooled, never resampled per arm independently
+the residual series must be pooled, never resampled per arm independently
 (that would drop positive correlation and report an over-optimistic MDE). The
 weights :math:`w_a` are set by ``pooled_weights``: ``"size"`` (default) weights
 each arm by its unit count, giving the *population-average* effect;
@@ -791,8 +791,8 @@ several times smaller than any single arm's MDE.
 
 .. warning::
 
-   The pooled MDE targets the **weighted-average** effect. If arm effects are
-   heterogeneous and **opposite-signed** they can cancel in the average and go
+   The pooled MDE targets the weighted-average effect. If arm effects are
+   heterogeneous and opposite-signed they can cancel in the average and go
    undetected even when individual arms move a lot. Use the per-arm
    ``arm_designs[label].mde`` (or a family-wise procedure) when detecting
    *individual* arms is what matters.
@@ -814,15 +814,15 @@ Power Curves and the MDE at Each Time Point
 
 Every fitted design stores two diagnostic curves on its
 :class:`~mlsynth.utils.spcd_helpers.power.SPCDPowerAnalysis` — for each arm
-(``arm_designs[label].power``) **and** for the whole study
+(``arm_designs[label].power``) and for the whole study
 (``pooled_power``):
 
-* **Power vs. effect size** — ``power.effect_grid_pct`` and
+* Power vs. effect size — ``power.effect_grid_pct`` and
   ``power.power_curve`` give the full power curve at the analysis horizon;
   the MDE is the smallest effect whose power reaches ``power_target``.
-* **MDE vs. horizon** ("MDE at time point :math:`t`") —
+* MDE vs. horizon ("MDE at time point :math:`t`") —
   ``power.detectability`` is a ``{horizon -> MDE percent}`` map. It is
-  computed **by default** over horizons
+  computed by default over horizons
   :math:`1, \dots, \min(12, n_{\text{post}})` — real market tests rarely run
   past ~12 periods, so the grid is capped at 12 rather than sweeping the full
   (often 30+ period) post window. Pass ``mde_horizon_grid`` to choose your own
@@ -832,7 +832,7 @@ Every fitted design stores two diagnostic curves on its
 
 .. warning::
 
-   The headline ``pooled_mde_pct`` is computed at the **full** post-window
+   The headline ``pooled_mde_pct`` is computed at the full post-window
    length in your data. If you will actually run a shorter test, quote the
    curve point for that length — e.g. ``pooled_power.detectability[12]`` for a
    12-period test — not the headline number.
@@ -840,8 +840,8 @@ Every fitted design stores two diagnostic curves on its
 Pre-Period Agreement (Design Diagnostic)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Every fitted design also reports how closely the **synthetic treated** and
-**synthetic control** trajectories agree *before* treatment — the RMSE of
+Every fitted design also reports how closely the synthetic treated and
+synthetic control trajectories agree *before* treatment — the RMSE of
 their gap, broken out by window (``results.pre_fit`` /
 ``results.pre_fit_rmse``):
 
@@ -950,7 +950,7 @@ difference-in-means and a single-unit synthetic control at both horizons (SPCD
 .. note::
 
    Table 1's *other* block (US BLS unemployment, target SPCD RMSE ``0.9``) is
-   **not reproducible from the paper alone**: SPCD ships no public code and leaves
+   not reproducible from the paper alone: SPCD ships no public code and leaves
    ``alpha``/``lambda``/``beta`` unspecified, so a faithful Eq.-9 implementation
    (mlsynth's, verified to :math:`\|w\|_1 = 2`) lands near ``8`` on those noisy
    rank-deficient subsamples. The Prop 99 cell is the durable target.

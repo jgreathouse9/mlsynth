@@ -45,20 +45,20 @@ We follow the mlsynth notation canon (``agents/agents_docs.md``); MicroSynth's
 unit model is a *group* of treated units against a large control pool, so a few
 page-specific symbols are fixed here.
 
-* **Units.** :math:`\mathcal{I}_1` is the set of treated units (users, blocks,
+* Units. :math:`\mathcal{I}_1` is the set of treated units (users, blocks,
   or areas) with :math:`|\mathcal{I}_1| = n_T`; :math:`\mathcal{I}_0` is the
   control pool with :math:`|\mathcal{I}_0| = n_C`, typically
   :math:`n_C \gg n_T`. (*Bridge:* the canon's single treated unit
   :math:`j = 1` generalises here to the whole set :math:`\mathcal{I}_1`.)
-* **Covariates.** Each unit :math:`j` carries
+* Covariates. Each unit :math:`j` carries
   :math:`\mathbf{x}_j \in \mathbb{R}^d`; stack the controls as
   :math:`\mathbf{X}_0 \in \mathbb{R}^{n_C \times d}` and the treated as
   :math:`\mathbf{X}_1 \in \mathbb{R}^{n_T \times d}` (one row per unit).
-* **Time and outcomes.** :math:`t \in \mathcal{T} \coloneqq \{1,\dots,T\}`,
+* Time and outcomes. :math:`t \in \mathcal{T} \coloneqq \{1,\dots,T\}`,
   split at :math:`T_0` into pre-period :math:`\mathcal{T}_1` and post-period
   :math:`\mathcal{T}_2`. The outcome of unit :math:`j` at time :math:`t` is
   :math:`y_{jt}`.
-* **Weights.** Control weights :math:`\mathbf{w} \in \mathbb{R}^{n_C}_{\ge 0}`,
+* Weights. Control weights :math:`\mathbf{w} \in \mathbb{R}^{n_C}_{\ge 0}`,
   with optimiser :math:`\mathbf{w}^\ast`. The treated units are not reweighted
   (each carries weight 1).
 
@@ -98,11 +98,11 @@ solve different programs and report on different scales.
      - non-negative cone :math:`\mathbb{R}^{n_C}_{\ge 0}`,
        :math:`\|\mathbf{w}\|_1 = n_T`
    * - Balance
-     - covariate **means** :math:`\bar{\mathbf{x}}_1`
-     - covariate **totals** + lagged-outcome **totals**
+     - covariate means :math:`\bar{\mathbf{x}}_1`
+     - covariate totals + lagged-outcome totals
    * - Contrast
-     - per-unit weighted **mean** ATT
-     - treated-area **total** minus synthetic total, per period
+     - per-unit weighted mean ATT
+     - treated-area total minus synthetic total, per period
    * - Inference
      - paired stratified bootstrap
      - placebo permutation
@@ -138,12 +138,12 @@ on the controls --- the canon shape with
 
 where :math:`\bar{\mathbf{x}}_1 = n_T^{-1} \sum_{j \in \mathcal{I}_1}
 \mathbf{x}_j` is the treated group's covariate mean. The equality constraints
-**exactly** balance every covariate moment between treated and reweighted
+exactly balance every covariate moment between treated and reweighted
 controls; the simplex constraints preserve the "synthetic" interpretation; and
 the quadratic penalty pulls weights toward the uniform :math:`n_C^{-1}` baseline
 so the solution does not collapse onto a single user.
 
-**Dual ascent.** The primal is high-dimensional (:math:`n_C` can be in the
+Dual ascent. The primal is high-dimensional (:math:`n_C` can be in the
 millions) but the dual is :math:`(d+1)`-dimensional --- one multiplier
 :math:`\boldsymbol{\lambda} \in \mathbb{R}^d` per covariate balance constraint
 plus :math:`\nu` for the sum-to-one constraint. ``solve_microsynth_dual``
@@ -163,7 +163,7 @@ genuinely close to the treated profile receive mass. This dimension-reduction
 (work in :math:`\mathbb{R}^{d+1}` regardless of :math:`n_C`) is what makes
 single-machine MicroSynth tractable on millions of users.
 
-**Counterfactual and ATT.** With :math:`\mathbf{w}^\ast` solved, the per-period
+Counterfactual and ATT. With :math:`\mathbf{w}^\ast` solved, the per-period
 synthetic counterfactual is the weighted-mean control outcome and the
 per-period effect is the canon's :math:`\tau_t`:
 
@@ -197,7 +197,7 @@ ad-attribution deployment several others are doing silent work. Each is
 listed here together with the realistic failure mode you would see in a
 marketing-science setting and a diagnostic that flags it.
 
-(a) **Selection-on-observables on every conversion-predictive feature.**
+(a) Selection-on-observables on every conversion-predictive feature.
     The covariate vector :math:`X` must contain every signal the bidder /
     targeting model conditions on *that also predicts conversion*. If a
     targeting feature is missing, MicroSynth's reweighting closes balance
@@ -207,8 +207,8 @@ marketing-science setting and a diagnostic that flags it.
     *Plausibly violated when* the bidder optimises against a model that
     uses features the analyst does not have access to -- on-device
     signals, third-party audience segments, latent embeddings,
-    in-market scoring. *Diagnostic*: probe the **unobserved-intent
-    residual** by regressing post-period conversion on the residual of
+    in-market scoring. *Diagnostic*: probe the unobserved-intent
+    residual by regressing post-period conversion on the residual of
     a saw-ad model that conditions on :math:`X`; a non-zero coefficient
     is unobserved confounding that MicroSynth cannot remove. The
     existing "When Balancing Is Not Enough" section below makes this
@@ -216,7 +216,7 @@ marketing-science setting and a diagnostic that flags it.
     overstates the per-exposure effect by ~29% even with all SMDs
     below 1e-3.
 
-(b) **SUTVA at the user level (no network spillovers in conversion).**
+(b) SUTVA at the user level (no network spillovers in conversion).
     The synthetic-control framing treats each user's potential outcome
     as a function of *their own* exposure only. Exposed users
     influencing unexposed users (a friend talks about the ad, an
@@ -232,8 +232,8 @@ marketing-science setting and a diagnostic that flags it.
     designs, switch to a spillover-aware aggregate estimator
     (:doc:`spillsynth`, :doc:`spsydid`).
 
-(c) **Overlap: the treated covariate mean lies in the convex hull of
-    the controls.**
+(c) Overlap: the treated covariate mean lies in the convex hull of
+    the controls.
     The primal QP enforces :math:`X_C^{\!\top} w = \bar X_T` with
     :math:`w` on the simplex. There is a feasible solution if and only
     if :math:`\bar X_T` is in the convex hull of the rows of
@@ -253,8 +253,8 @@ marketing-science setting and a diagnostic that flags it.
     filters), drop a covariate that is genuinely outside support, or
     accept the residual imbalance and discuss its sign.
 
-(d) **Linear functional form (or sufficient basis expansion) of the
-    outcome in** :math:`X`.
+(d) Linear functional form (or sufficient basis expansion) of the
+    outcome in :math:`X`.
     Balancing only the *first moments* of :math:`X` gives an unbiased
     ATT when the conditional expectation
     :math:`\mathbb{E}[Y(0) \mid X]` is linear in :math:`X`. If the
@@ -271,7 +271,7 @@ marketing-science setting and a diagnostic that flags it.
     explicitly recommends including higher-order moments of skewed
     user-engagement covariates for exactly this reason.
 
-(e) **Pre-period parallel mean for the rebalanced control group.**
+(e) Pre-period parallel mean for the rebalanced control group.
     Because the constraints are *contemporaneous* moment balance, the
     counterfactual at :math:`t > T_0` is trustworthy only if the
     rebalanced controls would have moved in parallel with the treated
@@ -289,8 +289,8 @@ marketing-science setting and a diagnostic that flags it.
     Kilmer (2017) build the constraint set explicitly out of all
     pre-period outcome-by-time cells for this reason.
 
-(f) **Stable covariates over the analysis window (no compositional
-    drift).**
+(f) Stable covariates over the analysis window (no compositional
+    drift).
     The primal solves a single :math:`w` and applies it to every
     post-period. Implicit: the donor pool's covariate vector is
     sufficient to characterise it across :math:`[t = 0, T]`.
@@ -304,9 +304,9 @@ marketing-science setting and a diagnostic that flags it.
     drift shows up as post-period SMDs that have crept above the
     pre-period tolerance.
 
-(g) **Treatment indicator is the actually-realised exposure, used
-    consistently with the estimand.**
-    MicroSynth identifies the ATT on the **actually-exposed** group
+(g) Treatment indicator is the actually-realised exposure, used
+    consistently with the estimand.
+    MicroSynth identifies the ATT on the actually-exposed group
     when ``treat`` is the impression column. If you instead use the
     assignment column, you get an ITT under balancing on :math:`X`.
     Mixing the two -- naming an assignment column ``treat`` but
@@ -319,17 +319,17 @@ marketing-science setting and a diagnostic that flags it.
     check the printed treated-fraction against the impression log;
     if they disagree, the wrong column was passed.
 
-When **not** to use MicroSynth
+When not to use MicroSynth
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* **Clean randomised AB test with full compliance.** MicroSynth's whole
+* Clean randomised AB test with full compliance. MicroSynth's whole
   selling point is removing observational selection bias. If the
   experimentation platform delivered a non-contaminated holdout and
   exposure compliance is near-complete, a plain difference of means is
   both unbiased and lower-variance. MicroSynth then *adds* variance
   (the bootstrap, the constraint set) without buying identification.
 
-* **Confounding is dominated by unobserved features (latent intent).**
+* Confounding is dominated by unobserved features (latent intent).
   This is the boundary case spelled out below in "When Balancing Is
   Not Enough". When holdout leakage is driven by an in-market signal
   the analyst does not have, MicroSynth zeros out SMDs on every
@@ -338,7 +338,7 @@ When **not** to use MicroSynth
   precision, and divide by the compliance gap to get a covariate-
   balanced CACE / Wald (the section below shows the full recipe).
 
-* **Aggregate region-level data, single treated unit.** A one-state,
+* Aggregate region-level data, single treated unit. A one-state,
   one-policy DMI-style design is what classical aggregate SC was
   built for. MicroSynth's dual is :math:`(d + 1)`-dimensional but the
   primal must have many controls; with a handful of aggregate donors
@@ -346,26 +346,26 @@ When **not** to use MicroSynth
   exactly the classical SC argument. Use *canonical SCM*, :doc:`tssc`,
   :doc:`fdid`, or :doc:`fma` instead.
 
-* **The distribution of the outcome is the object of interest.**
+* The distribution of the outcome is the object of interest.
   MicroSynth balances means (or moments you specify) and returns a
   scalar ATT. If the question is "does the campaign compress the
   lower tail of session length?" or "what is the QTE at the 90th
   percentile of basket size?", switch to :doc:`dsc` -- the
   Wasserstein-barycenter machinery is designed exactly for that.
 
-* **The treatment is continuous or multi-valued (ad dose).** MicroSynth
+* The treatment is continuous or multi-valued (ad dose). MicroSynth
   encodes a binary saw-ad / not-saw-ad column. Multi-valued exposure
   (one impression vs ten vs a hundred), spend dose, or auction price
   needs the continuous-treatment framework in :doc:`ctsc`.
 
-* **Spillovers / interference within the user graph.** SUTVA at the
+* Spillovers / interference within the user graph. SUTVA at the
   user level is a hard assumption; viral and social-by-design
   campaigns violate it. Covariate balancing on the user pool does
   nothing about spillovers. Switch to a spillover-aware design
   (:doc:`spillsynth`, :doc:`spsydid`) and accept that you are now
   identifying an aggregate quantity, not a user-level lift.
 
-* **Convex-hull condition fails on the targeting axis.** If the
+* Convex-hull condition fails on the targeting axis. If the
   campaign was narrowly targeted -- an iOS-only push to a brand-new
   audience segment with almost no organic match in the control pool --
   ``feasibility_message`` will fire and the residual SMDs will be
@@ -374,13 +374,13 @@ When **not** to use MicroSynth
   countries), drop the constraint that is outside support, or
   acknowledge the residual imbalance in the writeup.
 
-* **You have billions of users and a single-machine budget.** The
+* You have billions of users and a single-machine budget. The
   in-memory dual scales as :math:`O(N d K)`; at Snap-scale this is a
   cluster job, not a workstation job. Switch to the distributed
   DistEB / DistMS variants in Lin et al. (2023), which are designed
   to run as MapReduce gradient steps over PySpark.
 
-* **Tiny treated cohort (handful of users) with many covariates.**
+* Tiny treated cohort (handful of users) with many covariates.
   With :math:`n_T` small, :math:`\bar X_T` is itself noisy, the
   balance constraints are noisy targets, and the bootstrap CI widens
   to uselessness. Aggregate the treated cohort up to a meaningful
@@ -399,16 +399,16 @@ covariate mean lies in the convex hull of the controls' covariate
 matrix — achieve all balance constraints to numerical precision.
 :mod:`mlsynth` reports four diagnostics per fit:
 
-* **SMD before and after weighting**: per-covariate standardized
+* SMD before and after weighting: per-covariate standardized
   mean difference. After weighting these should be at the
   ``balance_tol`` floor (default 1e-4).
-* **Effective sample size (ESS)** ``= 1 / sum(w^2)``: how many
+* Effective sample size (ESS) ``= 1 / sum(w^2)``: how many
   effective control units carry the weight. ESS close to
   :math:`n_C` is healthy; ESS :math:`\ll n_C` means a small
   fraction of controls dominate the counterfactual.
-* **Max weight**: the largest single control-user weight, a
+* Max weight: the largest single control-user weight, a
   concentration indicator.
-* **Feasibility flag**: ``False`` if any final SMD exceeds
+* Feasibility flag: ``False`` if any final SMD exceeds
   ``balance_tol`` — diagnoses convex-hull violations where no
   reweighting can equalize covariates.
 
@@ -416,7 +416,7 @@ Mode B --- panel method (the R ``microsynth`` port)
 ---------------------------------------------------
 
 Setting ``weight_method="panel"`` switches to a faithful port of the
-**panel-data** weighting in the R ``microsynth`` package (Robbins et al.), for
+panel-data weighting in the R ``microsynth`` package (Robbins et al.), for
 the aggregated-area / repeated-cross-section setting --- e.g. the Seattle Drug
 Market Intervention, where a treated *area* (a set of census blocks) is compared
 to a synthetic area built from the untreated blocks.
@@ -425,16 +425,16 @@ The weight program
 ^^^^^^^^^^^^^^^^^^^
 
 Reading the R source (``microsynth/R/weights.r``), the panel weights come from
-``my.qp`` (a ``LowRankQP`` solve), **not** from raking calibration: a
-non-negative QP that **exactly** balances the covariate totals (hard equality)
-and **least-squares**-fits the pre-period outcomes (soft). Write
+``my.qp`` (a ``LowRankQP`` solve), not from raking calibration: a
+non-negative QP that exactly balances the covariate totals (hard equality)
+and least-squares-fits the pre-period outcomes (soft). Write
 :math:`\mathbf{G}_0 = [\mathbf{1}\ \ \mathbf{X}_0] \in \mathbb{R}^{n_C\times(d+1)}`
 (controls' covariates with an intercept column) and, for the matched outcomes,
 the control lagged-outcome matrix
 :math:`\mathbf{L}_0 \in \mathbb{R}^{n_C \times m}` whose columns are
 :math:`\{y_{j t}\}` for :math:`t \in \mathcal{T}_1` (and, with multiple matched
 outcomes, stacked across them --- see below, so :math:`m = (\#\text{outcomes})
-\times |\mathcal{T}_1|`). The treated-area **totals** are
+\times |\mathcal{T}_1|`). The treated-area totals are
 :math:`\mathbf{h} = \bigl(n_T,\ \mathbf{1}^{\!\top}\mathbf{X}_1\bigr)^{\!\top}`
 and :math:`\boldsymbol{\ell} = \mathbf{1}^{\!\top}\mathbf{L}_1`. The program is
 the canon shape with :math:`\mathcal{C} = \mathbb{R}^{n_C}_{\ge 0}`, a
@@ -465,8 +465,8 @@ The fit loss :math:`\mathcal{L}` depends on :math:`\mathbf{w}` only through the
 balance map pins only :math:`d+1` covariate totals --- together
 :math:`O(m + d)` linear functionals of an :math:`n_C`-vector. Over a large
 control pool (:math:`n_C \gg m + d`) the optimum is therefore a
-high-dimensional face, not a point: **the counterfactual is not identified by
-the constraints alone**. On the Seattle panel, solving the LP that minimises and
+high-dimensional face, not a point: the counterfactual is not identified by
+the constraints alone. On the Seattle panel, solving the LP that minimises and
 maximises the post-period synthetic total over the exact-balance feasible set
 gives a feasible range for the period-13 effect of roughly
 :math:`[-392,\ +153]` --- the R package's ``LowRankQP`` merely returns whichever
@@ -474,8 +474,8 @@ interior-point iterate it lands on.
 
 mlsynth removes this ambiguity with the strictly-convex ridge
 :math:`\tfrac{\rho}{2}\|\mathbf{w}\|_2^2` (``panel_ridge``, default
-:math:`\rho = 10^{-6}`), which selects the unique **minimum-norm /
-maximum-ESS** point on that face --- the most diffuse synthetic control
+:math:`\rho = 10^{-6}`), which selects the unique minimum-norm /
+maximum-ESS point on that face --- the most diffuse synthetic control
 consistent with exact covariate balance and the best lagged-outcome fit. This
 makes the estimate reproducible *and*, because ``LowRankQP``'s interior-point
 iterate is itself near the minimum-norm point, it coincides with the R package's
@@ -484,7 +484,7 @@ output to 3--4 significant figures (see :doc:`replications/microsynth`).
 Effects on totals
 ^^^^^^^^^^^^^^^^^
 
-The panel contrast is on **totals**, not per-unit means: the treated-area total
+The panel contrast is on totals, not per-unit means: the treated-area total
 minus the weighted control total, per post-period,
 
 .. math::
@@ -526,7 +526,7 @@ outcome total drives the treated and synthetic areas onto the same
 pre-intervention trajectory, so absent treatment they would have moved in
 parallel and :math:`\sum_j w_j^\ast y_{jt}` is a credible counterfactual for
 :math:`t \in \mathcal{T}_2`. *Remark.* This is why the soft block should be the
-**full** pre-window (``outcome_lag_periods`` :math:`= \mathcal{T}_1`); a
+full pre-window (``outcome_lag_periods`` :math:`= \mathcal{T}_1`); a
 non-flat pre-period gap is the diagnostic that B2 is failing.
 
 *Assumption B3 (regularisation selects a credible point).* Because the
@@ -553,7 +553,7 @@ totals,
        \tfrac{\rho}{2}\|\mathbf{w}\|_2^2
        \quad\text{s.t.}\quad \mathbf{G}_0^{\!\top}\mathbf{w} = \mathbf{h} ,
 
-and the data may be a single-period **cross-section** (no pre/post window
+and the data may be a single-period cross-section (no pre/post window
 needed). The deliverable is the balancing weights themselves
 (``res.donor_weights`` / ``res.design.w``): non-negative covariate-balancing
 weights on the controls, summing to the treated count, that exactly match the
@@ -575,7 +575,7 @@ Simplex mode --- paired stratified bootstrap
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :func:`~mlsynth.utils.microsynth_helpers.inference.paired_bootstrap_ci` resamples
-the treated and control **blocks separately** with replacement, preserving the
+the treated and control blocks separately with replacement, preserving the
 original :math:`(n_T, n_C)` allocation (a stratified, or "paired", bootstrap ---
 pairing the two strata rather than resampling the pooled sample, which would
 perturb the treated fraction). For replication
@@ -612,10 +612,10 @@ Panel / propensity mode --- placebo permutation
 
 :func:`~mlsynth.utils.microsynth_helpers.panel_inference.panel_permutation_test`
 ports microsynth's ``perm`` / ``test`` inference: the treated area is compared to
-**placebo areas** drawn from the control pool. For
+placebo areas drawn from the control pool. For
 :math:`r = 1, \dots, R` (``n_permutations``):
 
-#. sample :math:`n_T` controls uniformly **without replacement** as a placebo
+#. sample :math:`n_T` controls uniformly without replacement as a placebo
    "treated area"; the remaining :math:`n_C - n_T` controls are the placebo donor
    pool;
 #. refit the panel QP from the donor pool (same :math:`\rho`, same hard/soft
@@ -626,7 +626,7 @@ ports microsynth's ``perm`` / ``test`` inference: the treated area is compared t
 Placebo groups whose QP is infeasible are skipped. The collection
 :math:`\{\widehat{\tau}^{(r)}\}` is the null distribution against which the
 observed ATT :math:`\widehat{\tau}` is ranked. The ``permutation_test`` tail sets
-the p-value, with the **add-one** convention (so it is never exactly zero and is
+the p-value, with the add-one convention (so it is never exactly zero and is
 valid as a finite-sample randomisation test):
 
 .. math::
@@ -651,7 +651,7 @@ near zero under the sharp null) around the observed effect:
 
 .. note::
 
-   **Convention vs. the R package.** microsynth's ``get.pval`` reports the bare
+   Convention vs. the R package. microsynth's ``get.pval`` reports the bare
    fraction :math:`\#\{\cdot\}/R` (no add-one), so its floor is 0; mlsynth uses
    the add-one randomisation-test form, floor :math:`1/(1+R)`. The two agree on
    the conclusion --- on the Seattle DMI joint match both flag felonies,
@@ -792,13 +792,13 @@ randomized-holdout-with-contamination setting end-to-end:
 
 Three estimators are computed on the same data:
 
-- **ITT** (assignment-based): biased toward zero by contamination —
+- ITT (assignment-based): biased toward zero by contamination —
   treats contaminated holdouts as "control" even though they got
   ads.
-- **Naive TOT** (impression-based, no balancing): biased upward by
+- Naive TOT (impression-based, no balancing): biased upward by
   bidder selection — the actually-exposed users are positively
   selected on covariates that predict conversion.
-- **MicroSynth**: takes impressions as the treatment indicator,
+- MicroSynth: takes impressions as the treatment indicator,
   reweights the clean holdouts to match the actually-exposed group
   on covariates, and computes the lift on the rebalanced controls.
 
@@ -985,15 +985,15 @@ When Balancing Is Not Enough: ITT vs. As-Treated vs. CACE
 ---------------------------------------------------------
 
 The study above is the *happy case*: contamination is selected on
-**observed** covariates, so balancing on them removes the bias.
+observed covariates, so balancing on them removes the bias.
 Reality is rarely so kind. Suppose the thing that makes a held-out
 user see the ad anyway -- latent purchase intent, in-market status --
-is **unobserved**, and that same intent also lifts sales. Now the
+is unobserved, and that same intent also lifts sales. Now the
 actually-exposed users are positively selected on a confounder you
 cannot put in the balancing constraint, and reweighting on age /
 income only removes the slice of that selection the covariates happen
-to explain. **No amount of balancing recovers the truth from an
-as-treated comparison**, because the bias lives in a variable the
+to explain. No amount of balancing recovers the truth from an
+as-treated comparison, because the bias lives in a variable the
 method never sees.
 
 The decisive move is *not* to regroup users by what they received

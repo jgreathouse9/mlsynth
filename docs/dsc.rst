@@ -8,9 +8,9 @@ Overview
 
 DSC generalizes the synthetic control method from *aggregate values* to
 *entire outcome distributions*. Where classical synthetic control builds a
-donor combination that matches the treated unit's pre-period **mean** and
+donor combination that matches the treated unit's pre-period mean and
 returns a single ATT, DSC builds a donor combination that matches the
-treated unit's pre-period **quantile function** and returns the full
+treated unit's pre-period quantile function and returns the full
 counterfactual distribution at every post-period -- hence the quantile
 treatment effect (QTE) at any quantile :math:`q \in (0, 1)`, and any
 functional of the distribution (Lorenz curves, Gini coefficients,
@@ -19,7 +19,7 @@ interquartile ranges, stochastic-dominance comparisons).
 The method is due to Gunsilius (2023); mlsynth's implementation is
 validated against the author's reference ``DiSCo`` R package, and the
 large-sample theory is from Zhang, Zhang & Zhang (2026). The core idea is
-the **2-Wasserstein barycenter**: the natural
+the 2-Wasserstein barycenter: the natural
 generalization of a weighted average from points on the real line to
 probability distributions. Averaging quantile functions (not densities)
 keeps the synthetic unit *geometrically faithful* -- it reproduces the
@@ -29,10 +29,10 @@ linear mixture of densities is multimodal and matches none of them.
 When to use this estimator
 --------------------------
 
-Reach for DSC when **the distribution is the object of interest, and you
-have micro-data**. Three motivating regimes:
+Reach for DSC when the distribution is the object of interest, and you
+have micro-data. Three motivating regimes:
 
-* **Inequality and the whole distribution, not the mean.** A minimum-wage
+* Inequality and the whole distribution, not the mean. A minimum-wage
   increase, a cash-transfer program, or a tax reform may leave the mean of
   family income almost unchanged while compressing the lower tail or
   fattening the middle. Gunsilius (2023, Section 6.2) studies exactly this:
@@ -41,14 +41,14 @@ have micro-data**. Three motivating regimes:
   interest. A mean-only synthetic control would miss the distributional
   story entirely.
 
-* **Heterogeneous treatment effects across the outcome distribution.** In
+* Heterogeneous treatment effects across the outcome distribution. In
   marketing, a promotion might lift spending among already-heavy buyers
   while doing nothing for light buyers; the QTE curve :math:`q \mapsto
   \widehat\alpha_{1t, q}` reveals *where* in the spending distribution the
   effect lands. DSC returns this directly, without pre-specifying which
   quantile to test.
 
-* **Repeated cross-sections with many individuals per cell.** Whenever each
+* Repeated cross-sections with many individuals per cell. Whenever each
   ``(unit, time)`` cell is itself a sample -- households in a state-year,
   customers in a store-week, patients in a hospital-month -- DSC uses *all*
   of that within-cell information rather than collapsing it to a mean.
@@ -91,7 +91,7 @@ The empirical quantile estimator for a cell is the order-statistic rule
 
 where :math:`Y_{t, n_j(k)}` is the :math:`k`-th order statistic of cell
 :math:`(j, t)`. The DSC counterfactual quantile function for the treated
-unit at a post-period :math:`t > T_0` is the **2-Wasserstein barycenter**
+unit at a post-period :math:`t > T_0` is the 2-Wasserstein barycenter
 of the donor quantile functions,
 
 .. math::
@@ -119,7 +119,7 @@ factor-model restriction.
 
 *Assumption 1 (scaled-isometry causal model -- identification).* The
 data-generating map :math:`h(t, \cdot)` on the 2-Wasserstein space is a
-**scaled isometry** for every :math:`t`: it preserves relative distances
+scaled isometry for every :math:`t`: it preserves relative distances
 between distributions up to a common scale,
 :math:`d(U_1, U_j) = \tau\, d\bigl(h(t, U_1), h(t, U_j)\bigr)`. Then
 (Gunsilius 2023, Theorem 1) the DSC quantile function
@@ -164,8 +164,8 @@ The theory above states the structural conditions; this section translates
 them into things you can actually look for in a dataset. Each item names a
 plausible failure mode of an applied DSC study and a concrete diagnostic.
 
-(a) **Scaled-isometry structure fails -- the donor pool cannot reproduce
-    the treated quantile function in the pre-period.**
+(a) Scaled-isometry structure fails -- the donor pool cannot reproduce
+    the treated quantile function in the pre-period.
     DSC's identification requires the data-generating maps to be scaled
     isometries on Wasserstein space (Assumption 1). The cheapest practical
     proxy is whether the barycenter actually fits the treated quantile
@@ -183,8 +183,8 @@ plausible failure mode of an applied DSC study and a concrete diagnostic.
     barycenter at a few pre-periods and look for systematic miss in the
     tails.
 
-(b) **Too few within-cell observations -- empirical quantile functions
-    are noisy.**
+(b) Too few within-cell observations -- empirical quantile functions
+    are noisy.
     Consistency (Assumption 2) requires finite second moments, but in
     practice it also requires *enough draws per cell* for the empirical
     quantile function :math:`\widehat F^{-1}_{Y_{jt, n_j}}` to be a
@@ -199,7 +199,7 @@ plausible failure mode of an applied DSC study and a concrete diagnostic.
     substantially. Alternatively, bin the quantile grid more coarsely
     and confirm the weights stabilise.
 
-(c) **Heavy tails or infinite second moments.**
+(c) Heavy tails or infinite second moments.
     The 2-Wasserstein loss requires finite second moments
     (Assumption 2). With Pareto-tailed outcomes (firm revenue, financial
     losses) the empirical loss is dominated by tail outliers and the
@@ -212,7 +212,7 @@ plausible failure mode of an applied DSC study and a concrete diagnostic.
     second-moment assumption. Alternatively, run the analysis on a
     log-transformed outcome and confirm conclusions are preserved.
 
-(d) **Discrete or mixed outcomes -- inference is non-Gaussian.**
+(d) Discrete or mixed outcomes -- inference is non-Gaussian.
     Uniform large-sample bands (Assumption 3) require
     absolute-continuity of each cell distribution with a density bounded
     away from zero. With ordinal-scale outcomes or large point masses
@@ -225,7 +225,7 @@ plausible failure mode of an applied DSC study and a concrete diagnostic.
     (``compute_inference=True``) rather than analytic bands, since the
     permutation procedure is distribution-free.
 
-(e) **Non-stationary donors -- weights drift across pre-periods.**
+(e) Non-stationary donors -- weights drift across pre-periods.
     DSC aggregates per-pre-period weights via :math:`\widehat w =
     \sum_t \lambda_t \widehat w_t`. The implicit assumption is that the
     donor-to-treated mapping is the same isometry across :math:`t`.
@@ -238,7 +238,7 @@ plausible failure mode of an applied DSC study and a concrete diagnostic.
     monotonically over :math:`t`; switch ``lambda_method="recency"`` to
     down-weight stale pre-periods.
 
-(f) **Donor contamination -- another donor was treated in the pre-period.**
+(f) Donor contamination -- another donor was treated in the pre-period.
     DSC, like classical SC, assumes donors are untreated in the pre-period
     and remain on their counterfactual trajectory throughout the post-period
     (no spillovers, no anticipation).
@@ -252,32 +252,32 @@ plausible failure mode of an applied DSC study and a concrete diagnostic.
     and so do not directly substitute, but they can characterise the
     spillover size at the mean.
 
-When **not** to use DSC
+When not to use DSC
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-* **Only one aggregate observation per (unit, time) cell.** DSC needs a
+* Only one aggregate observation per (unit, time) cell. DSC needs a
   *sample* within each cell to estimate the empirical quantile
   function. With one number per cell, the empirical quantile function
   collapses to a step at that single value and DSC reduces to classical
   synthetic control. Use the aggregate estimators -- :doc:`tssc`,
   *canonical SCM*, :doc:`fma`, :doc:`clustersc` -- instead.
 
-* **The mean (or any single moment) is the genuine object of interest.**
+* The mean (or any single moment) is the genuine object of interest.
   If the policy question is "did the average outcome change?" and there
   is no scientific reason to read off effects at specific quantiles,
   DSC is overkill: it pays a variance cost for distributional richness
   you will not use. A scalar-targeted estimator with sharper inference
   (:doc:`fdid`, :doc:`fma`) is more efficient.
 
-* **Outcome is fundamentally non-continuous and you need uniform
-  inference.** Heavily discrete outcomes (binary, low-count) violate
+* Outcome is fundamentally non-continuous and you need uniform
+  inference. Heavily discrete outcomes (binary, low-count) violate
   Assumption 3 and the Gaussian large-sample bands no longer apply.
   Point estimation still works, but if you need uniform confidence
   bands, switch to a model designed for discrete outcomes (or rely on
   permutation inference and report quantile-by-quantile rather than
   uniformly).
 
-* **Short pre-period with rapidly moving donor distributions.** DSC
+* Short pre-period with rapidly moving donor distributions. DSC
   averages per-pre-period weights and so needs enough pre-periods for
   that average to stabilise. If :math:`T_0` is a handful of periods
   *and* the cross-sectional donor distributions are themselves moving
@@ -286,13 +286,13 @@ When **not** to use DSC
   happens to look most like the post. Use :doc:`fdid` or :doc:`tssc`
   with carefully chosen covariates.
 
-* **Small within-cell sample (a few individuals per cell-period).**
+* Small within-cell sample (a few individuals per cell-period).
   The empirical quantile function is jagged with small :math:`n_{jt}`
   and the Wasserstein loss becomes dominated by sampling noise. If
   micro-data is sparse, collapse to means and run an aggregate
   estimator instead of forcing a distributional fit.
 
-* **Treated unit lies outside the convex hull of donor distributions.**
+* Treated unit lies outside the convex hull of donor distributions.
   No simplex-weighted combination of donor quantile functions can
   reproduce a treated distribution that sits outside the hull -- e.g.
   the only unit with a bimodal outcome, the only state with a long
@@ -301,7 +301,7 @@ When **not** to use DSC
   (drop the simplex constraint, at the cost of identification), or
   fall back to an aggregate estimator.
 
-* **Spillovers or interference across units.** SUTVA-violating designs
+* Spillovers or interference across units. SUTVA-violating designs
   break DSC for the same reason they break classical SC. Use a
   spillover-aware aggregate estimator (:doc:`spillsynth`,
   :doc:`spsydid`) and accept that the distributional question becomes
@@ -314,11 +314,11 @@ Algorithm
 mlsynth implements Gunsilius's four-step recipe (formalized as Algorithm 1
 in Zhang et al. 2026).
 
-**Step 1 -- Empirical quantile functions.** For each cell :math:`(j, t)`,
+Step 1 -- Empirical quantile functions. For each cell :math:`(j, t)`,
 compute :math:`\widehat F^{-1}_{Y_{jt, n_j}}` via the order-statistic
 estimator above.
 
-**Step 2 -- Per-pre-period weights.** Draw an :math:`M`-point quantile grid
+Step 2 -- Per-pre-period weights. Draw an :math:`M`-point quantile grid
 :math:`\{V_m\}_{m=1}^M \subset (0, 1)` (Halton / Sobol low-discrepancy by
 default, or uniform i.i.d.) and form the pseudo-sample matrices
 :math:`\widetilde Y_{jt, m} = \widehat F^{-1}_{Y_{jt, n_j}}(V_m)`. The
@@ -334,7 +334,7 @@ simplex-constrained quadratic program
    \widehat w_t = \arg\min_{w \in \mathcal{H}} L_t(w),
    \qquad t \in \mathcal{T}_0.
 
-mlsynth solves this with **accelerated projected gradient descent** (FISTA,
+mlsynth solves this with accelerated projected gradient descent (FISTA,
 Beck & Teboulle 2009) and the exact simplex projection of Duchi et al.
 (2008). This is the dependency-free analogue of the reference R package's
 ``pracma::lsqlincon`` constrained least-squares call, and -- unlike a
@@ -344,14 +344,14 @@ Koksma-Hlawka inequality the QMC approximation error is
 :math:`O(\log M / M)` for Halton / Sobol vs. :math:`O(M^{-1/2})` for i.i.d.
 draws.
 
-**Step 3 -- Aggregate over the pre-period.** The final weight is a convex
+Step 3 -- Aggregate over the pre-period. The final weight is a convex
 combination :math:`\widehat w = \sum_{t \in \mathcal{T}_0} \lambda_t
 \widehat w_t`, with :math:`\lambda_t \ge 0` and :math:`\sum_t \lambda_t = 1`.
 mlsynth offers ``"uniform"`` (default; :math:`\lambda_t = 1/T_0`) and
 ``"recency"`` (geometric decay) rules, and accepts caller-supplied weights
 so Arkhangelsky et al. (2021) SDiD-style :math:`\lambda_t` can be plugged in.
 
-**Step 4 -- Post-period QTE.** For each :math:`t > T_0`, evaluate the
+Step 4 -- Post-period QTE. For each :math:`t > T_0`, evaluate the
 counterfactual quantile function at the QTE grid and difference it against
 the observed treated quantile function to obtain
 :math:`\widehat\alpha_{1t, q}`.
@@ -359,7 +359,7 @@ the observed treated quantile function to obtain
 Inference
 ^^^^^^^^^
 
-**Placebo permutation test (Gunsilius 2023, Algorithm 1).** The
+Placebo permutation test (Gunsilius 2023, Algorithm 1). The
 distributional analogue of the Abadie-Diamond-Hainmueller (2010) placebo
 test, and of the reference package's ``DiSCo_per``. Each donor is treated
 as a pseudo-treated unit in turn: DSC is refit on the remaining units (the
@@ -382,7 +382,7 @@ full distance paths (treated and every placebo) and the per-post-period
 p-values. Because it refits the weights :math:`J` times it costs roughly
 :math:`J\times` the point estimate.
 
-**Goodness-of-fit and large-sample bands.** Working with whole
+Goodness-of-fit and large-sample bands. Working with whole
 distributions also licenses a Wasserstein goodness-of-fit test of
 :math:`H_0: F_{Y_{1t, N}} = F_{Y_{1t}}` and tests of first-/second-order
 stochastic dominance (Gunsilius 2023, Propositions 3-4). Under Assumption 3

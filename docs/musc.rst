@@ -18,15 +18,15 @@ and there is no defensible random-sampling story.
 Use MUSC, due to Bottmer, Imbens, Spiess and Warnick (2024) [MUSC]_,
 when
 
-* you have a **single treated unit** and a small donor pool (the
+* you have a single treated unit and a small donor pool (the
   paper's simulations include :math:`N \in \{5, 10, 50\}`);
-* you are willing to commit to a **design-based** view in which
+* you are willing to commit to a design-based view in which
   *which* unit ends up treated is treated as random, even when the
   treatment is observational;
-* you want a **finite-sample unbiased** estimator and an
-  **unbiased variance estimator**, not just an asymptotic bias bound
+* you want a finite-sample unbiased estimator and an
+  unbiased variance estimator, not just an asymptotic bias bound
   conditional on an assumed factor model;
-* you want **randomization-based confidence intervals** that are
+* you want randomization-based confidence intervals that are
   exact in finite samples under the design-based assumption.
 
 MUSC modifies the synthetic-control quadratic programme with a single
@@ -38,7 +38,7 @@ random assignment of which unit is treated (Lemma 1).
 .. note::
 
    MUSC is the only estimator in :mod:`mlsynth` that returns an
-   **unbiased finite-sample variance estimator**: a closed-form, four-
+   unbiased finite-sample variance estimator: a closed-form, four-
    term formula (Proposition 1) computed from the weight matrix and
    the observed outcomes at the treated period. No Monte Carlo, no
    placebo loop, no asymptotic approximation.
@@ -92,7 +92,7 @@ Four linear restrictions define the MUSC class:
    (the SC adding-up restriction; equivalent to the canonical
    "weights sum to one" once the sign is flipped).
 4. :math:`\sum_{i = 1}^{N} M_{i, j+1} = 0` for every :math:`j`
-   (the **MUSC unbiasedness restriction** — this is the one
+   (the MUSC unbiasedness restriction — this is the one
    constraint that distinguishes MUSC from the modified SC of
    Doudchenko & Imbens (2016)).
 
@@ -122,11 +122,11 @@ restriction 4 is visible on the result object.
 Assumptions
 -----------
 
-**Assumption 1 (Random Assignment of Units).** Conditional on the
+Assumption 1 (Random Assignment of Units). Conditional on the
 potential outcomes :math:`Y(0)` and the treated period, the treated
 unit is drawn uniformly at random from the panel.
 
-*Remark.* This is the **design-based** view of Bottmer et al.: even
+*Remark.* This is the design-based view of Bottmer et al.: even
 when the empirical setting (50 U.S. states) is not literally a random
 sample, the analyst commits to analysing the data *as if* the
 identity of the treated unit had been randomised — a posture
@@ -135,7 +135,7 @@ the SC literature (Abadie, Diamond & Hainmueller 2010; Firpo &
 Possebom 2018). MUSC's main results require this assumption; the
 randomization CIs become exact under it.
 
-**Assumption 2 (Random Assignment of Treated Period; optional).** The
+Assumption 2 (Random Assignment of Treated Period; optional). The
 treated period is drawn uniformly at random from the candidate
 intervention periods.
 
@@ -147,7 +147,7 @@ exchangeability reasons rather than by deliberate selection.
 The MUSC Bias Theorem
 ---------------------
 
-**Lemma 1.** Under Assumption 1, if one of (a) the intercept
+Lemma 1. Under Assumption 1, if one of (a) the intercept
 :math:`M_{i, 0}` is zero, or (b) the intercept is unconstrained and
 fitted from the data, *and* the weight set :math:`\mathcal{M}`
 imposes :math:`\sum_i M_{i, j+1} = 0` for every :math:`j`, then the
@@ -161,7 +161,7 @@ GSC estimator is exactly unbiased:
 single column-sums-to-zero restriction to the otherwise standard SC
 weight matrix removes the entire bias term identified in equation
 3.2. In :mod:`mlsynth.MUSC` we confirm this *empirically*: across 50
-panel draws the MUSC bias is **0.000000** to machine precision on
+panel draws the MUSC bias is 0.000000 to machine precision on
 every draw, while the same QP without the column-sum restriction
 shows visible per-panel bias (see the
 :ref:`Verification <musc-verification>` section below).
@@ -182,8 +182,8 @@ estimator with a time-invariant constraint set is
            V_t \left( M_{i, 0} +
            \sum_{j = 1}^{N} M_{i, j+1} Y_{j, t} \right)^2,
 
-and Proposition 1 of the paper gives a closed-form **unbiased
-estimator** :math:`\hat{\mathbb{V}}` of this variance that depends
+and Proposition 1 of the paper gives a closed-form unbiased
+estimator :math:`\hat{\mathbb{V}}` of this variance that depends
 only on the realised outcomes at the treated period and the weight
 matrix. The expression has four terms (eq. 3.3 of the paper); the
 implementation in
@@ -244,8 +244,8 @@ treated subsets. The constraint set generalises to
      \,\Big\},
 
 and the per-row treated loading becomes :math:`M_{k, j, t} = 1/N_T`
-for every :math:`j` in the treated subset (the **uniform-treated-
-weight** assumption that the appendix singles out as the natural
+for every :math:`j` in the treated subset (the uniform-treated-
+weight assumption that the appendix singles out as the natural
 default).
 
 Under the uniform-weight assumption, the per-row objective collapses
@@ -261,7 +261,7 @@ combinatorial blow-up (:math:`K = \binom{50}{3} = 19{,}600` for a
 typical state-level panel) that makes the exact K-row formulation
 intractable.
 
-When the treated units have **different first treated periods**
+When the treated units have different first treated periods
 (staggered adoption), :mod:`mlsynth.MUSC` partitions them into
 cohorts by intervention period and fits MUSC independently on each
 cohort, drawing donors from the panel-wide pool of *never-treated*
@@ -363,9 +363,9 @@ the leave-one-out placebos.
 Verification
 ------------
 
-**Empirical replication against the authors' Lemma 1 (Path B).** The
+Empirical replication against the authors' Lemma 1 (Path B). The
 paper's headline theoretical claim is that the MUSC ATT estimator is
-**exactly unbiased** under random unit assignment (Lemma 1), while
+exactly unbiased under random unit assignment (Lemma 1), while
 the standard SC estimator is biased. The architectural test in
 :file:`mlsynth/tests/test_musc.py::TestLemma1Replication`
 reproduces this on the paper's linear-factor data-generating process
@@ -419,7 +419,7 @@ restriction analytically annihilates the bias formula 3.2,
 irrespective of the panel. SC's bias varies by panel and reaches a
 maximum of ~0.35 in magnitude.
 
-**Unbiased variance estimator validation.** Proposition 1 says
+Unbiased variance estimator validation. Proposition 1 says
 :math:`\mathbb{E}_Y[\hat{\mathbb{V}}] = \mathbb{E}_Y[\mathrm{Var}_U[\hat\tau]]`
 across DGPs. The test in
 :file:`mlsynth/tests/test_musc.py::TestProposition1Replication` runs

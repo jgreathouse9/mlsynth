@@ -10,23 +10,23 @@ When to Use This Estimator
 Song and Abadie [MSQRT]_. It is built for *disaggregated* panels: many
 fine-grained units (stores, ZIP codes, geos, products) where the number of
 candidate donors :math:`n` is comparable to or larger than the number of
-pre-treatment periods :math:`T_0`, and where **several units are treated at the
-same time** (a block design). Two ideas distinguish it from running an
+pre-treatment periods :math:`T_0`, and where several units are treated at the
+same time (a block design). Two ideas distinguish it from running an
 ordinary synthetic control unit-by-unit.
 
-First, it **pools the treated units into one matrix regression**
+First, it pools the treated units into one matrix regression
 :math:`Y = X\Theta + E` and estimates the entire donor-weight matrix
 :math:`\Theta` jointly, borrowing strength across treated units rather than
-solving :math:`m` independent, noisy fits. Second, the loss is the **nuclear
-norm** of the residual matrix, a "square-root" (pivotal) objective whose
-optimal penalty level does **not** depend on the unknown noise variance -- so a
+solving :math:`m` independent, noisy fits. Second, the loss is the nuclear
+norm of the residual matrix, a "square-root" (pivotal) objective whose
+optimal penalty level does not depend on the unknown noise variance -- so a
 single cross-validated :math:`\lambda` regularises the whole problem, while the
 element-wise :math:`\ell_1` term performs donor selection in the regime where
 the classical quadratic program is non-unique and plain Lasso over-selects.
 
-Reach for ``MSQRT`` when you have a **block of treated units adopting
-together**, a **wide donor pool** (:math:`n \gtrsim T_0`), and you want a single
-**interpretable, sparse** set of donor weights shared across the treated block,
+Reach for ``MSQRT`` when you have a block of treated units adopting
+together, a wide donor pool (:math:`n \gtrsim T_0`), and you want a single
+interpretable, sparse set of donor weights shared across the treated block,
 with an ATT read as the mean post-period gap. It is the natural tool for
 retrospective "matched-market" lift studies and other disaggregated multi-unit
 roll-outs.
@@ -34,23 +34,23 @@ roll-outs.
 Do not use MSQRT when
 ~~~~~~~~~~~~~~~~~~~~~~
 
-* **Adoption is staggered** -- treated units switch on at different times.
+* Adoption is staggered -- treated units switch on at different times.
   MSQRT assumes a block design and will refuse staggered panels. Use
   :doc:`sdid`, :doc:`seq_sdid`, :doc:`ppscm`, or :doc:`mcnnm` (which handles
   staggered missingness natively).
-* **There is a single treated unit.** The pooling that makes MSQRT efficient
+* There is a single treated unit. The pooling that makes MSQRT efficient
   has nothing to borrow across. Start at :doc:`fdid` or :doc:`tssc`, or the
   high-dimensional single-unit tools (:doc:`fscm`, :doc:`sparse_sc`).
-* **The donor pool is small** (:math:`n \ll T_0`). The classical quadratic
+* The donor pool is small (:math:`n \ll T_0`). The classical quadratic
   program is well-posed; use :doc:`tssc`, :doc:`scmo`, or :doc:`fdid` and keep
   the simplex interpretation.
-* **The outcome panel has missing cells / gaps.** MSQRT needs a balanced
+* The outcome panel has missing cells / gaps. MSQRT needs a balanced
   block panel; for informative or structured missingness use :doc:`mcnnm`
   (MAR) or :doc:`snn` (MNAR).
-* **Spillovers contaminate the donor block** (SUTVA fails) -- use
+* Spillovers contaminate the donor block (SUTVA fails) -- use
   :doc:`spsydid` or :doc:`spillsynth`.
-* **Treatment is endogenous and you have an instrument** -- use :doc:`siv`.
-* **You are designing an experiment** (choosing whom to treat) rather than
+* Treatment is endogenous and you have an instrument -- use :doc:`siv`.
+* You are designing an experiment (choosing whom to treat) rather than
   estimating a retrospective effect -- use :doc:`marex`, :doc:`syndes`, or
   :doc:`lexscm`.
 
@@ -71,7 +71,7 @@ ATT is its average over the treated block.
 The estimator
 ~~~~~~~~~~~~~~
 
-MSQRT estimates the weight matrix by **Multivariate Square-root Lasso** (paper
+MSQRT estimates the weight matrix by Multivariate Square-root Lasso (paper
 Eq. 5):
 
 .. math::
@@ -82,7 +82,7 @@ Eq. 5):
 
 The first term is a *pivotal* (square-root-type) loss: the nuclear norm of the
 residual matrix, scaled by :math:`1/\sqrt{T_0}`. Its key property is that the
-penalty level :math:`\lambda` that delivers the oracle rate does **not** depend
+penalty level :math:`\lambda` that delivers the oracle rate does not depend
 on the unknown noise scale, so the same :math:`\lambda` regularises every column
 of :math:`\Theta` simultaneously. The second term is the element-wise
 :math:`\ell_1` penalty driving sparse donor selection. The synthetic
@@ -93,21 +93,21 @@ Algorithm and tuning
 ~~~~~~~~~~~~~~~~~~~~~
 
 The objective is convex but couples a nuclear norm and an :math:`\ell_1`
-penalty, so ``mlsynth`` solves it with a purpose-built **two-split ADMM** rather
+penalty, so ``mlsynth`` solves it with a purpose-built two-split ADMM rather
 than a generic conic solver (the paper itself emphasises computational
 efficiency). Splitting :math:`R = X\Theta` (carrying the nuclear-norm term) and
 :math:`Z = \Theta` (carrying the :math:`\ell_1` term) gives three closed-form
 updates per iteration: a singular-value soft-threshold for :math:`R`, an
-element-wise soft-threshold for :math:`Z`, and an **exact** least-squares step
+element-wise soft-threshold for :math:`Z`, and an exact least-squares step
 for :math:`\Theta` whose system matrix :math:`X^\top X + I` is Cholesky-factored
-**once** and reused. The penalty parameter is balanced adaptively (Boyd et al.
+once and reused. The penalty parameter is balanced adaptively (Boyd et al.
 2011) and the updates are over-relaxed, so a high-dimensional fit takes a few
 hundred lightweight iterations -- orders of magnitude faster than the conic
 reformulation, which it matches to numerical precision. (A ``cvxpy`` backend is
 retained for validation.)
 
-The penalty :math:`\lambda` is chosen by **rolling-origin (expanding-window)
-cross-validation** on the pre-period: an expanding training window fits
+The penalty :math:`\lambda` is chosen by rolling-origin (expanding-window)
+cross-validation on the pre-period: an expanding training window fits
 :math:`\Theta`, the next ``cv_val_window`` periods are held out, and the
 :math:`\lambda` minimising mean validation MSE across folds is selected. The
 search is *pathwise* -- candidate penalties are visited in descending order and
@@ -139,7 +139,7 @@ Causal use
 ----------
 
 ``MSQRT`` forms :math:`\hat\tau_{tj} = Y_{tj} - (X\widehat\Theta)_{tj}` over the
-post-treatment block and aggregates to the overall **ATT** (mean post-period
+post-treatment block and aggregates to the overall ATT (mean post-period
 gap), reporting it both in levels (``att``) and as a percentage of the synthetic
 counterfactual (``att_percent``). It also exposes ``att_t`` (mean treated gap at
 each post period) and ``unit_att`` (per-treated-unit post-period mean gap), so
@@ -151,10 +151,10 @@ Inference
 The Shen, Song & Abadie paper establishes finite-sample *estimation-error
 bounds* for :math:`\widehat\Theta` rather than a confidence-interval procedure
 for the treatment effect. For uncertainty quantification ``mlsynth`` instead
-uses the **non-asymptotic prediction intervals** of Cattaneo, Feng, Palomba and
+uses the non-asymptotic prediction intervals of Cattaneo, Feng, Palomba and
 Titiunik [SCPI]_ (the ``scpi`` framework). Those intervals decompose the
-prediction error :math:`\widehat\tau - \tau` into an **in-sample** error (from
-estimating the SC weights) and an **out-of-sample** error (the irreducible
+prediction error :math:`\widehat\tau - \tau` into an in-sample error (from
+estimating the SC weights) and an out-of-sample error (the irreducible
 post-treatment sampling noise), and bound each separately:
 
 .. math::
@@ -165,10 +165,10 @@ post-treatment sampling noise), and bound each separately:
        - \underline M_{\text{out}} \,\bigr].
 
 The in-sample bound is derived from the optimality condition of a
-**quadratic-loss** SC program. MSQRT instead minimises a nuclear-norm
+quadratic-loss SC program. MSQRT instead minimises a nuclear-norm
 square-root-Lasso objective with no constraints on :math:`\Theta`, so that
 derivation does not strictly apply. ``mlsynth`` therefore models, for MSQRT,
-**only the out-of-sample error** -- the rigorous component -- via the
+only the out-of-sample error -- the rigorous component -- via the
 sub-Gaussian concentration bound
 
 .. math::
@@ -181,24 +181,24 @@ with the conditional mean and variance proxy :math:`\widehat\sigma^2` estimated
 from each treated unit's pre-treatment residuals. The full miscoverage budget
 :math:`\alpha` is spent on the out-of-sample band
 (:math:`\alpha_{\text{in}} = 0`). The resulting intervals reflect
-post-treatment sampling uncertainty but **not** weight-estimation uncertainty;
+post-treatment sampling uncertainty but not weight-estimation uncertainty;
 they are correspondingly narrower, and this is recorded on the result
 (``in_sample_included = False``).
 
 Setting ``inference=True`` returns a
 :class:`~mlsynth.utils.scpi_helpers.structures.SCPIResults` with the four
-``scpi`` **predictands**, each with its own band:
+``scpi`` predictands, each with its own band:
 
-* ``taua`` -- **T**\ ime-**a**\ veraged **u**\ nit-**a**\ veraged: the overall ATT.
-* ``tsua`` -- **T**\ ime-**s**\ pecific **u**\ nit-**a**\ veraged: ``{period: band}``,
+* ``taua`` -- T\ ime-a\ veraged u\ nit-a\ veraged: the overall ATT.
+* ``tsua`` -- T\ ime-s\ pecific u\ nit-a\ veraged: ``{period: band}``,
   the average effect across treated units at each post-period.
-* ``taus`` -- **T**\ ime-**a**\ veraged **u**\ nit-**s**\ pecific: ``{unit: band}``,
+* ``taus`` -- T\ ime-a\ veraged u\ nit-s\ pecific: ``{unit: band}``,
   each treated unit's effect averaged over the post-window.
-* ``tsus`` -- **T**\ ime-**s**\ pecific **u**\ nit-**s**\ pecific:
+* ``tsus`` -- T\ ime-s\ pecific u\ nit-s\ pecific:
   ``{(unit, period): band}``, the per-cell effect.
 
 plus ``simultaneous`` -- TSUS bands widened (Bonferroni over the post-periods)
-for **joint** coverage across all post-periods of a unit, which supports
+for joint coverage across all post-periods of a unit, which supports
 statements such as "the largest per-period effect is significant". The
 time-averaged predictands accept a ``time_dependence`` setting (``"iid"``,
 default, shrinks the band by :math:`\sqrt{L}`; ``"general"`` makes no
@@ -251,23 +251,23 @@ Verification
 
 .. note::
 
-   **Monte-Carlo replication.** :mod:`mlsynth.utils.msqrt_helpers.replication`
+   Monte-Carlo replication. :mod:`mlsynth.utils.msqrt_helpers.replication`
    reproduces the Shen, Song & Abadie [MSQRT]_ simulation study (their
    Section 6) through the public :meth:`mlsynth.MSQRT.fit` API:
    :math:`T_0 = 100` pre-periods, :math:`n = 400` donors, a treated-unit grid
    :math:`m \in \{50, \ldots, 400\}`, and the paper's two data-generating
    settings. The headline findings reproduce -- the ATT estimator is
-   essentially **unbiased** (bias centred at zero) and the RMSE for the imputed
-   :math:`Y(0)` stays **flat in** :math:`m` at roughly ``0.71``-``0.73``,
+   essentially unbiased (bias centred at zero) and the RMSE for the imputed
+   :math:`Y(0)` stays flat in :math:`m` at roughly ``0.71``-``0.73``,
    matching the paper's Table 1. The ``PAPER`` preset runs the full
    500-replication study; the ``DEMO`` preset is a faster, reduced-count
    version.
 
-   **Solver.** The two-split ADMM matches the cvxpy conic solution of eq. (5) to
+   Solver. The two-split ADMM matches the cvxpy conic solution of eq. (5) to
    numerical precision while being orders of magnitude faster -- the property
    that makes the high-dimensional, many-treated regime tractable.
 
-   **Block-design guard.** Feeding a staggered panel raises
+   Block-design guard. Feeding a staggered panel raises
    :class:`~mlsynth.exceptions.MlsynthDataError`, redirecting to the
    staggered-adoption estimators -- MSQRT's assumptions are enforced, not
    assumed.

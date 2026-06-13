@@ -6,7 +6,7 @@ Lexicographic Synthetic Control (LEXSCM)
 Overview
 --------
 
-LEXSCM is a tool for **synthetic experimental design**: given a panel of
+LEXSCM is a tool for synthetic experimental design: given a panel of
 units, a subset of which are *eligible* for treatment, it chooses which
 :math:`m` of them to actually treat so that the rest of the panel forms a
 credible synthetic control for the treated group, *and* so that the
@@ -22,23 +22,23 @@ machinery drawn from the synthetic-experimental-design work of
 Vives-i-Bastida (2022). LEXSCM optimizes two objectives in a strict
 priority order ("lexicographically"):
 
-#. **Validity** -- the treated combination reproduces the population
+#. Validity -- the treated combination reproduces the population
    trajectory on the pre-treatment predictors (small *imbalance*);
-#. **Power** -- subject to validity, the design detects the smallest
+#. Power -- subject to validity, the design detects the smallest
    possible effect (small *minimum detectable effect*).
 
 The pipeline has four stages, each in its own helper module:
 
-#. **Treated-tuple selection** (:mod:`~mlsynth.utils.fast_scm_helpers.lexsearch`)
+#. Treated-tuple selection (:mod:`~mlsynth.utils.fast_scm_helpers.lexsearch`)
    -- search the :math:`\binom{M}{m}` candidate treated combinations for
    the most balanced ones, under an optional budget.
-#. **Control fit** (:mod:`~mlsynth.utils.fast_scm_helpers.fast_scm_control`)
+#. Control fit (:mod:`~mlsynth.utils.fast_scm_helpers.fast_scm_control`)
    -- build a synthetic control for each candidate treated group and
    score its pre-treatment fit.
-#. **Power analysis** (:mod:`~mlsynth.utils.fast_scm_helpers.lexpower`)
+#. Power analysis (:mod:`~mlsynth.utils.fast_scm_helpers.lexpower`)
    -- a moving-block placebo MDE curve over a grid of post-treatment
    horizons.
-#. **Recommendation** (:mod:`~mlsynth.utils.fast_scm_helpers.lexselect`)
+#. Recommendation (:mod:`~mlsynth.utils.fast_scm_helpers.lexselect`)
    -- a lexicographic rule (validity gate :math:`\to` power
    :math:`\to` stability :math:`\to` cost) returning a single recommended
    design plus a Pareto frontier.
@@ -54,7 +54,7 @@ We observe :math:`J` units over a pre-treatment period of length
 :math:`\mathbf{Y} \in \mathbb{R}^{T_0 \times J}` (rows = time, columns = units)
 and, optionally, :math:`K` time-invariant or pre-period covariates as
 :math:`\mathbf{Z} \in \mathbb{R}^{K \times J}`. The two are stacked vertically
-into the **predictor matrix**
+into the predictor matrix
 
 .. math::
 
@@ -63,10 +63,10 @@ into the **predictor matrix**
 
 so each column :math:`\mathbf{x}_j` is unit :math:`j`'s predictor profile.
 A subset :math:`\mathcal{C} \subseteq \{1, \dots, J\}` of size
-:math:`M = |\mathcal{C}|` is flagged as **treatment-eligible** (the
+:math:`M = |\mathcal{C}|` is flagged as treatment-eligible (the
 ``candidate_col``); the design must pick :math:`m` of these.
 
-A **population weighting vector** :math:`\mathbf{f} \in \mathbb{R}^J`,
+A population weighting vector :math:`\mathbf{f} \in \mathbb{R}^J`,
 :math:`\mathbf{f} \ge 0`, :math:`\mathbf{1}^\top \mathbf{f} = 1` (uniform
 :math:`1/J` by default, or a ``weight_col`` such as population or revenue)
 defines the estimand's target trajectory -- the :math:`\mathbf{f}`-weighted
@@ -77,15 +77,15 @@ average unit
    \bar{\mathbf{x}} \coloneqq \mathbf{X} \mathbf{f},
    \qquad \bar{x}_t = \mathbf{X}_{t, \cdot}\, \mathbf{f} .
 
-The pre-period predictor rows are split into an **estimation window**
+The pre-period predictor rows are split into an estimation window
 :math:`E` (the first :math:`\lfloor \texttt{frac\_E} \cdot T_0 \rfloor`
-time rows, *plus* all covariate rows) and a held-out **blank window**
+time rows, *plus* all covariate rows) and a held-out blank window
 :math:`B` (the remaining pre-period time rows). :math:`E` is where the
 design is fit; :math:`B` is a pre-treatment "dress rehearsal" with no
 treatment, used to validate fit and to calibrate power.
 
-Over :math:`E` the predictors are **row-standardized against the
-population target**:
+Over :math:`E` the predictors are row-standardized against the
+population target:
 
 .. math::
 
@@ -97,7 +97,7 @@ with :math:`\sigma_t` floored away from zero. Centring on
 :math:`\bar{x}_t` puts the population target at the origin; scaling by the
 cross-sectional spread :math:`\sigma_t` makes mixed-scale predictors
 (outcomes in dollars, covariates in percent) commensurable so no single
-predictor dominates the fit. The :math:`J \times J` **Gram matrix**
+predictor dominates the fit. The :math:`J \times J` Gram matrix
 
 .. math::
 
@@ -127,8 +127,8 @@ weights :math:`\mathbf{v}` on the remainder such that the synthetic treated and
 synthetic control reproduce the population target on the pre-period predictors,
 :math:`\bar{\mathbf{x}} - \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j \approx 0`.
 *Remark.* This is the design analogue of the SCM convex-hull condition, and it
-is the only substantive requirement. Crucially it is **not imposed as an
-axiom**: the *achieved* imbalance
+is the only substantive requirement. Crucially it is not imposed as an
+axiom: the *achieved* imbalance
 :math:`\lVert \bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j\rVert` is a
 measurable goodness-of-fit quantity, reported for every design, on which
 the validity of the bias bound and the inference is *conditional* (Abadie
@@ -150,7 +150,7 @@ gap is pure noise; that gap process is weakly stationary and free of
 anticipation, so its serial-dependence structure carries over to the
 post-treatment window. *Remark.* This is what licenses the Stage 3 power
 analysis: the post-treatment null distribution of the test statistic is
-reconstructed by **moving-block resampling** the blank-window gaps, which
+reconstructed by moving-block resampling the blank-window gaps, which
 preserves autocorrelation -- the time-series-robust inference of Abadie &
 Zhao rather than an i.i.d. permutation.
 
@@ -160,7 +160,7 @@ Stage 1 -- Treated-tuple selection
 For a treated set :math:`\mathcal{S}` with :math:`|\mathcal{S}| = m` and simplex
 weights :math:`\mathbf{w} \in \Delta(\mathcal{S}) \coloneqq \{\mathbf{w} \ge 0 :
 \mathbf{1}^\top \mathbf{w} = 1\}`, the synthetic treated unit is
-:math:`\sum_{j \in \mathcal{S}} w_j \mathbf{x}_j`. Its **imbalance** against the
+:math:`\sum_{j \in \mathcal{S}} w_j \mathbf{x}_j`. Its imbalance against the
 population target is, over the estimation window,
 
 .. math::
@@ -174,8 +174,8 @@ population target is, over the estimation window,
 where :math:`\mathbf{G}_{\mathcal{S}\mathcal{S}}` is the :math:`m \times m`
 sub-Gram matrix on the rows and columns of :math:`\mathcal{S}`. Because the
 design is :math:`\mathbf{f}`-centred the population target sits at the origin,
-so :math:`L(\mathcal{S})` is the **squared distance from the population centroid
-to the convex hull of the selected donors**, and :math:`\sqrt{L(\mathcal{S})}`
+so :math:`L(\mathcal{S})` is the squared distance from the population centroid
+to the convex hull of the selected donors, and :math:`\sqrt{L(\mathcal{S})}`
 is the achieved imbalance of Assumption 1. Stage 1 returns the ``top_K`` sets of
 smallest :math:`L(\mathcal{S})`, subject to the budget below.
 
@@ -184,13 +184,13 @@ How a single tuple is built: the inner simplex QP
 
 "Building" a tuple :math:`\mathcal{S}` means solving its inner problem
 :math:`\min_{\mathbf{w} \in \Delta(\mathcal{S})} \mathbf{w}^\top
-\mathbf{G}_{\mathcal{S}\mathcal{S}}\, \mathbf{w}` for the **optimal treatment
-weights** :math:`\mathbf{w}(\mathcal{S})`; the synthetic treated unit is then
+\mathbf{G}_{\mathcal{S}\mathcal{S}}\, \mathbf{w}` for the optimal treatment
+weights :math:`\mathbf{w}(\mathcal{S})`; the synthetic treated unit is then
 :math:`\sum_{j \in \mathcal{S}} w_j(\mathcal{S})\, \mathbf{x}_j` and the design's
 achieved imbalance is :math:`\sqrt{\mathbf{w}(\mathcal{S})^\top
 \mathbf{G}_{\mathcal{S}\mathcal{S}}\, \mathbf{w}(\mathcal{S})}`. This convex
-quadratic program over the probability simplex is solved by an **Away-step
-Frank-Wolfe (AFW)**
+quadratic program over the probability simplex is solved by an Away-step
+Frank-Wolfe (AFW)
 routine in pure NumPy (``_afw_single``), chosen because every iterate stays
 exactly on the simplex (no projection step) and the *away* move removes the
 zig-zagging that plain Frank-Wolfe suffers near a face-constrained optimum
@@ -204,18 +204,18 @@ Write :math:`\mathbf{Q} = \mathbf{G}_{\mathcal{S}\mathcal{S}}`,
 closest to the target), each iteration (all vectors below are the iterate
 :math:`\mathbf{w}` and its simplex vertices :math:`\mathbf{e}_i`):
 
-#. **Pick two vertices.** The Frank-Wolfe vertex
+#. Pick two vertices. The Frank-Wolfe vertex
    :math:`s = \arg\min_i [\nabla f(\mathbf{w})]_i` and the away vertex
    :math:`a = \arg\max_{i \in \operatorname{supp}(\mathbf{w})}
    [\nabla f(\mathbf{w})]_i` -- the currently active donor the gradient most
    wants to shed.
-#. **Choose the direction.** Compare the FW direction
+#. Choose the direction. Compare the FW direction
    :math:`\mathbf{d}_{\mathrm{FW}} = \mathbf{e}_s - \mathbf{w}` against the away
    direction :math:`\mathbf{d}_{\mathrm{AW}} = \mathbf{w} - \mathbf{e}_a` by
    :math:`\langle \nabla f, \mathbf{d}\rangle` and take whichever descends more.
    The away step's maximal feasible length is
    :math:`\gamma_{\max} = w_a / (1 - w_a)`; the FW step caps at :math:`1`.
-#. **Exact line search.** Because :math:`f` is quadratic the optimal step
+#. Exact line search. Because :math:`f` is quadratic the optimal step
    along :math:`\mathbf{d}` is closed-form,
 
    .. math::
@@ -226,18 +226,18 @@ closest to the target), each iteration (all vectors below are the iterate
 
    then :math:`\mathbf{w} \leftarrow \mathbf{w} + \gamma^\star \mathbf{d}`,
    dropping :math:`a` from the active set when a full away step empties it.
-#. **Certified lower bound.** The Frank-Wolfe gap gives a running lower
+#. Certified lower bound. The Frank-Wolfe gap gives a running lower
    bound :math:`f(\mathbf{w}) + \min_i[\nabla f(\mathbf{w})]_i -
    \nabla f(\mathbf{w})^\top \mathbf{w} \le f(\mathbf{w}^\star)` on the tuple's
    true minimal loss; iteration stops once the duality gap
    :math:`\nabla f(\mathbf{w})^\top \mathbf{w} - \min_i[\nabla f(\mathbf{w})]_i`
    drops below ``tol``.
 
-**Two-pass precision.** Scoring every candidate tuple to convergence would
-be wasteful, so Stage 1 runs AFW at two fidelities. A **vectorized
-batched** AFW (``_afw_batched``, ``iters=80``, all :math:`m \times m`
+Two-pass precision. Scoring every candidate tuple to convergence would
+be wasteful, so Stage 1 runs AFW at two fidelities. A vectorized
+batched AFW (``_afw_batched``, ``iters=80``, all :math:`m \times m`
 problems advanced together with ``einsum``) ranks thousands of tuples in
-one sweep; only the surviving ``top_K`` are **re-solved** by the scalar
+one sweep; only the surviving ``top_K`` are re-solved by the scalar
 ``_afw_single`` at ``iters=600``, ``tol=1e-14`` to pin
 :math:`\mathbf{w}(\mathcal{S})` and the loss to full precision. Each returned
 :class:`~mlsynth.utils.fast_scm_helpers.lexsearch.TreatedDesign` then
@@ -267,7 +267,7 @@ each is hopeless past small cases.
 The natural fallback -- a branch-and-bound integer program with a convex
 relaxation lower bound to prune -- *also* fails here, for a structural
 reason specific to this objective. The population target is the
-:math:`f`-weighted **centroid** of the candidate predictors, so it lies
+:math:`f`-weighted centroid of the candidate predictors, so it lies
 *inside* the convex hull of the full candidate set. Any convex
 (cardinality-free) relaxation of "distance from the origin to the hull of
 a chosen subset" is therefore :math:`\approx 0` over the entire upper half
@@ -276,15 +276,15 @@ selection is bad, so it cannot prune. An exact MIP would degenerate into
 near-exhaustive enumeration with extra overhead.
 
 Both failures are also *unnecessary*. Abadie & Zhao [ABADIE2024]_ require
-only that the chosen design be feasible and **approximately balanced**;
+only that the chosen design be feasible and approximately balanced;
 validity is conditional on the *achieved* imbalance, a reported quantity,
 not on a certificate of global optimality. LEXSCM therefore:
 
-* **Enumerates exactly** when :math:`\binom{M}{m} \le \texttt{enumerate\_max}`
+* Enumerates exactly when :math:`\binom{M}{m} \le \texttt{enumerate\_max}`
   (default :math:`3{,}000{,}000`). This is the gold standard -- it returns
   the certified global ``top_K`` and reports termination status
   ``OPTIMAL``.
-* **Runs a strengthened multi-start local search** otherwise: greedy
+* Runs a strengthened multi-start local search otherwise: greedy
   construction from diverse seeds, best-improvement swap descent to a local
   optimum, and basin-hopping *kicks* to escape it. In Monte Carlo this
   lands on the exact optimum 83-100% of the time and within roughly
@@ -293,13 +293,13 @@ not on a certificate of global optimality. LEXSCM therefore:
   ``FEASIBLE``.
 
 Because the local search has no MIP optimality gap, LEXSCM reports a
-**consensus diagnostic** in its place: the fraction of independent starts
+consensus diagnostic in its place: the fraction of independent starts
 that converged to the incumbent (``consensus_rate``), the number of
 distinct local optima seen, and the incumbent-improvement trail. High
 consensus across many random starts is the practical confidence signal
 that the incumbent is the global optimum. (A convex hull lower bound is
 *also* reported, but only as advisory information -- for the reason above
-it is :math:`\approx 0` and is deliberately **not** turned into an
+it is :math:`\approx 0` and is deliberately not turned into an
 optimality gap.)
 
 Building tuples in the heuristic regime
@@ -309,17 +309,17 @@ When :math:`\binom{M}{m}` exceeds ``enumerate_max`` the same per-tuple QP is
 reused, but the *set* of tuples scored is grown adaptively by a multi-start
 local search (``_local_search``):
 
-* **Seeding.** :math:`2 \times` ``n_starts`` seeds: the ``n_starts`` units
+* Seeding. :math:`2 \times` ``n_starts`` seeds: the ``n_starts`` units
   with the smallest :math:`G_{jj}` (single donors already nearest the
   population centroid -- the cheapest places to start near balance) plus
   ``n_starts`` uniformly random units for diversity.
-* **Greedy construction.** From a seed, repeatedly add the candidate that
+* Greedy construction. From a seed, repeatedly add the candidate that
   most lowers the batched loss of the partial tuple until
   :math:`|\mathcal{S}| = m`, skipping any addition that would breach the budget.
-* **Best-improvement descent.** Score the full **1-swap** neighbourhood
+* Best-improvement descent. Score the full 1-swap neighbourhood
   (replace one member with one non-member), move to the steepest improving
   swap, and repeat to a local optimum.
-* **Basin-hopping kicks.** Perturb the incumbent with a random **2-swap**
+* Basin-hopping kicks. Perturb the incumbent with a random 2-swap
   ``kick`` and re-descend, keeping the better basin; repeated ``n_kicks``
   (4) times per start.
 
@@ -340,7 +340,7 @@ returned design must satisfy the hard knapsack constraint
 
    \sum_{j \in \mathcal{S}} c_j \le B_{\max}.
 
-Two mechanisms enforce it. First, a **sound feasibility presolve** removes
+Two mechanisms enforce it. First, a sound feasibility presolve removes
 any eligible unit :math:`i` that cannot belong to *any* budget-feasible
 :math:`m`-tuple, i.e. whenever
 
@@ -368,7 +368,7 @@ Stage 2 -- Control fit
 For each candidate treated set :math:`\mathcal{S}` with weights
 :math:`\mathbf{w}`, the synthetic treated trajectory is
 :math:`\mathbf{X}_{\cdot, \mathcal{S}}\, \mathbf{w}`. A synthetic control is then
-built from the **non-treated** units: control weights :math:`\mathbf{v}` solve a
+built from the non-treated units: control weights :math:`\mathbf{v}` solve a
 ridge-penalized quadratic program (penalty ``lambda_penalty``) matching the
 synthetic treated over :math:`E`, subject to an exclusion constraint
 :math:`v_j = 0` for all :math:`j \in \mathcal{S}` (a treated unit cannot also be
@@ -382,7 +382,7 @@ its own control; the spillover ``adjacency`` widens this to
 
 Pre-treatment fit is summarized by the normalized mean-squared error
 (NMSE) of the synthetic treated against the target on both windows
-(``nmse_E``, ``nmse_B``). The **blank-window gaps**
+(``nmse_E``, ``nmse_B``). The blank-window gaps
 :math:`e_B = \{e_t : t \in B\}` (``residuals_B``) are, under Assumption 3,
 pure placebo noise; they are the raw material for the power analysis. This
 stage is identical to the pre-rebuild control path -- only the search and
@@ -393,7 +393,7 @@ Spillover / interference exclusions
 
 When treating a *set* of units, interference is a design concern, and
 Vives-i-Bastida (2022) handles it with two exclusion criteria that LEXSCM
-implements directly. Both read off **one conflict graph**, encoded by a
+implements directly. Both read off one conflict graph, encoded by a
 symmetric matrix :math:`\mathbf{A} \in \{0, 1\}^{J \times J}` with
 :math:`A_{ij} = 1` iff units :math:`i` and :math:`j` interfere (zero diagonal).
 :math:`\mathbf{A}` is supplied either as a ``cluster_col`` (:math:`A_{ij} = 1`
@@ -408,8 +408,8 @@ conflict-neighbours of a treated set :math:`\mathcal{S}` as
    \mathcal{A}(\mathcal{S}) \coloneqq
      \{\, k : A_{jk} = 1 \ \text{for some}\ j \in \mathcal{S} \,\}.
 
-* **"No interference" (Stage 1, a treatment criterion).** The treated set
-  :math:`\mathcal{S} = \operatorname{supp}(\mathbf{w})` must be **conflict-free**
+* "No interference" (Stage 1, a treatment criterion). The treated set
+  :math:`\mathcal{S} = \operatorname{supp}(\mathbf{w})` must be conflict-free
   -- an *independent set* of :math:`\mathbf{A}`, :math:`A_{ij} = 0` for all
   :math:`i, j \in \mathcal{S}`. This restricts only the admissible supports, so
   it enters exactly where the cardinality constraint
@@ -417,7 +417,7 @@ conflict-neighbours of a treated set :math:`\mathcal{S}` as
   candidate tuples, not a term in the inner weight program -- and only *shrinks*
   the search.
 
-* **"Exclusion restriction" (Stage 2, a control criterion).** The donor pool
+* "Exclusion restriction" (Stage 2, a control criterion). The donor pool
   drops :math:`\mathcal{S} \cup \mathcal{A}(\mathcal{S})`: the Stage-2 program
   pins :math:`v_k = 0` for every :math:`k \in \mathcal{S} \cup
   \mathcal{A}(\mathcal{S})`, so a treated unit's spillover neighbours cannot
@@ -443,20 +443,20 @@ Two further treatment criteria from the same design checklist restrict *which*
 units may be treated -- both, like the spillover "no interference" rule, act on
 the admissible supports and never enter the inner weight program.
 
-* **Coverage / stratification.** Give each unit a stratum (region / tier /
+* Coverage / stratification. Give each unit a stratum (region / tier /
   segment) via ``stratum_col``. ``min_per_stratum`` requires at least that many
-  treated units from **every stratum that has a candidate** ("test in every
+  treated units from every stratum that has a candidate ("test in every
   region"); ``max_per_stratum`` allows at most that many ("a quota"). Formally
   the treated set :math:`\mathcal{S}` must satisfy
   :math:`\texttt{min} \le |\{j \in \mathcal{S} : g(j) = s\}| \le \texttt{max}`
   for each candidate stratum :math:`s`, where :math:`g(j)` is unit :math:`j`'s
   stratum. (Setting ``max_per_stratum = 1`` mirrors a ``cluster_col`` quota on
-  the treated side, but unlike the spillover rule it does **not** also clean the
+  the treated side, but unlike the spillover rule it does not also clean the
   donor pool.)
 
-* **Treated-unit size bands.** With ``size_col`` and ``min_size`` / ``max_size``,
+* Treated-unit size bands. With ``size_col`` and ``min_size`` / ``max_size``,
   only units whose size lies in :math:`[\texttt{min\_size}, \texttt{max\_size}]`
-  are eligible for **treatment** (they remain available as donors). The floor is
+  are eligible for treatment (they remain available as donors). The floor is
   a power / operational minimum; the ceiling encodes the convex-hull limit -- a
   unit far larger than the rest cannot be reproduced by a convex combination of
   the others (Vives-i-Bastida excludes big cities for exactly this reason).
@@ -477,15 +477,15 @@ Stage 3 -- Power analysis (minimum detectable effect)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Stage 3 asks: *how large must a sustained treatment effect be for this
-design to detect it?* The answer is a **minimum-detectable-effect (MDE)
-curve over post-treatment horizon lengths**, computed entirely from the
+design to detect it?* The answer is a minimum-detectable-effect (MDE)
+curve over post-treatment horizon lengths, computed entirely from the
 Stage 2 placebo residuals with one consistent resampling model for both the
 null and the alternative.
 
 What "at each horizon" means -- and what it does not
 """"""""""""""""""""""""""""""""""""""""""""""""""""
 
-The curve is indexed by the **length** :math:`h` of the post-treatment
+The curve is indexed by the length :math:`h` of the post-treatment
 window (``n_post_grid``, default :math:`h = 2, \dots, 8`), *not* by calendar
 period. There is no "MDE at period :math:`t = 91`". Instead, for each
 candidate duration :math:`h`, the analysis *manufactures* many synthetic
@@ -499,7 +499,7 @@ Moving-block resampling
 
 Let the placebo pool be one or more residual series -- the chosen design's
 blank-window gaps :math:`e_B`, optionally pooled with donor-unit placebo
-gaps. The scale :math:`\sigma` is the standard deviation of the **pooled**
+gaps. The scale :math:`\sigma` is the standard deviation of the pooled
 residuals (all series concatenated, ``ddof=1``, floored at
 :math:`10^{-12}`). The block length defaults to
 
@@ -507,12 +507,12 @@ residuals (all series concatenated, ``ddof=1``, floored at
 
    \ell = \max\!\bigl(1,\ \min(h,\ \operatorname{round}(\tilde L^{1/3}))\bigr),
 
-where :math:`\tilde L` is the **median** series length: floored at 1, and
-**capped at the horizon** :math:`h` so a block never exceeds the window it
+where :math:`\tilde L` is the median series length: floored at 1, and
+capped at the horizon :math:`h` so a block never exceeds the window it
 fills. To draw one length-:math:`h` window
 (:func:`~mlsynth.utils.fast_scm_helpers.lexpower.block_resample_windows`):
 pick a placebo series uniformly at random, then repeatedly cut contiguous
-blocks of length :math:`\ell` from a random offset **with wraparound**
+blocks of length :math:`\ell` from a random offset with wraparound
 (``np.take(..., mode="wrap")``), concatenate them, and truncate to
 :math:`h`. Wrapping preserves the within-series autocorrelation
 (Assumption 3); the random series choice reproduces the cross-unit placebo
@@ -528,15 +528,15 @@ The statistic is the mean absolute gap over the window,
    S(e) = \frac{1}{h} \sum_{t=1}^{h} \lvert e_t \rvert .
 
 Resampling :math:`n_\text{null}` (default 4000) placebo windows gives the
-null distribution; its :math:`(1 - \alpha)` **empirical quantile** is the
+null distribution; its :math:`(1 - \alpha)` empirical quantile is the
 critical value :math:`c_\alpha`.
 
 Power, the effect grid, and the MDE
 """""""""""""""""""""""""""""""""""
 
-A treatment effect is modelled as a **constant additive shift** :math:`\tau`
+A treatment effect is modelled as a constant additive shift :math:`\tau`
 applied to *every* point of a resampled window -- the homogeneous-effect
-working assumption behind the MDE. Its power is estimated from a **fresh**
+working assumption behind the MDE. Its power is estimated from a fresh
 draw of :math:`n_\text{power}` (default 2000) windows (same residual model,
 new randomness), so the null and the alternative differ only by the shift:
 
@@ -548,10 +548,10 @@ new randomness), so the null and the alternative differ only by the shift:
        \sum_{b} \mathbf{1}\!\bigl\{ S(e^{(b)} + \tau) \ge c_\alpha \bigr\}.
 
 The effect is swept on a grid of :math:`n_\text{grid} = 64` points in
-**standard-deviation units**, :math:`\tau / \sigma \in [0, \texttt{max\_sd}]`
+standard-deviation units, :math:`\tau / \sigma \in [0, \texttt{max\_sd}]`
 (default cap :math:`8`). The search walks the grid until
 :math:`\operatorname{power}(\tau)` first reaches ``power_target``, then
-**linearly interpolates** between the last sub-threshold point
+linearly interpolates between the last sub-threshold point
 :math:`(g_0, p_0)` and the crossing point :math:`(g, p)` for a finer value:
 
 .. math::
@@ -560,24 +560,24 @@ The effect is swept on a grid of :math:`n_\text{grid} = 64` points in
      = g_0 + (\texttt{power\_target} - p_0)\,\frac{g - g_0}{p - p_0} .
 
 If the grid is exhausted without reaching the target, the horizon is
-**infeasible** and returns :math:`\infty`.
+infeasible and returns :math:`\infty`.
 
 Three reported scales
 """""""""""""""""""""
 
 Each horizon reports the MDE on three scales:
 
-* ``mde_sd`` :math:`= \mathrm{MDE}(h)/\sigma` -- **effect-size units**, the
+* ``mde_sd`` :math:`= \mathrm{MDE}(h)/\sigma` -- effect-size units, the
   primary scale (matching Vives-i-Bastida's "detect effects larger than
   :math:`0.1` s.d." convention) and numerically robust: nothing is divided
   by a fragile mean, so zero-mean or near-zero outcomes cannot blow the
   calculation up;
-* ``mde_abs`` :math:`= \mathrm{MDE}(h)` -- **outcome units**;
-* ``mde_pct`` -- the **manager-facing percentage**,
+* ``mde_abs`` :math:`= \mathrm{MDE}(h)` -- outcome units;
+* ``mde_pct`` -- the manager-facing percentage,
   :math:`100 \cdot \mathrm{MDE}(h) / \lvert\text{baseline}\rvert`, where the
   baseline is the counterfactual level over the *matching* window,
   :math:`\text{baseline} = \operatorname{mean}\bigl(\texttt{synthetic\_treated}
-  [-h:]\bigr)`. This is **guarded**: when
+  [-h:]\bigr)`. This is guarded: when
   :math:`\lvert\text{baseline}\rvert` falls below a floor (default one
   :math:`\sigma`) the percentage is returned as ``NaN`` *deliberately*, so a
   near-zero or sign-flipping level cannot manufacture a spurious "we can
@@ -595,11 +595,11 @@ long the experiment must run to clear the conventional effect-size bar.
 Stage 4 then collapses the curve to a single representative MDE per the
 ``mde_horizon`` setting:
 
-* ``"late"`` (default) -- the MDE at the **longest** horizon; the
+* ``"late"`` (default) -- the MDE at the longest horizon; the
   conservative choice for a sustained-exposure experiment.
-* ``"early_min"`` -- the **smallest** MDE across feasible horizons (most
+* ``"early_min"`` -- the smallest MDE across feasible horizons (most
   optimistic detectability).
-* ``"early_mean"`` -- the **mean** MDE across feasible horizons (the
+* ``"early_mean"`` -- the mean MDE across feasible horizons (the
   percentage averaged only over horizons where it is defined).
 
 Stage 4 -- Final recommendation (lexicographic selection)
@@ -610,7 +610,7 @@ The final stage turns the per-design metrics -- imbalance (validity),
 :math:`\text{NMSE}_B` (fit robustness), and ``total_cost`` -- into one
 recommendation, applying the method's priorities in strict order:
 
-#. **Validity gate.** Keep only designs whose imbalance is within a
+#. Validity gate. Keep only designs whose imbalance is within a
    relative slack of the best achievable balance,
 
    .. math::
@@ -624,10 +624,10 @@ recommendation, applying the method's priorities in strict order:
    tolerance that would empty the gate falls back to the single
    best-balanced design.)
 
-#. **Power.** Among gated designs with a *feasible* MDE, choose the
+#. Power. Among gated designs with a *feasible* MDE, choose the
    smallest ``mde_sd`` -- the most detectable valid design.
 
-#. **Tie-breaks.** Break ties by better out-of-sample stability
+#. Tie-breaks. Break ties by better out-of-sample stability
    (:math:`\text{NMSE}_B`), then by lower ``total_cost``.
 
 The recommendation is returned as a tuple of fields:
@@ -665,7 +665,7 @@ matrix's diagonal -- each unit's squared distance to the population centroid
    \operatorname{diag}(G) = (5.77,\ 3.64,\ 6.08,\ 6.27,\ 8.24).
 
 Unit 1 (0-indexed) sits closest to the target, so it seeds the AFW vertex
-start. With :math:`\binom{5}{2} = 10` the search **enumerates exactly**
+start. With :math:`\binom{5}{2} = 10` the search enumerates exactly
 (status ``OPTIMAL``, 10 subsets scored). The winning tuple is
 :math:`S = \{0, 1\}`, and its inner simplex QP returns treatment weights
 
@@ -731,10 +731,10 @@ lengthens, averaging over more periods shrinks both the critical value
 Standardized Post-Fit and Power Analysis
 ----------------------------------------
 
-LEXSCM's Stage 3 already produces the lexicographic MDE curve used to **rank
-designs against each other**; the standardized post-fit attached to
-``LEXSCMResults.post_fit`` is the complementary surface used **once a design
-has been chosen** -- it is the same
+LEXSCM's Stage 3 already produces the lexicographic MDE curve used to rank
+designs against each other; the standardized post-fit attached to
+``LEXSCMResults.post_fit`` is the complementary surface used once a design
+has been chosen -- it is the same
 :class:`~mlsynth.utils.post_fit.SyntheticControlPostFit` object SYNDES,
 MAREX, and PANGEO expose, so downstream consumers (dashboards, paper-style
 reports, comparison tables) read identical fields across the family.
@@ -748,7 +748,7 @@ reports, comparison tables) read identical fields across the family.
    pf.power                                   # PowerAnalysis (see below)
 
 The trajectories ``pf.treated_series`` and ``pf.control_series`` are the
-**winning candidate**'s ``predictions.synthetic_treated`` and
+winning candidate's ``predictions.synthetic_treated`` and
 ``predictions.synthetic_control`` -- per-unit weighted aggregates of the
 treated and control donors over the full timeline. The phase boundaries
 ``(n_fit, n_blank, n_post)`` line up with the same E / B / post split LEXSCM
@@ -759,9 +759,9 @@ Where the unified power analysis fits in
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Stage 3's :func:`~mlsynth.utils.fast_scm_helpers.lexpower.detectability_curve`
-is the **design-selection** workhorse -- it converts the moving-block placebo
+is the design-selection workhorse -- it converts the moving-block placebo
 null on the B window into a per-horizon MDE used by Stage 4's lexicographic
-selector. The post-fit power analysis is the **post-selection** companion:
+selector. The post-fit power analysis is the post-selection companion:
 analytical Gaussian + AR(1) variance inflation on the realised gap residuals,
 matching the MAREX / SYNDES / PANGEO power surfaces exactly so the same
 diagnostic table can be produced for every family member.
@@ -792,11 +792,11 @@ the same module powers all three estimators.
 Two MDEs, complementary roles
 """""""""""""""""""""""""""""
 
-* **Stage 3 MDE** (``best_candidate.mde_results``) -- moving-block placebo
+* Stage 3 MDE (``best_candidate.mde_results``) -- moving-block placebo
   null on the B window, used to *rank designs against each other*. Aggregated
   to a representative scalar by ``mde_horizon`` (``late`` / ``early_min`` /
   ``early_mean``) and consumed by Stage 4's lexicographic gate.
-* **Post-fit MDE** (``res.power``) -- analytical Gaussian +
+* Post-fit MDE (``res.power``) -- analytical Gaussian +
   AR(1) MDE consumed *after* a design has been chosen, on the same surface
   that MAREX / SYNDES / PANGEO produce. Use this when reporting a single
   detectability number alongside the realised ATE / CI.
@@ -810,10 +810,10 @@ Verification
 ------------
 
 LEXSCM is validated against the synthetic-experimental-design framework it
-implements (Abadie & Zhao 2026; Vives-i-Bastida 2022). **Path A:** the Walmart
+implements (Abadie & Zhao 2026; Vives-i-Bastida 2022). Path A: the Walmart
 45-store placebo design tracks pre-period to ~2.7% of mean sales and yields a
 placebo effect of ~0.9% whose permutation test fails to reject (CI covers zero)
--- the paper's "no spurious effect" result. **Path B:** on the paper's exact
+-- the paper's "no spurious effect" result. Path B: on the paper's exact
 Section-5 linear-factor DGP (``J = 15``, ``T_E = 20``) the design recovers the
 planted effect with MAE far below its scale (~0.24 for the single-treated-unit
 design, falling to ~0.16 at ``m = 2``). Pinned in
@@ -842,10 +842,10 @@ Result Containers
 :class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMResults`, which is a
 :class:`~mlsynth.config_models.DesignResult` -- the experimental-design half of
 mlsynth's two-family result contract. LEXSCM *chooses which units to treat*
-before any intervention, so it returns a **design** that resolves to an effect
+before any intervention, so it returns a design that resolves to an effect
 report. The surface is small and grouped -- one obvious home for each thing.
 
-**Front door (the standardized contract):**
+Front door (the standardized contract):
 
 * ``res.report`` -- the realized effect as an
   :class:`~mlsynth.config_models.EffectResult`: the *single source* for the ATT /
@@ -861,7 +861,7 @@ report. The surface is small and grouped -- one obvious home for each thing.
   :class:`~mlsynth.config_models.WeightsResults`).
 * ``res.metadata`` -- the lexicographic recommendation diagnostics.
 
-**Grouped detail:**
+Grouped detail:
 
 * ``res.search`` (:class:`~mlsynth.utils.fast_scm_helpers.structure.LEXSCMSearch`)
   -- *how* the design was chosen: ``shortlist`` (the ranked table),
@@ -1094,7 +1094,7 @@ Run LEXSCM and inspect the design
 
 With :math:`M = 40` eligible markets and :math:`m = 3`,
 :math:`\binom{40}{3} = 9{,}880` is well under ``enumerate_max``, so the
-search **enumerates exactly** and reports ``status = OPTIMAL`` -- a
+search enumerates exactly and reports ``status = OPTIMAL`` -- a
 certified global ``top_K``. Raising :math:`M` and :math:`m` until
 :math:`\binom{M}{m}` exceeds the cap flips the search to the multi-start
 local solver (``status = FEASIBLE``), at which point the ``consensus``
@@ -1107,7 +1107,7 @@ Example: spillover-aware selection
 Suppose the markets sit inside larger regions and treating two markets in the
 same region would let the intervention spill across them (and onto each other's
 donors). Assign every unit a ``region`` and pass it as ``cluster_col``: LEXSCM
-then refuses to co-treat two markets from the same region (Stage 1) **and**
+then refuses to co-treat two markets from the same region (Stage 1) and
 refuses to build a treated market's synthetic control from its own-region peers
 (Stage 2).
 
@@ -1142,7 +1142,7 @@ refuses to build a treated market's synthetic control from its own-region peers
     print("donor regions   :", donor_regions)
     assert treated_regions.isdisjoint(donor_regions)   # donors avoid treated regions
 
-Instead of clusters you can hand LEXSCM a **spillover/adjacency matrix** -- a
+Instead of clusters you can hand LEXSCM a spillover/adjacency matrix -- a
 ``pandas.DataFrame`` indexed and columned by unit id, with a positive entry
 wherever two units interfere -- via ``adjacency=...`` and an optional
 ``spillover_threshold`` (units conflict when the entry exceeds it). A
@@ -1181,9 +1181,9 @@ Example: South & Midwest design with grouped factors
 ====================================================
 
 This example exercises every selection constraint at once on real geography. We
-take the South and Midwest DMAs from the bundled map, group them by **census
-division** (South Atlantic, East/West South Central, East/West North Central),
-and draw outcomes from a **grouped linear factor model**: markets in the same
+take the South and Midwest DMAs from the bundled map, group them by census
+division (South Atlantic, East/West South Central, East/West North Central),
+and draw outcomes from a grouped linear factor model: markets in the same
 division share factor loadings, so they co-move -- the latent-group structure the
 constraints are designed for. Each division is both a *stratum* (for coverage /
 quota) and, through the DMA borders, a source of *spillover*.
@@ -1286,7 +1286,7 @@ the division count) raises :class:`~mlsynth.exceptions.MlsynthConfigError`.
 Under a budget
 --------------
 
-Experiments cost money, and the cost is largely **driven by market size** -- a
+Experiments cost money, and the cost is largely driven by market size -- a
 bigger DMA means a bigger population to treat. Here ``cost`` is :math:`\$5` per
 person, and the program carries a hard :math:`\$10\text{M}` knapsack
 (``unit_cost_col`` + ``budget``) that composes with everything above.
@@ -1304,7 +1304,7 @@ person, and the program carries a hard :math:`\$10\text{M}` knapsack
     # division (here ~$8.3M, all five divisions covered)
     LEXSCM({**bud, "m": 5, "stratum_col": "division", "min_per_stratum": 1}).fit()
 
-The constraints can genuinely **conflict**: requiring coverage of all five
+The constraints can genuinely conflict: requiring coverage of all five
 divisions *and* only above-median markets *and* a $10M cap asks for five large
 (expensive) markets that the budget cannot afford, so the fit fails loudly
 rather than silently dropping a criterion.
@@ -1320,7 +1320,7 @@ rather than silently dropping a criterion.
     except MlsynthConfigError as e:
         print(e)
 
-prints the **binding constraint and by how much**, not just "infeasible"::
+prints the binding constraint and by how much, not just "infeasible"::
 
     LEXSCM design is infeasible -- the binding constraint(s):
       - budget: the 5 cheapest eligible markets cost $10,100,765, over the
@@ -1329,7 +1329,7 @@ prints the **binding constraint and by how much**, not just "infeasible"::
 
 Every infeasibility -- candidate pool, budget, coverage, quota, or spillover --
 is audited up front and reported in this same ``have vs need -> minimal fix``
-shape, and **all** binding constraints are listed together (so you fix them in
+shape, and all binding constraints are listed together (so you fix them in
 one pass rather than one error at a time). The audit only *reports*: it never
 silently relaxes a constraint you set. All of them raise the one
 :class:`~mlsynth.exceptions.MlsynthConfigError`, so a caller catches a single

@@ -23,7 +23,7 @@ Welcome to mlsynth 0.1.2
       }
       </script>
 
-**Synthetic control, for everyone.**
+Synthetic control, for everyone.
 
 mlsynth is an open-source Python toolbox of synthetic-control methods for
 program evaluation. It implements the classical Abadie-Diamond-Hainmueller
@@ -86,12 +86,12 @@ mlsynth builds on top of `numpy <https://numpy.org/>`_,
 `statsmodels <https://www.statsmodels.org/>`_; convex programs are routed
 through cvxpy's solver stack.
 
-**Not sure which estimator to use?** Walk the :doc:`choose` decision tree --
+Not sure which estimator to use? Walk the :doc:`choose` decision tree --
 a sequence of identification and design questions that funnels you from
 "what kind of problem do I have?" down to one or two methods, with the
 catalogue grouped by family.
 
-**Community.**
+Community.
 
 The mlsynth community spans economists, statisticians, and data scientists
 who use synthetic-control methods for program evaluation across policy,
@@ -102,7 +102,7 @@ marketing, sports, and public health. We welcome you to join us!
 * To follow development, watch the
   `mlsynth repository <https://github.com/jgreathouse9/mlsynth>`_ on GitHub.
 
-**Development.**
+Development.
 
 mlsynth is maintained by `Jared Greathouse
 <https://jgreathouse9.github.io/>`_ (Georgia State University). The project
@@ -114,7 +114,7 @@ would not be possible without the kind efforts of and discussions with
 `Jaume Vives-i-Bastida <https://jvivesb.github.io/>`_, along with a growing
 list of contributors.
 
-**News.**
+News.
 
 The verification campaign now covers thirty-two of the
 thirty-six estimators in mlsynth -- each auditing its

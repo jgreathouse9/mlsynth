@@ -6,8 +6,8 @@ Spillover-Aware Synthetic Control (SPILLSYNTH)
 Overview
 --------
 
-SPILLSYNTH is mlsynth's dispatcher for **synthetic-control estimators
-that explicitly model spillover (interference) onto control units**.
+SPILLSYNTH is mlsynth's dispatcher for synthetic-control estimators
+that explicitly model spillover (interference) onto control units.
 Classical SCM (and most of its variants) assume SUTVA: that the donor
 units are not themselves affected by the treatment. When that fails --
 neighboring states, supply-chain partners, geographic spillovers,
@@ -28,20 +28,20 @@ heavy synthetic-control weight, the counterfactual is contaminated and the
 ATT is biased, sometimes by *more* than a naive difference-in-differences
 would be (Cao & Dowd, Section 6).
 
-The reflexive fix is the **pure-donor method**: drop every control you
+The reflexive fix is the pure-donor method: drop every control you
 think is contaminated and fit SCM on the survivors. Cao & Dowd argue this
 is often the wrong trade:
 
-* In many panels **most or all controls are exposed** (geographically
+* In many panels most or all controls are exposed (geographically
   aggregated data), so there is no clean donor pool left to drop to.
-* Contaminated units are frequently the **most informative** donors;
+* Contaminated units are frequently the most informative donors;
   discarding them loses efficiency.
-* Using fewer controls **widens the worst-case bias** when the spillover
+* Using fewer controls widens the worst-case bias when the spillover
   structure is misspecified -- the pure-donor estimator has a larger
   identified set.
 
 SPILLSYNTH (``method="cd"``, Cao & Dowd 2023) instead keeps *all* units and
-estimates the **direct treatment effect and the spillover effects jointly**
+estimates the direct treatment effect and the spillover effects jointly
 under an assumed, contextually-motivated spillover structure
 (matrix :math:`A`, linear in unknown parameters). It is asymptotically
 unbiased for both, supplies an end-of-sample-instability (:math:`P`-test)
@@ -54,39 +54,39 @@ factor models.
 Reach for SPILLSYNTH when
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* You have **geographic or institutional reasons** to suspect specific
+* You have geographic or institutional reasons to suspect specific
   control units are exposed to spillover (e.g. neighboring states for
   a tax change, neighboring firms for a procurement rule, partner
   countries for a sanctions regime).
-* You can **specify the spillover structure** :math:`A` from contextual
+* You can specify the spillover structure :math:`A` from contextual
   knowledge before fitting. The estimator does not discover the affected
   units; it estimates the size of each declared unit's spillover effect
   jointly with the treatment effect.
-* **Many or all controls are contaminated**, so simply dropping the
+* Many or all controls are contaminated, so simply dropping the
   affected units (the pure-donor route) is impractical or wastes too much
   information.
-* You have a **moderate-to-long pre-period** (paper sims use
+* You have a moderate-to-long pre-period (paper sims use
   :math:`T_0 \geq 15`) -- the asymptotics are large-:math:`T`, fixed number
   of controls -- so the leave-one-out SCM fits are well-estimated.
 
 Do not use SPILLSYNTH when
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* **SUTVA credibly holds** (no spillover). The extra spillover parameters
+* SUTVA credibly holds (no spillover). The extra spillover parameters
   only add variance; use classic SC (:doc:`tssc`, :doc:`scmo`,
   :doc:`clustersc`).
-* **You cannot defend a spillover structure** :math:`A`. The estimator
+* You cannot defend a spillover structure :math:`A`. The estimator
   assumes :math:`A` is known; a badly misspecified structure biases both
   effects (the :math:`\kappa_A` test mitigates but does not remove this).
   If only a *few* units are contaminated and droppable, the pure-donor
   approach on a pruned pool (classic SC) is the simpler honest choice.
-* **Spillovers decay with a known spatial weighting and you want a
-  DiD-style objective** -- :doc:`spsydid` pools them through a spatial
+* Spillovers decay with a known spatial weighting and you want a
+  DiD-style objective -- :doc:`spsydid` pools them through a spatial
   weight matrix in a synthetic difference-in-differences fit.
-* **The pre-period is short.** The leave-one-out SCM fits underpinning
+* The pre-period is short. The leave-one-out SCM fits underpinning
   Assumption 1(a)-(c) are then noisy; a factor-model estimator
   (:doc:`fma`) may be more stable.
-* **Distributional** questions (quantiles, tails) -- use :doc:`dsc`.
+* Distributional questions (quantiles, tails) -- use :doc:`dsc`.
 
 .. note::
 
@@ -102,7 +102,7 @@ Do not use SPILLSYNTH when
 Assumptions
 -----------
 
-The Cao-Dowd (2023) estimator is derived under **Assumption 1**, with
+The Cao-Dowd (2023) estimator is derived under Assumption 1, with
 parts (a)-(c) standard regularity conditions on the underlying SCM
 fits and part (d) an identification condition:
 
@@ -114,7 +114,7 @@ fits and part (d) an identification condition:
     :math:`\|\widehat B - B\| = o_p(1)`.
 (c) The post-period extrapolation is stable:
     :math:`\|(\widehat B - B)\, Y_{T+1}(0)\| = o_p(1)`.
-(d) **Identification.** :math:`A' M A` is non-singular, where
+(d) Identification. :math:`A' M A` is non-singular, where
     :math:`M = (I - B)'(I - B)`. Equivalently, :math:`(I - B) A`
     has full column rank.
 
@@ -127,13 +127,13 @@ exposes ``cd.cond_AMA`` as a numerical diagnostic.
 The paper shows that Assumption 1 is satisfied by factor-model DGPs
 under two alternative regularity conditions on the common factors:
 
-**Condition ST** (stationary factors).
+Condition ST (stationary factors).
   :math:`\{(\eta_t, \lambda_t, \varepsilon_t)\}_{t \geq 1}` is
   stationary, ergodic for first and second moments, has a finite
   :math:`(2 + \delta)`-moment, and :math:`\mathrm{cov}[Y_t(0)] =
   \Omega_y` is positive definite.
 
-**Condition CO** (cointegrated :math:`\mathcal{I}(1)` factors).
+Condition CO (cointegrated :math:`\mathcal{I}(1)` factors).
   Write :math:`y_{i,t}(0) = (\lambda_t^1)' \mu_i^1 + (\lambda_t^0)'
   \mu_i^0 + \varepsilon_{i,t}` with :math:`\{\lambda_t^1\}` an
   :math:`\mathcal{I}(1)` process and :math:`\{\lambda_t^0\}`
@@ -144,7 +144,7 @@ under two alternative regularity conditions on the common factors:
 Theoretical guarantees
 ----------------------
 
-**Theorem 1 (asymptotic unbiasedness; Cao & Dowd 2023).**
+Theorem 1 (asymptotic unbiasedness; Cao & Dowd 2023).
 Under Assumption 1,
 
 .. math::
@@ -154,14 +154,14 @@ Under Assumption 1,
 
 where :math:`G = A (A' M A)^{-1} A' (I - B)'` and
 :math:`\mathbb{E}[G\, u_{T+1}] = 0`. The estimator
-:math:`\widehat \alpha` is therefore **asymptotically unbiased** for
+:math:`\widehat \alpha` is therefore asymptotically unbiased for
 the treatment and spillover effect vector :math:`\alpha`. (It is not
 consistent because only one post-period of one treated unit is observed,
 so the irreducible :math:`u_{T+1}` term does not vanish in any limit.)
 
-**Lemma 1 (factor-model sufficiency).**
-If :math:`A' M A` is non-singular, then **either** Condition ST
-**or** Condition CO implies Assumption 1. Theorem 1 therefore applies
+Lemma 1 (factor-model sufficiency).
+If :math:`A' M A` is non-singular, then either Condition ST
+or Condition CO implies Assumption 1. Theorem 1 therefore applies
 to factor-model panels with stationary or cointegrated common
 factors -- the leading data-generating processes in the synthetic-
 controls literature.
@@ -182,7 +182,7 @@ Method: ``method='cd'`` -- Cao & Dowd (2023, v3)
 ------------------------------------------------
 
 The Cao-Dowd estimator works in two steps. First, fit a Ferman-Pinto
-(2021) demeaned simplex SCM **for every unit** in the panel, treating
+(2021) demeaned simplex SCM for every unit in the panel, treating
 each in turn as the focal unit and using the others as donors. Call
 the resulting :math:`N \times N` weight matrix :math:`\widehat B`
 (with :math:`\widehat B_{ii} = 0`) and the length-:math:`N` intercept
@@ -200,34 +200,34 @@ and recover the treatment-and-spillover effect vector at post-period
    \qquad \widehat M = (I - \widehat B)' (I - \widehat B).
 
 The full effect vector is :math:`\widehat \alpha_t = A \widehat \gamma_t`.
-Row 0 is the **spillover-adjusted ATT on the treated unit**; the
+Row 0 is the spillover-adjusted ATT on the treated unit; the
 remaining rows hold the per-affected-unit spillover effects.
 
 Choice of A: the three Cao-Dowd v3 examples
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-SPILLSYNTH ships **all three** examples from Cao-Dowd (2023, v3),
+SPILLSYNTH ships all three examples from Cao-Dowd (2023, v3),
 selected via ``SPILLSYNTHConfig.spillover_structure``. (The v3
 numbering renames v2's examples; we use v3 throughout.)
 
-* ``"per_unit"`` (**Example 1**, Section 2.2 -- *Limited range*; the
+* ``"per_unit"`` (Example 1, Section 2.2 -- *Limited range*; the
   paper's leading case). Each declared affected unit gets its own
   free spillover coefficient. :math:`A` is :math:`N \times (1 + p)`
   with column 0 the treated-unit basis vector and columns
   :math:`1, \dots, p` the basis vectors for each affected control.
   Helper: :func:`build_A_per_unit`.
 
-* ``"homogeneous"`` (**Example 2**, Section 3.4). All declared
+* ``"homogeneous"`` (Example 2, Section 3.4). All declared
   affected units share a single spillover coefficient :math:`b`.
   :math:`A` is :math:`N \times 2` with column 0 = treated basis and
   column 1 the indicator over affected rows. Use when domain
   knowledge constrains spillovers to be of equal magnitude across the
   affected set. Helper: :func:`build_A_homogeneous`.
 
-* ``"distance_decay"`` (**Example 3**, Section 7.1). Spillover decays
+* ``"distance_decay"`` (Example 3, Section 7.1). Spillover decays
   as :math:`\alpha_i = b \exp(-d_i)` with user-supplied
   distances. :math:`A` is :math:`N \times 2` with row :math:`i` set to
-  :math:`(0, \exp(-d_i))`. **Every** control receives some spillover
+  :math:`(0, \exp(-d_i))`. Every control receives some spillover
   (the magnitude is the variable of interest); see Section 7.1 for the
   link to continuous-treatment models. Helper:
   :func:`build_A_distance_decay`; supply ``unit_distances={label: d}``
@@ -277,23 +277,23 @@ Currently shipped:
 
 * Per-unit demeaned simplex SCM (eq. 2-3 of the paper).
 * The closed-form treatment-and-spillover estimator (eq. 6 of v3)
-  under **all three A-matrix structures**: per-unit (Example 1),
+  under all three A-matrix structures: per-unit (Example 1),
   homogeneous (Example 2), and distance-decay (Example 3).
 * Original Abadie 2010 SCM counterfactual for side-by-side comparison.
 * Cao-Dowd Section 4 P-test inference (Theorems 2 and 3): per-period
   tests for ``H_0: alpha_1(t) = 0`` (treatment) and
-  ``H_0: alpha_k(t) = 0`` (per-affected-unit spillover), the **joint**
+  ``H_0: alpha_k(t) = 0`` (per-affected-unit spillover), the joint
   spillover hypothesis matching the MATLAB reference, signed
   confidence intervals via test inversion, and the
   :math:`\kappa_A` specification test for the chosen :math:`A`.
   See :ref:`spillsynth-inference` and :ref:`spillsynth-kappa-A`.
-* Cao-Dowd v3 Section 5.2 **pure-donor sensitivity analysis** --
+* Cao-Dowd v3 Section 5.2 pure-donor sensitivity analysis --
   worst-case misspecification-bias bounds comparing SP against the
   pure-donor SCM. See :ref:`spillsynth-pure-donor`.
-* Cao-Dowd v3 Section S.1.1 **GMM-efficient variant** (Proposition
+* Cao-Dowd v3 Section S.1.1 GMM-efficient variant (Proposition
   S.1): :math:`\widehat \alpha^e` minimises asymptotic variance via
   :math:`W = \widehat \Omega^{-1}`. See :ref:`spillsynth-efficient`.
-* Cao-Dowd v3 Section S.1.2 **multiple treated units** with a common
+* Cao-Dowd v3 Section S.1.2 multiple treated units with a common
   intervention time -- per-treated-unit ATTs, CIs, and treatment-
   effect tests. See :ref:`spillsynth-multi-treated`.
 
@@ -301,7 +301,7 @@ Not yet shipped (planned):
 
 * Multiple post-treatment-period structure selection (Section S.1.3).
 * Covariates (Section S.1.4).
-* Staggered adoption (treated units with **different** intervention
+* Staggered adoption (treated units with different intervention
   times). The cohort decomposition is supported upstream by
   :func:`mlsynth.utils.datautils.dataprep`; per-cohort SPILLSYNTH
   orchestration is a separate scope.
@@ -510,8 +510,8 @@ Verification
 
 .. note::
 
-   **Algorithmic equivalence with Cao-Dowd's R reference (verified to
-   four decimals).** The Cao-Dowd authors published their estimator as
+   Algorithmic equivalence with Cao-Dowd's R reference (verified to
+   four decimals). The Cao-Dowd authors published their estimator as
    the R package ``scmSpillover``. Running both implementations on the
    51-unit panel above yields:
 
@@ -534,7 +534,7 @@ Verification
       Avg ATT 1989-2000:  SP_R = -9.4399   SP_Py = -9.4399
       Avg ATT 1989-1992:  SP_R = -0.8471   SP_Py = -0.8471
 
-   This equivalence is pinned **durably** by the ``spillsynth_prop99``
+   This equivalence is pinned durably by the ``spillsynth_prop99``
    benchmark, which clones the authors' repository
    (``jcao0/synthetic-control-spillover``, pinned commit ``60bbebe``) and
    checks mlsynth's live ``method='cd'`` fit against the committed MATLAB
@@ -565,15 +565,15 @@ for known :math:`C \in \mathbb{R}^{q \times N}` and :math:`d \in
 \mathbb{R}^q`. The two practical specialisations SPILLSYNTH always
 computes are:
 
-* **Treatment-effect test** (paper, Section 4.2, applied with
+* Treatment-effect test (paper, Section 4.2, applied with
   :math:`C = e_1^\prime`, :math:`d = 0`): tests
   :math:`H_0: \alpha_1(t) = 0` separately for each post-period
   :math:`t = T+1, \dots, T+m`.
-* **Per-affected-unit spillover test** (one such test per declared
+* Per-affected-unit spillover test (one such test per declared
   affected unit :math:`k`, with :math:`C = e_{k+1}^\prime`):
   tests :math:`H_0: \alpha_k(t) = 0`.
 
-**Test statistic.** At post-period :math:`t`,
+Test statistic. At post-period :math:`t`,
 
 .. math::
 
@@ -583,7 +583,7 @@ with default :math:`W_T = I` (Lemma 3 of the paper -- under either
 Condition ST or Condition CO this choice satisfies the regularity
 required for asymptotic validity).
 
-**Reference distribution.** For each pre-period :math:`s = 1, \dots,
+Reference distribution. For each pre-period :math:`s = 1, \dots,
 T_0`, the quadratic form
 
 .. math::
@@ -600,7 +600,7 @@ pre-period residual vector, supplies the empirical CDF. Reject
 of :math:`\{\widehat P_s\}_{s=1}^{T_0}`). The :math:`p`-value is the
 empirical-CDF tail mass at :math:`P_t`.
 
-**Assumptions for validity (Assumption 3 of the paper).**
+Assumptions for validity (Assumption 3 of the paper).
 
 (a) Assumption 1 holds (the estimation-side assumptions stated above).
 (b) :math:`\{u_t\}_{t \geq 1}` is ergodic with :math:`\mathbb{E}[\|u_t\|]
@@ -614,7 +614,7 @@ empirical-CDF tail mass at :math:`P_t`.
     increasing at its :math:`(1 - \tau)`-quantile.
 (f) :math:`W_T \xrightarrow{p} W` as :math:`T \to \infty`.
 
-**Theorem 3 (asymptotic validity; Cao & Dowd 2023).**
+Theorem 3 (asymptotic validity; Cao & Dowd 2023).
 Under Assumption 3, as :math:`T \to \infty`:
 
 (a) :math:`P \xrightarrow{d} P_\infty`;
@@ -628,7 +628,7 @@ So the test is asymptotically of correct size :math:`\tau`. Lemma 3
 of the paper then shows that under Condition ST or Condition CO,
 :math:`W_T = I` is a valid choice for the weight matrix.
 
-**Why not the placebo or vanilla Andrews test?** Section 4.3 of the
+Why not the placebo or vanilla Andrews test? Section 4.3 of the
 paper gives the intuition (and the Monte Carlo below quantifies it):
 
 * The Abadie (2010) placebo test under-rejects under positive
@@ -636,7 +636,7 @@ paper gives the intuition (and the Monte Carlo below quantifies it):
   to the right, widening the across-unit distribution and making the
   treated unit's residual less extreme.
 * Andrews' (2003) P-test using only the treated unit's own residuals
-  ignores the cross-unit information altogether and **over-rejects**
+  ignores the cross-unit information altogether and over-rejects
   under spillover -- the pre-period treated residual density is
   unaffected by spillover, but the post-period one is, so the test
   statistic shifts and the empirical CDF fails to track it.
@@ -645,7 +645,7 @@ paper gives the intuition (and the Monte Carlo below quantifies it):
   post-period statistic share the same weighting, so size is
   preserved under either spillover regime.
 
-**Result fields.** After fitting,
+Result fields. After fitting,
 
 .. code-block:: python
 
@@ -674,7 +674,7 @@ paper gives the intuition (and the Monte Carlo below quantifies it):
 A-specification test: the :math:`\kappa_A` statistic
 ----------------------------------------------------
 
-**New in v3** (Section 5.1.2). The estimator's misspecification bias is
+New in v3 (Section 5.1.2). The estimator's misspecification bias is
 linear in the *missed* spillover effects (eq. 10 of the paper), so a
 goodness-of-fit statistic on the residualised post-period outcome is
 informative about whether :math:`A` correctly captures the spillover
@@ -701,7 +701,7 @@ and form the empirical CDF
 :math:`\kappa_A` exceeds the empirical
 :math:`(1 - \tau)`-quantile.
 
-**Proposition 2** (Cao-Dowd v3). Under Assumption 3,
+Proposition 2 (Cao-Dowd v3). Under Assumption 3,
 :math:`\Pr(\kappa_A > \widehat q^A_{\kappa, 1 - \tau}) \to \Pr(\|(I -
 \Gamma_A) u_{T+1} + (I - \Gamma_A)(I - B) \alpha\| \geq q^A_{\kappa, 1
 - \tau})`. When :math:`A` is correctly specified the deterministic
@@ -717,7 +717,7 @@ SPILLSYNTH always populates this test:
    kA.p_value                         # (T1,) tail-mass p-value
    kA.reject_05                       # (T1,) boolean
 
-For **A-selection**, use :func:`select_A_by_kappa` to pick among
+For A-selection, use :func:`select_A_by_kappa` to pick among
 candidate :math:`A` matrices by minimising the mean
 :math:`\kappa_A` over post-periods (Section S.1.3 of the paper notes
 this is a heuristic with a single post-period and a consistent
@@ -728,7 +728,7 @@ selector with multiple).
 Pure-donor sensitivity analysis
 -------------------------------
 
-**New in v3** (Section 5.2). An alternative to SP is the *pure-donor*
+New in v3 (Section 5.2). An alternative to SP is the *pure-donor*
 SCM, which simply drops every assumed-affected unit from the donor
 pool. Both methods are asymptotically unbiased when :math:`A` is
 correctly specified, but they differ in robustness to
@@ -736,7 +736,7 @@ misspecification: if some assumed-clean control was actually exposed
 to a spillover of magnitude :math:`\bar \alpha`, what bias does that
 inject?
 
-Section 5.2 shows the worst-case bias is **linear** in
+Section 5.2 shows the worst-case bias is linear in
 :math:`\bar \alpha` with coefficient
 
 * SP: :math:`c_p^{SP} = \sum_{j=1}^{p} |\widetilde w_{SP, j}|`,
@@ -778,7 +778,7 @@ affected row.
 GMM-efficient weighting (Proposition S.1)
 -----------------------------------------
 
-**New in v3** (Section S.1.1). The default Cao-Dowd estimator
+New in v3 (Section S.1.1). The default Cao-Dowd estimator
 minimises :math:`\| \widehat u_{T+1} \|`. The generalised variant
 minimises :math:`\| W^{1/2} \widehat u_{T+1} \|` for a positive-
 definite weighting matrix :math:`W`. The closed-form is
@@ -789,10 +789,10 @@ definite weighting matrix :math:`W`. The closed-form is
    \big[ (I - \widehat B) Y_{T+1} - \widehat a \big], \qquad
    \widehat M_W = (I - \widehat B)' W (I - \widehat B).
 
-**Proposition S.1**. Letting :math:`\Omega = \mathrm{Cov}[u_1]` and
+Proposition S.1. Letting :math:`\Omega = \mathrm{Cov}[u_1]` and
 choosing :math:`W^e = \Omega^{-1}` (estimated by inverting the sample
 residual covariance), the resulting estimator :math:`\widehat \alpha^e`
-has asymptotic variance **no larger** than the unweighted
+has asymptotic variance no larger than the unweighted
 :math:`\widehat \alpha` -- with strict reduction whenever
 :math:`\Omega` is not a scalar multiple of identity.
 
@@ -820,8 +820,8 @@ actually reduce variance in practice; treat it as a refinement when
 Multiple treated units (Section S.1.2)
 --------------------------------------
 
-**New in v3** (Section S.1.2). SPILLSYNTH supports panels with
-:math:`k > 1` treated units that all turn on at the **same**
+New in v3 (Section S.1.2). SPILLSYNTH supports panels with
+:math:`k > 1` treated units that all turn on at the same
 intervention time. The setup generalises the leading example: with
 :math:`N = 4`, units 1 and 2 treated, unit 3 affected by spillover,
 and unit 4 clean, the A-matrix is
@@ -838,7 +838,7 @@ effect on unit 3. The closed form is identical to eq. (6); only the
 column count of :math:`A` (and the partition of :math:`\widehat\alpha
 = A \widehat\gamma`) changes.
 
-**How to invoke.** Put a non-zero ``treat`` indicator on every treated
+How to invoke. Put a non-zero ``treat`` indicator on every treated
 unit at and after the intervention time. SPILLSYNTH detects all
 treated units automatically and validates that they share a common
 start time. (Different start times trigger a friendly error pointing
@@ -847,7 +847,7 @@ decomposition is delegated upstream to
 :func:`mlsynth.utils.datautils.dataprep`, which is the canonical
 panel-reshape utility for the whole mlsynth ecosystem.
 
-**Per-treated outputs.** ``CDFit`` gains dictionaries keyed by
+Per-treated outputs. ``CDFit`` gains dictionaries keyed by
 treated-unit label:
 
 .. code-block:: python
@@ -864,15 +864,15 @@ treated-unit label:
    res.cd.treatment_tests                  # {label: PTestResult}
    res.cd.treatment_cis_95                 # {label: (T1, 2) CI}
 
-**Back-compat.** When :math:`k = 1`, every per-treated-unit dict has
+Back-compat. When :math:`k = 1`, every per-treated-unit dict has
 exactly one entry and the scalar/vector fields
 (``res.att``, ``res.gap``, ``res.counterfactual``,
 ``res.cd.treatment_test``, ``res.cd.treatment_ci_95``) keep their
 existing semantics. With :math:`k > 1`, those legacy fields point at
-the **first** treated unit (in the same order ``dataprep`` returns
+the first treated unit (in the same order ``dataprep`` returns
 the cohort); use the per-unit dicts to read out the rest.
 
-**A-matrix structure with multiple treated.** All three structures
+A-matrix structure with multiple treated. All three structures
 extend cleanly:
 
 * ``per_unit``: ``A`` is ``(N, k + p)`` -- columns ``0..k-1`` are
@@ -883,7 +883,7 @@ extend cleanly:
 * ``distance_decay``: ``A`` is ``(N, k + 1)`` -- ``k`` treated columns
   plus one column carrying :math:`\exp(-d_i)` for every control row.
 
-**Inference with multiple treated.** The treatment-effect
+Inference with multiple treated. The treatment-effect
 :math:`P`-test selector ``C = e_i'`` is computed once per treated unit
 :math:`i`, producing per-unit p-values and signed confidence
 intervals. The joint spillover hypothesis selects all
@@ -892,8 +892,8 @@ intervals. The joint spillover hypothesis selects all
 post-period residual norm, which is invariant to the
 treatment/spillover partition of :math:`\widehat\alpha`).
 
-**Plot output.** When ``n_treated > 1`` the diagnostic plot switches
-to an **event-study layout**: one line per treated unit showing the
+Plot output. When ``n_treated > 1`` the diagnostic plot switches
+to an event-study layout: one line per treated unit showing the
 SP-adjusted gap over the post-period with a shaded 95% confidence
 interval, alongside the per-affected-unit spillover panel (when any
 affected units are declared). The single-treated three-panel
@@ -963,7 +963,7 @@ A-selection example: ``select_A_by_kappa``
 ------------------------------------------
 
 The :math:`\kappa_A` specification test (Section 5.1.2) also drives a
-**heuristic A-selector**: among a finite candidate set
+heuristic A-selector: among a finite candidate set
 :math:`\mathcal{A}`, pick :math:`\widehat A = \arg\min_{A \in
 \mathcal{A}} \kappa_A`. The implementation is
 :func:`select_A_by_kappa`. Below, we ask SPILLSYNTH to choose between a
@@ -1050,10 +1050,10 @@ bottom of this section.
    :language: python
    :linenos:
 
-The estimator under "SCM" is the **original Abadie 2010 simplex SCM
-without intercept** (matching the paper's comparator, not the
+The estimator under "SCM" is the original Abadie 2010 simplex SCM
+without intercept (matching the paper's comparator, not the
 intercept-shifted variant returned by ``res.att_scm``). The estimator
-under "SP" is invoked through the **public** ``SPILLSYNTH(config).fit()``
+under "SP" is invoked through the public ``SPILLSYNTH(config).fit()``
 API, satisfying the Path-B contract requirement that the replication
 exercise the full config / panel-prep / estimation pipeline end-to-end
 on every Monte Carlo replication.
@@ -1095,7 +1095,7 @@ SCM picks up a bias of :math:`-1` to :math:`-2` packs under spillover,
 while SP centres near zero. Standard deviations are within :math:`\sim
 10`-:math:`15\%` of the paper's. Cell-by-cell bias values for the
 *No spillover* and *Concentrated* rows differ from the paper at the
-:math:`0.1`-:math:`0.4` level. This is **not** an estimator
+:math:`0.1`-:math:`0.4` level. This is not an estimator
 discrepancy -- it is the loading draw :math:`\mu_i`, which is fixed
 across replications within a cell per the paper's spec but drawn from
 a different random seed than the paper's. The variance of the
@@ -1117,9 +1117,9 @@ The script :file:`examples/spillsynth/replicate_cd_inference.py`
 replicates Section 6.2 of the paper: empirical rejection rates of the
 treatment-effect hypothesis :math:`H_0: \alpha_1 = 0` under three test
 procedures (placebo, Andrews, SP) and three spillover scenarios. Table
-3 fixes :math:`\alpha_1 = 0` (so rejection rates measure **size**);
+3 fixes :math:`\alpha_1 = 0` (so rejection rates measure size);
 Table 4 fixes :math:`\alpha_1 = 5` (so rejection rates measure
-**power**). On every replication the SP test (the procedure
+power). On every replication the SP test (the procedure
 ``mlsynth`` packages) is read off
 ``SPILLSYNTH(config).fit().cd.treatment_test.reject_05``; the placebo
 and Andrews comparators reuse the same leave-one-out SCM artefacts
@@ -1171,13 +1171,13 @@ A 200-rep pilot on a representative pair of cells produces:
 
 The directional findings replicate:
 
-* **SP keeps correct size under both spillover regimes** (within
-  Monte-Carlo error of the nominal 5%), while **Andrews catastrophically
-  over-rejects under spillover** (51%-58% size at :math:`T = 50`-:math:`200`,
+* SP keeps correct size under both spillover regimes (within
+  Monte-Carlo error of the nominal 5%), while Andrews catastrophically
+  over-rejects under spillover (51%-58% size at :math:`T = 50`-:math:`200`,
   Spreadout). Placebo size is small but at the discrete granularity of
   the :math:`1/N`-quantile.
-* **SP retains high power** (:math:`\geq 95\%` for :math:`T = 50`) across
-  spillover scenarios; **placebo loses power dramatically under spillover**
+* SP retains high power (:math:`\geq 95\%` for :math:`T = 50`) across
+  spillover scenarios; placebo loses power dramatically under spillover
   (down to 26% in Spreadout); Andrews is in between.
 
 Two caveats on the cell-level numbers:
@@ -1197,10 +1197,10 @@ Two caveats on the cell-level numbers:
 Method: ``method='iscm'`` -- Di Stefano & Mellace (2024)
 -------------------------------------------------------
 
-The **inclusive synthetic control method** attacks the same problem as
+The inclusive synthetic control method attacks the same problem as
 Cao-Dowd from a different angle. The conventional spillover-robust recipe
 is to *drop* the contaminated neighbours (the "pure-donor" method); the
-inclusive method instead **keeps them in the donor pool** and removes the
+inclusive method instead keeps them in the donor pool and removes the
 bias their inclusion causes by solving a small linear system.
 
 The idea
@@ -1209,7 +1209,7 @@ The idea
 Suppose the treated unit and a set of :math:`p` *potentially affected*
 control units (the affected set :math:`S`, of size :math:`m = 1 + p`) are
 each exposed to the intervention -- the treated directly, the others via
-spillover. Build a synthetic control for **every** unit in :math:`S`, each
+spillover. Build a synthetic control for every unit in :math:`S`, each
 fit with all other units (including the *other* affected units) in its
 donor pool. Under a good pre-fit, the observed post-treatment gap for
 affected unit :math:`i` mixes its own effect with the effects of the
@@ -1239,28 +1239,28 @@ Assumptions
 
 The inclusive method rests on five conditions.
 
-* **(A1) Additive treatment/spillover.** For every unit :math:`i` and
+* (A1) Additive treatment/spillover. For every unit :math:`i` and
   post-period :math:`t`, the observed outcome decomposes as
   :math:`Y_{it} = Y_{it}^N + \theta_i(t)`, with :math:`Y_{it}^N` the
   untreated potential outcome and :math:`\theta_i(t)` the (treatment or
   spillover) effect, :math:`\theta_j = 0` for clean controls. The effect is
   additive and does not feed back into the donors' untreated paths.
-* **(A2) Valid synthetic controls for the whole affected set.** Each unit in
+* (A2) Valid synthetic controls for the whole affected set. Each unit in
   :math:`S` -- the treated unit *and every affected unit* -- admits simplex
   weights over the remaining units that reproduce its untreated potential
   outcome, :math:`\sum_j w_i^{(j)} Y_{jt}^N = Y_{it}^N` in expectation (the
   usual SCM / factor-model condition). This is the standard SCM assumption,
   now required of every affected unit, not only the treated one.
-* **(A3) Correctly specified affected set.** :math:`S` is known, and every
+* (A3) Correctly specified affected set. :math:`S` is known, and every
   control outside :math:`S` is genuinely unaffected
   (:math:`\theta_j = 0`). The clean controls supply the uncontaminated
   identifying variation. As in Cao-Dowd, a conservative researcher errs
   toward a *larger* :math:`S` -- if in doubt, include the unit.
-* **(A4) Invertible cross-weight system.** :math:`\Omega` is non-singular,
+* (A4) Invertible cross-weight system. :math:`\Omega` is non-singular,
   :math:`\det\Omega \neq 0`. For :math:`m=2` this is :math:`1 - w\ell \neq
   0`: the treated and affected unit must not load on each other so heavily
   that the system collapses.
-* **(A5) Good pre-treatment fit.** The synthetic controls track each unit's
+* (A5) Good pre-treatment fit. The synthetic controls track each unit's
   pre-period path, so post-period gaps reflect effects, not fit error (the
   usual SCM requirement; under imperfect fit the Ferman-Pinto / demeaning
   caveats apply).
@@ -1326,7 +1326,7 @@ When to use: inclusive SCM vs. (and alongside) Cao-Dowd
 Both methods keep the contaminated neighbours and correct for spillover, but
 they buy identification differently.
 
-* **Cao-Dowd (``method='cd'``)** imposes a *parametric spillover structure*
+* Cao-Dowd (``method='cd'``) imposes a *parametric spillover structure*
   -- the :math:`A`-matrix (per-unit, homogeneous, distance-decay) -- and
   recovers the treatment and spillover coefficients jointly from all units'
   demeaned-SCM residuals, with formal inference (:math:`P`-test) and a
@@ -1337,7 +1337,7 @@ they buy identification differently.
   specification test, or (d) the affected units cannot themselves be well
   synthesized.
 
-* **Inclusive SCM (``method='iscm'``)** imposes *no parametric spillover form*:
+* Inclusive SCM (``method='iscm'``) imposes *no parametric spillover form*:
   it lets the data's own cross-weights define the contamination and inverts
   them. Prefer it when (a) each affected unit *can* be given a good synthetic
   control (it lies in the donor hull), (b) you are unwilling to commit to an
@@ -1349,7 +1349,7 @@ they buy identification differently.
 The two rest on *different* assumptions -- a correctly specified spillover
 structure (Cao-Dowd) versus an invertible cross-weight system and
 synthesizable affected units (inclusive) -- which makes them natural
-**robustness companions**. Run both: agreement is reassuring, and
+robustness companions. Run both: agreement is reassuring, and
 disagreement localizes the load-bearing assumption (the :math:`A`-matrix, or
 the :math:`\Omega`-invertibility / affected-unit fit). When the spillover's
 shape is unknown, the inclusive method is the lighter-assumption default;
@@ -1358,9 +1358,9 @@ when the shape is known and inference matters, Cao-Dowd is the sharper tool.
 Covariates and the solver choice
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Each unit's synthetic control may match on **covariates** (``covariates=``)
+Each unit's synthetic control may match on covariates (``covariates=``)
 exactly as in Abadie's specification: the covariates are averaged over the
-pre-treatment period and fed to the FSCM/MASC **bilevel** predictor-matching
+pre-treatment period and fed to the FSCM/MASC bilevel predictor-matching
 solver, which jointly optimizes the predictor weights :math:`V` with the
 donor weights :math:`W`. The bilevel *backend* is the user's choice via
 ``bilevel_solver``:
@@ -1372,7 +1372,7 @@ donor weights :math:`W`. The bilevel *backend* is the user's choice via
   a pairwise matching penalty, choosing :math:`\lambda` by cross-validation
   (treated pre-intervention holdout by default; donor leave-one-out optional).
   Unlike the first two it has no predictor-weight :math:`V` to identify, so it
-  returns a **unique, sparse** synthetic control -- the principled resolution
+  returns a unique, sparse synthetic control -- the principled resolution
   of the malo/mscmt non-uniqueness that arises when the treated unit lies
   inside the donor convex hull on the matching variables.
 
@@ -1413,8 +1413,8 @@ Raising :math:`\lambda` therefore *increases* the cross-weight :math:`w` the
 affected unit receives, which (i) sparsifies and lowers interpolation bias,
 as ALH intend, but (ii) drives :math:`\det\Omega = 1 - w\ell` toward zero,
 making the inclusive correction larger and eventually ill-posed.
-Penalization and inclusion are thus **complementary but opposed at the
-margin**: the penalty reduces interpolation bias by leaning on the close
+Penalization and inclusion are thus complementary but opposed at the
+margin: the penalty reduces interpolation bias by leaning on the close
 (affected) neighbour, and the :math:`\Omega`-inversion is precisely what
 removes the spillover bias that leaning introduces -- up to the point where
 the cross-loading makes the system singular. In practice, choose
@@ -1428,7 +1428,7 @@ perfect-fit weights); as :math:`\lambda \to \infty` it degenerates to
 nearest-neighbour, which for a treated/affected pair drives :math:`w \to 1`
 and breaks invertibility.
 
-The optional **bias correction** (``bias_correct=True``) is ALH's second
+The optional bias correction (``bias_correct=True``) is ALH's second
 ingredient. After the (penalized or unpenalized) weights are formed, it
 regresses each unit's outcome on the covariates and subtracts the part of the
 gap explained by residual covariate imbalance (eq. 7), with a ridge to keep
@@ -1487,7 +1487,7 @@ Second example: the Basque Country, with Abadie-Gardeazabal covariates
 
 The Basque Country (ETA terrorism) is the other canonical synthetic-control
 case. Suppose we suspect spillover onto the geographically adjacent regions
-**Navarra, La Rioja, Castile y Leon and Cantabria**, and we want to match on
+Navarra, La Rioja, Castile y Leon and Cantabria, and we want to match on
 Abadie & Gardeazabal's original economic predictors with their specific lag
 windows. ``covariate_windows`` supplies those windows (an inclusive
 ``(start, end)`` per covariate; covariates not listed are averaged over the
@@ -1561,15 +1561,15 @@ bilevel backend (per-capita GDP, 1986 USD thousands):
      - 0.084
      - 0.084
 
-Two lessons. First, the **inclusive correction barely moves the treated
-effect** here (inclusive :math:`\approx` naive in every row): the Basque
+Two lessons. First, the inclusive correction barely moves the treated
+effect here (inclusive :math:`\approx` naive in every row): the Basque
 Country is a rich industrial region whose synthetic leans on Cataluna and
 Madrid, so the four poorer neighbours receive near-zero donor weight and there
 is little contamination to undo (contrast West Germany, where Austria is a
 heavy donor and the correction bites). The cross-weight system is essentially
 a diagnostic that *confirms* those regions are not load-bearing donors.
-Second, the result is robust to the malo/mscmt choice **once the predictors
-are rich enough to bind** -- with only a few weak covariates mscmt's global
+Second, the result is robust to the malo/mscmt choice once the predictors
+are rich enough to bind -- with only a few weak covariates mscmt's global
 ``V`` search collapses to a corner (a badly-fitting single-predictor
 solution); with the full AG block it agrees with malo at :math:`\approx
 -0.68`. As always, read the ``pre_rmspe`` column as the referee.
@@ -1578,10 +1578,10 @@ Method: ``method='grossi'`` -- Grossi et al. (2025)
 --------------------------------------------------
 
 Grossi, Mariani, Mattei, Lattarulo & Oener (2025, *JRSS-A*) estimate direct
-*and* spillover effects under **partial interference** -- the third spillover
+*and* spillover effects under partial interference -- the third spillover
 philosophy in SPILLSYNTH, and the polar opposite of the inclusive method.
 Where ``iscm`` keeps the contaminated neighbours in the donor pool and
-algebraically corrects, ``grossi`` **drops the treated unit's whole cluster**
+algebraically corrects, ``grossi`` drops the treated unit's whole cluster
 from the pool and rebuilds the counterfactual from the *far* (clean) controls
 only.
 
@@ -1592,37 +1592,37 @@ The units are partitioned into clusters (neighbourhoods). The treated unit
 sits in cluster 1 together with its potentially-affected cluster-mates (the
 ``affected_units``); the remaining clusters are clean controls. Under partial
 interference, build a penalized synthetic control -- from the clean controls
-*only* -- for the treated unit **and** for each cluster-mate:
+*only* -- for the treated unit and for each cluster-mate:
 
-* the treated unit's gap is the **direct effect** (paper eq. 3.4),
+* the treated unit's gap is the direct effect (paper eq. 3.4),
   :math:`\widehat\tau_{1,t} = Y_{1,t} - \sum_{j \in \text{clean}}
   \widehat\omega_j^{(1)} Y_{j,t}`;
-* each cluster-mate's gap is a **spillover effect**, averaged into the average
+* each cluster-mate's gap is a spillover effect, averaged into the average
   spillover (eq. 3.5),
   :math:`\widehat\delta_t = \frac{1}{N_1-1}\sum_{i \in \mathcal N_1\setminus\{1\}}
   \big(Y_{i,t} - \sum_{j} \widehat\omega_j^{(i)} Y_{j,t}\big)`.
 
-The synthetic controls use the **penalized SCG estimator** (Abadie-L'Hour
+The synthetic controls use the penalized SCG estimator (Abadie-L'Hour
 2021, the ``penalized`` backend) -- which is why that backend had to exist
 first -- with :math:`\lambda` chosen by cross-validation.
 
 Assumptions
 ^^^^^^^^^^^
 
-* **(G1) Partial interference** (Sobel 2006; paper Assumption 1).
+* (G1) Partial interference (Sobel 2006; paper Assumption 1).
   Interference occurs only *within* a unit's cluster, never between clusters.
   This is what makes the far clusters clean controls and is the method's
   load-bearing assumption -- it must be defensible from the geography /
   network of the application.
-* **(G2) Correctly partitioned clusters.** The treated unit's cluster (its
+* (G2) Correctly partitioned clusters. The treated unit's cluster (its
   affected mates) is correctly identified; every other cluster is genuinely
   unexposed.
-* **(G3) Valid penalized SC from clean controls.** Each treated-cluster unit
+* (G3) Valid penalized SC from clean controls. Each treated-cluster unit
   admits a good penalized synthetic control built from the clean controls
   (the stable cross-cluster relationship of the paper's Section 3.3, points
   (a)-(b): a common structural process, no idiosyncratic structural shocks
   over the sample).
-* **(G4) Consistency / no anticipation** (standard SCM).
+* (G4) Consistency / no anticipation (standard SCM).
 
 Identification and econometric theory
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1661,15 +1661,15 @@ When to use: ``grossi`` vs ``iscm`` vs ``cd``
 All three keep the analysis honest about spillover; they differ in *what they
 do with the contaminated neighbours*:
 
-* **``cd`` (Cao-Dowd)** -- keep them, impose a parametric spillover structure
+* ``cd`` (Cao-Dowd) -- keep them, impose a parametric spillover structure
   (the :math:`A`-matrix), recover everything jointly with formal inference.
-* **``iscm`` (Di Stefano-Mellace)** -- keep them, invert the data's own
+* ``iscm`` (Di Stefano-Mellace) -- keep them, invert the data's own
   cross-weights (no parametric structure, but needs an invertible
   :math:`\Omega`).
-* **``grossi``** -- *drop* them, and identify off a **partial-interference**
+* ``grossi`` -- *drop* them, and identify off a partial-interference
   cluster structure using the far controls.
 
-Prefer ``grossi`` when you have a credible **cluster/neighbourhood structure**
+Prefer ``grossi`` when you have a credible cluster/neighbourhood structure
 (geography, administrative units) that makes partial interference defensible,
 and enough clean controls in other clusters to build a good synthetic. It is
 the cleanest identification when those conditions hold -- no contamination by
@@ -1677,7 +1677,7 @@ construction -- at the cost of pre-treatment fit. Prefer ``iscm``/``cd`` when
 the affected units are too valuable as donors to discard, or when no clean
 cross-cluster pool exists. Because the three rest on different assumptions
 (parametric structure / invertible cross-weights / partial interference) they
-**bracket** the answer: running all three is a strong robustness exercise.
+bracket the answer: running all three is a strong robustness exercise.
 
 Worked example: West Germany (partial interference)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1708,10 +1708,10 @@ matching the paper's pattern that direct effects are sharper than spillovers.
 Method: ``method='sar'`` -- Sakaguchi & Tagawa (2026)
 -----------------------------------------------------
 
-The **spatial-autoregressive (SAR) Bayesian SCM** relaxes SUTVA from yet
+The spatial-autoregressive (SAR) Bayesian SCM relaxes SUTVA from yet
 another angle. Where Cao-Dowd model spillover through a researcher-specified
 ``A`` matrix and Grossi partition donors into near/far clusters, the SAR method
-posits a **spatial process on the control outcomes themselves**: a treatment on
+posits a spatial process on the control outcomes themselves: a treatment on
 the treated unit propagates to the controls through a spatial-weight matrix, so
 the bias the spillover induces in ordinary SCM is identified and removed, *and*
 the spillover effect landing on each control unit is recovered as a parameter
@@ -1719,7 +1719,7 @@ of interest.
 
 .. note::
 
-   **Notation bridge.** The treated unit is index ``0`` and the ``N`` controls
+   Notation bridge. The treated unit is index ``0`` and the ``N`` controls
    are :math:`\mathcal{N} = \{1, \dots, N\}`; the pre-period is
    :math:`\mathcal{T}_1` (length ``T0``) and the post-period
    :math:`\mathcal{T}_2`. :math:`\mathbf{Y}^c_t \in \mathbb{R}^N` stacks the
@@ -1756,7 +1756,7 @@ spillover effects on the controls are identified in closed form (paper Theorems
        \bigl(\mathbf{I} - \rho\,\mathbf{w}\boldsymbol{\alpha}^{\top} - \rho\mathbf{W}\bigr)^{-1}
        \bigl((\mathbf{I} - \rho\mathbf{W})\mathbf{Y}^c_t - \rho\,\mathbf{w} Y_{0t}\bigr).
 
-When ``rho = 0`` this collapses **exactly** to Abadie's synthetic control, so
+When ``rho = 0`` this collapses exactly to Abadie's synthetic control, so
 the SAR method nests standard SCM as its no-spillover special case.
 
 Assumptions
@@ -1767,7 +1767,7 @@ assumptions (the paper's Assumptions 1-3 plus the standard no-anticipation /
 exogeneity conditions inherited from SCM). Each is paired with a remark on what
 it buys and when it is plausible.
 
-**Assumption 1 (Perfect pre-treatment fit).** There exist weights
+Assumption 1 (Perfect pre-treatment fit). There exist weights
 :math:`\boldsymbol{\alpha}\in\mathbb{R}^N` such that, in the absence of any
 treatment, the treated unit's outcome equals the weighted control average,
 :math:`Y_{0t}(0) = \sum_{i\in\mathcal{N}} \alpha_i\, Y_{it}(0)` almost surely
@@ -1775,12 +1775,12 @@ for every ``t``.
 
    *Remark.* This is the usual synthetic-control premise (Abadie et al. 2010):
    the donor pool can reconstruct the treated unit's untreated path. It is the
-   condition the horseshoe Step-1 regression targets. It does **not** require
+   condition the horseshoe Step-1 regression targets. It does not require
    the weights to lie on the simplex -- the SAR estimator uses an unrestricted,
    shrinkage-regularised :math:`\boldsymbol{\alpha}`, which is what lets it host
    negative weights (e.g. the negative California donor) and short pre-periods.
 
-**Assumption 2 (Spillover runs through outcomes, not unobservables).** The
+Assumption 2 (Spillover runs through outcomes, not unobservables). The
 disturbance :math:`\mathbf{u}_t` is unaffected by who is treated: any unit's
 *structural* error depends only on its own (always-zero, for controls)
 treatment status, so all cross-unit transmission flows through the SAR term
@@ -1794,7 +1794,7 @@ treatment status, so all cross-unit transmission flows through the SAR term
    absorb it and the spillover would be mis-attributed; choose
    :math:`\mathbf{W}` to encode the *channel* you believe in (geography, trade).
 
-**Assumption 3 (Invertibility / no degenerate feedback).** The matrix
+Assumption 3 (Invertibility / no degenerate feedback). The matrix
 :math:`\mathbf{I}_N - \rho\,\mathbf{w}\boldsymbol{\alpha}^{\top} - \rho\mathbf{W}`
 has full rank.
 
@@ -1806,7 +1806,7 @@ has full rank.
    bound, and ``rho_ci`` lets you check the posterior never approaches it. It is
    *testable* given estimates of :math:`(\boldsymbol{\alpha}, \rho)`.
 
-**Assumption 4 (No anticipation / exogenous adoption).** Pre-treatment
+Assumption 4 (No anticipation / exogenous adoption). Pre-treatment
 outcomes are untreated potential outcomes (treatment has no effect before
 :math:`\mathcal{T}_2`), and the adoption time is not chosen on the basis of the
 idiosyncratic shocks.
@@ -1830,10 +1830,10 @@ Estimation is Bayesian and proceeds in two steps (the joint posterior mixes
 poorly because of the ``rho * w alpha'`` interaction, so the authors -- and this
 port -- factor it):
 
-1. **Synthetic weights** ``alpha`` are drawn from a Bayesian **horseshoe**
+1. Synthetic weights ``alpha`` are drawn from a Bayesian horseshoe
    regression of the treated unit's pre-treatment outcomes on the controls'
    (strong shrinkage selects a sparse, relevant donor set).
-2. **Spatial parameter** ``rho`` is drawn from the SAR likelihood conditional on
+2. Spatial parameter ``rho`` is drawn from the SAR likelihood conditional on
    ``alpha_hat`` by random-walk Metropolis (the ``log|I - rho A|`` Jacobian is
    evaluated in :math:`O(N)` from the eigenvalues of ``A = W + w alpha'``),
    alongside the innovation variance, an optional covariate coefficient
@@ -1864,7 +1864,7 @@ short panels. Every reported uncertainty is a posterior quantile at level
 * ``spillover_panel`` / ``spillover_ci`` -- for each control unit, the
   posterior-mean spillover trajectory and its ``(T1, 2)`` band; a control whose
   band excludes zero is a unit the intervention measurably moved.
-* ``rho_ess`` / ``acc_rho`` -- **convergence diagnostics**: the effective sample
+* ``rho_ess`` / ``acc_rho`` -- convergence diagnostics: the effective sample
   size of the ``rho`` chain (Geyer's initial-positive-sequence estimator) and
   the Metropolis acceptance rate. A small ``rho_ess`` relative to the number of
   draws flags weak identification or poor mixing -- the regime where ``rho``
@@ -1878,7 +1878,7 @@ Spatial weights
 
 The method requires a spatial-weight specification, supplied through
 ``spatial_W`` (an ``N x N`` control-to-control matrix) and ``spatial_w`` (a
-length-``N`` treated-to-control vector). Both may be **labelled** ``pandas``
+length-``N`` treated-to-control vector). Both may be labelled ``pandas``
 objects (a ``DataFrame`` indexed by control-unit label and a ``Series`` keyed by
 label), which are aligned to the donor order automatically, or bare NumPy arrays
 already in control-label order. Typical choices: geographic contiguity (a 1 if
@@ -1898,7 +1898,7 @@ you can name them, ``method='cd'`` (free per-unit spillover coefficients) or
 ``method='grossi'`` (near/far clusters) are more parsimonious.
 
 A marketing example makes the regime concrete. Suppose a retailer cuts price
-(or launches a heavy ad burst) in **one designated market area (DMA)** and wants
+(or launches a heavy ad burst) in one designated market area (DMA) and wants
 the causal lift on that market's sales. Ordinary geo synthetic control builds a
 "synthetic DMA" from untreated markets -- but if shoppers cross between adjacent
 DMAs, or the promotion shifts demand in neighbouring markets through a shared
@@ -1908,7 +1908,7 @@ market's own shock. That biases the measured lift (typically *toward zero*, as
 in the simulation table below) and, just as importantly, *hides* the
 cannibalisation or halo landing on nearby markets. ``method='sar'`` with
 :math:`\mathbf{W}` set to DMA adjacency (or co-shopping / shared-media weights)
-de-biases the treated-market lift **and** returns a per-market spillover map --
+de-biases the treated-market lift and returns a per-market spillover map --
 which neighbours lost sales to cross-border shopping, which gained from a halo.
 The same shape recurs for a bank rolling out a product in one region, a
 platform changing policy in one country, or a CPG running a trade promotion in
@@ -1919,7 +1919,7 @@ Synthetic study (the paper's simulation)
 .........................................
 
 The authors' Monte Carlo design (Sakaguchi & Tagawa 2026, Section 5) places
-the ``N = r^2`` control units on a **rook (chessboard) lattice** and draws the
+the ``N = r^2`` control units on a rook (chessboard) lattice and draws the
 control outcomes from a SAR panel with spatial parameter :math:`\rho`. The
 treated unit's untreated path is :math:`\boldsymbol{\alpha}^{\top}\mathbf{Y}^c`;
 in the post-period the treatment adds :math:`N(1,1)` noise. Sweeping
@@ -2075,12 +2075,12 @@ Verification
 
 .. note::
 
-   **Reference cross-checks.** This port reproduces the authors' compiled
+   Reference cross-checks. This port reproduces the authors' compiled
    sampler on the well-identified cases: the simulation cell (``N=36``,
-   ``rho=-0.8``) recovers their bias/RMSE and ~95% coverage, and the **Sudan**
+   ``rho=-0.8``) recovers their bias/RMSE and ~95% coverage, and the Sudan
    application matches the reported ``rho`` to three digits with a roughly
    :math:`-9.5\%`-per-year GDP effect and the largest spillover on Egypt. The
-   **California** ``rho`` is *weakly identified* in the source data (the authors'
+   California ``rho`` is *weakly identified* in the source data (the authors'
    own posterior has an effective sample size around 44): the synthetic weights,
    the spillover ranking (Nevada, then Idaho and Utah), and the larger-than-SCM
    negative treatment effect reproduce, but the ``rho`` *level* is mode- and

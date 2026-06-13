@@ -7,33 +7,33 @@ When to Use This Estimator
 --------------------------
 
 The panel data approach (PDA) of Hsiao, Ching and Wan [HCW]_ estimates a
-single treated unit's untreated counterfactual by a **linear regression on
-the control units**, fit over the pre-treatment window and extrapolated
-out-of-sample. Unlike the synthetic control method, PDA imposes **no
-constraints** on the coefficients (no simplex, no non-negativity), so it is a
+single treated unit's untreated counterfactual by a linear regression on
+the control units, fit over the pre-treatment window and extrapolated
+out-of-sample. Unlike the synthetic control method, PDA imposes no
+constraints on the coefficients (no simplex, no non-negativity), so it is a
 plain projection justified by a latent-factor model: if every unit loads on a
 small set of common factors, the treated unit's untreated path is a linear
 combination of the controls' paths plus an orthogonal error.
 
-The challenge is **which controls** and **how many**. Classical PDA was built
+The challenge is which controls and how many. Classical PDA was built
 for low dimensions (few controls relative to pre-periods) and chooses controls
 by AIC/BIC, which break down once the number of controls ``N`` approaches or
 exceeds the pre-period length ``T1``. ``mlsynth`` packages three
-high-dimensional PDA variants that resolve this differently, **each with the
-estimation and inference theory of its own paper**:
+high-dimensional PDA variants that resolve this differently, each with the
+estimation and inference theory of its own paper:
 
-* **L2-relaxation** (``l2``; Shi & Wang [l2relax]_) -- a *dense* estimator (a
+* L2-relaxation (``l2``; Shi & Wang [l2relax]_) -- a *dense* estimator (a
   "cousin of ridge") for when the factor model makes the projection
   coefficients dense; tolerates ``N > T1``; prediction is robust to
   heteroskedasticity.
-* **LASSO** (``lasso``; Li & Bell [LASSOPDA]_) -- an L1 estimator that
+* LASSO (``lasso``; Li & Bell [LASSOPDA]_) -- an L1 estimator that
   *selects* a sparse set of relevant controls; computationally far cheaper
   than AIC/BIC and works for ``N > T1``.
-* **Forward selection** (``fs``; Shi & Huang [fsPDA]_) -- a greedy procedure
+* Forward selection (``fs``; Shi & Huang [fsPDA]_) -- a greedy procedure
   that grows the control set one unit at a time, with valid post-selection
   inference and no sparsity requirement (works for dense *or* sparse models).
 
-All three target the **single-treated-unit, many-candidate-controls** regime
+All three target the single-treated-unit, many-candidate-controls regime
 and produce a time-varying treatment effect and an average treatment effect
 (ATE) with a HAC-based confidence interval. The practical choice among them
 (detailed below) follows the authors' own arguments: ``l2`` when the
@@ -56,7 +56,7 @@ largest eigenvalues; :math:`\|\mathbf{A}\|_\infty = \max_{ij}|a_{ij}|`,
 :math:`\|\mathbf{A}\|_2 = \sqrt{\phi_{\max}(\mathbf{A}'\mathbf{A})}`,
 :math:`\|\mathbf{x}\|_1 = \sum_i |x_i|`.
 
-The two **time-series operators** are central. Over an index set
+The two time-series operators are central. Over an index set
 :math:`\mathcal{S}` of periods,
 
 .. math::
@@ -89,7 +89,7 @@ with :math:`\mathbf{f}_t` a :math:`q`-vector of latent common factors,
 :math:`\boldsymbol{\lambda}_j` factor loadings, and :math:`u_{jt}` a
 weakly-dependent idiosyncratic error orthogonal to the factors. Because the
 common factors drive both the treated unit and the controls, the untreated
-treated outcome admits a **linear projection** on the controls,
+treated outcome admits a linear projection on the controls,
 
 .. math::
 
@@ -109,17 +109,17 @@ inference theory each paper proves for :math:`\bar{\Delta}`.
 L2-relaxation (``l2``, Shi & Wang)
 ----------------------------------
 
-**Idea.** Under the factor model the projection coefficient
+Idea. Under the factor model the projection coefficient
 :math:`\boldsymbol{\beta}^0 = \boldsymbol{\Omega}^{-1}\boldsymbol{\Lambda}
 (\boldsymbol{\Lambda}'\boldsymbol{\Omega}^{-1}\boldsymbol{\Lambda} +
-\mathbf{I}_q)^{-1}\boldsymbol{\lambda}_0` is **dense** in general -- almost no
+\mathbf{I}_q)^{-1}\boldsymbol{\lambda}_0` is dense in general -- almost no
 entries are exactly zero. Sparse methods (LASSO) are then mis-matched. With
 :math:`\hat{\boldsymbol{\Sigma}} = \Gamma_{\mathcal{T}_1}(\mathbf{x}_t,
 \mathbf{x}_t')` and :math:`\hat{\boldsymbol{\eta}} =
 \Gamma_{\mathcal{T}_1}(\mathbf{x}_t, y_t)`, OLS solves the KKT condition
 :math:`\hat{\boldsymbol{\Sigma}}\boldsymbol{\beta} = \hat{\boldsymbol{\eta}}`,
 which is unstable or non-unique once :math:`N` is close to or exceeds
-:math:`T_1`. L2-relaxation **relaxes** the sup-norm of this moment condition by
+:math:`T_1`. L2-relaxation relaxes the sup-norm of this moment condition by
 a tuning parameter :math:`\tau` and minimizes the coefficient norm:
 
 .. math::
@@ -133,19 +133,19 @@ This is the "bias-variance trade-off" made explicit: tolerating a small
 violation :math:`\tau` of the OLS moment condition shrinks the variance. At
 :math:`\tau = 0` it reduces to (ridgeless) OLS; at :math:`\tau \ge
 \|\hat{\boldsymbol{\eta}}\|_\infty` it gives :math:`\boldsymbol{\beta} =
-\mathbf{0}`. ``mlsynth`` picks :math:`\tau` by **sequential out-of-sample
-validation** on the tail of the training window (the validated :math:`\tau`
+\mathbf{0}`. ``mlsynth`` picks :math:`\tau` by sequential out-of-sample
+validation on the tail of the training window (the validated :math:`\tau`
 tracks the infeasible-optimal one, and both shrink toward zero as the sample
 grows) over a log-spaced grid down to :math:`10^{-4}\max|\hat{\boldsymbol{\eta}}|`
-(the optimum is often a tiny fraction of the cap). This is **time-respecting** --
+(the optimum is often a tiny fraction of the cap). This is time-respecting --
 the fit never sees periods later than the validation tail -- unlike the
 released ``L2relax.CV``, whose 5-block K-fold trains on both past *and* future
 of each block.
 
 .. note::
 
-   **Standardisation.** Following the authors' released ``L2relax``, the treated
-   and control series are **standardised** (demeaned and scaled to unit
+   Standardisation. Following the authors' released ``L2relax``, the treated
+   and control series are standardised (demeaned and scaled to unit
    variance) before forming :math:`\hat{\boldsymbol{\Sigma}}` /
    :math:`\hat{\boldsymbol{\eta}}`, and the solution is mapped back to the
    original scale. This is the default (``l2_standardize=True``) -- the
@@ -155,12 +155,12 @@ of each block.
    (closer to Shi & Wang's :math:`2.65\%`). Set ``l2_standardize=False`` for the
    raw-scale variant.
 
-**Assumptions** (Shi & Wang).
+Assumptions (Shi & Wang).
 
 *Assumption 1 (loadings).* :math:`\|\boldsymbol{\lambda}_0\|_\infty +
 \|\boldsymbol{\Lambda}\|_\infty \le C`, and there is a :math:`q`-unit subset
 making :math:`\boldsymbol{\Lambda}_{\mathcal{Q}\cdot}` full column rank; the
-**average factor strength** :math:`\xi_N = \phi_{\min}(\boldsymbol{\Lambda}'
+average factor strength :math:`\xi_N = \phi_{\min}(\boldsymbol{\Lambda}'
 \boldsymbol{\Lambda}/N)` may vanish (weak factors allowed).
 
 *Assumption 2 (errors).* The idiosyncratic covariance
@@ -180,12 +180,12 @@ under time-series weak dependence, not just i.i.d.).
 and a sequential CLT applies.
 
 *Remark.* The coefficient estimator is consistent for the oracle target
-(Theorem 1) and -- importantly -- the **prediction** error is asymptotically
+(Theorem 1) and -- importantly -- the prediction error is asymptotically
 *irrelevant to heteroskedasticity* (Theorem 2): unlike the coefficient MSE,
 the out-of-sample MSE does not depend on the noise heterogeneity
 :math:`\psi_{\max}`.
 
-**Inference** (Shi & Wang, Theorem 3; single treated unit). With pre-period
+Inference (Shi & Wang, Theorem 3; single treated unit). With pre-period
 prediction residuals :math:`e_t = y_t - \hat{y}_t` (:math:`t\in\mathcal{T}_1`)
 and post-period effects :math:`\hat{\Delta}_t` (:math:`t\in\mathcal{T}_2`),
 
@@ -198,17 +198,17 @@ and post-period effects :math:`\hat{\Delta}_t` (:math:`t\in\mathcal{T}_2`),
 where :math:`\hat{\rho}^2_{(1)}` is the HAC long-run variance of the
 pre-period residuals (first-stage estimation uncertainty) and
 :math:`\hat{\rho}^2_{(2)}` is the HAC long-run variance of the de-meaned
-post-period effects (post-period averaging). **Both** sources of uncertainty
+post-period effects (post-period averaging). Both sources of uncertainty
 enter, which matters when :math:`T_1` and :math:`T_2` are comparable.
 
-**When to use.** Dense, factor-driven coefficients; high dimension
+When to use. Dense, factor-driven coefficients; high dimension
 (:math:`N>T_1` permitted); when prediction accuracy and heteroskedasticity-
 robustness matter more than identifying a handful of controls.
 
 LASSO (``lasso``, Li & Bell)
 ----------------------------
 
-**Idea.** When only a *few* controls are truly relevant, an L1 penalty selects
+Idea. When only a *few* controls are truly relevant, an L1 penalty selects
 them and shrinks the rest. Li & Bell estimate
 
 .. math::
@@ -222,7 +222,7 @@ with :math:`\lambda` chosen by (leave-one-out) cross-validation, then predict
 the counterfactual as in the shared model. LASSO works for :math:`N > T_1`
 (where AIC/AICC/BIC cannot even be computed) and is far cheaper.
 
-**Assumptions** (Li & Bell). They *relax* HCW's linear-conditional-mean
+Assumptions (Li & Bell). They *relax* HCW's linear-conditional-mean
 assumption and drop one of HCW's identification conditions. The key conditions
 are: a factor model with :math:`\mathrm{Rank}(\tilde{B}) = K`
 (enough independent factor variation among the controls); a weakly dependent,
@@ -239,7 +239,7 @@ O_p(T_1^{-1/2} + T_2^{-1/2})` (estimation error has two parts: first-stage
 :math:`O_p(T_1^{-1/2})` and post-averaging :math:`O_p(T_2^{-1/2})`), holding
 even when :math:`y_t` is trend-stationary.
 
-**Inference** (Li & Bell, Theorem 3.2). With :math:`\hat{\Sigma} =
+Inference (Li & Bell, Theorem 3.2). With :math:`\hat{\Sigma} =
 \hat{\Sigma}_1 + \hat{\Sigma}_2`,
 
 .. math::
@@ -251,10 +251,10 @@ where :math:`\hat{\Sigma}_2` is the Newey-West HAC long-run variance of the
 post-period effects, and :math:`\hat{\Sigma}_1` is the first-stage
 (pre-period estimation) variance -- the OLS prediction variance of the mean
 post-period counterfactual on the selected support. Li & Bell note
-:math:`\hat{\Sigma}_1` is **negligible when** :math:`T_1 \gg T_2`, so the
+:math:`\hat{\Sigma}_1` is negligible when :math:`T_1 \gg T_2`, so the
 post-period term dominates in long-pre-period panels.
 
-**When to use.** A genuinely sparse set of relevant controls; very large
+When to use. A genuinely sparse set of relevant controls; very large
 :math:`N` (even :math:`N/T_1 \to \infty`); when an interpretable, computa-
 tionally cheap selection is preferred. (For selection *consistency*, Li & Bell
 note the adaptive LASSO; for prediction, plain LASSO already beats AIC/BIC and
@@ -263,10 +263,10 @@ leave-many-out CV in their simulations.)
 Forward selection (``fs``, Shi & Huang)
 ---------------------------------------
 
-**Idea.** Rather than penalize, *grow* the control set greedily. Start empty;
+Idea. Rather than penalize, *grow* the control set greedily. Start empty;
 at each step add the control whose inclusion maximizes the pre-treatment OLS
 :math:`R^2` (equivalently minimizes the residual sum of squares). The number of
-selected controls :math:`R` is a tuning parameter chosen by a **modified BIC**
+selected controls :math:`R` is a tuning parameter chosen by a modified BIC
 (Wang, Li & Tsai),
 
 .. math::
@@ -281,7 +281,7 @@ chosen set :math:`\hat{U}_{\hat{R}}`. Forward selection evaluates
 :math:`\sum_r (N-r+1)` regressions -- *linear* in :math:`N` -- versus the
 :math:`2^N` of exhaustive subset search.
 
-**Assumptions** (Shi & Huang). Asymptotics are *multi-index*: :math:`N\to\infty`
+Assumptions (Shi & Huang). Asymptotics are *multi-index*: :math:`N\to\infty`
 with :math:`T_1 = T_1(N)` deterministic, :math:`\log N / T_1 \to 0`, and
 :math:`T_2 = T_2(N) \to \infty` with :math:`\log N / T_2 \to 0` (:math:`N`
 may exceed :math:`T_1`).
@@ -289,7 +289,7 @@ may exceed :math:`T_1`).
 *Assumption 1 (sparse Riesz / restricted eigenvalue).* The minimal eigenvalue
 of the population Gram matrix over any :math:`u`-unit subset
 (:math:`u \le (1+\delta_1)R`) is bounded below -- a condition the authors show
-is a **natural implication of the latent factor model**, not an ad hoc
+is a natural implication of the latent factor model, not an ad hoc
 restriction.
 
 *Assumption 2 (second moments).* Sample second moments converge at the
@@ -303,16 +303,16 @@ bounds on the post-treatment data.
 mixing with geometric decay, so a Berry-Esseen bound for heterogeneous time
 series applies.
 
-*Remark.* The validity is **uniform** over a class of DGPs (Theorem 1) -- it
-holds whether the true coefficients are **dense or sparse**, which separates
+*Remark.* The validity is uniform over a class of DGPs (Theorem 1) -- it
+holds whether the true coefficients are dense or sparse, which separates
 fsPDA from the post-selection-inference literature that needs sparsity or the
 oracle property. Theorem 2 shows the greedy algorithm attains a regression
 variance asymptotically as small as the best :math:`u`-unit subset, so the
 cheap forward search is statistically efficient.
 
-**Inference** (Shi & Huang, Eq. 4). Because forward selection uses only the
+Inference (Shi & Huang, Eq. 4). Because forward selection uses only the
 pre-period and, under weak dependence, the pre- and post-periods become
-**asymptotically independent** (sample splitting), the naive conditional
+asymptotically independent (sample splitting), the naive conditional
 t-statistic is valid:
 
 .. math::
@@ -321,14 +321,14 @@ t-statistic is valid:
        \bar{\Delta}_{\hat{U}} \xrightarrow{d} N(0,1),
 
 where :math:`\hat{\rho}^2_{\tau\hat{U}}` is the HAC long-run variance of the
-de-meaned post-period effects. **No first-stage variance term is needed** --
+de-meaned post-period effects. No first-stage variance term is needed --
 the asymptotic independence absorbs it -- which makes fsPDA's inference the
 simplest of the three.
 
 .. note::
 
-   **Long-run-variance estimator.** ``mlsynth`` defaults to the **prewhitened
-   Newey-West** estimator (Andrews-Monahan VAR(1) prewhitening + Bartlett kernel
+   Long-run-variance estimator. ``mlsynth`` defaults to the prewhitened
+   Newey-West estimator (Andrews-Monahan VAR(1) prewhitening + Bartlett kernel
    with the data-driven NW(1994) bandwidth + finite-sample adjustment) -- R's
    ``sandwich::lrvar(..., prewhite = TRUE, adjust = TRUE)``, which Shi & Huang
    use in their application scripts. Prewhitening is essential when the
@@ -343,7 +343,7 @@ simplest of the three.
    form gives an insignificant :math:`t \approx -1.15`, versus the prewhitened
    default's :math:`-2.51` (the paper reports :math:`-2.457`).
 
-**When to use.** A large candidate-control pool where the goal is to
+When to use. A large candidate-control pool where the goal is to
 *synthesize an ensemble* that mimics the outcome (not to interpret which
 controls are "causal"); when computational efficiency and honest
 post-selection inference matter; and regardless of whether the underlying model
@@ -383,7 +383,7 @@ The three estimators (``l2``, ``lasso``, ``fs``) differ in how they
 fit :math:`\boldsymbol\beta`, but they share the same identifying
 stack. Stated formally:
 
-**A1 (Latent factor model for untreated outcomes).** All
+A1 (Latent factor model for untreated outcomes). All
 :math:`N + 1` units share at most :math:`q` common latent factors,
 
 .. math::
@@ -408,8 +408,8 @@ with :math:`\boldsymbol\beta^0 = \boldsymbol\Omega^{-1}
 \boldsymbol\Lambda (\boldsymbol\Lambda' \boldsymbol\Omega^{-1}
 \boldsymbol\Lambda + \mathbf I_q)^{-1} \boldsymbol\lambda_0`.
 
-**A2 (Single treated unit, sharp absorbing aggregate-level
-treatment).** Unit :math:`j = 0` is the only treated unit;
+A2 (Single treated unit, sharp absorbing aggregate-level
+treatment). Unit :math:`j = 0` is the only treated unit;
 treatment turns on at :math:`T_1 + 1` and stays on. Donors are
 untreated throughout (no interference). The original HCW /
 Li-Bell / Shi-Huang theorems are stated for this single-treated
@@ -417,7 +417,7 @@ case. (The l2-relaxation paper Section 4.4 sketches a
 multiple-treated-units extension with a short post-window; the
 mlsynth implementation tracks the single-treated form.)
 
-**A3 (Weak temporal dependence).** The series
+A3 (Weak temporal dependence). The series
 :math:`(\mathbf x_t, y_{0t})` are :math:`\rho`-mixing or strong-
 mixing with at-least-geometric decay (the exact rate varies by
 variant):
@@ -434,11 +434,11 @@ variant):
 
 This is what makes pre-period sample moments converge at the
 high-dimensional rate and -- crucially -- what makes the
-pre-period and post-period **asymptotically independent**, which
+pre-period and post-period asymptotically independent, which
 is the engine behind fs-PDA's sample-splitting inference and the
 two-term HAC variance in l2 / lasso.
 
-**A4 (Sample-size regime).** :math:`N \to \infty`,
+A4 (Sample-size regime). :math:`N \to \infty`,
 :math:`T_1 = T_1(N) \to \infty` deterministically with
 :math:`\log N / T_1 \to 0`, :math:`T_2 \to \infty` with
 :math:`\log N / T_2 \to 0`. :math:`N` may exceed :math:`T_1`,
@@ -448,15 +448,15 @@ Li-Bell's A7 additionally posits
 whether the first-stage variance term :math:`\hat\Sigma_1`
 matters.
 
-**A5 (Donor pool regularity).** The controls' Gram matrix has
+A5 (Donor pool regularity). The controls' Gram matrix has
 enough variation:
 
 * For ``lasso`` (Li-Bell A2): :math:`\mathrm{Rank}(\tilde B) = K`
   -- removing the first row of the loading matrix leaves
   full-rank factor variation; :math:`E[x_t x_t']` is invertible
   on the active set.
-* For ``fs`` (Shi-Huang A1): a **sparse Riesz / restricted
-  eigenvalue** condition -- the minimum eigenvalue of the
+* For ``fs`` (Shi-Huang A1): a sparse Riesz / restricted
+  eigenvalue condition -- the minimum eigenvalue of the
   population Gram matrix over any :math:`u`-unit subset
   (:math:`u \le (1 + \delta_1) R`) is bounded below. The paper
   shows this is a *natural implication* of the latent factor
@@ -467,30 +467,30 @@ enough variation:
   covariance has eigenvalues bounded in
   :math:`[\underline\sigma^2, \overline\sigma^2]`.
 
-**A6 (Variant-specific structure of** :math:`\boldsymbol\beta^0`
-**).**
+A6 (Variant-specific structure of :math:`\boldsymbol\beta^0`
+).
 
-* ``lasso``: **sparse** :math:`\boldsymbol\beta^0` -- only
+* ``lasso``: sparse :math:`\boldsymbol\beta^0` -- only
   :math:`m = o(T_1)` of its components are non-zero.
-* ``l2``: **dense** :math:`\boldsymbol\beta^0` -- almost no
+* ``l2``: dense :math:`\boldsymbol\beta^0` -- almost no
   exact zeros (the factor projection gives every donor a
   small-but-nonzero coefficient).
 * ``fs``: agnostic -- the inference is valid uniformly over a
-  class of DGPs that includes **both** dense and sparse
+  class of DGPs that includes both dense and sparse
   :math:`\boldsymbol\beta^0` (Theorem 1 in Shi-Huang).
 
-**A7 (Inferential regularity).** For all three, the post-period
+A7 (Inferential regularity). For all three, the post-period
 average effect :math:`\bar\Delta` has a CLT with HAC long-run
 variance consistently estimable by Newey-West. For ``l2`` and
 ``lasso``, both the pre-period (first-stage) and post-period
 HAC variances enter; for ``fs``, sample-splitting absorbs the
-first-stage term and **only** the post-period HAC variance
+first-stage term and only the post-period HAC variance
 enters.
 
 When the assumptions bind: practical diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-(a) **Factor-driven DGP (A1).** PDA's whole identification story
+(a) Factor-driven DGP (A1). PDA's whole identification story
     rides on the latent factor structure. If the panel is not
     well-described by a small number of common factors, the
     linear-projection equation has a non-vanishing
@@ -508,8 +508,8 @@ When the assumptions bind: practical diagnostics
     use a balancing-aware estimator (:doc:`microsynth` if you
     have unit-level data) or stay with canonical SC.
 
-(b) **Single treated unit, absorbing aggregate-level treatment
-    (A2).** Multiple treated units, treatment that turns off, or
+(b) Single treated unit, absorbing aggregate-level treatment
+    (A2). Multiple treated units, treatment that turns off, or
     interference among donors break the framework.
 
     *Plausibly violated when* the policy is rescinded mid-
@@ -523,7 +523,7 @@ When the assumptions bind: practical diagnostics
     genuine spillovers, *FECT* / :doc:`sdid` for
     staggered designs.
 
-(c) **Weak temporal dependence (A3).** All three variants
+(c) Weak temporal dependence (A3). All three variants
     assume mixing or :math:`\rho`-mixing pre-period series with
     geometric decay. Unit-root outcomes, long-memory series, or
     series with structural breaks fail this.
@@ -537,7 +537,7 @@ When the assumptions bind: practical diagnostics
     difference the outcome, or use :doc:`sbc` (a stationary-
     cycle estimator) before PDA.
 
-(d) **Sample-size regime (A4).** PDA needs both :math:`T_1` and
+(d) Sample-size regime (A4). PDA needs both :math:`T_1` and
     :math:`T_2` growing with :math:`\log N` small relative to
     each. A short post-period (:math:`T_2 \le 5`) breaks the
     CLT on :math:`\bar\Delta`; a short pre-period
@@ -552,9 +552,9 @@ When the assumptions bind: practical diagnostics
     *canonical SCM* / :doc:`tssc` / :doc:`fdid` which work with
     shorter panels.
 
-(e) **Donor regularity (A5).** Each variant has its own
+(e) Donor regularity (A5). Each variant has its own
     Gram-matrix / factor-strength condition. The practical
-    common failure is **near-collinear donors**: two donor
+    common failure is near-collinear donors: two donor
     series that move together up to noise produce a near-
     singular pre-period Gram matrix.
 
@@ -568,7 +568,7 @@ When the assumptions bind: practical diagnostics
     tau-validation curve gets noisy. Prune one of each clone
     pair before refitting.
 
-(f) **Coefficient structure (A6) -- choosing the right variant.**
+(f) Coefficient structure (A6) -- choosing the right variant.
     The biggest practitioner-side decision is whether to assume
     sparse or dense :math:`\boldsymbol\beta^0`. Choosing wrong
     pays a real cost: ``lasso`` on a dense truth over-selects
@@ -585,7 +585,7 @@ When the assumptions bind: practical diagnostics
     matched variant (``lasso`` if ``fs`` keeps a handful;
     ``l2`` if ``fs`` keeps many).
 
-(g) **Inferential regularity (A7).** The HAC long-run variance
+(g) Inferential regularity (A7). The HAC long-run variance
     must be consistently estimable. With strong serial
     correlation and a short post-period, the Bartlett /
     Newey-West kernel needs more lags than the post-period
@@ -602,85 +602,85 @@ When the assumptions bind: practical diagnostics
 When to use PDA -- and when not to
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Reach for PDA when:**
+Reach for PDA when:
 
-* You have a **single treated unit, a moderate-to-large donor
-  pool** (:math:`N` comparable to or exceeding :math:`T_1`), and
+* You have a single treated unit, a moderate-to-large donor
+  pool (:math:`N` comparable to or exceeding :math:`T_1`), and
   a plausibly factor-driven panel. PDA was designed for exactly
   this regime, and unlike canonical SCM, the projection has no
   simplex / non-negativity constraint -- it can extrapolate
   through negative coefficients on far donors when the factor
   structure demands it.
-* You want **HAC-based, classical-statistics inference** on the
+* You want HAC-based, classical-statistics inference on the
   ATE with a closed-form normal-distribution test, not a
   permutation or conformal procedure. PDA's CLT-based inference
   is what makes it the closest synthetic-control cousin to
   difference-in-differences from an inferential standpoint.
-* The treated unit's pre-trajectory **lies in the linear span**
+* The treated unit's pre-trajectory lies in the linear span
   (not necessarily convex hull) of the controls, so a
   no-constraint linear projection makes sense. PDA cannot
   recover an effect when the projection itself is impossible.
-* You're between **dense** (``l2``) and **sparse** (``lasso``)
-  regimes and want a **uniformly valid** test that doesn't
+* You're between dense (``l2``) and sparse (``lasso``)
+  regimes and want a uniformly valid test that doesn't
   require choosing the right sparsity story -- run ``fs``.
 
-**Do not use PDA when:**
+Do not use PDA when:
 
-* **You need convex (non-negative, sum-to-one) weights** as a
+* You need convex (non-negative, sum-to-one) weights as a
   policy-interpretation deliverable. PDA's no-constraint
   projection produces negative coefficients on far donors,
   which is awkward to explain in many policy contexts. Use
   *canonical SCM* / :doc:`tssc` (canonical SC) or :doc:`fscm`
   (forward-selected SC with the simplex retained).
-* **The treated unit is structurally outside the donor span
-  (not just the convex hull).** PDA's linear projection cannot
+* The treated unit is structurally outside the donor span
+  (not just the convex hull). PDA's linear projection cannot
   reach a treated outcome that no linear combination of donor
   outcomes can express. The pre-period RMSE stays large at
   every PDA variant. Use :doc:`iscm`, whose A2(b) mechanism
   identifies the effect through donors that use the treated
   unit as a positive-weight donor in *their* synthetic
   controls.
-* **Outcomes are non-stationary** (unit-root or trending
+* Outcomes are non-stationary (unit-root or trending
   series). A3 fails and the pre/post asymptotic-independence
   story breaks. First-difference the outcome (the
   l2-relaxation paper's empirical PPI application does
   exactly this), or use :doc:`sbc` (stationary-cycle
   estimator).
-* **You have multiple treated units** with overlapping cohorts.
+* You have multiple treated units with overlapping cohorts.
   PDA's theorems (with the exception of the l2 relaxerm which does support multiple treated units but is not written yet) are written for the single-treated case. Use
  :doc:`sdid` for staggered adoption.
-* **Spillovers across donors.** A2's no-interference clause
+* Spillovers across donors. A2's no-interference clause
   fails when donor states are economically linked to the
   treated state. Use :doc:`spillsynth` or :doc:`spsydid`.
-* **Continuous or multi-valued treatment.** PDA encodes a
+* Continuous or multi-valued treatment. PDA encodes a
   single binary intervention; continuous dose belongs in
   :doc:`ctsc`.
-* **Distributional questions** (Lorenz curves, QTEs).
+* Distributional questions (Lorenz curves, QTEs).
   PDA targets the mean ATE through a Gaussian-likelihood
   linear projection. Use :doc:`dsc` for distributional
   effects.
-* **You need Bayesian posterior credible bands.** PDA returns
+* You need Bayesian posterior credible bands. PDA returns
   frequentist HAC-based CIs. For Bayesian inference and
   posterior inclusion probabilities on donors, use
   :doc:`bvss` (spike-and-slab with a soft simplex).
-* **Very short pre-period** :math:`(T_1 \le 15)` **with many
-  donors.** The high-dimensional approximation has not kicked
+* Very short pre-period :math:`(T_1 \le 15)` with many
+  donors. The high-dimensional approximation has not kicked
   in; the selected :math:`\hat\beta` is noise. Use *canonical SCM*
   / :doc:`tssc` / :doc:`fdid`, which work without
   high-dimensional asymptotics.
-* **Very short post-period** :math:`(T_2 \le 5)`. The CLT on
+* Very short post-period :math:`(T_2 \le 5)`. The CLT on
   :math:`\bar\Delta` is shaky; the HAC bandwidth choice
   dominates the inference. Either accept a wider permutation
   CI from *canonical SCM* / :doc:`tssc`, or move to the
   l2-relaxation multiple-treated-units extension (Shi-Wang
   Section 4.4) which is built for this regime.
-* **You want predictor-level matching (covariates +
-  pre-period outcomes), not outcome-only projection.** PDA's
-  workhorse projection is on **donor outcomes**, not on
+* You want predictor-level matching (covariates +
+  pre-period outcomes), not outcome-only projection. PDA's
+  workhorse projection is on donor outcomes, not on
   predictor moments. Use *canonical SCM* / :doc:`tssc` /
   :doc:`sparse_sc` (predictor selection with L1 penalty on the
   V-weight matrix) for the predictor-matching setup.
-* **The factor model itself is the object of interest** (you
+* The factor model itself is the object of interest (you
   want to identify and interpret the factors). PDA is
   agnostic to factor estimation -- the factor model only
   motivates the linear projection, never enters the
@@ -720,7 +720,7 @@ This prints::
    lasso  ATE 0.0330  SE 0.0054  95% CI (0.0224, 0.0436)  p=0.000  donors=11
    fs     ATE 0.0285  SE 0.0059  95% CI (0.0169, 0.0401)  p=0.000  donors=7
 
-All three find a **significant positive integration effect** on Hong Kong's
+All three find a significant positive integration effect on Hong Kong's
 GDP growth -- roughly +2.5 to +3.3 percentage points -- differing only by their
 selection philosophy: ``l2`` keeps all 24 controls with dense, signed
 coefficients (pre-RMSE 0.013); ``lasso`` keeps 11; ``fs`` keeps a parsimonious
@@ -733,7 +733,7 @@ Verification
 
 .. note::
 
-   **Empirical (Path A, Hong Kong).** All three variants run on the HCW Hong
+   Empirical (Path A, Hong Kong). All three variants run on the HCW Hong
    Kong panel (above) and agree on a significant positive integration effect,
    consistent with the literature and the Forward-DiD cross-check (0.025).
 
@@ -749,7 +749,7 @@ four-factor DGP, re-implemented in
 and ``U(-0.1,0.1)`` on the remaining 96; idiosyncratic ``N(0,0.5)``; one treated
 unit, :math:`N=100` controls, :math:`T_1=T_2`. Shocks ``D1``-``D7`` set the
 post-period ATE (``D1``-``D3`` null → *size*; ``D4``-``D7`` non-zero → *power*).
-Driving the **packaged** ``PDA`` (``methods=["fs","LASSO"]``,
+Driving the packaged ``PDA`` (``methods=["fs","LASSO"]``,
 ``fs_intercept=False``) at :math:`T_1=100` (200 reps for size, 60 for power):
 
 .. list-table:: forward selection vs LASSO, :math:`T_1=100`
@@ -782,20 +782,20 @@ Driving the **packaged** ``PDA`` (``methods=["fs","LASSO"]``,
      - 0.140
      - 1.00
 
-The paper's geometry reproduces. **Forward selection is parsimonious** -- it
-keeps to ~the 4 relevant donors in both structures -- while **LASSO
-over-selects** (9-15 donors). **Forward selection's test is correctly sized**
+The paper's geometry reproduces. Forward selection is parsimonious -- it
+keeps to ~the 4 relevant donors in both structures -- while LASSO
+over-selects (9-15 donors). Forward selection's test is correctly sized
 (≈ 0.05-0.09) under *both* factor structures, the robustness Shi & Huang
-emphasise. **LASSO is correctly sized under i.i.d. factors** (0.065, matching
-the paper's 0.058) but its **size inflates under dynamic factors** (0.140;
+emphasise. LASSO is correctly sized under i.i.d. factors (0.065, matching
+the paper's 0.058) but its size inflates under dynamic factors (0.140;
 paper's modified-BIC LASSO 0.184) -- the size inflation the paper reports is a
 *dynamic-factor* phenomenon, not an i.i.d. one. Both tests are fully powered at
 ``D5`` (mean-1 shift). Durable case: ``pda_table1``.
 
 .. note::
 
-   **mlsynth's LASSO is cross-validated; the paper's is not.** Shi & Huang
-   select the Lasso penalty with a **modified BIC** (Remark 4 cont., p.521:
+   mlsynth's LASSO is cross-validated; the paper's is not. Shi & Huang
+   select the Lasso penalty with a modified BIC (Remark 4 cont., p.521:
    "we tune the constants in the modified BIC to allow Lasso to take in more
    variables"); ``mlsynth``'s L1-PDA selects it with ``LassoCV`` (5-fold
    cross-validation). The two are different penalty rules, so the LASSO cells
@@ -812,8 +812,8 @@ paper's modified-BIC LASSO 0.184) -- the size inflation the paper reports is a
    R package (``est.fsPDA.R``) fits the donor regression *with* an intercept;
    on the paper's mean-zero factor DGP that intercept absorbs a spurious
    pre-period constant which extrapolates into the post window, biasing the
-   gap and **inflating the null rejection rate to ~0.20**. The paper's Table 1
-   was produced by the *simulation* code (``FS.R``), which fits **without** an
+   gap and inflating the null rejection rate to ~0.20. The paper's Table 1
+   was produced by the *simulation* code (``FS.R``), which fits without an
    intercept and yields valid size. ``mlsynth`` exposes both via
    ``PDAConfig.fs_intercept`` (default ``False`` = the no-intercept, valid-size
    form; set ``True`` for panels with genuine unit level shifts). With the
@@ -824,7 +824,7 @@ paper's modified-BIC LASSO 0.184) -- the size inflation the paper reports is a
    inflation at small :math:`T` (the "imprecise long-run-variance" effect the
    paper itself notes), shrinking toward 5% as :math:`T_1 \to \infty`.
 
-**L2-relaxation (Shi & Wang).** The ``l2`` method's out-of-sample MPSE falls
+L2-relaxation (Shi & Wang). The ``l2`` method's out-of-sample MPSE falls
 with :math:`T` and its test approaches the nominal 5% size as :math:`T_1 \to
 \infty`, matching Shi & Wang's Table 2 (size :math:`0.142` at :math:`T_1=50`
 → :math:`0.072` at :math:`200`). Its per-fit cross-validation over the
@@ -835,9 +835,9 @@ Multiple treated units
 ----------------------
 
 When *several* units are treated by the same intervention, Shi & Wang's
-L2-relaxation PDA fits a counterfactual **per treated unit** against the shared
-control pool and aggregates the effects into a **per-period cross-sectional
-ATE**,
+L2-relaxation PDA fits a counterfactual per treated unit against the shared
+control pool and aggregates the effects into a per-period cross-sectional
+ATE,
 
 .. math::
 
@@ -851,7 +851,7 @@ prediction residuals (so the standard error is constant across post-periods).
 :func:`mlsynth.utils.pda_helpers.multitreat.run_pda_multitreat` implements this.
 Because every per-unit fit shares the same
 :math:`\hat{\boldsymbol{\Sigma}} = X'X/T_1`, all :math:`J` fits run through a
-**single OSQP factorisation** -- the batched solver
+single OSQP factorisation -- the batched solver
 :func:`mlsynth.utils.pda_helpers.l2.batch.l2_relax_batch` updates only the
 constraint bounds per ``(unit, tau)`` (hundreds of conic solves become hundreds
 of warm-started ADMM updates). On the Brexit study (52 UK firms vs 300 controls)

@@ -8,35 +8,35 @@ When to Use This Estimator
 
 Reach for SBC, due to Shi, Xi, and Xie (2025)
 `arXiv:2505.22388 <https://arxiv.org/abs/2505.22388>`_, when your outcome
-is a **nonstationary, trending series** and you want a synthetic-control
+is a nonstationary, trending series and you want a synthetic-control
 counterfactual you can trust. Standard SCM (:doc:`fdid`, :doc:`tssc`,
 :doc:`clustersc`) implicitly assumes the untreated outcomes share a
 common low-rank factor structure across units. When the outcome is
 nonstationary, that assumption is fragile: a pre-treatment fit of the
 treated unit on the donors can look excellent *purely because both series
 are trending*, even when the underlying processes are independent. The
-authors call this the **spurious synthetic control problem**, and SBC is
-the first procedure that is robust to it **whether or not the series are
-cointegrated**.
+authors call this the spurious synthetic control problem, and SBC is
+the first procedure that is robust to it whether or not the series are
+cointegrated.
 
 Concretely, SBC is the right tool when a strong pre-period fit might be
 coincidental trending rather than genuine shared structure:
 
-- **Marketing / business science.** Brand or category **sales**, **market
-  share**, or **price indices** after a major event — a rebrand, a pricing
+- Marketing / business science. Brand or category sales, market
+  share, or price indices after a major event — a rebrand, a pricing
   policy, a regulatory change, a competitor's entry. These series trend
   over time, so a tight pre-event synthetic fit may reflect common growth
   rather than a shared demand structure that will persist post-event.
-- **Economics.** **GDP per capita** (the paper's German reunification and
-  Hong Kong handover studies), real **exchange rates**, **unemployment** —
+- Economics. GDP per capita (the paper's German reunification and
+  Hong Kong handover studies), real exchange rates, unemployment —
   canonical nonstationary macro outcomes where spurious trend-matching is
   a live risk.
-- **Policy evaluation.** A **carbon tax's** effect on CO\ :sub:`2`
-  emissions, a **minimum-wage** change, or **fiscal rules** on government
+- Policy evaluation. A carbon tax's effect on CO\ :sub:`2`
+  emissions, a minimum-wage change, or fiscal rules on government
   spending — drifting outcomes where conventional SCM can mistake parallel
   trends for a shared causal structure.
 
-The flip side: if your outcome is plausibly **stationary** (a growth
+The flip side: if your outcome is plausibly stationary (a growth
 rate, a ratio, an already-differenced series), the spurious-SC concern is
 muted and a conventional SCM is simpler and at least as efficient. SBC
 buys robustness on *nonstationary levels* at the cost of a trend-forecast
@@ -47,14 +47,14 @@ Notation
 
 Let :math:`Y_{i,t}` be the observed outcome for unit
 :math:`i \in \{1, \dots, N+1\}` at time :math:`t \in \{1, \dots, T\}`.
-Unit :math:`i = 1` is the **treated** unit; units :math:`i = 2, \dots,
-N+1` are **controls** (donors). Treatment begins at :math:`T_0 + 1`, with
+Unit :math:`i = 1` is the treated unit; units :math:`i = 2, \dots,
+N+1` are controls (donors). Treatment begins at :math:`T_0 + 1`, with
 :math:`T_0` pre-treatment periods and a forecast horizon of :math:`h`
 post-treatment periods. The treated unit has potential outcomes
 :math:`Y_{1,t}(1)` and :math:`Y_{1,t}(0)`; we observe :math:`Y_{1,t}(0)`
 for :math:`t \le T_0` and must impute it for :math:`t > T_0`. Each
-untreated outcome decomposes into a **trend** :math:`\tau_{i,t}` and a
-**cycle** :math:`c_{i,t}`,
+untreated outcome decomposes into a trend :math:`\tau_{i,t}` and a
+cycle :math:`c_{i,t}`,
 
 .. math::
 
@@ -91,10 +91,10 @@ Mathematical Formulation
 SBC builds the post-treatment counterfactual from two ingredients drawn
 from *different* parts of the panel:
 
-* the **treated unit's own past** forecasts its trend forward (no donors
+* the treated unit's own past forecasts its trend forward (no donors
   involved), neutralizing the spurious-regression risk for the persistent
   component;
-* the **donor pool's cycles** are combined via classical simplex SCM to
+* the donor pool's cycles are combined via classical simplex SCM to
   impute the treated unit's cyclical fluctuations, where the
   common-factor justification of synthetic control is most defensible.
 
@@ -140,7 +140,7 @@ fitted Hamilton coefficients to its observed lags:
    \qquad
    T_0 + 1 \;\leq\; t \;\leq\; T_0 + h.
 
-Two points deserve emphasis. First, the **intercept**
+Two points deserve emphasis. First, the intercept
 :math:`\hat\alpha_{1,0}` *is* applied — the forecast extrapolates the
 full estimated trend. (The paper's display equation omits
 :math:`\hat\alpha_{1,0}`, but the authors' replication code includes it,
@@ -157,8 +157,8 @@ unrelated to the treated unit's, they never enter the forecast.
    The Hamilton projection is an :math:`h`-step-ahead forecast, so the
    counterfactual is well-defined only for the first :math:`h`
    post-treatment periods (:math:`T_0 + 1 \le t \le T_0 + h`, the
-   paper's Step 4). The implementation therefore **caps the forecast
-   horizon at** :math:`h`: ``design.counterfactual_post`` and the ATT
+   paper's Step 4). The implementation therefore caps the forecast
+   horizon at :math:`h`: ``design.counterfactual_post`` and the ATT
    cover exactly the first :math:`\min(h,\,T - T_0)` post periods, and
    the trend forecast uses pre-treatment lags only (no contamination
    from treated post-treatment outcomes). To study a longer post window,
@@ -240,7 +240,7 @@ Assumptions and Theory
 The theory is "fixed-:math:`N`, large-:math:`T`" and rests on two
 assumptions — one structural, one high-level.
 
-**Assumption 1 (cyclical factor structure).** Each unit's cycle is weakly
+Assumption 1 (cyclical factor structure). Each unit's cycle is weakly
 stationary with :math:`c_{i,t} = \lambda_i^\top f_t + \varepsilon_{i,t}`,
 where the :math:`L`-vector of stationary factors :math:`f_t` is uniformly
 bounded, the pre-treatment factor second-moment matrix is positive
@@ -249,12 +249,12 @@ is mean-zero with finite second moment, independent across :math:`i` and
 :math:`t`.
 
 *Remark.* This is the standard SCM factor assumption (Abadie et al.,
-2010) applied **to the cycles only** — not the levels. SBC asks the
+2010) applied to the cycles only — not the levels. SBC asks the
 donor pool to share structure where it plausibly does (short-run business
 cycle comovement, which is well documented across economies) and refuses
 to ask it where it plausibly does not (idiosyncratic long-run trends).
 
-**Assumption 2 (filter accuracy).** The detrending error
+Assumption 2 (filter accuracy). The detrending error
 :math:`\hat u_{i,t} \equiv \hat c_{i,t} - c_{i,t}` is :math:`o_p(1)`
 pointwise and :math:`\sum_{t} \hat u_{i,t}^2 = o_p(T_0)`.
 
@@ -263,7 +263,7 @@ particular filter. Any detrending method meeting it inherits the
 theory; the paper shows (Lemmas 1-2) that the Hamilton filter satisfies
 it for both unit-root and deterministic-trend processes.
 
-**Theorem 1 (asymptotic unbiasedness).** Under Assumptions 1-2 and the
+Theorem 1 (asymptotic unbiasedness). Under Assumptions 1-2 and the
 trend-cycle specification, for each post-treatment period
 :math:`T_0 + 1 \le t \le T_0 + h`,
 
@@ -274,10 +274,10 @@ trend-cycle specification, for each post-treatment period
    \sum_{i=2}^{N+1} \hat w_i \, (\varepsilon_{i,t} - \varepsilon_{1,t})
    + o_p(1),
 
-so :math:`\hat Y_{1,t}(0)` is **asymptotically unbiased**. If the cycles
+so :math:`\hat Y_{1,t}(0)` is asymptotically unbiased. If the cycles
 follow an exact factor structure with no idiosyncratic shocks
 (:math:`c_{i,t} = \lambda_i^\top f_t`), :math:`\hat Y_{1,t}(0)` is
-additionally **consistent**.
+additionally consistent.
 
 *Remark.* The honest claim is unbiasedness, not pointwise consistency:
 the leading error term is a weighted average of post-period idiosyncratic
@@ -295,14 +295,14 @@ Why the Hamilton Filter?
 Section 3.3 of the paper lays out three criteria a trend-cycle filter
 must satisfy here:
 
-1. **Stationary cyclical residual.** Otherwise the SCM step on cycles is
+1. Stationary cyclical residual. Otherwise the SCM step on cycles is
    again vulnerable to spurious regression. Lemma 1 shows the Hamilton
    filter delivers a stationary cycle for both unit-root processes and
    deterministic-trend-plus-noise processes.
-2. **Consistent trend and cycle estimates** (Assumption 2). Lemma 2: a
+2. Consistent trend and cycle estimates (Assumption 2). Lemma 2: a
    simple OLS projection on lags consistently estimates the population
    AR coefficients, hence the trend and cycle.
-3. **One-sided / no future leakage.** The Step-2 trend extrapolation uses
+3. One-sided / no future leakage. The Step-2 trend extrapolation uses
    only past observations; symmetric two-sided filters like the
    Hodrick-Prescott smoother would peek at post-treatment data and are
    unsuitable. (Hamilton, 2018, argues against the HP filter on separate
@@ -315,10 +315,10 @@ swappable alternatives.
 Example: A Draw from the Paper's Simulation
 -------------------------------------------
 
-The block below is self-contained — it reproduces **Model 2** of Shi, Xi
-and Xie (2025, Section 4): :math:`N+1` units whose **levels are
-independent random walks** (no cointegration) but whose **increments
-share two stationary AR(1) factors**. This is the spurious-regression
+The block below is self-contained — it reproduces Model 2 of Shi, Xi
+and Xie (2025, Section 4): :math:`N+1` units whose levels are
+independent random walks (no cointegration) but whose increments
+share two stationary AR(1) factors. This is the spurious-regression
 regime SBC is built for — the donor pool shares short-run structure but
 not long-run trends. We draw one panel, inject a known effect, recover
 it, then average over many draws to illustrate Theorem 1's asymptotic
@@ -382,27 +382,27 @@ Simulation study: MSE ratios across all three models (Path B)
 -------------------------------------------------------------
 
 Shi, Xi and Xie (2025, Section 4, Table 1) validate SBC against the
-conventional synthetic control on **three** nonstationary DGPs, all with
+conventional synthetic control on three nonstationary DGPs, all with
 :math:`N+1 = 12` units, forecast horizon :math:`h = 2`, lags :math:`p = 2`,
 and a zero true effect:
 
-* **Model 1** -- independent random walks with drift,
+* Model 1 -- independent random walks with drift,
   :math:`Y_{i,t} = Y_{i,t-1} + \mu_i + \varepsilon_{i,t}` (no shared
   structure: the "spurious regression" regime);
-* **Model 2** -- idiosyncratic unit-root trends with two common
+* Model 2 -- idiosyncratic unit-root trends with two common
   *stationary* AR(:math:`\phi`) factors driving the increments (shared
   short-run structure, no cointegration);
-* **Model 3** -- partial cointegration: half the units (including the
+* Model 3 -- partial cointegration: half the units (including the
   treated) share two random-walk factors in *levels*, the rest follow
   Model 2 -- the regime conventional SC is actually built for.
 
 The reported statistic is the ratio of mean-squared errors
 :math:`\text{MSE}(\widehat{Y}^{\text{SBC}}_1) /
 \text{MSE}(\widehat{Y}^{\text{SC}}_1)` against the treated unit's observed
-(untreated) path; a ratio **below 1 means SBC beats conventional SC**.
+(untreated) path; a ratio below 1 means SBC beats conventional SC.
 Driving the packaged :py:class:`~mlsynth.estimators.sbc.SBC` estimator over
 the three DGPs (300 reps; the paper uses 10,000) reproduces every headline
-finding -- the **post-treatment** ratios under the two weighting specs SBC
+finding -- the post-treatment ratios under the two weighting specs SBC
 exposes (``simplex`` = the paper's non-negative weights; ``unrestricted`` =
 its OLS vertical regression):
 
@@ -471,11 +471,11 @@ its OLS vertical regression):
      - 0.887
      - 0.95
 
-All three of the paper's conclusions hold: SBC's MSE ratio is **far below 1
-in the spurious-regression Models 1-2** (often a 10-50x reduction under
-non-negative weights), only **modestly below 1 in the cointegrated Model 3**
+All three of the paper's conclusions hold: SBC's MSE ratio is far below 1
+in the spurious-regression Models 1-2 (often a 10-50x reduction under
+non-negative weights), only modestly below 1 in the cointegrated Model 3
 (the regime where conventional SC is appropriate, so SBC merely matches or
-slightly beats it), and the **non-negative (simplex) spec sharpens the gap**
+slightly beats it), and the non-negative (simplex) spec sharpens the gap
 relative to the unrestricted OLS spec. The Model 1 column matches the paper
 essentially to the digit; Models 2-3 match in order and direction (the
 residual gaps come from 300 vs 10,000 reps and the cointegration-construction
@@ -574,13 +574,13 @@ OECD donors and Hamilton horizon ``h=4``.
    print(res.weights_by_donor)           # Greece, Netherlands, Italy
 
 Following the paper's Section 5.1 specification, SBC concentrates the
-cycle weights on **Greece (0.44), the Netherlands (0.37), and Italy
-(0.16)** — donors whose short-run fluctuations track West Germany's
-business cycle — and the ATT over 1991-1994 is **about -952**, with
+cycle weights on Greece (0.44), the Netherlands (0.37), and Italy
+(0.16) — donors whose short-run fluctuations track West Germany's
+business cycle — and the ATT over 1991-1994 is about -952, with
 per-period effects :math:`[+369,\,-323,\,-1155,\,-2700]`: a brief
 one-year boost followed by a growing negative impact, the paper's
 headline finding. Classical SCM on the raw levels instead leans on the
-*trend*-matching donors (**Austria** and the **USA**, the two largest
+*trend*-matching donors (Austria and the USA, the two largest
 level weights), because the trend dominates the cycle in magnitude.
 
 Empirical Illustration: Hong Kong Handover
@@ -617,16 +617,16 @@ paper also reports a signed-weight specification — set
 Diagnostic: spurious matching of independent stochastic trends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The script below shows the **spurious synthetic control problem**
+The script below shows the spurious synthetic control problem
 isolated on a synthetic panel where the true ATT is zero. Two panels
 share donor structure but differ in the treated unit's stochastic
 trend:
 
-* **Panel A** -- ``mode='shared'``. Donors and the treated unit each
+* Panel A -- ``mode='shared'``. Donors and the treated unit each
   carry the *same* random-walk trend plus their own short-run noise.
   Classical SC works (the donors really do span the treated trend);
   SBC is slightly less efficient but unbiased.
-* **Panel B** -- ``mode='idio'``. The donors share one random walk,
+* Panel B -- ``mode='idio'``. The donors share one random walk,
   the treated unit has an *independent* random walk of its own. No
   weighted average of the donors can reproduce the treated trend, but
   *finite-sample realised correlations* between two independent
@@ -696,19 +696,19 @@ prints (deterministic with the seed above)::
 
 Three takeaways:
 
-1. **The classical SC bias in the idiosyncratic regime is enormous
-   and one-sided.** On a panel where the true ATT is zero, SC reports
+1. The classical SC bias in the idiosyncratic regime is enormous
+   and one-sided. On a panel where the true ATT is zero, SC reports
    an apparent effect of :math:`-13.4` -- pure spurious matching. SBC
    strips the trend via the Hamilton filter and recovers an ATT of
    :math:`-2.4`, an 82% bias reduction. The remaining bias is the
    finite-sample idiosyncratic-shock term from Theorem 1, which goes
    to zero in expectation but not pointwise.
-2. **SBC pays a small efficiency cost in the easy regime.** When the
+2. SBC pays a small efficiency cost in the easy regime. When the
    trend is genuinely shared (Panel A), SBC's :math:`-0.64` is a
    little farther from the true zero ATT than SC's :math:`-0.08`,
    because the cycle-only fit discards the shared trend variation
    that SC exploits. This is the unavoidable price of insurance.
-3. **The diagnostic is the agreement between SC and SBC.** When
+3. The diagnostic is the agreement between SC and SBC. When
    classical SC and SBC produce similar ATTs (Panel A), trust the SC
    estimate -- the donors really do span the treated trend. When
    they disagree by an order of magnitude (Panel B), trust the SBC
@@ -726,30 +726,30 @@ forecasts the treated trend from its own history; HSC dials a soft
 rolling-origin cross-validation. The cases where HSC is the better
 choice:
 
-* **The trend / cycle distinction is not substantively interesting.**
+* The trend / cycle distinction is not substantively interesting.
   Sales, market share, daily prices, traffic -- anything outside the
   macro-cycle setting -- typically has no clean "trend vs cycle"
   story, and SBC's modular decomposition is solving the wrong
   problem. HSC's single :math:`\rho^*` is the more honest summary.
-* **The shared-trend regime is plausible.** SBC always discards the
+* The shared-trend regime is plausible. SBC always discards the
   trend variation by construction, so on a panel where donors really
   do span the treated unit's trend SBC pays a permanent efficiency
   cost (its 'Panel A' bias in the diagnostic above:
   :math:`-0.64` vs SC's :math:`-0.08`). HSC's CV picks
   :math:`\rho^* \to 1` in exactly that case and recovers level-matched
   SC's efficiency without giving up the spurious-matching insurance.
-* **Your outcome is outside the Hamilton filter's comfort zone.**
+* Your outcome is outside the Hamilton filter's comfort zone.
   The Hamilton filter assumes the cycle becomes stationary after
   regressing on lags, which is well-validated for macro series but
   less obvious for high-frequency / non-AR-trend processes. HSC's
   roughness-penalty smoother makes no comparable parametric trend
   assumption.
-* **You don't have a long, self-forecastable treated trend.** SBC's
+* You don't have a long, self-forecastable treated trend. SBC's
   Step 2 forecasts the treated trend univariately. If the treated
   pre-period is short or the treated trend changed character mid-
   sample, HSC's pooled CV across the pre-period is more robust.
-* **You want a single, interpretable knob rather than a fixed
-  decomposition.** :math:`\rho^*` after fitting tells you which
+* You want a single, interpretable knob rather than a fixed
+  decomposition. :math:`\rho^*` after fitting tells you which
   regime the data live in, on a continuous scale; SBC is a yes / no
   commitment to the cycle-only fit.
 
@@ -771,7 +771,7 @@ dashed line tracks the solid observed line in the post-period
 (right of the dotted intervention line), the better that method
 estimates the (zero) treatment effect on this panel.
 
-* **Panel A** -- sales-like data: donors and the treated unit share
+* Panel A -- sales-like data: donors and the treated unit share
   a strong deterministic linear trend, short pre-period
   (:math:`T_0 = 16`). HSC's cross-validation picks
   :math:`\rho^* \approx 0.97` (essentially level-matching), exploits
@@ -779,7 +779,7 @@ estimates the (zero) treatment effect on this panel.
   trend by Hamilton-filtering and then has to *forecast* it from a
   short pre-period of treated observations, which extrapolates
   poorly -- the SBC counterfactual visibly undershoots.
-* **Panel B** -- macro-like data: the treated unit has its **own**
+* Panel B -- macro-like data: the treated unit has its own
   deterministic linear trend that none of the donors share, but
   donors and treated share a strong stationary cycle. Long
   pre-period (:math:`T_0 = 120`). SBC's univariate AR-trend forecast
@@ -891,8 +891,8 @@ that spurious component out by forecasting California's trend from its
 own history and using donors only for the stationary cycle.
 
 The German reunification study makes the mechanism vivid. The
-**trend** of West Germany is best reproduced by Austria and the USA,
-whereas its **cycle** is best reproduced by Italy, the Netherlands, and
+trend of West Germany is best reproduced by Austria and the USA,
+whereas its cycle is best reproduced by Italy, the Netherlands, and
 Greece — two genuinely *different* donor subsets. Conventional SCM on the
 raw levels averages across both structures and, because the trend
 dominates the cycle in magnitude, leans heavily on the trend-matching

@@ -10,8 +10,8 @@ CTSC (Powell, D. (2022). *"Synthetic Control Estimation Beyond
 Comparative Case Studies: Does the Minimum Wage Reduce Employment?,"*
 Journal of Business & Economic Statistics 40(3):1302-1314) generalises
 the synthetic control method to settings the original was never built
-for: **continuous and/or multi-valued treatments** in panels where there
-is **no clean treated / never-treated split**.
+for: continuous and/or multi-valued treatments in panels where there
+is no clean treated / never-treated split.
 
 The canonical synthetic control estimates the effect of one unit
 adopting a single binary policy, using never-treated units as donors.
@@ -22,20 +22,20 @@ paper's "GSC") handles exactly this case.
 
 .. note::
 
-   The paper names the estimator **GSC** (generalized synthetic control).
-   mlsynth calls it **CTSC** to avoid collision with Xu (2017)'s
+   The paper names the estimator GSC (generalized synthetic control).
+   mlsynth calls it CTSC to avoid collision with Xu (2017)'s
    differently constructed Generalized Synthetic Control (``gsynth``),
    which is an interactive-fixed-effects estimator.
 
 What CTSC does
 ^^^^^^^^^^^^^^
 
-* Builds a synthetic control for **every** unit out of the other units'
+* Builds a synthetic control for every unit out of the other units'
   *untreated* outcomes.
-* Jointly estimates a **unit-specific treatment-slope vector**
+* Jointly estimates a unit-specific treatment-slope vector
   :math:`\alpha_i` (allowing fully heterogeneous marginal effects) and
   the synthetic-control weights.
-* Reports the **population-weighted average marginal effect**
+* Reports the population-weighted average marginal effect
   :math:`\alpha^{AE} = \sum_i \pi_i \alpha_i`.
 * Permits an interactive-fixed-effects (factor) outcome structure, so it
   is consistent when the treatment is correlated with unobserved factors
@@ -45,14 +45,14 @@ What CTSC does
 When to use CTSC
 ^^^^^^^^^^^^^^^^
 
-* The policy variable is **continuous or multi-valued** (minimum wage,
+* The policy variable is continuous or multi-valued (minimum wage,
   tax rate, dosage) rather than a 0/1 indicator.
-* **Every unit is "treated"** with a time-varying intensity, so there is
+* Every unit is "treated" with a time-varying intensity, so there is
   no never-treated donor pool and comparative-case-study SC cannot be
   applied.
-* You suspect the treatment is **correlated with unobserved
-  trends/factors**, making two-way fixed effects inconsistent.
-* You want **unit-specific marginal effects** (heterogeneity), not just
+* You suspect the treatment is correlated with unobserved
+  trends/factors, making two-way fixed effects inconsistent.
+* You want unit-specific marginal effects (heterogeneity), not just
   an average.
 
 Assumptions (and how to spot violations)
@@ -65,7 +65,7 @@ number of factors. But it does still rely on a small set of identifying
 assumptions. Each is given here together with the symptom you would see
 if it failed.
 
-(a) **Interactive fixed-effects DGP for the untreated outcome.**
+(a) Interactive fixed-effects DGP for the untreated outcome.
     The paper assumes
     :math:`Y_{it}^N = \lambda_t' \mu_i + \epsilon_{it}`, i.e. the
     counterfactual (no-treatment) outcome is a low-rank factor model
@@ -79,7 +79,7 @@ if it failed.
     the residuals -- if there is visible unit-specific curvature left,
     the factor structure is misspecified.
 
-(b) **Convex-hull condition on donor loadings.**
+(b) Convex-hull condition on donor loadings.
     For each treated-period observation of unit :math:`i`, its factor
     loading :math:`\mu_i` must lie (approximately) in the convex hull
     of the other units' loadings, so that a simplex-weighted combination
@@ -93,7 +93,7 @@ if it failed.
     fit get heavily down-weighted, and if most units fall in that
     bucket the hull condition is failing population-wide.
 
-(c) **Large** :math:`T` **regime (consistency, not factor count).**
+(c) Large :math:`T` regime (consistency, not factor count).
     Powell shows the estimator is consistent as :math:`T \to \infty`
     *without* the user having to specify the rank of
     :math:`\lambda_t' \mu_i`. The trade-off is that very short panels
@@ -106,12 +106,12 @@ if it failed.
     the average effect and weights are stable; large swings suggest
     :math:`T` is too short.
 
-(d) **Linearity of the outcome in the treatment vector.**
+(d) Linearity of the outcome in the treatment vector.
     The paper writes :math:`Y_{it} = Y_{it}^N + D_{it}' \alpha_i`, i.e.
     the treatment effect is linear in :math:`D_{it}` (with unit-specific
     slopes :math:`\alpha_i`). Multi-valued :math:`D_{it}` is fine, and
     interactions/polynomial terms can be entered as extra columns of
-    :math:`D_{it}`, but CTSC does **not** estimate a fully nonparametric
+    :math:`D_{it}`, but CTSC does not estimate a fully nonparametric
     dose-response curve.
 
     *Plausibly violated when* the dose-response is strongly nonlinear
@@ -121,8 +121,8 @@ if it failed.
     higher-order coefficient is jointly significant under the sign-flip
     distribution.
 
-(e) **Slope heterogeneity** :math:`\alpha_i` **is unit-specific but
-    time-invariant.**
+(e) Slope heterogeneity :math:`\alpha_i` is unit-specific but
+    time-invariant.
     Each unit gets its own marginal effect, but it does not drift over
     time within a unit.
 
@@ -133,7 +133,7 @@ if it failed.
     compare the recovered :math:`\alpha_i`; large within-unit drift
     indicates the time-invariance assumption is binding.
 
-(f) **No simultaneity in** :math:`D_{it}`.
+(f) No simultaneity in :math:`D_{it}`.
     CTSC allows :math:`D_{it}` to be correlated with the factors
     :math:`\lambda_t' \mu_i` (this is the whole point), but it still
     assumes :math:`D_{it}` is mean-independent of the idiosyncratic
@@ -147,24 +147,24 @@ if it failed.
     from a no-treatment factor fit; significant feedback is a red
     flag.
 
-When **not** to use CTSC
+When not to use CTSC
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-* **Single treated unit with a clean binary policy.** A canonical
+* Single treated unit with a clean binary policy. A canonical
   comparative-case-study set-up (one state passes one law on one date,
   others never do) is exactly what vanilla SC was built for; CTSC's
   per-unit weight system is unnecessary overhead and its sign-flip
   inference is weaker than the placebo / conformal inference available
   in the binary-treatment world. Use :doc:`tssc` or :doc:`fdid`.
 
-* **Short panels.** Powell's consistency story is in :math:`T \to
+* Short panels. Powell's consistency story is in :math:`T \to
   \infty`. With :math:`T \lesssim n` the per-unit least squares with
   :math:`n-1` simplex weights is ill-posed and the average effect can
   swing dramatically with the seed. Prefer :doc:`fdid` (which is
   designed for short panels by stepwise donor selection) or a factor
   estimator that explicitly regularises the rank.
 
-* **Treated trajectory outside the donor convex hull.** If the treated
+* Treated trajectory outside the donor convex hull. If the treated
   unit's untreated trend cannot be expressed as a simplex combination
   of the donors' untreated trends -- coastal vs. interior states, an
   outlier sector, a country with idiosyncratic seasonality -- CTSC has
@@ -173,7 +173,7 @@ When **not** to use CTSC
   or :doc:`scmo` (auxiliary outcomes) to widen the donor information
   set before forcing a hull fit.
 
-* **Treatment effect that drifts over time within a unit.** CTSC fixes
+* Treatment effect that drifts over time within a unit. CTSC fixes
   :math:`\alpha_i` across time. If the dose-response is genuinely
   time-varying (a minimum-wage elasticity that changes after a recession,
   a drug whose effect attenuates with tolerance), CTSC will return an
@@ -181,13 +181,13 @@ When **not** to use CTSC
   time-varying-effects estimator (:doc:`tasc` for state-space dynamics,
   :doc:`dscar` for autoregressive treated processes) instead.
 
-* **Strongly nonlinear or kinked dose-response that you cannot encode.**
+* Strongly nonlinear or kinked dose-response that you cannot encode.
   CTSC is linear in :math:`D_{it}`. If the policy effect has a sharp
   kink or saturation that no parsimonious basis expansion captures,
   fall back to a doubly-robust panel estimator or a changes-in-changes
   design.
 
-* **Contemporaneous reverse causality from outcome to treatment.** CTSC
+* Contemporaneous reverse causality from outcome to treatment. CTSC
   permits the treatment to be correlated with unobserved factors, but
   not with the *same-period* idiosyncratic shock. If the policy is set
   in response to within-period outcome surprises, you need an
@@ -242,11 +242,11 @@ Implementation note
 -------------------
 
 The paper minimises the objective with Nelder-Mead over all
-:math:`nK + n(n-1)` parameters. mlsynth exploits the **biconvex**
+:math:`nK + n(n-1)` parameters. mlsynth exploits the biconvex
 structure -- weighted linear least squares in the slopes for fixed
 weights (a single closed-form linear solve) and :math:`n` independent
 simplex-constrained least squares in the weights for fixed slopes -- and
-solves it by **block coordinate descent**. This optimises the same
+solves it by block coordinate descent. This optimises the same
 objective with far better stability and speed. The null-restricted fit
 used for inference imposes :math:`\sum_i \pi_i \alpha_i = a_0` via a
 KKT-augmented linear system.
@@ -266,7 +266,7 @@ is
 with piecewise factor paths :math:`\lambda_t^{(k)}`,
 :math:`\mu_i^{(k)} \sim U(0,1)`, :math:`\epsilon_{it} \sim N(0, \tfrac14)`,
 and :math:`\beta_i = \sum_k \mu_i^{(k)} - \tfrac1n \sum_i \sum_k
-\mu_i^{(k)}` (so the **true average effect is exactly zero**). The
+\mu_i^{(k)}` (so the true average effect is exactly zero). The
 continuous treatment :math:`d_{it}` is a function of the same factors,
 so it correlates with the interactive fixed effects.
 
