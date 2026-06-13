@@ -23,7 +23,7 @@ from typing import List, Tuple
 import numpy as np
 from scipy.linalg import qr
 
-from ..clustersc_helpers.pcr.hsvt import hsvt, select_rank
+from ..pcr import hsvt, pcr_weights, select_rank, usvt_rank
 
 
 def donoho_rank(s: np.ndarray, ratio: float) -> int:
@@ -32,12 +32,10 @@ def donoho_rank(s: np.ndarray, ratio: float) -> int:
     The authors evaluate the :math:`\\omega(\\beta)` approximation at
     ``ratio = m / n`` -- the donor pre-matrix's rows-over-columns
     (:math:`T_0 / N_d`) -- rather than the canonical ``min/max`` aspect ratio.
-    Reproduced here verbatim so SI matches the paper's reported ranks; see
-    ``rank_method="donoho"``.
+    Delegates to the shared kernel (:func:`mlsynth.utils.pcr.usvt_rank`) so the
+    threshold cannot drift from ClusterSC's and SNN's; see ``rank_method="donoho"``.
     """
-    omega = 0.56 * ratio ** 3 - 0.95 * ratio ** 2 + 1.43 + 1.82 * ratio
-    t = omega * np.median(s)
-    return max(int(np.sum(s > t)), 1)
+    return usvt_rank(s, ratio)
 
 
 def si_pcr_weights(
@@ -65,10 +63,8 @@ def si_pcr_weights(
     np.ndarray
         Donor weight vector, shape ``(Nd,)``.
     """
-    target_pre = np.ravel(target_pre)
-    _, U_r, s_r, Vt_r = hsvt(donor_pre, rank)
-    # w = V_k diag(1/s) U_k^T y
-    return Vt_r.T @ ((U_r.T @ target_pre) / s_r)
+    # w = V_k diag(1/s) U_k^T y  (shared PCR kernel; SI-PCR eq. 10)
+    return pcr_weights(donor_pre, target_pre, rank)
 
 
 def select_omega(donor_pre: np.ndarray, rank: int) -> List[int]:

@@ -27,27 +27,29 @@ from typing import Optional, Tuple
 
 import numpy as np
 
+from ..pcr import pcr_weights, spectral_rank, usvt_rank
+
 _EPS = 1e-12
 
 
 def _spectral_rank(s: np.ndarray, energy: float = 0.95) -> int:
-    """Smallest rank whose singular values capture ``energy`` of the spectrum."""
-    if s.size == 0:
-        return 0
-    cum = np.cumsum(s ** 2) / np.sum(s ** 2)
-    return int(np.searchsorted(cum, energy) + 1)
+    """Smallest rank whose singular values capture ``energy`` of the spectrum.
+
+    Thin wrapper over the shared kernel (:func:`mlsynth.utils.pcr.spectral_rank`).
+    """
+    return spectral_rank(s, energy)
 
 
 def _universal_rank(s: np.ndarray, shape: Tuple[int, int]) -> int:
-    """Donoho & Gavish (2014) optimal hard-threshold rank for square-ish noise."""
+    """Donoho & Gavish (2014) optimal hard-threshold rank for square-ish noise.
+
+    Thin wrapper over the shared kernel (:func:`mlsynth.utils.pcr.usvt_rank`),
+    evaluated at the canonical ``min/max`` aspect ratio.
+    """
     m, n = shape
     if min(m, n) == 0:
         return 0
-    beta = min(m, n) / max(m, n)
-    omega = 0.56 * beta ** 3 - 0.95 * beta ** 2 + 1.82 * beta + 1.43
-    thresh = omega * np.median(s) if s.size else 0.0
-    r = int((s > thresh).sum())
-    return max(r, 1)
+    return usvt_rank(s, min(m, n) / max(m, n))
 
 
 def _pcr(
@@ -76,7 +78,7 @@ def _pcr(
     train_error : float
         Mean squared reconstruction error of ``q`` on the anchor columns.
     """
-    U, sv, Vt = np.linalg.svd(S, full_matrices=False)
+    sv = np.linalg.svd(S, compute_uv=False)
     if max_rank is not None:
         r = min(max_rank, sv.size)
     elif universal:
@@ -84,9 +86,9 @@ def _pcr(
     else:
         r = _spectral_rank(sv, spectral_energy)
     r = max(r, 1)
-    Ur, svr, Vtr = U[:, :r], sv[:r], Vt[:r]
-    # beta = U_r diag(1/sv_r) V_r^T q  (weights over anchor rows)
-    beta = Ur @ ((Vtr @ q) / np.maximum(svr, _EPS))
+    # beta = U_r diag(1/sv_r) V_r^T q  (weights over anchor rows): the shared
+    # PCR kernel applied to S^T regresses q onto the anchor-row subspace.
+    beta = pcr_weights(S.T, q, r)
     prediction = float(x @ beta)
     train_error = float(np.mean((S.T @ beta - q) ** 2))
     return prediction, beta, train_error
