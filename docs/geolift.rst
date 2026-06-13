@@ -624,6 +624,69 @@ rather than returning a degenerate design.
    prune many nominees, and a very dense border graph can leave none (a reported
    infeasibility, not a silent degenerate design).
 
+**A worked design on real borders.** The example below is fully self-contained:
+it pulls the real DMA contiguity map and metadata, simulates a **grouped linear
+factor model** of seasonal weekly sales — latent group structure in the loadings
+(groups = census divisions), in the spirit of Liao, Shi & Zheng (2025) — over a
+real Southeast / Mid-South DMA footprint, then designs a 3-market geo test that is
+**non-adjacent on the map** and spread across regions (at most two per division).
+It runs in a few seconds.
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import GEOLIFT
+
+   base = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+           "refs/heads/main/basedata/markets")
+   A_full = pd.read_csv(f"{base}/dma_adjacency.csv", index_col=0)   # 206x206 borders
+   meta = pd.read_csv(f"{base}/dma_metadata.csv")                   # dma_name, state, ...
+
+   # Restrict to a real Southeast / Mid-South footprint; groups = census divisions.
+   division = {"GA": "S. Atlantic", "FL": "S. Atlantic",
+               "TN": "E.S. Central", "AL": "E.S. Central"}
+   meta = meta[meta["state"].isin(division)].copy()
+   meta["division"] = meta["state"].map(division)
+   names = [n for n in meta["dma_name"] if n in A_full.index]
+   meta = meta[meta["dma_name"].isin(names)].reset_index(drop=True)
+   A = A_full.loc[names, names]                                     # real contiguity
+
+   # Grouped linear factor model of seasonal weekly sales: the loadings carry a
+   # latent group structure (one loading per division), plus a shared seasonal
+   # swing and idiosyncratic noise.
+   rng = np.random.default_rng(0)
+   div = meta.set_index("dma_name").loc[names, "division"].to_numpy()
+   n, r, T = len(names), 3, 60
+   group_loading = {g: rng.normal(size=r) for g in sorted(set(div))}
+   Lambda = np.array([group_loading[g] for g in div]) + 0.1 * rng.normal(size=(n, r))
+   F = np.cumsum(rng.normal(size=(T, r)), axis=0)                   # common factors
+   season = 12 * np.sin(2 * np.pi * np.arange(T) / 52)             # annual seasonality
+   sales = (1000 + rng.normal(0, 40, n)                            # market base level
+            + F @ Lambda.T                                         # grouped factor structure
+            + season[:, None]                                      # shared seasonal swing
+            + rng.normal(0, 5, (T, n)))                            # idiosyncratic noise
+   df = pd.DataFrame([
+       {"dma": names[j], "week": t, "sales": float(sales[t, j]), "division": div[j]}
+       for j in range(n) for t in range(T)
+   ])
+
+   res = GEOLIFT({
+       "df": df, "outcome": "sales", "unitid": "dma", "time": "week",
+       "treatment_size": 3, "durations": [8], "effect_sizes": [0.0, 0.05, 0.10],
+       "lookback_window": 1, "how": "mean", "ns": 50, "seed": 0,
+       "adjacency": A,                          # true DMA borders -> non-adjacent markets
+       "stratum_col": "division", "max_per_stratum": 2,   # spread across regions
+       "display_graphs": False,
+   }).fit()
+
+   print("recommended test markets:", res.selected_units)
+   print(res.search.shortlist[["candidate", "duration", "mde", "power"]].head())
+
+   # the design honours the geography: no two test markets border each other
+   treated = res.selected_units
+   assert all(A.loc[a, b] == 0 for a in treated for b in treated if a != b)
+
 **Cluster non-interference + spillover donor exclusion.** Treat markets in
 different regions, and never let a treated market's same-region neighbours into
 its synthetic control:
