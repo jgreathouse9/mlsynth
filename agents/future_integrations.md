@@ -507,6 +507,71 @@ note to that effect.
 
 ---
 
+## 6. MIQP warm-start for the design estimators (MAREX / SYNDES / SPCD)
+
+### Source
+
+Internal -- surfaced while building the MAREX Walmart benchmark
+(`benchmarks/cases/marex_walmart.py`). The exact MIQP design is intractable on
+the full 45-store panel via the free SCIP backend, so the benchmark subsets to 10
+stores. The authors' R (`jinglongzhao2/SCDesign`) uses Gurobi.
+
+### The idea in one line
+
+Solve the continuous relaxation first, round it to a feasible integer design, and
+hand that to the exact MIQP solver as its initial **incumbent** (MIP warm start),
+so branch-and-bound starts with a real upper bound and prunes aggressively.
+
+### Why this is attractive
+
+* mlsynth already produces the warm-start candidate for free:
+  `marex_helpers.optimization.solve_design_relaxed` -> `post_hoc_discretize`
+  returns a feasible K-unit design. It is currently a *standalone heuristic*; it
+  should instead *seed* the exact solve.
+* Could make the **full-panel** exact design tractable on the free SCIP backend
+  (no Gurobi, no subsetting) -- raising the MAREX/SYNDES benchmarks from a subset
+  to the paper's full instance.
+* Same trick applies to SYNDES (per-unit / two-way MIQP) and any future MIQP
+  design.
+
+### Why it is parked (the interface catch)
+
+* MAREX/SYNDES solve via `cp.Problem.solve(solver=cp.SCIP)`. **cvxpy does not
+  expose MIP warm-starts** -- its `warm_start` flag is continuous-only; an integer
+  incumbent is not passed through. So this needs a **PySCIPOpt-direct** path
+  (build the model, `model.addSol(rounded_design)` before `optimize()`),
+  bypassing cvxpy for the MIQP -- a new solver backend, not a flag.
+* The relaxed optimum is **degenerate** for the `standard` design (the rounded
+  design is weak -- see the 62%-RMSE 45-store result), so it is a *weak*
+  incumbent: it still bounds the search but prunes less. A smarter warm start
+  (greedy / local search on the relaxation) would help more.
+* Warm-starting speeds finding/proving the optimum; it does not change
+  NP-hardness.
+
+### Cheaper interim alternative
+
+A **`time_limit` / `gap_limit` passthrough** (SYNDES already exposes this via
+`scip_params`) lets the full-panel MIQP return a near-optimal design in bounded
+time with ~10 lines and no new backend. Tradeoff: gap-limited solutions can drift
+across solver versions, so they are less suitable for a *deterministically
+pinned* benchmark (hence the 10-store exact subset for `marex_walmart`).
+
+### Suggested order if resumed
+
+1. Add the `time_limit`/`gap_limit` passthrough to `MAREXConfig` (mirror SYNDES);
+   cheap, immediately useful for applied full-panel runs.
+2. Add a PySCIPOpt-direct MIQP path that seeds `post_hoc_discretize`'s design as
+   the incumbent; benchmark the speedup and (optionally) lift `marex_walmart` /
+   `syndes_bls` to the full panel.
+
+### Verdict
+
+Worthwhile **performance** work (not correctness): the exact MIQP is already
+faithful; this only makes it scale. Keep the benchmarks on the deterministic
+exact subset until the warm-start path lands.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
