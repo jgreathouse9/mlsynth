@@ -44,6 +44,7 @@ from .estimators.pangeo import PANGEO
 from .estimators.hsc import HSC
 from .estimators.geolift import GEOLIFT
 from .estimators.multicellgeolift import MULTICELLGEOLIFT
+from .estimators.rolldid import ROLLDID
 from .utils.spcd_helpers.plotter import (
     plot_spcd_design,
     plot_mde_bars,
@@ -58,6 +59,7 @@ __all__ = [
     "plot_detectability",
     "GEOLIFT",
     "MULTICELLGEOLIFT",
+    "ROLLDID",
     "HSC",
     "TSSC",
     "FMA",
