@@ -106,34 +106,71 @@ synthetic counterfactual for the treated block is
 :math:`\mathbf{Y}_0\widehat{\boldsymbol{\Theta}}`, extended into the post-period
 with the post-period donor matrix :math:`\mathbf{Y}_{0,\mathcal{T}_2}`.
 
-Algorithm and tuning
-~~~~~~~~~~~~~~~~~~~~~
+Internal solver (two-split ADMM)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The objective is convex but couples a nuclear norm and an :math:`\ell_1`
 penalty, so ``mlsynth`` solves it with a purpose-built two-split ADMM rather
 than a generic conic solver (the paper itself emphasises computational
-efficiency). Splitting :math:`\mathbf{R} = \mathbf{Y}_0\boldsymbol{\Theta}`
-(carrying the nuclear-norm term) and :math:`\mathbf{Z} = \boldsymbol{\Theta}`
-(carrying the :math:`\ell_1` term) gives three closed-form
-updates per iteration: a singular-value soft-threshold for :math:`\mathbf{R}`, an
-element-wise soft-threshold for :math:`\mathbf{Z}`, and an exact least-squares step
-for :math:`\boldsymbol{\Theta}` whose system matrix
-:math:`\mathbf{Y}_0^\top \mathbf{Y}_0 + \mathbf{I}` is Cholesky-factored
-once and reused. The penalty parameter is balanced adaptively (Boyd et al.
-2011) and the updates are over-relaxed, so a high-dimensional fit takes a few
-hundred lightweight iterations -- orders of magnitude faster than the conic
-reformulation, which it matches to numerical precision. (A ``cvxpy`` backend is
-retained for validation.)
+efficiency). Introduce two consensus blocks -- :math:`\mathbf{R} =
+\mathbf{Y}_0\boldsymbol{\Theta}` carrying the nuclear-norm term and
+:math:`\mathbf{Z} = \boldsymbol{\Theta}` carrying the :math:`\ell_1` term. With
+scaled dual variables :math:`\mathbf{U}, \mathbf{W}` and penalty parameter
+:math:`\rho`, each iteration is three closed-form updates (Boyd et al. 2011,
+§3):
+
+.. math::
+
+   \boldsymbol{\Theta} &\;\leftarrow\; (\mathbf{Y}_0^\top\mathbf{Y}_0 + \mathbf{I})^{-1}
+       \bigl(\mathbf{Y}_0^\top(\mathbf{R} - \mathbf{U}) + (\mathbf{Z} - \mathbf{W})\bigr), \\
+   \mathbf{R} &\;\leftarrow\; \mathbf{Y}_1 - \mathcal{S}^{*}_{(1/\sqrt{T_0})/\rho}
+       \bigl(\mathbf{Y}_1 - \mathbf{Y}_0\boldsymbol{\Theta} - \mathbf{U}\bigr), \\
+   \mathbf{Z} &\;\leftarrow\; \mathcal{S}_{\lambda/\rho}
+       \bigl(\boldsymbol{\Theta} + \mathbf{W}\bigr),
+
+followed by the dual ascents :math:`\mathbf{U} \leftarrow \mathbf{U} +
+(\mathbf{Y}_0\boldsymbol{\Theta} - \mathbf{R})` and :math:`\mathbf{W} \leftarrow
+\mathbf{W} + (\boldsymbol{\Theta} - \mathbf{Z})`. Here
+:math:`\mathcal{S}^{*}_\tau` is singular-value soft-thresholding -- the
+nuclear-norm proximal map, which SVDs its argument and shrinks each singular
+value toward zero by :math:`\tau` -- and :math:`\mathcal{S}_\tau` is elementwise
+soft-thresholding, the :math:`\ell_1` proximal map. The returned weight matrix is
+the exactly-sparse :math:`\mathbf{Z}` block.
+
+Three design choices make this fast. The :math:`\boldsymbol{\Theta}`-step is an
+*exact* least-squares solve whose system matrix
+:math:`\mathbf{Y}_0^\top\mathbf{Y}_0 + \mathbf{I}` does not depend on
+:math:`\rho`, so it is Cholesky-factored **once** and reused at every iteration;
+the coupling is **over-relaxed**; and :math:`\rho` is **balanced adaptively** --
+doubled or halved whenever the primal and dual residuals diverge by more than a
+factor of ten. Iteration stops on the standard ADMM primal/dual residual
+criterion (Boyd et al. 2011, §3.3): the primal residual
+:math:`(\mathbf{Y}_0\boldsymbol{\Theta} - \mathbf{R},\,
+\boldsymbol{\Theta} - \mathbf{Z})` and the dual residual
+:math:`\rho\,\mathbf{A}^\top(\mathbf{z}^{k} - \mathbf{z}^{k-1})` both fall below
+an absolute/relative tolerance. A high-dimensional fit therefore converges in a
+few hundred lightweight iterations -- orders of magnitude faster than the conic
+reformulation, which it matches to numerical precision. A ``cvxpy`` backend
+(:func:`~mlsynth.utils.msqrt_helpers.optimization._fit_msqrt_cvxpy`) is retained
+as a validation oracle, selectable with ``solver="cvxpy"``.
+
+Tuning the penalty
+~~~~~~~~~~~~~~~~~~~
 
 The penalty :math:`\lambda` is chosen by rolling-origin (expanding-window)
-cross-validation on the pre-period: an expanding training window fits
-:math:`\boldsymbol{\Theta}`, the next ``cv_val_window`` periods are held out, and the
-:math:`\lambda` minimising mean validation MSE across folds is selected. The
-search is *pathwise* -- candidate penalties are visited in descending order and
-each solve is warm-started from the previous one, sharply cutting iterations.
-The fold schedule adapts to :math:`T_0` by default and can be overridden
-(``cv_initial_train``, ``cv_val_window``, ``cv_step``, ``cv_folds``); a fixed
-``lambda_`` skips CV entirely.
+cross-validation on the pre-period. From an initial training window the model is
+fit; the next ``cv_val_window`` periods are forecast and scored by mean squared
+error; the window expands by ``cv_step`` and the fold repeats; the :math:`\lambda`
+minimising the mean validation MSE across folds is selected. The schedule adapts
+to :math:`T_0` by default (initial window :math:`\approx 0.6\,T_0`, validation
+block :math:`\approx T_0/5`) and is overridable (``cv_initial_train``,
+``cv_val_window``, ``cv_step``, ``cv_folds``). Two properties keep it cheap and
+honest: the search is **pathwise** -- candidate penalties are visited in
+descending order and each ADMM solve is warm-started from the previous
+(larger-:math:`\lambda`, sparser) solution, which sharply cuts the iteration
+count without changing the selected penalty -- and the expanding window never
+lets a future period inform an earlier fit. A fixed ``lambda_`` skips
+cross-validation entirely.
 
 Assumptions and remarks
 ~~~~~~~~~~~~~~~~~~~~~~~~
