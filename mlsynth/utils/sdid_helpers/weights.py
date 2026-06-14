@@ -239,7 +239,7 @@ def compute_regularization(
     else:
         # Calculate first differences of donor outcomes along the time axis (axis=0).
         diffs = np.diff(donor_outcomes_pre_treatment, axis=0)
-        if diffs.size == 0: # Can happen if T0=1 (already caught by shape[0]<2) or N_donors=0 (caught by shape[1]==0).
+        if diffs.size == 0: # pragma: no cover - unreachable: T0<2 and N_donors==0 are both caught above.
              std_dev_of_first_differenced_donor_outcomes = 1.0 # Fallback if differences result in an empty array.
         else:
              # Calculate standard deviation of these differences. ddof=1 for sample standard deviation.

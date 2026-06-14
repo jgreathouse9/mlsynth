@@ -211,3 +211,71 @@ class TestValidationPreserved:
     def test_time_weights_rejects_1d_donor_matrix(self):
         with pytest.raises(MlsynthDataError):
             fit_time_weights(np.zeros(3), np.zeros(3))
+
+    def test_time_weights_rejects_non_array_donor(self):
+        with pytest.raises(MlsynthDataError):
+            fit_time_weights([[1.0, 2.0]], np.zeros(2))
+
+    def test_time_weights_rejects_non_array_post_mean(self):
+        with pytest.raises(MlsynthDataError):
+            fit_time_weights(np.zeros((3, 2)), [0.0, 0.0])
+
+    def test_time_weights_rejects_2d_post_mean(self):
+        with pytest.raises(MlsynthDataError):
+            fit_time_weights(np.zeros((3, 2)), np.zeros((2, 1)))
+
+    def test_time_weights_rejects_zero_pre_periods(self):
+        with pytest.raises(MlsynthDataError):
+            fit_time_weights(np.zeros((0, 2)), np.zeros(2))
+
+    def test_time_weights_rejects_zero_donors(self):
+        with pytest.raises(MlsynthDataError):
+            fit_time_weights(np.zeros((3, 0)), np.zeros(0))
+
+    def test_unit_weights_rejects_non_array_target(self):
+        with pytest.raises(MlsynthDataError):
+            unit_weights(np.zeros((3, 2)), [0.0, 0.0, 0.0], 0.1)
+
+    def test_unit_weights_rejects_2d_target(self):
+        with pytest.raises(MlsynthDataError):
+            unit_weights(np.zeros((3, 2)), np.zeros((3, 1)), 0.1)
+
+    def test_unit_weights_rejects_zero_pre_periods(self):
+        with pytest.raises(MlsynthDataError):
+            unit_weights(np.zeros((0, 2)), np.zeros(0), 0.1)
+
+    def test_unit_weights_rejects_zero_donors(self):
+        with pytest.raises(MlsynthDataError):
+            unit_weights(np.zeros((3, 0)), np.zeros(3), 0.1)
+
+    def test_unit_weights_rejects_1d_donor_matrix(self):
+        with pytest.raises(MlsynthDataError):
+            unit_weights(np.zeros(3), np.zeros(3), 0.1)
+
+
+class TestRegularizationBranches:
+    def test_rejects_non_array(self):
+        with pytest.raises(MlsynthDataError):
+            compute_regularization([[1.0]], 5)
+
+    def test_rejects_1d(self):
+        with pytest.raises(MlsynthDataError):
+            compute_regularization(np.zeros(5), 5)
+
+    def test_rejects_negative_post_periods(self):
+        with pytest.raises(MlsynthConfigError):
+            compute_regularization(np.zeros((5, 3)), -1)
+
+    def test_single_pre_period_fallback(self):
+        # < 2 pre-periods -> std fallback of 1.0 -> zeta = post^0.25.
+        zeta = compute_regularization(np.zeros((1, 3)), 16)
+        assert zeta == pytest.approx(16 ** 0.25, abs=1e-9)
+
+    def test_no_donors_fallback(self):
+        zeta = compute_regularization(np.zeros((5, 0)), 16)
+        assert zeta == pytest.approx(16 ** 0.25, abs=1e-9)
+
+    def test_nan_std_fallback(self):
+        # All-NaN diffs -> NaN std -> fallback of 1.0 -> zeta = post^0.25.
+        zeta = compute_regularization(np.full((5, 3), np.nan), 16)
+        assert zeta == pytest.approx(16 ** 0.25, abs=1e-9)
