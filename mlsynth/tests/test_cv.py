@@ -45,6 +45,35 @@ def test_fast_solve_matches_scopt(second_norm, alpha, ct, fi, lam):
     assert np.abs(w_ref - w_osqp).max() < 1e-4 and abs(b_ref - b_osqp) < 1e-4
 
 
+def test_penalized_osqp_rejects_unsolved_status(monkeypatch):
+    """An OSQP run that does not report ``solved`` (e.g. primal-infeasible)
+    must yield zero weights, not the meaningless iterate, so the caller falls
+    through to the cvxpy reference."""
+    import osqp
+
+    from mlsynth.utils.laxscm_helpers.fast_solve import solve_penalized_osqp
+
+    class _Res:
+        x = np.full(13, 1e12)                       # garbage finite iterate
+        info = type("I", (), {"status": "primal infeasible"})()
+
+    class _Infeasible:
+        def setup(self, *a, **k):
+            pass
+
+        def solve(self):
+            return _Res()
+
+    monkeypatch.setattr(osqp, "OSQP", lambda: _Infeasible())
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(40, 12))
+    y = rng.normal(size=40)
+    w, b0 = solve_penalized_osqp(X, y, lam=0.5, alpha=0.0,
+                                 second_norm="L1_L2", constraint_type="simplex",
+                                 fit_intercept=False)
+    assert np.all(w == 0.0) and b0 == 0.0
+
+
 @pytest.mark.parametrize("rt", ["l2", "entropy", "el"])
 def test_relaxed_fast_solve_matches_scopt(rt):
     """The relaxed-branch fast solves (OSQP for L2, DPP for entropy/EL) must

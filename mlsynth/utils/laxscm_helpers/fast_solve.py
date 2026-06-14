@@ -243,8 +243,15 @@ def solve_penalized_osqp(
     m.setup(P=sp.csc_matrix(P), q=q, A=A, l=l, u=u, verbose=False,
             eps_abs=1e-9, eps_rel=1e-9, max_iter=40000, polish=True)
     res = m.solve()
+    # Reject anything OSQP did not actually solve (status gate, as in the L2
+    # relaxation): an infeasible/unsolved run returns a meaningless iterate, so
+    # signal failure (zero weights) and let the caller fall through to the cvxpy
+    # reference. The penalized program over a non-empty simplex is generally
+    # feasible, so this is defensive.
+    status = getattr(getattr(res, "info", None), "status", "")
     x = getattr(res, "x", None)
-    if x is None or np.any(np.isnan(x)):  # pragma: no cover - solver failure
+    if (status not in ("solved", "solved inaccurate")
+            or x is None or np.any(np.isnan(x))):
         return np.zeros(J, dtype=float), 0.0
     x = np.asarray(x, dtype=float)
     b0 = float(x[J]) if fit_intercept else 0.0
@@ -319,6 +326,12 @@ def solve_relaxed_l2_osqp(X: np.ndarray, y: np.ndarray, tau: float) -> np.ndarra
                 verbose=False, eps_abs=1e-9, eps_rel=1e-9, max_iter=40000, polish=True)
         res = m.solve()
     except Exception:  # pragma: no cover - solver setup/solve failure
+        return None
+    # Reject anything OSQP did not actually solve (e.g. primal-infeasible when
+    # tau is below the balance floor); otherwise the garbage iterate would be
+    # scored by the CV loop instead of falling through to the cvxpy reference.
+    status = getattr(getattr(res, "info", None), "status", "")
+    if status not in ("solved", "solved inaccurate"):
         return None
     x = getattr(res, "x", None)
     if x is None or np.any(np.isnan(x)):
