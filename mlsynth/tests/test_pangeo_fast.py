@@ -179,3 +179,89 @@ class TestFailures:
         Y, _ = _parallel_panel(n_shapes=3, per_shape=3)   # n=9, Q=1 -> infeasible
         with pytest.raises(Exception):
             group_units(Y, np.arange(9), max_size=1)
+
+
+# ---------------------------------------------------------------------------
+# Integration: the fast path wired into the PANGEO estimator/pipeline
+#
+# The exact design enumerates every admissible supergeo subset (O(n^{2Q})) and
+# solves an NP-hard set-partitioning MIP. The opt-in fast mode replaces that
+# with the OSD-style PCA-clustering + Shaw-style candidate groupings + exact
+# per-group split. It must (a) be reachable via config, (b) produce a valid
+# exact-cover design respecting Q with the same result contract, (c) record
+# that the heuristic solver was used, (d) leave the exact path as the default,
+# and (e) match-or-exceed the exact total gap variance (it is a heuristic, so
+# its total is >= the MIP optimum, but tight when the parallel structure is
+# clear).
+# ---------------------------------------------------------------------------
+
+import pandas as pd  # noqa: E402
+
+from mlsynth import PANGEO  # noqa: E402
+from mlsynth.config_models import PANGEOConfig  # noqa: E402
+from mlsynth.utils.pangeo_helpers import (  # noqa: E402
+    make_seasonal_sales_panel,
+    prepare_pangeo_inputs,
+    run_pangeo,
+)
+
+
+@pytest.fixture
+def sales_panel():
+    return make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),
+                                     T=120, seed=0)
+
+
+class TestFastModeWiring:
+    def test_config_accepts_fast_fields(self, sales_panel):
+        cfg = PANGEOConfig(df=sales_panel, outcome="sales", arm="arm",
+                           unitid="unit", time="time", fast=True,
+                           fast_candidates=8, display_graphs=False)
+        assert cfg.fast is True
+        assert cfg.fast_candidates == 8
+
+    def test_fast_default_is_false(self, sales_panel):
+        cfg = PANGEOConfig(df=sales_panel, outcome="sales", arm="arm",
+                           unitid="unit", time="time", display_graphs=False)
+        assert cfg.fast is False
+
+    def test_fast_fit_exact_cover_respects_Q(self, sales_panel):
+        res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 2,
+                      "fast": True, "compute_power": False,
+                      "display_graphs": False}).fit()
+        for arm, d in res.arm_designs.items():
+            covered = []
+            for p in d.pairs:
+                assert len(p.treatment) <= 2 and len(p.control) <= 2   # Q
+                covered.extend(p.treatment + p.control)
+            assert sorted(covered) == sorted(
+                u for u in res.assignment if u.startswith(arm))
+            assert len(covered) == len(set(covered)) == d.n_units
+
+    def test_fast_metadata_records_heuristic_solver(self, sales_panel):
+        res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 2,
+                      "fast": True, "compute_power": False,
+                      "display_graphs": False}).fit()
+        solver = res.metadata["solver"].lower()
+        assert "fast" in solver or "osd" in solver or "heuristic" in solver
+
+    def test_default_fit_uses_exact_solver(self, sales_panel):
+        res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 2,
+                      "compute_power": False, "display_graphs": False}).fit()
+        assert "mip" in res.metadata["solver"].lower()
+
+    def test_fast_total_at_least_exact(self, sales_panel):
+        # The heuristic total gap variance must be >= the exact MIP optimum
+        # (and finite / sensible). Compared on the same inputs and Q.
+        inp = prepare_pangeo_inputs(sales_panel, "sales", "arm", "unit", "time")
+        exact = run_pangeo(inp, max_supergeo_size=2, compute_power=False)
+        fast = run_pangeo(inp, max_supergeo_size=2, compute_power=False,
+                          fast=True)
+        for arm in exact.arm_designs:
+            ev = exact.arm_designs[arm].total_gap_variance
+            fv = fast.arm_designs[arm].total_gap_variance
+            assert fv >= ev - 1e-9
+            assert np.isfinite(fv)

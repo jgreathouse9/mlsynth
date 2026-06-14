@@ -14,6 +14,7 @@ from typing import Dict, Optional, Sequence
 
 import numpy as np
 
+from .fast_partition import fast_partition
 from .mip import solve_partition
 from .parallelism import (
     _wavg,
@@ -100,6 +101,8 @@ def run_pangeo(
     *,
     max_supergeo_size: Optional[int] = None,
     min_pairs: int = 1,
+    fast: bool = False,
+    fast_candidates: int = 5,
     objective: str = "ss_res",
     recency_decay: float = 0.97,
     frac_E: float = 0.7,
@@ -156,7 +159,8 @@ def run_pangeo(
     """
     if max_supergeo_size is None:
         return _auto_select_q(
-            inputs, min_pairs=min_pairs, objective=objective,
+            inputs, min_pairs=min_pairs, fast=fast,
+            fast_candidates=fast_candidates, objective=objective,
             recency_decay=recency_decay, frac_E=frac_E,
             covariate_weights=covariate_weights,
             compute_power=compute_power, power_target=power_target,
@@ -198,13 +202,23 @@ def run_pangeo(
     arm_designs = {}
     assignment = {}
     for arm, idx in inputs.arm_units.items():
-        candidates = enumerate_candidate_pairs(
-            idx, Y[:, e_idx], max_supergeo_size,
-            objective=objective, weights=weights,
-            cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
-            unit_weights=uw,
-        )
-        chosen = solve_partition(candidates, idx, min_pairs=min_pairs)
+        if fast:
+            # OSD-style heuristic: cluster into size-bounded groups + split,
+            # skipping the O(n^{2Q}) enumeration and the exact-cover MIP.
+            chosen = fast_partition(
+                idx, Y[:, e_idx], max_supergeo_size,
+                objective=objective, weights=weights,
+                cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
+                unit_weights=uw, n_candidates=fast_candidates, seed=0,
+            )
+        else:
+            candidates = enumerate_candidate_pairs(
+                idx, Y[:, e_idx], max_supergeo_size,
+                objective=objective, weights=weights,
+                cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
+                unit_weights=uw,
+            )
+            chosen = solve_partition(candidates, idx, min_pairs=min_pairs)
         pairs = [_build_pair(p, Y, unit_names, T0, cov, cov_scales, cov_names,
                              e_idx=e_idx, b_idx=b_idx, unit_weights=uw,
                              att_augment=att_augment, att_trend=att_trend)
@@ -237,7 +251,8 @@ def run_pangeo(
         "arm_sizes": {a: int(idx.size) for a, idx in inputs.arm_units.items()},
         "max_supergeo_size": max_supergeo_size,
         "T_pre": T0,
-        "solver": "cvxpy/HiGHS set-partitioning MIP",
+        "solver": ("OSD-style fast partition (PCA clustering + per-group split)"
+                   if fast else "cvxpy/HiGHS set-partitioning MIP"),
         "objective": objective,
         "recency_decay": recency_decay if objective == "weighted" else None,
         "covariates": list(cov_names) if cov is not None else None,
@@ -280,6 +295,8 @@ def _auto_select_q(
     inputs: PangeoInputs,
     *,
     min_pairs: int,
+    fast: bool = False,
+    fast_candidates: int = 5,
     objective: str,
     recency_decay: float,
     frac_E: float,
@@ -314,6 +331,7 @@ def _auto_select_q(
         try:
             cand = run_pangeo(
                 inputs, max_supergeo_size=q, min_pairs=min_pairs,
+                fast=fast, fast_candidates=fast_candidates,
                 objective=objective, recency_decay=recency_decay,
                 frac_E=frac_E,
                 covariate_weights=covariate_weights, compute_power=True,
