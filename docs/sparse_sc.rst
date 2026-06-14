@@ -11,61 +11,163 @@ canonical synthetic control proposed by Vives-i-Bastida (2023,
 *Predictor Selection for Synthetic Controls*). It targets the same
 Abadie, Diamond, and Hainmueller (2010) framework as classical SCM,
 but adds a *lasso* penalty on the predictor-importance vector
-:math:`v` to deliver interpretable *predictor selection*: as the L1
-penalty grows, uninformative predictors get :math:`v`-weights of
+:math:`\mathbf{v}` to deliver interpretable *predictor selection*: as the L1
+penalty grows, uninformative predictors get :math:`v_p`-weights of
 exactly zero and are dropped from the fit.
 
-Compared with the canonical SCM data-driven :math:`V` choice (a
-cross-validated grid search over diagonal :math:`V` minimizing
+Compared with the canonical SCM data-driven :math:`\mathbf{V}` choice (a
+cross-validated grid search over diagonal :math:`\mathbf{V}` minimizing
 pre-period MSE), SparseSC
 
 * selects predictors explicitly via L1 sparsity rather than
-  implicitly via small but nonzero :math:`v`-weights;
+  implicitly via small but nonzero :math:`v_p`-weights;
 * picks the L1 penalty :math:`\lambda` on a held-out validation
   block of the pre-period (a 75/25 train/validation split by
   default, which matches the 14/5-year split Vives used in the
   empirical Prop 99 application); and
-* anchors the first predictor's :math:`v`-weight at 1, which fixes
-  the overall scale and removes the trivial :math:`v = 0` minimum
+* anchors the first predictor's :math:`v_p`-weight at 1, which fixes
+  the overall scale and removes the trivial :math:`\mathbf{v} = \mathbf{0}` minimum
   that the L1 penalty would otherwise admit.
 
-The donor weights :math:`w` solve the usual SCM simplex QP given
-:math:`v`.
+The donor weights :math:`\mathbf{w}` solve the usual SCM simplex QP given
+:math:`\mathbf{v}`.
 
 Inference defaults to a moving-block conformal CI for the ATT
 in the spirit of Chernozhukov, Wuethrich and Zhu (2021), calibrated
 on the validation-block residuals. Vives's Abadie-style placebo
 permutation is still available via ``inference_method="placebo"``.
 
+When to use this estimator
+--------------------------
+
+Reach for SparseSC when you have one treated unit, a rich predictor
+set, and you want the fit to tell you *which* predictors matter rather
+than carry all of them with small but nonzero weights. The lasso
+penalty on the predictor-importance vector drives the uninformative
+predictors to exactly zero, so the synthetic control's explanation of
+the treated pre-trajectory is interpretable in terms of a small,
+named subset.
+
+A concrete example: a state passes a tobacco-control law and you have
+dozens of candidate predictors of cigarette sales -- prices, income,
+beer consumption, the youth share, and several lagged outcomes. With
+the canonical data-driven :math:`\mathbf{V}` every predictor keeps some
+weight and the story is muddy. SparseSC prunes the over-rich set down
+to the handful that actually drive the pre-law fit, selects the L1
+penalty on a held-out validation block, and reads the policy effect as
+the post-law gap -- with a conformal interval calibrated on the
+validation residuals rather than a coarse donor-permutation grid.
+
+Notation
+--------
+
+Let :math:`j = 1` denote the treated unit, with all units
+:math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of cardinality
+:math:`N_0`. Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
+1-indexed; the intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`.
+
+The treated outcome is :math:`y_{1t}`; each donor :math:`j \in \mathcal{N}_0`
+contributes a series :math:`\mathbf{y}_j`, stacked into the donor matrix
+:math:`\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j \in \mathcal{N}_0} \in
+\mathbb{R}^{T \times N_0}` (one column per donor); write
+:math:`\mathbf{y}_{0t} \in \mathbb{R}^{N_0}` for the donor outcomes at time
+:math:`t` (the :math:`t`-th row). Donor weights are
+:math:`\mathbf{w} \in \mathbb{R}^{N_0}`, constrained to the unit simplex
+:math:`\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\}`; the optimiser is :math:`\mathbf{w}^\ast`. The
+synthetic counterfactual is :math:`\widehat{y}_{1t} \coloneqq
+\mathbf{y}_{0t}^\top \mathbf{w}^\ast`, the per-period effect is
+:math:`\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}`, and the ATT is
+:math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1} \sum_{t \in \mathcal{T}_2}
+\tau_t`. The significance level is :math:`\alpha`.
+
+Predictors enter through a treated vector :math:`\mathbf{x}_1 \in
+\mathbb{R}^P` and a donor matrix :math:`\mathbf{X}_0 \in \mathbb{R}^{P
+\times N_0}` over :math:`P` predictors; after standardization each row of
+:math:`[\mathbf{X}_0, \mathbf{x}_1]` has unit sample standard deviation
+across units. The predictor-importance vector is
+:math:`\mathbf{v} \in \mathbb{R}^P_{\ge 0}` with components :math:`v_p`;
+the L1 penalty strength is :math:`\lambda \ge 0`, and :math:`\mathbf{V} =
+\mathrm{diag}(\mathbf{v})` is the diagonal predictor-weight matrix.
+
+The pre-period is further split for tuning. The training block is
+:math:`\mathcal{T}_1^{\mathrm{tr}} \coloneqq \{1, \dots, T_0^{\mathrm{tr}}\}`
+and the validation block is :math:`\mathcal{T}_1^{\mathrm{val}} \coloneqq
+\{T_0^{\mathrm{tr}} + 1, \dots, T_0\}`, with
+:math:`\mathcal{T}_1 = \mathcal{T}_1^{\mathrm{tr}} \cup
+\mathcal{T}_1^{\mathrm{val}}` (default 75/25). This pre-period split is
+internal to predictor and penalty selection and is distinct from the
+canonical pre/post split at :math:`T_0`.
+
+Identifying assumptions
+-----------------------
+
+1. Pre-treatment fit / convex-hull support. There exist weights
+   :math:`\mathbf{w} \in \Delta^{N_0}` and predictor weights :math:`\mathbf{v}`
+   under which the treated pre-period predictors are matched by the donors,
+   :math:`\mathbf{x}_1 \approx \mathbf{X}_0 \mathbf{w}` -- equivalently, the
+   treated unit lies inside (or near) the convex hull of the donors over the
+   selected predictors (Abadie, Diamond & Hainmueller 2010).
+
+   *Remark.* This is the workhorse identifying condition for any synthetic
+   control: a good pre-period match is the empirical certificate one inspects.
+   SparseSC adds that the match should be achievable with *few* predictors -- if
+   it is, the lasso recovers a sparse, interpretable explanation; if the treated
+   unit can only be matched by leaning on many predictors at once, the selected
+   set will not be sparse.
+
+2. Informative anchor. The first predictor (the anchor, with
+   :math:`v_1 = 1`) is genuinely informative about the treated unit's
+   pre-trajectory (Vives 2023, Appendix 6.1).
+
+   *Remark.* The anchor fixes the overall scale of :math:`\mathbf{v}` and removes
+   the trivial :math:`\mathbf{v} = \mathbf{0}` minimum the L1 penalty would
+   otherwise admit. Because the anchor's weight is pinned at 1, a poorly chosen
+   anchor biases the fit; Vives recommends picking a predictor known to be
+   informative, or treating the anchor as a hyperparameter and sweeping it.
+
+3. No anticipation. Treatment has no effect before :math:`T_0`:
+   :math:`y_{1t} = y_{1t}^N` for all :math:`t \in \mathcal{T}_1`, so the
+   pre-period outcomes and predictors reflect the no-intervention path.
+
+   *Remark.* If the treated unit reacts in advance of the formal intervention
+   date, the pre-period fit -- and the validation-block residuals the conformal
+   interval is calibrated on -- are contaminated by the effect itself. Date
+   :math:`T_0` at the first plausible response, not the nominal policy date.
+
+4. Outcome-model stability. The no-intervention outcomes follow a stable
+   data-generating process across :math:`\mathcal{T}`, so weights selected on
+   :math:`\mathcal{T}_1` continue to reproduce the treated unit's
+   no-intervention path on :math:`\mathcal{T}_2` (Abadie, Diamond &
+   Hainmueller 2010).
+
+   *Remark.* This is what licenses extrapolating the pre-period fit forward, and
+   it is also what the validation block stress-tests: holding out
+   :math:`\mathcal{T}_1^{\mathrm{val}}` checks that the selected predictors and
+   penalty generalise within the pre-period before they are asked to generalise
+   past :math:`T_0`.
+
 Mathematical Formulation
 ------------------------
-
-Setup
-^^^^^
-
-Let :math:`Y_{1, t}` denote the treated outcome and :math:`Y_{0, t}
-\in \mathbb{R}^N` the donor outcomes at time :math:`t`. The pre-
-treatment window :math:`t = 1, \dots, T_0` is partitioned into a
-*training* block :math:`t = 1, \dots, T_0^{\text{tr}}` and a
-*validation* block :math:`t = T_0^{\text{tr}} + 1, \dots, T_0`.
-Predictors enter through a treated vector :math:`X_1 \in
-\mathbb{R}^P` and a donor matrix :math:`X_0 \in \mathbb{R}^{P
-\times N}`. After standardization each row of :math:`[X_0, X_1]`
-has unit sample standard deviation across units.
 
 Inner W-weight QP
 ^^^^^^^^^^^^^^^^^
 
-Given :math:`v \in \mathbb{R}^P_{\ge 0}` the donor weights solve
+Given :math:`\mathbf{v} \in \mathbb{R}^P_{\ge 0}` the donor weights solve
 
 .. math::
 
-   w^*(v) = \arg\min_{w \in \Delta_N}
-   \; w^\top X_0^\top \mathrm{diag}(v)\, X_0\, w
-   - 2\, X_1^\top \mathrm{diag}(v)\, X_0\, w,
+   \mathbf{w}^\ast(\mathbf{v}) = \operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_0}}
+   \; \mathbf{w}^\top \mathbf{X}_0^\top \mathrm{diag}(\mathbf{v})\, \mathbf{X}_0\, \mathbf{w}
+   - 2\, \mathbf{x}_1^\top \mathrm{diag}(\mathbf{v})\, \mathbf{X}_0\, \mathbf{w},
 
-where :math:`\Delta_N = \{w \in \mathbb{R}^N_{\ge 0} :
-\mathbf{1}^\top w = 1\}` is the donor simplex. This is exactly the
+where :math:`\Delta^{N_0} = \{\mathbf{w} \in \mathbb{R}^{N_0}_{\ge 0} :
+\mathbf{1}^\top \mathbf{w} = 1\}` is the donor simplex. This is exactly the
 QP MATLAB's ``quadprog`` solves inside
 ``sparse_synth/loss_function.m``.
 
@@ -75,8 +177,9 @@ fix versus the prior CVXPY-based implementation: CVXPY parsing
 overhead was ~10-50 ms per call for a 39-donor problem, while the
 underlying Clarabel solve itself takes microseconds. The constraint
 skeleton ``(A, b, cones, settings)`` is cached per donor count
-:math:`N` so only the data terms :math:`H = X_0^\top \mathrm{diag}(v)
-X_0` and :math:`q = -2 X_0^\top \mathrm{diag}(v) X_1` are rebuilt per
+:math:`N_0` so only the data terms :math:`\mathbf{H} = \mathbf{X}_0^\top
+\mathrm{diag}(\mathbf{v}) \mathbf{X}_0` and :math:`\mathbf{q} = -2
+\mathbf{X}_0^\top \mathrm{diag}(\mathbf{v}) \mathbf{x}_1` are rebuilt per
 call.
 
 For numerical robustness — the augmented k > N spec is rank-
@@ -89,31 +192,31 @@ single bad exploration step.
 Outer V-weight problem
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The :math:`v`-weights minimize a penalized outcome MSE plus the L1
-penalty on :math:`v`:
+The :math:`\mathbf{v}`-weights minimize a penalized outcome MSE plus the L1
+penalty on :math:`\mathbf{v}`, over a window :math:`\mathcal{W}`:
 
 .. math::
 
-   v^*(\lambda)
-   = \arg\min_{v \in \mathbb{R}^P_{\ge 0},\; v_1 = 1}
-   \; \frac{1}{|\mathcal{T}|}
-   \sum_{t \in \mathcal{T}}
-   \bigl(Y_{1, t} - Y_{0, t}^\top w^*(v)\bigr)^2
-   + \lambda \, \|v\|_1.
+   \mathbf{v}^\ast(\lambda)
+   = \operatorname*{argmin}_{\mathbf{v} \in \mathbb{R}^P_{\ge 0},\; v_1 = 1}
+   \; \frac{1}{|\mathcal{W}|}
+   \sum_{t \in \mathcal{W}}
+   \bigl(y_{1t} - \mathbf{y}_{0t}^\top \mathbf{w}^\ast(\mathbf{v})\bigr)^2
+   + \lambda \, \|\mathbf{v}\|_1 .
 
 The :math:`v_1 = 1` anchor is what prevents the trivial all-zero
 solution at any :math:`\lambda > 0`: without it the outer objective
-is positive-scale-invariant in :math:`v` and the L1 penalty would
+is positive-scale-invariant in :math:`\mathbf{v}` and the L1 penalty would
 push every component to zero (Vives 2023, Appendix 6.1).
 
-The window :math:`\mathcal{T}` is set by ``outer_loss_window``:
+The window :math:`\mathcal{W}` is set by ``outer_loss_window``:
 
-* ``"training"`` (default) — :math:`\mathcal{T} = \{1, \dots,
-  T_0^{\text{tr}}\}`. Matches the unpublished MATLAB driver
+* ``"training"`` (default) — :math:`\mathcal{W} =
+  \mathcal{T}_1^{\mathrm{tr}}`. Matches the unpublished MATLAB driver
   ``sparse_synth.m`` and reproduces the Prop 99 estimates Vives
   reports in the empirical section.
-* ``"validation"`` — :math:`\mathcal{T} = \{T_0^{\text{tr}} + 1,
-  \dots, T_0\}`. Matches the page-5 :math:`L_V` definition in
+* ``"validation"`` — :math:`\mathcal{W} = \mathcal{T}_1^{\mathrm{val}}`.
+  Matches the page-5 :math:`L_V` definition in
   Vives's Algorithm 1 literally; useful for ablations but produces
   notably worse in-sample fit than the training variant.
 
@@ -124,36 +227,36 @@ L-BFGS-B (``scipy.optimize``).
 Gradient computation
 ~~~~~~~~~~~~~~~~~~~~
 
-L-BFGS-B needs gradients of the outer objective in :math:`v`. Two
+L-BFGS-B needs gradients of the outer objective in :math:`\mathbf{v}`. Two
 modes are available, controlled by ``use_analytical_grad``:
 
 * ``False`` (default) — central-difference numerical gradient. Each
   outer step pays :math:`2(P-1)` inner-QP solves.
 * ``True`` — closed-form gradient via the envelope theorem applied
-  at the inner optimum :math:`w^*(v)`. With active set
-  :math:`\mathcal{A} = \{i : w_i^* > 0\}`, one
+  at the inner optimum :math:`\mathbf{w}^\ast(\mathbf{v})`. With active set
+  :math:`\mathcal{A} = \{i : w_i^\ast > 0\}`, one
   :math:`(|\mathcal{A}| + 1) \times (|\mathcal{A}| + 1)` Cholesky on
   the reduced KKT matrix yields all :math:`P - 1` gradient components
   in :math:`O(P |\mathcal{A}|)` work:
 
   .. math::
 
-     \frac{\partial L}{\partial v_k}
-     = -\frac{4}{|\mathcal{T}|}\, r_k \cdot
-       \bigl(X_0[k, \mathcal{A}]\, z\bigr) + \lambda,
+     \frac{\partial \mathcal{L}}{\partial v_p}
+     = -\frac{4}{|\mathcal{W}|}\, r_p \cdot
+       \bigl(\mathbf{X}_0[p, \mathcal{A}]\, \mathbf{z}\bigr) + \lambda,
 
-  where :math:`r_k = X_{1k} - X_0[k, \mathcal{A}] w_{\mathcal{A}}^*`
-  is the predictor-:math:`k` pre-fit residual and :math:`z` solves
+  where :math:`r_p = x_{1p} - \mathbf{X}_0[p, \mathcal{A}]\, \mathbf{w}_{\mathcal{A}}^\ast`
+  is the predictor-:math:`p` pre-fit residual and :math:`\mathbf{z}` solves
 
   .. math::
 
      \begin{pmatrix}
-       2 H_{\mathcal{A}\mathcal{A}} & \mathbf{1} \\
+       2 \mathbf{H}_{\mathcal{A}\mathcal{A}} & \mathbf{1} \\
        \mathbf{1}^\top & 0
      \end{pmatrix}
-     \begin{pmatrix} z \\ \mu_z \end{pmatrix}
+     \begin{pmatrix} \mathbf{z} \\ \mu_z \end{pmatrix}
      =
-     \begin{pmatrix} Z_0[:, \mathcal{A}]^\top r_{\text{outer}} \\ 0 \end{pmatrix}.
+     \begin{pmatrix} \mathbf{Z}_0[:, \mathcal{A}]^\top \mathbf{r}_{\text{outer}} \\ 0 \end{pmatrix}.
 
   The analytical gradient is exact (verified against central FD to
   ~1e-7 at random interior points). It yields a ~5–10× speedup on
@@ -176,11 +279,11 @@ validation-block outcome MSE:
 
 .. math::
 
-   \hat\lambda
-   = \arg\min_{\lambda \in \Lambda}
-   \; \frac{1}{T_0 - T_0^{\text{tr}}}
-   \sum_{t = T_0^{\text{tr}} + 1}^{T_0}
-   \bigl(Y_{1, t} - Y_{0, t}^\top w^*(v^*(\lambda))\bigr)^2.
+   \widehat{\lambda}
+   = \operatorname*{argmin}_{\lambda \in \Lambda}
+   \; \frac{1}{T_0 - T_0^{\mathrm{tr}}}
+   \sum_{t \in \mathcal{T}_1^{\mathrm{val}}}
+   \bigl(y_{1t} - \mathbf{y}_{0t}^\top \mathbf{w}^\ast(\mathbf{v}^\ast(\lambda))\bigr)^2 .
 
 The default grid is :math:`\Lambda = \{0\} \cup
 \text{logspace}(10^{-4}, 1, 50)`. Setting :math:`\lambda = 0`
@@ -196,8 +299,8 @@ drops out of the fit. The selected predictor set is
 
 .. math::
 
-   \mathcal{S}(\hat\lambda)
-   = \{p : v_p^*(\hat\lambda) > 0\}.
+   \mathcal{S}(\widehat{\lambda})
+   = \{p : v_p^\ast(\widehat{\lambda}) > 0\}.
 
 This is what makes the method *Sparse* SC: the explanation of the
 treated unit's pre-trajectory is interpretable in terms of a small
@@ -206,17 +309,17 @@ subset of predictors.
 ATT and Counterfactual
 ^^^^^^^^^^^^^^^^^^^^^^
 
-With :math:`\hat v = v^*(\hat\lambda)` and :math:`\hat w =
-w^*(\hat v)` recovered on the full pre-period, the counterfactual
-and ATT are
+With :math:`\widehat{\mathbf{v}} = \mathbf{v}^\ast(\widehat{\lambda})` and
+:math:`\widehat{\mathbf{w}} = \mathbf{w}^\ast(\widehat{\mathbf{v}})` recovered on
+the full pre-period, the counterfactual and ATT are
 
 .. math::
 
-   \widehat{Y}_{1, t} = Y_{0, t}^\top \hat w,
+   \widehat{y}_{1t} = \mathbf{y}_{0t}^\top \widehat{\mathbf{w}},
    \qquad
-   \widehat{\mathrm{ATT}}
+   \widehat{\tau}
    = \frac{1}{T - T_0}
-   \sum_{t = T_0 + 1}^T \bigl(Y_{1, t} - \widehat{Y}_{1, t}\bigr).
+   \sum_{t = T_0 + 1}^T \bigl(y_{1t} - \widehat{y}_{1t}\bigr).
 
 Conformal ATT inference (default)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -227,8 +330,8 @@ treat the in-sample residuals as a *calibration sample* of what
 "noise" should look like under the no-treatment null, and invert a
 permutation test in :math:`\theta` to bracket the ATT.
 
-Define the residual series :math:`e_t = Y_{1, t} - Y_{0, t}^\top
-\hat w`. The calibration set is
+Define the residual series :math:`e_t = y_{1t} - \mathbf{y}_{0t}^\top
+\widehat{\mathbf{w}}`. The calibration set is
 
 .. math::
 
@@ -241,8 +344,8 @@ Define the residual series :math:`e_t = Y_{1, t} - Y_{0, t}^\top
    \end{cases}.
 
 The validation block is genuinely out-of-sample under the chosen
-:math:`v`; the full pre-block gives a larger calibration sample but
-its training-block residuals are in-sample under :math:`v`.
+:math:`\mathbf{v}`; the full pre-block gives a larger calibration sample but
+its training-block residuals are in-sample under :math:`\mathbf{v}`.
 
 The conformity score for a block :math:`B` of size
 :math:`b = \max(3, \lfloor\sqrt{T - T_0}\rfloor)` is
@@ -304,7 +407,7 @@ Abadie-style placebo (opt-in)
 Set ``inference_method="placebo"`` to recover Vives's procedure.
 For each donor :math:`j`, swap that donor into the treated slot,
 remove it from the donor pool, refit SparseSC *at the already-
-selected* :math:`\hat\lambda` (or, optionally, re-run the full
+selected* :math:`\widehat\lambda` (or, optionally, re-run the full
 :math:`\lambda` sweep) and record the placebo ATT. The two-sided
 permutation p-value is
 
@@ -314,7 +417,7 @@ permutation p-value is
    \ge |\widehat{\mathrm{ATT}}|\} + 1}{B + 1},
 
 where :math:`B` is the number of completed placebos. Re-using
-:math:`\hat\lambda` makes the placebo loop tractable; set
+:math:`\widehat\lambda` makes the placebo loop tractable; set
 ``placebo_resweep=True`` to re-select :math:`\lambda` for every
 placebo (much slower).
 

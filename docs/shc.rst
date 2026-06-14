@@ -45,52 +45,77 @@ If you have a clean panel with valid untreated donors, the cross-sectional
 estimators (:class:`mlsynth.CLUSTERSC`, :class:`mlsynth.PDA`,
 :class:`mlsynth.SBC`) are the appropriate tools.
 
+Notation
+--------
+
+Let :math:`j = 1` denote the single treated unit — here the *only* unit, since
+SHC needs no cross-section. Time runs over
+:math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`, 1-indexed; the intervention
+takes effect after period :math:`T_0`, splitting :math:`\mathcal{T}` into the
+pre-period :math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of
+length :math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}` (of length
+:math:`T - T_0`). The observed series is
+:math:`\mathbf{y}_1 = (y_{11}, \dots, y_{1T})^\top \in \mathbb{R}^{T}` with
+scalar outcomes :math:`y_{1t}` and treatment dummy :math:`d_{1t}` (:math:`0` for
+:math:`t \in \mathcal{T}_1`, :math:`1` for :math:`t \in \mathcal{T}_2`).
+
+The per-period treatment effect is :math:`\tau_t` (the paper's
+:math:`\delta_t`); SHC reconstructs the counterfactual :math:`\widehat{\ell}_t`
+and reads :math:`\tau_t \coloneqq y_{1t} - \widehat{\ell}_t`, with ATT
+:math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1} \sum_{t \in \mathcal{T}_2}
+\tau_t`. Block weights are :math:`\mathbf{w}`, constrained to the unit simplex
+:math:`\Delta \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0} : \|\mathbf{w}\|_1 =
+1\}`, with optimiser :math:`\mathbf{w}^\ast`. The significance level is
+:math:`\alpha`. Throughout, :math:`\tau_t` denotes the treatment effect; the
+paper's :math:`\delta_t` is the same quantity.
+
 Mathematical formulation
 ------------------------
 
 Setup
 ^^^^^
 
-For a single treated unit with outcome :math:`\{y_t\}` and intervention
-indicator :math:`d_t` (0 for :math:`t \le T_o`, 1 afterwards), the
-semi-parametric model (Eq. 2; the implementation uses the simplified
-:math:`x_t`-free form) is
+For the treated unit with outcome :math:`\mathbf{y}_1` and intervention
+indicator :math:`d_{1t}` (:math:`0` for :math:`t \in \mathcal{T}_1`, :math:`1`
+afterwards), the semi-parametric model (Eq. 2; the implementation uses the
+simplified :math:`x_t`-free form) is
 
 .. math::
 
-   y_t = \ell_t + \delta_t d_t + \varepsilon_t,
+   y_{1t} = \ell_t + \tau_t\, d_{1t} + \varepsilon_t,
 
 where :math:`\ell_t = \ell(t)` is a non-stochastic, smooth latent trend,
-:math:`\delta_t` is the time-varying intervention effect, and
+:math:`\tau_t` is the time-varying intervention effect, and
 :math:`\varepsilon_t` is a zero-mean error. Because both :math:`\ell_t` and
-:math:`\delta_t` are unobserved post-intervention, naive pre/post or
+:math:`\tau_t` are unobserved post-intervention, naive pre/post or
 semi-parametric (Robinson 1988) methods cannot separate the two; SHC
-identifies :math:`\delta_t` by reconstructing the post-intervention
+identifies :math:`\tau_t` by reconstructing the post-intervention
 :math:`\ell_t`.
 
 Treated and historical blocks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Fix a pre-intervention block length :math:`m` and a post horizon
-:math:`n`. The treated block spans :math:`[T_o - (m-1),\, T_o + n]`,
+:math:`n`. The treated block spans :math:`[T_0 - (m-1),\, T_0 + n]`,
 with pre-segment :math:`\boldsymbol\ell_{pre}` and post-segment
 :math:`\boldsymbol\ell_{post}`. The pre-period is sliced into
-:math:`N = T_o - n - (m-1)` overlapping historical blocks, each with
+:math:`N = T_0 - n - (m-1)` overlapping historical blocks, each with
 the same pre/post split (Eq. 7). The SHC weights solve a simplex-matching
 problem on the latent pre-segments,
 
 .. math::
 
-   \widehat{\boldsymbol w}
-     = \arg\min_{\boldsymbol w \in \mathbb{W}}
+   \mathbf{w}^\ast
+     = \operatorname*{argmin}_{\mathbf{w} \in \Delta}
        \bigl\| \widehat{\boldsymbol\ell}_{pre}
-       - \widehat{\boldsymbol L}_{pre} \boldsymbol w \bigr\|^2,
+       - \widehat{\mathbf{L}}_{pre} \mathbf{w} \bigr\|^2,
    \qquad
-   \mathbb{W} = \{\boldsymbol w \ge 0 : \mathbf{1}^\top \boldsymbol w = 1\},
+   \Delta = \{\mathbf{w} \ge 0 : \mathbf{1}^\top \mathbf{w} = 1\},
 
 and the post-intervention counterfactual is the same combination applied
 to the historical forward segments,
-:math:`\widehat\ell_t(\widehat{\boldsymbol w}) = \sum_i \widehat w_i \,
+:math:`\widehat\ell_t(\mathbf{w}^\ast) = \sum_i w_i^\ast \,
 \widehat\ell_{t(i)}`.
 
 Identifying assumptions
@@ -111,8 +136,8 @@ should be read cautiously.
 
 *Assumption 2(b) (matching).* The treated pre-segment is reproducible as a
 convex combination of its historical counterparts,
-:math:`\boldsymbol\ell_{pre} = \boldsymbol\ell_{pre}(\boldsymbol w_o)` for
-some :math:`\boldsymbol w_o \in \mathbb{W}`. *Remark.* This is the
+:math:`\boldsymbol\ell_{pre} = \boldsymbol\ell_{pre}(\mathbf{w}_o)` for
+some :math:`\mathbf{w}_o \in \Delta`. *Remark.* This is the
 distributional analogue of the SC matching condition, transplanted from
 cross-sectional donors to historical blocks. It is checkable from the
 pre-period fit. It also precludes a pure growth trend (which cannot be
@@ -131,31 +156,31 @@ The two-stage estimator (Section 2.3) is orchestrated by
 2. Blocks. Build the treated block and the :math:`N` historical blocks.
 3. Matching. Weight *all* :math:`N` historical blocks by the
    simplex-constrained matching QP (Eq. 23), solving the nearest-PD
-   approximation :math:`\widehat{\boldsymbol L}_{\mathrm{pre}}^{\top}
-   \widehat{\boldsymbol L}_{\mathrm{pre}} + \varsigma C_2 C_2^{\top}`; the
+   approximation :math:`\widehat{\mathbf{L}}_{\mathrm{pre}}^{\top}
+   \widehat{\mathbf{L}}_{\mathrm{pre}} + \varsigma C_2 C_2^{\top}`; the
    simplex constraint itself zeroes out the irrelevant blocks.
 4. Augmentation (optional). ``use_augmented=True`` adds an
    ASHC ridge refinement on top of the simplex weights.
 5. Counterfactual. Apply the weights to the historical forward
-   segments to obtain :math:`\widehat\ell_t(\widehat{\boldsymbol w})` over
-   the post horizon; the gap :math:`y_t - \widehat\ell_t(\widehat{\boldsymbol w})`
-   estimates :math:`\delta_t`.
+   segments to obtain :math:`\widehat\ell_t(\mathbf{w}^\ast)` over
+   the post horizon; the gap :math:`y_{1t} - \widehat\ell_t(\mathbf{w}^\ast)`
+   estimates :math:`\tau_t`.
 
 Inference
 ^^^^^^^^^
 
 ``SHC`` reports the conformal permutation test of Chen, Yang & Yang (2024,
 footnote 21) — their application of Chernozhukov, Wüthrich & Zhu (2021) —
-for the sharp null :math:`H_0: \delta_t = 0` over the post period. The test
+for the sharp null :math:`H_0: \tau_t = 0` over the post period. The test
 statistic is
 
 .. math::
 
-   S = n^{-1/2} \sum_{t=T_o+1}^{T_o+n} \bigl| \hat\varepsilon_t^0 \bigr|,
-   \qquad \hat\varepsilon_t^0 = y_t - \widehat\ell_t,
+   S = n^{-1/2} \sum_{t=T_0+1}^{T_0+n} \bigl| \widehat\varepsilon_t^0 \bigr|,
+   \qquad \widehat\varepsilon_t^0 = y_{1t} - \widehat\ell_t,
 
 and the null distribution is built by sampling :math:`n` residuals with
-replacement from the :math:`T_o` pre-intervention residuals, 1,000 times.
+replacement from the :math:`T_0` pre-intervention residuals, 1,000 times.
 ``results.inference`` exposes ``p_value``, ``test_statistic``, the 1/5/10%
 ``critical_values`` and ``reject`` decisions, the resampled
 ``null_distribution``, and Andrews-Genton conformal bands for the plot.
@@ -253,10 +278,10 @@ The estimator is validated against the paper's simulation design
 "local trends" and cubic-Hermite connectors; the treated block's shape is
 a convex combination of :math:`h` historical shapes (Assumption 2(b)). The
 construction reproduces the paper's exact dimensions: with :math:`h = 4`,
-:math:`T_o = m(4h+1)` (425 for :math:`m=25`, 850 for :math:`m=50`) and
-:math:`N = T_o - n - (m-1)` historical blocks (376 and 776).
+:math:`T_0 = m(4h+1)` (425 for :math:`m=25`, 850 for :math:`m=50`) and
+:math:`N = T_0 - n - (m-1)` historical blocks (376 and 776).
 
-With :math:`\delta_t = 0`, the exercise measures how well SHC recovers
+With :math:`\tau_t = 0`, the exercise measures how well SHC recovers
 :math:`\ell_t`, via the mean squared matching error (``MSE_pre``, Eq. 31)
 and the mean squared prediction error against the *true* latent
 (``MSE_post(k)``, Eq. 38).
