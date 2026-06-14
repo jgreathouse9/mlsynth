@@ -3,7 +3,7 @@ Harmonic Synthetic Control (HSC)
 
 .. currentmodule:: mlsynth
 
-When to Use This Estimator
+When to use this estimator
 --------------------------
 
 Reach for HSC, due to Liu and Xu (2026) [HSC]_, when your outcome is
@@ -48,33 +48,67 @@ defensible fixed choice; HSC buys robustness precisely when you are *unsure*.
 Notation
 --------
 
-Let :math:`Y_{1,t}` be the treated outcome and :math:`X_{\text{pre}} \in
-\mathbb{R}^{T_0 \times N}` the donor matrix over the :math:`T_0` pre-treatment
-periods, with post-treatment donors :math:`X_{\text{post}}`. Donor weights
-:math:`\omega` live on the simplex :math:`\Delta_N = \{\omega \ge 0,\,
-\mathbf{1}^\top\omega = 1\}`. :math:`D_q` is the :math:`q`-th order difference
-operator (:math:`q \in \{1, 2\}`) and :math:`K_q = D_q^\top D_q` the roughness
-matrix. The pre-treatment discrepancy is :math:`r(\omega) = Y_{\text{pre}} -
-X_{\text{pre}}\,\omega`.
+Let :math:`j = 1` denote the treated unit, with all units
+:math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of cardinality
+:math:`N_0`. Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
+1-indexed; the intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}` (of length
+:math:`T - T_0`).
+
+The treated series is :math:`\mathbf{y}_1 = (y_{11}, \dots, y_{1T})^\top \in
+\mathbb{R}^{T}` with scalar outcomes :math:`y_{1t}`; each donor
+:math:`j \in \mathcal{N}_0` contributes a series :math:`\mathbf{y}_j`, stacked
+into the donor matrix :math:`\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j \in
+\mathcal{N}_0} \in \mathbb{R}^{T \times N_0}` (one column per donor). Restricted
+to the pre-period these are the treated pre-outcomes
+:math:`\mathbf{y}_{1,\mathcal{T}_1} \in \mathbb{R}^{T_0}` and the donor
+pre-outcomes :math:`\mathbf{Y}_{0,\mathcal{T}_1} \in \mathbb{R}^{T_0 \times N_0}`,
+with their post-period counterparts :math:`\mathbf{Y}_{0,\mathcal{T}_2}`.
+
+Donor weights are :math:`\mathbf{w} \in \mathbb{R}^{N_0}`, constrained to the
+unit simplex
+:math:`\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\}`; the optimiser is :math:`\mathbf{w}^\ast` and the fitted
+vector :math:`\widehat{\mathbf{w}}`. The synthetic counterfactual is
+:math:`\widehat{\mathbf{y}}_1` with entries :math:`\widehat{y}_{1t}`, the
+per-period effect is :math:`\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}`, and the
+ATT is :math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}
+\sum_{t \in \mathcal{T}_2} \tau_t`. The pre-treatment discrepancy under weights
+:math:`\mathbf{w}` is :math:`\mathbf{r}(\mathbf{w}) \coloneqq
+\mathbf{y}_{1,\mathcal{T}_1} - \mathbf{Y}_{0,\mathcal{T}_1}\,\mathbf{w}`.
+
+Two page-specific objects govern the spectral allocation: :math:`\mathbf{D}_q`
+is the :math:`q`-th order difference operator (:math:`q \in \{1, 2\}`) and
+:math:`\mathbf{K}_q \coloneqq \mathbf{D}_q^\top \mathbf{D}_q` the roughness
+matrix. The treated-unit-specific smooth component is :math:`\mathbf{e}`
+(absorbing the idiosyncratic low-frequency residual), the allocation parameter
+is :math:`\rho \in [0, 1]` with its cross-validated optimum
+:math:`\widehat{\rho}`, and the donor-ridge strength is :math:`\zeta \ge 0`.
 
 The Outcome Decomposition
 -------------------------
 
-HSC decomposes untreated potential outcomes into three pieces (Liu-Xu Eq. (1)):
+HSC decomposes untreated potential outcomes into three pieces (Liu-Xu Eq. (1));
+for a generic unit :math:`j \in \mathcal{N}`,
 
 .. math::
 
-   Y_{i,t}(0) \;=\; L_{i,t} \;+\; R_{i,t} \;+\; \varepsilon_{i,t},
+   y_{jt}^N \;=\; L_{jt} \;+\; R_{jt} \;+\; \varepsilon_{jt},
 
-where :math:`L_{i,t} = \Lambda_i^\top F_t` is a shared low-rank component (a
-convex combination of donors that matches the treated loadings reproduces it),
-:math:`R_{i,t}` is an idiosyncratic stochastic trend (long-run variance grows
-without bound), and :math:`\varepsilon_{i,t}` is idiosyncratic short-run noise.
-The difficulty is :math:`R`: independent stochastic trends produce realized
-correlations that do not vanish as :math:`T_0` grows, so longer pre-periods do not
-help. Whether the treated unit's trend variation is mostly shared (in :math:`L`)
-or idiosyncratic (in :math:`R`) is generally unknown — which is exactly what HSC's
-allocation parameter is designed to handle.
+where :math:`L_{jt} = \boldsymbol{\lambda}_j^\top \mathbf{f}_t` is a shared
+low-rank component (a convex combination of donors that matches the treated
+loadings reproduces it), :math:`R_{jt}` is an idiosyncratic stochastic trend
+(long-run variance grows without bound), and :math:`\varepsilon_{jt}` is
+idiosyncratic short-run noise. The difficulty is :math:`R`: independent
+stochastic trends produce realized correlations that do not vanish as
+:math:`T_0` grows, so longer pre-periods do not help. Whether the treated
+unit's trend variation is mostly shared (in :math:`L`) or idiosyncratic (in
+:math:`R`) is generally unknown — which is exactly what HSC's allocation
+parameter is designed to handle.
 
 Assumptions
 -----------
@@ -85,11 +119,13 @@ trend* that license the spectral metric and the forecast step. Each is stated
 formally with a plain-language remark.
 
 Assumption 1 (three-way outcome model). Untreated potential outcomes follow
-the decomposition above, :math:`Y_{i,t}(0) = \Lambda_i^\top F_t + R_{i,t} +
-\varepsilon_{i,t}`, where :math:`\Lambda_i^\top F_t` is a shared low-rank factor
-structure, :math:`R_{i,t}` is an integrated (unit-root) idiosyncratic process,
-and :math:`\varepsilon_{i,t}` is mean-zero short-run noise with
-:math:`\mathbb{E}[\varepsilon_{i,t} \mid F_t, \Lambda_i, R_{i,t}] = 0`.
+the decomposition above, :math:`y_{jt}^N = \boldsymbol{\lambda}_j^\top
+\mathbf{f}_t + R_{jt} + \varepsilon_{jt}`, where
+:math:`\boldsymbol{\lambda}_j^\top \mathbf{f}_t` is a shared low-rank factor
+structure, :math:`R_{jt}` is an integrated (unit-root) idiosyncratic process,
+and :math:`\varepsilon_{jt}` is mean-zero short-run noise with
+:math:`\mathbb{E}[\varepsilon_{jt} \mid \mathbf{f}_t, \boldsymbol{\lambda}_j,
+R_{jt}] = 0`.
 
 *Remark.* This is the interactive-fixed-effects model behind synthetic-control
 consistency theory (Abadie et al., 2010; Bai, 2009), augmented with a
@@ -99,41 +135,44 @@ variation, whereas HSC explicitly allows a piece (:math:`R`) that no donor
 combination can reproduce.
 
 Assumption 2 (the shared component is in the donor hull). The treated unit's
-factor loading lies in the convex hull of the donor loadings — there exists
-:math:`\omega \in \Delta_N` with :math:`\sum_i \omega_i \Lambda_i = \Lambda_1`,
-hence :math:`\sum_i \omega_i L_{i,t} = L_{1,t}` for all :math:`t`.
+factor loading lies in the convex hull of the donor loadings — there exist
+weights :math:`\mathbf{w} \in \Delta^{N_0}` with
+:math:`\sum_{j \in \mathcal{N}_0} w_j \boldsymbol{\lambda}_j =
+\boldsymbol{\lambda}_1`, hence
+:math:`\sum_{j \in \mathcal{N}_0} w_j L_{jt} = L_{1t}` for all :math:`t`.
 
 *Remark.* This is the usual "treated unit in the convex hull of donors"
 requirement of Abadie et al. (2010), but imposed on the shared component
 only. HSC does not ask the donors to reproduce the treated unit's idiosyncratic
-trend — that is what the smooth component :math:`E` is for — so the hull
-condition is materially weaker here than in level-matching SC.
+trend — that is what the smooth component :math:`\mathbf{e}` is for — so the
+hull condition is materially weaker here than in level-matching SC.
 
 Assumption 3 (spectral separation of the idiosyncratic trend). The
-idiosyncratic trend :math:`R_{1,t}` is *low-frequency*: it is integrated of order
-:math:`q` so that :math:`D_q R_1` is stationary and short-memory, and its energy
-is concentrated at low frequencies, separated from the broadband short-run noise
-:math:`\varepsilon`.
+idiosyncratic trend :math:`R_{1t}` is *low-frequency*: it is integrated of order
+:math:`q` so that :math:`\mathbf{D}_q R_1` is stationary and short-memory, and
+its energy is concentrated at low frequencies, separated from the broadband
+short-run noise :math:`\varepsilon`.
 
-*Remark.* This is the assumption that gives the metric :math:`W_{\rho,q}` and the
-smoother :math:`S_{\rho,q}` their meaning. The smoother extracts the
-low-frequency part of the pre-period residual into :math:`E`; the metric
-down-weights exactly that part when matching donors. If :math:`R` were itself
-high-frequency, no smoother could separate it from noise and the spectral
-allocation would have nothing to exploit. Under *independent* stochastic trends,
-level-matching :math:`R^2` does not vanish as :math:`T_0 \to \infty`
-(Granger–Newbold, 1974; Phillips, 1986) — the pre-period fit looks excellent but
-is spurious — which is precisely the failure mode Assumption 3 lets HSC avoid.
+*Remark.* This is the assumption that gives the metric
+:math:`\mathbf{W}_{\rho,q}` and the smoother :math:`\mathbf{S}_{\rho,q}` their
+meaning. The smoother extracts the low-frequency part of the pre-period residual
+into :math:`\mathbf{e}`; the metric down-weights exactly that part when matching
+donors. If :math:`R` were itself high-frequency, no smoother could separate it
+from noise and the spectral allocation would have nothing to exploit. Under
+*independent* stochastic trends, level-matching :math:`R^2` does not vanish as
+:math:`T_0 \to \infty` (Granger–Newbold, 1974; Phillips, 1986) — the pre-period
+fit looks excellent but is spurious — which is precisely the failure mode
+Assumption 3 lets HSC avoid.
 
 Assumption 4 (the smooth component is forecastable). The smooth component
-:math:`E` absorbing :math:`R_1` (plus any unmatched low-frequency residual)
-follows a model the post-period forecaster extrapolates consistently — by default
-an integrated AR(1), which is correctly specified when :math:`R_1` is an
-ARIMA(1,1,0) trend.
+:math:`\mathbf{e}` absorbing :math:`R_1` (plus any unmatched low-frequency
+residual) follows a model the post-period forecaster extrapolates consistently —
+by default an integrated AR(1), which is correctly specified when :math:`R_1` is
+an ARIMA(1,1,0) trend.
 
 *Remark.* The post-period counterfactual error decomposes into the donor-matching
-error (controlled by Assumption 2) and the *forecast* error of :math:`E`. The
-latter dominates at long horizons, so the relevant model is the one for
+error (controlled by Assumption 2) and the *forecast* error of :math:`\mathbf{e}`.
+The latter dominates at long horizons, so the relevant model is the one for
 :math:`R_1`'s differences. ``forecaster="last"`` is the conservative fallback (a
 driftless random walk) when even an AR(1) on the differences is suspect.
 
@@ -143,9 +182,9 @@ untreated potential outcomes (no anticipation); and treatment of the focal unit
 does not spill over onto donors (SUTVA).
 
 *Remark.* These are the standard SCM design conditions and are not specific to
-HSC; they are what make :math:`X_{\text{pre}}` and :math:`X_{\text{post}}` valid
-controls and the pre-period a clean training window for both :math:`\omega` and
-:math:`E`.
+HSC; they are what make :math:`\mathbf{Y}_{0,\mathcal{T}_1}` and
+:math:`\mathbf{Y}_{0,\mathcal{T}_2}` valid controls and the pre-period a clean
+training window for both :math:`\mathbf{w}` and :math:`\mathbf{e}`.
 
 Diagnostic: shared vs idiosyncratic stochastic trends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -230,11 +269,11 @@ prints (deterministic with the seed above)::
 
 Three takeaways:
 
-1. HSC's selected :math:`\rho^*` is the diagnostic. When the
-   trend is shared, cross-validation picks :math:`\rho^* \approx 1`
+1. HSC's selected :math:`\widehat{\rho}` is the diagnostic. When the
+   trend is shared, cross-validation picks :math:`\widehat{\rho} \approx 1`
    (essentially level-matching SC). When the trend is idiosyncratic,
-   it drops to :math:`\rho^* \approx 0.2` (almost pure differences
-   matching). Reading off :math:`\rho^*` after fitting tells you which
+   it drops to :math:`\widehat{\rho} \approx 0.2` (almost pure differences
+   matching). Reading off :math:`\widehat{\rho}` after fitting tells you which
    regime the data live in.
 2. Spurious matching is large and one-sided. On a panel where the
    true ATT is zero, level-matched SC reports an apparent effect of
@@ -268,14 +307,14 @@ The cases where SBC is the better choice:
   trend-vs-cycle interpretation (German reunification's
   reunification dividend on trend versus the catch-up boom on the
   cycle) get more out of SBC's explicit decomposition than out of
-  HSC's single :math:`\rho^*`.
+  HSC's single :math:`\widehat{\rho}`.
 * The treated unit has a long, self-forecastable trend. SBC's
   Step 2 forecasts the treated trend univariately. If the treated
   unit's own history is rich enough that you'd happily fit an AR(p)
   on it without donors, SBC's modularity is an asset, not a
   liability.
 * You prefer a fixed structural recipe to a CV-tuned knob. HSC's
-  :math:`\rho^*` is chosen by rolling-origin CV, which is itself
+  :math:`\widehat{\rho}` is chosen by rolling-origin CV, which is itself
   noisy in finite samples. SBC's Hamilton filter has no
   hyperparameter to tune at the SC step.
 * You want explicit asymptotic unbiasedness theory. SBC has a
@@ -306,7 +345,7 @@ estimates the (zero) treatment effect on this panel.
 * Panel A -- sales-like data: donors and the treated unit share a
   strong deterministic linear trend, short pre-period
   (:math:`T_0 = 16`). HSC's cross-validation picks
-  :math:`\rho^* \approx 0.97` (essentially level-matching), exploits
+  :math:`\widehat{\rho} \approx 0.97` (essentially level-matching), exploits
   the shared trend, and hugs the observed series. SBC strips the
   trend by Hamilton-filtering and then has to *forecast* it from a
   short pre-period of treated observations, which extrapolates
@@ -318,7 +357,7 @@ estimates the (zero) treatment effect on this panel.
   of the treated trend is essentially exact, and the cycle-only SC
   step uses the donors where they actually help. HSC has no donor
   combination that can reproduce the treated trend and is forced
-  into a compromise :math:`\rho^* \approx 0.5`, which drifts off in
+  into a compromise :math:`\widehat{\rho} \approx 0.5`, which drifts off in
   the post-period.
 
 .. code-block:: python
@@ -415,39 +454,44 @@ Mathematical Formulation
 The Profiled Metric (Proposition 1)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-HSC jointly estimates donor weights :math:`\omega` and a treated-unit-specific
-smooth component :math:`E` that absorbs low-frequency residual variation, with
-the roughness of :math:`E` penalized by :math:`\|D_q E\|_2^2`. Profiling out
-:math:`E` reduces the problem to a donor-weight QP under a
+HSC jointly estimates donor weights :math:`\mathbf{w}` and a
+treated-unit-specific smooth component :math:`\mathbf{e}` that absorbs
+low-frequency residual variation, with the roughness of :math:`\mathbf{e}`
+penalized by :math:`\|\mathbf{D}_q \mathbf{e}\|_2^2`. Profiling out
+:math:`\mathbf{e}` reduces the problem to a donor-weight QP under a
 :math:`\rho`-dependent metric. With :math:`\lambda_\rho = \rho/(1-\rho)`,
 
 .. math::
 
-   S_{\rho,q} = (I_{T_0} + \lambda_\rho K_q)^{-1},
+   \mathbf{S}_{\rho,q} = (\mathbf{I}_{T_0} + \lambda_\rho \mathbf{K}_q)^{-1},
    \qquad
-   W_{\rho,q} = \tfrac{1}{\rho}\,(I_{T_0} - S_{\rho,q}),
+   \mathbf{W}_{\rho,q} = \tfrac{1}{\rho}\,(\mathbf{I}_{T_0} - \mathbf{S}_{\rho,q}),
 
 the donor weights solve a ridge-regularized simplex QP,
 
 .. math::
 
-   \hat\omega(\rho, q) = \arg\min_{\omega \in \Delta_N}
-   \; r(\omega)^\top W_{\rho,q}\, r(\omega) + \zeta\,\|\omega\|_2^2,
+   \widehat{\mathbf{w}}(\rho, q) = \operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_0}}
+   \; \mathbf{r}(\mathbf{w})^\top \mathbf{W}_{\rho,q}\, \mathbf{r}(\mathbf{w})
+   + \zeta\,\|\mathbf{w}\|_2^2,
 
-and the fitted smooth component is :math:`\hat E = S_{\rho,q}\,(Y_{\text{pre}} -
-X_{\text{pre}}\hat\omega)`. The smoother :math:`S_{\rho,q}` extracts the
-low-frequency (trend-like) part of the residual; the metric :math:`W_{\rho,q}`
-down-weights exactly that part in donor matching, which is what alleviates the
-spurious-matching risk.
+and the fitted smooth component is :math:`\widehat{\mathbf{e}} =
+\mathbf{S}_{\rho,q}\,(\mathbf{y}_{1,\mathcal{T}_1} -
+\mathbf{Y}_{0,\mathcal{T}_1}\widehat{\mathbf{w}})`. The smoother
+:math:`\mathbf{S}_{\rho,q}` extracts the low-frequency (trend-like) part of the
+residual; the metric :math:`\mathbf{W}_{\rho,q}` down-weights exactly that part
+in donor matching, which is what alleviates the spurious-matching risk.
 
 .. note::
 
    Donor ridge. The penalty coefficient :math:`\zeta` is set by ``ridge``.
-   A float gives a relative ridge ``ridge * trace(X'WX)/N`` (default
+   A float gives a relative ridge
+   :math:`\texttt{ridge} \cdot \operatorname{tr}(\mathbf{Y}_{0,\mathcal{T}_1}^\top
+   \mathbf{W}_{\rho,q} \mathbf{Y}_{0,\mathcal{T}_1})/N_0` (default
    ``1e-6``). The string ``ridge="sdid"`` uses the data-driven SDID-style
-   penalty :math:`\zeta^2 T_0` with :math:`\zeta = T_{\text{post}}^{1/4}
-   \hat\sigma_{\Delta X}` (Arkhangelsky et al., 2021; Liu-Xu §7), where
-   :math:`\hat\sigma_{\Delta X}` is the standard deviation of the donors'
+   penalty :math:`\zeta^2 T_0` with :math:`\zeta = (T - T_0)^{1/4}
+   \widehat{\sigma}_{\Delta \mathbf{Y}_0}` (Arkhangelsky et al., 2021; Liu-Xu §7),
+   where :math:`\widehat{\sigma}_{\Delta \mathbf{Y}_0}` is the standard deviation of the donors'
    first differences. The SDID ridge diversifies the donor weights (no
    corner solutions) and is the configuration the paper uses for its empirical
    application. On the 1997 Hong Kong handover it spreads weight broadly across
@@ -461,11 +505,13 @@ The Two Endpoints
 The metric extends continuously to the boundary, giving the two classical
 estimators as special cases:
 
-- :math:`\rho \to 0`: :math:`S = I`, :math:`W = K_q` — donor matching on q-th
-  differences, and :math:`E` absorbs the entire level discrepancy.
-- :math:`\rho \to 1`: :math:`S = P_0` (the projector onto :math:`\mathrm{Null}(K_q)`),
-  :math:`W = I - P_0` — donor matching on levels with an intercept (:math:`q=1`)
-  or intercept plus linear trend (:math:`q=2`).
+- :math:`\rho \to 0`: :math:`\mathbf{S} = \mathbf{I}`,
+  :math:`\mathbf{W} = \mathbf{K}_q` — donor matching on q-th
+  differences, and :math:`\mathbf{e}` absorbs the entire level discrepancy.
+- :math:`\rho \to 1`: :math:`\mathbf{S} = \mathbf{P}_0` (the projector onto
+  :math:`\operatorname{Null}(\mathbf{K}_q)`),
+  :math:`\mathbf{W} = \mathbf{I} - \mathbf{P}_0` — donor matching on levels with
+  an intercept (:math:`q=1`) or intercept plus linear trend (:math:`q=2`).
 
 Interior :math:`\rho` interpolates smoothly between them — a *soft spectral
 transformation* of the data rather than a hard filter.
@@ -478,10 +524,11 @@ forecaster and added to the donor-matched component:
 
 .. math::
 
-   \hat Y_{1,T_0+h}(0) \;=\; X_{\text{post},h}^\top \hat\omega \;+\; \widehat{E}_{T_0+h}.
+   \widehat{y}_{1,T_0+h}^{\,N} \;=\; \mathbf{Y}_{0,\,T_0+h}^\top \widehat{\mathbf{w}}
+   \;+\; \widehat{e}_{T_0+h}.
 
 The default forecaster is a closed-form ARIMA(1, 1, 0) (an integrated AR(1) on
-the differences of :math:`\hat E`), the correctly specified model for an
+the differences of :math:`\widehat{\mathbf{e}}`), the correctly specified model for an
 idiosyncratic ARIMA(1,1,0) stochastic trend; ``forecaster="last"`` carries the
 last fitted value forward.
 
@@ -491,7 +538,9 @@ Selecting the Allocation
 :math:`\rho` is chosen by rolling-origin cross-validation (scikit-learn's
 :class:`~sklearn.model_selection.TimeSeriesSplit`): for each candidate
 :math:`\rho` and each expanding-window fold, HSC is fit on the training block and
-scored on the held-out block by :math:`X_{\text{val}}\hat\omega + \mathrm{forecast}(\hat E)`.
+scored on the held-out block by
+:math:`\mathbf{Y}_{0,\text{val}}\widehat{\mathbf{w}} +
+\operatorname{forecast}(\widehat{\mathbf{e}})`.
 The :math:`\rho` with the lowest average out-of-sample error is selected, with no
 ex-ante assumption about whether the stochastic trend is shared or idiosyncratic.
 
@@ -592,7 +641,7 @@ HSC is good in both regimes, tracking whichever fixed estimator is best, while
 each fixed estimator fails in one: SC-on-levels is excellent under a shared trend
 (1.15) but catastrophic when the trend is idiosyncratic (10.60); SC-on-differences
 is the reverse. And the cross-validated allocation moves the right way on its own —
-:math:`\hat\rho \approx 0.86` (lean to levels) under a shared trend, dropping to
+:math:`\widehat{\rho} \approx 0.86` (lean to levels) under a shared trend, dropping to
 :math:`\approx 0.48` (lean to differencing) when the trend is idiosyncratic.
 
 .. note::
@@ -602,7 +651,7 @@ is the reverse. And the cross-validated allocation moves the right way on its ow
    oracle — and is what buys robustness across regimes.
 
 Across the full :math:`(\kappa, \rho_u)` grid
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Running the same harness at the paper's actual sample sizes
 (:math:`N_0 = 50` donors, :math:`T_0 = 200`, :math:`T_{\text{post}} = 20`,
@@ -612,15 +661,15 @@ trend and cross-unit sharing :math:`\rho_u \in \{0, 0.5, 1\}`, 80 reps/cell —
 reproduces both of the paper's Monte-Carlo figures, all through the packaged
 :py:class:`~mlsynth.estimators.hsc.HSC` estimator.
 
-Figure 7 — the cross-validated :math:`\hat\rho` adapts to the regime.
+Figure 7 — the cross-validated :math:`\widehat{\rho}` adapts to the regime.
 When the stochastic trend is *shared* across units (:math:`\rho_u = 1`) or
 absent (:math:`\kappa = 0`), level matching identifies the donor weights and
-:math:`\hat\rho` sits near 1; when the trend is *idiosyncratic*
+:math:`\widehat{\rho}` sits near 1; when the trend is *idiosyncratic*
 (:math:`\kappa \ge 0.5`, :math:`\rho_u \le 0.5`), the donor pool cannot
-reproduce it, so cross-validation pushes :math:`\hat\rho` down toward
+reproduce it, so cross-validation pushes :math:`\widehat{\rho}` down toward
 differencing:
 
-.. list-table:: Mean cross-validated :math:`\hat\rho`
+.. list-table:: Mean cross-validated :math:`\widehat{\rho}`
    :header-rows: 1
    :widths: 12 14 14 14
 
@@ -745,7 +794,7 @@ exactly (Korea 0.18, Germany 0.14, US 0.13, Italy 0.11, max < 0.19). Under the
 near-unregularized relative ridge the same fit instead collapses most of the
 weight onto Korea (≈ 0.41) — the SDID ridge is what buys the diversification.
 
-The counterfactual path. Cross-validation selects :math:`\hat\rho = 0.09`
+The counterfactual path. Cross-validation selects :math:`\widehat{\rho} = 0.09`
 (paper: 0.11) — a genuine interior allocation, leaning toward differencing but
 keeping some level information. Hong Kong sits below its synthetic
 counterfactual throughout the post-handover window, a persistent shortfall
@@ -802,7 +851,7 @@ capita.
    worse on the CV criterion than the interior optimum, so the coarse grid
    selects an unrelated point (0.5) and inflates the largest weight to 0.21.
    Passing a fine grid (``np.arange(0, 0.98, 0.01)``) recovers
-   :math:`\hat\rho = 0.09` and the paper's weights. This was the dominant
+   :math:`\widehat{\rho} = 0.09` and the paper's weights. This was the dominant
    source of the gap to the paper — not the data.
 
 Robustness Checks
@@ -818,7 +867,7 @@ forecaster:
    :widths: 32 9 11 12 13 13
 
    * - Configuration
-     - :math:`\hat\rho`
+     - :math:`\widehat{\rho}`
      - max weight
      - cf 2003
      - effect 2003
@@ -891,7 +940,7 @@ a partly idiosyncratic trend:
 
    This is a close Path-A empirical replication: on the same data, the
    authors' 1997–2003 window, and a fine :math:`\rho` grid, HSC matches the
-   paper's headline numbers essentially to the dollar — :math:`\hat\rho = 0.09`
+   paper's headline numbers essentially to the dollar — :math:`\widehat{\rho} = 0.09`
    (paper 0.11), a -$1,902 2003 effect against a $29,999 counterfactual (paper
    ≈ -$1,900 / ≈ $30,000), and donor weights Korea 0.18 / Germany 0.14 / US 0.13
    / Italy 0.11 (paper 0.18 / 0.14 / 0.13 / 0.11). The remaining

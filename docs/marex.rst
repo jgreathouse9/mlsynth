@@ -36,13 +36,21 @@ Reach for MAREX when:
 Notation
 --------
 
-There are :math:`J` units and :math:`T` periods, with :math:`T_0` pre-experiment
-periods; the experiment runs over :math:`t = T_0 + 1, \dots, T`. Each unit has a
-pre-intervention predictor vector :math:`X_j` (pre-period outcomes and optional
-covariates); :math:`\bar X = \sum_j f_j X_j` is the population predictor mean
-for known weights :math:`f_j` (e.g. market shares, or :math:`1/J`). The
-experimenter chooses treated weights :math:`w` and control weights
-:math:`v`, both on the simplex, and *disjoint*:
+There are :math:`N` units :math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and
+:math:`T` periods :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
+1-indexed; the experiment takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-experiment window
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`T_0`) and the experimental window
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`. Because MAREX
+designs an experiment rather than reweighting around one already-treated unit,
+units are indexed generically by :math:`i, j \in \mathcal{N}` with no forced
+treated unit. Each unit has a pre-intervention predictor vector
+:math:`\mathbf{x}_j` (pre-period outcomes and optional covariates);
+:math:`\bar{\mathbf{x}} = \sum_j f_j \mathbf{x}_j` is the population predictor
+mean for known weights :math:`f_j` (e.g. market shares, or :math:`1/N`). The
+experimenter chooses treated weights :math:`\mathbf{w}` and control weights
+:math:`\mathbf{v}`, both on the simplex, and *disjoint*:
 
 .. math::
 
@@ -50,14 +58,15 @@ experimenter chooses treated weights :math:`w` and control weights
    \;\;\forall j.
 
 Units with :math:`w_j > 0` are treated; among the rest, units with
-:math:`v_j > 0` form the synthetic control. Writing :math:`Y_{jt}` for the
-observed outcome (treated units realise :math:`Y^I_{jt}` post-treatment,
-everyone else :math:`Y^N_{jt}`), the design estimator of the average effect is
+:math:`v_j > 0` form the synthetic control. Writing :math:`y_{jt}` for the
+observed outcome (treated units realise :math:`y_{jt}^I` over
+:math:`\mathcal{T}_2`, everyone else :math:`y_{jt}^N`), the design estimator of
+the average effect is
 
 .. math::
 
-   \hat\tau_t(w, v) = \sum_j w_j Y_{jt} - \sum_j v_j Y_{jt},
-   \qquad t > T_0.
+   \widehat{\tau}_t(\mathbf{w}, \mathbf{v}) = \sum_j w_j y_{jt} - \sum_j v_j y_{jt},
+   \qquad t \in \mathcal{T}_2.
 
 Assumptions
 -----------
@@ -66,12 +75,14 @@ Assumption 1 (linear factor model). Potential outcomes follow
 
 .. math::
 
-   Y^N_{jt} = \delta_t + \theta_t' Z_j + \lambda_t' \mu_j + \varepsilon_{jt},
+   y_{jt}^N = \delta_t + \boldsymbol{\theta}_t^\top \mathbf{z}_j
+   + \boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_j + \varepsilon_{jt},
    \qquad
-   Y^I_{jt} = \upsilon_t + \gamma_t' Z_j + \eta_t' \mu_j + \xi_{jt},
+   y_{jt}^I = \upsilon_t + \boldsymbol{\gamma}_t^\top \mathbf{z}_j
+   + \boldsymbol{\eta}_t^\top \boldsymbol{\mu}_j + \xi_{jt},
 
-with observed covariates :math:`Z_j`, unobserved factors :math:`\mu_j`, and
-mean-zero idiosyncratic noise.
+with observed covariates :math:`\mathbf{z}_j`, unobserved factors
+:math:`\boldsymbol{\mu}_j`, and mean-zero idiosyncratic noise.
 
 *Remark.* This is the interactive-fixed-effects model of the SC literature
 (Abadie-Diamond-Hainmueller 2010), extended with a *separate* factor structure
@@ -83,14 +94,19 @@ Assumption 2 (regularity). The factor loadings are non-degenerate
 i.i.d. sub-Gaussian with common variance, independent across the two potential
 outcomes; dependence *across units* is allowed.
 
+*Remark.* These conditions keep the factor structure recoverable from the
+pre-experiment window and the noise well-behaved, so the population predictor
+mean :math:`\bar{\mathbf{x}}` is a meaningful matching target rather than an
+artifact of a degenerate loading matrix.
+
 Assumption 3 / 4 (fit quality). A weight vector reproducing the population
 predictor means exists exactly (Assumption 3), or approximately within a
 tolerance :math:`d` (Assumption 4). This is the design-time analogue of "the
 treated unit lies in the convex hull of the donors."
 
 *Remark.* Under these conditions Abadie & Zhao bound the bias of
-:math:`\hat\tau_t(w, v)` and develop the permutation test below; the better the
-pre-experiment match, the smaller the bias.
+:math:`\widehat{\tau}_t(\mathbf{w}, \mathbf{v})` and develop the permutation test
+below; the better the pre-experiment match, the smaller the bias.
 
 Mathematical Formulation
 ------------------------
@@ -98,16 +114,16 @@ Mathematical Formulation
 The Design Optimization
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-MAREX chooses :math:`w, v` (and a binary selection mask :math:`z`, with
-:math:`w_j \le z_j`, :math:`v_j \le 1 - z_j`, so a unit is treated *or* a
-control, never both) to match the population predictor mean. The ``base`` design
-minimises
+MAREX chooses :math:`\mathbf{w}, \mathbf{v}` (and a binary selection mask
+:math:`\mathbf{z}`, with :math:`w_j \le z_j`, :math:`v_j \le 1 - z_j`, so a unit
+is treated *or* a control, never both) to match the population predictor mean.
+The ``base`` design minimises
 
 .. math::
 
-   \min_{w, v, z}\;
-   \Bigl\| \bar X - \sum_j w_j X_j \Bigr\|_2^2
-   + \Bigl\| \bar X - \sum_j v_j X_j \Bigr\|_2^2
+   \min_{\mathbf{w}, \mathbf{v}, \mathbf{z}}\;
+   \Bigl\| \bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j \Bigr\|_2^2
+   + \Bigl\| \bar{\mathbf{x}} - \sum_j v_j \mathbf{x}_j \Bigr\|_2^2
    \quad \text{s.t. the simplex / disjointness / cardinality constraints,}
 
 with the number of treated units pinned by ``m_eq`` (exactly) or bounded by
@@ -132,7 +148,7 @@ Covariates
 
 By default the design matches on pre-period outcomes. Passing ``covariates``
 (time-invariant column names) appends them to the predictor vector,
-:math:`X_j = [Y^E_j ; Z_j]`, exactly as in the paper — the synthetic treated and
+:math:`\mathbf{x}_j = [\mathbf{y}^E_j ; \mathbf{z}_j]`, exactly as in the paper — the synthetic treated and
 control are then balanced on both pre-period outcomes *and* covariates (with an
 optional ``covariate_weight`` scale). When the pre-period is long, the outcomes
 already encode the covariates' contribution, so covariates matter most when few
@@ -188,25 +204,27 @@ Three Standardized Mean Differences
 When ``covariates=[...]`` is set, the post-fit reports the three covariate
 balance diagnostics that match the structure of Abadie & Zhao's objective.
 Each is a per-covariate signed dict (``covariate_smd_*``) plus two summary
-scalars (max absolute SMD, sum of squared SMDs). With :math:`\bar X` the
-population covariate aggregate, :math:`X_w := \sum_j w_j X_j`,
-:math:`X_v := \sum_j v_j X_j`, and :math:`s_m` the cross-unit standard
-deviation of covariate :math:`m`, each comparison is the unit-free vector
+scalars (max absolute SMD, sum of squared SMDs). With :math:`\bar{\mathbf{x}}`
+the population covariate aggregate,
+:math:`\mathbf{x}_w \coloneqq \sum_j w_j \mathbf{x}_j`,
+:math:`\mathbf{x}_v \coloneqq \sum_j v_j \mathbf{x}_j`, and :math:`s_m` the
+cross-unit standard deviation of covariate :math:`m`, each comparison is the
+unit-free vector
 
 .. math::
 
-   \mathrm{SMD}_m^{(a,b)} = \frac{X_a[m] - X_b[m]}{s_m}.
+   \mathrm{SMD}_m^{(a,b)} = \frac{x_a[m] - x_b[m]}{s_m}.
 
 The three pairs ``(a, b)`` reported are:
 
-* ``covariate_smd``                — ``(X_w, X_v)``: synthetic treated vs
+* ``covariate_smd``                — :math:`(\mathbf{x}_w, \mathbf{x}_v)`: synthetic treated vs
   synthetic control. The internal-validity check ("is the experiment
   apples-to-apples?").
-* ``covariate_smd_treated_vs_pop`` — ``(X_w, \bar X)``: synthetic treated vs
+* ``covariate_smd_treated_vs_pop`` — :math:`(\mathbf{x}_w, \bar{\mathbf{x}})`: synthetic treated vs
   population aggregate. Tracks the first term of MAREX's objective,
-  :math:`\|\bar X - \sum_j w_j X_j\|^2`. Tells you whether the *chosen
+  :math:`\|\bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j\|^2`. Tells you whether the *chosen
   treated group* represents the population.
-* ``covariate_smd_control_vs_pop`` — ``(X_v, \bar X)``: synthetic control vs
+* ``covariate_smd_control_vs_pop`` — :math:`(\mathbf{x}_v, \bar{\mathbf{x}})`: synthetic control vs
   population aggregate. Tracks the second term of the objective. Tells you
   whether the *control set* represents the population.
 
@@ -233,14 +251,14 @@ Where the noise standard deviation comes from
 """"""""""""""""""""""""""""""""""""""""""""""
 
 Under the linear factor model of Assumption 1, the per-period contrast
-:math:`g_t := \sum_j w_j Y_{jt} - \sum_j v_j Y_{jt}` has expectation zero
+:math:`g_t \coloneqq \sum_j w_j y_{jt} - \sum_j v_j y_{jt}` has expectation zero
 under the no-effect null. Its sample SD on the blank window
 :math:`\mathcal{B}` (the held-out tail of the pre-period) is the natural
 estimator of the noise scale:
 
 .. math::
 
-   \hat\sigma_{\text{placebo}} = \sqrt{\frac{1}{|\mathcal{B}| - 1}
+   \widehat{\sigma}_{\text{placebo}} = \sqrt{\frac{1}{|\mathcal{B}| - 1}
        \sum_{t \in \mathcal{B}} \bigl(g_t - \bar g\bigr)^2}.
 
 When no blank window is carved out (``inference=False``) the pre-period gap
@@ -259,7 +277,7 @@ it as an AR(1) process with lag-1 autocorrelation
 
 .. math::
 
-   \hat\rho = \frac{\sum_t g_t g_{t-1}}{\sum_t g_t^2},
+   \widehat{\rho} = \frac{\sum_t g_t g_{t-1}}{\sum_t g_t^2},
 
 clipped to :math:`(-0.99, 0.99)` for numerical safety. The variance of the
 mean of :math:`T` consecutive AR(1) periods, expressed as a multiple of
@@ -278,14 +296,14 @@ The MDE formula
 """""""""""""""
 
 Combining: the standard error of the mean of :math:`T` post-period contrasts
-under :math:`H_0` is :math:`\mathrm{SE}(T) = \hat\sigma_{\text{placebo}} \,
-\sqrt{\mathrm{VIF}(T, \hat\rho)}`. For a two-sided test at level :math:`\alpha`
+under :math:`H_0` is :math:`\mathrm{SE}(T) = \widehat{\sigma}_{\text{placebo}} \,
+\sqrt{\mathrm{VIF}(T, \widehat{\rho})}`. For a two-sided test at level :math:`\alpha`
 with target power :math:`1 - \beta`, the minimum detectable effect is
 
 .. math::
 
    \mathrm{MDE}(T) = \bigl(z_{1-\alpha/2} + z_{1-\beta}\bigr) \cdot
-   \hat\sigma_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \hat\rho)}.
+   \widehat{\sigma}_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \widehat{\rho})}.
 
 The corresponding power to detect a *given* true effect :math:`\tau` at
 horizon :math:`T` is
@@ -296,7 +314,7 @@ horizon :math:`T` is
                  + \Phi\!\Bigl(-\frac{|\tau|}{\mathrm{SE}(T)} - z_{1-\alpha/2}\Bigr),
 
 which is reported as ``power_at_observed`` for each horizon point using the
-realised :math:`\hat\tau`.
+realised :math:`\widehat{\tau}`.
 
 What the surface looks like
 """""""""""""""""""""""""""
@@ -329,7 +347,7 @@ Practical reading
 """""""""""""""""
 
 A typical MAREX run with ``T_post = 6``, ``blank_periods = 4`` and modest
-serial correlation (:math:`\hat\rho \approx 0.5`) on a Walmart-style sales
+serial correlation (:math:`\widehat{\rho} \approx 0.5`) on a Walmart-style sales
 panel produces an MDE on the order of 0.05–0.15% of mean sales, well
 below the 1–3% effect sizes typical marketing interventions aim for; this
 is the quantitative substance of *"good designs are well-powered"*.
@@ -362,7 +380,7 @@ Monte Carlo: Recovering the Treatment Effect
 The block below replicates the qualitative finding of the paper's simulation
 study (Section 5) using ``mlsynth``'s own reimplementation of the linear-factor
 DGP. A sample is drawn, the design is fit on the pre-period, the treated units
-realise :math:`Y^I` in the experiment, and the estimate is compared to the true
+realise :math:`y^I` in the experiment, and the estimate is compared to the true
 average effect.
 
 .. code-block:: python
@@ -507,7 +525,7 @@ onto ``mlsynth``'s implementation, which was checked against it:
      - ``design="penalized"`` (identical :math:`\lambda` distance penalty)
    * - Cardinality formulation
      - ``m_eq`` / ``m_min`` / ``m_max``
-   * - Predictors :math:`X = [Y^E ; Z]`
+   * - Predictors :math:`\mathbf{x} = [\mathbf{y}^E ; \mathbf{z}]`
      - ``covariates=[...]`` (matched on pre-outcomes + covariates)
    * - "treated = smaller set" swap
      - applied in :func:`~mlsynth.utils.marex_helpers.orchestration.solve_marex`

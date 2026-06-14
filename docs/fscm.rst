@@ -44,42 +44,55 @@ is used. Two switches control the estimator:
 Notation
 --------
 
-We use the synthetic-control canon. Unit :math:`j=0` is treated and
-:math:`\mathcal{N} = \{1, \ldots, N\}` indexes the donors; :math:`\mathbf{y}_0`
-is the treated outcome and :math:`\mathbf{Y} = (y_{jt})` the donor matrix. The
-intervention occurs after the pre-period
-:math:`\mathcal{T}_1 = \{1, \ldots, T_1\}`; the post-period is
-:math:`\mathcal{T}_2` with :math:`T_2 = |\mathcal{T}_2|`. For a donor subset
-:math:`U \subseteq \mathcal{N}`, the simplex weights solve
+Let :math:`j = 1` denote the treated unit, with all units
+:math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of cardinality
+:math:`N_0`. Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
+1-indexed; the intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`.
+
+The treated series is :math:`\mathbf{y}_1` with scalar outcomes :math:`y_{1t}`,
+and each donor :math:`j \in \mathcal{N}_0` contributes a series
+:math:`\mathbf{y}_j`, stacked into the donor matrix
+:math:`\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j \in \mathcal{N}_0}
+\in \mathbb{R}^{T \times N_0}` (one column per donor). For a donor subset
+:math:`U \subseteq \mathcal{N}_0`, the simplex weights solve
 
 .. math::
 
-   \boldsymbol{\omega}^*(U) = \operatorname*{argmin}_{\boldsymbol{\omega}\in\Delta_U}
-     \sum_{t\in\mathcal{S}} \bigl(y_{0t} - \mathbf{Y}_{t,U}\,\boldsymbol{\omega}\bigr)^2,
+   \mathbf{w}^\ast(U) = \operatorname*{argmin}_{\mathbf{w}\in\Delta_U}
+     \sum_{t\in\mathcal{S}} \bigl(y_{1t} - \mathbf{Y}_{0,t,U}\,\mathbf{w}\bigr)^2,
    \qquad
-   \Delta_U = \Bigl\{\boldsymbol{\omega}\ge 0 : \textstyle\sum_{j\in U}\omega_j = 1\Bigr\},
+   \Delta_U \coloneqq \Bigl\{\mathbf{w}\ge 0 : \textstyle\sum_{j\in U}w_j = 1\Bigr\},
 
 fit over a window :math:`\mathcal{S}`, and the root-mean-square prediction error
 over an evaluation window :math:`\mathcal{E}` is
 :math:`\mathrm{RMSPE}_{\mathcal{E}}(U) = \sqrt{|\mathcal{E}|^{-1}\sum_{t\in\mathcal{E}}
-(y_{0t} - \mathbf{Y}_{t,U}\boldsymbol{\omega}^*(U))^2}`.
+(y_{1t} - \mathbf{Y}_{0,t,U}\mathbf{w}^\ast(U))^2}`. The synthetic counterfactual
+is :math:`\widehat{\mathbf{y}}_1` with entries :math:`\widehat{y}_{1t}`, the
+per-period effect is :math:`\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}`, and the
+ATT is :math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}
+\sum_{t \in \mathcal{T}_2} \tau_t`. The significance level is :math:`\alpha`.
 
 Computing the weights: bilevel optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 With predictors, SCM jointly chooses predictor weights :math:`\mathbf{V}`
 (a :math:`K\times K` non-negative diagonal matrix on the simplex) and donor
-weights :math:`\mathbf{W}`. Malo et al. [malo2023computing]_ show this is an
+weights :math:`\mathbf{w}`. Malo et al. [malo2023computing]_ show this is an
 optimistic bilevel program: the upper level fits the outcome, the lower
 level fits the :math:`\mathbf{V}`-weighted predictors,
 
 .. math::
 
-   \min_{\mathbf{V},\mathbf{W}} \; \tfrac{1}{T_1}\bigl\|\mathbf{y}_0^{\text{pre}}
-       - \mathbf{Y}_0^{\text{pre}}\mathbf{W}\bigr\|^2
+   \min_{\mathbf{V},\mathbf{w}} \; \tfrac{1}{T_0}\bigl\|\mathbf{y}_{1,\mathcal{T}_1}
+       - \mathbf{Y}_{0,\mathcal{T}_1}\mathbf{w}\bigr\|_2^2
    \quad\text{s.t.}\quad
-   \mathbf{W} \in \operatorname*{argmin}_{\mathbf{W}\in\Delta}
-       \bigl\|\mathbf{x}_0 - \mathbf{X}_0\mathbf{W}\bigr\|_{\mathbf{V}}^2 ,
+   \mathbf{w} \in \operatorname*{argmin}_{\mathbf{w}\in\Delta}
+       \bigl\|\mathbf{x}_1 - \mathbf{X}_0\mathbf{w}\bigr\|_{\mathbf{V}}^2 ,
 
 which is NP-hard in general and is the reason off-the-shelf SCM packages can be
 numerically unstable. ``mlsynth`` implements the paper's globally-convergent
@@ -87,7 +100,7 @@ iterative algorithm in three stages, short-circuiting as soon as an optimum is
 certified (the paper notes the optimum is usually a corner found early):
 
 1. Unconstrained feasibility (Section 3.1) -- solve the simplex regression
-   of the treated outcome on the donors, giving the lower bound :math:`L(W^{})`
+   of the treated outcome on the donors, giving the lower bound :math:`L(\mathbf{w})`
    on the upper-level loss; an LP over :math:`\mathbf{V}` checks whether some
    predictor is already matched, which certifies optimality.
 2. Corner solutions (Section 3.2) -- evaluate the :math:`K` basic predictor
@@ -109,18 +122,18 @@ When ``forward_selection=True`` (default), the donor count is chosen by
 Cerulli's procedure ([FSCM]_, Table 1):
 
 1. Start from the empty model :math:`U_0 = \varnothing`.
-2. For :math:`k = 0, 1, \ldots, J-1`: among the :math:`J-k` candidate donors not
-   yet selected, add the one whose inclusion minimizes the in-sample
+2. For :math:`k = 0, 1, \ldots, N_0-1`: among the :math:`N_0-k` candidate donors
+   not yet selected, add the one whose inclusion minimizes the in-sample
    pre-period RMSPE, giving the nested model
-   :math:`U_{k+1} = U_k \cup \{j^*\}`.
+   :math:`U_{k+1} = U_k \cup \{j^\ast\}`.
 3. For each nested model :math:`U_k`, compute an out-of-sample validation
-   RMSPE and select :math:`k^* = \operatorname*{argmin}_k \mathrm{CV}(U_k)`.
+   RMSPE and select :math:`k^\ast = \operatorname*{argmin}_k \mathrm{CV}(U_k)`.
 
-The selected donor set is :math:`U_{k^*}`; ``mlsynth`` then refits the weights
-on the full pre-period over :math:`U_{k^*}` to form the counterfactual
-:math:`\hat{y}_{0t}^0 = \mathbf{Y}_{t,U_{k^*}}\boldsymbol{\omega}^*`, the gap
-:math:`\hat{\Delta}_t = y_{0t} - \hat{y}_{0t}^0`, and the ATT
-:math:`\bar{\Delta} = \mathcal{E}_{\mathcal{T}_2}(\hat{\Delta}_t)`.
+The selected donor set is :math:`U_{k^\ast}`; ``mlsynth`` then refits the weights
+on the full pre-period over :math:`U_{k^\ast}` to form the counterfactual
+:math:`\widehat{y}_{1t} = \mathbf{Y}_{0,t,U_{k^\ast}}\mathbf{w}^\ast`, the gap
+:math:`\tau_t = y_{1t} - \widehat{y}_{1t}`, and the ATT
+:math:`\widehat{\tau} = |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t`.
 
 When ``forward_selection=False`` the selection and cross-validation are skipped:
 the estimator returns the single full bilevel solve over all donors (the
@@ -132,7 +145,7 @@ Rolling-origin cross-validation. Cerulli's paper splits the pre-period once
 (early half train, late half test). With short pre-periods (Proposition 99 has
 only 19) a single split is noisy, so ``mlsynth`` uses an expanding-window,
 one-step-ahead scheme instead: for each origin :math:`t` from
-:math:`\lceil T_1\cdot\texttt{cv\_split}\rceil` to :math:`T_1-1`, weights are fit
+:math:`\lceil T_0\cdot\texttt{cv\_split}\rceil` to :math:`T_0-1`, weights are fit
 on :math:`\{1,\ldots,t-1\}` and used to forecast period :math:`t`; the
 validation score is the RMSPE of those one-step forecasts. Every late
 pre-period period serves as a test point, using the data more efficiently than
@@ -147,18 +160,18 @@ subset does," and the forward-stepwise selector is the device that
 finds it. The four assumptions that make the selector behave:
 
 A1 (forward convex-hull condition -- the identifying premise).
-There exists a non-empty subset :math:`U^* \subseteq \mathcal{N}`
-and simplex weights :math:`\omega^* \in \Delta_{U^*}` such that the
+There exists a non-empty subset :math:`U^\ast \subseteq \mathcal{N}_0`
+and simplex weights :math:`\mathbf{w}^\ast \in \Delta_{U^\ast}` such that the
 treated unit's pre-period trajectory is (approximately) reproduced
 by the corresponding donor combination,
 
 .. math::
 
-   y_{0t} \;\approx\; \sum_{j \in U^*} \omega_j^*\, y_{jt}
+   y_{1t} \;\approx\; \sum_{j \in U^\ast} w_j^\ast\, y_{jt}
    \quad \text{for all } t \in \mathcal{T}_1.
 
-The classical SCM hull condition is the special case
-:math:`U^* = \mathcal{N}`; FSCM operates whenever some subset
+*Remark.* The classical SCM hull condition is the special case
+:math:`U^\ast = \mathcal{N}_0`; FSCM operates whenever some subset
 (potentially a small one) supplies the hull. If no subset of
 controls can form a convex hull around the target, FSCM cannot be
 used -- and no amount of forward stepwise will rescue it. The
@@ -182,18 +195,18 @@ recovers the oracle donor set wpa1:
 
 .. math::
 
-   \mathbb{P}\bigl( U_{k^*} = U^* \bigr) \;\longrightarrow\; 1
-   \qquad \text{as } T_1 \to \infty.
+   \mathbb{P}\bigl( U_{k^\ast} = U^\ast \bigr) \;\longrightarrow\; 1
+   \qquad \text{as } T_0 \to \infty.
 
 *Remark.* This is the wpa1 selection-consistency property
 that distinguishes FSCM from heuristic donor pre-screening:
 greedy forward steps are not just computationally tractable
-(:math:`1 + J(J+1)/2` fits vs. the exhaustive :math:`2^J`), they
+(:math:`1 + N_0(N_0+1)/2` fits vs. the exhaustive :math:`2^{N_0}`), they
 asymptotically pick the *right* subset. The regularity conditions
 follow Shi & Huang and assume bounded donor signals, mixing
 shocks within units, and a signal-strength condition on the
-oracle weights (no donor in :math:`U^*` carries vanishing weight
-in :math:`\omega^*`).
+oracle weights (no donor in :math:`U^\ast` carries vanishing weight
+in :math:`\mathbf{w}^\ast`).
 
 A4 (informative cross-validation split). The pre-period is
 long enough, and the donor / treated dynamics stable enough
@@ -203,7 +216,7 @@ is a consistent estimate of out-of-sample prediction error.
 pre-period to resemble the post-period in distribution; if the
 panel has a structural break inside the pre-window (a global
 financial crisis, a regime change), this assumption fails and the
-selected :math:`k^*` will reflect the break, not the donor pool.
+selected :math:`k^\ast` will reflect the break, not the donor pool.
 
 
 Empirical Illustration: California's Proposition 99
@@ -366,7 +379,7 @@ Helper Modules
 --------------
 
 Data preparation -- the only DataFrame touchpoint: pivots to NumPy, builds the
-unit/time ``IndexSet``es, splits pre/post, and assembles the optional covariate
+unit/time ``IndexSet``\es, splits pre/post, and assembles the optional covariate
 arrays.
 
 .. automodule:: mlsynth.utils.fscm_helpers.setup
