@@ -424,19 +424,13 @@ def test_l2_relax_returns_coeffs_and_intercept():
     assert beta.shape == (4,) and np.isfinite(intercept)
 
 
-def test_l2_relax_all_solvers_fail_raises(monkeypatch):
-    """If every solver leaves beta.value None, raise MlsynthEstimationError."""
-    def boom(self, *a, **k):
-        raise RuntimeError("solver down")
-    monkeypatch.setattr(l2_estimation.cp.Problem, "solve", boom)
-    with pytest.raises(MlsynthEstimationError, match="all solvers diverged"):
-        l2_relax(np.arange(10.0), np.random.default_rng(0).normal(0, 1, (10, 2)), tau=0.1)
-
-
-def test_l2_relax_solver_returns_none_value_raises(monkeypatch):
-    """Solver runs without error but leaves beta.value None -> try next, then raise."""
-    monkeypatch.setattr(l2_estimation.cp.Problem, "solve", lambda self, **k: None)
-    with pytest.raises(MlsynthEstimationError, match="all solvers diverged"):
+def test_l2_relax_osqp_diverges_raises(monkeypatch):
+    """If OSQP returns a non-finite solution, raise MlsynthEstimationError."""
+    monkeypatch.setattr(
+        l2_estimation, "l2_relax_solve",
+        lambda *a, **k: np.full(2, np.nan),
+    )
+    with pytest.raises(MlsynthEstimationError, match="OSQP did not converge"):
         l2_relax(np.arange(10.0), np.random.default_rng(0).normal(0, 1, (10, 2)), tau=0.1)
 
 
@@ -449,10 +443,11 @@ def test_cross_validate_tau_returns_float():
 
 
 def test_cross_validate_tau_handles_solver_failures(monkeypatch):
-    """If l2_relax always fails, val_mse -> inf for every grid point (still returns)."""
-    def always_fail(*a, **k):
-        raise MlsynthEstimationError("nope")
-    monkeypatch.setattr(l2_estimation, "l2_relax", always_fail)
+    """If every grid solve is non-finite, the MSE is inf throughout but CV still
+    returns a grid member (does not crash)."""
+    def all_nan(Sigma, eta, taus):
+        return np.full((np.asarray(taus).shape[0], np.asarray(eta).ravel().shape[0]), np.nan)
+    monkeypatch.setattr(l2_estimation, "l2_relax_grid", all_nan)
     rng = np.random.default_rng(4)
     tau = cross_validate_tau(rng.normal(0, 1, 30), rng.normal(0, 1, (30, 2)))
     assert isinstance(tau, float)

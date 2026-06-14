@@ -22,9 +22,9 @@ from __future__ import annotations
 from typing import Optional, Tuple
 
 import numpy as np
-import cvxpy as cp
 
 from ....exceptions import MlsynthEstimationError
+from .batch import l2_relax_grid, l2_relax_solve
 
 
 def _standardize(y: np.ndarray, X: np.ndarray, standardize: bool):
@@ -40,34 +40,38 @@ def _standardize(y: np.ndarray, X: np.ndarray, standardize: bool):
     return mu_y, Mu_X, sd_y, Sd_X
 
 
+def _destandardize(
+    beta_tilde: np.ndarray, mu_y: float, Mu_X: np.ndarray,
+    sd_y: float, Sd_X: np.ndarray,
+) -> Tuple[np.ndarray, float]:
+    """Map a standardised-scale coefficient vector back to the original scale."""
+    beta_hat = sd_y * (beta_tilde / Sd_X)
+    intercept = mu_y - float(Mu_X @ beta_hat)
+    return beta_hat, intercept
+
+
 def l2_relax(
     y_pre: np.ndarray, X_pre: np.ndarray, tau: float, standardize: bool = True,
 ) -> Tuple[np.ndarray, float]:
-    """Solve the L2-relaxation primal for coefficients and intercept."""
+    """Solve the L2-relaxation primal for coefficients and intercept.
+
+    The primal objective ``||beta||^2 / 2`` is strictly convex, so the solution
+    is unique (Shi & Wang 2024, Lemma 2). It is solved natively with polished
+    OSQP (:func:`mlsynth.utils.pda_helpers.l2.batch.l2_relax_solve`) -- the same
+    solver the multiple-treated batch uses -- which matches an interior-point
+    (cvxpy/CLARABEL) solve on the unique optimum without cvxpy's per-call
+    canonicalisation overhead.
+    """
     T1 = X_pre.shape[0]
     mu_y, Mu_X, sd_y, Sd_X = _standardize(y_pre, X_pre, standardize)
     yt = (y_pre - mu_y) / sd_y
     Xt = (X_pre - Mu_X) / Sd_X
     Sigma = (Xt.T @ Xt) / T1
     eta = (Xt.T @ yt) / T1
-    beta = cp.Variable(X_pre.shape[1])
-    prob = cp.Problem(
-        cp.Minimize(0.5 * cp.sum_squares(beta)),
-        [cp.norm(eta - Sigma @ beta, "inf") <= tau],
-    )
-    for solver in ("CLARABEL", "OSQP", "ECOS"):
-        try:
-            prob.solve(solver=solver)
-            if beta.value is not None:
-                break
-        except Exception:
-            continue
-    if beta.value is None:
-        raise MlsynthEstimationError("L2-relaxation failed: all solvers diverged.")
-    beta_tilde = np.asarray(beta.value).ravel()
-    beta_hat = sd_y * (beta_tilde / Sd_X)
-    intercept = mu_y - float(Mu_X @ beta_hat)
-    return beta_hat, intercept
+    beta_tilde = l2_relax_solve(Sigma, eta, tau)
+    if not np.all(np.isfinite(beta_tilde)):
+        raise MlsynthEstimationError("L2-relaxation failed: OSQP did not converge.")
+    return _destandardize(beta_tilde, mu_y, Mu_X, sd_y, Sd_X)
 
 
 def cross_validate_tau(
@@ -90,22 +94,33 @@ def cross_validate_tau(
     yt, Xt = y_pre[:-n_val], X_pre[:-n_val]
     yv, Xv = y_pre[-n_val:], X_pre[-n_val:]
 
-    def val_mse(tau: float) -> float:
-        try:
-            b, a = l2_relax(yt, Xt, tau, standardize=standardize)
-        except MlsynthEstimationError:
-            return np.inf
-        return float(np.mean((yv - (Xv @ b + a)) ** 2))
+    # Standardise once on the training tail; the whole grid shares the same
+    # Sigma / eta, so one KKT factorization serves every candidate tau.
+    Tt = Xt.shape[0]
+    mu_y, Mu_X, sd_y, Sd_X = _standardize(yt, Xt, standardize)
+    yts = (yt - mu_y) / sd_y
+    Xts = (Xt - Mu_X) / Sd_X
+    Sigma = (Xts.T @ Xts) / Tt
+    eta = (Xts.T @ yts) / Tt
+
+    def grid_mse(grid: np.ndarray) -> np.ndarray:
+        betas_tilde = l2_relax_grid(Sigma, eta, grid)        # (K, N), standardised
+        out = np.full(grid.shape[0], np.inf)
+        for i, beta_tilde in enumerate(betas_tilde):
+            if not np.all(np.isfinite(beta_tilde)):
+                continue
+            b, a = _destandardize(beta_tilde, mu_y, Mu_X, sd_y, Sd_X)
+            out[i] = float(np.mean((yv - (Xv @ b + a)) ** 2))
+        return out
 
     if tau_grid is not None:
         grid = np.asarray(tau_grid, dtype=float)
-        return float(grid[int(np.argmin([val_mse(t) for t in grid]))])
+        return float(grid[int(np.argmin(grid_mse(grid)))])
 
     coarse = _auto_tau_grid(yt, Xt, standardize, n_coarse)
-    mse = [val_mse(t) for t in coarse]
-    k = int(np.argmin(mse))
+    k = int(np.argmin(grid_mse(coarse)))
     fine = np.linspace(coarse[max(k - 1, 0)], coarse[min(k + 1, n_coarse - 1)], n_fine)
-    return float(fine[int(np.argmin([val_mse(t) for t in fine]))])
+    return float(fine[int(np.argmin(grid_mse(fine)))])
 
 
 def _auto_tau_grid(y: np.ndarray, X: np.ndarray, standardize: bool, n: int) -> np.ndarray:
