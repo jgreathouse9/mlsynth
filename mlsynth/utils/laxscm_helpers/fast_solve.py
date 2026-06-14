@@ -320,6 +320,12 @@ def solve_relaxed_l2_osqp(X: np.ndarray, y: np.ndarray, tau: float) -> np.ndarra
         res = m.solve()
     except Exception:  # pragma: no cover - solver setup/solve failure
         return None
+    # Reject anything OSQP did not actually solve (e.g. primal-infeasible when
+    # tau is below the balance floor); otherwise the garbage iterate would be
+    # scored by the CV loop instead of falling through to the cvxpy reference.
+    status = getattr(getattr(res, "info", None), "status", "")
+    if status not in ("solved", "solved inaccurate"):
+        return None
     x = getattr(res, "x", None)
     if x is None or np.any(np.isnan(x)):
         return None
