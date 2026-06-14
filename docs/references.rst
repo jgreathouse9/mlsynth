@@ -58,7 +58,7 @@ References
 
 
 
-.. [TSSC] Li, K. T., & Shankar, V. (2023). A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events. *Management Science, 70*(6), 3734-3747. https://doi.org/10.1287/mnsc.2023.4878
+.. (TSSC defined once below, in the multi-line entry)
 
 
 .. [ROTH20232218]
@@ -376,3 +376,44 @@ References
     Li.
     *"Synthetic Control Methods."*
     Working Paper. (Authors, title, journal, year, and DOI to be completed.)
+
+.. [BVSS]
+    Xu, Yihong and Zhou, Quan.
+    "Bayesian Synthetic Control with a Soft Simplex Constraint."
+    *arXiv Working Paper*, 2503.06454, 2025.
+    URL: https://arxiv.org/abs/2503.06454
+
+.. [LiSCM2020]
+    Li, Kathleen T.
+    "Statistical Inference for Average Treatment Effects Estimated by Synthetic Control Methods."
+    *Journal of the American Statistical Association*, 115(532): 2068-2083, 2020.
+
+.. [DoudchenkoImbens2017]
+    Doudchenko, Nikolay and Imbens, Guido W.
+    "Balancing, Regression, Difference-In-Differences and Synthetic Control Methods: A Synthesis."
+    *arXiv Working Paper*, 1610.07748, 2017.
+    URL: https://arxiv.org/abs/1610.07748
+
+.. [TianLeePanchenko]
+    Tian, Wei, Lee, Seojeong, and Panchenko, Valentyn.
+    "Synthetic Controls with Multiple Outcomes."
+    *The Econometrics Journal*, utag005, 2026.
+    DOI: https://doi.org/10.1093/ectj/utag005
+
+.. [SunBenMichaelFeller]
+    Sun, Liyang, Ben-Michael, Eli, and Feller, Avi.
+    "Using Multiple Outcomes to Improve the Synthetic Control Method."
+    *The Review of Economics and Statistics*, 2025.
+    DOI: https://doi.org/10.1162/rest_a_01592
+
+.. [SI]
+    Agarwal, Anish, Shah, Devavrat, and Shen, Dennis.
+    "Synthetic Interventions: Extending Synthetic Controls to Multiple Treatments."
+    *Operations Research*, 74(2): 840-859, 2025.
+    DOI: https://doi.org/10.1287/opre.2025.1590
+
+.. [KMPT2021]
+    Kellogg, Maxwell, Mogstad, Magne, Pouliot, Guillaume A., and Torgovitsky, Alexander.
+    "Combining Matching and Synthetic Control to Trade Off Biases From Extrapolation and Interpolation."
+    *Journal of the American Statistical Association*, 116(536): 1804-1816, 2021.
+    DOI: https://doi.org/10.1080/01621459.2021.1979562
