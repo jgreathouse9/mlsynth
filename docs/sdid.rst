@@ -135,11 +135,15 @@ The estimand is the average treatment effect on the treated, :math:`\tau`
 .. admonition:: Notation bridge
 
    The mlsynth implementation generalizes the single-treated block design
-   to cohorts: cohort :math:`a` is the set :math:`I^a` of units first
-   treated in period :math:`a`, with size :math:`N_{tr}^a` and
-   :math:`T_{tr}^a = T - a + 1` post-periods. The classical
+   to cohorts: cohort :math:`a` is the set :math:`I^a \subseteq \{N_{co} +
+   1, \dots, N\}` of units first treated in period :math:`a`, with size
+   :math:`N_{tr}^a = |I^a|` and :math:`T_{tr}^a = T - a + 1` post-periods;
+   :math:`A = \{a_1, \dots, a_K\}` collects the distinct adoption periods,
+   and :math:`T_{post} = \sum_{a \in A} N_{tr}^a T_{tr}^a` is the aggregate
+   post-treatment exposure (Clarke et al., 2023). The classical
    single-treated case (California) is the one-cohort special case, where
-   the cohort ATT and the overall ATT coincide.
+   the cohort ATT and the overall ATT coincide (and this aggregate exposure
+   reduces to the post-period count :math:`T_{post}` above).
 
 Assumptions
 -----------
@@ -232,23 +236,13 @@ Mathematical Formulation
 Setup
 ^^^^^
 
-Let :math:`y_{it}` denote the outcome of unit :math:`i` in period
-:math:`t`, with :math:`i \in \mathcal{N} \coloneqq \{1, \dots, N\}` and
-:math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`. There are :math:`N_{co}` never-treated
-control units, and the treated units are partitioned into cohorts by
-their adoption period: cohort :math:`a` is the set
-:math:`I^a \subseteq \{N_{co} + 1, \dots, N\}` of units that first
-receive treatment in period :math:`a`. Let
-:math:`A = \{a_1, \dots, a_K\}` denote the set of distinct adoption
-periods, :math:`N_{tr}^a = |I^a|` the cohort size, and
-:math:`T_{tr}^a = T - a + 1` the number of post-treatment periods in
-cohort :math:`a`. Aggregate post-treatment exposure (Clarke et al.,
-2023) is :math:`T_{post} = \sum_{a \in A} N_{tr}^a T_{tr}^a`.
-
-The classical Arkhangelsky et al. (2021) SDID estimator targets a
-single cohort. The mlsynth implementation runs that estimator
-*per cohort*, accumulates the cohort-specific effects, and then
-aggregates them in two complementary ways (Ciccia, 2024).
+Using the cohort notation introduced above (:math:`I^a`,
+:math:`N_{tr}^a`, :math:`T_{tr}^a`, the adoption-period set :math:`A`, and
+the aggregate exposure :math:`T_{post}`), recall that the classical
+Arkhangelsky et al. (2021) SDID estimator targets a single cohort. The
+mlsynth implementation runs that estimator *per cohort*, accumulates the
+cohort-specific effects, and then aggregates them in two complementary
+ways (Ciccia, 2024).
 
 Cohort-Specific SDID (Equation 2)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
