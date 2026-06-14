@@ -302,6 +302,49 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
+    # Debiased SC t-test for the ATT (Chernozhukov, Wuthrich & Zhu 2025).
+    # The cross-fit refits the configured backend on each block-complement of
+    # the pre-period; inferutils owns the blocking, rescale, and t_{K-1} CI.
+    if mode == "ttest" and gap[pre:].size:
+        from scipy.stats import t as _tdist
+
+        from mlsynth.utils.inferutils import debiased_sc_ttest
+
+        def _ttest_weight_fn(keep_idx):
+            keep_idx = np.asarray(keep_idx)
+            yk, Y0k = y[keep_idx], Y0[keep_idx]
+            X1k = X0k = None
+            if covariates:
+                kept_labels = list(time_labels[keep_idx])
+                Xk = _scale_unit_variance(_covariate_means(
+                    config.df, list(units.labels), covariates, windows,
+                    kept_labels, config.unitid, config.time))
+                X1k, X0k = Xk[:, 0], Xk[:, 1:]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                rk = engine.fit(yk, Y0k, X1=X1k, X0=X0k,
+                                donor_names=donor_names, predictor_names=pred_names)
+            return np.asarray(rk.W, dtype=float).ravel()
+
+        tt = debiased_sc_ttest(
+            y, Y0, T0=pre, T1=int(len(y) - pre), K=config.ttest_K,
+            alpha=config.alpha, weight_fn=_ttest_weight_fn,
+        )
+        p_val = float(2.0 * _tdist.sf(abs(tt["tstat"]), tt["dof"]))
+        inference = InferenceResults(
+            p_value=p_val,
+            ci_lower=tt["ci_lower"], ci_upper=tt["ci_upper"],
+            confidence_level=1.0 - config.alpha,
+            method="debiased SC t-test (Chernozhukov-Wuthrich-Zhu 2025)",
+            details={
+                "att_debiased": tt["att"],
+                "att_naive": float(np.mean(gap[pre:])),
+                "se": tt["se"], "tstat": tt["tstat"], "dof": tt["dof"],
+                "K": tt["K"], "r": tt["r"], "tau_k": tt["tau_k"].tolist(),
+                "alpha": tt["alpha"],
+            },
+        )
+
     # In-space placebo inference (Abadie): reassign treatment to each donor.
     if mode == "placebo" and J >= 2 and gap[pre:].size:
         ratios = []

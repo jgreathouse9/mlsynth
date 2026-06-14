@@ -125,7 +125,8 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "(Cattaneo-Feng-Titiunik prediction intervals), 'conformal' "
                     "(Chernozhukov-Wuthrich-Zhu test-inversion intervals, the "
                     "augsynth default for ASCM), 'lto' (Lei-Sudijono leave-two-"
-                    "out refined placebo), or False.",
+                    "out refined placebo), 'ttest' (Chernozhukov-Wuthrich-Zhu "
+                    "2025 debiased SC t-test for the ATT), or False.",
     )
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
@@ -142,6 +143,12 @@ class VanillaSCConfig(BaseEstimatorConfig):
     lto_max_pairs: Optional[int] = Field(
         default=None, ge=1,
         description="Cap on donor pairs for the 'lto' test (None -> all pairs).",
+    )
+    ttest_K: int = Field(
+        default=3, ge=2,
+        description="Number of cross-fitting folds for inference='ttest' "
+                    "(Chernozhukov-Wuthrich-Zhu 2025). K=3 is the default for "
+                    "small T0; larger K tightens the interval (see their Sec 3.2).",
     )
     penalized_cv: Literal["holdout", "loo", "pensynth"] = Field(
         default="holdout",
