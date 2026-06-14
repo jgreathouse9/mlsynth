@@ -333,8 +333,14 @@ and an effect is *detected* when :math:`p < \alpha`. The permutation set
 :math:`\Pi` follows ``conformal_type``: ``"iid"`` (the augsynth/GeoLift default —
 :math:`n_s` independent draws) or ``"block"`` (the :math:`T` moving-block cyclic
 shifts :math:`\Pi_k(t) = ((t + k) \bmod T)`, which preserve serial dependence
-and are deterministic, ignoring :math:`n_s`). Power is the detection rate
-across the :math:`L` lookback placements,
+and are deterministic, ignoring :math:`n_s`). The :math:`n_s` reference
+statistics are evaluated in one broadcast over the whole permutation block
+rather than one Python call per permutation; the permutations and their random
+draws are unchanged, so the p-value is bit-identical to the per-permutation
+loop (at the default :math:`q=1`) — only faster, which matters because this
+reference is rebuilt for every candidate, duration, lookback, and effect size
+in the search. Power is the detection rate across the :math:`L` lookback
+placements,
 
 .. math::
 

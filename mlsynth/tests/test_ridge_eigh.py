@@ -36,6 +36,16 @@ from mlsynth.utils.bilevel.ridge_augment import (
     solve_ridge,
     solve_ridge_path,
 )
+from mlsynth.utils.bilevel.ridge_inference import _reference_stats, _stat
+
+
+def _naive_reference_stats(resids, post_slice, q, ns, seed):
+    """Frozen copy of the original per-permutation conformal reference loop."""
+    rng = np.random.default_rng(seed)
+    return np.fromiter(
+        (_stat(rng.permutation(resids)[post_slice], q) for _ in range(ns)),
+        dtype=float, count=ns,
+    )
 
 
 def _inv_solve_ridge(A, B, W, lam):
@@ -191,3 +201,54 @@ class TestWarmStartBase:
         _, en, sn = _naive_cross_validate(simplex_qp, X0, X1, lambdas)
         np.testing.assert_allclose(ec, en, rtol=1e-7, atol=1e-9)
         np.testing.assert_allclose(sc, sn, rtol=1e-7, atol=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# Conformal permutation reference: vectorized statistic must be BIT-IDENTICAL
+# to the per-permutation loop (the exact hybrid -- same permutations, same
+# draws, only the statistic is broadcast). No re-pinning of the conformal /
+# augsynth replications.
+# ---------------------------------------------------------------------------
+
+class TestReferenceStatsVectorized:
+    @pytest.mark.parametrize("T,post,ns,seed", [
+        (45, slice(39, 45), 1000, 0),
+        (90, slice(80, 90), 500, 3),
+        (30, slice(20, 30), 200, 7),
+    ])
+    def test_iid_bit_identical_q1(self, T, post, ns, seed):
+        # q = 1 is the augsynth default (the only value used in practice): the
+        # vectorized statistic is BIT-identical to the per-permutation loop.
+        rng = _rng(T + ns + seed)
+        resids = rng.standard_normal(T)
+        ref = _naive_reference_stats(resids, post, 1.0, ns, seed)
+        got = _reference_stats(resids, post, 1.0, conformal_type="iid", ns=ns, seed=seed)
+        np.testing.assert_array_equal(got, ref)          # exact, not just close
+
+    def test_iid_general_q_matches_to_tol(self):
+        # For q != 1 the 2D axis-reduction sums in a different order than the 1D
+        # per-row sum, so the match is to floating-point tolerance (~1e-15), not
+        # bitwise -- the permutations and draws are still identical.
+        rng = _rng(7)
+        resids = rng.standard_normal(30)
+        post = slice(20, 30)
+        ref = _naive_reference_stats(resids, post, 2.0, 200, 7)
+        got = _reference_stats(resids, post, 2.0, conformal_type="iid", ns=200, seed=7)
+        np.testing.assert_allclose(got, ref, rtol=1e-12, atol=1e-12)
+
+    def test_iid_array_post_indices(self):
+        rng = _rng(11)
+        resids = rng.standard_normal(40)
+        post = np.array([35, 36, 37, 38, 39])
+        ref = _naive_reference_stats(resids, post, 1.0, 300, 2)
+        got = _reference_stats(resids, post, 1.0, conformal_type="iid", ns=300, seed=2)
+        np.testing.assert_array_equal(got, ref)
+
+    def test_block_unchanged(self):
+        # Block conformal is deterministic cyclic shifts; must equal manual roll.
+        rng = _rng(2)
+        resids = rng.standard_normal(24)
+        got = _reference_stats(resids, slice(18, 24), 1.0,
+                               conformal_type="block", ns=999, seed=0)
+        man = np.array([_stat(np.roll(resids, s)[18:24], 1.0) for s in range(24)])
+        np.testing.assert_array_equal(got, man)
