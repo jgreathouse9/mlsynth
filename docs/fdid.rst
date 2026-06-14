@@ -33,7 +33,7 @@ under non-stationarity. It keeps DiD's transparency -- an equal-weighted
 comparison group plus a single intercept -- but chooses which controls
 enter the comparison by a greedy forward search on pre-treatment fit.
 Because only one parameter is ever estimated (the DiD intercept
-:math:`\alpha`), no matter how many controls are selected, overfitting is
+:math:`b_0`), no matter how many controls are selected, overfitting is
 impossible and the textbook DiD standard error applies. Its advantages, in
 Li's own summary:
 
@@ -139,7 +139,9 @@ average treatment effect on the treated,
    at :math:`T_1 + 1`). In the mlsynth canon these become the treated unit
    :math:`j = 1` (hence :math:`y_{1t}`), the comparison group
    :math:`\mathcal{D} \subseteq \mathcal{N}_0` with average
-   :math:`\bar{y}_{\mathcal{D}, t}`, and the single split point :math:`T_0`.
+   :math:`\bar{y}_{\mathcal{D}, t}`, the level-shift intercept :math:`b_0`
+   (the canon reserves :math:`\alpha` for the significance level), and the
+   single split point :math:`T_0`.
 
 Mathematical Formulation
 ------------------------
@@ -153,10 +155,10 @@ constant level shift:
 
 .. math::
 
-   y_{1t}^N = \alpha + \bar{y}_{\mathcal{D}, t} + v_t,
+   y_{1t}^N = b_0 + \bar{y}_{\mathcal{D}, t} + v_t,
    \qquad t = 1, \ldots, T,
 
-with :math:`\alpha` an unknown intercept and :math:`v_t` a zero-mean,
+with :math:`b_0` an unknown intercept and :math:`v_t` a zero-mean,
 weakly dependent error. Crucially, :math:`y_{1t}^N` and
 :math:`\bar{y}_{\mathcal{D}, t}` may each be non-stationary (trending)
 provided their *difference* is stationary -- this is the Forward DiD
@@ -165,14 +167,14 @@ the pre-period,
 
 .. math::
 
-   \widehat{\alpha} = \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
+   \widehat{b}_0 = \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
        \bigl(y_{1t} - \bar{y}_{\mathcal{D}, t}\bigr),
 
 so the in-sample fit and out-of-sample counterfactual are
 
 .. math::
 
-   \widehat{y}_{1t} = \widehat{\alpha} + \bar{y}_{\mathcal{D}, t},
+   \widehat{y}_{1t} = \widehat{b}_0 + \bar{y}_{\mathcal{D}, t},
    \qquad t = 1, \ldots, T,
 
 and the per-period effect is :math:`\tau_t = y_{1t} - \widehat{y}_{1t}`,
@@ -191,7 +193,7 @@ there is only one regressor coefficient):
 
    R^2_{\mathcal{D}} = 1 - \frac{\sum_{t \in \mathcal{T}_1} \widehat{v}_t^2}
        {\sum_{t \in \mathcal{T}_1} (y_{1t} - \bar{y}_1)^2},
-   \qquad \widehat{v}_t = y_{1t} - \bar{y}_{\mathcal{D}, t} - \widehat{\alpha},
+   \qquad \widehat{v}_t = y_{1t} - \bar{y}_{\mathcal{D}, t} - \widehat{b}_0,
 
 where :math:`\bar{y}_1` is the treated unit's pre-period mean.
 
@@ -270,20 +272,20 @@ In code this is the one line ``new_means = (current_mean_pre[:, None] * k +
 candidates) / (k + 1)`` inside
 :func:`~mlsynth.utils.fdid_helpers.estimation._select_best_donor`.
 
-3. The intercept :math:`\alpha` drops out, so scoring is pure inner
+3. The intercept :math:`b_0` drops out, so scoring is pure inner
 products. This is the step that removes the per-candidate regression
-entirely. Profiling out :math:`\alpha` from the DiD loss is exactly
+entirely. Profiling out :math:`b_0` from the DiD loss is exactly
 *centering*: the fitted residual for candidate column :math:`\ell` is
 :math:`\widehat{v}_t = (y_{1t} - \bar y_1) - (M_{t\ell} - \bar M_\ell)`. Writing
 :math:`\widetilde{\mathbf{y}} = \mathbf{y}_{1,\mathcal{T}_1} - \bar y_1`
-(precomputed once, with its norm :math:`\lVert\widetilde{\mathbf{y}}\rVert^2 =
+(precomputed once, with its norm :math:`\|\widetilde{\mathbf{y}}\|_2^2 =
 \mathrm{ss}_{\text{tot}}`), the residual sum of squares for *all*
 candidates is
 
 .. math::
 
    \mathrm{SSR}_\ell = \mathrm{ss}_{\text{tot}}
-       + \underbrace{\lVert \mathbf{M}_\ell - \bar M_\ell \rVert^2}_{\text{column SS}}
+       + \underbrace{\| \mathbf{M}_\ell - \bar M_\ell \|_2^2}_{\text{column SS}}
        - 2\,\underbrace{\widetilde{\mathbf{y}}^\top (\mathbf{M}_\ell - \bar M_\ell)}_{\text{one matrix--vector product}},
    \qquad
    R^2_\ell = 1 - \frac{\mathrm{SSR}_\ell}{\mathrm{ss}_{\text{tot}}}.
@@ -292,7 +294,7 @@ The cross term for the whole candidate set is the single matvec
 :math:`\widetilde{\mathbf{y}}^\top(\mathbf{M} - \bar{\mathbf{M}})`; the column
 sums of squares are one reduction. This is
 :func:`~mlsynth.utils.fdid_helpers.estimation._r2_batch` -- no candidate is
-ever regressed, and :math:`\alpha` is never explicitly solved during the
+ever regressed, and :math:`b_0` is never explicitly solved during the
 search (it is recovered only once, for the winning group, in
 :func:`~mlsynth.utils.fdid_helpers.estimation.did_from_mean`).
 
@@ -308,8 +310,8 @@ Assumptions
 -----------
 
 Assumption 1 (Forward DiD parallel trends). There exists a subset
-:math:`\mathcal{D} \subseteq \mathcal{N}_0` and a constant :math:`\alpha`
-such that :math:`y_{1t}^N = \alpha + \bar{y}_{\mathcal{D}, t} + v_t` for all
+:math:`\mathcal{D} \subseteq \mathcal{N}_0` and a constant :math:`b_0`
+such that :math:`y_{1t}^N = b_0 + \bar{y}_{\mathcal{D}, t} + v_t` for all
 :math:`t`, where :math:`v_t` is a weakly dependent process with zero mean
 and finite variance.
 
@@ -352,7 +354,7 @@ be i.i.d. or the levels :math:`y_{1t}^N` to be stationary.
 
 
 Diagnostic: a side-by-side panel where Forward PTA holds vs. fails
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The pretreatment :math:`R^2` returned by FDID is the natural empirical
 check on Assumption 1. The script below draws two panels with the same
@@ -458,7 +460,7 @@ variance on the selected group. Li's Proposition 2.1 establishes
 
 as :math:`T_0, |\mathcal{T}_2| \to \infty`, where :math:`\Phi` is the
 standard-normal CDF. mlsynth reports the finite-sample standard error
-that also carries the estimation error in :math:`\widehat{\alpha}`:
+that also carries the estimation error in :math:`\widehat{b}_0`:
 
 .. math::
 

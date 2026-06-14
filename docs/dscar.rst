@@ -10,10 +10,10 @@ DSCAR is mlsynth's implementation of the Dynamic Synthetic Control
 method of Zheng & Chen (2024). DSCAR extends classical Abadie-Diamond-
 Hainmueller (2010) synthetic control to settings with:
 
-* time-varying confounders :math:`X_{it}` (e.g., meteorological
+* time-varying confounders :math:`\mathbf{x}_{it}` (e.g., meteorological
   variables in an air-pollution panel),
-* an explicit auto-regressive outcome model :math:`Y_{it}(0) =
-  \delta_t + \beta_t^\prime X_{it} + \rho_t Y_{i, t-1} +
+* an explicit auto-regressive outcome model :math:`y_{it}^N =
+  \delta_t + \boldsymbol{\beta}_t^\top \mathbf{x}_{it} + \rho_t y_{i, t-1}^N +
   \varepsilon_{it}`,
 * spatial dependence in the residuals :math:`\varepsilon_{it}`, and
 * multiple treated units sharing a common intervention time.
@@ -48,9 +48,9 @@ apps, in clinical monitoring, in any micro-level spatio-temporal study:
   :math:`t`.
 * Autoregressive outcomes. Hourly pollutant concentrations, daily
   prices, and weekly sales carry the previous period forward
-  (:math:`Y_{it}(0) = \delta_t + \beta_t' X_{it} + \rho_t Y_{i,t-1}(0) +
-  \varepsilon_{it}`). The lagged outcome is itself a confounder that has
-  to be matched.
+  (:math:`y_{it}^N = \delta_t + \boldsymbol{\beta}_t^\top \mathbf{x}_{it} +
+  \rho_t y_{i,t-1}^N + \varepsilon_{it}`). The lagged outcome is itself a
+  confounder that has to be matched.
 * Many units, short panel, spatial dependence. Micro-level studies
   have *lots* of units (dozens to hundreds of stations) observed over a
   *short* window, and neighbouring units' shocks are correlated. Classical
@@ -72,7 +72,7 @@ match. Two consequences follow, and they are the reasons to reach for it:
    constraints), which guarantees a unique solution and lets the
    authors characterise the weights' asymptotic order -- the lever behind
    the consistency proof.
-2. The asymptotics run in :math:`N`, not :math:`T_0`. :math:`\hat\tau_t`
+2. The asymptotics run in :math:`N`, not :math:`T_0`. :math:`\tau_t`
    is consistent as :math:`N_{tr}, N_{co} \to \infty` with :math:`T`
    *fixed*, in marked contrast to Abadie et al. (2010), which needs
    :math:`T_0 \to \infty`. This is what makes DSCAR a *micro-data*
@@ -81,7 +81,7 @@ match. Two consequences follow, and they are the reasons to reach for it:
    errors.
 
 DSCAR also turns the unconfoundedness assumption from an article of faith
-into something testable. Because :math:`Y_{it} = Y_{it}(0)` for every
+into something testable. Because :math:`y_{it} = y_{it}^N` for every
 unit before treatment, you can run the estimator on the pre-period and
 check whether the pseudo-effects are zero (Section 3.1; with an FDR
 correction across periods). A non-zero pre-period effect flags a
@@ -114,8 +114,8 @@ the difference is *what* gets matched and *when*.
      - time-invariant
      - time-varying
    * - Outcome model
-     - factor model :math:`\lambda_t' \xi_i`
-     - autoregressive :math:`\rho_t Y_{i,t-1}`
+     - factor model :math:`\boldsymbol{\lambda}_t^\top \boldsymbol{\xi}_i`
+     - autoregressive :math:`\rho_t y_{i,t-1}`
    * - Treated units
      - typically one
      - many, common timing
@@ -175,28 +175,71 @@ Do not use DSCAR when
   modelled spatial error dependence (treatment spillovers onto the donor
   pool). Use :doc:`spillsynth` or :doc:`spsydid`.
 
+Notation
+--------
+
+Let :math:`\mathcal{N} \coloneqq \{1, \dots, N\}` index all :math:`N` units.
+Because DSCAR is a multi-treated estimator, there is no single distinguished
+treated unit: write :math:`\mathcal{N}_1` for the treated set (cardinality
+:math:`N_{tr}`) and the donor pool :math:`\mathcal{N}_0 \coloneqq \mathcal{N}
+\setminus \mathcal{N}_1` (cardinality :math:`N_{co}`), with generic unit index
+:math:`i`. Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
+1-indexed; every treated unit shares a common intervention that takes effect
+after period :math:`T_0`, splitting :math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`T_0`) and the post-period :math:`\mathcal{T}_2 \coloneqq \{t \in
+\mathcal{T} : t > T_0\}`.
+
+The observed scalar outcome of unit :math:`i` at time :math:`t` is
+:math:`y_{it}`, with treatment dummy :math:`d_{it}`; under Abadie's potential-
+outcome superscripts :math:`y_{it}^N` is the no-intervention outcome and
+:math:`y_{it}^I` the outcome under the intervention, so :math:`y_{it} = y_{it}^N
++ (y_{it}^I - y_{it}^N)\,d_{it}`. The no-intervention path follows the
+auto-regressive model
+
+.. math::
+
+   y_{it}^N = \delta_t + \boldsymbol{\beta}_t^\top \mathbf{x}_{it}
+   + \rho_t\, y_{i, t-1}^N + \varepsilon_{it},
+
+with a per-period intercept :math:`\delta_t`, time-varying confounders
+:math:`\mathbf{x}_{it} \in \mathbb{R}^p` carrying coefficients
+:math:`\boldsymbol{\beta}_t`, autoregressive coefficient :math:`\rho_t`, and
+(possibly spatially dependent) errors :math:`\varepsilon_{it}`. The per-period
+donor weights are :math:`\mathbf{w}_t = (w_{it})_{i \in \mathcal{N}_0}`, on the
+simplex :math:`\Delta^{N_{co}} \coloneqq \{\mathbf{w} \in
+\mathbb{R}_{\ge 0}^{N_{co}} : \|\mathbf{w}\|_1 = 1\}`, with optimiser
+:math:`\mathbf{w}_t^\ast`. The per-period treatment effect is :math:`\tau_t` (it
+estimates the treated-group mean of :math:`y_{it}^I - y_{it}^N`) and the headline
+ATT is :math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1} \sum_{t \in
+\mathcal{T}_2} \tau_t`.
+
 Method
 ------
 
 The estimator works in three steps. Given a panel of :math:`N` units
 over :math:`T` periods, :math:`N_{tr}` of which are directly treated
-starting at :math:`t = T_0 + 1`:
+starting after :math:`T_0`:
 
-1. Variable-importance matrix ``V_t``. For each :math:`t`, fit an
-   OLS of :math:`Y_t` on :math:`(Y_{t-1}, X_t)` across the cross-
-   section (full panel for :math:`t \leq T_0`, donors only for
-   :math:`t > T_0`), and set ``V_t = diag(|coefficients|)``. This is
-   the per-period analogue of the SCM ``V`` matrix.
+1. Variable-importance matrix :math:`\mathbf{V}_t`. For each :math:`t`, fit an
+   OLS of :math:`\mathbf{y}_t` on :math:`(\mathbf{y}_{t-1}, \mathbf{x}_t)` across
+   the cross-section (full panel for :math:`t \leq T_0`, donors only for
+   :math:`t > T_0`), and set :math:`\mathbf{V}_t = \operatorname{diag}(|\text{coefficients}|)`.
+   This is the per-period analogue of the SCM :math:`\mathbf{V}` matrix.
 
-2. Per-period EL weights :math:`w_t^*`. Solve the convex QP
+2. Per-period EL weights :math:`\mathbf{w}_t^\ast`. Solve the convex QP
 
    .. math::
 
-      \min_w (Z_{1t} - Z_{0t} w)^\prime V_t (Z_{1t} - Z_{0t} w)
-      \qquad \text{s.t.} \quad \sum_i w_i = 1,\ 0 \leq w_i \leq 1,
+      \mathbf{w}_t^\ast \in
+      \operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_{co}}}
+      (\mathbf{Z}_{1t} - \mathbf{Z}_{0t}\mathbf{w})^\top
+      \mathbf{V}_t (\mathbf{Z}_{1t} - \mathbf{Z}_{0t}\mathbf{w}),
 
-   where :math:`Z_{1t}` is the treated-mean covariate target at
-   :math:`t` (and the lagged outcome) and :math:`Z_{0t}` are the
+   over the simplex :math:`\Delta^{N_{co}}`
+   (:math:`\mathbf{1}^\top\mathbf{w} = 1`, :math:`0 \le w_i \le 1`), where
+   :math:`\mathbf{Z}_{1t}` is the treated-mean covariate target at
+   :math:`t` (and the lagged outcome) and :math:`\mathbf{Z}_{0t}` are the
    donor-side analogues. When the QP residual is small enough
    (default :math:`\leq 0.01` mean absolute), refine by maximising
    :math:`\prod_i w_i` subject to the same matching constraints --
@@ -205,43 +248,71 @@ starting at :math:`t = T_0 + 1`:
 
 3. Dynamic matching of the lag. For :math:`t > T_0 + 1`, the
    treated-side lagged-outcome target is the previously-estimated
-   counterfactual :math:`\widehat \mu_{t-1}(0)`, not the observed
+   counterfactual :math:`\widehat{\mu}_{t-1}^N`, not the observed
    treated outcome (which carries the treatment). This recursion makes
    the bias term in equation (2.11) stochastically small.
 
-The treatment-effect estimator is
+The per-period treatment effect is
 
 .. math::
 
-   \widehat \tau_t = \overline{Y}_{1, t} - \sum_{i \in \mathcal{C}}
-   w_{i, t}^* Y_{i, t}, \qquad t > T_0,
+   \tau_t = \bar{y}_{\mathcal{N}_1, t} - \sum_{i \in \mathcal{N}_0}
+   w_{i, t}^\ast\, y_{i, t}, \qquad t > T_0,
 
-and the headline ATT is the post-period mean of :math:`\widehat \tau_t`.
+where :math:`\bar{y}_{\mathcal{N}_1, t} \coloneqq N_{tr}^{-1} \sum_{i \in
+\mathcal{N}_1} y_{i, t}` is the treated-group mean, and the headline ATT
+:math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1} \sum_{t \in \mathcal{T}_2}
+\tau_t` is the post-period mean of :math:`\tau_t`.
 
 Assumptions
 -----------
 
-The Zheng & Chen (2024) consistency theorem requires:
+The Zheng & Chen (2024) consistency theorem requires the following.
 
-(a) Consistency: :math:`Y_{it} = D_{it} Y_{it}(1) + (1 - D_{it})
-    Y_{it}(0)` for all :math:`i, t`.
-(b) Unconfoundedness: :math:`\mathbb{E}[Y_{it}(0) | Y_{i, t-1}(0),
-    X_{it}, D_i = 1] = \mathbb{E}[Y_{it}(0) | Y_{i, t-1}(0), X_{it},
-    D_i = 0]`.
-(c) Unaffected confounders: :math:`X_{it} = X_{it}(0) = X_{it}(1)`
-    -- the treatment does not move the confounders.
-(d) Treatment-overlap: :math:`\mathbb{P}(D_i = 1 | X_{it},
-    Y_{i, t-1}(0)) < 1` with probability one.
+1. Consistency (SUTVA). The observed outcome is the relevant potential
+   outcome: :math:`y_{it} = d_{it}\, y_{it}^I + (1 - d_{it})\, y_{it}^N` for all
+   :math:`i, t`.
+
+   *Remark.* This is the standard no-interference / single-version-of-treatment
+   condition: each unit's observed outcome equals its own potential outcome under
+   the treatment it actually received, so there is a well-defined :math:`y_{it}^N`
+   to reconstruct.
+
+2. Unconfoundedness: :math:`\mathbb{E}[y_{it}^N \mid y_{i, t-1}^N,
+   \mathbf{x}_{it}, d_i = 1] = \mathbb{E}[y_{it}^N \mid y_{i, t-1}^N,
+   \mathbf{x}_{it}, d_i = 0]`.
+
+   *Remark.* Once you condition on the lagged outcome and the current
+   confounders, treated and control units share the same no-intervention
+   conditional mean. This is what licenses borrowing the donors' dynamics to
+   impute the treated counterfactual, and -- because :math:`y_{it} = y_{it}^N`
+   before :math:`T_0` -- it is testable on the pre-period rather than merely
+   assumed.
+
+3. Unaffected confounders: :math:`\mathbf{x}_{it} = \mathbf{x}_{it}^N =
+   \mathbf{x}_{it}^I` -- the treatment does not move the confounders.
+
+   *Remark.* The match is on confounders that the intervention leaves alone. If
+   the treatment itself shifts :math:`\mathbf{x}_{it}` (e.g. an alert that
+   changes the meteorology you match on), the matched target is contaminated and
+   DSCAR is biased -- the regime flagged under *Do not use DSCAR when*.
+
+4. Treatment-overlap: :math:`\mathbb{P}(d_i = 1 \mid \mathbf{x}_{it},
+   y_{i, t-1}^N) < 1` with probability one.
+
+   *Remark.* No covariate / lag configuration is treated with certainty, so for
+   every treated profile there is positive probability of a comparable control --
+   the support needed for the per-period donor match to exist.
 
 For inference (Section 3 of the paper), additional finite-moment and
 positive-definite-covariance conditions on :math:`\varepsilon_{it}`
 are required.
 
 Theorem 1 (consistency). Under Assumptions 1-7 and the linear
-model :math:`Y_{it}(0) = \delta_t + \beta_t^\prime X_{it} +
-\rho_t Y_{i, t-1}(0) + \varepsilon_{it}`, the DSCAR estimator
-:math:`\widehat \tau_t` converges to :math:`\tau_t` in probability as
-both :math:`N_{tr}, N_{co} \to \infty` with :math:`T` fixed. The
+model :math:`y_{it}^N = \delta_t + \boldsymbol{\beta}_t^\top \mathbf{x}_{it} +
+\rho_t\, y_{i, t-1}^N + \varepsilon_{it}`, the DSCAR per-period effect
+:math:`\tau_t` converges in probability to the true per-period treatment
+effect as both :math:`N_{tr}, N_{co} \to \infty` with :math:`T` fixed. The
 asymptotic regime is in marked contrast with Abadie et al. (2010),
 which requires :math:`T_0 \to \infty`.
 

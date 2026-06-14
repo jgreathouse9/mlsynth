@@ -44,7 +44,7 @@ have micro-data. Three motivating regimes:
 * Heterogeneous treatment effects across the outcome distribution. In
   marketing, a promotion might lift spending among already-heavy buyers
   while doing nothing for light buyers; the QTE curve :math:`q \mapsto
-  \widehat\alpha_{1t, q}` reveals *where* in the spending distribution the
+  \widehat\tau_{1t}(q)` reveals *where* in the spending distribution the
   effect lands. DSC returns this directly, without pre-specifying which
   quantile to test.
 
@@ -61,20 +61,32 @@ the dedicated aggregate estimators (e.g. :class:`mlsynth.CLUSTERSC`,
 Notation
 --------
 
-We follow the repository's canonical conventions. There are :math:`J + 1`
-units; unit :math:`1` is treated and units :math:`j = 2, \dots, J + 1` are
-donors. The panel runs over periods :math:`t \in \{1, \dots, T\}` with
-treatment beginning at :math:`T_0 + 1`; the pre-period is
-:math:`\mathcal{T}_0 = \{1, \dots, T_0\}` and the post-period is
-:math:`\mathcal{T}_1 = \{T_0 + 1, \dots, T\}`. Each cell :math:`(j, t)`
-carries :math:`n_{jt}` individual observations
+We follow the repository's canonical conventions. Let :math:`j = 1` denote
+the treated unit, with all units
+:math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of cardinality
+:math:`N_0`. The panel runs over periods
+:math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`, 1-indexed; the
+intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`. Each cell
+:math:`(j, t)` carries :math:`n_{jt}` individual observations
 :math:`\{Y_{l, jt}\}_{l = 1}^{n_{jt}}`. :math:`F_{Y_{jt}}` is the cell's
 outcome distribution and :math:`F^{-1}_{Y_{jt}}` its quantile function;
-:math:`\mathcal{H} = \{w \in \mathbb{R}^J_{\ge 0} : \mathbf{1}^\top w = 1\}`
-is the unit simplex. Weights :math:`\widehat w_t` are fit per pre-period
-and aggregated to :math:`\widehat w`. :math:`W_2` denotes the 2-Wasserstein
-distance, and :math:`F^{-1}_{Y_{1t, N}}` the *counterfactual* (no-treatment)
-quantile function of the treated unit.
+:math:`\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\}` is the unit simplex. Per-pre-period weights
+:math:`\mathbf{w}_t` are fit per pre-period and aggregated to the fitted
+vector :math:`\widehat{\mathbf{w}}`. :math:`W_2` denotes the 2-Wasserstein
+distance. Following the Abadie potential-outcome superscripts, :math:`Y_{jt}^N`
+is the outcome without the intervention and :math:`Y_{jt}^I` under it, so
+:math:`F^{-1}_{Y_{1t, N}}` is the *counterfactual* (no-treatment) quantile
+function of the treated unit and :math:`F^{-1}_{Y_{1t, I}}` its observed
+(treated) quantile function. The quantile treatment effect at quantile
+:math:`q` is :math:`\tau_{1t}(q) \coloneqq F^{-1}_{Y_{1t, I}}(q) -
+F^{-1}_{Y_{1t, N}}(q)`, the distributional analogue of the per-period effect
+:math:`\tau_t`; its estimate is :math:`\widehat\tau_{1t}(q)`.
 
 Mathematical Formulation
 ------------------------
@@ -86,10 +98,10 @@ The empirical quantile estimator for a cell is the order-statistic rule
 
 .. math::
 
-   \widehat F^{-1}_{Y_{jt, n_j}}(q) = Y_{t, n_j(k)},
+   \widehat F^{-1}_{Y_{jt, n_j}}(q) = Y_{jt, n_j(k)},
    \quad \frac{k - 1}{n_j} < q \le \frac{k}{n_j},
 
-where :math:`Y_{t, n_j(k)}` is the :math:`k`-th order statistic of cell
+where :math:`Y_{jt, n_j(k)}` is the :math:`k`-th order statistic of cell
 :math:`(j, t)`. The DSC counterfactual quantile function for the treated
 unit at a post-period :math:`t > T_0` is the 2-Wasserstein barycenter
 of the donor quantile functions,
@@ -97,11 +109,11 @@ of the donor quantile functions,
 .. math::
 
    \widehat F^{-1}_{Y_{1t, N}}(q) =
-       \sum_{j = 2}^{J + 1} \widehat w_j\, \widehat F^{-1}_{Y_{jt, n_j}}(q),
-   \qquad \widehat w \in \mathcal{H},
+       \sum_{j \in \mathcal{N}_0} \widehat w_j\, \widehat F^{-1}_{Y_{jt, n_j}}(q),
+   \qquad \widehat{\mathbf{w}} \in \Delta^{N_0},
 
 and the quantile treatment effect is
-:math:`\widehat \alpha_{1t, q} = \widehat F^{-1}_{Y_{1t, I}}(q)
+:math:`\widehat \tau_{1t}(q) = \widehat F^{-1}_{Y_{1t, I}}(q)
 - \widehat F^{-1}_{Y_{1t, N}}(q)`, the gap between the *observed* treated
 quantile function and its counterfactual. Averaging quantile functions
 rather than densities is what makes the synthetic unit geometrically
@@ -121,12 +133,12 @@ factor-model restriction.
 data-generating map :math:`h(t, \cdot)` on the 2-Wasserstein space is a
 scaled isometry for every :math:`t`: it preserves relative distances
 between distributions up to a common scale,
-:math:`d(U_1, U_j) = \tau\, d\bigl(h(t, U_1), h(t, U_j)\bigr)`. Then
+:math:`d(U_1, U_j) = c\, d\bigl(h(t, U_1), h(t, U_j)\bigr)`. Then
 (Gunsilius 2023, Theorem 1) the DSC quantile function
 :math:`\widehat F^{-1}_{Y_{1t, N}}` coincides with the treated unit's
 quantile function had it not been treated. For the panel model it suffices
 that the maps :math:`U_{jt} \mapsto U_{jt'}` preserve the optimal weights
-:math:`\widehat\lambda^\star` across periods. *Remark.* This is the
+:math:`\mathbf{w}^\ast` across periods. *Remark.* This is the
 distributional counterpart of the linear factor model behind classical
 synthetic control: on the real line, scaled isometries in Euclidean space
 are exactly affine maps, so the classical method's affine factor structure
@@ -141,7 +153,7 @@ All cell distributions have finite second moments,
 :math:`\mathbb{E}[Y_{jt}^2] < \infty`, and are independent across units for
 each :math:`t`. *Remark.* This is all that is needed for the estimated
 weights to be consistent (Gunsilius 2023, Proposition 1): the plug-in
-empirical-quantile weights :math:`\widehat{\widetilde\lambda}^\star_{tn}`
+empirical-quantile weights :math:`\widehat{\mathbf{w}}^\ast_{tn}`
 converge to the population optimal weights as the within-cell sample sizes
 grow. It is deliberately weak -- no smoothness or continuity is required
 just to estimate the weights.
@@ -226,8 +238,8 @@ plausible failure mode of an applied DSC study and a concrete diagnostic.
     permutation procedure is distribution-free.
 
 (e) Non-stationary donors -- weights drift across pre-periods.
-    DSC aggregates per-pre-period weights via :math:`\widehat w =
-    \sum_t \lambda_t \widehat w_t`. The implicit assumption is that the
+    DSC aggregates per-pre-period weights via :math:`\widehat{\mathbf{w}} =
+    \sum_t \lambda_t \mathbf{w}_t`. The implicit assumption is that the
     donor-to-treated mapping is the same isometry across :math:`t`.
 
     *Plausibly violated when* the cross-sectional distribution of
@@ -325,14 +337,14 @@ default, or uniform i.i.d.) and form the pseudo-sample matrices
 squared 2-Wasserstein loss
 :math:`W_2^2(\cdot) = \int_0^1 \lvert \sum_j w_j \widehat F^{-1}_{Y_{jt}}(q)
 - \widehat F^{-1}_{Y_{1t}}(q) \rvert^2 dq` is approximated by the empirical
-risk :math:`L_t(w) = M^{-1} \sum_m \lvert \widetilde Y_{1t, m} - \sum_j w_j
+risk :math:`L_t(\mathbf{w}) = M^{-1} \sum_m \lvert \widetilde Y_{1t, m} - \sum_j w_j
 \widetilde Y_{jt, m}\rvert^2`, and the per-pre-period weights solve the
 simplex-constrained quadratic program
 
 .. math::
 
-   \widehat w_t = \arg\min_{w \in \mathcal{H}} L_t(w),
-   \qquad t \in \mathcal{T}_0.
+   \mathbf{w}_t = \operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_0}} L_t(\mathbf{w}),
+   \qquad t \in \mathcal{T}_1.
 
 mlsynth solves this with accelerated projected gradient descent (FISTA,
 Beck & Teboulle 2009) and the exact simplex projection of Duchi et al.
@@ -345,8 +357,8 @@ Koksma-Hlawka inequality the QMC approximation error is
 draws.
 
 Step 3 -- Aggregate over the pre-period. The final weight is a convex
-combination :math:`\widehat w = \sum_{t \in \mathcal{T}_0} \lambda_t
-\widehat w_t`, with :math:`\lambda_t \ge 0` and :math:`\sum_t \lambda_t = 1`.
+combination :math:`\widehat{\mathbf{w}} = \sum_{t \in \mathcal{T}_1} \lambda_t
+\mathbf{w}_t`, with :math:`\lambda_t \ge 0` and :math:`\sum_t \lambda_t = 1`.
 mlsynth offers ``"uniform"`` (default; :math:`\lambda_t = 1/T_0`) and
 ``"recency"`` (geometric decay) rules, and accepts caller-supplied weights
 so Arkhangelsky et al. (2021) SDiD-style :math:`\lambda_t` can be plugged in.
@@ -354,7 +366,7 @@ so Arkhangelsky et al. (2021) SDiD-style :math:`\lambda_t` can be plugged in.
 Step 4 -- Post-period QTE. For each :math:`t > T_0`, evaluate the
 counterfactual quantile function at the QTE grid and difference it against
 the observed treated quantile function to obtain
-:math:`\widehat\alpha_{1t, q}`.
+:math:`\widehat\tau_{1t}(q)`.
 
 Inference
 ^^^^^^^^^
@@ -374,13 +386,13 @@ functions is recorded,
 
 If the model fits the placebos pre-treatment and there is a genuine
 post-treatment effect, the real treated unit's distance sits in the extreme
-upper tail of the :math:`J + 1` distances. The permutation p-value at
-post-period :math:`t` is :math:`p_t = r(d_{1t}) / (J + 1)`, the rank of the
+upper tail of the :math:`N` distances. The permutation p-value at
+post-period :math:`t` is :math:`p_t = r(d_{1t}) / N`, the rank of the
 treated unit's distance (rank 1 = largest). Enable it with
 ``compute_inference=True``; the :class:`DSCInference` object exposes the
 full distance paths (treated and every placebo) and the per-post-period
-p-values. Because it refits the weights :math:`J` times it costs roughly
-:math:`J\times` the point estimate.
+p-values. Because it refits the weights :math:`N_0` times it costs roughly
+:math:`N_0\times` the point estimate.
 
 Goodness-of-fit and large-sample bands. Working with whole
 distributions also licenses a Wasserstein goodness-of-fit test of
@@ -517,7 +529,8 @@ controls are mixtures of 3 Gaussians and the target a mixture of 4, with
 means drawn uniformly on :math:`[-10, 10]` and variances on
 :math:`[0.5, 6]`. The snippet below reproduces that finding using the same
 quantile machinery the estimator calls internally, reporting the squared
-2-Wasserstein distance between barycenter and target as :math:`J` grows.
+2-Wasserstein distance between barycenter and target as the control count
+``J`` grows.
 
 .. code-block:: python
 
@@ -560,7 +573,7 @@ The distance collapses once the donor pool is rich enough for the target to
 sit inside (or near) the convex hull of the controls, and the weight vector
 is "essentially sparse" -- only a small fraction of donors carry
 non-negligible weight -- exactly the two phenomena Gunsilius reports. (The
-residual distance at large :math:`J` is empirical-quantile noise from the
+residual distance at large ``J`` is empirical-quantile noise from the
 finite within-cell sample of 1000 draws, not bias.)
 
 References
