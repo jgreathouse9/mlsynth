@@ -36,6 +36,44 @@ def build_block(v_s: np.ndarray) -> np.ndarray:
     )
 
 
+def build_sqrt_block(v_s: np.ndarray) -> np.ndarray:
+    """Return the single-block square-root factor ``R_s = I - v_s 1^T``.
+
+    By construction ``R_s^T R_s == Q_s`` (see :func:`build_block`), so stacking
+    ``sqrt(penalty) * R_s`` as extra rows of the design reproduces the quadratic
+    penalty ``omega_s^T Q_s omega_s`` as an ordinary least-squares term. This is
+    what lets the active-set simplex QP solve the penalized program without a
+    general quadratic-form solver.
+    """
+    v_s = np.asarray(v_s, dtype=float).reshape(-1)
+    C_s = v_s.shape[0]
+    return np.eye(C_s) - np.outer(v_s, np.ones(C_s))
+
+
+def build_sqrt_factor(
+    v_population: np.ndarray, disagg_to_agg: np.ndarray
+) -> np.ndarray:
+    """Assemble the block-diagonal square-root factor ``R`` with ``R^T R == Q``.
+
+    Parameters mirror :func:`build_penalty_matrix`.
+
+    Returns
+    -------
+    np.ndarray
+        Block-diagonal ``R`` of shape ``(M, M)`` whose blocks are
+        :func:`build_sqrt_block`.
+    """
+    v_population = np.asarray(v_population, dtype=float).reshape(-1)
+    disagg_to_agg = np.asarray(disagg_to_agg, dtype=int).reshape(-1)
+    if v_population.shape[0] != disagg_to_agg.shape[0]:
+        raise ValueError("v_population and disagg_to_agg must have equal length.")
+    blocks = [
+        build_sqrt_block(v_population[disagg_to_agg == s])
+        for s in sorted(set(disagg_to_agg.tolist()))
+    ]
+    return block_diag(*blocks)
+
+
 def build_penalty_matrix(
     v_population: np.ndarray, disagg_to_agg: np.ndarray
 ) -> np.ndarray:
