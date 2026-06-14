@@ -68,13 +68,21 @@ Do not use PPSCM when
 Notation
 --------
 
-Units :math:`i = 1, \ldots, n` are observed over periods
-:math:`t = 1, \ldots, T`. Treated unit (or cohort) :math:`j` adopts at period
-:math:`T_j`; never-treated units have :math:`T_j = \infty` and form the donor
-pool. The panel is split at the last adoption time into a pre-period of
-length :math:`d` and the post-period. For cohort :math:`j`, donor weights
-:math:`\boldsymbol{\omega}_j` live on the simplex; the synthetic control matches
-the cohort's pre-treatment residuals.
+All units :math:`\mathcal{N} \coloneqq \{1, \ldots, N\}` are observed over
+periods :math:`t \in \mathcal{T} \coloneqq \{1, \ldots, T\}`. A treated unit
+(or cohort) :math:`j` adopts at period :math:`T_j`; never-treated units have
+:math:`T_j = \infty` and form the donor pool
+:math:`\mathcal{N}_0 \coloneqq \{j \in \mathcal{N} : T_j = \infty\}` of
+cardinality :math:`N_0`. The panel is split at the last adoption time, the
+canonical point :math:`T_0`, into a pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` of length
+:math:`T_0` and a post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`. For cohort
+:math:`j`, donor weights :math:`\mathbf{w}_j` live on the simplex
+:math:`\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\}`; the synthetic control matches the cohort's
+pre-treatment residuals. The per-period effect is :math:`\tau_t` and the
+average treatment effect on the treated is :math:`\widehat{\tau}`.
 
 Method
 ------
@@ -87,18 +95,18 @@ its own pre-adoption window. Both are removed and the synthetic control balances
 the residuals -- the "intercept-shifted" estimator of the paper.
 
 2. Partially pooled QP. With per-cohort pre-treatment imbalance
-:math:`\mathbf{q}_j = \mathbf{x}_j - \mathbf{X}_{0,j}\boldsymbol{\omega}_j`
+:math:`\mathbf{q}_j \coloneqq \mathbf{x}_j - \mathbf{X}_{0,j}\mathbf{w}_j`
 (residuals; the pooled imbalance aligned by relative time), the weights
 solve
 
 .. math::
 
-   \min_{\{\boldsymbol{\omega}_j \in \Delta\}} \;
+   \min_{\{\mathbf{w}_j \in \Delta^{N_0}\}} \;
      \frac{\nu}{\text{norm}_{\text{pool}}\,J^2}
        \Bigl\|\textstyle\sum_j \mathbf{q}_j\Bigr\|^2
      + \frac{1-\nu}{\text{norm}_{\text{sep}}\,J}
        \sum_j \frac{\|\mathbf{q}_j\|^2}{\text{ndim}_j}
-     + \lambda \sum_j \|\boldsymbol{\omega}_j\|^2 ,
+     + \lambda \sum_j \|\mathbf{w}_j\|^2 ,
 
 where :math:`\text{norm}_{\text{pool}}` and :math:`\text{norm}_{\text{sep}}` are
 the separate-fit (``nu=0``) global and individual imbalance norms. Small
@@ -106,7 +114,7 @@ the separate-fit (``nu=0``) global and individual imbalance norms. Small
 pooled SCM.
 
 3. Choosing :math:`\nu`. With ``nu="auto"`` (default) PPSCM uses augsynth's
-triangle-inequality ratio :math:`\nu = \text{global\_l2}\cdot\sqrt{d}/\text{avg\_l2}`
+triangle-inequality ratio :math:`\nu = \text{global\_l2}\cdot\sqrt{T_0}/\text{avg\_l2}`
 from the separate fit; a float fixes it.
 
 Assumptions / Remarks.
@@ -132,7 +140,7 @@ Inference
 
 ``PPSCM`` reports the paper's delete-one jackknife: drop each unit, refit the
 full estimator (holding :math:`\nu` fixed), and form
-:math:`\widehat{\text{se}}^2 = \tfrac{n-1}{n}\sum_i(\hat\theta_i - \bar\theta)^2`
+:math:`\widehat{\text{se}}^2 = \tfrac{N-1}{N}\sum_{j \in \mathcal{N}}(\widehat{\tau}_j - \bar{\tau})^2`
 for the overall ATT and each relative-time horizon, with Wald intervals.
 
 Empirical Illustration: mandatory collective bargaining
