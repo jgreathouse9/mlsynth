@@ -15,6 +15,7 @@ import pandas as pd
 import pytest
 
 from mlsynth import VanillaSC
+from mlsynth.exceptions import MlsynthConfigError
 
 _BASEDATA = Path(__file__).resolve().parents[2] / "basedata"
 
@@ -97,3 +98,47 @@ def test_ttest_prop99_mscmt_full_spec_with_lags():
     assert -25.0 < d["att_debiased"] < -10.0
     assert res.inference.ci_upper < 0
     assert d["r"] == 6
+
+
+def _carbontax_df():
+    f = _BASEDATA / "carbontax_data.dta"
+    if not f.exists():
+        pytest.skip("carbontax_data.dta not available")
+    d = pd.read_stata(f)
+    d["treated"] = ((d.country == "Sweden") & (d.year >= 1990)).astype(int)
+    return d
+
+
+def test_ttest_carbontax_replicates_paper_table5():
+    # CWZ (2025) Table 5(a), t-test K=3 (all past outcomes as predictors,
+    # i.e. outcome-only SC per their footnote 24): ATT -0.27, 90% CI [-0.41,-0.14].
+    d = _carbontax_df()
+    res = VanillaSC({"df": d, "outcome": "CO2_transport_capita", "treat": "treated",
+                     "unitid": "country", "time": "year", "backend": "outcome-only",
+                     "inference": "ttest", "ttest_K": 3, "alpha": 0.1,
+                     "display_graphs": False}).fit()
+    di = res.inference.details
+    np.testing.assert_allclose(di["att_debiased"], -0.27, atol=0.01)
+    np.testing.assert_allclose(res.inference.ci_lower, -0.41, atol=0.01)
+    np.testing.assert_allclose(res.inference.ci_upper, -0.14, atol=0.01)
+
+
+def test_ttest_auto_K_selects_and_runs():
+    d = _carbontax_df()
+    res = VanillaSC({"df": d, "outcome": "CO2_transport_capita", "treat": "treated",
+                     "unitid": "country", "time": "year", "backend": "outcome-only",
+                     "inference": "ttest", "ttest_K": "auto", "alpha": 0.1,
+                     "display_graphs": False}).fit()
+    di = res.inference.details
+    assert di["K_auto"] is True
+    assert di["rho_hat"] is not None
+    assert di["K"] in (3, 4)                      # low persistence -> 3 or 4
+    np.testing.assert_allclose(di["att_debiased"], -0.27, atol=0.02)
+
+
+def test_ttest_K_invalid_raises():
+    df = _basque_df()
+    with pytest.raises(MlsynthConfigError):
+        VanillaSC({"df": df, "outcome": "gdpcap", "treat": "treated",
+                   "unitid": "regionname", "time": "year", "backend": "outcome-only",
+                   "inference": "ttest", "ttest_K": 1, "display_graphs": False})

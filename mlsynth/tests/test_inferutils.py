@@ -25,11 +25,6 @@ from mlsynth.exceptions import (
 from mlsynth.utils.inferutils import debiased_sc_ttest
 
 _BASEDATA = Path(__file__).resolve().parents[2] / "basedata"
-
-
-# --------------------------------------------------------------------------- #
-# helpers
-# --------------------------------------------------------------------------- #
 def _panel(T0=12, T1=6, J=4, seed=0):
     """A small, well-behaved donor panel; treated ~ uniform donor average."""
     rng = np.random.default_rng(seed)
@@ -197,3 +192,86 @@ def test_basque_outcome_only_pinned():
     assert out["ci_upper"] < 0                              # significant at 10%
     np.testing.assert_allclose(out["att"], -0.6575, atol=5e-3)
     np.testing.assert_allclose(out["se"], 0.1391, atol=5e-3)
+
+
+# --------------------------------------------------------------------------- #
+# RAE formula (CWZ eq. 14) and automatic K selection
+# --------------------------------------------------------------------------- #
+from mlsynth.utils.inferutils import rae, select_K   # noqa: E402
+
+
+def test_rae_reproduces_paper_table1():
+    # Table 1: relative asymptotic efficiency, c0 = T0/T1 = 30/16, alpha = 0.1.
+    c0, alpha = 30 / 16, 0.1
+    expected = {2: 32.65, 3: 63.56, 4: 75.86, 5: 82.08, 6: 85.79,
+                7: 88.23, 8: 89.97, 9: 91.26, 10: 92.25}
+    for K, pct in expected.items():
+        np.testing.assert_allclose(100 * rae(c0, K, alpha), pct, atol=0.05)
+
+
+def test_rae_monotone_increasing_in_K():
+    c0 = 30 / 16
+    vals = [rae(c0, K, 0.1) for K in range(2, 11)]
+    assert all(b > a for a, b in zip(vals, vals[1:]))
+
+
+def test_select_K_defaults_to_three_for_moderate_T0():
+    # Persistent residuals (rho high) at a moderate T0 -> the K=3 benchmark.
+    rng = np.random.default_rng(0)
+    e = rng.normal(size=30)
+    resid = np.empty(30); resid[0] = e[0]
+    for t in range(1, 30):
+        resid[t] = 0.8 * resid[t - 1] + e[t]          # AR(1), rho ~ 0.8
+    K, info = select_K(T0=30, T1=16, residuals=resid, alpha=0.1)
+    assert K == 3
+    assert info["rho_hat"] > 0.5
+
+
+def test_select_K_bumps_to_four_when_persistence_low():
+    rng = np.random.default_rng(1)
+    resid = rng.normal(size=30)                        # iid -> rho ~ 0 (low)
+    K, info = select_K(T0=30, T1=16, residuals=resid, alpha=0.1)
+    assert K == 4
+    assert info["rho_hat"] < 0.5
+
+
+def test_select_K_climbs_for_large_T0():
+    # Large T0 with low persistence: climb toward the RAE target -> K > 4.
+    rng = np.random.default_rng(2)
+    resid = rng.normal(size=120)
+    K, _ = select_K(T0=120, T1=40, residuals=resid, alpha=0.1)
+    assert K > 4
+
+
+def test_select_K_respects_block_min_for_small_T0():
+    rng = np.random.default_rng(3)
+    resid = rng.normal(size=20)                        # Basque-sized T0
+    K, _ = select_K(T0=20, T1=23, residuals=resid, alpha=0.1)
+    assert K == 3                                      # K=4 infeasible (block_min)
+
+
+from mlsynth.utils.inferutils import _ar1   # noqa: E402
+
+
+def test_rae_c0_greater_than_K_branch():
+    # c0 > K activates g = 1; result still finite and positive.
+    val = rae(c0=5.0, K=2, alpha=0.1)
+    assert np.isfinite(val) and val > 0
+
+
+def test_rae_requires_K_at_least_two():
+    with pytest.raises(MlsynthConfigError):
+        rae(c0=1.5, K=1, alpha=0.1)
+
+
+def test_ar1_edge_cases():
+    assert _ar1(np.array([1.0])) == 0.0               # size < 2
+    assert _ar1(np.full(8, 3.0)) == 0.0               # constant -> zero variance
+
+
+def test_select_K_relaxes_block_min_for_tiny_T0():
+    rng = np.random.default_rng(7)
+    resid = rng.normal(size=10)
+    K, info = select_K(T0=10, T1=8, residuals=resid, alpha=0.1)
+    assert info["relaxed"] is True
+    assert 2 <= K <= 10

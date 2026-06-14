@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from ...config_models import BaseEstimatorConfig
 
@@ -144,12 +144,23 @@ class VanillaSCConfig(BaseEstimatorConfig):
         default=None, ge=1,
         description="Cap on donor pairs for the 'lto' test (None -> all pairs).",
     )
-    ttest_K: int = Field(
-        default=3, ge=2,
-        description="Number of cross-fitting folds for inference='ttest' "
-                    "(Chernozhukov-Wuthrich-Zhu 2025). K=3 is the default for "
-                    "small T0; larger K tightens the interval (see their Sec 3.2).",
+    ttest_K: Union[int, Literal["auto"]] = Field(
+        default=3,
+        description="Cross-fitting folds for inference='ttest' (Chernozhukov-"
+                    "Wuthrich-Zhu 2025): an int >= 2, or 'auto' to select K from "
+                    "the SC-residual persistence and the RAE formula per their "
+                    "Sec 3.2. K=3 is the small-T0 benchmark; larger K tightens "
+                    "the interval.",
     )
+
+    @field_validator("ttest_K")
+    @classmethod
+    def _validate_ttest_K(cls, v):
+        if v == "auto":
+            return v
+        if isinstance(v, bool) or not isinstance(v, int) or v < 2:
+            raise ValueError("ttest_K must be an integer >= 2 or 'auto'.")
+        return v
     penalized_cv: Literal["holdout", "loo", "pensynth"] = Field(
         default="holdout",
         description="Lambda selector for backend='penalized'. 'holdout'/'loo' "

@@ -1,0 +1,80 @@
+"""CWZ debiased SC t-test (arXiv:1812.10820): Table 5 carbon-tax replication.
+
+Path A. Chernozhukov, Wuthrich & Zhu (2025), Table 5(a): the debiased SC
+*t*-test (t-DISCo, K=3) of the Swedish carbon-tax effect on CO2 emissions per
+capita (Andersson 2019 data: 15 countries, 1960-2005; Sweden treated 1990,
+T0=30, T1=16). Per their footnote 24 the weights use *all* past outcomes as
+predictors, i.e. the outcome-only SC. The paper reports ATT = -0.27 with a 90%
+CI of [-0.41, -0.14]; mlsynth's ``VanillaSC(inference="ttest")`` reproduces it.
+
+We also pin the debiased ATT on the two other canonical SC datasets validated
+during development: the Basque Country (Abadie-Gardeazabal) and California
+Proposition 99 (the 38-control-state ADH pool), both outcome-only, K=3.
+
+Reference: the authors' R package ``scinference`` (``ttest.R::sc.cf``); the
+Python port lives in ``mlsynth/utils/inferutils.debiased_sc_ttest``.
+"""
+from __future__ import annotations
+
+import os
+import warnings
+
+import pandas as pd
+
+from benchmarks.compare import BenchmarkSkipped
+
+_BASE = os.path.join(os.path.dirname(__file__), "..", "..", "basedata")
+
+
+def _need(name: str) -> str:
+    p = os.path.abspath(os.path.join(_BASE, name))
+    if not os.path.exists(p):
+        raise BenchmarkSkipped(f"{name} not available")
+    return p
+
+
+def _ttest(df, outcome, unitid, covs=None, win=None):
+    from mlsynth import VanillaSC
+
+    cfg = {"df": df, "outcome": outcome, "treat": "treated", "unitid": unitid,
+           "time": "year", "backend": "outcome-only", "inference": "ttest",
+           "ttest_K": 3, "alpha": 0.1, "display_graphs": False}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = VanillaSC(cfg).fit()
+    return res.inference
+
+
+def run() -> dict:
+    # Table 5(a): Swedish carbon tax (outcome-only SC, K=3, alpha=0.1).
+    ct = pd.read_stata(_need("carbontax_data.dta"))
+    ct["treated"] = ((ct.country == "Sweden") & (ct.year >= 1990)).astype(int)
+    inf = _ttest(ct, "CO2_transport_capita", "country")
+    out = {
+        "carbontax_att": float(inf.details["att_debiased"]),
+        "carbontax_ci_lower": float(inf.ci_lower),
+        "carbontax_ci_upper": float(inf.ci_upper),
+    }
+
+    # Basque Country (Abadie-Gardeazabal), national aggregate dropped.
+    b = pd.read_csv(_need("basque_jasa.csv"))
+    b = b[b.regionname != "Spain (Espana)"].copy()
+    b["treated"] = ((b.regionname == "Basque Country (Pais Vasco)")
+                    & (b.year >= 1975)).astype(int)
+    out["basque_att"] = float(_ttest(b, "gdpcap", "regionname").details["att_debiased"])
+
+    # California Proposition 99 (38-control-state ADH pool).
+    p99 = pd.read_csv(_need("augmented_cali_long.csv"))
+    p99["treated"] = p99["Proposition 99"].astype(int)
+    out["prop99_att"] = float(_ttest(p99, "cigsale", "state").details["att_debiased"])
+    return out
+
+
+# Outcome-only SC is a deterministic convex program, so these are exact re-runs.
+EXPECTED = {
+    "carbontax_att": (-0.27, 0.02),        # CWZ Table 5(a): -0.27
+    "carbontax_ci_lower": (-0.41, 0.02),   # CWZ Table 5(a): -0.41
+    "carbontax_ci_upper": (-0.14, 0.02),   # CWZ Table 5(a): -0.14
+    "basque_att": (-0.6575, 0.02),         # debiased ATT, K=3
+    "prop99_att": (-17.99, 0.3),           # debiased ATT, K=3 (~ -19 packs naive)
+}

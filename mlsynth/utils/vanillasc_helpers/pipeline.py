@@ -308,7 +308,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     if mode == "ttest" and gap[pre:].size:
         from scipy.stats import t as _tdist
 
-        from mlsynth.utils.inferutils import debiased_sc_ttest
+        from mlsynth.utils.inferutils import debiased_sc_ttest, select_K
 
         def _ttest_weight_fn(keep_idx):
             keep_idx = np.asarray(keep_idx)
@@ -326,8 +326,13 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                                 donor_names=donor_names, predictor_names=pred_names)
             return np.asarray(rk.W, dtype=float).ravel()
 
+        T1_post = int(len(y) - pre)
+        if config.ttest_K == "auto":
+            K_used, k_info = select_K(pre, T1_post, gap[:pre], alpha=config.alpha)
+        else:
+            K_used, k_info = int(config.ttest_K), None
         tt = debiased_sc_ttest(
-            y, Y0, T0=pre, T1=int(len(y) - pre), K=config.ttest_K,
+            y, Y0, T0=pre, T1=T1_post, K=K_used,
             alpha=config.alpha, weight_fn=_ttest_weight_fn,
         )
         p_val = float(2.0 * _tdist.sf(abs(tt["tstat"]), tt["dof"]))
@@ -342,6 +347,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "se": tt["se"], "tstat": tt["tstat"], "dof": tt["dof"],
                 "K": tt["K"], "r": tt["r"], "tau_k": tt["tau_k"].tolist(),
                 "alpha": tt["alpha"],
+                "K_auto": config.ttest_K == "auto",
+                "rho_hat": (k_info["rho_hat"] if k_info else None),
             },
         )
 

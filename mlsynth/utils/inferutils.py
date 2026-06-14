@@ -14,6 +14,8 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, Optional
 
 import numpy as np
+from scipy.special import gammaln
+from scipy.stats import norm as _norm
 from scipy.stats import t as _t
 
 from mlsynth.exceptions import (
@@ -177,3 +179,87 @@ def debiased_sc_ttest(
         "r": r,
         "alpha": alpha,
     }
+
+
+def rae(c0: float, K: int, alpha: float = 0.1) -> float:
+    r"""Relative asymptotic efficiency of the K-fold debiased-SC CI (CWZ eq. 14).
+
+    The ratio of the limiting expected CI length as :math:`K \to \infty` to its
+    length at finite ``K``, as a function only of ``alpha``, ``K`` and
+    ``c0 = T0/T1``. Reproduces the paper's Table 1. Used to guide the choice of
+    ``K`` (higher ``K`` -> higher RAE / shorter intervals, traded against
+    coverage accuracy).
+    """
+    K = int(K)
+    if K < 2:
+        raise MlsynthConfigError("rae requires K >= 2.")
+    z = float(_norm.ppf(1 - alpha / 2))
+    tq = float(_t.ppf(1 - alpha / 2, K - 1))
+    if c0 < 1:
+        g = float(K)
+    elif c0 <= K:
+        g = K / c0
+    else:
+        g = 1.0
+    num = z * np.sqrt(min(1.0 / c0, 1.0)) * np.sqrt(1.0 + c0)
+    gamma_ratio = float(np.exp(gammaln(K / 2) - gammaln((K - 1) / 2)))
+    denom = (tq * (1.0 / (np.sqrt(K) * np.sqrt(K - 1)))
+             * np.sqrt(1.0 + min(c0, K)) * np.sqrt(g) * np.sqrt(2.0) * gamma_ratio)
+    return float(num / denom)
+
+
+def _ar1(residuals: np.ndarray) -> float:
+    """Lag-1 autocorrelation (AR(1) slope) of the demeaned residual series."""
+    r = np.asarray(residuals, dtype=float).ravel()
+    r = r - r.mean()
+    if r.size < 2:
+        return 0.0
+    denom = float(np.dot(r[:-1], r[:-1]))
+    if denom == 0.0:
+        return 0.0
+    return float(np.dot(r[1:], r[:-1]) / denom)
+
+
+def select_K(
+    T0: int,
+    T1: int,
+    residuals: np.ndarray,
+    alpha: float = 0.1,
+    rho_threshold: float = 0.5,
+    block_min: int = 6,
+    rae_target: float = 0.85,
+    K_cap: int = 10,
+) -> tuple:
+    """Automatic choice of K for the debiased SC t-test (CWZ Section 3.2).
+
+    A pragmatic operationalization of the paper's guidance: K=3 is the robust
+    benchmark for small/moderate ``T0``; low persistence in the SC prediction
+    errors bumps to K=4 for efficiency; and a larger ``T0`` (room for blocks of
+    at least ``block_min`` periods) lets ``K`` climb to the smallest value whose
+    RAE meets ``rae_target``. Persistence is gauged by an AR(1) fit to the SC
+    pre-period residuals. Returns ``(K, info)``.
+
+    For deliberate / publication work, choose ``K`` explicitly per Section 3.2;
+    this is a sensible default, not a substitute for application-based judgement.
+    """
+    rho = _ar1(residuals)
+    feasible = [K for K in range(2, K_cap + 1) if K <= T0 and T0 // K >= block_min]
+    relaxed = False
+    if not feasible:                       # T0 too small for block_min: relax it
+        relaxed = True
+        feasible = [K for K in range(2, min(K_cap, T0) + 1) if T0 // K >= 1] or [2]
+    Kmin, Kmax = min(feasible), max(feasible)
+    base = 4 if rho < rho_threshold else 3
+    base = min(max(base, Kmin), Kmax)
+    c0 = T0 / T1
+    if relaxed:
+        K = base
+    else:
+        climb = [K for K in feasible if K >= base and rae(c0, K, alpha) >= rae_target]
+        K = min(climb) if climb else base
+    info = {
+        "rho_hat": float(rho), "K": int(K), "base": int(base),
+        "K_feasible": (Kmin, Kmax), "rae": float(rae(c0, K, alpha)),
+        "block_min": block_min, "relaxed": relaxed,
+    }
+    return int(K), info
