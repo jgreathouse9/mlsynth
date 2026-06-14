@@ -1,14 +1,83 @@
 """Unit-weight, time-weight, and regularization solvers for SDID.
 
-Verbatim from the previous monolithic ``sdidutils.py``; kept untouched so the
-Prop 99 ATT remains numerically identical to the pre-refactor result.
+Both SDID weight programs are simplex-constrained least squares with a free
+intercept (and, for the unit weights, an L2 ridge):
+
+* unit weights ``omega`` minimise
+  ``||a + Y0_pre @ omega - y_treated_pre||^2 + T0 * zeta^2 * ||omega||^2``
+  subject to ``sum(omega) = 1, omega >= 0`` (Arkhangelsky et al. 2021 eq. 4 /
+  Clarke et al. 2024 eq. 4);
+* time weights ``lambda`` minimise
+  ``||a + lambda @ Y0_pre - mean_post||^2`` subject to ``sum(lambda) = 1,
+  lambda >= 0`` (eq. 6).
+
+Rather than canonicalise these through cvxpy on every call -- expensive in the
+placebo / jackknife loops, which re-solve them hundreds of times -- we solve
+them natively with the library's active-set simplex QP
+(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`). Two standard
+reductions make the active-set primitive applicable without changing the
+optimum:
+
+1. the free intercept ``a`` is *profiled out* by centering the design and
+   target over the observation axis (for fixed weights, the optimal intercept
+   is the mean residual, which is exactly what centering enforces); the
+   intercept is recovered afterwards as ``a* = mean(target) - colmean(X) @ w``;
+2. the unit-weight ridge ``lambda_r = T0 * zeta^2`` is folded in by stacking a
+   ``sqrt(lambda_r) * I`` block beneath the centered design with a zero target,
+   so ``||X_aug w - b_aug||^2 == ||X_c w - b_c||^2 + lambda_r ||w||^2``.
+
+Both reduced programs are strictly convex on SDID's panels (the unit program by
+the positive ridge; the time program because the donors outnumber the
+pre-periods), so the optimum is unique and the active-set solution coincides
+with CLARABEL's to solver tolerance -- the Prop 99 ATT is preserved bit-for-bit
+within the pinned benchmark tolerance. Parity is asserted in
+``tests/test_sdid_weights_native.py``.
 """
 
 import numpy as np
-import cvxpy as cp
 from typing import Optional, Tuple
 
-from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthEstimationError
+from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
+from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+
+
+def _solve_intercept_simplex(
+    design: np.ndarray, target: np.ndarray, ridge: float = 0.0
+) -> Tuple[float, np.ndarray]:
+    """Simplex least squares with a free intercept and optional L2 ridge.
+
+    Solves ``min_{a, w} ||a + design @ w - target||^2 + ridge * ||w||^2`` over
+    ``sum(w) = 1, w >= 0`` and returns ``(a, w)``. The intercept is profiled out
+    by centering over the observation (row) axis; the ridge is folded in by
+    augmenting the centered design with a ``sqrt(ridge) * I`` block.
+
+    Parameters
+    ----------
+    design : np.ndarray, shape (m, J)
+        Design matrix (observations x weights).
+    target : np.ndarray, shape (m,)
+        Target vector.
+    ridge : float, optional
+        Non-negative L2 penalty coefficient on ``w`` (default ``0``).
+
+    Returns
+    -------
+    (intercept, weights) : tuple of (float, np.ndarray)
+        The optimal free intercept and the ``(J,)`` simplex weights.
+    """
+    col_mean = design.mean(axis=0)
+    target_mean = float(target.mean())
+    design_c = design - col_mean[None, :]
+    target_c = target - target_mean
+
+    if ridge > 0.0:
+        J = design_c.shape[1]
+        design_c = np.vstack([design_c, np.sqrt(ridge) * np.eye(J)])
+        target_c = np.concatenate([target_c, np.zeros(J)])
+
+    weights = solve_simplex_qp(design_c, target_c)
+    intercept = target_mean - float(col_mean @ weights)
+    return intercept, weights
 
 
 def fit_time_weights(
@@ -88,32 +157,18 @@ def fit_time_weights(
             f"but mean_donor_outcomes_post_treatment has {num_donors_post} donors."
         )
 
-    # Define CVXPY optimization variables.
-    intercept_variable = cp.Variable() # Intercept term (beta_0).
-    time_weights_variable = cp.Variable(num_pre_treatment_periods, nonneg=True) # Time weights (lambda_t), constrained to be non-negative.
-    
-    # Define the prediction model: intercept + time_weights @ donor_outcomes_pre_treatment.
-    # This reconstructs the mean post-treatment donor outcomes using weighted pre-treatment donor outcomes.
-    prediction = intercept_variable + (time_weights_variable @ donor_outcomes_pre_treatment)
-    # Define constraints: time weights must sum to 1.
-    constraints = [cp.sum(time_weights_variable) == 1]
-    # Define the objective: minimize sum of squared differences between actual and predicted mean post-treatment donor outcomes.
-    objective = cp.Minimize(cp.sum_squares(prediction - mean_donor_outcomes_post_treatment))
-    # Create and solve the CVXPY problem.
-    problem = cp.Problem(objective, constraints)
-    
-    try:
-        problem.solve(solver=cp.CLARABEL) # Using CLARABEL solver.
-    except cp.error.SolverError as e: # Catch solver errors.
-        raise MlsynthEstimationError(f"CVXPY solver failed in fit_time_weights: {e}") from e
-
-    # Check problem status and return results if optimal or optimal_inaccurate.
-    if problem.status in ["optimal", "optimal_inaccurate"]:
-        return intercept_variable.value, time_weights_variable.value
-    # If solver finishes but status is not optimal/optimal_inaccurate,
-    # it implies a failure to find a good solution. Returning None, None is current behavior.
-    # This indicates the optimization did not converge to a satisfactory solution.
-    return None, None
+    # Native simplex least squares with a free intercept. The time weights
+    # reconstruct the mean post-treatment donor outcomes (one per donor) as a
+    # weighted average over pre-treatment periods, so the *observations* are the
+    # donors and the *weights* are the time periods: the design is
+    # ``donor_outcomes_pre_treatment.T`` (N_donors x T0) and the target is
+    # ``mean_donor_outcomes_post_treatment`` (N_donors,). No ridge (eq. 6 uses
+    # only an infinitesimal tie-breaker, which the overdetermined Prop 99 system
+    # does not need).
+    intercept, time_weights = _solve_intercept_simplex(
+        donor_outcomes_pre_treatment.T, mean_donor_outcomes_post_treatment
+    )
+    return float(intercept), time_weights
 
 
 def compute_regularization(
@@ -184,7 +239,7 @@ def compute_regularization(
     else:
         # Calculate first differences of donor outcomes along the time axis (axis=0).
         diffs = np.diff(donor_outcomes_pre_treatment, axis=0)
-        if diffs.size == 0: # Can happen if T0=1 (already caught by shape[0]<2) or N_donors=0 (caught by shape[1]==0).
+        if diffs.size == 0: # pragma: no cover - unreachable: T0<2 and N_donors==0 are both caught above.
              std_dev_of_first_differenced_donor_outcomes = 1.0 # Fallback if differences result in an empty array.
         else:
              # Calculate standard deviation of these differences. ddof=1 for sample standard deviation.
@@ -279,35 +334,17 @@ def unit_weights(
             f"but mean_treated_outcome_pre_treatment has {mean_treated_outcome_pre_treatment.shape[0]}."
         )
 
-    # Define CVXPY optimization variables.
-    intercept_variable = cp.Variable() # Intercept term (beta_0).
-    unit_weights_variable = cp.Variable(num_donors, nonneg=True) # Unit (donor) weights (omega_j), constrained to be non-negative.
-    
-    # Define the prediction model: intercept + donor_outcomes_pre_treatment @ unit_weights.
-    # This reconstructs the mean pre-treatment treated outcome using weighted donor outcomes.
-    prediction = intercept_variable + donor_outcomes_pre_treatment @ unit_weights_variable
-    
-    # Define the L2 regularization penalty on unit weights.
-    # Penalty = T0 * zeta^2 * sum_squares(omega).
-    # Ensure penalty term is well-defined even if num_pre_treatment_periods is 0 (though caught above by validation).
-    penalty_coefficient = num_pre_treatment_periods * (float(regularization_parameter_zeta)**2)
-    penalty = penalty_coefficient * cp.sum_squares(unit_weights_variable)
-    
-    # Define the objective: minimize sum of squared differences between actual and predicted mean treated outcome, plus the L2 penalty.
-    objective = cp.Minimize(cp.sum_squares(prediction - mean_treated_outcome_pre_treatment) + penalty)
-    # Define constraints: unit weights must sum to 1.
-    constraints = [cp.sum(unit_weights_variable) == 1]
-    # Create and solve the CVXPY problem.
-    problem = cp.Problem(objective, constraints)
-    
-    try:
-        problem.solve(solver=cp.CLARABEL) # Using CLARABEL solver.
-    except cp.error.SolverError as e: # Catch solver errors.
-        raise MlsynthEstimationError(f"CVXPY solver failed in unit_weights: {e}") from e
-
-    # Check problem status and return results if optimal or optimal_inaccurate.
-    if problem.status in ["optimal", "optimal_inaccurate"]:
-        return intercept_variable.value, unit_weights_variable.value
-    # If solver finishes but status is not optimal/optimal_inaccurate,
-    # it implies a failure to find a good solution. Returning None, None indicates this.
-    return None, None
+    # Native simplex least squares with a free intercept and the SDID ridge.
+    # The unit weights reconstruct the mean pre-treatment treated trajectory
+    # from the donors, so the *observations* are the pre-periods and the
+    # *weights* are the donors: the design is ``donor_outcomes_pre_treatment``
+    # (T0 x N_donors) and the target is ``mean_treated_outcome_pre_treatment``
+    # (T0,). The ridge coefficient T0 * zeta^2 (eq. 4) makes the program
+    # strictly convex.
+    penalty_coefficient = num_pre_treatment_periods * (float(regularization_parameter_zeta) ** 2)
+    intercept, omega = _solve_intercept_simplex(
+        donor_outcomes_pre_treatment,
+        mean_treated_outcome_pre_treatment,
+        ridge=penalty_coefficient,
+    )
+    return float(intercept), omega
