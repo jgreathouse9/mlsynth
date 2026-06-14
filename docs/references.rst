@@ -41,8 +41,8 @@ References
 
 .. [fohlin2021] Caroline Fohlin and Zhikun Lu. 
    "How Contagious Was the Panic of 1907? New Evidence from Trust Company Stocks." 
-   *AEA Papers and Proceedings*, vol. 111, pp. 514-519, 2021. 
-   DOI: `10.1257/pandp.20211097`_.
+   *AEA Papers and Proceedings*, vol. 111, pp. 514-519, 2021.
+   DOI: https://doi.org/10.1257/pandp.20211097
 
 
 
@@ -50,11 +50,10 @@ References
 .. [Li2024] Li, Kathleen T. *"Frontiers: A Simple Forward Difference-in-Differences Method."* Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. `doi:10.1287/mksc.2022.0212 <https://doi.org/10.1287/mksc.2022.0212>`_.
 
 
-.. [LiuTchetgenVar] Jizhou Liu, Eric Tchetgen Tchetgen, and Carlos Varjão. 
-   "Proximal Causal Inference for Synthetic Control with Surrogates." 
-   *Proceedings of The 27th International Conference on Artificial Intelligence and Statistics*, 
-   vol. 238, pp. 730-738, PMLR, May 2024. 
-   Available at: `https://proceedings.mlr.press/v238/liu24a.html`_.
+.. [LiuTchetgenVar] Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão.
+   "Proximal Causal Inference for Synthetic Control with Surrogates."
+   *arXiv Working Paper*, 2308.09527, 2023.
+   URL: https://arxiv.org/abs/2308.09527
 
 
 
@@ -371,11 +370,6 @@ References
     https://github.com/metricshilab/scmrelax (installable from
     https://github.com/PanJi-0/scmrelax); the Brexit / UK real-GDP
     empirical application: https://github.com/YapengZheng/Relaxed_SC
-
-.. [LiSCMN]
-    Li.
-    *"Synthetic Control Methods."*
-    Working Paper. (Authors, title, journal, year, and DOI to be completed.)
 
 .. [BVSS]
     Xu, Yihong and Zhou, Quan.
