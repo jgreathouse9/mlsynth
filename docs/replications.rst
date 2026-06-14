@@ -16,6 +16,10 @@ thirty-six estimators are currently fully verified; ISCM carries a
 one-draw illustration only (its paper relies on a non-public panel
 and provides no Monte Carlo to reproduce).
 
+The runnable cases that pin these numbers -- and guard against
+regressions -- live in the durable benchmark suite; see
+:doc:`benchmarks` for the catalogue and how to run them.
+
 * The :ref:`replications-canonical` section covers the workhorse
   SC variants you would reach for first.
 * The :ref:`replications-decomp` section covers

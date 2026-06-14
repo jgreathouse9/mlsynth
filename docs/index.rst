@@ -132,6 +132,7 @@ headline numbers.
    about
    choose
    replications
+   benchmarks
    references
 
 .. toctree::
