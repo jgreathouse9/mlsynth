@@ -10,7 +10,8 @@ When to Use This Estimator
 and Wu [SSC]_. It is for the setting where many units adopt a policy at
 different times and you have a long pre-treatment history relative to the
 number of units and post-periods (large :math:`T`, moderate :math:`N`, small
-:math:`S` -- e.g. monthly or weekly outcomes for a few dozen jurisdictions).
+:math:`|\mathcal{T}_2|` -- e.g. monthly or weekly outcomes for a few dozen
+jurisdictions).
 Two features distinguish it from the alternatives.
 
 First, it uses every unit -- including not-yet-treated units -- as a donor.
@@ -22,7 +23,7 @@ on parallel trends (unlike staggered difference-in-differences).
 
 Second, it delivers valid inference for policy-relevant aggregates. All
 individual unit-by-time effects are estimated jointly; the target is any linear
-functional :math:`\gamma = L\tau` -- the event-time ATT, the overall ATT, or a
+functional :math:`\gamma = \mathbf{L}\tau` -- the event-time ATT, the overall ATT, or a
 contrast between two policies. Inference is Andrews' (2003) end-of-sample
 stability test, whose reference distribution is built from pre-treatment
 residual windows, and which can test both *sharp* and *non-sharp* nulls.
@@ -37,8 +38,9 @@ Do not use SSC when
 ~~~~~~~~~~~~~~~~~~~
 
 * The pre-period is short. SSC's guarantees and its end-of-sample inference
-  are large-:math:`T` (they need :math:`T_0 > S` clean pre-periods, and more in
-  practice). With a short pre-period use :doc:`sdid`, :doc:`mcnnm`, or
+  are large-:math:`T` (they need :math:`T_0 > |\mathcal{T}_2|` clean
+  pre-periods, and more in practice). With a short pre-period use :doc:`sdid`,
+  :doc:`mcnnm`, or
   :doc:`ppscm`.
 * There is a single treated unit or a single adoption date. SSC's leverage
   comes from pooling many staggered adopters. For one treated unit start at
@@ -56,15 +58,20 @@ Do not use SSC when
 Notation
 --------
 
-A balanced panel of :math:`N` units over :math:`T_0 + S` periods, where
-:math:`T_0` is the number of clean pre-treatment periods (before *any* unit
-adopts) and :math:`S` is the number of post periods. Adoption times
+A balanced panel of units :math:`\mathcal{N} \coloneqq \{1, \dots, N\}` over
+:math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}` periods, split at :math:`T_0`
+into the clean pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (before *any*
+unit adopts, :math:`|\mathcal{T}_1| = T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}` (with
+:math:`S \coloneqq |\mathcal{T}_2|` post periods). Adoption times
 :math:`(t_1, \ldots, t_N)` are observed (:math:`t_i = \infty` for never-treated
 units); treatment is absorbing. The observed outcome is the never-treated
 potential outcome before adoption and the treated one after. The individual
-effect is :math:`\tau_{i,t} = y_{i,t}(t_i) - y_{i,t}(\infty)`, and the target is
-a linear functional :math:`\gamma = L\tau` of the stacked effect vector
-:math:`\tau \in \mathbb{R}^K` (:math:`K` = number of treated cells).
+effect is :math:`\tau_{i,t} \coloneqq y_{i,t}(t_i) - y_{i,t}(\infty)`, and the
+target is a linear functional :math:`\gamma \coloneqq \mathbf{L}\tau` of the stacked
+effect vector :math:`\tau \in \mathbb{R}^K` (:math:`K` = number of treated
+cells).
 
 The estimator
 ~~~~~~~~~~~~~
@@ -75,38 +82,42 @@ simplex synthetic control on all other units over the clean pre-period
 
 .. math::
 
-   (\widehat a_i, \widehat b_i)
-     = \operatorname*{argmin}_{a,\,b \in W_i}
-       \sum_{t=1}^{T_0}\bigl(y_{i,t} - a - Y_t' b\bigr)^2,
-   \qquad W_i = \{b \ge 0,\ \textstyle\sum_j b_j = 1,\ b_i = 0\}.
+   (\widehat a_i, \widehat{\mathbf{b}}_i)
+     \coloneqq \operatorname*{argmin}_{a,\,\mathbf{b} \in \mathcal{W}_i}
+       \sum_{t \in \mathcal{T}_1}\bigl(y_{i,t} - a - \mathbf{Y}_t' \mathbf{b}\bigr)^2,
+   \qquad \mathcal{W}_i \coloneqq \{\mathbf{b} \ge 0,\ \textstyle\sum_j b_j = 1,\ b_i = 0\}.
 
-Collect the intercepts :math:`\widehat a` and the weight matrix
-:math:`\widehat B` (row :math:`i` is :math:`\widehat b_i`), and let
-:math:`\widehat M = (I - \widehat B)'(I - \widehat B)`. The prediction error is
-:math:`u_{i,t} = y_{i,t}(\infty) - (\widehat a_i + Y_t(\infty)'\widehat b_i)`.
+Collect the intercepts :math:`\widehat{\mathbf{a}}` and the weight matrix
+:math:`\widehat{\mathbf{B}}` (row :math:`i` is :math:`\widehat{\mathbf{b}}_i`),
+and let
+:math:`\widehat{\mathbf{M}} \coloneqq (\mathbf{I} - \widehat{\mathbf{B}})'(\mathbf{I} - \widehat{\mathbf{B}})`.
+The prediction error is
+:math:`u_{i,t} \coloneqq y_{i,t}(\infty) - (\widehat a_i + \mathbf{Y}_t(\infty)'\widehat{\mathbf{b}}_i)`.
 
-*Step 2 -- joint effect estimation.* With selector matrices :math:`A_s` mapping
-:math:`\tau` to the period-:math:`(T_0+s)` effect vector, the GLS estimator
-(paper eq. 2.4) is
+*Step 2 -- joint effect estimation.* With selector matrices :math:`\mathbf{A}_s`
+mapping :math:`\tau` to the period-:math:`(T_0+s)` effect vector, the GLS
+estimator (paper eq. 2.4) is
 
 .. math::
 
-   \widehat\tau = \Bigl(\sum_{s=1}^{S} A_s'\widehat M A_s\Bigr)^{-1}
-     \sum_{s=1}^{S} A_s'(I - \widehat B)'
-       \bigl((I - \widehat B) Y_{T_0+s} - \widehat a\bigr).
+   \widehat\tau \coloneqq \Bigl(\sum_{s=1}^{S} \mathbf{A}_s'\widehat{\mathbf{M}} \mathbf{A}_s\Bigr)^{-1}
+     \sum_{s=1}^{S} \mathbf{A}_s'(\mathbf{I} - \widehat{\mathbf{B}})'
+       \bigl((\mathbf{I} - \widehat{\mathbf{B}}) \mathbf{Y}_{T_0+s} - \widehat{\mathbf{a}}\bigr).
 
-The invertibility of :math:`\sum_s A_s' M A_s` (Assumption 2.1) is the key
-identifying condition; its smallest eigenvalue is a useful diagnostic. The
-event-time ATT at horizon :math:`s` is the average of :math:`\widehat\tau` over
-cells with event time :math:`s`, and the overall ATT is the grand mean.
+The invertibility of :math:`\sum_s \mathbf{A}_s' \mathbf{M} \mathbf{A}_s`
+(Assumption 2.1) is the key identifying condition; its smallest eigenvalue is a
+useful diagnostic. The event-time ATT at horizon :math:`s` is the average of
+:math:`\widehat\tau` over cells with event time :math:`s`, and the overall ATT
+is the grand mean.
 
 Inference
 ~~~~~~~~~
 
-SSC tests :math:`H_0: C\tau = d` (e.g. event-time ATT :math:`= 0`, or two
-policies equal) with Andrews' (2003) end-of-sample stability test. The test
-statistic is :math:`\widehat P = (C\widehat\tau - d)'(C\widehat\tau - d)`; its
-critical value comes from sliding a length-:math:`S` window across the
+SSC tests :math:`H_0: \mathbf{C}\tau = \mathbf{d}` (e.g. event-time ATT
+:math:`= 0`, or two policies equal) with Andrews' (2003) end-of-sample stability
+test. The test statistic is
+:math:`\widehat P \coloneqq (\mathbf{C}\widehat\tau - \mathbf{d})'(\mathbf{C}\widehat\tau - \mathbf{d})`;
+its critical value comes from sliding a length-:math:`S` window across the
 :math:`T_0` pre-treatment residuals to form :math:`T_0 - S` placebo realisations
 of the estimator under the null. Under a stationarity/ergodicity assumption on
 the prediction error the test has asymptotically correct size as
@@ -121,7 +132,7 @@ Assumptions and econometric theory
 SSC is a large-:math:`T`, fixed-:math:`N`-and-:math:`S` method. The
 individual effects :math:`\tau_{i,t}` are not point-identified (there are
 more unknowns than the data can pin down); the payoff is that any aggregate
-:math:`\gamma = L\tau` is *asymptotically unbiased* and admits valid inference
+:math:`\gamma = \mathbf{L}\tau` is *asymptotically unbiased* and admits valid inference
 as the pre-period lengthens.
 
 *Setup (SUTVA, no anticipation).* Potential outcomes follow a Rubin model in
@@ -130,26 +141,32 @@ depends only on its own treatment status and timing -- no interference /
 spillovers across units -- and (iii) pre-adoption outcomes equal the
 never-treated potential outcome (no anticipation).
 
-*Assumption 2.1 (invertibility).* :math:`\sum_{s=1}^{S} A_s' M A_s` is
-invertible, with :math:`M = (I-B)'(I-B)`. *Remark.* This is the key identifying
+*Assumption 2.1 (invertibility).*
+:math:`\sum_{s=1}^{S} \mathbf{A}_s' \mathbf{M} \mathbf{A}_s` is invertible, with
+:math:`\mathbf{M} \coloneqq (\mathbf{I}-\mathbf{B})'(\mathbf{I}-\mathbf{B})`. *Remark.*
+This is the key identifying
 condition: it makes the linear map from the post-treatment prediction errors to
 :math:`\tau` full rank, so the estimator (eq. 2.4) is well defined. It fails
 only in degenerate cases -- a "disconnected treated cohort" whose units lie in
 one another's convex hull -- and staggered timing typically *bridges* cohorts
 and restores it. The smallest eigenvalue of the sample
-:math:`\sum_s A_s'\widehat M A_s` is a practical diagnostic (the paper's
+:math:`\sum_s \mathbf{A}_s'\widehat{\mathbf{M}} \mathbf{A}_s` is a practical
+diagnostic (the paper's
 Table 1); ``mlsynth`` reports it as ``results.metadata["gram_min_eigenvalue"]``.
 
 *Assumption 2.2 (stationary prediction error; consistent weights).* The
-prediction error :math:`u_{i,t} = y_{i,t}(\infty) - (a_i + Y_t(\infty)'b_i)` is
+prediction error
+:math:`u_{i,t} \coloneqq y_{i,t}(\infty) - (a_i + \mathbf{Y}_t(\infty)'\mathbf{b}_i)` is
 strictly stationary with mean zero, and the synthetic-control weights converge
-(:math:`\widehat a \to a`, :math:`\widehat B \to B`). *Remark.* The authors show
+(:math:`\widehat{\mathbf{a}} \to \mathbf{a}`,
+:math:`\widehat{\mathbf{B}} \to \mathbf{B}`). *Remark.* The authors show
 this holds when the untreated outcomes share stationary or cointegrated
 common factors -- the cointegrating relationship is exactly what lets a *stable*
 cross-sectional synthetic control exist with a stationary remainder, which is
 why a long, well-behaved pre-period matters.
 
-*Assumption 2.3 (ergodicity; regularity for inference).* :math:`\{u_t\}` is
+*Assumption 2.3 (ergodicity; regularity for inference).*
+:math:`\{\mathbf{u}_t\}` is
 ergodic with finite second moment, a normalising sequence controls the
 regressors, the weight estimates converge uniformly across the placebo windows,
 and the test statistic's distribution is continuous and increasing at its
@@ -162,18 +179,18 @@ Theorem 2.1 (asymptotic unbiasedness). Under Assumptions 2.1--2.2, as
 
 .. math::
 
-   \widehat\gamma - (\gamma + L V_T) \xrightarrow{p} 0,
-   \qquad \mathbb{E}[L V_T] = 0,
+   \widehat\gamma - (\gamma + \mathbf{L} \mathbf{V}_T) \xrightarrow{p} 0,
+   \qquad \mathbb{E}[\mathbf{L} \mathbf{V}_T] = 0,
 
 so :math:`\widehat\gamma` -- and, by Corollary 2.1, the event-time ATT
-:math:`\widehat{\mathrm{ATT}}^e_s = l_s'\widehat\tau` -- is an asymptotically
-unbiased estimator of its target *without* point-identifying the individual
-effects. (The remaining :math:`L V_T` term is mean-zero estimation noise that
-the inference procedure quantifies.)
+:math:`\widehat{\mathrm{ATT}}^e_s \coloneqq \mathbf{l}_s'\widehat\tau` -- is an
+asymptotically unbiased estimator of its target *without* point-identifying the
+individual effects. (The remaining :math:`\mathbf{L} \mathbf{V}_T` term is
+mean-zero estimation noise that the inference procedure quantifies.)
 
 Theorem 2.2 (valid end-of-sample inference). Under Assumptions 2.1--2.3 and
-the null :math:`H_0: C\tau = d`, the Andrews test has asymptotically correct
-size,
+the null :math:`H_0: \mathbf{C}\tau = \mathbf{d}`, the Andrews test has
+asymptotically correct size,
 
 .. math::
 

@@ -50,6 +50,71 @@ A unit-level cell-membership column plus a treatment-window indicator:
    res.comparison                    # pairwise cross-cell rows
    res.winner                        # the cell that wins every comparison, or None
 
+Notation
+--------
+
+This estimator is a thin multi-cell wrapper, so its symbols are GEOLIFT's
+(:doc:`geolift`) applied once per cell. There are :math:`N` markets
+:math:`\mathcal{N} \coloneqq \{1, \dots, N\}` over periods
+:math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`, with the intervention taking
+effect after :math:`T_0`, splitting :math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` and the
+post-period :math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`. The
+outcome of market :math:`j` at time :math:`t` is :math:`y_{jt}`, with market
+series :math:`\mathbf{y}_j \in \mathbb{R}^{T}`.
+
+Each cell :math:`c \in \{A, B, \dots\}` is a treated region
+:math:`\mathcal{S}_c \subseteq \mathcal{N}` — a GEOLIFT design in its own right,
+so :math:`\mathcal{S}_c` plays the canonical treated role through its aggregate
+series :math:`\mathbf{y}^{\mathcal{S}_c}` (cf. GEOLIFT's treated set
+:math:`\mathcal{S}`). The shared control pool is every market in no cell,
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \bigcup_c \mathcal{S}_c`
+with cardinality :math:`N_0`, giving the donor matrix
+:math:`\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j \in \mathcal{N}_0}`. Cell
+:math:`c`'s donor pool excludes the other cells' markets,
+:math:`\mathcal{N} \setminus \bigl(\mathcal{S}_c \cup \bigcup_{c' \neq c}
+\mathcal{S}_{c'}\bigr) = \mathcal{N}_0`. The per-period effect for cell :math:`c`
+is :math:`\tau_t \coloneqq y^{\mathcal{S}_c}_t - \widehat{y}^{\mathcal{S}_c}_t`
+and its ATT is :math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}
+\sum_{t \in \mathcal{T}_2} \tau_t`, as in :doc:`geolift`.
+
+Assumptions
+-----------
+
+Each cell inherits GEOLIFT's per-cell identifying assumptions; the multi-cell
+wrapper adds one cross-cell condition.
+
+1. Pre-period synthesizability. Each cell's aggregate
+   :math:`\mathbf{y}^{\mathcal{S}_c}` lies in (or near) the span / convex hull of
+   the control pool over :math:`\mathcal{T}_1` (GEOLIFT's scaled-L2 imbalance
+   :math:`\kappa(\mathcal{S}_c)` certifies it; see :doc:`geolift`).
+
+   *Remark.* This is the prerequisite for a credible per-cell counterfactual,
+   inspected cell by cell exactly as in the single-cell case.
+
+2. Exchangeability under the null. The conformal test treats each cell's
+   residual path as exchangeable under :math:`H_0` of no effect.
+
+   *Remark.* The same all-period refit GEOLIFT uses to deliver this runs once per
+   cell, so each cell's conformal p-value is read on the single-cell terms of
+   :doc:`geolift`.
+
+3. Placebo-window stationarity. Pre-period dynamics resemble the experiment
+   window, so the design transports — the usual SC stability assumption, applied
+   per cell.
+
+   *Remark.* A regime change between :math:`\mathcal{T}_1` and
+   :math:`\mathcal{T}_2` breaks the counterfactual for that cell even with a good
+   pre-fit.
+
+4. Cross-cell non-contamination. The other cells' markets are excluded from a
+   cell's donor pool: cell :math:`c`'s synthetic control combines control geos
+   only, never any :math:`\mathcal{S}_{c'}` for :math:`c' \neq c`.
+
+   *Remark.* Other cells are treated (with a different treatment) and so
+   contaminated; admitting them as donors would bias the counterfactual. This is
+   GeoLift's ``filter(!location %in% other_cells)``.
+
 Method
 ------
 
