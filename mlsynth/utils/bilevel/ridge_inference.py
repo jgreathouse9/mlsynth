@@ -51,11 +51,19 @@ def _reference_stats(resids, post_slice, q, *, conformal_type, ns, seed):
             dtype=float,
         )
     if conformal_type == "iid":
+        # Same ns permutations and draws as the per-permutation loop
+        # ``[_stat(rng.permutation(resids)[post_slice], q) for _ in range(ns)]``,
+        # but the statistic is computed once over the whole (ns, |post|) block
+        # instead of ns times. Bit-identical to the loop (pinned in the tests);
+        # only the per-call Python/ufunc overhead is removed.
+        resids = np.asarray(resids, dtype=float)
         rng = np.random.default_rng(seed)
-        return np.fromiter(
-            (_stat(rng.permutation(resids)[post_slice], q) for _ in range(ns)),
-            dtype=float, count=ns,
-        )
+        idx = np.arange(resids.shape[0])[post_slice]      # slice or fancy index
+        m = idx.size
+        P = np.empty((ns, m), dtype=float)
+        for i in range(ns):
+            P[i] = rng.permutation(resids)[idx]
+        return (np.sum(np.abs(P) ** q, axis=1) / np.sqrt(m)) ** (1.0 / q)
     raise ValueError(f"conformal_type must be 'iid' or 'block'; got {conformal_type!r}.")
 
 
