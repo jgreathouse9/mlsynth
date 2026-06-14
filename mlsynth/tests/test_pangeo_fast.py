@@ -47,21 +47,26 @@ from mlsynth.utils.pangeo_helpers.parallelism import (
 
 
 # ---------------------------------------------------------------------------
-# DGP: latent parallel "shapes"; units = shape + level offset + small noise
+# DGP: grouped linear factor model (the community structure OSD assumes).
+#   r common factors F (T x r); each latent group g draws its own loading
+#   b_g ~ N(0, I_r); every unit in g is  y = level + F @ b_g + noise. Units in
+#   a group therefore move in parallel up to a level shift + idiosyncratic
+#   noise, so the ideal design pairs same-group units together.
 # ---------------------------------------------------------------------------
 
-def _parallel_panel(n_shapes=4, per_shape=2, T=20, noise=0.05, seed=0):
-    """Build Ypre where ``per_shape`` units share each latent trajectory shape
-    (up to a level offset). Units of the same shape are perfectly parallel, so
-    the ideal design pairs them together."""
+def _parallel_panel(n_shapes=4, per_shape=2, T=20, noise=0.05, seed=0, r=3):
+    """Grouped linear factor model with ``n_shapes`` groups of ``per_shape``
+    units. ``n_shapes`` / ``per_shape`` keep the old call signature (a "shape"
+    is now a latent factor group)."""
     rng = np.random.default_rng(seed)
-    shapes = rng.standard_normal((n_shapes, T))
+    F = rng.standard_normal((T, min(r, T)))               # common factors
     rows, truth = [], []
-    for s in range(n_shapes):
+    for g in range(n_shapes):
+        b = rng.standard_normal(F.shape[1])               # group loading
         for _ in range(per_shape):
             level = rng.standard_normal() * 5.0           # arbitrary level
-            rows.append(shapes[s] + level + rng.standard_normal(T) * noise)
-            truth.append(s)
+            rows.append(level + F @ b + rng.standard_normal(T) * noise)
+            truth.append(g)
     Y = np.array(rows)
     return Y, np.array(truth)
 
