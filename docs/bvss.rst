@@ -10,13 +10,13 @@ BVS-SS `arXiv:2503.06454 <https://arxiv.org/abs/2503.06454>`_ is a
 Bayesian synthetic control estimator that wraps two ideas around the
 standard SCM regression :math:`Y = Xw + \varepsilon`:
 
-* **Spike-and-slab variable selection.** Each donor is either active
+* Spike-and-slab variable selection. Each donor is either active
   (:math:`\gamma_i = 1`) or excluded (:math:`\gamma_i = 0,\ w_i = 0`),
   with a Bernoulli prior on inclusion. This handles high-dimensional
   panels where ``N`` (donor count) is comparable to or exceeds ``T``,
   and provides posterior inclusion probabilities :math:`P(\gamma_i = 1
   \mid y)` that quantify donor relevance.
-* **Soft simplex constraint.** Selected weights are drawn around a
+* Soft simplex constraint. Selected weights are drawn around a
   Dirichlet mean :math:`\mu_\gamma` with a learnable variance
   :math:`\tau`. When :math:`\tau \to 0` the prior collapses to the
   hard simplex of Abadie & Gardeazabal (2003); when :math:`\tau \to
@@ -153,7 +153,7 @@ Metropolis-within-Gibbs Sampler (Algorithm 1)
 
 One outer iteration performs three updates in order.
 
-**1. Pair update for** :math:`(\gamma_i, \gamma_j, \mu_i, \mu_j)`.
+1. Pair update for :math:`(\gamma_i, \gamma_j, \mu_i, \mu_j)`.
 For each unordered pair :math:`i < j`, fix
 :math:`\mu_{-(i,j)}` and define the residual mass
 :math:`s = 1 - \sum_{k \neq i, j} \mu_k`. Three cases follow:
@@ -190,10 +190,10 @@ iteration. With :math:`\alpha = 1` all probabilities involve only the
 standard normal CDF and a single truncated-normal draw — no
 rejection sampling and no numerical integration.
 
-**2.** :math:`\phi` **Gibbs draw.** Plug the updated :math:`\mu`
+2. :math:`\phi` Gibbs draw. Plug the updated :math:`\mu`
 into the closed-form Gamma conditional above.
 
-**3.** :math:`\tau` **MH steps.** Repeat for :math:`n_\tau`
+3. :math:`\tau` MH steps. Repeat for :math:`n_\tau`
 iterations a log-random-walk proposal
 
 .. math::
@@ -259,19 +259,19 @@ When BVS-SS Is the Right Tool
 The paper documents three settings where BVS-SS materially outperforms
 the classical SCM:
 
-* **High-dimensional donor pools** (Section 5.2). When ``N`` is
+* High-dimensional donor pools (Section 5.2). When ``N`` is
   comparable to or exceeds ``T_0``, the standard quadratic program
   does not have a unique solution and Lasso-style alternatives tend
   to over-select. BVS-SS's spike-and-slab structure recovers a sparse
   subset and converges to the oracle OLS estimator as the sample
   grows.
-* **Simplex-violating data** (Section 5.2,
+* Simplex-violating data (Section 5.2,
   :math:`\|w^*\|_1 \in \{2, 3\}`). When the true sum of weights
   exceeds 1 — as it plausibly does for outliers like Hong Kong's GDP
   in the late 1990s — methods that enforce the hard simplex are
   biased, while BVS-SS's posterior of :math:`\tau` moves away from
   zero and the model adapts.
-* **Anti-tax-evasion / anti-corruption policy evaluation** (Section
+* Anti-tax-evasion / anti-corruption policy evaluation (Section
   6). Replicating Carvalho et al. (2018) and Shi & Huang (2023),
   BVS-SS recovers the published ATT magnitudes with substantially
   smaller credible intervals than Lasso-based ArCo, while selecting
@@ -291,7 +291,7 @@ to 1 under the true DGP -- in Theorem 2, under the technical
 conditions A1-A5 (Section 4.1). Stated for the working
 :math:`\tau = 0` (hard-simplex) limit:
 
-**A1 (Restricted eigenvalue on the donor matrix).** Each column
+A1 (Restricted eigenvalue on the donor matrix). Each column
 :math:`X_j` of the donor matrix satisfies :math:`\| X_j \|_2^2 =
 T_0`, and there exists :math:`\underline\lambda \in (0, 1]` such
 that :math:`\lambda_{\min}(X_\gamma^\top X_\gamma) \ge T_0
@@ -301,20 +301,20 @@ are perfectly collinear, no donor is a near-duplicate of a linear
 combination of a few others, and the minimum eigenvalue of every
 "reasonable-size" donor submatrix is bounded away from zero.
 
-**A2 (Inclusion-prior penalty).** The Bernoulli inclusion
+A2 (Inclusion-prior penalty). The Bernoulli inclusion
 probability satisfies :math:`\theta / (1 - \theta) = N^{-c_\theta L}`
 for some universal :math:`c_\theta > 0`. Translation: the prior
 penalises large models geometrically in the donor count -- a
 default :math:`\theta \approx 1/N` keeps the prior expected model
 size around 1.
 
-**A3 (Noise-precision prior).** The Gamma prior on :math:`\phi`
+A3 (Noise-precision prior). The Gamma prior on :math:`\phi`
 has shape :math:`\kappa_1 \in (0, T_0]` and rate :math:`\kappa_2
 \in [0, \sigma^2 T_0 / 2]`. Translation: the prior on the inverse
 error variance is not pathologically informative (neither shape
 nor rate scale faster than :math:`T_0`).
 
-**A4 (True DGP + signal strength /** :math:`\beta`-min).** The
+A4 (True DGP + signal strength / :math:`\beta`-min). The
 true outcome is :math:`Y \mid X \sim \mathcal{N}(X_{\gamma^*}
 \mu_{\gamma^*}^*, \sigma^2 I)` with :math:`\ell^* := |\gamma^*|
 \le L \wedge \sqrt{L \log N}`, :math:`\mu_{\gamma^*}^* \in
@@ -333,12 +333,12 @@ noise floor. The :math:`\beta`-min lower bound is the standard
 "signal large enough to identify" condition shared with all
 high-dimensional consistency theory (Yang et al. 2016).
 
-**A5 (Sample-size lower bound).** :math:`L \ge 3` and
+A5 (Sample-size lower bound). :math:`L \ge 3` and
 :math:`T_0 \ge c_M \ell^* \log N` for some :math:`c_M > 0`.
 Translation: the pre-period must grow with the (log of) the donor
 pool size for selection consistency to take hold.
 
-**Theorem 2 (Xu & Zhou 2025).** Under A1-A5, the posterior
+Theorem 2 (Xu & Zhou 2025). Under A1-A5, the posterior
 inclusion probability of the true model satisfies
 :math:`p(\gamma^* \mid y) \xrightarrow{p^*} 1` as :math:`T_0, N
 \to \infty` along any allowed sequence. Theorem 3 then bounds the
@@ -357,7 +357,7 @@ through the learned posterior of :math:`\tau`.
 When the assumptions bind: practical diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-(a) **Donor near-collinearity (A1).** If two donors carry
+(a) Donor near-collinearity (A1). If two donors carry
     essentially the same pre-period information, the minimum
     eigenvalue of :math:`X_\gamma^\top X_\gamma` is near zero on
     models that include both -- the restricted-eigenvalue
@@ -373,7 +373,7 @@ When the assumptions bind: practical diagnostics
     0.1, the model is splitting credit between near-duplicates.
     Drop one or merge them before refitting.
 
-(b) **Prior penalty scale (A2).** A too-large :math:`\theta`
+(b) Prior penalty scale (A2). A too-large :math:`\theta`
     floods the posterior with large-model mass; a too-small one
     blocks even truly-active donors.
 
@@ -385,7 +385,7 @@ When the assumptions bind: practical diagnostics
     :math:`\theta`. The paper's empirical applications use
     :math:`\theta = 0.2`.
 
-(c) **Sparse, simplex-supported truth (A4).** Selection
+(c) Sparse, simplex-supported truth (A4). Selection
     consistency requires that the true weight vector is sparse
     *and* on the simplex. If the truth is genuinely dense
     (many donors each contributing a small fraction) or
@@ -404,7 +404,7 @@ When the assumptions bind: practical diagnostics
     (Kim et al. 2020) or for an estimator that explicitly
     handles outside-hull treated units (:doc:`iscm`).
 
-(d) **Long-enough pre-period (A5).** Selection consistency
+(d) Long-enough pre-period (A5). Selection consistency
     requires :math:`T_0 \gtrsim \ell^* \log N`. With 20
     pre-period observations and 100 donors, you need at most
     :math:`\ell^* \le 20 / \log 100 \approx 4` truly-active
@@ -421,7 +421,7 @@ When the assumptions bind: practical diagnostics
     finer time grid) or pre-screen donors using domain
     knowledge.
 
-(e) **Gaussian likelihood with shock independence.** The model
+(e) Gaussian likelihood with shock independence. The model
     assumes :math:`Y_t \sim \mathcal{N}(X_t w, \phi^{-1})` with
     iid errors. Strong autocorrelation in the pre-period
     residuals or heavy tails breaks the variance estimate that
@@ -435,7 +435,7 @@ When the assumptions bind: practical diagnostics
     outcome and donors before refitting, or move to a
     cycle-decomposing estimator (:doc:`sbc`) before BVS-SS.
 
-(f) **Posterior of** :math:`\tau` **as the soft-simplex test.**
+(f) Posterior of :math:`\tau` as the soft-simplex test.
     The single diagnostic that summarises the
     simplex-vs-unconstrained decision: small posterior mass of
     :math:`\tau` near zero means the data agrees with the
@@ -458,69 +458,69 @@ When the assumptions bind: practical diagnostics
 When to use BVSS -- and when not to
 -----------------------------------
 
-**Reach for BVSS when:**
+Reach for BVSS when:
 
-* **The donor pool is large relative to the pre-period**
+* The donor pool is large relative to the pre-period
   (:math:`N \gtrsim T_0`). The classical SCM quadratic program
   has no unique solution; Lasso over-selects; BVSS's
   spike-and-slab cleanly returns a sparse posterior on inclusion.
-* **The simplex constraint itself is in question.** Hong Kong
+* The simplex constraint itself is in question. Hong Kong
   handover, Basque conflict, China anti-corruption watches --
   cases where the treated unit's level may legitimately exceed
   any convex combination of donors. BVSS's learned :math:`\tau`
   tells you which regime the data prefers.
-* **You want posterior distributions, not point estimates.**
+* You want posterior distributions, not point estimates.
   The full posterior of the ATT, of each donor's weight, and of
   inclusion are returned -- useful for downstream uncertainty
   propagation (e.g. into a policy-evaluation report's CI
   reporting).
-* **You want to formalise the "which donors do I trust" decision.**
+* You want to formalise the "which donors do I trust" decision.
   Posterior inclusion probabilities replace the practitioner's
   eyeball "I'll keep these states because they look similar"
   step with a probability statement.
 
-**Do not use BVSS when:**
+Do not use BVSS when:
 
-* **Small donor pool with clear pre-fit.** With :math:`N = 8`
+* Small donor pool with clear pre-fit. With :math:`N = 8`
   states and a tight pre-fit on the canonical SCM, BVSS's
   per-pair Gibbs sampler is overkill; the spike-and-slab
   uncertainty just propagates noise that the data does not
   actually contain. Use *canonical SCM*, :doc:`tssc`, or :doc:`fdid`.
-* **Treated unit is severely outside the donor hull.** BVSS's
+* Treated unit is severely outside the donor hull. BVSS's
   soft simplex *can* relax (:math:`\tau` learns), but the
   posterior weights are still anchored to the simplex prior.
   For the structural outside-hull case, :doc:`iscm`'s moment-
   condition framework is identification-aware in a way BVSS is
   not.
-* **Distribution of the outcome is the object of interest.**
+* Distribution of the outcome is the object of interest.
   BVSS targets the mean ATT through a Gaussian likelihood on
   levels. Distributional questions (Lorenz curves, QTEs,
   inequality measures) need :doc:`dsc`.
-* **You need speed.** MCMC is materially slower than
+* You need speed. MCMC is materially slower than
   optimisation-based SC. The China-watches application takes
   ~10 minutes for 1000 iterations on commodity hardware; for
   large grid searches or batch processing across many
   policy-evaluation cells, an optimisation-based estimator
   (*canonical SCM*, :doc:`tssc`, :doc:`fdid`) is the right default.
-* **Outcomes with hard floors or ceilings, counts, or heavy
-  tails.** A4's Gaussian-likelihood / :math:`\beta`-min
+* Outcomes with hard floors or ceilings, counts, or heavy
+  tails. A4's Gaussian-likelihood / :math:`\beta`-min
   argument breaks. Pre-process (log, difference, Winsorise)
   before BVSS, or move to a discrete-outcome estimator.
-* **Strong serial correlation in pre-period residuals.** The
+* Strong serial correlation in pre-period residuals. The
   iid-error assumption inflates :math:`\phi`'s posterior
   precision and the inclusion threshold; weights become
   artificially sharp. First-difference the panel before
   feeding into BVSS, or use a cycle-decomposing estimator
   (:doc:`sbc`).
-* **Treated unit's outcome is non-stationary.** A5 governs the
+* Treated unit's outcome is non-stationary. A5 governs the
   pre-period sample size; the consistency story does not
   cover unit-root outcomes. First-difference, or move to a
   stationary-cycle approach.
-* **Continuous or multi-valued treatment.** BVSS encodes binary
+* Continuous or multi-valued treatment. BVSS encodes binary
   treatment via a single treated-unit indicator. Continuous
   dose belongs in :doc:`ctsc`.
-* **You need a single sparse interpretable weight vector for
-  policy storytelling.** BVSS returns *posterior expected*
+* You need a single sparse interpretable weight vector for
+  policy storytelling. BVSS returns *posterior expected*
   weights -- a Bayesian model average. If the goal is the
   canonical "California = 0.385 Utah + 0.271 Montana + 0.186
   Nevada + ..." story, run *canonical SCM* alongside and report
@@ -659,8 +659,8 @@ the BVSS API is just five fields plus a display toggle:
 Verification
 ------------
 
-**Empirical replication against the authors' published numbers (Path
-A).** Xu & Zhou's Section 6.2 [BVSS]_ benchmarks BVS-SS on the China
+Empirical replication against the authors' published numbers (Path
+A). Xu & Zhou's Section 6.2 [BVSS]_ benchmarks BVS-SS on the China
 anti-corruption case: the Eight-Point policy announced in January 2013
 sharply depressed luxury-watch imports, an outcome the paper measures
 through the monthly growth rate of the customs category "watches with

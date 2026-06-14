@@ -8,36 +8,36 @@ When to Use This Estimator
 
 The synthetic control (SC) method of Abadie and co-authors [ABADIE2010]_
 builds a counterfactual for one treated unit as a convex combination of
-donors that reproduces the treated unit's **single** outcome over the
+donors that reproduces the treated unit's single outcome over the
 pre-treatment period. That single-outcome design faces a bias dilemma in
 the panels most applied work actually has:
 
-* **Short pre-period.** With few pre-treatment periods, a flexible donor
+* Short pre-period. With few pre-treatment periods, a flexible donor
   pool can fit the pre-period *too* well, latching onto idiosyncratic noise
   rather than the latent factors -- an overfit that predicts poorly
   out-of-sample.
-* **Long pre-period.** Matching over many periods mitigates overfitting but
+* Long pre-period. Matching over many periods mitigates overfitting but
   is fragile to structural breaks in the outcome-predictor relationship,
   which reintroduces bias.
 
-SCMO targets exactly this regime by **supplementing the time dimension with
-an outcome dimension.** When you observe several *related* outcomes that
+SCMO targets exactly this regime by supplementing the time dimension with
+an outcome dimension. When you observe several *related* outcomes that
 share the same latent drivers -- a "domain" such as {GDP, industrial
 production, CPI, trade} for an economy, or {math score, reading score,
 attendance} for a school -- a single set of donor weights can be matched on
-**all of them at once.** Each extra outcome is an additional, partially
+all of them at once. Each extra outcome is an additional, partially
 independent view of the same donor loadings, so the weights are pinned down
 with far fewer pre-treatment periods. Tian, Lee and Panchenko
 [TianLeePanchenko]_ show the bias then shrinks at rate
 :math:`O(1/\sqrt{K T_0})` in the number of outcomes :math:`K` *and* periods
 :math:`T_0`, versus :math:`O(1/\sqrt{T_0})` for single-outcome SC -- a
 smaller order. The headline demonstration is striking: a synthetic West
-Germany matched on **nine economic indicators in the single year 1989**
+Germany matched on nine economic indicators in the single year 1989
 tracks 30 years of its GDP almost as well as one matched on the entire
 1960-1989 GDP trajectory.
 
-Use SCMO when you have **one treated unit, a moderate-to-short pre-period,
-and a set of related outcomes** driven by common factors. It is the right
+Use SCMO when you have one treated unit, a moderate-to-short pre-period,
+and a set of related outcomes driven by common factors. It is the right
 tool when single-outcome SC overfits (too few periods) or when you simply
 want a single, interpretable comparison group that is credible across
 several outcomes at once.
@@ -47,7 +47,7 @@ Matching on Outcomes, Not Just Time
 
 Most empirical work with several outcomes runs a *separate* SC for each one,
 getting a different donor mix every time -- hard to interpret and statistically
-wasteful. SCMO instead estimates **one common weight vector** by balancing the
+wasteful. SCMO instead estimates one common weight vector by balancing the
 treated unit against the donors across the whole outcome domain. There are two
 ways to combine the outcomes, due to the two papers SCMO implements:
 
@@ -59,26 +59,26 @@ ways to combine the outcomes, due to the two papers SCMO implements:
      - What it balances
      - Paper
    * - ``concatenated``
-     - The **stacked** standardized pre-treatment series of all :math:`K`
+     - The stacked standardized pre-treatment series of all :math:`K`
        outcomes (a single SC fit on a :math:`K T_0`-long matching vector).
      - Tian-Lee-Panchenko [TianLeePanchenko]_
    * - ``averaged``
-     - The **average** of the standardized outcomes within each period (a
+     - The average of the standardized outcomes within each period (a
        single SC fit on a :math:`T_0`-long matching vector).
      - Sun-Ben-Michael-Feller [SunBenMichaelFeller]_
    * - ``separate``
-     - The primary outcome's pre-treatment trajectory **alone** -- the
+     - The primary outcome's pre-treatment trajectory alone -- the
        conventional single-outcome SC baseline.
      - Abadie et al. [ABADIE2010]_
    * - ``MA``
-     - A convex **model-average** of ``concatenated`` and ``averaged``,
+     - A convex model-average of ``concatenated`` and ``averaged``,
        chosen by pre-treatment fit.
      - (this implementation)
 
-Both papers agree on the surrounding recipe: **standardize each outcome**
+Both papers agree on the surrounding recipe: standardize each outcome
 (per period) before matching, since outcomes have different scales;
-optionally **de-mean** (intercept-shift) to allow stable level differences
-between treated and donors; and constrain the weights to the **simplex**
+optionally de-mean (intercept-shift) to allow stable level differences
+between treated and donors; and constrain the weights to the simplex
 (non-negative, summing to one).
 
 Notation
@@ -86,14 +86,14 @@ Notation
 
 We observe :math:`K` related outcomes in a domain
 :math:`\mathbb{K} = \{1, \ldots, K\}` for :math:`N + 1` units over
-:math:`T` periods. Unit :math:`j = 0` is the sole **treated** unit, and
-:math:`\mathcal{N} = \{1, \ldots, N\}` indexes the **donors**. Treatment
+:math:`T` periods. Unit :math:`j = 0` is the sole treated unit, and
+:math:`\mathcal{N} = \{1, \ldots, N\}` indexes the donors. Treatment
 begins at :math:`T_0 + 1`, giving a pre-period
 :math:`\mathcal{T}_1 = \{1, \ldots, T_0\}` and a post-period
 :math:`\mathcal{T}_2 = \{T_0 + 1, \ldots, T\}` of length
 :math:`T_2 = T - T_0`. Write :math:`y_{jtk}` for unit :math:`j`'s outcome
 :math:`k` at time :math:`t`, and :math:`\boldsymbol{\gamma} = (\gamma_1,
-\ldots, \gamma_N)` for the **common donor weights** (a single vector shared
+\ldots, \gamma_N)` for the common donor weights (a single vector shared
 across all :math:`K` outcomes). The estimand is the per-outcome ATT,
 
 .. math::
@@ -109,7 +109,7 @@ with the primary outcome's :math:`\tau` the headline estimate.
    :math:`i = 2, \ldots, N+1`; we use :math:`j = 0` for the treated unit and
    :math:`\mathcal{N}` for donors. Their common weights are
    :math:`\hat{w}_j` / :math:`\gamma_i`; we use :math:`\boldsymbol{\gamma}`.
-   ``mlsynth`` builds matching variables through a **spec** (which outcomes,
+   ``mlsynth`` builds matching variables through a spec (which outcomes,
    which period(s), and per-variable transforms ``level``/``log``/
    ``per_capita``/``raw``) rather than a fixed list, so the same engine
    covers "match :math:`K` outcomes over :math:`T_0` periods" and "match a
@@ -122,8 +122,8 @@ The factor model
 ~~~~~~~~~~~~~~~~
 
 Both papers assume the untreated potential outcome follows an interactive
-fixed-effects (factor) model with loadings that are **common across the
-outcomes in a domain**:
+fixed-effects (factor) model with loadings that are common across the
+outcomes in a domain:
 
 .. math::
 
@@ -131,8 +131,8 @@ outcomes in a domain**:
        + \varepsilon_{jtk},
 
 where :math:`\boldsymbol{\lambda}_{tk}` are time- and outcome-specific
-factors, :math:`\boldsymbol{\mu}_j` are unit loadings **shared across
-outcomes** :math:`k` (the key assumption), and
+factors, :math:`\boldsymbol{\mu}_j` are unit loadings shared across
+outcomes :math:`k` (the key assumption), and
 :math:`\varepsilon_{jtk}` are transitory shocks. Because the loadings are
 shared, each outcome is a separate window onto the same
 :math:`\boldsymbol{\mu}_j`, so :math:`K` outcomes over :math:`T_0` periods
@@ -187,7 +187,7 @@ O(1/\sqrt{T_0})`, while for the multiple-outcome SC,
 :math:`|\mathbb{E}[\hat{\tau}^{\text{cat}}] - \tau| = O(1/\sqrt{K T_0})`.
 More related outcomes shrink the bias at a faster order. Sun-Ben-Michael-
 Feller sharpen this for the averaged scheme: averaging reduces the bias due
-to overfitting by :math:`1/\sqrt{K}` (like concatenation) **and** the bias
+to overfitting by :math:`1/\sqrt{K}` (like concatenation) and the bias
 due to poor pre-treatment fit by a further :math:`1/\sqrt{K}` -- but, as both
 papers note, equal-weight averaging can *wash out* signal that is specific to
 individual outcomes. Which scheme wins is therefore regime-dependent (see
@@ -196,28 +196,28 @@ individual outcomes. Which scheme wins is therefore regime-dependent (see
 Assumptions
 -----------
 
-**Assumption 1 (shared-loading factor model).** The untreated outcomes obey
+Assumption 1 (shared-loading factor model). The untreated outcomes obey
 :math:`y^0_{jtk} = \delta_{tk} + \boldsymbol{\mu}_j^\top
 \boldsymbol{\lambda}_{tk} + \varepsilon_{jtk}` with loadings
-:math:`\boldsymbol{\mu}_j` **common across outcomes** in the domain.
+:math:`\boldsymbol{\mu}_j` common across outcomes in the domain.
 
 *Remark.* This is the substantive assumption -- the outcomes must be driven
 by the *same* unit-level latent traits (a "domain"), exactly the premise of
 standard factor analysis. If outcomes loaded on different unobservables, the
 benefit of borrowing across them would vanish and SCMO would reduce to the
 single-outcome order of bias. Sun-Ben-Michael-Feller phrase the equivalent
-condition as **low rank** of the stacked model-component matrix :math:`L`.
+condition as low rank of the stacked model-component matrix :math:`L`.
 
-**Assumption 2 (transitory shocks).** The :math:`\varepsilon_{jtk}` are
+Assumption 2 (transitory shocks). The :math:`\varepsilon_{jtk}` are
 mean-zero given the factors and loadings, independent across units and
 outcomes, with bounded moments.
 
 *Remark.* Independence is *across outcomes*; the shared interactive fixed
 effects still induce correlation along the factor dimensions. Different
-scales/volatilities across outcomes are handled by **standardizing each
-outcome per period** before matching.
+scales/volatilities across outcomes are handled by standardizing each
+outcome per period before matching.
 
-**Assumption 3 (feasibility / convex hull).** There exist weights
+Assumption 3 (feasibility / convex hull). There exist weights
 :math:`\hat{w}_j \ge 0` summing to one such that the treated unit's matching
 variables lie (approximately) in the convex hull of the donors':
 :math:`\sum_j \hat{w}_j \boldsymbol{\mu}_j = \boldsymbol{\mu}_0` and
@@ -225,11 +225,11 @@ variables lie (approximately) in the convex hull of the donors':
 
 *Remark.* This is the multiple-outcome analogue of Abadie et al.'s perfect-fit
 condition. When the treated unit sits outside the donor hull (extreme levels),
-**de-meaning** relaxes it to a parallel-trends-style condition by allowing a
+de-meaning relaxes it to a parallel-trends-style condition by allowing a
 constant level gap per outcome -- which also corrects size distortion of the
 permutation/conformal test.
 
-**Assumption 4 (consistency for inference).** The estimated weights yield a
+Assumption 4 (consistency for inference). The estimated weights yield a
 consistent estimate of the de-meaned counterfactual as :math:`T_0, N \to
 \infty`.
 
@@ -240,7 +240,7 @@ averaged weights in their Online Appendix A.
 Inference
 ---------
 
-``mlsynth`` uses a **single inference procedure for every weighting scheme**:
+``mlsynth`` uses a single inference procedure for every weighting scheme:
 the conformal test of Chernozhukov, Wuethrich and Zhu [CWZ2021]_, in the
 multiple-outcome form of Sun-Ben-Michael-Feller (Online Appendix A). Under the
 sharp null :math:`H_0: \tau = \tau_0`, form the adjusted residuals
@@ -265,7 +265,7 @@ distribution,
 
 and inverting the test over a grid of :math:`\tau_0` yields a confidence
 interval for the ATT. Because the matching matrix is built from pre-period
-information, the SC weights do **not** depend on the post-period outcome, so
+information, the SC weights do not depend on the post-period outcome, so
 the test inversion is essentially free (no refitting). With a single predicted
 outcome the statistic reduces to :math:`|\text{gap}_t|`.
 
@@ -277,59 +277,59 @@ agnostic-conformal path -- one method serves both schemes.
 When to Use Concatenated vs Averaged
 ------------------------------------
 
-* **Concatenated (Tian-Lee-Panchenko)** keeps every outcome's information
-  separate, so it shines when the outcomes are **distinct views** of the
+* Concatenated (Tian-Lee-Panchenko) keeps every outcome's information
+  separate, so it shines when the outcomes are distinct views of the
   shared loadings (different factor trajectories per outcome). It is the safer
   default and is what reproduces the West Germany result below.
-* **Averaged (Sun-Ben-Michael-Feller)** collapses the outcomes to one
-  averaged series, which **denoises** when the outcomes share a strong common
+* Averaged (Sun-Ben-Michael-Feller) collapses the outcomes to one
+  averaged series, which denoises when the outcomes share a strong common
   factor and the per-outcome noise is large -- but can blur signal that lives
   in a single outcome. Prefer it when the domain is tightly co-moving and noisy.
-* **MA** hedges between the two by pre-treatment fit; **separate** is the
+* MA hedges between the two by pre-treatment fit; separate is the
   single-outcome baseline for comparison.
-mlsynth's SCMO ships **four** schemes, three of which are genuinely
+mlsynth's SCMO ships four schemes, three of which are genuinely
 multi-outcome and one a single-outcome baseline. The headline
 trade-off is between the two main multi-outcome variants:
 
-* **Concatenated (Tian-Lee-Panchenko, 2024).** Stack every outcome's
-  pre-period vector on top of the others, then solve **one** simplex
-  QP for donor weights that balance the **whole stack** at once.
+* Concatenated (Tian-Lee-Panchenko, 2024). Stack every outcome's
+  pre-period vector on top of the others, then solve one simplex
+  QP for donor weights that balance the whole stack at once.
   Each outcome contributes its own per-period constraints; nothing
   is averaged away.
-* **Averaged (Sun-Ben-Michael-Feller, 2025).** First compute a
+* Averaged (Sun-Ben-Michael-Feller, 2025). First compute a
   per-period average (or user-supplied index) of all :math:`K`
   outcomes, then run a single-outcome SC fit on that index. The
   per-outcome noise is denoised by the average; what's left is the
   common factor signal.
-* **MA (model-averaged).** Fits both of the above and weights them
+* MA (model-averaged). Fits both of the above and weights them
   by pre-treatment fit. A reasonable hedge when you're unsure.
-* **Separate.** The single-outcome SC baseline (one weight vector
+* Separate. The single-outcome SC baseline (one weight vector
   per outcome), kept for comparison.
 
 The mirror-image rule of thumb is:
 
-* **Prefer Averaged when** outcomes share a **strong common factor**
+* Prefer Averaged when outcomes share a strong common factor
   and the per-outcome noise is large. Averaging acts as a denoiser;
   Sun-Ben-Michael-Feller prove that the bias reduction grows as
   :math:`K` (the number of outcomes) grows, so the more closely
   co-moving outcomes you can stack, the bigger the averaging
   dividend. Educational testing (math + reading + attendance with
   shared school factors) is the canonical fit.
-* **Prefer Concatenated when** outcomes are **distinct views of the
-  shared loadings** -- each outcome's trajectory looks different
+* Prefer Concatenated when outcomes are distinct views of the
+  shared loadings -- each outcome's trajectory looks different
   even though they share unit-level loadings. Averaging *blurs*
   the signal in this regime because the distinct trajectories
   partially cancel. Multi-indicator economy panels (GDP, energy,
   trade, patents...) where each indicator has its own time pattern
   are the canonical fit -- which is why the West Germany
   replication below uses concatenated.
-* **Prefer MA when** you can't tell which regime you're in -- it
+* Prefer MA when you can't tell which regime you're in -- it
   picks by pre-treatment fit and is rarely the worst of the three.
-* **Prefer Separate when** you only have one outcome anyway, or you
+* Prefer Separate when you only have one outcome anyway, or you
   *want* a different donor mix per outcome for substantive
   reporting (e.g.\\ separate "education" vs "labour" subdomains).
 
-When **not** to use SCMO at all
+When not to use SCMO at all
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 SCMO is a multi-outcome generalisation; it inherits all of classical
@@ -337,10 +337,10 @@ SC's identification requirements (donor units untreated, treated unit
 in the convex hull of donor loadings, no anticipation / spillover)
 and adds one of its own:
 
-* **You only have one related outcome.** With :math:`K = 1` SCMO
+* You only have one related outcome. With :math:`K = 1` SCMO
   collapses to vanilla SC -- use :doc:`tssc` (single-outcome with
   formal pre-trends testing) or :doc:`fdid` instead.
-* **The outcomes do not share latent factors.** SCMO's bias reduction
+* The outcomes do not share latent factors. SCMO's bias reduction
   comes from estimating *one* set of weights that balances *all*
   outcomes' loadings simultaneously. If GDP, school enrolment and
   unemployment in your panel are driven by genuinely different
@@ -350,21 +350,21 @@ and adds one of its own:
   the donor weight vectors across outcomes look unrelated (no
   cross-outcome agreement on which donors carry weight), you
   probably don't have a shared-loading domain.
-* **The treated unit is outside the convex hull on at least one
-  outcome.** Each extra outcome adds a new dimension the synthetic
-  must match. The more outcomes you stack, the **harder** the hull
+* The treated unit is outside the convex hull on at least one
+  outcome. Each extra outcome adds a new dimension the synthetic
+  must match. The more outcomes you stack, the harder the hull
   condition becomes (more constraints, smaller feasible region).
   If the pre-period fit is poor on most outcomes, SCMO will still
   return a weight vector but its bias bounds break -- use
   :doc:`fdid` (which permits an offset and a freely selected donor
   subset) or augmented-SC variants.
-* **Outcomes are measured on very different scales** without prior
+* Outcomes are measured on very different scales without prior
   standardisation. Concatenation puts every period of every
   outcome into a single objective; an outcome measured in millions
   will dominate one measured in proportions unless you demean and
   scale. Use ``demean=True`` (the default) and consider
   pre-standardising.
-* **Long, clean pre-period for a single primary outcome.** If you
+* Long, clean pre-period for a single primary outcome. If you
   have, say, 30 years of stable annual GDP, single-outcome SC has
   enough information to nail the weights without help. SCMO's
   advantage is in the *short*-pre-period regime; in the long one,
@@ -374,16 +374,16 @@ Graphical comparison
 ^^^^^^^^^^^^^^^^^^^^
 
 The Monte Carlo below builds two contrasting data-generating
-processes with the **same** :math:`K = 8` outcomes, :math:`T_0 = 5`
+processes with the same :math:`K = 8` outcomes, :math:`T_0 = 5`
 short pre-period, and known ATT of :math:`+3` on the primary
 outcome:
 
-* **DGP A (Averaged-favoured).** A single common factor trajectory
+* DGP A (Averaged-favoured). A single common factor trajectory
   :math:`F_t` is shared across all outcomes; each outcome carries
   the same :math:`F` plus heavy per-outcome noise. Averaging cancels
   the per-outcome noise.
-* **DGP B (Concatenated-favoured).** Each of the :math:`K` outcomes
-  has its **own** factor trajectory (different :math:`F^{(k)}_t`),
+* DGP B (Concatenated-favoured). Each of the :math:`K` outcomes
+  has its own factor trajectory (different :math:`F^{(k)}_t`),
   even though all outcomes share the same unit-level loadings
   :math:`\Lambda_i`. Averaging across outcomes blurs the
   per-outcome trajectories; concatenation keeps them as separate
@@ -461,17 +461,17 @@ prints (deterministic with the seeds above)::
 
 Three takeaways:
 
-1. **Both multi-outcome schemes beat single-outcome SC by a wide
-   margin** in either regime. ``separate``'s RMSE is 50% worse in
+1. Both multi-outcome schemes beat single-outcome SC by a wide
+   margin in either regime. ``separate``'s RMSE is 50% worse in
    DGP A and 18% worse in DGP B than the best multi-outcome
    competitor. That's the headline of both papers: with a short
    :math:`T_0`, *any* form of multi-outcome stacking is a strict
    improvement.
-2. **Averaged ties or beats concatenated when the DGP genuinely
-   averages**: in DGP A, averaged's RMSE is 0.742 vs concatenated's
+2. Averaged ties or beats concatenated when the DGP genuinely
+   averages: in DGP A, averaged's RMSE is 0.742 vs concatenated's
    0.744. The advantage is small on this calibration but the
    Sun-Ben-Michael-Feller theory says it grows with :math:`K`.
-3. **Concatenated wins when outcomes are distinct**: in DGP B,
+3. Concatenated wins when outcomes are distinct: in DGP B,
    concatenated's RMSE is 0.769 vs averaged's 0.895 -- a 16%
    reduction. ``MA``'s pre-fit weighting hedges close to the
    winner in both regimes (0.788 / 0.750), which is why it's the
@@ -485,8 +485,8 @@ Empirical Illustration: West Germany, matched on 1989 alone
 
 The canonical SCMO demonstration (Tian-Lee-Panchenko Section 4) revisits the
 1990 German reunification. Instead of matching on 30 years of GDP, it matches
-West Germany to 16 OECD donors on **nine economic indicators in the single
-year 1989** -- private social expenditure, energy-per-GDP, electricity and
+West Germany to 16 OECD donors on nine economic indicators in the single
+year 1989 -- private social expenditure, energy-per-GDP, electricity and
 patents per capita, real GDP growth, CPI, trade openness, total tax revenue,
 and GDP per capita.
 
@@ -524,10 +524,10 @@ This prints::
    MA            ATT  -1462.8  p=0.056  90% CI (-1568, -1357)
 
 The concatenated SC -- fit on a single year's nine indicators, never shown the
-GDP path -- matches West Germany's pre-1990 GDP trajectory to a **root-mean-
-squared error of 110** (vs. 74 for the conventional SC fit directly to 30
-years of GDP), and implies post-reunification per-capita GDP about **\$1,463
-below** the synthetic, conformally significant at the 5.6% level. The donor mix
+GDP path -- matches West Germany's pre-1990 GDP trajectory to a root-mean-
+squared error of 110 (vs. 74 for the conventional SC fit directly to 30
+years of GDP), and implies post-reunification per-capita GDP about \$1,463
+below the synthetic, conformally significant at the 5.6% level. The donor mix
 is France 0.27, Netherlands 0.25, USA 0.21, Switzerland 0.14, Japan 0.09,
 Norway 0.04. The averaged scheme is looser here (pre-RMSE 185) because
 averaging the nine distinct indicators blurs their individual signal -- the
@@ -538,7 +538,7 @@ Verification
 
 .. note::
 
-   **Empirical (Path A, German reunification).** ``mlsynth``'s ``concatenated``
+   Empirical (Path A, German reunification). ``mlsynth``'s ``concatenated``
    scheme reproduces the Tian-Lee-Panchenko (2024) German reunification result
    value-for-value: matching West Germany on the nine 1989 indicators yields
    the published donor weights (France 0.267, Netherlands 0.248, USA 0.208,
@@ -546,7 +546,7 @@ Verification
    GDP-fit RMSE of 110, against a reference QP implementation of the paper's
    ``fn_W`` to the third decimal.
 
-   **Simulation (Path B).** A factor-model Monte Carlo (shared loadings,
+   Simulation (Path B). A factor-model Monte Carlo (shared loadings,
    :math:`N=30` donors, :math:`T_0=4`, :math:`K` related outcomes, true
    ATT :math:`= 3`, 400 reps) reproduces the paper's bias-reduction finding.
    RMSE of the estimated ATT:
@@ -577,7 +577,7 @@ Verification
    averaged 1.408), confirming both papers' analyses and the regime-dependence
    of which scheme wins.
 
-   **Durable benchmarks.** These checks are pinned as re-runnable cases:
+   Durable benchmarks. These checks are pinned as re-runnable cases:
    ``scmo_germany`` (Path A — Tian et al. Table 2 balance, cell by cell),
    ``scmo_concatenated_mc`` (Path B — Tian Table 1 / Sun ``Simulation1.R``), and
    ``scmo_averaged_mc`` (Path B — Sun Appendix-D regime contrast). See the
@@ -586,10 +586,10 @@ Verification
 Simulation study: Tian-Lee-Panchenko Table 1 (Path B)
 -----------------------------------------------------
 
-We reproduce the **concatenated** paper's own Monte Carlo
+We reproduce the concatenated paper's own Monte Carlo
 (Tian-Lee-Panchenko 2024, Section 3, Table 1) through the packaged
 :py:class:`~mlsynth.estimators.scmo.SCMO`. Their DGP has :math:`N = 30`
-units (1 treated, 29 control), one post period, **zero** true effect, and
+units (1 treated, 29 control), one post period, zero true effect, and
 :math:`Y_{it,k} = \delta_{t,k} + Z_i'\theta_{t,k} + \mu_i'\lambda_{t,k}
 + \varepsilon_{it,k}` with shared predictors :math:`Z_i` (2 observed),
 :math:`\mu_i` (4 unobserved) drawn once from :math:`U[-d, d]`, large level
@@ -663,7 +663,7 @@ Simulation study: Sun-Ben-Michael-Feller averaging gain (Path B)
 
 Sun-Ben-Michael-Feller (2025) prove that, under a shared factor structure,
 the multiple-outcome schemes lower the weight-estimation bias relative to
-fitting each outcome **separately**, and that **averaging** lowers it
+fitting each outcome separately, and that averaging lowers it
 furthest. Their Table 1 gives the leading bias terms (:math:`N` fixed):
 
 .. list-table:: SBMF Table 1 -- leading bias terms
@@ -683,11 +683,11 @@ furthest. Their Table 1 gives the leading bias terms (:math:`N` fixed):
      - :math:`O(1/\sqrt{K})`
      - :math:`O(1/\sqrt{T_0 K})`
 
-The distinctive claim is the **averaged** column: averaging the :math:`K`
+The distinctive claim is the averaged column: averaging the :math:`K`
 outcomes denoises the matching target, so it alone shaves the
 *imperfect-fit* bias by :math:`1/\sqrt{K}` while separate and concatenated
 stay :math:`O(1)` there. To see this through the packaged estimator we
-isolate the object the theorem bounds -- the **weight bias**
+isolate the object the theorem bounds -- the weight bias
 :math:`(\hat\gamma - \gamma^\star)` -- by applying each scheme's estimated
 donor weights to the *noiseless* donor structure (the observed-data
 counterfactual is otherwise swamped by the treated unit's irreducible
@@ -721,9 +721,9 @@ outcome-specific idiosyncratic factors), 200 reps:
      - 0.087
      - 0.071
 
-The ordering is exactly Table 1's: **separate is flat in** :math:`K`
+The ordering is exactly Table 1's: separate is flat in :math:`K`
 (:math:`O(1)`), while concatenated and averaged fall as outcomes are added,
-and **averaged is lowest at large** :math:`K` -- the
+and averaged is lowest at large :math:`K` -- the
 :math:`1/\sqrt{K}` imperfect-fit reduction that is unique to averaging.
 
 .. code-block:: python

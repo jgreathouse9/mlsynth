@@ -8,10 +8,10 @@ When to Use This Estimator
 
 The estimators elsewhere in ``mlsynth`` are *retrospective*: a treatment has
 already happened and you reweight donors to reconstruct the treated unit's
-counterfactual. **MAREX**, due to Abadie and Zhao (2026) [ABADIE2024]_, is
-*prospective* — it **designs** an experiment. Before any treatment is assigned,
-and using only pre-experimental data, it chooses **which aggregate units to
-treat** and **which to hold out as controls**, so that the experiment you are
+counterfactual. MAREX, due to Abadie and Zhao (2026) [ABADIE2024]_, is
+*prospective* — it designs an experiment. Before any treatment is assigned,
+and using only pre-experimental data, it chooses which aggregate units to
+treat and which to hold out as controls, so that the experiment you are
 about to run yields a credible estimate.
 
 The motivating setting is a firm (say a ride-sharing company) that wants to test
@@ -26,11 +26,11 @@ reduces estimation bias relative to randomization.
 
 Reach for MAREX when:
 
-* **Units are large aggregates** (markets, regions, stores) and only one or a
+* Units are large aggregates (markets, regions, stores) and only one or a
   few can be treated.
-* **You control the assignment** and want to choose it well, rather than
+* You control the assignment and want to choose it well, rather than
   estimate after the fact.
-* **Interference or equity rules out within-unit randomization**, forcing
+* Interference or equity rules out within-unit randomization, forcing
   whole-unit treatment.
 
 Notation
@@ -41,7 +41,7 @@ periods; the experiment runs over :math:`t = T_0 + 1, \dots, T`. Each unit has a
 pre-intervention predictor vector :math:`X_j` (pre-period outcomes and optional
 covariates); :math:`\bar X = \sum_j f_j X_j` is the population predictor mean
 for known weights :math:`f_j` (e.g. market shares, or :math:`1/J`). The
-experimenter chooses **treated weights** :math:`w` and **control weights**
+experimenter chooses treated weights :math:`w` and control weights
 :math:`v`, both on the simplex, and *disjoint*:
 
 .. math::
@@ -49,8 +49,8 @@ experimenter chooses **treated weights** :math:`w` and **control weights**
    \sum_j w_j = 1,\quad \sum_j v_j = 1,\quad w_j, v_j \ge 0,\quad w_j v_j = 0
    \;\;\forall j.
 
-Units with :math:`w_j > 0` are **treated**; among the rest, units with
-:math:`v_j > 0` form the **synthetic control**. Writing :math:`Y_{jt}` for the
+Units with :math:`w_j > 0` are treated; among the rest, units with
+:math:`v_j > 0` form the synthetic control. Writing :math:`Y_{jt}` for the
 observed outcome (treated units realise :math:`Y^I_{jt}` post-treatment,
 everyone else :math:`Y^N_{jt}`), the design estimator of the average effect is
 
@@ -62,7 +62,7 @@ everyone else :math:`Y^N_{jt}`), the design estimator of the average effect is
 Assumptions
 -----------
 
-**Assumption 1 (linear factor model).** Potential outcomes follow
+Assumption 1 (linear factor model). Potential outcomes follow
 
 .. math::
 
@@ -78,12 +78,12 @@ mean-zero idiosyncratic noise.
 for the treated potential outcome — necessary because a design must choose a
 treatment group, not just a comparison group.
 
-**Assumption 2 (regularity).** The factor loadings are non-degenerate
+Assumption 2 (regularity). The factor loadings are non-degenerate
 (:math:`F \le T_E`, smallest eigenvalue bounded below) and the noise is
 i.i.d. sub-Gaussian with common variance, independent across the two potential
 outcomes; dependence *across units* is allowed.
 
-**Assumption 3 / 4 (fit quality).** A weight vector reproducing the population
+Assumption 3 / 4 (fit quality). A weight vector reproducing the population
 predictor means exists exactly (Assumption 3), or approximately within a
 tolerance :math:`d` (Assumption 4). This is the design-time analogue of "the
 treated unit lies in the convex hull of the donors."
@@ -111,7 +111,7 @@ minimises
    \quad \text{s.t. the simplex / disjointness / cardinality constraints,}
 
 with the number of treated units pinned by ``m_eq`` (exactly) or bounded by
-``m_min``/``m_max``. This is a **mixed-integer quadratic program** (the binary
+``m_min``/``m_max``. This is a mixed-integer quadratic program (the binary
 ``z``); ``mlsynth`` solves it with SCIP by default, or — via ``relaxed=True`` —
 relaxes ``z`` to :math:`[0, 1]`, solves the QP, and discretises post hoc.
 
@@ -151,7 +151,7 @@ Inference
 ^^^^^^^^^
 
 When ``inference=True`` with ``blank_periods > 0``, the last few pre-experiment
-periods are held out as **blanks**: there the synthetic treated minus synthetic
+periods are held out as blanks: there the synthetic treated minus synthetic
 control is pure noise, so its distribution calibrates inference for the
 post-period effect. MAREX reports a permutation p-value for the global null of
 no effect, per-period p-values, and a split-conformal confidence band
@@ -185,7 +185,7 @@ so by construction it agrees with what the underlying optimization produced.
 Three Standardized Mean Differences
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When ``covariates=[...]`` is set, the post-fit reports the **three** covariate
+When ``covariates=[...]`` is set, the post-fit reports the three covariate
 balance diagnostics that match the structure of Abadie & Zhao's objective.
 Each is a per-covariate signed dict (``covariate_smd_*``) plus two summary
 scalars (max absolute SMD, sum of squared SMDs). With :math:`\bar X` the
@@ -200,7 +200,7 @@ deviation of covariate :math:`m`, each comparison is the unit-free vector
 The three pairs ``(a, b)`` reported are:
 
 * ``covariate_smd``                — ``(X_w, X_v)``: synthetic treated vs
-  synthetic control. The **internal-validity** check ("is the experiment
+  synthetic control. The internal-validity check ("is the experiment
   apples-to-apples?").
 * ``covariate_smd_treated_vs_pop`` — ``(X_w, \bar X)``: synthetic treated vs
   population aggregate. Tracks the first term of MAREX's objective,
@@ -216,7 +216,7 @@ A rule-of-thumb threshold of :math:`|\mathrm{SMD}| < 0.1` is conventionally
 Power Analysis and Minimum Detectable Effect
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Power analysis answers the **pre-experiment planning question**: *given the
+Power analysis answers the pre-experiment planning question: *given the
 design I've chosen, how large a treatment effect can I detect with high
 probability?* This is the dual of inference: inference asks "is the observed
 effect distinguishable from noise?", power asks "what effect sizes would be?"
@@ -234,7 +234,7 @@ Where the noise standard deviation comes from
 
 Under the linear factor model of Assumption 1, the per-period contrast
 :math:`g_t := \sum_j w_j Y_{jt} - \sum_j v_j Y_{jt}` has expectation zero
-under the no-effect null. Its sample SD on the **blank window**
+under the no-effect null. Its sample SD on the blank window
 :math:`\mathcal{B}` (the held-out tail of the pre-period) is the natural
 estimator of the noise scale:
 
@@ -280,14 +280,14 @@ The MDE formula
 Combining: the standard error of the mean of :math:`T` post-period contrasts
 under :math:`H_0` is :math:`\mathrm{SE}(T) = \hat\sigma_{\text{placebo}} \,
 \sqrt{\mathrm{VIF}(T, \hat\rho)}`. For a two-sided test at level :math:`\alpha`
-with target power :math:`1 - \beta`, the **minimum detectable effect** is
+with target power :math:`1 - \beta`, the minimum detectable effect is
 
 .. math::
 
    \mathrm{MDE}(T) = \bigl(z_{1-\alpha/2} + z_{1-\beta}\bigr) \cdot
    \hat\sigma_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \hat\rho)}.
 
-The corresponding **power** to detect a *given* true effect :math:`\tau` at
+The corresponding power to detect a *given* true effect :math:`\tau` at
 horizon :math:`T` is
 
 .. math::
@@ -330,7 +330,7 @@ Practical reading
 
 A typical MAREX run with ``T_post = 6``, ``blank_periods = 4`` and modest
 serial correlation (:math:`\hat\rho \approx 0.5`) on a Walmart-style sales
-panel produces an MDE on the order of **0.05–0.15% of mean sales**, well
+panel produces an MDE on the order of 0.05–0.15% of mean sales, well
 below the 1–3% effect sizes typical marketing interventions aim for; this
 is the quantitative substance of *"good designs are well-powered"*.
 Conversely, an MDE much above the expected effect is a signal the design
@@ -407,7 +407,7 @@ from one to two or three treated units.
 
 .. note::
 
-   This is a **Path-B replication**: it reproduces the simulation study's
+   This is a Path-B replication: it reproduces the simulation study's
    conclusions from public DGPs and ``mlsynth`` code, with no dependency on the
    authors' replication package. It is locked in as
    :mod:`mlsynth.tests.test_marex_replication`.
@@ -417,8 +417,8 @@ Empirical Application: Walmart (Placebo Experiment)
 
 We replicate the paper's empirical illustration (Section 4) on the Walmart
 store-sales panel (``basedata/walmart_weekly_sales.csv``): weekly sales for
-**45 stores over 143 weeks** (Feb 2010 – Oct 2012). Following the paper, we
-design a **placebo** experiment with a fictitious intervention at week 129:
+45 stores over 143 weeks (Feb 2010 – Oct 2012). Following the paper, we
+design a placebo experiment with a fictitious intervention at week 129:
 :math:`T_0 = 128` pre-experiment weeks, of which the first :math:`T_E = 100` are
 the fitting period and the last 28 are blank, leaving 15 experimental weeks. The
 design uses the constrained formulation with :math:`m = 2` treated stores,
@@ -460,14 +460,14 @@ number:
      - ``mlsynth``
      - Paper (Section 4)
    * - Pre-fit RMSE / mean sales
-     - **2.2%**
+     - 2.2%
      - small (close tracking)
    * - Experimental ATT / mean sales
-     - **-1.0%**
+     - -1.0%
      - near zero
    * - Placebo permutation p-value
-     - **0.937**
-     - **0.933**
+     - 0.937
+     - 0.933
    * - Confidence band covers zero
      - yes (all post weeks)
      - yes
@@ -480,7 +480,7 @@ and the permutation test fails to reject the null of no effect
 
 .. note::
 
-   This uses the **exact** MIQP (``relaxed=False``, the default) with
+   This uses the exact MIQP (``relaxed=False``, the default) with
    ``standardize=True``; the unit-variance normalisation is essential here
    because Walmart stores differ enormously in sales level, and without it the
    level differences dominate the match. The solve takes roughly a minute with
@@ -526,7 +526,7 @@ figures 2-7 settings) — matching the paper's qualitative findings.
    passes the value as a *standard deviation*, so the figures' "variance"
    1/5/10 are SDs; and the R code uses random population weights :math:`f_j`
    whereas the 2026 paper (and ``mlsynth``) use :math:`f_j = 1/J`. Also note that
-   the *unconstrained* ``standard`` design (formulation 5) is **degenerate** —
+   the *unconstrained* ``standard`` design (formulation 5) is degenerate —
    many disjoint splits match :math:`\bar X` equally well, so the realised
    design (and hence a single ATE estimate) is solver-dependent; the
    cardinality-constrained design is the stable, recommended choice.
@@ -571,7 +571,7 @@ LEXSCM Walmart benchmark. See :doc:`replications/marex`; run it with
 
 .. note::
 
-   The benchmark uses the **exact MIQP** (free SCIP), not the relaxed
+   The benchmark uses the exact MIQP (free SCIP), not the relaxed
    continuous-``z`` mode: the relaxation shares the design objective but drops the
    integrality that defines the selection, so its top-``m`` rounding is degenerate
    and non-deterministic for small treated counts. The authors' full 45-store

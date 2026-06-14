@@ -16,25 +16,25 @@ nonlinear function of the underlying predictors.
 
 Three structural changes versus canonical SC:
 
-1. **Drops the non-negativity restriction** on donor weights — only
+1. Drops the non-negativity restriction on donor weights — only
    the adding-up constraint :math:`\sum_j w_j = 1` remains. The
    resulting *affine-weight* SC widens the set of treated units the
    method can handle, since it no longer requires the treated unit
    to sit inside the convex hull of the donors.
 
-2. **Adds an elastic-net penalty** on the weights, with the L1 term
-   weighted by the **pairwise pretreatment matching discrepancies**
+2. Adds an elastic-net penalty on the weights, with the L1 term
+   weighted by the pairwise pretreatment matching discrepancies
    between the treated unit and each donor. This biases the
    estimator towards near-neighbour matching when the outcome is
    highly nonlinear and towards spread-out weights when it is more
    linear.
 
-3. **Eigenvalue-scales the tuning parameters** so the dimensionless
+3. Eigenvalue-scales the tuning parameters so the dimensionless
    :math:`(a^*, b^*) \in [0, 1]` admit a coarse cross-validation
    grid. The paper recommends grid size 0.1 with coordinate-descent
    convergence.
 
-Inference defaults to the **Doudchenko-Imbens (2017)** variance
+Inference defaults to the Doudchenko-Imbens (2017) variance
 estimator: for every period the variance of the gap is approximated
 by the MSE of predicting each donor's outcome from the other donors
 under the same :math:`(a^*, b^*)` regime. Per-period and ATT
@@ -73,13 +73,13 @@ The weights solve (Tian 2023, eq. 7)
        + b \sum_j w_j^{\,2}
    \quad \text{s.t.} \quad \sum_j w_j = 1.
 
-* **Pretreatment fit term** (first norm) -- minimised by ordinary
+* Pretreatment fit term (first norm) -- minimised by ordinary
   affine SC weights.
-* **L1 penalty** :math:`a \sum_j |w_j| \, \|Z_1 - Z_j\|` -- pushes
+* L1 penalty :math:`a \sum_j |w_j| \, \|Z_1 - Z_j\|` -- pushes
   weight onto donors that are *close* to the treated unit in the
   matching variables. As :math:`a \to \infty` it collapses to the
   one-nearest-neighbour estimator.
-* **L2 penalty** :math:`b \sum_j w_j^2` -- spreads the weights. As
+* L2 penalty :math:`b \sum_j w_j^2` -- spreads the weights. As
   :math:`b \to \infty` the weights become uniform and the
   estimator collapses to a difference-in-differences.
 
@@ -106,11 +106,11 @@ Cross-validation
 ^^^^^^^^^^^^^^^^
 
 R-faithful (NSC.R, ``fn_cv``): for each donor :math:`j`, fit NSC
-weights on its **pre-period** matching vector using the other
+weights on its pre-period matching vector using the other
 :math:`J - 1` donors plus one randomly drawn extra donor (the pool
 size stays at :math:`J` so the eigenvalue scaling of
 :math:`(a^*, b^*)` is comparable to the final treated-unit fit).
-The score is the **post-period** MSPE of donor :math:`j`'s held-out
+The score is the post-period MSPE of donor :math:`j`'s held-out
 outcomes against that weighted combination. The (a, b) selected
 minimises the average held-out MSPE across donors. Coordinate
 descent:
@@ -151,25 +151,25 @@ Assumptions (Tian 2023)
 NSC inherits the interactive-fixed-effects (IFE) model of
 Abadie-Diamond-Hainmueller (2010) and adds the structural
 conditions needed for the synthetic-control bias to vanish under a
-**nonlinear** outcome. The paper's formal assumptions:
+nonlinear outcome. The paper's formal assumptions:
 
-**A1 (IFE for the untreated latent).** Each unit's untreated latent
+A1 (IFE for the untreated latent). Each unit's untreated latent
 outcome is :math:`Y_{it}^{0*} = X_i' \beta_t + \mu_i' \lambda_t +
 \varepsilon_{it}`, where :math:`X_i` are observed predictors,
 :math:`\mu_i` unobserved loadings, and :math:`\varepsilon_{it}` an
 idiosyncratic shock.
 
-**A2 (transitory shocks).** Shocks :math:`\varepsilon_{it}` are
+A2 (transitory shocks). Shocks :math:`\varepsilon_{it}` are
 independent across :math:`i, t`, have zero conditional mean given
 :math:`(X_j, \mu_j, D_{js})` for all :math:`j, s`, and bounded
 :math:`p`-th moments for some even :math:`p \ge 2`.
 
-**A4 (factor non-degeneracy).** The smallest eigenvalue of
+A4 (factor non-degeneracy). The smallest eigenvalue of
 :math:`T_0^{-1} \sum_t \lambda_t \lambda_t'` is bounded away from
 zero. Translation: the unobserved factors carry persistent
 identifying variation across the pre-period.
 
-**A5 (overlap / continuous support).** The composite predictor
+A5 (overlap / continuous support). The composite predictor
 :math:`H = [X', \mu']` has a density bounded away from zero on a
 compact convex support, units are iid draws from that
 distribution, and the treatment-assignment probability is
@@ -178,22 +178,22 @@ treated unit's predictors there is a control with near-identical
 predictors *in the population* -- with enough donors, some of
 those near-twins land in the sample.
 
-**A6 (smooth nonlinear link).** The observed outcome is
+A6 (smooth nonlinear link). The observed outcome is
 :math:`Y_{it}^0 = F(X_i' \beta_t + \mu_i' \lambda_t +
 \varepsilon_{it})` with :math:`F` strictly monotonic and
 :math:`G(\cdot) = \mathbb{E}_\varepsilon[F(\cdot)]` smooth. The
-paper does **not** require the analyst to know :math:`F` or
+paper does not require the analyst to know :math:`F` or
 :math:`G` -- only that they exist with these regularity
 properties.
 
-**A7 (nearest-:math:`M` weighting).** The synthetic control uses
+A7 (nearest-:math:`M` weighting). The synthetic control uses
 only the :math:`M > k + T_0` nearest neighbours (in observed
 predictors and pre-period outcomes) of the treated unit; donors
 outside that neighbourhood get weight zero.
 
 Under A2, A4, A5, A6, A7 the NSC estimator is asymptotically
 unbiased as :math:`T_0 \to \infty` provided the donor pool grows
-**super-polynomially** in :math:`T_0` (Theorem 2:
+super-polynomially in :math:`T_0` (Theorem 2:
 :math:`J = O(T_0^{b(T_0)})` with :math:`b'(\cdot) > 0`). The fast
 growth is what makes Assumption 5's near-twins *available in
 finite samples*, so the local-neighbourhood matching in A7 is
@@ -202,7 +202,7 @@ non-empty.
 When the assumptions bind: practical diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-(a) **IFE / smooth-link DGP for the untreated outcome (A1, A6).**
+(a) IFE / smooth-link DGP for the untreated outcome (A1, A6).
     The untreated potential outcome is generated by a smooth
     monotone function of a low-rank factor model.
 
@@ -215,12 +215,12 @@ When the assumptions bind: practical diagnostics
     discrete-choice or DSC-style framework
     (:doc:`dsc` for the distributional question).
 
-(b) **Convex-hull / near-twin availability in the sample (A5).**
+(b) Convex-hull / near-twin availability in the sample (A5).
     NSC dropped the non-negativity restriction *precisely* because
     affine weights tolerate the treated unit lying *outside* the
     donor convex hull -- nearest neighbours can be reached with
     negative weights on far donors. But identification still
-    requires the **population** density to put mass near the
+    requires the population density to put mass near the
     treated unit's predictors.
 
     *Plausibly violated when* the treated unit is qualitatively
@@ -232,11 +232,11 @@ When the assumptions bind: practical diagnostics
     sample. Increasing the donor pool is the only fix -- NSC does
     not invent population mass that is not there.
 
-(c) **Donor pool size grows with** :math:`T_0` **(Theorem 2).**
+(c) Donor pool size grows with :math:`T_0` (Theorem 2).
     Bias vanishes asymptotically only if :math:`J` grows
     super-polynomially in :math:`T_0`. In finite samples, the
-    actionable reading is: **more donors are unambiguously better
-    in the nonlinear case** because they make the nearest-:math:`M`
+    actionable reading is: more donors are unambiguously better
+    in the nonlinear case because they make the nearest-:math:`M`
     matching tighter (eq. 5).
 
     *Plausibly violated when* :math:`J` is small relative to
@@ -247,7 +247,7 @@ When the assumptions bind: practical diagnostics
     against the Monte Carlo table below, which shows bias falling
     almost in half when :math:`J` doubles from 25 to 50.
 
-(d) **Pre-period factor non-degeneracy (A4).**
+(d) Pre-period factor non-degeneracy (A4).
     The time factors :math:`\lambda_t` must move enough across the
     pre-period for the unobserved loadings to be identified.
 
@@ -257,7 +257,7 @@ When the assumptions bind: practical diagnostics
     SVD on the donor pre-matrix should show a clear spectrum, not
     a single dominant component drowning out the rest.
 
-(e) **Outcome is monotone in the latent index (A6).**
+(e) Outcome is monotone in the latent index (A6).
     The link function :math:`F` is strictly increasing in its
     argument. Many transformations satisfy this (logistic, square,
     log) but capped or saturating outcomes do not (e.g. an outcome
@@ -272,7 +272,7 @@ When the assumptions bind: practical diagnostics
     boundary, A6 fails for those donors and they should be dropped
     or re-coded.
 
-(f) **Doudchenko-Imbens variance reflects a normal limit.**
+(f) Doudchenko-Imbens variance reflects a normal limit.
     The closed-form CI assumes the gap is approximately normal
     with the leave-one-control variance estimate. With very small
     :math:`J` or heavy-tailed outcomes the normal approximation
@@ -287,50 +287,50 @@ When the assumptions bind: practical diagnostics
 When to use NSC -- and when not to
 ----------------------------------
 
-**Reach for NSC when:**
+Reach for NSC when:
 
-* The outcome is a **smooth nonlinear** function of latent
+* The outcome is a smooth nonlinear function of latent
   predictors -- bounded growth metrics, log-GDP, count outcomes
   modelled continuously, share variables on :math:`(0, 1)`.
-* The treated unit sits at or near the **boundary** of the donor
+* The treated unit sits at or near the boundary of the donor
   predictor distribution -- canonical SC's non-negativity
   restriction would force interpolation bias from far donors, and
   affine weights with the L1 closeness penalty can reach the
-  treated unit by **extrapolating** through the closest neighbours.
-* You have a **large donor pool** relative to the pre-period
+  treated unit by extrapolating through the closest neighbours.
+* You have a large donor pool relative to the pre-period
   (:math:`J \gg T_0`) so that nearest-:math:`M` matching is sharp.
-* You're willing to **trade interpretability** for bias: NSC
+* You're willing to trade interpretability for bias: NSC
   returns weights that can be negative, which means "subtract some
   donors", a step beyond the canonical SC story of "a convex
   combination of similar units".
 
-**Do not use NSC when:**
+Do not use NSC when:
 
-* **Outcome is binary, ordinal, or low-count.** A6 requires a
+* Outcome is binary, ordinal, or low-count. A6 requires a
   strictly monotonic link :math:`F`; discrete outcomes need
   discrete-choice or distributional methods (:doc:`dsc`) instead.
-* **You need genuinely sparse, non-negative weights.** NSC's whole
+* You need genuinely sparse, non-negative weights. NSC's whole
   premise is dropping non-negativity. If the policy story is
   "California is a convex combination of these four states", use
   *canonical SCM* or :doc:`tssc` -- NSC's negative weights are an
   identification gain but a rhetorical loss.
-* **Very small donor pool** (:math:`J \le 10` or so). Theorem 2
+* Very small donor pool (:math:`J \le 10` or so). Theorem 2
   fails, the leave-one-control inference becomes unstable, and the
   L1-anchored nearest-neighbour story degenerates.
-* **Outcome with hard floors or ceilings binding for some donors.**
+* Outcome with hard floors or ceilings binding for some donors.
   Bounded growth where multiple donors are pinned at the boundary
   violates A6 for those donors. Drop or re-code them, or move to
   a censored-regression-aware estimator.
-* **Pre-period too short to identify the factor structure.** With
+* Pre-period too short to identify the factor structure. With
   :math:`T_0 \lesssim r` (factor count), A4 is at the edge and the
   cross-validation grid is choosing essentially noise. Use
   :doc:`fdid` (which is designed for short panels) or :doc:`fma`
   (which jointly estimates a low-rank factor model).
-* **You suspect interference / spillovers across units.** NSC
+* You suspect interference / spillovers across units. NSC
   inherits SUTVA from canonical SC; a treated unit influencing
   donors breaks A2's mean-independence. Switch to
   :doc:`spillsynth` or :doc:`spsydid`.
-* **Continuous treatment.** NSC encodes a single binary
+* Continuous treatment. NSC encodes a single binary
   intervention. Continuous dose belongs in :doc:`ctsc`.
 
 Monte Carlo: NSC vs OSC bias under nonlinearity
@@ -346,10 +346,10 @@ linear one.
 
 .. note::
 
-   **Verification.** NSC is validated two ways: a **cross-validation**
+   Verification. NSC is validated two ways: a cross-validation
    against Tian's own R implementation on Proposition 99 (weights match
    to correlation 0.989; effect path :math:`-9.1/-22.6/-27.0` vs the
-   paper's :math:`-9.5/-24.5/-28.7`) and the **Path-B** nonlinear Monte
+   paper's :math:`-9.5/-24.5/-28.7`) and the Path-B nonlinear Monte
    Carlo (near-nominal coverage; error shrinking with the donor pool).
    See the dedicated page :doc:`replications/nsc`; durable checks
    ``nsc_prop99`` and ``nsc_mc``.
@@ -414,18 +414,18 @@ uses 5000):
 The qualitative paper findings to look for as you fill in the
 remaining cells:
 
-* **Bias falls as** :math:`J` **grows** -- direct evidence of the
+* Bias falls as :math:`J` grows -- direct evidence of the
   Theorem 2 mechanism: more donors makes the near-twin pool denser
   and the nearest-:math:`M` matching tighter. Paper Table 1: NSC
   bias drops from 0.99 (J=25) to 0.77 (J=50) in the linear case
   and from 0.92 to 0.74 in the nonlinear case at T0=15.
-* **NSC matches OSC in the linear case** and **wins in the
-  nonlinear case**. Paper Table 1: at (J=25, T0=30), OSC bias is
+* NSC matches OSC in the linear case and wins in the
+  nonlinear case. Paper Table 1: at (J=25, T0=30), OSC bias is
   1.79 (r=1) and 1.40 (r=2); NSC stays at 0.91 and 0.87. The
   non-negativity restriction in OSC pays an extrapolation penalty
   in the nonlinear regime that NSC's affine + L1-anchored
   weighting avoids.
-* **Coverage of the closed-form CI sits at 0.93-0.95** across the
+* Coverage of the closed-form CI sits at 0.93-0.95 across the
   paper's :math:`(J, T_0, r)` grid -- the Doudchenko-Imbens
   variance estimator is well-calibrated for this DGP. mlsynth's
   CI reproduces that coverage band.
@@ -484,14 +484,14 @@ Output::
 
 Two things are worth flagging about this replication.
 
-* **The selected** :math:`(a^*, b^*) = (0.3, 0.7)` **is grid-stable
-  across seeds 42, 789, 1000, 2024** and one grid step away from
+* The selected :math:`(a^*, b^*) = (0.3, 0.7)` is grid-stable
+  across seeds 42, 789, 1000, 2024 and one grid step away from
   the paper for other seeds (e.g. seed 123 lands on
   :math:`(0.2, 0.8)`). This jitter is the same RNG noise the
   reference R script exhibits across ``set.seed()`` values --
   unavoidable when the CV burns ``J`` random draws per grid point
   and Python's RNG differs from R's.
-* **Sparsity comparison vs OSC**: the original SC concentrates
+* Sparsity comparison vs OSC: the original SC concentrates
   weight on Utah (0.385), Montana (0.271), Nevada (0.186). NSC
   spreads weight across roughly 20 states -- the L1-anchored
   affine fit is recruiting more near-neighbour Western states

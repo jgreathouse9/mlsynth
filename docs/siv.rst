@@ -8,10 +8,10 @@ When to Use This Estimator
 
 Many policy panels combine an instrument that *should* satisfy
 exclusion -- a tariff schedule, a regulatory threshold, an exogenous
-supply shock -- with **panel-data confounding** that makes ordinary
+supply shock -- with panel-data confounding that makes ordinary
 2SLS-with-fixed-effects biased even when the IV is conditionally valid.
 Two-way fixed effects only soak up additively separable confounding
-(:math:`c_i + d_t`); a richer **interactive factor structure**
+(:math:`c_i + d_t`); a richer interactive factor structure
 :math:`\mu_i' f_t` -- common shocks loading heterogeneously across units
 -- leaks into the second-stage residual and contaminates the IV
 estimate.
@@ -19,7 +19,7 @@ estimate.
 Use SIV, due to Gulek and Vives [SIV]_, when you have a panel
 :math:`(Y_{it}, R_{it}, Z_{it})` with
 
-* a **single, sharp intervention date** :math:`T_0` after which
+* a single, sharp intervention date :math:`T_0` after which
   treatment :math:`R_{it}` switches on, the instrument :math:`Z_{it}`
   becomes operative, or both;
 * an instrument you believe is conditionally exogenous *given* a latent
@@ -38,13 +38,13 @@ residual factor structure, so the instrument's *partial validity*
 .. note::
 
    SIV is the only estimator in ``mlsynth`` that consumes three series
-   simultaneously -- outcome, treatment, **and** instrument -- and the
+   simultaneously -- outcome, treatment, and instrument -- and the
    only one whose target is a 2SLS coefficient rather than an ATT.
    Donor units are *all* untreated units in the panel; there is no
    single "treated unit" in the SC sense.
 
 For higher-noise or weak-instrument regimes, SIV also exposes the paper's
-**ensemble** (doubly-robust) estimator and a **permutation** inference
+ensemble (doubly-robust) estimator and a permutation inference
 procedure that is exactly valid in small samples. Gulek and Vives
 recommend four diagnostics, all surfaced by the estimator: (1) the
 instrument is not weak *after* debiasing, (2) good pre-treatment fit, (3) a
@@ -54,23 +54,23 @@ dense synthetic-control weights (no single donor dominating).
 Do not use SIV when
 ^^^^^^^^^^^^^^^^^^^
 
-* **You have no instrument.** SIV's whole point is to rescue an IV under
+* You have no instrument. SIV's whole point is to rescue an IV under
   factor confounding. With no instrument, estimate the counterfactual
   directly with a factor-model or synthetic-control method (:doc:`fma`,
   :doc:`fdid`, :doc:`mcnnm`).
-* **Treatment is exogenous given the factor structure** (no simultaneity /
+* Treatment is exogenous given the factor structure (no simultaneity /
   reverse causality). Then a plain synthetic-control or factor estimator
   already identifies the effect; the 2SLS machinery only adds variance.
-* **Confounding is purely additive** (:math:`c_i + d_t`). Two-way
+* Confounding is purely additive (:math:`c_i + d_t`). Two-way
   fixed-effects 2SLS already absorbs it; SIV's interactive-factor debiasing
   is unnecessary.
-* **There is no clean pre-period** in which neither the instrument nor the
+* There is no clean pre-period in which neither the instrument nor the
   treatment has activated. SIV fits each unit's factor loadings on that
   window; without it the debiasing step is not identified.
-* **The instrument is weak after debiasing** (diagnostic 1 fails). The
+* The instrument is weak after debiasing (diagnostic 1 fails). The
   debiased 2SLS is then unreliable -- no synthetic step repairs a weak
   instrument.
-* **Distributional** questions (quantiles, tails) -- SIV targets a 2SLS
+* Distributional questions (quantiles, tails) -- SIV targets a 2SLS
   coefficient; use :doc:`dsc` for distributional effects.
 
 Notation
@@ -100,7 +100,7 @@ factor loadings.
 Assumptions
 -----------
 
-**Assumption 1 (factor model + sharp intervention).** Outcomes follow
+Assumption 1 (factor model + sharp intervention). Outcomes follow
 the interactive-effects model above; the instrument is zero before
 :math:`T_0` and switches on at :math:`T_0`.
 
@@ -110,7 +110,7 @@ variation, so any pre-period covariance between :math:`Y_{it}` and the
 control units' :math:`Y_{jt}` is informative about the factor
 structure alone.
 
-**Assumption 2 (partial validity).** :math:`\mathbb{E}[\varepsilon_{it}
+Assumption 2 (partial validity). :math:`\mathbb{E}[\varepsilon_{it}
 \mid Z_{i,1:T}, \eta_{i,1:T}, \mu_i, \{f_t\}_{t=1}^T] = 0`.
 
 *Remark.* This is the weakened exclusion restriction at the heart of
@@ -119,7 +119,7 @@ the paper: :math:`Z_{it}` need only be orthogonal to the outcome shock
 weaker condition than full IV exogeneity, since
 :math:`\mathrm{cov}(Z_{it}, \mu_i' f_t)` can be non-zero.
 
-**Assumption 3 (factor identification).** The pre-period factor matrix
+Assumption 3 (factor identification). The pre-period factor matrix
 :math:`F_{\mathcal{T}_1} \in \mathbb{R}^{T_1 \times k}` has rank
 :math:`k`, and the donor pool spans :math:`\mu_i` for every focal
 unit's loading (the standard SC overlap condition).
@@ -132,7 +132,7 @@ non-negative weights when ``weight_constraint = "simplex"``.
 The Two-Step SIV Estimator
 --------------------------
 
-**Step 1: per-unit synthetic control.** For each focal unit :math:`i`,
+Step 1: per-unit synthetic control. For each focal unit :math:`i`,
 solve the constrained pre-period fit
 
 .. math::
@@ -157,7 +157,7 @@ Under Assumptions 1-3 the SC fit absorbs :math:`\mu_i' f_t` on the
 pre-period, and -- because all units share the same factor structure
 -- the same weights remove it on the post-period too.
 
-**Step 2: 2SLS on the debiased post-period.** Stack the post-period
+Step 2: 2SLS on the debiased post-period. Stack the post-period
 debiased series across units and run just-identified 2SLS:
 
 .. math::
@@ -213,8 +213,8 @@ Example
 Verification
 ------------
 
-**Empirical replication against the authors' published numbers (Path
-A) plus a Section 6 Monte Carlo (Path B).** Path A reproduces the
+Empirical replication against the authors' published numbers (Path
+A) plus a Section 6 Monte Carlo (Path B). Path A reproduces the
 2SLS-TWFE row of Autor, Dorn & Hanson [ADH]_ Table 3 (the canonical
 shift-share IV design the SIV paper benchmarks against) directly from
 the published replication archive, and then runs ``mlsynth.SIV`` on
@@ -342,7 +342,7 @@ prints (at :math:`M = 200`; the paper uses :math:`M = 1{,}000`):
 The 2SLS-TWFE column reproduces the paper essentially exactly across
 all three :math:`r` (0.111/0.228/0.387 here vs 0.111/0.218/0.360
 published). The SIV column carries the same qualitative ordering --
-**SIV bias is below 2SLS bias at every :math:`r`** and the gap widens
+SIV bias is below 2SLS bias at every :math:`r` and the gap widens
 with :math:`r` -- which is the headline finding the paper draws from
 Table 1. The Monte Carlo standard error at :math:`M = 200` and SIV
 bias :math:`\approx 0.03` is roughly :math:`\pm 0.013`, so the small

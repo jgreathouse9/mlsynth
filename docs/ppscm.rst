@@ -8,7 +8,7 @@ When to Use This Estimator
 
 ``PPSCM`` is a faithful port of ``augsynth::multisynth`` -- the partially
 pooled synthetic control of Ben-Michael, Feller and Rothstein [PPSCM]_ for
-**staggered adoption**. Use it when several units are treated but at *different*
+staggered adoption. Use it when several units are treated but at *different*
 times, with a pool of never-treated (or late-treated) comparison units, and you
 want a single estimate of the average treatment effect on the treated (ATT) over
 relative time (time-since-treatment), pooling information across cohorts.
@@ -22,11 +22,11 @@ imbalance. ``time_cohort=True`` collapses units sharing an adoption time into a
 single fully-pooled cohort (one synthetic control per cohort).
 
 The problem PPSCM solves is that the two reflexive extensions of SCM to
-staggered adoption are each flawed. **Separate SCM** (fit a synthetic
+staggered adoption are each flawed. Separate SCM (fit a synthetic
 control per treated unit, then average -- common practice) requires a good
 synthetic control for *every* treated unit, which often fails, and its
 strong per-unit fits can still leave the *average* poorly matched, biasing
-the ATT. **Pooled SCM** (match the average treated unit) nails the average
+the ATT. Pooled SCM (match the average treated unit) nails the average
 fit but can fit individual units badly, biasing unit-level effects and the
 average when the data-generating process drifts over time. Ben-Michael,
 Feller and Rothstein bound the estimation error by *both* the average
@@ -37,33 +37,33 @@ trustworthy.
 Reach for PPSCM when
 ^^^^^^^^^^^^^^^^^^^^^
 
-* Several units are treated at **different adoption times**, with a pool of
+* Several units are treated at different adoption times, with a pool of
   never-treated (or not-yet-treated) comparison units.
-* You want an **ATT over relative time** (an event-study path), pooling
+* You want an ATT over relative time (an event-study path), pooling
   information across cohorts rather than trusting each cohort's own fit.
-* **No single donor mix matches every treated unit**, so separate SCM
+* No single donor mix matches every treated unit, so separate SCM
   leaves you with unreliable per-unit fits -- the partial-pooling dial lets
   the average fit borrow strength without abandoning unit-level fit.
-* You want an estimator that **nests** the familiar special cases (separate
+* You want an estimator that nests the familiar special cases (separate
   and fully pooled SCM) and a principled way to choose between them.
 
 Do not use PPSCM when
 ^^^^^^^^^^^^^^^^^^^^^^
 
-* **All treated units adopt at the same time** (a single cohort). The
+* All treated units adopt at the same time (a single cohort). The
   staggered machinery is unnecessary; use classic SC (:doc:`tssc`,
   :doc:`fdid`) or, for many treated units at one time, :doc:`sdid`.
-* **You are willing to assume parallel trends after weighting** and want
+* You are willing to assume parallel trends after weighting and want
   the DiD-flavoured double weighting / time weights. :doc:`sdid` (and, for
   efficiency under interactive fixed effects, :doc:`seq_sdid`) is the more
   natural home; PPSCM is a *synthetic-control* estimator, not a
   difference-in-differences one.
-* **Spillovers violate SUTVA** across the donor pool -- use :doc:`spsydid`.
-* **The treated paths lie outside the donor convex hull / the donor pool is
-  large and noisy.** Partial pooling cannot manufacture a hull that does
+* Spillovers violate SUTVA across the donor pool -- use :doc:`spsydid`.
+* The treated paths lie outside the donor convex hull / the donor pool is
+  large and noisy. Partial pooling cannot manufacture a hull that does
   not contain the treated units; a factor-model (:doc:`fma`) or low-rank
   (:doc:`clustersc`, :doc:`mcnnm`) approach is better.
-* **Distributional** effects (quantiles, tails) -- use :doc:`dsc`.
+* Distributional effects (quantiles, tails) -- use :doc:`dsc`.
 
 Notation
 --------
@@ -71,7 +71,7 @@ Notation
 Units :math:`i = 1, \ldots, n` are observed over periods
 :math:`t = 1, \ldots, T`. Treated unit (or cohort) :math:`j` adopts at period
 :math:`T_j`; never-treated units have :math:`T_j = \infty` and form the donor
-pool. The panel is split at the **last** adoption time into a pre-period of
+pool. The panel is split at the last adoption time into a pre-period of
 length :math:`d` and the post-period. For cohort :math:`j`, donor weights
 :math:`\boldsymbol{\omega}_j` live on the simplex; the synthetic control matches
 the cohort's pre-treatment residuals.
@@ -81,14 +81,14 @@ Method
 
 PPSCM follows ``multisynth`` in three stages.
 
-**1. Two-way fixed effects (``fixedeff=True``, the default).** A time effect is
+1. Two-way fixed effects (``fixedeff=True``, the default). A time effect is
 the never-treated units' per-period mean; a unit effect is each unit's mean over
 its own pre-adoption window. Both are removed and the synthetic control balances
-the **residuals** -- the "intercept-shifted" estimator of the paper.
+the residuals -- the "intercept-shifted" estimator of the paper.
 
-**2. Partially pooled QP.** With per-cohort pre-treatment imbalance
+2. Partially pooled QP. With per-cohort pre-treatment imbalance
 :math:`\mathbf{q}_j = \mathbf{x}_j - \mathbf{X}_{0,j}\boldsymbol{\omega}_j`
-(residuals; the pooled imbalance aligned by **relative time**), the weights
+(residuals; the pooled imbalance aligned by relative time), the weights
 solve
 
 .. math::
@@ -105,11 +105,11 @@ the separate-fit (``nu=0``) global and individual imbalance norms. Small
 :math:`\nu` approaches a separate SCM per cohort; large :math:`\nu` a fully
 pooled SCM.
 
-**3. Choosing :math:`\nu`.** With ``nu="auto"`` (default) PPSCM uses augsynth's
+3. Choosing :math:`\nu`. With ``nu="auto"`` (default) PPSCM uses augsynth's
 triangle-inequality ratio :math:`\nu = \text{global\_l2}\cdot\sqrt{d}/\text{avg\_l2}`
 from the separate fit; a float fixes it.
 
-**Assumptions / Remarks.**
+Assumptions / Remarks.
 
 *Assumption 1 (no anticipation, parallel residual trends).* After removing the
 two-way fixed effects, the treated cohorts' residual paths would have matched a
@@ -130,7 +130,7 @@ parameter: the estimand (the wATET over the treated cohorts) is the same;
 Inference
 ---------
 
-``PPSCM`` reports the paper's **delete-one jackknife**: drop each unit, refit the
+``PPSCM`` reports the paper's delete-one jackknife: drop each unit, refit the
 full estimator (holding :math:`\nu` fixed), and form
 :math:`\widehat{\text{se}}^2 = \tfrac{n-1}{n}\sum_i(\hat\theta_i - \bar\theta)^2`
 for the overall ATT and each relative-time horizon, with Wald intervals.
@@ -176,13 +176,13 @@ Verification
 
 .. note::
 
-   **Exact replication of augsynth.** On the Paglayan data PPSCM matches
+   Exact replication of augsynth. On the Paglayan data PPSCM matches
    ``augsynth::multisynth`` to high precision: the auto-:math:`\nu` agrees to
    four decimals (0.2607 default, 0.3939 time-cohort), the Average ATT matches
    (:math:`-0.011` default; :math:`-0.017` vs :math:`-0.018` time-cohort), and
    the raw global/individual L2 imbalances agree (0.003 / 0.028). The full
    relative-time event study matches the vignette's per-horizon averages to
-   3--4 decimals. The decisive fidelity detail is aligning the **pooled**
+   3--4 decimals. The decisive fidelity detail is aligning the pooled
    imbalance by relative time on top of two-way fixed effects. The jackknife SE
    (0.020) is close to augsynth's default wild-bootstrap SE (0.022); they differ
    only by inference procedure. This is locked in by

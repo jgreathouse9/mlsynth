@@ -17,12 +17,12 @@ unit and its synthetic counterpart.
 What distinguishes this implementation is how it treats the two regimes
 of the SCM optimisation honestly:
 
-* **No covariates** -> the donor weights :math:`W` solve the convex
+* No covariates -> the donor weights :math:`W` solve the convex
   simplex least-squares fit on the pre-treatment outcomes. This is a
   single, well-posed convex program -- deterministic and reproducible
   (unique up to donor collinearity).
-* **Covariates** -> the predictor weights :math:`V` and donor weights
-  :math:`W` are chosen jointly through a **bilevel** program. This is
+* Covariates -> the predictor weights :math:`V` and donor weights
+  :math:`W` are chosen jointly through a bilevel program. This is
   non-convex, and the predictor weights are generically *non-identified*.
   ``VanillaSC`` solves it with a reliable backend and reports a diagnostic
   (:math:`\text{v\_agreement}`) so that fragility is visible rather than
@@ -34,14 +34,14 @@ Mathematical formulation
 For a treated unit with pre-treatment outcomes :math:`y_1 \in
 \mathbb{R}^{T_0}` and donors :math:`Y_0 \in \mathbb{R}^{T_0 \times J}`:
 
-**Outcome-only (no covariates).**
+Outcome-only (no covariates).
 
 .. math::
 
    \widehat W = \arg\min_{W} \; \lVert y_1 - Y_0 W \rVert^2
    \quad \text{s.t.} \quad W \ge 0,\ \mathbf{1}'W = 1.
 
-**Covariate matching (bilevel).** With predictor matrices :math:`X_1 \in
+Covariate matching (bilevel). With predictor matrices :math:`X_1 \in
 \mathbb{R}^{P}` (treated) and :math:`X_0 \in \mathbb{R}^{P \times J}`
 (donors), each predictor averaged over its window and scaled to unit
 variance, the lower level solves, for given diagonal predictor weights
@@ -88,7 +88,7 @@ The covariate path exposes three reliable solvers via ``backend=``:
 
 ``"penalized"``
     Abadie & L'Hour (2021): a pairwise-penalized estimator with
-    leave-one-out :math:`\lambda` selection, giving a **unique, sparse**
+    leave-one-out :math:`\lambda` selection, giving a unique, sparse
     :math:`W`. Works with or without covariates.
 
 The identification diagnostic
@@ -119,7 +119,7 @@ Four inference modes are available via ``inference=``:
     by inversion. For a sharp null :math:`H_0:\ \tau_t = \tau_0` the post-period
     treated outcome is adjusted by :math:`\tau_0`, the weights are refit on the
     adjusted data, and the post-period residual is checked for whether it
-    **conforms** with the pre-treatment residuals -- its rank among them is the
+    conforms with the pre-treatment residuals -- its rank among them is the
     :math:`p`-value,
 
     .. math::
@@ -128,7 +128,7 @@ Four inference modes are available via ``inference=``:
        |\hat u_{\mathrm{post}}(\tau_0)|\,\}}{T_0 + 1}.
 
     Inverting the test (the :math:`\tau_0` not rejected at level :math:`\alpha`)
-    gives a **per-period prediction interval** for the random counterfactual
+    gives a per-period prediction interval for the random counterfactual
     :math:`Y_{1T}(0)`; the same machinery returns one joint-null :math:`p`-value
     for the whole effect path. It is *exactly valid* when the residuals are
     exchangeable, and finite-sample bounded otherwise -- the ridge penalty
@@ -143,7 +143,7 @@ Four inference modes are available via ``inference=``:
 
 ``"scpi"`` -- prediction intervals (Cattaneo, Feng & Titiunik 2021)
     Treats :math:`\tau_T` as a *predictand* (a random variable) and builds
-    **prediction intervals**, decomposing the prediction error as
+    prediction intervals, decomposing the prediction error as
 
     .. math::
 
@@ -155,7 +155,7 @@ Four inference modes are available via ``inference=``:
     and the treatment-effect interval is
     :math:`[\,Y_{\text{obs}} - \text{cf}_U,\; Y_{\text{obs}} - \text{cf}_L\,]`.
 
-    * **In-sample** (:math:`w_L`/:math:`w_U`): a simulation-based bound. With
+    * In-sample (:math:`w_L`/:math:`w_U`): a simulation-based bound. With
       :math:`Q = Z'Z/T_0` (donor pre-outcomes), :math:`\widehat\Sigma = Z'
       \mathrm{diag}(\omega)\,Z / T_0^2` where :math:`\omega_t =
       \tfrac{T_0}{T_0-\mathrm{df}}(u_t - E[u_t])^2` (HC1), and pre-period
@@ -176,7 +176,7 @@ Four inference modes are available via ``inference=``:
       are left unconstrained. :math:`w_L`/:math:`w_U` are the
       :math:`\alpha_1/2` / :math:`1-\alpha_1/2` quantiles of
       :math:`\mathbf{p}_T'(\widehat w - x)` across draws.
-    * **Out-of-sample** (:math:`e_L`/:math:`e_U`): a location-scale model,
+    * Out-of-sample (:math:`e_L`/:math:`e_U`): a location-scale model,
       :math:`e_T = E[e] + \sqrt{\mathrm{Var}[e]}\,\varepsilon`. The conditional
       mean and a log-variance scale (capped by the residual IQR, Gaussian
       :math:`\varepsilon`) are estimated by regressing :math:`u` on the
@@ -192,8 +192,8 @@ Four inference modes are available via ``inference=``:
 
     .. note::
 
-       This is a self-contained, **MIT-licensed** re-derivation of the
-       Cattaneo-Feng-Titiunik algorithm -- it does **not** import the GPL
+       This is a self-contained, MIT-licensed re-derivation of the
+       Cattaneo-Feng-Titiunik algorithm -- it does not import the GPL
        reference package ``scpi``. It is validated to reproduce ``scpi``'s
        ``CI_all_gaussian`` on the Proposition 99 panel to within Monte-Carlo
        error (see ``test_scpi_matches_reference_package``, which is skipped
@@ -201,8 +201,8 @@ Four inference modes are available via ``inference=``:
 
 ``"lto"`` -- leave-two-out refined placebo (Lei & Sudijono 2025)
     A design-based randomization test that fixes the two structural weaknesses
-    of the ordinary placebo test -- its **coarse** :math:`\{1/N, 2/N, \dots\}`
-    grid and its **zero size when** :math:`\alpha < 1/N`. It replaces the "one
+    of the ordinary placebo test -- its coarse :math:`\{1/N, 2/N, \dots\}`
+    grid and its zero size when :math:`\alpha < 1/N`. It replaces the "one
     turn each" permutation with a *tournament over triples* and reports both a
     naive p-value (``res.inference.p_value``) and a powered one
     (``details["p_powered"]``), together with the Type-I bound and tournament
@@ -220,31 +220,31 @@ number of pre-treatment periods, and runs the following steps. Let
 the donor pre-outcomes, :math:`P` the donor post-outcomes, and
 :math:`u = A - B\widehat w` the pre-period residuals.
 
-1. **Degrees of freedom.** For the simplex, :math:`\mathrm{df} =
+1. Degrees of freedom. For the simplex, :math:`\mathrm{df} =
    (\#\{\widehat w_j \neq 0\}) - 1`, giving the HC1 correction
    :math:`\mathrm{vc} = T_0/(T_0-\mathrm{df})`.
 
-2. **Regularisation parameter** :math:`\rho`. The data-driven ``type-1`` value
+2. Regularisation parameter :math:`\rho`. The data-driven ``type-1`` value
    :math:`\rho = \tfrac{\sigma_u}{\min_j \mathrm{sd}(B_j)}
    \sqrt{\log(J)\, d_0 \log T_0}/\sqrt{T_0}`, capped at
    :math:`\rho_{\max}=0.2` (with a fallback bump if it comes out below
    :math:`0.001`). :math:`\rho` defines the "active" donor set
    :math:`\{\,j : \widehat w_j > \rho\,\}`.
 
-3. **Conditional mean & variance.** Regress :math:`u` on the active-donor
+3. Conditional mean & variance. Regress :math:`u` on the active-donor
    design :math:`[\,B_{\cdot,\text{active}},\,\mathbf{1}\,]` to get
    :math:`E[u]` (the ``u_missp`` step), then
    :math:`\omega_t = \mathrm{vc}\,(u_t - E[u_t])^2`. Form
    :math:`Q = B'B/T_0` and :math:`\widehat\Sigma = B'\mathrm{diag}(\omega)B/T_0^2`,
    and its matrix square root :math:`\Sigma^{1/2}`.
 
-4. **Localised feasible set.** Lower bounds
+4. Localised feasible set. Lower bounds
    :math:`\ell_j = \widehat w_j` if :math:`\widehat w_j < \rho` else :math:`0`
    (near-binding donors are pinned at their tiny weight; active donors may move
    down to zero). :math:`Q` is reduced by a thresholded eigen-square-root so the
    near-null (collinear) directions are left unconstrained.
 
-5. **In-sample simulation.** For each of ``scpi_sims`` draws
+5. In-sample simulation. For each of ``scpi_sims`` draws
    :math:`G^\star = \Sigma^{1/2}\,z`, :math:`z\sim N(0,I)`, and each post
    predictor :math:`\mathbf{p}_T`, solve the small conic program in
    :math:`x` (donor weights) twice -- minimise and maximise
@@ -254,10 +254,10 @@ the donor pre-outcomes, :math:`P` the donor post-outcomes, and
    - x)` for each branch; :math:`w_L`/:math:`w_U` are the
    :math:`\alpha_1/2` / :math:`1-\alpha_1/2` quantiles across draws.
 
-6. **Out-of-sample band.** From the location-scale model on :math:`u` get
+6. Out-of-sample band. From the location-scale model on :math:`u` get
    :math:`e_L`/:math:`e_U` per post period (Section above).
 
-7. **Assemble.** Counterfactual band
+7. Assemble. Counterfactual band
    :math:`[\,Y_{\text{fit}} + w_L + e_L,\; Y_{\text{fit}} + w_U + e_U\,]`,
    effect interval :math:`[\,Y_{\text{obs}} - \text{cf}_U,\; Y_{\text{obs}} -
    \text{cf}_L\,]`, and an ATT interval from an appended post-period-average
@@ -275,7 +275,7 @@ Composing SCPI with the backends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``backend`` (how :math:`W` is estimated) and ``inference`` (how uncertainty is
-quantified) are **orthogonal** -- any of the four backends pairs with any of
+quantified) are orthogonal -- any of the four backends pairs with any of
 the three inference modes:
 
 .. code-block:: python
@@ -287,14 +287,14 @@ The pipeline fits the weights with the chosen backend and hands the resulting
 ``res.W`` to ``scpi_intervals``. Two things to keep in mind:
 
 * The in-sample simulation rebuilds :math:`Q` and :math:`\widehat\Sigma` from
-  the donor **pre-outcomes** :math:`B`, treating :math:`\widehat w` as simplex
-  weights. With **outcome-only** this is the exact Cattaneo-Feng-Titiunik
-  interval (the case validated against ``scpi``). With **mscmt**/**malo** the
+  the donor pre-outcomes :math:`B`, treating :math:`\widehat w` as simplex
+  weights. With outcome-only this is the exact Cattaneo-Feng-Titiunik
+  interval (the case validated against ``scpi``). With mscmt/malo the
   weights were also shaped by the covariate predictors, so SCPI uses the
-  outcome design as a stand-in -- it is **approximate** for covariate backends.
+  outcome design as a stand-in -- it is approximate for covariate backends.
   The point effects, the ATT, and the out-of-sample band are unaffected; only
   the in-sample :math:`w_L`/:math:`w_U` term carries the approximation.
-* Read the SCPI interval **alongside** :math:`\text{v\_agreement}`. When the
+* Read the SCPI interval alongside :math:`\text{v\_agreement}`. When the
   predictor weights are non-identified (``v_agreement`` near 1, e.g. Prop 99
   with lagged outcomes) the *point* counterfactual is still pinned, but the
   covariate-matched solution is fragile; the placebo test, which is exact for
@@ -303,22 +303,22 @@ The pipeline fits the weights with the chosen backend and hands the resulting
 The leave-two-out (LTO) refined placebo test
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**What it is.** The ordinary placebo test (above) gives each of the :math:`N`
+What it is. The ordinary placebo test (above) gives each of the :math:`N`
 units exactly one turn as the pseudo-treated unit and ranks the real treated
 unit's fit statistic against those :math:`N` values. That is its weakness: the
 p-value can only land on the grid :math:`\{1/N, 2/N, \dots, 1\}`, and at a
 conventional level like :math:`\alpha = 0.05` with a small donor pool the test
 is either coarse or -- when :math:`\alpha < 1/N` -- literally unable to reject
-(its size is zero). The Lei-Sudijono (2025) **leave-two-out** test keeps the
+(its size is zero). The Lei-Sudijono (2025) leave-two-out test keeps the
 same design-based logic but replaces the "one turn each" permutation with a
-**tournament over triples**. Think of every triple :math:`\{i, j, I\}` (two
+tournament over triples. Think of every triple :math:`\{i, j, I\}` (two
 controls and the treated unit) as a match: leave all three out of the donor
 pool, build a synthetic control for each of them from the remaining
 :math:`N-3` units, score each by its post/pre RMSPE ratio, and the unit with
 the largest ratio "wins" the match. The treated unit *should* win often if the
 treatment had a real effect (a large post-period gap relative to a tight
 pre-period fit). The p-value is the fraction of matches the treated unit does
-**not** win,
+not win,
 
 .. math::
 
@@ -332,38 +332,38 @@ Because there are :math:`\binom{N-1}{2}` matches rather than :math:`N`, the
 p-value lives on an :math:`O(N^2)`-fine grid -- the granularity problem
 disappears.
 
-**Two p-values.** ``res.inference.p_value`` is the *naive* LTO p-value above.
+Two p-values. ``res.inference.p_value`` is the *naive* LTO p-value above.
 ``res.inference.details["p_powered"]`` is the *powered* variant
 :math:`p_{\mathrm{naive\text{-}LTO}} - c(N, \alpha) + \delta`, which shifts the
 naive value down by the largest amount the discrete Type-I bound allows
 (``powered_offset_c``), strictly increasing power. The powered value is a
-**decision rule tied to one** :math:`\alpha` -- reject when it is
+decision rule tied to one :math:`\alpha` -- reject when it is
 :math:`\le \alpha` (``reject_at_alpha``) -- not a general-purpose p-value, so do
 not compare it across levels or report it as "the" p-value.
 
 LTO: design-based assumptions and econometric theory
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The LTO test is **design-based**, not outcome-model-based: the potential
+The LTO test is design-based, not outcome-model-based: the potential
 outcomes are treated as fixed, and all randomness comes from *which unit got
 treated*. Its validity rests on two assumptions.
 
-* **Uniform assignment.** The treated index :math:`I` is uniformly distributed
+* Uniform assignment. The treated index :math:`I` is uniformly distributed
   over :math:`\{1, \dots, N\}` -- a priori, any unit was equally likely to be
   the treated one. Under the null this makes the :math:`N` units *exchangeable*,
-  which is exactly what licenses the tournament. This holds **by construction**
+  which is exactly what licenses the tournament. This holds by construction
   in (cluster-)randomized experiments. In observational work it is a modelling
   choice: it is most defensible when the treated unit is comparable to the
   donors (often after covariate adjustment), and in quasi-experimental settings
   -- e.g. natural disasters, where which locality is hit is plausibly close to
   random over a small comparable region.
-* **Sharp null.** The hypothesis tested is Fisher's sharp null
+* Sharp null. The hypothesis tested is Fisher's sharp null
   :math:`H_0 : Y_{i,t}(1) = Y_{i,t}(0)` for all :math:`t > T_0` (no effect for
   *any* unit in any post period), or a known-:math:`\tau` additive version
   :math:`Y_{i,t}(1) = Y_{i,t}(0) + \tau_{i,t}`. Sharpness is what lets the test
   impute every unit's counterfactual under the null and so run the tournament.
 
-Under these, the test has a **finite-sample Type-I error guarantee** (no
+Under these, the test has a finite-sample Type-I error guarantee (no
 large-:math:`N`, no long-:math:`T`, no asymptotics):
 
 .. math::
@@ -371,57 +371,57 @@ large-:math:`N`, no long-:math:`T`, no asymptotics):
    \mathbb{P}_{H_0}\!\left(p_{\mathrm{naive\text{-}LTO}} \le \alpha\right)
      \le \frac{\lfloor N f(N, \alpha)\rfloor}{N},
 
-reported as ``type_i_bound``. This bound is **never worse** than the
+reported as ``type_i_bound``. This bound is never worse than the
 approximate-placebo bound :math:`(\lfloor N\alpha\rfloor + 1)/N`, and for the
 levels and sizes typical of SCM applications (:math:`\alpha \in \{0.01, 0.02\}`
 for :math:`6 < N < 200`; :math:`\alpha = 0.05` for most :math:`N`) it is
 *identical* to it -- so switching to LTO costs nothing in worst-case Type-I
 error. Crucially, the placebo bound is *tight* whereas the LTO bound generally
-is **not**: in practice the LTO test's actual Type-I error is often strictly
-below :math:`\alpha`, i.e. it can be **unconditionally valid** even when
+is not: in practice the LTO test's actual Type-I error is often strictly
+below :math:`\alpha`, i.e. it can be unconditionally valid even when
 :math:`\alpha < 1/N`.
 
 Two further theoretical properties matter in practice:
 
-* **Consistency where the placebo test fails (Theorem 6.1).** When
+* Consistency where the placebo test fails (Theorem 6.1). When
   :math:`\alpha < 1/N`, the LTO test is *uniformly consistent* -- its power goes
-  to 1 as the effect size grows. The approximate placebo test is **not**: in
+  to 1 as the effect size grows. The approximate placebo test is not: in
   this regime it can have essentially zero power no matter how large the true
   effect (zero if :math:`N` is even, :math:`\le 1/N` if odd). This is the single
   strongest reason to prefer LTO in small donor pools.
-* **Confidence regions.** Inverting the additive-:math:`\tau` test
+* Confidence regions. Inverting the additive-:math:`\tau` test
   (:math:`\{\theta : p_{\mathrm{naive\text{-}LTO}}(\theta) > \alpha\}`) yields a
   region for the post-period effect path with guaranteed coverage
   :math:`\ge 1 - \lfloor N f(N,\alpha)\rfloor / N`. (mlsynth currently reports
   the p-values; the inversion is a straightforward extension.)
 
 Methodologically, the LTO test is a *new* kind of randomization inference: it
-generalises the Jackknife+ of Barber et al. (2021) (which leaves **one** point
+generalises the Jackknife+ of Barber et al. (2021) (which leaves one point
 out and so still has :math:`1/N` granularity) and is distinct from classical
 permutation/rank inference. It also -- unlike most asymptotic SCM inference --
-does **not** simplify the synthetic-control construction: the full
+does not simplify the synthetic-control construction: the full
 weight/predictor machinery (any ``VanillaSC`` backend) is re-run inside every
 match, so the test reflects the estimator you actually use.
 
 When the LTO assumptions are violated
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The sharp null is testable and usually uncontroversial; the **uniform
-assignment** assumption is where care is needed.
+The sharp null is testable and usually uncontroversial; the uniform
+assignment assumption is where care is needed.
 
-* **Selection on outcomes / non-comparable treated unit.** If the treated unit
+* Selection on outcomes / non-comparable treated unit. If the treated unit
   was chosen *because* of its (anticipated) trajectory, or is structurally
   unlike every donor, exchangeability fails and the Type-I guarantee no longer
   holds. The usual remedy is to restore comparability through the
   specification -- match on covariates, restrict the donor pool to genuinely
   similar units -- before trusting any placebo-type p-value.
-* **Known non-uniform assignment.** When the treatment probabilities
+* Known non-uniform assignment. When the treatment probabilities
   :math:`\pi_k` are known or estimable (e.g. seismic risk for an
   earthquake study), Lei-Sudijono give a *weighted* LTO p-value
   :math:`p_{\text{w-LTO}}(\pi)` that reweights each match by
   :math:`\pi_j\pi_k / ((1-\pi_I)^2 - \sum_{l\neq I}\pi_l^2)` and reduces to the
   naive value when :math:`\pi_i \equiv 1/N`.
-* **Sensitivity analysis (the** :math:`\Gamma` **).** Rather than commit to
+* Sensitivity analysis (the :math:`\Gamma` ). Rather than commit to
   uniformity, one can ask *how far* from it the design could be before the
   conclusion flips. Following Rosenbaum, constrain
   :math:`\pi_i \in [\tfrac{1}{\Gamma N}, \tfrac{\Gamma}{N}]` and find the
@@ -429,22 +429,22 @@ assignment** assumption is where care is needed.
   :math:`\alpha`. In the paper, Prop 99 tolerates :math:`\Gamma \approx 1.4`
   (robust) while German reunification flips at only :math:`\Gamma \approx 1.1`
   (fragile). The weighted p-value and :math:`\Gamma` search require solving a
-  non-convex (NP-hard) quadratic program and are **not yet implemented** in
+  non-convex (NP-hard) quadratic program and are not yet implemented in
   ``VanillaSC``; the uniform-assignment naive/powered p-values are.
 
 Choosing among placebo, LTO, and SCPI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* Prefer **LTO over the ordinary placebo** whenever the donor pool is small --
+* Prefer LTO over the ordinary placebo whenever the donor pool is small --
   especially in the :math:`\alpha < 1/N` regime (e.g. :math:`N \le 20` at
   :math:`\alpha = 0.05`), where the placebo test cannot reject and LTO can. The
   ``powered`` variant almost Pareto-improves the placebo: same worst-case
   Type-I error, more power. Both share the *same assumptions*, so LTO is close
   to a free upgrade.
-* Keep the **ordinary placebo** when you want the most familiar, widely-reported
+* Keep the ordinary placebo when you want the most familiar, widely-reported
   statistic, when :math:`N` is large enough that granularity is a non-issue, or
   as a cheap (:math:`O(N)` vs :math:`O(N^2)`) cross-check.
-* Reach for **SCPI** when the question is *how big* the effect is (a prediction
+* Reach for SCPI when the question is *how big* the effect is (a prediction
   interval / confidence statement on the magnitude), not just *whether* there is
   one. SCPI rests on different (model-based, conditional) foundations than the
   design-based placebo/LTO tests, so the two are complementary: LTO answers
@@ -454,11 +454,11 @@ Choosing among placebo, LTO, and SCPI
 When to use it
 --------------
 
-* You want the **standard synthetic control** done reliably, with the
+* You want the standard synthetic control done reliably, with the
   solver choice and identification fragility surfaced.
-* **Outcome-only** matching when you have a long, informative pre-period
+* Outcome-only matching when you have a long, informative pre-period
   -- this is the well-posed, reproducible case.
-* **Covariate** matching with ``mscmt`` when the donor pool is rich
+* Covariate matching with ``mscmt`` when the donor pool is rich
   enough that the problem is well-conditioned (see the replications
   below). When :math:`\text{v\_agreement}` comes back near 1, prefer
   outcome-only or ``penalized``.
@@ -480,8 +480,8 @@ Ridge augmentation (Augmented SCM)
 ----------------------------------
 
 The ridge-augmented synthetic control of Ben-Michael, Feller & Rothstein
-(2021) -- ``progfunc="Ridge"`` in the ``augsynth`` R package -- is **not** a
-separate estimator but a **bias-correction layer on top of the simplex SCM**.
+(2021) -- ``progfunc="Ridge"`` in the ``augsynth`` R package -- is not a
+separate estimator but a bias-correction layer on top of the simplex SCM.
 Given simplex weights :math:`W` and the centered pre-treatment outcomes
 :math:`A = X_1 - \bar X`, :math:`B = X_0 - \bar X`, it adds a ridge correction
 that closes the residual pre-treatment imbalance the simplex cannot,
@@ -503,7 +503,7 @@ the conformal permutation test of Chernozhukov, Wüthrich & Zhu (2021)
 When to prefer augmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Plain SCM is justified only when the pre-treatment fit is **excellent**: when
+Plain SCM is justified only when the pre-treatment fit is excellent: when
 the treated unit lies inside the convex hull of the donors' lagged outcomes the
 simplex weights balance :math:`X_1` exactly and the estimator is (near) unbiased
 (Abadie, Diamond & Hainmueller 2010). Outside the hull -- few donors, a long or
@@ -512,7 +512,7 @@ fits, and the residual imbalance :math:`X_1 - X_0^\top\hat\gamma^{\mathrm{scm}}`
 turns into bias. SCM has no way to correct it.
 
 Augmented SCM is the middle ground. With :math:`\hat m` the ridge outcome model,
-the ASCM estimate is the SCM estimate **plus an estimate of that bias**,
+the ASCM estimate is the SCM estimate plus an estimate of that bias,
 
 .. math::
 
@@ -523,8 +523,8 @@ the ASCM estimate is the SCM estimate **plus an estimate of that bias**,
 
 exactly analogous to bias correction for inexact matching (Abadie & Imbens 2011)
 and connected to doubly-robust estimation (Robins, Rotnitzky & Zhao 1994). Ridge
-ASCM is itself a *penalized* SCM whose penalty is on **deviations from the
-simplex weights**: it starts at the SCM solution and extrapolates beyond the
+ASCM is itself a *penalized* SCM whose penalty is on deviations from the
+simplex weights: it starts at the SCM solution and extrapolates beyond the
 hull (admitting negative weights) only as far as needed. :math:`\lambda` sets the
 amount -- :math:`\lambda \to \infty` recovers plain SCM (no extrapolation),
 :math:`\lambda \to 0` drives the pre-fit to zero (full extrapolation). That is a
@@ -532,8 +532,8 @@ bias-variance dial: augmentation removes imbalance bias at the cost of a larger
 weight norm / extrapolation variance, and :math:`\lambda` (leave-one-period-out
 CV, one-standard-error rule) negotiates it.
 
-The authors' practical rule -- and ours -- is to **decide from the estimated bias
-itself**: it is the imbalance term above, in the units of the estimand, and the
+The authors' practical rule -- and ours -- is to decide from the estimated bias
+itself: it is the imbalance term above, in the units of the estimand, and the
 first quantity ASCM computes. If it is large relative to the effect you expect,
 augment; if pre-fit is already excellent the correction is negligible and ASCM
 and SCM coincide. Two diagnostics accompany it: the pre-treatment RMSE
@@ -544,9 +544,9 @@ remains) and the extrapolation distance
 DGPs, ASCM has both lower bias *and* lower RMSE than SCM -- gains largest under
 misspecification and poor fit, modest when SCM already fits well.
 
-Auxiliary covariates enter in either of augsynth's two ways: **parallel**
+Auxiliary covariates enter in either of augsynth's two ways: parallel
 (``residualize=False``, the default) standardizes the covariates to the
-outcome scale and stacks them as extra matching rows; **residualized**
+outcome scale and stacks them as extra matching rows; residualized
 (``residualize=True``) regresses the covariates out of the outcomes, matches on
 the residuals, and restores covariate balance with an add-back on the weights.
 
@@ -558,7 +558,7 @@ set ``augment="ridge"`` (and ``inference="conformal"`` for the CWZ prediction
 intervals). Covariates are passed by column name; following mlsynth's
 convention, apply any transforms (e.g. ``log``) to the DataFrame yourself first.
 ``residualize=True`` switches parallel inclusion for the residualized variant.
-The four-cell augsynth Kansas ladder, reproduced **through the public API**:
+The four-cell augsynth Kansas ladder, reproduced through the public API:
 
 .. code-block:: python
 
@@ -591,13 +591,13 @@ Verification
 ^^^^^^^^^^^^
 
 The augmentation is validated against ``augsynth`` on its flagship Kansas
-tax-cut study (quarterly log GDP per capita): the de-biasing **ladder** --
+tax-cut study (quarterly log GDP per capita): the de-biasing ladder --
 classic SCM (ATT :math:`-0.029`), ridge ASCM (:math:`-0.040`), covariate ASCM
 (:math:`-0.061`) and the residualized variant (:math:`-0.055`) -- is reproduced
 value-for-value, with pre-fit :math:`L_2` imbalance falling monotonically from
 :math:`0.083` to :math:`0.054`. The paper's Section-7 thesis (near-nominal
 coverage and bias reduction across calibrated DGPs) is reproduced as a Path-B
-simulation. The full ladder is reproduced **through the public API** -- pinned
+simulation. The full ladder is reproduced through the public API -- pinned
 in ``mlsynth/tests/test_vanillasc_ascm.py::test_augsynth_kansas_ladder_public_api``
 -- not just at the engine level. See the dedicated page
 :doc:`replications/ascm_kansas`; durable cases ``ascm_kansas`` (cross-validation
@@ -672,7 +672,7 @@ SCPI with the covariate backends (MSCMT and Malo)
 The same ``inference="scpi"`` switch composes with the covariate-matching
 backends. Running each of the three canonical studies under both ``mscmt`` and
 ``malo`` (``alpha=0.05`` -> 90% intervals, ``scpi_sims=200``, ``seed=1``) gives
-the table below. The ATT prediction interval **excludes zero in every case**,
+the table below. The ATT prediction interval excludes zero in every case,
 and the two backends agree to within Monte-Carlo / weight-choice differences --
 a useful robustness cross-check. Note the ``v_agreement`` column: for Prop 99
 and Germany under ``mscmt`` the predictor weights are non-identified

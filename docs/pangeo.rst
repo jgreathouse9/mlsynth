@@ -6,20 +6,20 @@ Parallel-Trends Supergeo Design (PANGEO)
 When to Use This Estimator
 --------------------------
 
-PANGEO is a tool for **designing a geo experiment** — deciding, *before*
+PANGEO is a tool for designing a geo experiment — deciding, *before*
 you run it, which geographic markets to treat and which to hold out, so
 that the after-the-fact comparison is as clean as possible. Use it when:
 
-- you can **assign treatment at the geo level** (turn an ad campaign,
+- you can assign treatment at the geo level (turn an ad campaign,
   price, or feature on in some markets and not others);
-- you have a **panel of pre-period history** (weekly/monthly sales,
+- you have a panel of pre-period history (weekly/monthly sales,
   conversions, GMV…) for every candidate geo;
-- the number of geos is **modest** (tens, not thousands), as is typical
+- the number of geos is modest (tens, not thousands), as is typical
   with DMAs/regions; and
-- you want the eventual treatment-effect estimate to be **precise** —
+- you want the eventual treatment-effect estimate to be precise —
   i.e. you want treated and control markets that already move together.
 
-**A worked geo-experiment.** A brand wants to measure the incremental
+A worked geo-experiment. A brand wants to measure the incremental
 sales from a new TV/CTV campaign. Ads are bought at the DMA level, so the
 experimental units are ~50–210 large, heterogeneous markets — not
 exchangeable shoppers. The plan: run the campaign in a *treatment* set of
@@ -29,37 +29,37 @@ treated DMAs were already trending differently from the controls, the
 post-launch gap mixes the campaign effect with that pre-existing
 divergence. PANGEO reads the DMAs' pre-period sales panel and chooses the
 treatment/control split (bundling DMAs into balanced *supergeos*) so the
-two sides' sales **trajectories run parallel beforehand** — turning the
+two sides' sales trajectories run parallel beforehand — turning the
 post-period gap into a clean read on the campaign.
 
-PANGEO is **two stages**:
+PANGEO is two stages:
 
-#. **Design** (pre-period data only). A set-partitioning mixed-integer
+#. Design (pre-period data only). A set-partitioning mixed-integer
    program groups each arm's geos into composite *supergeos*, forms
-   balanced **pairs** with no geo trimmed, and selects the partition that
-   maximises pre-period **parallelism**. A power analysis reports the
+   balanced pairs with no geo trimmed, and selects the partition that
+   maximises pre-period parallelism. A power analysis reports the
    minimum detectable effect (MDE) implied by the chosen supergeo size
    :math:`Q`.
 
-#. **Evaluation** (after the experiment). The *same* design is scored
-   against the realised outcomes with the **Augmented
-   Difference-in-Differences** estimator of Li & Van den Bulte (2022),
+#. Evaluation (after the experiment). The *same* design is scored
+   against the realised outcomes with the Augmented
+   Difference-in-Differences estimator of Li & Van den Bulte (2022),
    giving the ATT, percent ATT, and CIs at the arm and program levels.
 
 The two stages share one quantity: both the design objective and the
 standard error of the realised effect are governed by the variance of the
 supergeo *gap* residual. Minimising non-parallelism simultaneously
-minimises the MDE and tightens the CI — **optimising parallelism is
-optimising inferential precision.**
+minimises the MDE and tightens the CI — optimising parallelism is
+optimising inferential precision.
 
-**This is a principled deviation from Google's Supergeo Design.** Chen et
-al. (2023) and OSD (Shaw 2025) match supergeos on a **scalar** summary —
+This is a principled deviation from Google's Supergeo Design. Chen et
+al. (2023) and OSD (Shaw 2025) match supergeos on a scalar summary —
 the summed baseline response, or a few covariate totals — which collapses
-the time dimension. PANGEO matches on the full pre-period **trajectory**.
+the time dimension. PANGEO matches on the full pre-period trajectory.
 That difference is not cosmetic: the downstream analysis is a
 difference-in-differences, which *differences trajectories over time*, so
-two markets with identical totals but different seasonal shapes are **not
-interchangeable** for it even though scalar matching scores them as a
+two markets with identical totals but different seasonal shapes are not
+interchangeable for it even though scalar matching scores them as a
 perfect match. In trending, seasonal data — which is essentially all
 geo-marketing data — matching on shape rather than on a single number is
 what makes the post-period comparison valid. (The simulation at the end
@@ -67,13 +67,13 @@ of this page quantifies the gap: when geos share a baseline mean but
 differ in shape, PANGEO recovers the effect ~30× more precisely than a
 scalar match.)
 
-**When *not* to use it.** If the assignment is already fixed (an
+When *not* to use it. If the assignment is already fixed (an
 observational study, or a campaign that already ran in specific markets),
 there is no design to choose — use an estimation-stage method
 (:doc:`tssc`, :doc:`sbc`, :doc:`fdid`). If you have *hundreds* of geos the
 exact MIP may be intractable (see *When PANGEO Fails or Stalls* below) —
 the scalable OSD relaxation is the better fit there. And if the outcome is
-plausibly **stationary** with no trend or seasonality, scalar matching is
+plausibly stationary with no trend or seasonality, scalar matching is
 already adequate and simpler.
 
 What is a supergeo?
@@ -89,21 +89,21 @@ away over the single assignment a practitioner actually runs (Abadie & Zhao
 2026). Classic matched-pair designs help, but with heterogeneous geos there
 may be *no* good one-to-one match for a given market.
 
-A **supergeo** resolves this by relaxing the unit of matching. Rather than
+A supergeo resolves this by relaxing the unit of matching. Rather than
 insisting that single geos match, geos are pooled into composite aggregates:
 a supergeo is simply a bundle of geos treated as one unit, with outcome equal
 to their (population-weighted) mean. Composite units can be made comparable
 even when their constituents are not --- a small, noisy market combined with
 a complementary one can, in aggregate, track another composite closely. The
 design then pairs *supergeos*, randomises treatment within each pair, and ---
-unlike trimming-based approaches --- assigns **every** geo to some supergeo,
+unlike trimming-based approaches --- assigns every geo to some supergeo,
 so the experiment spans the entire market with nothing discarded (Chen,
 Doudchenko, Jiang, Stein & Ying 2023).
 
 PANGEO keeps this structure but changes *what* the supergeos are matched on.
 Supergeo Design and OSD match on a scalar summary (the summed response, or a
 few covariate totals), which collapses the time dimension; PANGEO matches on
-the full pre-treatment **trajectory**, choosing pairs whose aggregate paths
+the full pre-treatment trajectory, choosing pairs whose aggregate paths
 run as parallel as possible. The reason is that the downstream
 difference-in-differences analysis differences trajectories: two markets with
 identical totals but different seasonal shapes are not interchangeable for
@@ -116,15 +116,15 @@ PANGEO can make a good experiment *likely*, but it cannot manufacture one
 that the data do not support. Three assumptions underpin it, and each
 points at a way the method can fail or stall.
 
-**1. Parallel trends (the crux).** The design maximises parallelism in the
-**pre-period**; the validity of the Stage-2 effect estimate rests on that
-parallelism **persisting into the post-period absent treatment** — i.e.
+1. Parallel trends (the crux). The design maximises parallelism in the
+pre-period; the validity of the Stage-2 effect estimate rests on that
+parallelism persisting into the post-period absent treatment — i.e.
 the treatment and control supergeos *would have continued to move
 together* had the campaign never launched. This is exactly the
 difference-in-differences parallel-trends assumption, and it is the
 assumption PANGEO is organised around. The crucial honesty: PANGEO
 *optimises* pre-period parallelism (making the assumption as plausible as
-the data allow) but it **cannot guarantee** the assumption holds
+the data allow) but it cannot guarantee the assumption holds
 out-of-sample. If a shock hits the treated markets, a competitor reacts
 only there, or the pre-period co-movement was coincidental, the
 post-period gap diverges on its own and the ATT is biased — the same
@@ -133,7 +133,7 @@ parallelism :math:`R^2` (low values mean no balanced design exists — see
 below), the reported MDE, and a placebo / blank-window check on the
 held-out pre-period.
 
-**2. A linear factor structure** for the no-treatment outcomes
+2. A linear factor structure for the no-treatment outcomes
 (Eq. :eq:`factor`). The gap decomposition that makes "match on trajectory"
 equivalent to "balance the factor loadings" relies on this model. It is
 the standard synthetic-control / interactive-fixed-effects assumption and
@@ -141,26 +141,26 @@ is mild for sales-like panels, but a wildly non-factor outcome (e.g. one
 driven by an idiosyncratic, unit-specific regime change) is not balanceable
 by any partition.
 
-**3. A modest, designable geo pool.** Each arm needs enough geos to form
+3. A modest, designable geo pool. Each arm needs enough geos to form
 at least one supergeo pair, and the geos must be heterogeneous-but-
 matchable.
 
 The concrete failure / stall modes:
 
-- **Parallel trends breaks post-launch** — the dominant risk, above. No
+- Parallel trends breaks post-launch — the dominant risk, above. No
   design fixes it; only the diagnostics warn of it.
-- **No matchable structure.** If the geos are so heterogeneous that *no*
+- No matchable structure. If the geos are so heterogeneous that *no*
   partition achieves high parallelism, PANGEO still returns the best
   feasible design, but the parallelism :math:`R^2` stays low and the MDE
   blows up — a signal that a geo experiment here is underpowered and the
   read will be noisy regardless of split.
-- **The MIP stalls.** Set partitioning is NP-hard. With many geos and a
+- The MIP stalls. Set partitioning is NP-hard. With many geos and a
   large supergeo size :math:`Q`, the exact mixed-integer program can be
   slow or intractable. Mitigations: cap :math:`Q` (smaller supergeos),
   use the automatic :math:`Q` selection, raise ``min_pairs``, or — for
   hundreds of geos — fall back to the scalable OSD relaxation. The
   examples on this page use a handful of geos, so the solve is instant.
-- **Too few geos / arms.** A pool that cannot form a balanced pair (e.g.
+- Too few geos / arms. A pool that cannot form a balanced pair (e.g.
   two wildly different markets) has no good design to find.
 
 In short: PANGEO improves the *plausibility* of parallel trends by
@@ -195,7 +195,7 @@ covariates with time-varying loadings :math:`\theta_t`, :math:`\mu_i` are
 unobserved factor loadings with factors :math:`\lambda_t`, and
 :math:`\varepsilon_{it}` is mean-zero idiosyncratic noise.
 
-A **supergeo** is a set :math:`S` of same-arm geos with aggregate
+A supergeo is a set :math:`S` of same-arm geos with aggregate
 trajectory
 
 .. math::
@@ -203,10 +203,10 @@ trajectory
    \bar Y_{S,t} = \frac{\sum_{i\in S}\omega_i\,Y_{it}}{\sum_{i\in S}\omega_i},
 
 where :math:`\omega_i>0` are aggregation weights (the ``weight_col``
-population, or :math:`\omega_i\equiv 1`). A **pair**
+population, or :math:`\omega_i\equiv 1`). A pair
 :math:`p=(A_p,B_p)` consists of two disjoint supergeos with
 :math:`|A_p|,|B_p|\le Q`; :math:`A_p` is the treatment half and
-:math:`B_p` the control half. Its **gap** is
+:math:`B_p` the control half. Its gap is
 
 .. math::
    :label: gap
@@ -223,7 +223,7 @@ Under :eq:`factor` the common time effect cancels and
            + \big(\bar\varepsilon_{A_p,t}-\bar\varepsilon_{B_p,t}\big),
 
 with :math:`\bar\mu_S, \bar Z_S` the weighted means over :math:`S`. The
-pair exhibits **parallel trends** precisely when the loadings are balanced,
+pair exhibits parallel trends precisely when the loadings are balanced,
 :math:`\bar\mu_{A_p}=\bar\mu_{B_p}` (and :math:`\bar Z_{A_p}=\bar Z_{B_p}`);
 the gap is then constant in expectation and a difference-in-differences
 comparison within the pair is unbiased.
@@ -234,10 +234,10 @@ Stage 1 --- the supergeo design
 The parallelism objective
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The pre-treatment window is split into an **estimation window**
+The pre-treatment window is split into an estimation window
 :math:`\mathcal E` (the first :math:`\lfloor \kappa T_0\rfloor` periods,
-:math:`\kappa=` ``frac_E``, default :math:`0.7`) and a held-out **blank
-window** :math:`\mathcal B=\{1,\dots,T_0\}\setminus\mathcal E`. A pair is
+:math:`\kappa=` ``frac_E``, default :math:`0.7`) and a held-out blank
+window :math:`\mathcal B=\{1,\dots,T_0\}\setminus\mathcal E`. A pair is
 scored by the variance of its *level-removed* gap over the estimation
 window,
 
@@ -275,13 +275,13 @@ by contrast, collapses the time dimension and is blind to shape.
 The set-partitioning program
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Let :math:`\mathcal F` be the family of **admissible pairs**: every subset
+Let :math:`\mathcal F` be the family of admissible pairs: every subset
 of the arm's geos of size :math:`2,\dots,2Q` that can be split into two
 halves each of size :math:`\le Q`, each subset scored at its best such split
 by :eq:`score`. Let :math:`M\in\{0,1\}^{N\times|\mathcal F|}` be the geo-by-
 pair incidence matrix (:math:`M_{iG}=1` iff geo :math:`i\in G`) and
 :math:`c_G` the score of pair :math:`G`. The design solves the
-**set-partitioning** program
+set-partitioning program
 
 .. math::
    :label: mip
@@ -294,7 +294,7 @@ pair incidence matrix (:math:`M_{iG}=1` iff geo :math:`i\in G`) and
 solved with ``cvxpy`` and the HiGHS mixed-integer backend. The exact-cover
 constraint :math:`Mx=\mathbf 1` assigns every geo to exactly one chosen
 pair (no geo is trimmed). Because each :math:`c_G` is *precomputed* offline,
-the objective is **linear** in :math:`x` --- the program is a mixed-integer
+the objective is linear in :math:`x` --- the program is a mixed-integer
 *linear* program regardless of the (possibly nonlinear) per-pair cost,
 which is what keeps it tractable. Within each chosen pair the treatment and
 control halves are the score-minimising split; which half is actually
@@ -330,7 +330,7 @@ Supergeo size :math:`Q` and automatic selection
 Setting ``max_supergeo_size`` :math:`=Q=1` recovers the classic
 matched-pairs design; :math:`Q>1` permits composite supergeos when no single
 geo matches another well, without trimming. :math:`Q` is a granularity knob
-with an **interior optimum**: too small and no parallel matches exist
+with an interior optimum: too small and no parallel matches exist
 (singleton geos are too noisy); too large and the arm yields few, coarse
 pairs. The program-level MDE is *not* monotone in :math:`Q` and is *not*
 tracked by the parallelism :math:`R^2` (which is scale-free and rises with
@@ -349,13 +349,13 @@ overridden with an explicit :math:`Q`.
 Balancing baseline covariates
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Parallelism is **level-blind**: by :eq:`score` the level shift
+Parallelism is level-blind: by :eq:`score` the level shift
 :math:`\bar g_p` absorbs any time-constant gap, so a baseline characteristic
 (population, income) that merely shifts a market's level is differenced out
 and never enters the trajectory score. This is correct for parallel-trends
 DiD but says nothing about balance on such characteristics --- the role of
 OSD's scalar covariate matching. PANGEO restores it with a standardised
-**mean-difference** penalty appended to :eq:`score`,
+mean-difference penalty appended to :eq:`score`,
 
 .. math::
    :label: covpen
@@ -400,7 +400,7 @@ Power and the minimum detectable effect
 Because power and the design objective are governed by the same supergeo
 gap residual, :meth:`mlsynth.PANGEO.fit` returns a power analysis
 (``results.power``). For pair :math:`p` the per-period noise is estimated
-honestly on the **held-out blank window** :math:`\mathcal B` (out of sample
+honestly on the held-out blank window :math:`\mathcal B` (out of sample
 with respect to the optimisation) as the residual of the *same counterfactual
 model used at evaluation* (:eq:`adid`) --- fit on the estimation window
 :math:`\mathcal E`, evaluated on :math:`\mathcal B`:
@@ -422,7 +422,7 @@ variance :math:`\hat\sigma_p^2\,[f(X,\rho)+f(T_0,\rho)]`, where
 
 is the variance-inflation factor of the mean of :math:`n` AR(1)-correlated
 periods and :math:`\rho` is the pooled lag-1 autocorrelation of the blank
-residuals. **Serial correlation is decisive**: weekly sales are highly
+residuals. Serial correlation is decisive: weekly sales are highly
 autocorrelated, so :math:`X` post weeks are worth far fewer than :math:`X`
 independent observations and adding post periods yields sharply diminishing
 returns --- the trap a naive i.i.d. power calculation falls into.
@@ -440,7 +440,7 @@ effects, with weights
    \mathrm{MDE}(X) = \big(z_{1-\alpha/2}+z_{1-\beta}\big)\,
        \sqrt{\widehat{\operatorname{Var}}(\hat\tau_{\mathrm{prog}})}.
 
-The **program level is the headline**: small arms are individually
+The program level is the headline: small arms are individually
 under-powered (with :math:`P` pairs a pure within-pair randomisation test
 has a hard p-value floor of :math:`2/2^{P}`, so one needs :math:`P\ge 6` to
 reach :math:`p<0.05`), whereas pooling across arms gives the program an
@@ -473,8 +473,8 @@ The estimator
 Once the experiment has run, pass a ``post_col`` (a :math:`0/1` indicator of
 post-treatment periods, as in LEXSCM). The design is rebuilt on the pre rows
 alone --- so it is identical to the design-only result --- and
-``results.effects`` carries the realised ATT at the **arm** and **program**
-levels using the **Augmented Difference-in-Differences** estimator of Li &
+``results.effects`` carries the realised ATT at the arm and program
+levels using the Augmented Difference-in-Differences estimator of Li &
 Van den Bulte (2022).
 
 Fix a level (an arm, or the program) and write :math:`y^{T}_t` for its
@@ -501,7 +501,7 @@ estimate :math:`\hat\delta`, the per-period effect and the ATT are
    \hat\Delta = \frac{1}{T_{\mathrm{post}}}
        \sum_{t=T_0+1}^{T} \hat u_t .
 
-The **percent ATT** is taken relative to the post-period **counterfactual**
+The percent ATT is taken relative to the post-period counterfactual
 (cf. :func:`mlsynth.utils.resultutils.effects.calculate`), not the
 pre-treatment baseline:
 
@@ -521,7 +521,7 @@ Li & Van den Bulte (2022, Prop. 3.1--3.3) show
 N(0,\Sigma_1+\Sigma_2)`, where :math:`\Sigma_1` is the variance from
 estimating :math:`\delta` and :math:`\Sigma_2` from averaging the
 post-period errors. Their Web Appendix C.13 gives the
-**prediction-variance** estimator
+prediction-variance estimator
 
 .. math::
    :label: adidvar
@@ -537,7 +537,7 @@ with :math:`\bar x_{\mathrm{post}}=T_{\mathrm{post}}^{-1}\sum_{t>T_0}x_t`.
 The first bracketed term is :math:`\Sigma_1` (it inflates automatically when
 the post-period control drifts outside its pre-period range, pricing the
 extrapolation uncertainty) and the second is :math:`\Sigma_2`. The residual
-variance :math:`\hat\omega^2` is estimated over the long **pre**-period as a
+variance :math:`\hat\omega^2` is estimated over the long pre-period as a
 Newey--West/Bartlett long-run variance with truncation lag
 :math:`\lfloor T_0^{1/4}\rfloor` (Li & Van den Bulte's
 :math:`O(T^{1/4})` rule); lag :math:`0` is the i.i.d. case
@@ -550,13 +550,13 @@ Why this estimator suits the supergeo gap
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Li & Van den Bulte's regularity conditions (Assumptions C2--C3) explicitly
-admit **trend and unit-root (integrated) common factors** :math:`\lambda_t`
+admit trend and unit-root (integrated) common factors :math:`\lambda_t`
 --- the regimes under which naive i.i.d. standard errors collapse. The
 mechanism is the augmentation: regressing the treated aggregate on a
-*scaled* control is a **cointegrating** regression, and a single
+*scaled* control is a cointegrating regression, and a single
 :math:`\delta_2` cancels a shared integrated factor in :eq:`gapdecomp`,
 while :math:`\gamma t` absorbs deterministic drift. The validity condition
-reduces to a single requirement --- that the regression **residual**
+reduces to a single requirement --- that the regression residual
 :math:`e_t` be (weakly dependent) stationary --- which the augmentation and
 trend deliver. The design's parallelism is retained throughout; it minimises
 the residual variance, which by :eq:`adidvar` directly tightens the standard
@@ -569,8 +569,8 @@ difference-in-differences --- ``y^{T}_t - y^{C}_t = \delta_1 [+ \gamma t] +
 e_t`` with the control coefficient fixed at one --- and the power analysis
 follows suit, so the two stages stay coherent. A head-to-head Monte-Carlo
 comparison (R\ :sup:`2` design + plain DiD versus the augmented defaults)
-found augmented DiD both **more precise** (lower realised MDE) and
-**better-covering** across the stationary, trend-plus-seasonal and
+found augmented DiD both more precise (lower realised MDE) and
+better-covering across the stationary, trend-plus-seasonal and
 integrated-factor regimes, because plain DiD has no mechanism to absorb a
 control-scale mismatch or a trend and leaves that structure in its residual.
 The augmented estimator is therefore the default; plain DiD remains available
@@ -615,7 +615,7 @@ holds; if a single scale cannot flatten the gap, add covariate or seasonal
 regressors before trusting the interval.
 
 Because the power analysis now uses the evaluation model's held-out
-residual, the **planning MDE is calibrated to the realised standard error**:
+residual, the planning MDE is calibrated to the realised standard error:
 on the stationary gap the projected MDE matches the realised value to within
 roughly 7% (ratio :math:`\approx 0.93`), and on integrated gaps it is
 conservative (over-states the MDE), the safe direction. These experiments
@@ -733,14 +733,14 @@ Simulation: Trajectory Matching vs. a Scalar Supergeo
 -----------------------------------------------------
 
 The supergeo design of Chen et al. (2023) matches (super)geos on a
-**scalar** summary of baseline response (its variance term is
+scalar summary of baseline response (its variance term is
 :math:`\sum_k (Z_{G_{k,+}} - Z_{G_{k,-}})^2`, a sum over scalar baseline
-differences). PANGEO carries this into the **panel** setting: it matches
+differences). PANGEO carries this into the panel setting: it matches
 on the full pre-treatment *trajectory* (level-removed parallelism), so it
 can separate geos that look identical on a scalar yet move differently
 over time. The self-contained Monte Carlo below makes the gap concrete —
 adapting the paper's RMSE comparison (supergeo vs. matched pairs) to a
-panel where every geo has the **same pre-period mean** but a distinct
+panel where every geo has the same pre-period mean but a distinct
 trajectory shape, a setting in which scalar matching is by construction
 blind. Six geos keep the MIP instantaneous.
 
@@ -812,7 +812,7 @@ Because all geos share a pre-period mean, the scalar match pairs them
 essentially at random, and the difference-in-differences estimate
 inherits the up/down/cycle shape mismatch (RMSE ≈ 6 against a true effect
 of 4). PANGEO reads the trajectory shape, recovers the three parallel
-pairs, and estimates the effect about **30× more precisely** (RMSE ≈ 0.2).
+pairs, and estimates the effect about 30× more precisely (RMSE ≈ 0.2).
 That is the supergeo idea carried into the panel world: match on *how the
 series move*, not on a single number.
 

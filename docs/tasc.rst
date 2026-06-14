@@ -23,13 +23,13 @@ posterior-based confidence band in one pass.
 Two structural properties distinguish TASC from the rest of the
 ``mlsynth`` toolkit:
 
-- **Time-awareness.** Because :math:`A` is shared across periods,
+- Time-awareness. Because :math:`A` is shared across periods,
   permuting the pre-intervention time indices changes the fit.
   Permutation-invariant methods (classical SC, robust SC, nuclear-norm
   matrix completion) produce identical counterfactuals under the same
   permutation; TASC does not. Section 5.1 of the paper formalizes this
   via a data-processing-inequality argument (Proposition A.1).
-- **Approximately low-rank signal under omnidirectional noise.** The
+- Approximately low-rank signal under omnidirectional noise. The
   observation matrix decomposes as :math:`Y = H X + E` where
   :math:`H X` is exactly rank-:math:`d` and :math:`E` is full-rank
   observation noise. TASC therefore tolerates substantial measurement
@@ -49,7 +49,7 @@ the observation-noise covariance :math:`R` and the state-perturbation
 covariance :math:`Q` (Section 5.2, Figures 3-4 of the paper). The
 clean recommendation:
 
-* **Use TASC when observation noise is high.** Across the two
+* Use TASC when observation noise is high. Across the two
   large-:math:`R` cells (small-:math:`Q` and large-:math:`Q`) TASC
   delivers the smallest median RMSE in the paper's simulation. PCA-
   style denoising (Robust SC) and simplex shrinkage (vanilla SC)
@@ -57,12 +57,12 @@ clean recommendation:
   observation matrix are noise-free; TASC's full-rank
   :math:`R \sim \mathcal{N}(0, R)` assumption is a much better fit
   when the noise is omnidirectional.
-* **Use TASC when the donor panel has a persistent, smoothly-varying
-  trend.** "Persistent" means the trend extends past the intervention
+* Use TASC when the donor panel has a persistent, smoothly-varying
+  trend. "Persistent" means the trend extends past the intervention
   point. This is the strong-trend regime (small :math:`Q`,
   non-trivial :math:`A`). The Kalman + RTS smoother extrapolates the
   trend forward; PCA / nuclear-norm methods don't.
-* **Use TASC when you need a posterior credible band for free.** TASC
+* Use TASC when you need a posterior credible band for free. TASC
   is a generative model. The RTS smoother returns the full posterior
   covariance at every period, so a ``+/- 1.96 sigma`` band on the
   counterfactual is part of the fit's output. The other mlsynth
@@ -70,24 +70,24 @@ clean recommendation:
   spike-and-slab) and :doc:`tasc` itself; the rest require an
   external bootstrap or subsampling pass.
 
-When **not** to reach for TASC:
+When not to reach for TASC:
 
-* **The pre-intervention trend is weak or absent** (the paper writes
+* The pre-intervention trend is weak or absent (the paper writes
   ":math:`A \approx 0`" — large :math:`Q` regime). The smaller the
   trend, the smaller TASC's edge over classical SC; in the
   small-:math:`R`, large-:math:`Q` cell of the paper's ablation,
   vanilla SC matches or beats TASC.
-* **Observation noise is small AND structured low-dimensional.**
+* Observation noise is small AND structured low-dimensional.
   Under small :math:`R`, hard singular-value thresholding (Robust SC)
   cleans the signal exactly, and TASC's omnidirectional-:math:`R`
   prior is paying a price for flexibility it doesn't need.
-* **Long-horizon forecasting in noisy regimes.** The paper's
+* Long-horizon forecasting in noisy regimes. The paper's
   Figures 5-6 show that under large :math:`R` and large :math:`Q`,
   TASC's RMSE rises noticeably from horizon 51-60 to horizon 91-100
   (small-:math:`Q` is stable). If you need a 5-year-out
   counterfactual on a noisy panel, look at :doc:`fma` or :doc:`mcnnm`
   first.
-* **Time indices are not really ordered** (you're modelling a
+* Time indices are not really ordered (you're modelling a
   cross-section that happens to be indexed by time, or the periods
   are interchangeable up to relabelling). Permuting time indices
   costs TASC 48.5% on mean RMSE and 25.7% on the RMSE standard
@@ -102,7 +102,7 @@ TASC inherits the assumptions of a linear-Gaussian state-space model.
 Section 3 of the paper lays them out; the practitioner-facing
 restatement is:
 
-(a) **Linear-Gaussian dynamics.** The hidden state evolves as
+(a) Linear-Gaussian dynamics. The hidden state evolves as
     :math:`x_t = A x_{t-1} + q_t` with :math:`q_t` zero-mean
     Gaussian. Equivalently: the trend in the latent factors is
     well-approximated by a stable linear AR(1) at the level of the
@@ -116,7 +116,7 @@ restatement is:
     pre-period fit; non-Gaussian QQ-plot tails or
     Ljung-Box-significant autocorrelation suggest misspecification.
 
-(b) **Constant trend matrix :math:`A`.** The dynamics that hold over
+(b) Constant trend matrix :math:`A`. The dynamics that hold over
     the pre-period are assumed to continue unchanged through the
     post-period. This is the "trend persists past the intervention
     point" assumption that gives TASC its long-horizon advantage.
@@ -132,8 +132,8 @@ restatement is:
     constant-:math:`A` assumption is shaky and the post-period
     forecast is suspect.
 
-(c) **Observation model :math:`y_t = H x_t + r_t`, :math:`R` full
-    rank, :math:`d \ll \min(n, T)`.** The signal is low-rank with
+(c) Observation model :math:`y_t = H x_t + r_t`, :math:`R` full
+    rank, :math:`d \ll \min(n, T)`. The signal is low-rank with
     rank :math:`d` (the latent-state dimension); the noise
     :math:`r_t` is Gaussian with a positive-definite covariance.
     Importantly, :math:`R` does NOT have to be diagonal: TASC handles
@@ -148,8 +148,8 @@ restatement is:
     EM estimate of :math:`d` ends up wrong and either underfits
     (low :math:`d`) or overfits (high :math:`d`).
 
-(d) **No unobserved confounders that affect donors AND treated
-    unit between :math:`T_0` and :math:`T_0 + 1`.** This is the
+(d) No unobserved confounders that affect donors AND treated
+    unit between :math:`T_0` and :math:`T_0 + 1`. This is the
     standard SC unconfoundedness assumption, not specific to TASC,
     but worth restating: TASC's counterfactual is informative about
     the treatment effect only if any post-period shock to the donor
@@ -161,10 +161,10 @@ restatement is:
     the intervention time. TASC has no covariate hook, so this kind
     of confounding can only be diagnosed externally.
 
-(e) **Hidden-state dimension :math:`d` correctly specified.** TASC
+(e) Hidden-state dimension :math:`d` correctly specified. TASC
     takes :math:`d` as a user hyperparameter
     (``hidden_state_dim``). The paper's Section 5.3 shows that
-    **underestimating :math:`d` is worse than overestimating** — if
+    underestimating :math:`d` is worse than overestimating — if
     in doubt, err on the high side.
 
     *Plausibly violated when:* the data has more latent factors than
@@ -332,12 +332,12 @@ on the pre-intervention slice :math:`Y_{\text{pre}} \in
 \mathbb{R}^{N \times T_0}`. Each outer iteration of
 :func:`mlsynth.utils.tasc_helpers.em.em_pre` (Algorithm 2) runs:
 
-1. **E-step (filtering pass):** apply the standard Kalman filter
+1. E-step (filtering pass): apply the standard Kalman filter
    (Algorithm 4) for :math:`k = 1, \dots, T_0` to obtain
    :math:`(m_k, P_k)`.
-2. **E-step (smoothing pass):** apply the RTS smoother backward to
+2. E-step (smoothing pass): apply the RTS smoother backward to
    obtain :math:`(m_k^s, P_k^s, G_k)` for :math:`k = T_0, \dots, 0`.
-3. **M-step (closed-form MLE update):** Algorithm 7. Define the
+3. M-step (closed-form MLE update): Algorithm 7. Define the
    sufficient statistics
 
    .. math::
@@ -568,8 +568,8 @@ Example
 Verification
 ------------
 
-**Empirical replication against the authors' published numbers (Path A)
-plus a Section 5 state-space Monte Carlo (Path B).** Path A reruns the
+Empirical replication against the authors' published numbers (Path A)
+plus a Section 5 state-space Monte Carlo (Path B). Path A reruns the
 classical Proposition 99 California-tobacco illustration from Section
 6.1 of [TASC]_ using the long-form panel
 :file:`basedata/prop99_packsales.csv` shipped with ``mlsynth``, and
@@ -765,5 +765,5 @@ Rho, S., Illick, C., Narasipura, S., Abadie, A., Hsu, D., & Misra, V.
 `arXiv:2601.03099 <https://arxiv.org/abs/2601.03099>`_.
 
 Durbin, J., & Koopman, S. J. (2012). *Time Series Analysis by State
-Space Methods.* Oxford Statistical Science Series **38**, 2nd edition.
+Space Methods.* Oxford Statistical Science Series 38, 2nd edition.
 Oxford University Press.

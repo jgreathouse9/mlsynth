@@ -13,57 +13,57 @@ showroom in Brooklyn) and you want the sales effect against a pool of
 untreated cities, stores, or categories. The two reflexive choices each
 strain in this setting:
 
-* **Difference-in-differences (DiD)** assumes the time effect is the
+* Difference-in-differences (DiD) assumes the time effect is the
   *same* for the treated unit and every control -- the parallel-trends
   assumption. Marketing panels (sales, share, macro series) rarely
   oblige: different markets ride different seasonal, regional, and
   business-cycle waves. When that homogeneity fails, DiD carries a large
-  estimation bias that does **not** shrink as the panel grows -- in Li
+  estimation bias that does not shrink as the panel grows -- in Li
   and Sonnier's own MSE comparison it is so biased they drop it from the
   table.
-* **Synthetic control (SC)** relaxes that by weighting controls on the
+* Synthetic control (SC) relaxes that by weighting controls on the
   simplex (nonnegative, sum-to-one, no intercept), which pins the
   counterfactual *inside the convex hull* of the controls. That is a
   feature when the treated unit is "surrounded" by donors and you want an
   interpretable convex-combination weight story, but a bug when the
-  treated unit sits **outside** the donor range, and SC has **no
-  inference theory** when controls are many and the data are
+  treated unit sits outside the donor range, and SC has no
+  inference theory when controls are many and the data are
   non-stationary of unknown form.
 
-The **factor model approach** (FMA) of Li and Sonnier ([FMA]_) targets
-exactly the regime SC and DiD struggle with: **many control units, time
+The factor model approach (FMA) of Li and Sonnier ([FMA]_) targets
+exactly the regime SC and DiD struggle with: many control units, time
 effects that differ across units, a treated path that may lie outside the
-donor range, and a need for honest confidence intervals.** Instead of
-weighting the controls directly, it first **projects the control panel
-onto a small set of latent factors** (interactive fixed effects:
+donor range, and a need for honest confidence intervals. Instead of
+weighting the controls directly, it first projects the control panel
+onto a small set of latent factors (interactive fixed effects:
 :math:`y^0_{it} = \lambda_i' F_t + e_{it}`), then regresses the treated
-unit's pre-period outcome on those factors with **no constraint** on the
+unit's pre-period outcome on those factors with no constraint on the
 loadings. Three properties follow, and they are the reasons to reach for
 it:
 
-1. **Heterogeneous time effects.** The interactive
+1. Heterogeneous time effects. The interactive
    :math:`\lambda_i' F_t` structure nests two-way fixed effects (DiD) as
    the special case :math:`\lambda_i = (\xi_i, 1)'`,
    :math:`F_t = (1, \delta_t)'`, and also absorbs unit-specific trends
    and cross-sectional dependence. You are not betting on a common shock.
-2. **The counterfactual can leave the donor hull.** Because the loadings
+2. The counterfactual can leave the donor hull. Because the loadings
    are unrestricted (no nonnegativity, no sum-to-one, no zero intercept),
    FMA fits treated units whose level or trajectory is outside the range
    of every control -- the case SC structurally cannot represent.
-3. **Robust to a large, growing donor pool.** Unconstrained regression on
+3. Robust to a large, growing donor pool. Unconstrained regression on
    the raw controls (the Hsiao-Ching-Wan approach) overfits and breaks
    down once :math:`N_{co}` approaches or exceeds :math:`T_1`. FMA's
    dimension reduction sidesteps this: it *benefits* from more controls
    (they sharpen the factor estimates) rather than being destabilised by
-   them. The same single factor extraction also scales cheaply to **many
-   treated units** and staggered timing, since it is done once.
+   them. The same single factor extraction also scales cheaply to many
+   treated units and staggered timing, since it is done once.
 
-The paper's headline contribution is the fourth reason: **valid,
-computationally cheap inference**. FMA delivers a closed-form normal
+The paper's headline contribution is the fourth reason: valid,
+computationally cheap inference. FMA delivers a closed-form normal
 confidence interval for the ATT (Theorems 3.1 / 3.3) that is valid for
-**both stationary and non-stationary data** and -- critically --
-**accommodates treated and control units with different error
-variances**. The previously standard Xu (2017) bootstrap assumes
+both stationary and non-stationary data and -- critically --
+accommodates treated and control units with different error
+variances. The previously standard Xu (2017) bootstrap assumes
 :math:`\sigma^2_{\text{tr}} = \sigma^2_{\text{co}}`; when that fails (the
 norm for non-randomised quasi-experiments) it over- or under-covers
 badly, while permutation/placebo tests need an analogous symmetry. In the
@@ -78,9 +78,9 @@ Factor projection vs. donor weighting
 Every synthetic-control-family estimator answers *what reproduces the
 treated unit's untreated path?* FMA's structural bet is distinctive:
 
-   **The controls' untreated outcomes share a low-dimensional latent
+   The controls' untreated outcomes share a low-dimensional latent
    factor structure; estimate those factors, then load the treated unit
-   onto them without constraint.**
+   onto them without constraint.
 
 .. list-table::
    :header-rows: 1
@@ -90,27 +90,27 @@ treated unit's untreated path?* FMA's structural bet is distinctive:
      - DiD
      - Synthetic control
      - Factor model (FMA)
-   * - **Comparison built from**
+   * - Comparison built from
      - all controls, equal weight
      - all controls, simplex weights
      - latent factors of the controls
-   * - **Time effects**
+   * - Time effects
      - homogeneous (common shock)
      - implicit via weights
      - heterogeneous :math:`\lambda_i' F_t`
-   * - **Counterfactual outside donor hull**
+   * - Counterfactual outside donor hull
      - allowed
-     - **no** -- convex hull
-     - **yes** -- unrestricted loadings
-   * - **Many controls** (:math:`N_{co} \gtrsim T_1`)
+     - no -- convex hull
+     - yes -- unrestricted loadings
+   * - Many controls (:math:`N_{co} \gtrsim T_1`)
      - bias does not shrink
      - overfits if restrictions relaxed
      - *benefits* -- sharper factors
-   * - **Inference, non-stationary data**
+   * - Inference, non-stationary data
      - standard
      - none available
      - normal CI (Thm 3.1 / 3.3)
-   * - **Unequal treated/control variance**
+   * - Unequal treated/control variance
      - n/a
      - placebo needs symmetry
      - handled directly
@@ -118,20 +118,20 @@ treated unit's untreated path?* FMA's structural bet is distinctive:
 Reach for FMA when
 ^^^^^^^^^^^^^^^^^^
 
-* You have a **single treated unit** (or a handful, or many -- the factor
-  step generalises) and a **large control pool**, especially
+* You have a single treated unit (or a handful, or many -- the factor
+  step generalises) and a large control pool, especially
   :math:`N_{co}` large relative to the pre-period :math:`T_1`, where
   unrestricted regression on raw donors would overfit.
-* The outcome is plausibly driven by a **few common latent factors** --
+* The outcome is plausibly driven by a few common latent factors --
   regional sales, market share, macro-linked categories -- so the control
   matrix is approximately low-rank. This is what the factor projection
   exploits.
-* You expect **heterogeneous time dynamics** across units (different
+* You expect heterogeneous time dynamics across units (different
   seasonality, trends, cross-sectional dependence) that violate DiD's
   parallel-trends assumption.
-* The treated unit's level or trajectory may sit **outside the range of
-  the controls**, so SC's convex-hull restriction would distort the fit.
-* You need **formal inference** -- a hypothesis test or confidence
+* The treated unit's level or trajectory may sit outside the range of
+  the controls, so SC's convex-hull restriction would distort the fit.
+* You need formal inference -- a hypothesis test or confidence
   interval for the ATT -- and you cannot defend the equal-variance
   assumption behind the Xu (2017) bootstrap or the symmetry behind
   permutation/placebo tests. FMA's normal CI is valid under unequal
@@ -146,30 +146,30 @@ Reach for FMA when
 Do not use FMA when
 ^^^^^^^^^^^^^^^^^^^
 
-* **The control matrix has no low-rank / factor structure.** FMA, like
+* The control matrix has no low-rank / factor structure. FMA, like
   the PCA-based estimators in :doc:`clustersc`, leans entirely on a few
   factors explaining the controls. If the spectrum decays slowly, the
   factors are noise; prefer a balancing estimator (:doc:`microsynth` for
   user-level data) or a selection estimator (:doc:`fdid`).
-* **A sparse, interpretable convex-combination weight is the
-  deliverable.** FMA's loadings are unconstrained and not a "California =
+* A sparse, interpretable convex-combination weight is the
+  deliverable. FMA's loadings are unconstrained and not a "California =
   0.4 Utah + 0.3 Montana" story. If policy storytelling needs nonnegative
   donor weights that sum to one, use :doc:`tssc`, :doc:`fdid`, or classic
   SC.
-* **The donor pool is tiny** (:math:`N_{co} \le 10`) **with a clean
-  canonical SC fit.** Factor extraction adds variance without
+* The donor pool is tiny (:math:`N_{co} \le 10`) with a clean
+  canonical SC fit. Factor extraction adds variance without
   identification gain; :doc:`tssc` or :doc:`fdid` are more honest, and
   :doc:`tssc` will even *test* whether SC's restrictions are needed.
-* **The sample is very small** (:math:`N_{co}, T_1 \approx 20`). The
+* The sample is very small (:math:`N_{co}, T_1 \approx 20`). The
   normal approximation degrades and the recommended :math:`t`-correction
   is not wired into the public API.
-* **You want efficiency from the treated unit's own pre-history with many
-  treated units.** Factors are estimated from controls only; the
+* You want efficiency from the treated unit's own pre-history with many
+  treated units. Factors are estimated from controls only; the
   efficiency loss is negligible for a single treated unit but grows with
   :math:`N_{tr}` (paper, footnote 3).
-* **Distributional questions** (quantile effects, Lorenz/tail changes).
+* Distributional questions (quantile effects, Lorenz/tail changes).
   FMA targets the mean ATT; use :doc:`dsc`.
-* **Continuous or multi-valued treatment**, or **spillovers/interference**
+* Continuous or multi-valued treatment, or spillovers/interference
   across units. FMA encodes a single binary intervention and assumes the
   controls are untreated; use :doc:`ctsc` for dose response and
   :doc:`spillsynth` / :doc:`spsydid` under interference.
@@ -183,18 +183,18 @@ Quasi-Experimental Settings."* Journal of Marketing Research,
 60(3):449-472. The estimator constructs a counterfactual for a single
 treated unit by
 
-1. extracting **principal-component factors** from the control panel
+1. extracting principal-component factors from the control panel
    (with the number of factors chosen by the paper's modified Bai-Ng
    criterion for stationary outcomes or Bai (2004) IPC1 for non-
    stationary outcomes);
-2. **projecting** the treated unit's pre-treatment outcomes onto a
+2. projecting the treated unit's pre-treatment outcomes onto a
    constant plus the factors via OLS to recover the loading
    :math:`\hat\lambda_1`;
 3. forming the counterfactual :math:`\hat y^0_{1, t} = \tilde F_t' \hat\lambda_1`
    for every period; the ATT is the mean post-treatment gap.
 
-The paper's distinctive contribution is **valid statistical inference
-for the ATT**. FMA in :mod:`mlsynth` exposes three procedures in
+The paper's distinctive contribution is valid statistical inference
+for the ATT. FMA in :mod:`mlsynth` exposes three procedures in
 parallel; the user picks any subset via
 :py:attr:`FMAConfig.inference_methods`:
 
@@ -235,7 +235,7 @@ Factors :math:`\hat F_t` are extracted from the control panel via PCA
 after demeaning (or standardising) each control series. The number of
 factors :math:`r` is chosen by one of two criteria:
 
-* **Modified Bai-Ng (MBN) -- stationary data.** Choose
+* Modified Bai-Ng (MBN) -- stationary data. Choose
   :math:`r \in \{0, 1, \dots, r_{\max}\}` minimising
 
   .. math::
@@ -256,7 +256,7 @@ factors :math:`r` is chosen by one of two criteria:
   When ``N_co, T >= 70`` the adjustment collapses to 1 and the
   criterion is identical to Bai-Ng (2002) :math:`PC_{p1}`.
 
-* **Bai (2004) IPC1 -- non-stationary data.** Replaces the
+* Bai (2004) IPC1 -- non-stationary data. Replaces the
   small-sample factor with a log-log adjustment suited to non-
   stationary factors.
 
@@ -499,13 +499,13 @@ modes and prints the headline output.
 Verification
 ------------
 
-**Monte Carlo replication (Path B).** Li & Sonnier's empirical
+Monte Carlo replication (Path B). Li & Sonnier's empirical
 applications -- California beer sales and a Brooklyn eyeglass retailer's
-showroom -- run on **Nielsen retail scanner data** and a **proprietary
-retailer panel**, neither of which is redistributable, so the estimator
+showroom -- run on Nielsen retail scanner data and a proprietary
+retailer panel, neither of which is redistributable, so the estimator
 is validated through the paper's own Monte Carlo. The methodological
 contribution of the paper is that the new asymptotic CI from Theorem 3.1
-attains nominal coverage **regardless of whether**
+attains nominal coverage regardless of whether
 :math:`\sigma_{\text{tr}} = \sigma_{\text{co}}`, while the Xu (2017)
 bootstrap miscovers badly when the two variances differ (Figures 2-4
 Panel A, plus the non-stationary mirror in Web Appendix E.1's Figures
@@ -576,42 +576,42 @@ Figures 2-4 Panel A (DGP1, stationary) and Figures W.5-W.7 Panel A
      - ``"equal"`` (Fig 2A)
      - 1.0
      - 1.0
-     - **0.947**
+     - 0.947
      - 0.95
    * - DGP1
      - ``"treated_smaller"`` (Fig 3A)
      - 0.5
      - 1.0
-     - **0.946**
+     - 0.946
      - 0.95
    * - DGP1
      - ``"treated_larger"`` (Fig 4A)
      - 2.0
      - 1.0
-     - **0.951**
+     - 0.951
      - 0.95
    * - DGP2
      - ``"equal"`` (Fig W.5A)
      - 1.0
      - 1.0
-     - **0.935**
+     - 0.935
      - 0.95
    * - DGP2
      - ``"treated_smaller"`` (Fig W.6A)
      - 0.5
      - 1.0
-     - **0.944**
+     - 0.944
      - 0.95
    * - DGP2
      - ``"treated_larger"`` (Fig W.7A)
      - 2.0
      - 1.0
-     - **0.929**
+     - 0.929
      - 0.95
 
 Every cell lands within :math:`\pm 2.1` pp of nominal -- well inside
-three MC standard errors. The headline takeaway is the **equality of the
-three numbers within each DGP**: coverage does not deteriorate when
+three MC standard errors. The headline takeaway is the equality of the
+three numbers within each DGP: coverage does not deteriorate when
 :math:`\sigma_{\text{tr}} \ne \sigma_{\text{co}}`, which is precisely
 the regime where the Xu (2017) bootstrap mistakes the treated-error
 variance for the control-error variance and either over- or under-covers
@@ -636,42 +636,42 @@ Figures W.8-W.9 (stationary) and W.10-W.11 (non-stationary).
    * - DGP1
      - 30
      - 60
-     - **0.936**
+     - 0.936
      - 0.95 (Fig W.8A)
    * - DGP1
      - 60
      - 30
-     - **0.939**
+     - 0.939
      - 0.95 (Fig W.8B)
    * - DGP1
      - 60
      - 60
-     - **0.944**
+     - 0.944
      - 0.95 (Fig W.9A)
    * - DGP1
      - 120
      - 120
-     - **0.949**
+     - 0.949
      - 0.95 (Fig W.9B)
    * - DGP2
      - 30
      - 60
-     - **0.939**
+     - 0.939
      - 0.95 (Fig W.10A)
    * - DGP2
      - 60
      - 30
-     - **0.936**
+     - 0.936
      - 0.95 (Fig W.10B)
    * - DGP2
      - 60
      - 60
-     - **0.935**
+     - 0.935
      - 0.95 (Fig W.11A)
    * - DGP2
      - 120
      - 120
-     - **0.955**
+     - 0.955
      - 0.95 (Fig W.11B)
 
 All eight cells within :math:`\pm 1.5` pp of nominal, and the largest
@@ -682,27 +682,27 @@ paper asserts.
 Not replicated here
 ^^^^^^^^^^^^^^^^^^^
 
-* **Web Appendix E.2.2** (small-N/T :math:`t`-distribution) -- the paper
+* Web Appendix E.2.2 (small-N/T :math:`t`-distribution) -- the paper
   recommends switching to :math:`t_{T_1 - (N_{co} + 1)}` for very small
   samples, but the suggested degrees-of-freedom value is non-positive in
   the figure's specific :math:`(T_1, N_{co}) = (20, 20)` configuration,
   and ``FMA``'s public API exposes only the normal CI; the small-sample
   refinement is left as a future addition.
-* **Web Appendix E.3 / W.15-W.17 (DGP3)** -- the paper bootstraps DGP3's
+* Web Appendix E.3 / W.15-W.17 (DGP3) -- the paper bootstraps DGP3's
   first factor from the proprietary Brooklyn sales panel, so the precise
   DGP cannot be reconstructed from public data; the corresponding
   empirical-application coverage check is therefore out of scope.
 
 For reference, the corresponding empirical applications report:
 
-* **California recreational marijuana legalization on beer sales** --
+* California recreational marijuana legalization on beer sales --
   :math:`\widehat{\text{ATT}} = -\$88{,}400` weekly
   (:math:`-0.464\%`), 95% CI :math:`[-\$407{,}400,\ \$230{,}600]`
   (Table 2; not significant). The Xu bootstrap's interval is less than
   half as wide (:math:`[-\$229{,}000,\ \$82{,}400]`), invalidly so
   given the variance ratio
   :math:`\hat\sigma_{\text{tr}}^2 / \hat\sigma_{\text{co}}^2 \approx 37.4`.
-* **Brooklyn showroom opening on weekly sales** --
+* Brooklyn showroom opening on weekly sales --
   :math:`\widehat{\text{ATT}} = +\$2{,}446` weekly (:math:`+27.2\%`).
 
 References

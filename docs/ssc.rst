@@ -7,28 +7,28 @@ When to Use This Estimator
 --------------------------
 
 ``SSC`` implements the staggered-adoption synthetic-control estimator of Cao, Lu
-and Wu [SSC]_. It is for the setting where **many units adopt a policy at
-different times** and you have a **long pre-treatment history** relative to the
+and Wu [SSC]_. It is for the setting where many units adopt a policy at
+different times and you have a long pre-treatment history relative to the
 number of units and post-periods (large :math:`T`, moderate :math:`N`, small
 :math:`S` -- e.g. monthly or weekly outcomes for a few dozen jurisdictions).
 Two features distinguish it from the alternatives.
 
-First, it **uses every unit -- including not-yet-treated units -- as a donor.**
+First, it uses every unit -- including not-yet-treated units -- as a donor.
 Each unit's untreated outcome is modelled as an intercept plus a *simplex*
-synthetic control on all the other units. It therefore does **not** require a
+synthetic control on all the other units. It therefore does not require a
 pool of never-treated units (existing staggered SC methods lean heavily on
-them, and degrade when treated units are the majority), and it does **not** rely
+them, and degrade when treated units are the majority), and it does not rely
 on parallel trends (unlike staggered difference-in-differences).
 
-Second, it delivers **valid inference for policy-relevant aggregates.** All
+Second, it delivers valid inference for policy-relevant aggregates. All
 individual unit-by-time effects are estimated jointly; the target is any linear
 functional :math:`\gamma = L\tau` -- the event-time ATT, the overall ATT, or a
 contrast between two policies. Inference is Andrews' (2003) end-of-sample
 stability test, whose reference distribution is built from pre-treatment
 residual windows, and which can test both *sharp* and *non-sharp* nulls.
 
-Reach for ``SSC`` when adoption is **staggered**, the **pre-period is long**,
-never-treated units are **scarce or absent**, and you want an **event-study**
+Reach for ``SSC`` when adoption is staggered, the pre-period is long,
+never-treated units are scarce or absent, and you want an event-study
 of dynamic effects with confidence bands. It is well suited to high-frequency
 aggregate outcomes (crime rates, prices, bond yields) for a moderate number of
 units.
@@ -36,28 +36,28 @@ units.
 Do not use SSC when
 ~~~~~~~~~~~~~~~~~~~
 
-* **The pre-period is short.** SSC's guarantees and its end-of-sample inference
+* The pre-period is short. SSC's guarantees and its end-of-sample inference
   are large-:math:`T` (they need :math:`T_0 > S` clean pre-periods, and more in
   practice). With a short pre-period use :doc:`sdid`, :doc:`mcnnm`, or
   :doc:`ppscm`.
-* **There is a single treated unit or a single adoption date.** SSC's leverage
+* There is a single treated unit or a single adoption date. SSC's leverage
   comes from pooling many staggered adopters. For one treated unit start at
   :doc:`fdid`/:doc:`tssc`; for a block of simultaneous adopters use
   :doc:`msqrt` or :doc:`sdid`.
-* **No unit is well approximated by a convex combination of the others** (the
+* No unit is well approximated by a convex combination of the others (the
   treated units sit outside the donors' convex hull). The simplex fit will be
   poor; consider :doc:`mcnnm` (which regularises a latent factor model instead).
-* **Anticipation is a concern.** SSC puts not-yet-treated units in the donor
+* Anticipation is a concern. SSC puts not-yet-treated units in the donor
   pool; if units change behaviour *before* adoption this can bias the fit
   (plot the pre-trends to check).
-* **Spillovers across units violate SUTVA** -- use :doc:`spsydid` or
+* Spillovers across units violate SUTVA -- use :doc:`spsydid` or
   :doc:`spillsynth`.
 
 Notation
 --------
 
 A balanced panel of :math:`N` units over :math:`T_0 + S` periods, where
-:math:`T_0` is the number of **clean** pre-treatment periods (before *any* unit
+:math:`T_0` is the number of clean pre-treatment periods (before *any* unit
 adopts) and :math:`S` is the number of post periods. Adoption times
 :math:`(t_1, \ldots, t_N)` are observed (:math:`t_i = \infty` for never-treated
 units); treatment is absorbing. The observed outcome is the never-treated
@@ -70,7 +70,7 @@ The estimator
 ~~~~~~~~~~~~~
 
 *Step 1 -- synthetic-control weights.* For each unit :math:`i`, fit a demeaned
-simplex synthetic control on **all other units** over the clean pre-period
+simplex synthetic control on all other units over the clean pre-period
 (paper eq. 2.1):
 
 .. math::
@@ -104,13 +104,13 @@ Inference
 ~~~~~~~~~
 
 SSC tests :math:`H_0: C\tau = d` (e.g. event-time ATT :math:`= 0`, or two
-policies equal) with **Andrews' (2003) end-of-sample stability test**. The test
+policies equal) with Andrews' (2003) end-of-sample stability test. The test
 statistic is :math:`\widehat P = (C\widehat\tau - d)'(C\widehat\tau - d)`; its
 critical value comes from sliding a length-:math:`S` window across the
 :math:`T_0` pre-treatment residuals to form :math:`T_0 - S` placebo realisations
 of the estimator under the null. Under a stationarity/ergodicity assumption on
 the prediction error the test has asymptotically correct size as
-:math:`T \to \infty` -- crucially **without** point-identifying :math:`\tau`.
+:math:`T \to \infty` -- crucially without point-identifying :math:`\tau`.
 ``mlsynth`` reports, for the overall ATT and each event-time ATT, a band (the
 point estimate plus the placebo distribution's quantiles) and a two-sided
 p-value, on :class:`~mlsynth.utils.ssc_helpers.structures.SSCBand`.
@@ -118,17 +118,17 @@ p-value, on :class:`~mlsynth.utils.ssc_helpers.structures.SSCBand`.
 Assumptions and econometric theory
 -----------------------------------
 
-SSC is a **large-:math:`T`, fixed-:math:`N`-and-:math:`S`** method. The
-individual effects :math:`\tau_{i,t}` are **not point-identified** (there are
+SSC is a large-:math:`T`, fixed-:math:`N`-and-:math:`S` method. The
+individual effects :math:`\tau_{i,t}` are not point-identified (there are
 more unknowns than the data can pin down); the payoff is that any aggregate
 :math:`\gamma = L\tau` is *asymptotically unbiased* and admits valid inference
 as the pre-period lengthens.
 
 *Setup (SUTVA, no anticipation).* Potential outcomes follow a Rubin model in
 which (i) a unit stays treated once treated (absorbing), (ii) a unit's outcome
-depends only on its own treatment status and timing -- **no interference /
-spillovers across units** -- and (iii) pre-adoption outcomes equal the
-never-treated potential outcome (**no anticipation**).
+depends only on its own treatment status and timing -- no interference /
+spillovers across units -- and (iii) pre-adoption outcomes equal the
+never-treated potential outcome (no anticipation).
 
 *Assumption 2.1 (invertibility).* :math:`\sum_{s=1}^{S} A_s' M A_s` is
 invertible, with :math:`M = (I-B)'(I-B)`. *Remark.* This is the key identifying
@@ -144,7 +144,7 @@ Table 1); ``mlsynth`` reports it as ``results.metadata["gram_min_eigenvalue"]``.
 prediction error :math:`u_{i,t} = y_{i,t}(\infty) - (a_i + Y_t(\infty)'b_i)` is
 strictly stationary with mean zero, and the synthetic-control weights converge
 (:math:`\widehat a \to a`, :math:`\widehat B \to B`). *Remark.* The authors show
-this holds when the untreated outcomes share **stationary or cointegrated**
+this holds when the untreated outcomes share stationary or cointegrated
 common factors -- the cointegrating relationship is exactly what lets a *stable*
 cross-sectional synthetic control exist with a stationary remainder, which is
 why a long, well-behaved pre-period matters.
@@ -157,7 +157,7 @@ and the test statistic's distribution is continuous and increasing at its
 pre-treatment placebo windows are a valid stand-in for the post-treatment
 sampling distribution of the estimator.
 
-**Theorem 2.1 (asymptotic unbiasedness).** Under Assumptions 2.1--2.2, as
+Theorem 2.1 (asymptotic unbiasedness). Under Assumptions 2.1--2.2, as
 :math:`T \to \infty`,
 
 .. math::
@@ -171,7 +171,7 @@ unbiased estimator of its target *without* point-identifying the individual
 effects. (The remaining :math:`L V_T` term is mean-zero estimation noise that
 the inference procedure quantifies.)
 
-**Theorem 2.2 (valid end-of-sample inference).** Under Assumptions 2.1--2.3 and
+Theorem 2.2 (valid end-of-sample inference). Under Assumptions 2.1--2.3 and
 the null :math:`H_0: C\tau = d`, the Andrews test has asymptotically correct
 size,
 
@@ -188,7 +188,7 @@ policy-relevant hypotheses under staggered adoption.
 *Why large-:math:`T`.* The leverage comes entirely from the long pre-period: it
 identifies the synthetic-control weights and supplies the placebo windows that
 calibrate inference. This is why SSC fits high-frequency aggregate outcomes
-(monthly, weekly) with a moderate number of units -- and why it is **not** for
+(monthly, weekly) with a moderate number of units -- and why it is not for
 short panels.
 
 Example
@@ -226,7 +226,7 @@ Empirical replication (Guanajuato police reform)
 
 The package ships the paper's Section 4 data (Alcocer 2024, Harvard Dataverse)
 and the authors' reference estimates in ``basedata/``. The block below is
-**copy-paste runnable after a fresh install** -- it pulls the panels straight
+copy-paste runnable after a fresh install -- it pulls the panels straight
 from the ``basedata/`` raw URL, fits ``SSC`` through the public API, and checks
 every estimate against the authors' published table:
 
@@ -313,7 +313,7 @@ Verification
 
 .. note::
 
-   **Path B replication of the paper's simulation study (Section 3).**
+   Path B replication of the paper's simulation study (Section 3).
    :mod:`mlsynth.utils.ssc_helpers.replication` reproduces the authors'
    *synthetic* Monte-Carlo study -- a Path B replication, since we replicate
    their simulation-section results rather than an empirical data set -- through
@@ -322,7 +322,7 @@ Verification
    ``N = 33`` units (``30`` treated, staggered over an ``S = 7`` window),
    ``r in {3, 6}`` AR(1) factors, ``T in {15, 42, 157}`` pre-periods, and a
    dynamic effect :math:`\tau = 1 + e`. The reported quantity is the
-   **event-time RMSE** of the ATT estimates (the paper's Figure 1). SSC
+   event-time RMSE of the ATT estimates (the paper's Figure 1). SSC
    recovers the increasing effect path, and its event-time RMSE is lowest in the
    early post-periods -- below GSC (Xu 2017) and partially-pooled SC
    (Ben-Michael et al. 2022) there -- because it builds the synthetic controls
@@ -331,7 +331,7 @@ Verification
    1,000-replication configuration; the ``DEMO`` preset is a faster,
    reduced-count version that reproduces the qualitative pattern.
 
-   **Path A replication of the empirical application (Section 4).** Running
+   Path A replication of the empirical application (Section 4). Running
    ``SSC`` on the paper's Guanajuato police-reform data (Alcocer 2024;
    :math:`N = 33` municipalities, :math:`10` staggered adopters) reproduces the
    authors' reference event-time ATT estimates for all seven outcomes -- the
@@ -341,14 +341,14 @@ Verification
    simplex-weight solver, cvxpy here vs. the reference's ``fmincon``). The bands
    are reported exactly where the reference has them: present for homicide and
    the cartel outcomes, and ``NaN`` for theft, where :math:`T_0 < S` leaves no
-   pre-treatment placebo window. This cross-validation is pinned **durably** by
+   pre-treatment placebo window. This cross-validation is pinned durably by
    the ``ssc_guanajuato`` benchmark, which clones the authors' repository
    (``jcao0/staggered_synthetic_control``, pinned commit ``74e77d4``) and checks
    mlsynth's live fit against the committed ``results_ssc.csv`` (the 357
    event-time ATT cells) and ``Table1_eigenvalue.csv`` (the per-outcome Gram
    min-eigenvalue diagnostic).
 
-   **Inference.** The end-of-sample band is calibrated on pre-treatment
+   Inference. The end-of-sample band is calibrated on pre-treatment
    residual windows, so coverage does not require point-identification of the
    individual effects -- only stationarity of the prediction error.
 

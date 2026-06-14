@@ -10,7 +10,7 @@ SPOTSYNTH packages the donor-selection procedure of O'Riordan &
 Gilligan-Lee (2025), *Spillover detection for donor selection in
 synthetic control models* ([SPOTSYNTH]_, Journal of Causal Inference
 13:20240036). It addresses a prerequisite that classical synthetic
-control takes for granted: that the donor pool is **valid** -- that no
+control takes for granted: that the donor pool is valid -- that no
 donor is itself affected by the intervention through a spillover. When
 the donor pool is large, deciding which donors are valid by domain
 knowledge alone is infeasible, and a single contaminated donor -- one
@@ -20,16 +20,16 @@ a large weight and bias the estimated effect toward zero.
 The paper's main result (Theorem 3.1) is that, under the same
 assumptions that make synthetic control non-parametrically identified
 (invariant causal mechanisms and proxy completeness), a valid donor's
-post-intervention value is **forecastable from pre-intervention donor
-data**. SPOTSYNTH turns this into a practical screen: for each candidate
+post-intervention value is forecastable from pre-intervention donor
+data. SPOTSYNTH turns this into a practical screen: for each candidate
 donor, forecast its untreated post-intervention path from donor data the
 intervention has not touched, and flag the donor if its realised path
 departs from the forecast. A forecast failure means the donor was hit by
 a spillover (or its latent distribution shifted) -- either way it is
 excluded. (Two forecast anchors implement this -- a leave-one-out anchor,
 the default, and the paper's first-post-point anchor; the
-:ref:`forecast-anchor section <spotsynth-anchors>` explains when to use each.) The surviving donors feed the authors' **Bayesian Dirichlet
-simplex** synthetic control (a :math:`\mathrm{Dirichlet}(0.4)` prior on
+:ref:`forecast-anchor section <spotsynth-anchors>` explains when to use each.) The surviving donors feed the authors' Bayesian Dirichlet
+simplex synthetic control (a :math:`\mathrm{Dirichlet}(0.4)` prior on
 the weights, a half-normal prior on the residual scale, pre-period
 standardisation, and 95% posterior-predictive credible intervals). The
 donors the screen *excludes* are not discarded: they can be reused as
@@ -38,10 +38,10 @@ weights when the kept donors are noisy proxies.
 
 Two selection rules are exposed through :py:attr:`SPOTSYNTHConfig.selection`:
 
-* **S1** -- keep the donors with the smallest forecast error. The analyst
+* S1 -- keep the donors with the smallest forecast error. The analyst
   fixes how many donors to keep (e.g. "give me 30 valid donors"), which
   is convenient when a downstream method needs a set number of donors.
-* **S2** -- keep the donors whose realised post-intervention value falls
+* S2 -- keep the donors whose realised post-intervention value falls
   inside a posterior predictive interval (default 80%). The analyst does
   not fix the number kept; instead the interval level controls the
   false-positive rate (how often a valid donor is wrongly excluded).
@@ -66,10 +66,10 @@ treatment effect on the treated,
    \qquad t \ge T_0,
 
 estimated as the post-intervention gap between the treated unit and a
-synthetic control built from **valid** donors. A donor is *valid* if it
+synthetic control built from valid donors. A donor is *valid* if it
 adheres to the structural causal model of the paper (Figure 1a) and
 remains a proxy for the latent factors at every time point -- in
-particular it must **not** be impacted by the intervention. Spillover
+particular it must not be impacted by the intervention. Spillover
 effects manifest as a post-intervention shift in the donor's exogenous
 error :math:`P(\varepsilon_{x_i}^t)`.
 
@@ -95,7 +95,7 @@ classical latent-factor SC model.
 The forecast theorem
 ^^^^^^^^^^^^^^^^^^^^
 
-**Theorem 3.1.** *If causal mechanisms are invariant, and the donors*
+Theorem 3.1. *If causal mechanisms are invariant, and the donors*
 :math:`x_1^{t-1}, \dots, x_N^{t-1}` *are proxies for the latents*
 :math:`u_1^{t-1}, \dots, u_M^{t-1}`, *then for each donor* :math:`x_i`
 *there exists a unique function* :math:`h_i` *such that for all* :math:`t`
@@ -107,7 +107,7 @@ The forecast theorem
 
 The intuition (Figure 1b): because the donors at :math:`t-1` are proxies
 for the latents at :math:`t-1`, and the latents evolve by an invariant
-mechanism, we can write :math:`x_i^t` as a function of the **lagged**
+mechanism, we can write :math:`x_i^t` as a function of the lagged
 donor cross-section :math:`x_1^{t-1}, \dots, x_N^{t-1}` and the
 donor's own noise. So a donor's value at :math:`t` is forecastable from
 the donor pool one step earlier.
@@ -127,9 +127,9 @@ impacted by the intervention) and (b) the latent error distributions
 *failing* to forecast :math:`x_i^t` from pre-intervention data implies
 (a), (b), or both are violated. Assuming the latents have not shifted (or
 shift only later in the post-period, which does not bias the screen --
-see below), a forecast failure flags a **spillover** -- an invalid donor.
+see below), a forecast failure flags a spillover -- an invalid donor.
 
-**Algorithm 1 (per candidate donor** :math:`x_i` **).**
+Algorithm 1 (per candidate donor :math:`x_i` ).
 
 1. Normalise the donor data and labels (zero mean, unit variance over the
    pre-intervention window). The normalisation makes the procedure
@@ -142,7 +142,7 @@ see below), a forecast failure flags a **spillover** -- an invalid donor.
    exceeds the number of pre-intervention periods -- the regime of large
    donor pools the method is built for.
 3. Predict the first post-intervention value :math:`\hat x_i^{T_0}` from
-   the **last pre-intervention** cross-section (which is clean), with a
+   the last pre-intervention cross-section (which is clean), with a
    :math:`\phi`-level posterior predictive interval
    :math:`[\hat x_{i,-}, \hat x_{i,+}]`.
 4. Forecast error (procedure S1): :math:`A_i = |x_i^{T_0} - \hat x_i^{T_0}|`.
@@ -175,32 +175,32 @@ The screen needs a forecast of each donor's untreated post-intervention path
 to test against. mlsynth offers two anchors, and the choice between them is the
 single most consequential setting on the estimator.
 
-**The paper's anchor (``lag``)** is Algorithm 1 to the letter: forecast only
+The paper's anchor (``lag``) is Algorithm 1 to the letter: forecast only
 the *first* post-intervention point, from the last clean pre-intervention
 cross-section. At :math:`T_0` the lagged predictors are spillover-free, so the
 forecast predicts the untreated value and the spillover surfaces as the error.
 This works even when *most* donors are contaminated (the lag is anchored to
 clean pre-data, not to the donor consensus) -- but it carries a hidden
-assumption: that the spillover is **sharp**, i.e. present at full magnitude by
+assumption: that the spillover is sharp, i.e. present at full magnitude by
 :math:`T_0`. The paper's own spillover model bakes this in (the donor error mean
 jumps from 0 to :math:`\tau_{x_i}` at :math:`T_0` and stays there). If the
-spillover instead **builds gradually** -- the realistic case for diffusion,
+spillover instead builds gradually -- the realistic case for diffusion,
 adoption, or accumulation -- then :math:`\tau_{x_i}^{T_0} \approx 0`, the
 first-post-point error is ~0, and the screen is blind by construction. (Testing
 later periods does not rescue it: their lags are themselves contaminated, so a
 one-step-lagged forecast then sees only the period-to-period *increment* of the
 spillover, which is small for a gradual ramp.)
 
-**The default anchor (``loo``)** removes that fragility. It forecasts each
-donor's *whole* post-intervention trajectory from the **other donors' common
-factors** (leave-one-out) and ranks by the mean absolute deviation. Because it
+The default anchor (``loo``) removes that fragility. It forecasts each
+donor's *whole* post-intervention trajectory from the other donors' common
+factors (leave-one-out) and ranks by the mean absolute deviation. Because it
 differences out the common factor and accumulates evidence over the entire
-post-period, a contaminated donor's divergence is detectable **regardless of how
-gradually it arrives**. Its one requirement is a **valid majority** -- the other
+post-period, a contaminated donor's divergence is detectable regardless of how
+gradually it arrives. Its one requirement is a valid majority -- the other
 donors must be mostly clean, so they form a trustworthy reference. That is the
 normal applied situation (a handful of suspect donors in a large pool).
 
-**Power analysis.** :func:`~mlsynth.utils.spotsynth_helpers.run_forecast_power_analysis`
+Power analysis. :func:`~mlsynth.utils.spotsynth_helpers.run_forecast_power_analysis`
 reproduces the comparison: detection AUC (probability an invalid donor scores
 more anomalous than a valid one; 1 = perfect, 0.5 = none, ``< 0.5`` = inverted)
 as the spillover onset sweeps sharp → gradual, at two contamination levels:
@@ -216,14 +216,14 @@ as the spillover onset sweeps sharp → gradual, at two contamination levels:
    * - valid majority (30% invalid)
      - sharp
      - 0.61
-     - **0.96**
+     - 0.96
    * - valid majority (30% invalid)
      - gradual
      - 0.49
-     - **0.92**
+     - 0.92
    * - invalid majority (80%)
      - sharp
-     - **0.61**
+     - 0.61
      - 0.00 (inverted)
    * - invalid majority (80%)
      - gradual
@@ -237,22 +237,22 @@ reproduced by:
    from mlsynth.utils.spotsynth_helpers import run_forecast_power_analysis
    run_forecast_power_analysis(invalid_fracs=(0.3, 0.8), ramps=(1, 6, 24))
 
-The reading is clean: **``loo`` dominates the applied (valid-majority) regime and
+The reading is clean: ``loo`` dominates the applied (valid-majority) regime and
 is robust to onset speed; ``lag`` only has power for sharp onsets and only earns
-its keep in the paper's mostly-invalid stress regime, where ``loo`` inverts**
+its keep in the paper's mostly-invalid stress regime, where ``loo`` inverts
 (the contaminated majority becomes the "consensus", so the screen flags the
 *valid* donors). The remaining cell -- gradual onset *and* invalid majority --
 is the honest limit: no forecast screen separates signal from a contaminated
 consensus that creeps in slowly.
 
-**A note on CUSUM.** A cumulative-sum statistic on the lagged residuals can
+A note on CUSUM. A cumulative-sum statistic on the lagged residuals can
 rescue ``lag`` on individual gradual real panels (it telescopes the increments
 back into the level), but the power analysis disqualifies it as a general
 default: in the shared-factor DGP it is swamped by the common innovation and
 falls below chance. ``loo`` is the robust generalization, so it -- not CUSUM --
 is the default.
 
-**Recommendation.** Use the default ``loo`` for applied work. Switch to ``lag``
+Recommendation. Use the default ``loo`` for applied work. Switch to ``lag``
 only when you have prior reason to believe a *large fraction* of the pool is
 contaminated *and* the spillover is abrupt -- e.g. the paper's simulation, which
 this package pins to ``lag`` for exactly that reason.
@@ -260,7 +260,7 @@ this package pins to ``lag`` for exactly that reason.
 Time averaging
 ^^^^^^^^^^^^^^
 
-Two practical issues are handled by forecasting on **time-averaged**
+Two practical issues are handled by forecasting on time-averaged
 (coarsened) data, set via :py:attr:`SPOTSYNTHConfig.time_average`
 (``"lag"`` only). First, a *lag* between the intervention and the onset
 of a spillover: averaging over a window still surfaces a spillover that
@@ -275,7 +275,7 @@ The synthetic-control model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Once the valid donors are selected, the counterfactual is built with the
-authors' synthetic-control model (paper page 12). It is **Bayesian**:
+authors' synthetic-control model (paper page 12). It is Bayesian:
 
 .. math::
 
@@ -284,19 +284,19 @@ authors' synthetic-control model (paper page 12). It is **Bayesian**:
    \quad \beta \sim \mathrm{Dirichlet}(0.4),
    \quad \sigma_y \sim \mathcal N^+(0, 1),
 
-with the target and donors **standardised to zero mean and unit standard
-deviation over the pre-intervention window** -- which is what absorbs the
+with the target and donors standardised to zero mean and unit standard
+deviation over the pre-intervention window -- which is what absorbs the
 intercept :math:`\alpha` of equation (4), so no separate intercept term is
 fit. The :math:`\mathrm{Dirichlet}(0.4)` prior (concentration ``< 1``)
 regularises the weights toward sparse corners of the simplex, retaining the
 Abadie-Diamond-Hainmueller non-negativity / sum-to-one restriction. 95%
-**credible intervals** for the counterfactual and the ATT are the 2.5 / 97.5
+credible intervals for the counterfactual and the ATT are the 2.5 / 97.5
 percentiles of the posterior predictive distribution.
 
 This posterior has no closed form (a Dirichlet prior is not conjugate to a
 Gaussian likelihood under the simplex constraint). The authors fit it in Stan
 (Hamiltonian Monte Carlo / NUTS), which is proprietary and was not shared with
-us; mlsynth fits the **identical model with NumPyro's NUTS** -- the same HMC
+us; mlsynth fits the identical model with NumPyro's NUTS -- the same HMC
 family -- so it reproduces their estimation procedure as closely as an
 open-source tool can. NumPyro is an optional dependency: set
 :py:attr:`SPOTSYNTHConfig.inference` to ``"frequentist"`` for a fast,
@@ -306,10 +306,10 @@ pattern is identical either way.
 
 .. note::
 
-   **On validating this SC model.** Because the authors' Stan was unavailable, we
+   On validating this SC model. Because the authors' Stan was unavailable, we
    implemented the model from the *published specification* (the p.12 equations
    above) rather than from their code, and validated our NUTS fit against
-   **exact grid quadrature** of the posterior -- ground truth, not another
+   exact grid quadrature of the posterior -- ground truth, not another
    sampler. On 2- and 3-donor problems the posterior means of the weights and of
    :math:`\sigma_y` match the deterministic numerical integral to
    :math:`\le 10^{-3}` (weights) and :math:`\le 10^{-4}` (:math:`\sigma_y`). That
@@ -327,7 +327,7 @@ Assumptions
 The screen rests on the SC structural causal model and three working
 assumptions layered on Theorem 3.1.
 
-**A1 (Invariant causal mechanisms; Definition 3.3).** The structural
+A1 (Invariant causal mechanisms; Definition 3.3). The structural
 functions are time-invariant. This is what makes the forecast function
 :math:`h_i` the *same* before and after the intervention, so a
 pre-intervention forecast is valid post-intervention. *Diagnostic*: a
@@ -335,20 +335,20 @@ valid donor's pre-period one-step forecast residuals should look
 stationary; strong heteroskedasticity or trending residual variance
 signals a non-invariant mechanism.
 
-**A2 (Proxy completeness; Definition 3.2).** The donors are proxies for
+A2 (Proxy completeness; Definition 3.2). The donors are proxies for
 the latents. If a *relevant latent has no donor proxy*, excluding donors
 cannot close all backdoor paths and the SC is biased by omitted
 variables (Section 3.4.1). *Diagnostic*: a large pre-period fit residual
 for the treated unit against the donor pool is a symptom that the donors
 do not span the latents.
 
-**A3 (No contemporaneous latent shift).** The latent error distributions
+A3 (No contemporaneous latent shift). The latent error distributions
 :math:`P(\varepsilon_u)` do not shift *at the same time* as the
 intervention. The paper is explicit that latent shifts which occur
-**later** in the post-period do **not** bias the screen (the forecast
+later in the post-period do not bias the screen (the forecast
 test only inspects the first post-intervention point), and that lags can
 be absorbed by time averaging. A contemporaneous latent shift, however,
-is indistinguishable from a spillover and produces a **false positive**
+is indistinguishable from a spillover and produces a false positive
 (a valid donor wrongly excluded; Figure 5).
 
 What does *not* break the screen: spillovers that arrive late, latent
@@ -362,7 +362,7 @@ The screen can make two kinds of error, and the paper bounds the SC bias
 each induces (so the analyst can gauge robustness rather than trust the
 selection blindly).
 
-* **False positive** (a *valid* donor excluded). If the excluded donors
+* False positive (a *valid* donor excluded). If the excluded donors
   were proxies for a relevant latent, dropping them reintroduces omitted-
   variable bias, bounded (Section 3.4.2) by
 
@@ -375,7 +375,7 @@ selection blindly).
   weights. The bound is small when the *kept* donors already span the
   latents.
 
-* **False negative** (an *invalid* donor kept). The bias from a retained
+* False negative (an *invalid* donor kept). The bias from a retained
   spillover-:math:`\tau_{x_i}` donor is bounded (Section 3.4.3) by
 
   .. math::
@@ -393,7 +393,7 @@ Using excluded donors to debias (proximal two-stage)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The donors excluded by the screen are not used to *build* the SC, but
-they can still **debias** it. Because only pre-intervention data is ever
+they can still debias it. Because only pre-intervention data is ever
 used from the excluded donors :math:`z_l`, the SC estimate is unaffected
 by their post-intervention spillover dynamics. Treating the excluded
 donors as proximal control variables (Shi et al. 2023), one jointly
@@ -406,7 +406,7 @@ two-stage process into a single model", and that this is the standard
 proximal / instrumental-variables estimator: regress the kept donors
 :math:`X` on the excluded donors :math:`Z` to form :math:`\hat X`, then
 regress the target on :math:`\hat X`. mlsynth implements exactly this
-two-stage estimator **in closed form** (no probabilistic-programming
+two-stage estimator in closed form (no probabilistic-programming
 dependency), enabled by :py:attr:`SPOTSYNTHConfig.debias`. When ``True``,
 the result object carries ``att_debiased`` alongside the screened ATT. On
 the paper's Figure 4 (errors-in-variables) setting, this measurably
@@ -417,12 +417,12 @@ Durable benchmark
 ^^^^^^^^^^^^^^^^^
 
 ``benchmarks/cases/spotsynth_real_data.py`` reproduces three figures of the
-paper end to end: **Figure 6** (real-data screening on German Reunification,
+paper end to end: Figure 6 (real-data screening on German Reunification,
 California, and Basque Country -- both ``S1`` and ``S2`` exclude a planted
 noisy-proxy donor and recover the canonical effect, ATT California ~ −22, Basque
-~ −1.2, while the unscreened estimate collapses toward zero); **Figure 2**
+~ −1.2, while the unscreened estimate collapses toward zero); Figure 2
 (leave-one-out detection AUC, high under a valid majority, inverted under an
-invalid majority); and **Figure 4** (the proximal debias reduces errors-in-
+invalid majority); and Figure 4 (the proximal debias reduces errors-in-
 variables bias). Run it with
 ``python benchmarks/run_benchmarks.py spotsynth_real_data``; see
 :doc:`replications/spotsynth`.
@@ -430,48 +430,48 @@ variables bias). Run it with
 When to use SPOTSYNTH (and when not to)
 ---------------------------------------
 
-**Reach for SPOTSYNTH when:**
+Reach for SPOTSYNTH when:
 
-* You have a **large donor pool** and cannot certify by hand that every
+* You have a large donor pool and cannot certify by hand that every
   donor is free of spillovers. This is the motivating case -- e.g.
   estimating the effect of a feature launch on a platform where any of
   thousands of candidate "donor" markets might have been indirectly
   exposed.
-* You are worried a donor is **too good a match** -- a unit that tracks
+* You are worried a donor is too good a match -- a unit that tracks
   the treated unit suspiciously closely after the intervention. Such a
   donor grabs a large SC weight and biases the effect toward zero; the
   screen is built to catch exactly this (the semi-synthetic
   demonstrations below).
-* You want a **principled, data-driven** donor screen with explicit
+* You want a principled, data-driven donor screen with explicit
   sensitivity bounds on the bias from selection errors, rather than an ad
   hoc "drop the weird-looking donor" rule.
 
-**Use the default** ``forecast="loo"`` **for applied work** -- a mostly-valid
+Use the default ``forecast="loo"`` for applied work -- a mostly-valid
 donor pool with a contaminant whose effect may arrive at any speed (it is
-onset-robust and dominates this regime). **Switch to** ``forecast="lag"``
-**only when** you have prior reason to believe a *large fraction* of the pool is
+onset-robust and dominates this regime). Switch to ``forecast="lag"``
+only when you have prior reason to believe a *large fraction* of the pool is
 contaminated *and* the spillover is abrupt, the one regime where ``loo`` inverts
 (see the forecast-anchor power analysis above).
 
-**Do not use SPOTSYNTH when:**
+Do not use SPOTSYNTH when:
 
-* **A relevant latent has no valid donor proxy** (A2 fails). No amount of
+* A relevant latent has no valid donor proxy (A2 fails). No amount of
   donor selection closes the backdoor path; the FP-bias bound above is
   uninformative. Switch to a factor-model-aware estimator (:doc:`fma`) or
   a design that observes the confounder.
-* **The treatment effect on the target is gradual *and* the donor pool is
-  mostly contaminated.** The ``"lag"`` anchor needs a sharp first-period
+* The treatment effect on the target is gradual *and* the donor pool is
+  mostly contaminated. The ``"lag"`` anchor needs a sharp first-period
   signal; the ``"loo"`` anchor needs a valid majority. With neither, the
   screen has no clean reference.
-* **Causal mechanisms are non-invariant** (A1 fails) -- e.g. the
+* Causal mechanisms are non-invariant (A1 fails) -- e.g. the
   latent-to-donor map changes over the sample. The pre-period forecast
   then does not transport to the post-period.
-* **You only have a tiny, hand-curated donor pool** already known to be
+* You only have a tiny, hand-curated donor pool already known to be
   valid. The screen adds variance (it may drop a good donor) without
   identification gain; a canonical SC (:doc:`tssc`, :doc:`fdid`) is the
   more honest default.
-* **Interference runs treated-to-treated or is structural across many
-  units** rather than a few contaminated donors. For spillover-aware
+* Interference runs treated-to-treated or is structural across many
+  units rather than a few contaminated donors. For spillover-aware
   *estimands* (rather than donor cleaning) see :doc:`spsydid` and
   :doc:`spillsynth`.
 
@@ -577,8 +577,8 @@ donors are the majority -- see the forecast-anchor discussion).
 Verification (Path B): the simulation study
 -------------------------------------------
 
-This reproduces the headline finding of the paper's Figure 2 **through
-the public** ``SPOTSYNTH.fit()`` **call**. On the Appendix B
+This reproduces the headline finding of the paper's Figure 2 through
+the public ``SPOTSYNTH.fit()`` call. On the Appendix B
 data-generating process, a synthetic control built on *all* donors is
 biased upward (~+1.6) by the spillover-contaminated ones; one built on
 the *valid* donors is unbiased; and the ``S1`` / ``S2`` screens recover
@@ -587,7 +587,7 @@ magnitude.
 
 .. note::
 
-   This study is the paper's **mostly-invalid** regime (80% of donors
+   This study is the paper's mostly-invalid regime (80% of donors
    contaminated, with a sharp spillover), so it pins ``forecast="lag"``. The
    package default ``loo`` provably *inverts* here (the contaminated majority
    defines the consensus) -- this is the one regime where ``lag`` is the correct
@@ -615,8 +615,8 @@ prints a table of the bias :math:`\mathbb E[\hat\tau] - \tau` like::
        0.5    +1.60    -0.00    +0.48    +1.28
        1.0    +1.62    -0.00    +0.87    +1.10
 
-reproducing the qualitative finding: **All** is badly biased, **Valid**
-is unbiased, **S1** removes most of the bias and is best, **S2** is
+reproducing the qualitative finding: All is badly biased, Valid
+is unbiased, S1 removes most of the bias and is best, S2 is
 intermediate, and the screens degrade as the noise rises toward the
 spillover size. (The paper's full study uses 1000 donors and 2000 reps;
 ``SpotSimConfig`` defaults to that scale via the ``PAPER`` preset.)
@@ -625,10 +625,10 @@ Verification (semi-synthetic real data): Figure 6
 -------------------------------------------------
 
 The paper also demonstrates the screen on two canonical SC datasets by
-planting a **semi-synthetic** invalid donor -- a noisy proxy of the
+planting a semi-synthetic invalid donor -- a noisy proxy of the
 treated unit, :math:`x_{\text{syn}}^t \sim \mathcal N(y^t, \sigma)`.
 Being a near-copy of the target, this invalid donor receives a large SC
-weight and biases the effect **toward zero**; the screen flags and
+weight and biases the effect toward zero; the screen flags and
 excludes it, restoring the canonical effect. Both demos run through
 ``SPOTSYNTH.fit()``.
 

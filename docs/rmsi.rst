@@ -9,7 +9,7 @@ When to Use This Estimator
 ``RMSI`` implements the side-information matrix estimator of Agarwal, Choi and
 Yuan [RMSI]_. It is a causal-panel matrix-completion method -- like
 :doc:`mcnnm`, it imputes the treated units' missing counterfactual cells -- but
-it **exploits covariates on both margins of the panel**: unit-level (row)
+it exploits covariates on both margins of the panel: unit-level (row)
 characteristics :math:`X` and time-level (column) characteristics :math:`Z`.
 
 Its robustness comes from decomposing the target matrix into four complementary
@@ -24,25 +24,25 @@ pieces and estimating each separately:
 
 Unlike inductive matrix completion (which forces an exact low-rank linear
 covariate-interaction term and no genuine noise component), this decomposition
-accommodates **nonlinear** covariate effects, a part explained by **only one**
-margin, and a part explained by **neither** -- and it degrades gracefully when
+accommodates nonlinear covariate effects, a part explained by only one
+margin, and a part explained by neither -- and it degrades gracefully when
 the covariates are uninformative (it then reduces to a de-meaned low-rank
-completion). Reach for ``RMSI`` when you have a **block-adoption** causal panel,
-informative **unit and/or time covariates**, and you expect those covariates to
+completion). Reach for ``RMSI`` when you have a block-adoption causal panel,
+informative unit and/or time covariates, and you expect those covariates to
 carry signal the raw outcome matrix alone would estimate noisily.
 
 Do not use RMSI when
 ~~~~~~~~~~~~~~~~~~~~
 
-* **Adoption is staggered** (treated units switch on at different times). RMSI
+* Adoption is staggered (treated units switch on at different times). RMSI
   assumes a block design; use :doc:`mcnnm`, :doc:`ssc`, :doc:`sdid`, or
   :doc:`ppscm`.
-* **You have no covariates** and no reason to expect one margin's structure to
+* You have no covariates and no reason to expect one margin's structure to
   help. With no side information RMSI reduces to a low-rank completion, so
   :doc:`mcnnm` (purpose-built, with inference) is the more direct choice.
-* **An interpretable donor-weight story is the deliverable** -- RMSI imputes a
+* An interpretable donor-weight story is the deliverable -- RMSI imputes a
   matrix, not a sparse convex combination; use :doc:`tssc`/:doc:`scmo`.
-* **Spillovers contaminate the controls** (SUTVA fails) -- use :doc:`spsydid`
+* Spillovers contaminate the controls (SUTVA fails) -- use :doc:`spsydid`
   or :doc:`spillsynth`.
 
 The estimator
@@ -67,13 +67,13 @@ with :math:`\nu_2 = C_2\sqrt{T}`, :math:`\nu_3 = C_3\sqrt{N}`,
 -- only projections and SVDs, no iterative solver.
 
 *Algorithm 3 (block-missing causal).* The treated post-treatment cells form a
-missing block. RMSI applies Algorithm 1 to the fully observed **tall** submatrix
-(all units, pre-treatment periods) and **wide** submatrix (control units, all
+missing block. RMSI applies Algorithm 1 to the fully observed tall submatrix
+(all units, pre-treatment periods) and wide submatrix (control units, all
 periods), then recombines their singular subspaces,
 :math:`\widehat M = \widehat U_{\text{tall}}\, \widehat H\, \widehat D_{\text{wide}} \widehat V_{\text{wide}}^\top`,
 where :math:`\widehat H` rotates the wide left-singular vectors onto the tall
 ones over the control rows. The ATT is the observed minus the imputed outcome
-over the treated cells. ``RMSI`` targets the **block** (common adoption time)
+over the treated cells. ``RMSI`` targets the block (common adoption time)
 setting.
 
 Side information
@@ -116,7 +116,7 @@ Replication
 
 Both of the paper's empirical pieces are reproduced through the public API.
 
-**Path A -- Proposition 99 (Section 5.2).** Using the Abadie et al. (2010)
+Path A -- Proposition 99 (Section 5.2). Using the Abadie et al. (2010)
 tobacco panel shipped at
 `basedata/P99data.csv <https://raw.githubusercontent.com/jgreathouse9/mlsynth/main/basedata/P99data.csv>`_,
 ``RMSI`` treats California from 1989 and uses the state-level Abadie predictors
@@ -154,7 +154,7 @@ estimates elsewhere in ``mlsynth``. The equivalent explicit call:
                "display_graphs": False}).fit()
    print(res.att)
 
-**Path B -- synthetic Monte Carlo (Section 5.1).** The paper's four-component
+Path B -- synthetic Monte Carlo (Section 5.1). The paper's four-component
 DGP under the block-missing (MNAR) pattern; RMSI imputes the missing block at a
 lower average mean-squared error than the no-side-information baseline:
 
@@ -174,13 +174,13 @@ Verification
 
 .. note::
 
-   **Path B (synthetic).** On the paper's four-component MNAR DGP
+   Path B (synthetic). On the paper's four-component MNAR DGP
    (:func:`~mlsynth.utils.rmsi_helpers.replication.simulate_rmsi_dgp`), RMSI's
    block imputation achieves a lower missing-block AMSE than the
    no-side-information baseline -- reproducing the paper's central finding that
    leveraging side information improves imputation accuracy.
 
-   **Path A (Proposition 99).** ``replicate_prop99`` recovers a California
+   Path A (Proposition 99). ``replicate_prop99`` recovers a California
    Proposition 99 ATT of about :math:`-21` packs per capita (widening toward
    :math:`-32` by 2000), matching the Abadie-Diamond-Hainmueller [ABADIE2010]_
    baseline and the other ``mlsynth`` estimators on the same panel.

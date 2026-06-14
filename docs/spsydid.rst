@@ -47,73 +47,73 @@ When to Use This Method
 -----------------------
 
 Every difference-based estimator -- DiD, synthetic control, and plain
-:doc:`sdid` -- rests on **SUTVA**: a control unit's outcome is unaffected
+:doc:`sdid` -- rests on SUTVA: a control unit's outcome is unaffected
 by anyone else's treatment. Geography routinely breaks this. When a policy
 in the treated region leaks to its neighbours, those neighbours are exactly
 the units a synthetic control wants to lean on, and the leakage corrupts
 the comparison. Serenini & Masek (2024) make the bias explicit:
 
-* **Spillovers onto units *inside* the donor pool** bias and render
-  **inconsistent** the standard SDID ATT -- the synthetic control is built
+* Spillovers onto units *inside* the donor pool bias and render
+  inconsistent the standard SDID ATT -- the synthetic control is built
   from partially-treated donors, so the "untreated" benchmark is itself
   moving with the treatment.
-* **Spillovers *outside* the donor pool** leave the ATT identifiable but
-  make the population **ATE** unidentified, because the indirect effect on
+* Spillovers *outside* the donor pool leave the ATT identifiable but
+  make the population ATE unidentified, because the indirect effect on
   exposed-but-excluded units is never measured.
 
-SpSyDiD targets this regime directly. It adds a single **spatial exposure
-term** :math:`e_{it} = \sum_{j} w_{ij}\, d_{jt}` to the doubly-weighted SDID
+SpSyDiD targets this regime directly. It adds a single spatial exposure
+term :math:`e_{it} = \sum_{j} w_{ij}\, d_{jt}` to the doubly-weighted SDID
 regression, so the estimator returns *two* numbers: the direct ATT
 :math:`\widehat{\tau}` (same form as SDID) and the per-exposure indirect
 coefficient :math:`\widehat{\tau}_s`. The population ATE then follows from
 :math:`\widehat{\mathrm{ATE}} = \widehat{\tau}\,(1 + \overline{WD})` (eq. 14). Relative to
 the older Spatial DiD of Delgado & Florax (2015), the synthetic weighting
-sharpens identification of the **indirect** effect while keeping SDID's
-robustness for the **direct** effect.
+sharpens identification of the indirect effect while keeping SDID's
+robustness for the direct effect.
 
 Reach for SpSyDiD whenever there is a plausible mechanism for the
 treatment to *leak* from the directly-treated units to a subset of
-the donor pool through spatial or structural proximity, **and** you can
+the donor pool through spatial or structural proximity, and you can
 supply a credible row-standardised weight matrix :math:`\mathbf{W}` encoding that
 proximity. Typical examples:
 
-* **Immigration policy with cross-border relocation.** Arizona's
+* Immigration policy with cross-border relocation. Arizona's
   2007 LAWA legislation directly affected Arizona's noncitizen
   Hispanic population but also displaced workers to neighbouring
   states. SDID alone would either bias the ATT (if you include the
   spillover-affected states as controls) or be unable to estimate
   the spillover at all.
-* **State tax changes with cross-border shopping.** A state sales-tax
+* State tax changes with cross-border shopping. A state sales-tax
   increase affects that state's revenue directly *and* leaks via
   cross-border shopping into neighbouring states.
-* **Local advertising campaigns** with geographic spillovers across
+* Local advertising campaigns with geographic spillovers across
   DMA boundaries.
-* **Vaccine mandates** with cross-state mobility effects.
+* Vaccine mandates with cross-state mobility effects.
 
 Do not use SpSyDiD when
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-* **SUTVA holds / there is no spillover concern.** With
+* SUTVA holds / there is no spillover concern. With
   :math:`\mathbf{W} = \mathbf{0}` or no treated neighbours, SpSyDiD reduces
   numerically to plain :doc:`sdid` with
   :math:`\widehat{\tau}_s = 0`; the extra exposure column just adds noise. Use
   :doc:`sdid` -- it is faster and more parsimonious.
-* **You cannot defend a spatial weight matrix.** The whole identification
+* You cannot defend a spatial weight matrix. The whole identification
   of :math:`\widehat{\tau}_s` runs through :math:`\mathbf{W}`. If proximity is not the
   spillover channel (e.g., interference flows through an unobserved social
   or supply-chain network you cannot encode), a misspecified :math:`\mathbf{W}`
   buys biased indirect effects; consider :doc:`spillsynth`, which models
   spillover through donor membership rather than a fixed geographic kernel.
-* **Interference is global or non-local.** SpSyDiD assumes exposure is a
+* Interference is global or non-local. SpSyDiD assumes exposure is a
   *local*, distance-decaying function of neighbours' treatment. General
   equilibrium effects that hit every unit equally are absorbed into the
   time effects and cannot be separated.
-* **You only need the direct ATT and the donor pool is clean.** If the
+* You only need the direct ATT and the donor pool is clean. If the
   spillover-affected units can simply be *dropped* from the donor pool and
   the indirect effect is not of interest, plain :doc:`sdid` on the pruned
   pool is the simpler honest choice.
-* **Distributional questions** (quantiles, tails) -- use :doc:`dsc`; or a
-  **single treated unit with no spatial structure** -- use :doc:`tssc` /
+* Distributional questions (quantiles, tails) -- use :doc:`dsc`; or a
+  single treated unit with no spatial structure -- use :doc:`tssc` /
   :doc:`fdid`.
 
 Mathematical Formulation
@@ -124,7 +124,7 @@ Setup
 
 Let :math:`\mathcal{N} \coloneqq \{1, \dots, N\}` index the units and
 :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}` the periods (1-indexed);
-the intervention takes effect **after** period :math:`T_0`, so the pre-period
+the intervention takes effect after period :math:`T_0`, so the pre-period
 is :math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` and the
 post-period is :math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`,
 with :math:`T_{\mathrm{post}} \coloneqq T - T_0`. Let :math:`y_{it}` be the
@@ -156,7 +156,7 @@ Only :math:`\mathcal{C}` is used to fit the SDID unit / time weights.
 Algorithm
 ^^^^^^^^^
 
-**Step 1 -- SDID weights from pure controls.** Following
+Step 1 -- SDID weights from pure controls. Following
 Arkhangelsky et al. (2021), fit the unit weights
 :math:`\widehat{\boldsymbol{\omega}} \in \Delta^{|\mathcal{C}|}` and time
 weights :math:`\widehat{\boldsymbol{\lambda}} \in \Delta^{T_0}` (each on the
@@ -166,7 +166,7 @@ The regularisation parameter is :math:`\zeta \coloneqq
 T_{\mathrm{post}}^{1/4} \cdot \mathrm{sd}(\Delta \mathbf{y})`, the standard
 deviation of the first-differenced pre-period donor outcomes.
 
-**Step 2 -- assemble the full weight vector.** Set
+Step 2 -- assemble the full weight vector. Set
 
 .. math::
 
@@ -180,7 +180,7 @@ deviation of the first-differenced pre-period donor outcomes.
 Time weights are SDID-fit for the pre-period and uniform
 :math:`1 / T_{\mathrm{post}}` for the post-period.
 
-**Step 3 -- augmented two-way FE WLS regression.** Solve
+Step 3 -- augmented two-way FE WLS regression. Solve
 
 .. math::
 
@@ -198,7 +198,7 @@ The augmented design jointly recovers the direct effect
 :math:`\widehat{\tau}` (the ATT) and the spillover coefficient
 :math:`\widehat{\tau}_s`.
 
-**Step 4 -- combine.** With :math:`\overline{WD}` the average exposure over
+Step 4 -- combine. With :math:`\overline{WD}` the average exposure over
 :math:`\mathcal{I}_{\mathrm{tr}} \cup \mathcal{I}_{\mathrm{sp}}` in the
 post-period, the indirect and total effects are
 
@@ -211,23 +211,23 @@ post-period, the indirect and total effects are
 Identification assumptions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A1. **No anticipation** -- units do not adjust outcomes in advance
+A1. No anticipation -- units do not adjust outcomes in advance
 of the treatment.
 
-A2. **Parallel trends** -- in the absence of treatment, treated,
+A2. Parallel trends -- in the absence of treatment, treated,
 spillover, and control units would have followed similar trends,
 conditional on unit and time fixed effects.
 
-A3. **Additivity and linearity of spillovers** -- the potential
+A3. Additivity and linearity of spillovers -- the potential
 outcome of a unit depends linearly and additively on its own
 treatment status and the treatment exposure of its neighbours,
 captured by :math:`e_{it}`.
 
-A4. **Limited interference** -- spillovers operate exclusively
+A4. Limited interference -- spillovers operate exclusively
 through the structure defined by the exogenous :math:`\mathbf{W}`. No other
 local or global interference mechanisms are assumed.
 
-A5. **Synthetic-control transferability** -- the SDID synthetic
+A5. Synthetic-control transferability -- the SDID synthetic
 control built on the pure controls also approximates the
 counterfactual trajectory for the indirectly-treated units. This
 holds when spillover-affected units are spatially / structurally
@@ -384,7 +384,7 @@ Verification (Path-B Monte Carlo)
 
 Serenini & Masek (2024) include an empirical example (the Arizona
 2007 LAWA effect on noncitizen Hispanic share, Tables 8-11) but do
-**not** release the CPS panel used to construct it -- their public
+not release the CPS panel used to construct it -- their public
 replication repo
 (https://github.com/serenini/spatial_SDID) ships only the
 simulation code and a BLS unemployment panel for two Monte Carlo
@@ -393,8 +393,8 @@ those two simulation findings against the authors' own driver
 (`functions_ssdid.py` in their repo), invoking
 ``SpSyDiD(config).fit()`` end-to-end on every replication.
 
-The state-level finding is institutionalised as a **per-replication
-cross-validation** benchmark -- ``benchmarks/cases/spsydid_state_mc.py``
+The state-level finding is institutionalised as a per-replication
+cross-validation benchmark -- ``benchmarks/cases/spsydid_state_mc.py``
 runs both ``SpSyDiD`` and the authors' own algorithm on each panel and
 asserts per-rep agreement; see the dedicated page
 :doc:`replications/spsydid`.
@@ -418,7 +418,7 @@ starting in 1975..2014, treat Arkansas (FIPS 5) only and inject
 :math:`\text{ATT} = 25\%` of mean unemployment plus
 :math:`\rho = 0.8` spillover via the queen-contiguity W. We compare
 the authors' reference algorithm against ``SpSyDiD(config).fit()`` on
-**the same 40 panels** to test for per-rep agreement.
+the same 40 panels to test for per-rep agreement.
 
 .. code-block:: text
 
@@ -428,8 +428,8 @@ the authors' reference algorithm against ``SpSyDiD(config).fit()`` on
 
    per-rep correlation:  ATT 0.9917      rho 0.9948
 
-Both estimators recover the paper's headline finding: the **mean ATT
-bias is essentially zero** (~0.019 against an ATT magnitude of ~1.5
+Both estimators recover the paper's headline finding: the mean ATT
+bias is essentially zero (~0.019 against an ATT magnitude of ~1.5
 percentage points). Per-replication, the two implementations agree to
 ~0.02 on every panel realisation; the small residual is the
 unit-weight assignment for affected rows

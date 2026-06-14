@@ -8,15 +8,15 @@ Overview
 
 SNN (Agarwal, A., Dahleh, M., Shah, D. & Shen, D. (2021). *"Causal Matrix
 Completion,"* arXiv:2109.15154) recovers the missing entries of a
-partially observed matrix when the data are **missing not at random
-(MNAR)** -- the probability that an entry is observed depends on the
+partially observed matrix when the data are missing not at random
+(MNAR) -- the probability that an entry is observed depends on the
 underlying value. This selection bias is the norm in the two canonical
 matrix-completion applications:
 
-* **Recommender systems**: a user who dislikes horror films will almost
+* Recommender systems: a user who dislikes horror films will almost
   never rate one, so the missingness pattern is informative about the
   ratings themselves.
-* **Panel data / causal inference**: policy-makers adopt programs for
+* Panel data / causal inference: policy-makers adopt programs for
   reasons correlated with outcomes, and competing policies cannot be
   observed simultaneously, so the potential-outcome matrix is
   systematically (not randomly) missing.
@@ -32,19 +32,19 @@ The algorithm
 To impute entry :math:`(i, j)`, SNN combines nearest neighbors
 (collaborative filtering) with synthetic controls:
 
-1. **Anchor rows and columns.** Find a fully observed submatrix
+1. Anchor rows and columns. Find a fully observed submatrix
    :math:`S` whose rows are observed in column :math:`j` and whose
    columns are observed in row :math:`i` (paper Section 4.2). The
    reference implementation finds these via a maximum-biclique search;
    mlsynth uses a dependency-free greedy search for a large fully
    observed block.
-2. **Principal component regression.** Truncate the SVD of :math:`S`,
+2. Principal component regression. Truncate the SVD of :math:`S`,
    regress row :math:`i`'s anchor-column values :math:`q` on :math:`S` to
    learn weights :math:`\beta`, and apply them to column :math:`j`'s
    anchor-row values :math:`x`:
    :math:`\widehat A_{ij} = \langle x, \beta \rangle` (paper Algorithm 1).
 
-SNN **generalises Synthetic Interventions** (Agarwal et al. 2021b, the
+SNN generalises Synthetic Interventions (Agarwal et al. 2021b, the
 :class:`mlsynth.SI` estimator), which itself generalises classic
 synthetic control: the same PCR machinery is applied, but the anchor
 submatrix is found *per entry* rather than assuming a fixed treated/donor
@@ -54,7 +54,7 @@ Why panel data is a natural fit
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A fully observed *anchor block* is essential. Under independent MCAR no
-large fully observed submatrix exists, but the **block-structured**
+large fully observed submatrix exists, but the block-structured
 missingness of panel data -- a control block observed throughout, with
 treated units missing their post-treatment :math:`Y(0)` -- *naturally
 induces* anchor rows (controls) and columns (pre-periods). SNN is
@@ -85,7 +85,7 @@ When to Use This Method
 SNN's distinctive bet is about *why* data are missing. Classical matrix
 completion -- and the nuclear-norm estimator in :doc:`mcnnm` -- assumes the
 observed cells are a structured but ultimately exogenous sample of the
-matrix. SNN instead targets **missing not at random (MNAR)**: the very
+matrix. SNN instead targets missing not at random (MNAR): the very
 event of observing a cell is correlated with its value (a horror-averse
 user never rates horror films; a region adopts a policy *because* of where
 its outcomes are heading). Under MNAR, MCAR-based completion is biased, and
@@ -95,38 +95,38 @@ consistency and asymptotic normality.
 Reach for SNN when
 ^^^^^^^^^^^^^^^^^^
 
-* **Missingness is informative.** Whether a cell is observed depends on its
+* Missingness is informative. Whether a cell is observed depends on its
   own (latent) value -- recommender ratings, self-selected program
   adoption, instrument-driven attrition.
-* **The observed cells contain a large fully observed anchor block.** Panel
+* The observed cells contain a large fully observed anchor block. Panel
   causal designs supply this naturally: a control block observed
   throughout, with treated units missing only their post-treatment
   :math:`Y(0)`. This block structure is what lets SNN find anchor rows and
   columns per entry.
-* **Arbitrary / block-structured missingness**, including **staggered
-  adoption**, where different units are missing different post-periods and
+* Arbitrary / block-structured missingness, including staggered
+  adoption, where different units are missing different post-periods and
   no single fixed treated/donor split applies (SNN generalises
   :class:`mlsynth.SI` to this case).
-* You want **general (non-causal) MNAR matrix completion** -- e.g. a
+* You want general (non-causal) MNAR matrix completion -- e.g. a
   recommender matrix -- via :func:`mlsynth.utils.snn_helpers.snn_complete`.
 
 Do not use SNN when
 ^^^^^^^^^^^^^^^^^^^
 
-* **No large fully observed submatrix exists.** SNN's anchor step needs a
+* No large fully observed submatrix exists. SNN's anchor step needs a
   dense observed block; if missingness is heavy and scattered with no such
   block, prefer the nuclear-norm estimator :doc:`mcnnm`, which regularises
   the whole matrix rather than imputing entry-by-entry.
-* **The design is a simple single-treated block with a clean pre-period**
+* The design is a simple single-treated block with a clean pre-period
   and you want classic interpretable donor weights, closed-form CIs, or a
   convex-combination story. Use :doc:`si`, :doc:`tssc`, or :doc:`scmo`;
   per-entry anchoring is unnecessary machinery there.
-* **Spillovers violate SUTVA** on the control block -- use :doc:`spsydid`
+* Spillovers violate SUTVA on the control block -- use :doc:`spsydid`
   or :doc:`spillsynth`.
-* **Continuous or multi-valued treatment** -- SNN imputes an untreated
+* Continuous or multi-valued treatment -- SNN imputes an untreated
   potential-outcome matrix under a binary mask; dose response belongs in
   :doc:`ctsc`.
-* **Distributional** questions (quantiles, tails) -- use :doc:`dsc`.
+* Distributional questions (quantiles, tails) -- use :doc:`dsc`.
 
 Core API
 --------

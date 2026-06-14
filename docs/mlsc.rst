@@ -28,13 +28,13 @@ penalty shrinks them toward the classical-SC solution, with the
 penalty strength selected from data.
 
 Two structural properties distinguish mlSC from the rest of the
-``mlsynth`` toolkit. **First, it operates on two long-form
-DataFrames**, one at the aggregate level (``df_agg``) and one at the
+``mlsynth`` toolkit. First, it operates on two long-form
+DataFrames, one at the aggregate level (``df_agg``) and one at the
 disaggregate level (``df_disagg``), with an ``agg_id`` column on
 ``df_disagg`` mapping each disaggregate unit to its parent aggregate.
-Every other estimator in the package takes a single panel. **Second,
+Every other estimator in the package takes a single panel. Second,
 the entire spectrum from classical SC to fully disaggregated SC is
-recovered as limiting cases** of a single penalty parameter
+recovered as limiting cases of a single penalty parameter
 :math:`\lambda` — at :math:`\lambda \to \infty` mlSC reduces to the
 classical SC of Abadie, Diamond, and Hainmueller (2010); at
 :math:`\lambda = 0` it recovers the fully-disaggregated control SC
@@ -92,16 +92,16 @@ subject to convex-hull constraints
 edge cases discussed in Sections 3-4 of the paper correspond to
 constraints on :math:`W`:
 
-* **dGSC-AA** — aggregate treated, aggregate controls (the *classical
+* dGSC-AA — aggregate treated, aggregate controls (the *classical
   SC* of Abadie et al., 2010). All within-block weights are
   proportional to :math:`v_{sc}` and equal across treated
   disaggregates.
-* **dGSC-AD** — aggregate treated, disaggregate controls. The
+* dGSC-AD — aggregate treated, disaggregate controls. The
   treated unit is kept at the aggregate level (weights equal across
   :math:`c_0`); disaggregate control weights vary freely within
   convexity.
-* **dGSC-DA** — disaggregate treated, aggregate controls.
-* **dGSC** — disaggregate on both sides.
+* dGSC-DA — disaggregate treated, aggregate controls.
+* dGSC — disaggregate on both sides.
 
 Proposition 1 of the paper shows that all four cases share the same
 classical-SC objective, differing only in the *donor pool* implied by
@@ -318,16 +318,16 @@ aggregate, and an optional ``weight_col`` for non-uniform
 :math:`v_{sc}`. The configuration validator enforces four
 cross-DataFrame invariants:
 
-1. **Treatment timing alignment.** The pre-period count :math:`T_0`
+1. Treatment timing alignment. The pre-period count :math:`T_0`
    implied by ``df_agg`` must match the one implied by ``df_disagg``;
    any disagreement raises :class:`mlsynth.exceptions.MlsynthDataError`.
-2. **Treated-aggregate consistency.** Every disaggregate unit with
+2. Treated-aggregate consistency. Every disaggregate unit with
    ``treat = 1`` must map (via ``agg_id``) to the same aggregate
    unit, which must equal the treated aggregate in ``df_agg``.
-3. **Single treatment cohort.** All treated disaggregate units must
+3. Single treatment cohort. All treated disaggregate units must
    share the same treatment start period (treatment-never-turns-off
    is part of the mlSC framework).
-4. **Aggregate-label coverage.** Every value of ``agg_id`` in
+4. Aggregate-label coverage. Every value of ``agg_id`` in
    ``df_disagg`` must appear as a ``unitid_agg`` in ``df_agg``.
 
 These invariants are enforced once in
@@ -345,7 +345,7 @@ structural conditions needed for the hierarchical penalty to make
 sense -- and for the heuristic :math:`\lambda` to be calibrated.
 The paper's formal assumptions:
 
-**A1 (linear aggregation).** The aggregate outcome is a known
+A1 (linear aggregation). The aggregate outcome is a known
 weighted average of its disaggregate components,
 :math:`Y_{st} = \sum_{c = 1}^{C_s} v_{sc} Y_{sct}` with
 :math:`\sum_c v_{sc} = 1` for every aggregate. The weights
@@ -354,8 +354,8 @@ population shares are the canonical alternative). Required for the
 estimand at the aggregate level to be a clean function of the
 disaggregate potential outcomes.
 
-**A2 (binary, sharp, absorbing treatment at the aggregate
-level).** A single aggregate unit (:math:`s = 0`) is treated; the
+A2 (binary, sharp, absorbing treatment at the aggregate
+level). A single aggregate unit (:math:`s = 0`) is treated; the
 treatment indicator :math:`W_{sct}` is 1 iff :math:`s = 0` and
 :math:`t > T_0`, and once on it stays on. Equivalently defined at
 the aggregate level. Multiple treated aggregates are out of scope
@@ -363,15 +363,15 @@ of the paper's main theory (the paper discusses staggered designs
 only as a future direction; mlsynth's *FECT* / :doc:`sdid` are
 the staggered-aware alternatives).
 
-**A3 (SUTVA at the disaggregate level).** No interference between
+A3 (SUTVA at the disaggregate level). No interference between
 disaggregate units. Note this is *stronger* than canonical-SC SUTVA
 which is at the aggregate level: mlSC pulls within-state
 variation directly into the weight fit, so an exposed county
 influencing a non-exposed county within the same donor state
 breaks identification at the level mlSC operates on.
 
-**A4 (hierarchical latent-factor outcome model -- Section 6.1,
-Appendix G).** The untreated disaggregate outcome decomposes as
+A4 (hierarchical latent-factor outcome model -- Section 6.1,
+Appendix G). The untreated disaggregate outcome decomposes as
 
 .. math::
 
@@ -392,19 +392,19 @@ decomposition the paper uses to characterise the central trade-off
 (oracle bias + restriction bias + estimation error + post-period
 noise).
 
-**A5 (feasibility / convex hull for dGSC-AD).** The treated
+A5 (feasibility / convex hull for dGSC-AD). The treated
 aggregate's pre-period trajectory lies in the convex hull of the
 disaggregate donor pool :math:`\{Y_{sct}\}_{s \ge 1, c}`. With
 disaggregation, the donor pool is :math:`\sum_{s \ge 1} C_s` units
 wide -- typically an order of magnitude larger than the
-:math:`S`-state aggregate hull -- so this is **easier** to satisfy
+:math:`S`-state aggregate hull -- so this is easier to satisfy
 than canonical SC's hull condition, which is the main empirical
 motivation for the estimator. The penalty term is what stops the
 expanded hull from degenerating into a non-unique solution at
 zero pre-period RMSE.
 
-**Headline theoretical finding (paper Section 1, MSE
-decomposition).** Under A1-A4, the post-treatment MSE of any dGSC
+Headline theoretical finding (paper Section 1, MSE
+decomposition). Under A1-A4, the post-treatment MSE of any dGSC
 estimator decomposes as
 
 .. math::
@@ -421,7 +421,7 @@ disaggregated SC at :math:`\lambda = 0` removes the restriction
 bias but inflates estimation error from the wider donor pool. The
 mlSC penalty traces the bias-variance frontier between the two,
 with the data-driven :math:`\hat\lambda` picking the sweet spot.
-Bottmer emphasises this is **not** a standard bias-variance trade-
+Bottmer emphasises this is not a standard bias-variance trade-
 off -- it is a flexibility-vs-noise-sensitivity trade-off, which
 is why the heuristic scales as :math:`\sigma_\varepsilon^2 /
 \sigma_y^2` (the disaggregate-noise share of total variance).
@@ -429,11 +429,11 @@ is why the heuristic scales as :math:`\sigma_\varepsilon^2 /
 When the assumptions bind: practical diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-(a) **Linear aggregation with known weights (A1).** The
+(a) Linear aggregation with known weights (A1). The
     aggregate outcome must be a known linear function of the
     disaggregate outcomes. Some outcomes don't aggregate
     cleanly -- a state-level unemployment rate, for instance,
-    is a *ratio* whose state-level value is **not** the
+    is a *ratio* whose state-level value is not the
     population-weighted mean of county-level ratios.
 
     *Plausibly violated when* the outcome is a ratio (rate,
@@ -447,7 +447,7 @@ When the assumptions bind: practical diagnostics
     county-level employment counts, not unemployment rates),
     or move to canonical SC on the aggregate panel alone.
 
-(b) **Binary, sharp, absorbing treatment (A2).** Multiple
+(b) Binary, sharp, absorbing treatment (A2). Multiple
     treated aggregates, treatment that turns off, or
     continuous dose break the identification.
 
@@ -460,7 +460,7 @@ When the assumptions bind: practical diagnostics
     structural warning. Use *FECT* / :doc:`sdid` for
     staggered adoption, :doc:`ctsc` for continuous dose.
 
-(c) **SUTVA at the disaggregate level (A3).** Disaggregate
+(c) SUTVA at the disaggregate level (A3). Disaggregate
     units within donor states must not interfere with each
     other in a way that the aggregation washes out.
 
@@ -476,7 +476,7 @@ When the assumptions bind: practical diagnostics
     :doc:`spsydid`) which dispenses with the disaggregate
     SUTVA.
 
-(d) **Hierarchical latent-factor outcome model (A4).** The
+(d) Hierarchical latent-factor outcome model (A4). The
     Appendix-G variance decomposition that feeds
     :math:`\hat\lambda` is derived under a specific
     state-effect + county-within-state + iid shock structure.
@@ -499,7 +499,7 @@ When the assumptions bind: practical diagnostics
     on your panel and you should switch to ``"cross-validation
     over time"`` once that selector ships.
 
-(e) **Convex-hull feasibility with disaggregate donors (A5).**
+(e) Convex-hull feasibility with disaggregate donors (A5).
     Expanding the donor pool by disaggregation usually makes
     the hull *easier* to satisfy, but in pathological cases
     -- a coastal mega-state matched only by tiny interior
@@ -518,7 +518,7 @@ When the assumptions bind: practical diagnostics
     :doc:`iscm` (which identifies the effect even when the
     treated unit is outside the hull).
 
-(f) **Aggregation weights stable over time.** A1 implicitly
+(f) Aggregation weights stable over time. A1 implicitly
     assumes the :math:`v_{sc}` are fixed across :math:`t`. If
     population shares drift substantially within the analysis
     window, the disaggregate-to-aggregate map itself becomes a
@@ -538,81 +538,81 @@ When the assumptions bind: practical diagnostics
 When to use mlSC -- and when not to
 -----------------------------------
 
-**Reach for mlSC when:**
+Reach for mlSC when:
 
-* You have **disaggregate data underneath an aggregate-level
-  policy**: county outcomes beneath a state-wide tax change,
+* You have disaggregate data underneath an aggregate-level
+  policy: county outcomes beneath a state-wide tax change,
   store-level outcomes beneath a chain-wide pricing change,
   household outcomes beneath a regional-government program.
   The estimand stays at the aggregate level; the disaggregate
   data is *information* to be exploited.
 * The canonical SC pre-fit at the aggregate level is
-  **mediocre** -- the small number of aggregates makes the
+  mediocre -- the small number of aggregates makes the
   hull thin and the pre-period RMSE elevated. Disaggregating
   the donor pool widens the hull by an order of magnitude
   (counties vs states), and the penalty keeps the wider hull
   from degenerating into a non-unique solution.
-* You want a **single data-driven aggregation choice** rather
+* You want a single data-driven aggregation choice rather
   than the manual "do I use state or county donors?" call.
   The heuristic :math:`\hat\lambda` and the (forthcoming)
   cross-validation-over-time selector turn that judgment into
   a tunable parameter.
-* Pre-period :math:`T_0` is short enough that **classical SC
-  overfits** but long enough that the heuristic-variance
+* Pre-period :math:`T_0` is short enough that classical SC
+  overfits but long enough that the heuristic-variance
   decomposition is well-identified (a dozen pre-periods or
   more, per Bottmer's Section 6 calibration).
 
-**Do not use mlSC when:**
+Do not use mlSC when:
 
-* **You only have aggregate-level data.** mlSC requires
+* You only have aggregate-level data. mlSC requires
   ``df_disagg`` with at least a handful of disaggregate units
   per donor aggregate. Without it, fall back to canonical
   *canonical SCM* / :doc:`tssc` / :doc:`fdid`.
-* **Treatment is assigned at the disaggregate level.** The
+* Treatment is assigned at the disaggregate level. The
   paper enforces aggregate-level assignment (A2); if the
   policy hits a single county rather than a whole state, you
   want a disaggregate-target estimator (*canonical SCM*,
   :doc:`microsynth` for individual-level treatment with
   covariate balancing).
-* **The aggregate outcome isn't a linear function of
-  disaggregate outcomes.** Ratios, order statistics, and
+* The aggregate outcome isn't a linear function of
+  disaggregate outcomes. Ratios, order statistics, and
   log-of-aggregate outcomes break A1. Either re-derive the
   outcome so the aggregation is exact, or move to canonical
   SC.
-* **The treated aggregate is structurally outside the
-  disaggregate hull.** Even at :math:`\lambda = 0` the
+* The treated aggregate is structurally outside the
+  disaggregate hull. Even at :math:`\lambda = 0` the
   pre-period RMSE stays large -- the wider hull doesn't help
   because the treated unit's level is unreachable by any
   convex combination of donor disaggregates. Use :doc:`iscm`,
   whose A2(b) mechanism identifies the effect through donors
   that use the treated aggregate as a positive-weight donor.
-* **You need within-aggregate treatment effect heterogeneity.**
+* You need within-aggregate treatment effect heterogeneity.
   mlSC targets the aggregate ATT. The paper notes
   (Introduction) that disaggregating the *treated* unit
   (dGSC-DA / dGSC) is the door to heterogeneity but typically
   worsens out-of-sample performance for the aggregate-level
   effect. For genuinely heterogeneous-effects questions, run
   county-by-county canonical SC instead.
-* **Outcomes are extremely noisy at the disaggregate level.**
+* Outcomes are extremely noisy at the disaggregate level.
   When the within-state idiosyncratic shock variance
   dominates the total variance, the disaggregate data is more
   noise than signal and the heuristic pushes :math:`\lambda
   \to \infty` (collapsing mlSC to classical SC). In that
   regime use canonical SC directly to skip the extra
   bookkeeping.
-* **Staggered adoption** across multiple aggregates.
+* Staggered adoption across multiple aggregates.
   Single-cohort is the paper's main scope; for staggered
   designs use *FECT* or :doc:`sdid`.
-* **Spillovers within a donor aggregate.** A3 fails if
+* Spillovers within a donor aggregate. A3 fails if
   counties within a donor state influence each other in a way
   the aggregation cannot wash out. Use :doc:`spillsynth` or
   :doc:`spsydid`.
-* **Distributional questions** (Lorenz curves, QTEs).
+* Distributional questions (Lorenz curves, QTEs).
   mlSC targets the mean aggregate ATT; for distributional
   effects use :doc:`dsc`.
-* **Continuous treatment.** Use :doc:`ctsc`.
-* **You need a sparse, hand-interpretable single weight
-  vector for policy storytelling.** mlSC's disaggregate
+* Continuous treatment. Use :doc:`ctsc`.
+* You need a sparse, hand-interpretable single weight
+  vector for policy storytelling. mlSC's disaggregate
   weight matrix :math:`\omega_{sc}` is intrinsically a
   many-county object; you can report the implied aggregate
   weights ``results.aggregate_donor_weights`` (Bottmer's
@@ -745,8 +745,8 @@ Example
 Verification
 ------------
 
-**Empirical replication against the author's reference code (Path A)
-plus a Monte Carlo unbiasedness check (Path B).** Bottmer's published
+Empirical replication against the author's reference code (Path A)
+plus a Monte Carlo unbiasedness check (Path B). Bottmer's published
 empirical application — the effect of a state minimum-wage policy
 change on county-level teen employment in Iowa — uses the Quarterly
 Workforce Indicators (QWI) panel that ships with her reference

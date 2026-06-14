@@ -9,7 +9,7 @@ Overview
 CLUSTERSC packages two paper-aligned families of robust synthetic
 control behind a single estimator.
 
-* **PCR-SC.** Rho, Tang, Bergam, Cummings & Misra (2025),
+* PCR-SC. Rho, Tang, Bergam, Cummings & Misra (2025),
   *ClusterSC: Advancing Synthetic Control with Donor Selection*
   (arXiv:2503.21629). Hard Singular Value Thresholding (HSVT) of the
   donor matrix, optional :math:`k`-means donor clustering on the
@@ -22,7 +22,7 @@ control behind a single estimator.
   Shah & Shen 2018) and a simplex-constrained variant that retains
   Abadie-Diamond-Hainmueller weights.
 
-* **RPCA-SC.** Bayani (2021), *Robust PCA Synthetic Control*
+* RPCA-SC. Bayani (2021), *Robust PCA Synthetic Control*
   (arXiv:2108.12542; Chapter 1 of Bayani 2022). Functional PCA on
   pre-period trajectories, silhouette-driven :math:`k`-means on the
   resulting FPC scores, robust :math:`L + S` decomposition of the
@@ -75,23 +75,23 @@ the basic pipeline; Algorithm 4 wraps it with the clustering step.
 Why PCR: theory and assumptions
 """""""""""""""""""""""""""""""
 
-**What PCR is, and why it is the right tool.** Principal component
+What PCR is, and why it is the right tool. Principal component
 regression (project the donors onto their top-:math:`r` principal
 components, then regress) is, *without any change*, robust to the
 noise and missingness that pervade panel data [Agarwal2021]_. The key
-identity is that PCR is **equivalent to ordinary least squares after
-hard singular-value thresholding (HSVT)** of the covariate (donor)
+identity is that PCR is equivalent to ordinary least squares after
+hard singular-value thresholding (HSVT) of the covariate (donor)
 matrix (Agarwal et al. 2021, Prop. 2.1): retaining the top-:math:`r`
 PCs and regressing yields the *same* fitted response as
-:math:`\mathrm{HSVT}_r` followed by OLS. That HSVT step **implicitly
-de-noises** the donors by projecting them onto the rank-:math:`r`
+:math:`\mathrm{HSVT}_r` followed by OLS. That HSVT step implicitly
+de-noises the donors by projecting them onto the rank-:math:`r`
 signal subspace, which is exactly why the synthetic control inherits
 robustness to the idiosyncratic shocks every donor series carries. In
-the synthetic-control language this estimator is **Robust Synthetic
-Control** (Amjad-Shah-Shen [Amjad2018]_); Agarwal et al. prove PCR and
+the synthetic-control language this estimator is Robust Synthetic
+Control (Amjad-Shah-Shen [Amjad2018]_); Agarwal et al. prove PCR and
 RSC are identical, so the HSVT+OLS path here carries RSC's guarantees.
 
-**Model (error-in-variables).** In the synthetic-control setting
+Model (error-in-variables). In the synthetic-control setting
 [ClusterSC]_ formalizes the donor panel as a noisy, partially observed
 view of a low-rank signal, :math:`Y_0 = M + E`, where :math:`E` collects
 mean-zero idiosyncratic shocks and (optionally) missing cells, and the
@@ -107,7 +107,7 @@ with response noise :math:`\varepsilon_t` (mean zero, variance
 :math:`\le \sigma^2`) and a deterministic model-mismatch term
 :math:`\phi_t`.
 
-**Assumptions.**
+Assumptions.
 
 *Assumption 1 (low-rank latent-factor signal).* The signal is generated
 by a latent variable model :math:`M_{i,t} = g(\theta_i, \rho_t)` with
@@ -115,7 +115,7 @@ by a latent variable model :math:`M_{i,t} = g(\theta_i, \rho_t)` with
 :math:`\theta_i` and time factors :math:`\rho_t`, and bounded entries
 (:math:`\|M\|_\infty \le 1`). This forces :math:`M` to be (approximately)
 low rank, :math:`\mathrm{rank}(M) = r = O(\log T) < T`. *Remark.* This is
-the assumption that lets PCR/HSVT work at all -- and it **earns** the
+the assumption that lets PCR/HSVT work at all -- and it earns the
 synthetic control rather than assuming it: under this model an
 (approximate) linear SC :math:`f^\star` provably *exists* (Agarwal et al.
 2021, Prop. 4.1), so the existence of a synthetic combination need not be
@@ -143,11 +143,11 @@ re-imposes the convex hull when interpretability is preferred.
 *Assumption 4 (independent noise sources).* The response noise
 :math:`\varepsilon`, covariate noise :math:`\eta`, and the missingness
 pattern are mutually independent (Agarwal et al. 2021, Rmk. 3.2).
-*Remark.* PCR is **noise-model-agnostic**: unlike the error-in-variables
+*Remark.* PCR is noise-model-agnostic: unlike the error-in-variables
 literature it needs no knowledge of the noise covariance, which is what
 makes it practical for panels with unknown shock structure.
 
-**Finite-sample guarantees.** Under Assumptions 1-4 the pre-period
+Finite-sample guarantees. Under Assumptions 1-4 the pre-period
 (training) error of the HSVT+OLS estimator decomposes into three
 interpretable pieces (Agarwal et al. 2021, Thm. 3.1):
 
@@ -169,11 +169,11 @@ minimax OLS rate one would get with *perfectly observed* donors, despite
 seeing only noisy, partially observed ones. The post-period (test) error
 is bounded by the training error plus a generalization penalty scaling as
 :math:`r^{5/2}/\sqrt{T_0}` (Thm. 3.2), which is exactly what justifies the
-**data-driven rank selection** (cumulative-variance / USVT rules) used
+data-driven rank selection (cumulative-variance / USVT rules) used
 below: choose :math:`r` to trade pre-period fit against this complexity
 penalty.
 
-**HSVT denoising.** mlsynth follows the Amjad-Shah-Shen (2018)
+HSVT denoising. mlsynth follows the Amjad-Shah-Shen (2018)
 convention and applies HSVT to the *pre-period* donor matrix only.
 The full-matrix variant proposed in Rho et al. (2025) Algorithm 2
 (SVD on the entire :math:`(T, J)` panel, then slice the pre-period
@@ -195,13 +195,13 @@ donor matrix. The rank-:math:`r` hard truncation
 isolates the low-rank signal :math:`M^-`. The truncation rank can
 be chosen three ways:
 
-* **Cumulative variance** (default; paper Section 6.1) -- smallest
+* Cumulative variance (default; paper Section 6.1) -- smallest
   :math:`r` with :math:`\sum_{i \le r} \sigma_i^2 / \sum_i \sigma_i^2
   \ge` ``cumvar_threshold`` (default :math:`0.95`).
-* **Explicit rank.** Caller passes :math:`r` directly via the
+* Explicit rank. Caller passes :math:`r` directly via the
   ``rank`` parameter; the dispatcher promotes
   ``rank_method="fixed"`` automatically.
-* **USVT** (Chatterjee 2015; Donoho-Gavish 2014). Universal
+* USVT (Chatterjee 2015; Donoho-Gavish 2014). Universal
   threshold; preserved for back-compatibility with Amjad et al.
   2018.
 
@@ -223,7 +223,7 @@ The same rank is applied to the full :math:`Y_0` so that the
 post-period projection (Algorithm 4 Step 5) consumes the denoised
 matrix :math:`\widetilde M = \mathrm{HSVT}_r(Y_0)`.
 
-**Donor clustering** (Algorithm 3). When ``clustering=True`` the
+Donor clustering (Algorithm 3). When ``clustering=True`` the
 estimator clusters donors on the rows of
 :math:`\widetilde U = U \Sigma_r`. With :math:`k` chosen by the
 silhouette coefficient (Rousseeuw 1987) over
@@ -233,7 +233,7 @@ becomes the cluster minimising :math:`\|c_\ell - \tilde u\|_2`
 (Algorithm 4 Step 2). The selected donor sub-matrix is denoised
 again at the same rank before the weight step.
 
-**OLS weights** (Algorithm 2 Step 3). Drop the simplex constraints
+OLS weights (Algorithm 2 Step 3). Drop the simplex constraints
 of canonical synthetic control and solve
 
 .. math::
@@ -270,7 +270,7 @@ mlsynth extensions
 
 Two paper-extensible weight solvers live alongside the OLS default:
 
-* **Bayesian PCR** (``estimator="bayesian"``). This is the Bayesian
+* Bayesian PCR (``estimator="bayesian"``). This is the Bayesian
   Robust Synthetic Control of Amjad, Shah & Shen [Amjad2018]_: replace
   the point-estimate OLS with a Gaussian posterior over the weights
   (Bayesian linear regression on the HSVT-denoised donors), which
@@ -294,7 +294,7 @@ Two paper-extensible weight solvers live alongside the OLS default:
   post period, the implied ATT credible interval is reported on
   :py:class:`CLUSTERSCInference`.
 
-* **Convex PCR** (``pcr_objective="SIMPLEX"``). Keep the HSVT
+* Convex PCR (``pcr_objective="SIMPLEX"``). Keep the HSVT
   denoising of the donor matrix but solve the classical
   Abadie-Diamond-Hainmueller (2010) program,
 
@@ -316,7 +316,7 @@ The RPCA family follows the same five-step skeleton as PCR-SC but
 swaps the feature step, the denoising step, and the weight
 constraints. Algorithm 4 of the paper is the orchestrator.
 
-**Step 1 -- Functional PCA on pre-period trajectories.** Each unit's
+Step 1 -- Functional PCA on pre-period trajectories. Each unit's
 pre-period series :math:`y_j^- (t)` is smoothed via a cubic B-spline
 expansion and projected onto the FPC basis
 :math:`\{\phi_k\}_{k=1}^K` (Li, Wang & Carroll 2010):
@@ -333,7 +333,7 @@ The rank :math:`K` is the smallest integer whose cumulative
 spectral energy meets ``fpca_cumvar`` (paper default :math:`0.95`).
 The scores are standardised before clustering.
 
-**Step 2 -- :math:`k`-means clustering.** Apply Hartigan-Wong
+Step 2 -- :math:`k`-means clustering. Apply Hartigan-Wong
 (1979) :math:`k`-means to the FPC scores with :math:`k` chosen by
 the silhouette coefficient
 
@@ -347,7 +347,7 @@ the closest neighbouring cluster. The donor pool
 :math:`\mathcal{D} \subseteq \{2, \dots, J + 1\}` is the set of
 non-treated units sharing the treated unit's cluster.
 
-**Step 3 -- Robust PCA on the donor pool.** Stack the cluster donor
+Step 3 -- Robust PCA on the donor pool. Stack the cluster donor
 outcomes into :math:`Y_{-1} \in \mathbb{R}^{|\mathcal{D}| \times T}`.
 mlsynth offers two robust decompositions :math:`Y_{-1} = L + S`.
 
@@ -384,7 +384,7 @@ threshold on the residual (controlled by ``hqf_ip``). The rank
 defaults to the smallest :math:`r` whose cumulative singular-value
 energy meets ``hqf_cumvar`` (Bayani uses :math:`0.999`).
 
-**Step 4 -- Non-negative least squares.** Let
+Step 4 -- Non-negative least squares. Let
 :math:`L^- \in \mathbb{R}^{|\mathcal{D}| \times T_0}` be the
 pre-period slice of the low-rank component. The weights solve
 
@@ -399,7 +399,7 @@ the donor pool to behaviourally similar units, so non-negativity
 suffices to keep the counterfactual interpretable (Bayani 2021,
 Section 2.4).
 
-**Step 5 -- Projection.** Counterfactual and ATT come from the
+Step 5 -- Projection. Counterfactual and ATT come from the
 denoised donor matrix,
 
 .. math::
@@ -473,7 +473,7 @@ each shows up in real data and what to check in the
 :py:class:`CLUSTERSCResults` container before trusting the
 counterfactual.
 
-(a) **Low-rank latent-factor signal (A1).** The donor pool's
+(a) Low-rank latent-factor signal (A1). The donor pool's
     untreated mean :math:`M` is approximately low rank. If the
     panel is genuinely full-rank or the spectrum decays slowly,
     HSVT throws away signal and the OLS step over-fits whatever
@@ -493,12 +493,12 @@ counterfactual.
     balancing-aware estimator (:doc:`microsynth` for unit-level
     data; :doc:`fma` for factor-model-aware estimation).
 
-(b) **Error-in-variables donors (A2).** Donor entries are
+(b) Error-in-variables donors (A2). Donor entries are
     noisy / partially-observed views of the signal. The HSVT step
     is precisely what restores consistency when this assumption
     holds. The condition fails *softly* when the noise is sparse
     and heavy-tailed instead of Gaussian, *hard* when missingness
-    is non-random (donor entries missing **because** the donor
+    is non-random (donor entries missing because the donor
     deviates from the signal).
 
     *Plausibly violated when* you have a panel with structural
@@ -506,12 +506,12 @@ counterfactual.
     than i.i.d. Gaussian noise. *Diagnostic*: residualise each
     donor against the rank-:math:`r` HSVT reconstruction and
     histogram the residuals; sparse heavy tails are a red flag.
-    The fix is the **RPCA-SC family** -- robust :math:`L + S`
+    The fix is the RPCA-SC family -- robust :math:`L + S`
     decomposition explicitly separates the low-rank signal from
     the sparse outliers, so heavy-tailed donor noise is absorbed
     into :math:`S` rather than contaminating :math:`L`.
 
-(c) **Approximate linear SC (A3).** The treated signal lies
+(c) Approximate linear SC (A3). The treated signal lies
     (approximately) in the span of the denoised donor signals.
     PCR-SC uses unconstrained OLS so this relaxes the canonical
     convex-hull restriction -- but the model-mismatch term
@@ -531,13 +531,13 @@ counterfactual.
     identifies the effect through donors that use the treated
     unit as a *donor*).
 
-(d) **Independent noise sources (A4).** Response noise, donor
+(d) Independent noise sources (A4). Response noise, donor
     noise, and the missingness pattern are mutually independent.
     The PCR-SC consistency results assume the missingness pattern
     is data-independent.
 
     *Plausibly violated when* donor observations are missing
-    **because** of the outcome value (e.g. countries stopping
+    because of the outcome value (e.g. countries stopping
     reporting GDP during recessions). *Diagnostic*: cross-tabulate
     missingness with the pre-period outcome quantiles; if missing
     entries are concentrated in the tails, the assumption fails.
@@ -545,7 +545,7 @@ counterfactual.
     is the fix; mlsynth's :doc:`snn` is built for missingness-
     informative panels.
 
-(e) **Cluster structure (Rho et al. 2025, ClusterSC-specific).**
+(e) Cluster structure (Rho et al. 2025, ClusterSC-specific).
     The donor pool decomposes into latent subgroups distinguishable
     on the right-singular-vector embedding. Clustering only helps
     if such subgroups actually exist and the silhouette statistic
@@ -562,7 +562,7 @@ counterfactual.
     *spurious* (cluster boundaries are within the noise floor)
     and the un-clustered fit is the more honest one.
 
-(f) **Functional smoothness (Bayani 2021, RPCA-SC-specific).**
+(f) Functional smoothness (Bayani 2021, RPCA-SC-specific).
     Pre-period trajectories admit a parsimonious FPCA basis. If
     trajectories are dominated by high-frequency jagged noise the
     cubic-spline FPCA pre-step throws away most of the signal.
@@ -577,7 +577,7 @@ counterfactual.
     move to a stationary-cycle estimator (:doc:`sbc`) that
     handles unsmoothed series natively.
 
-(g) **NNLS-friendly truth (Bayani 2021, RPCA-SC-specific).**
+(g) NNLS-friendly truth (Bayani 2021, RPCA-SC-specific).
     RPCA-SC ends with a non-negative least-squares step. If the
     true counterfactual is best represented as an *extrapolation*
     (some donor weights would naturally be negative), NNLS
@@ -597,119 +597,119 @@ When to use PCR-SC, RPCA-SC, or neither
 The four papers behind CLUSTERSC chip at different parts of the
 canonical SC pipeline. The decision logic for picking among them:
 
-**Reach for PCR-SC + clustering (the CLUSTERSC default) when:**
+Reach for PCR-SC + clustering (the CLUSTERSC default) when:
 
-* The donor pool is **large and noisy** (:math:`J \gtrsim T_0`,
+* The donor pool is large and noisy (:math:`J \gtrsim T_0`,
   disaggregated panels with hundreds of donors), and the donor
   matrix has a clear low-rank spectrum. This is the Rho et al.
   (2025) regime -- the empirical case studies are individual-
   level health records and disaggregated economic panels.
-* The treated unit comes from a **plausible subgroup** of the
+* The treated unit comes from a plausible subgroup of the
   donor pool that you cannot easily isolate by hand (similar
   patient phenotype, similar state-economy composition). The
   silhouette-driven :math:`k`-means step formalises the
   subgroup decision.
-* You're willing to **let weights be negative** in the
+* You're willing to let weights be negative in the
   un-clustered OLS solve (Assumption 3 above) for tighter
   pre-fit and lower bias -- and you accept that "California =
   +0.4 Utah +0.3 Montana -0.1 Tennessee" is a defensible weight
   story for your application.
 
-**Reach for PCR-SC without clustering (i.e., classic Amjad-Shah-Shen
-RSC) when:**
+Reach for PCR-SC without clustering (i.e., classic Amjad-Shah-Shen
+RSC) when:
 
-* You have a **moderate-size donor pool** that you have already
+* You have a moderate-size donor pool that you have already
   pre-screened, and you mostly want the HSVT denoising step to
   protect against donor-matrix noise / missingness. Pre-screening
   has done the work that clustering would do.
-* You want the **Shen-Ding-Sekhon-Yu (2023) closed-form CIs**.
+* You want the Shen-Ding-Sekhon-Yu (2023) closed-form CIs.
   These are wired in for ``pcr_objective="OLS"`` and give you
   proper frequentist HZ/VT/DR-source standard errors without a
   bootstrap; the Bayesian path delivers credible bands.
-* The empirical setting is one of the **canonical aggregate SC
-  case studies** (Prop 99, Basque, etc.) where the donor pool is
+* The empirical setting is one of the canonical aggregate SC
+  case studies (Prop 99, Basque, etc.) where the donor pool is
   small (J ≤ 40) and a hand-picked subgroup already exists.
 
-**Reach for RPCA-SC when:**
+Reach for RPCA-SC when:
 
-* The donor matrix has **sparse heavy-tailed outliers** rather
+* The donor matrix has sparse heavy-tailed outliers rather
   than uniform Gaussian noise -- a few donors with one-time
   policy shocks, structural breaks, or recording errors. The
   :math:`L + S` decomposition explicitly absorbs these into
   :math:`S`, leaving a clean :math:`L` for the weight fit.
   PCR-SC's HSVT is an :math:`L_2`-based denoiser and is
   *less* robust to this exact regime.
-* Pre-period trajectories are **smooth functional curves**
+* Pre-period trajectories are smooth functional curves
   (annual GDP, monthly population) where the FPCA basis is a
   natural language for the donor pool. RPCA-SC's Step 1 was
   built for this.
-* You want **non-negative interpretable weights** -- the NNLS
+* You want non-negative interpretable weights -- the NNLS
   step at the end produces a sparse convex-combination story
   similar to canonical SC, while still benefiting from the
   robust-PCA denoising. The German-reunification application
   is the canonical case (Norway 0.48, France 0.35, New Zealand
   0.30, Austria 0.02).
-* You want **Cattaneo-Feng-Titiunik (2021) prediction intervals**
+* You want Cattaneo-Feng-Titiunik (2021) prediction intervals
   -- mlsynth's CFT port runs on RPCA-SC, providing in-sample
   bootstrap + Hoeffding out-of-sample bands.
 
-**Use PCR-SC over RPCA-SC when:**
+Use PCR-SC over RPCA-SC when:
 
 * The noise is Gaussian / sub-Gaussian (PCR-SC's HSVT is
   optimal under this), the donor matrix is high-dimensional
   (clustering helps), and you want negative weights / closed-
   form Shen CIs.
-* You need speed -- PCR-SC is **one SVD + one OLS**, while
+* You need speed -- PCR-SC is one SVD + one OLS, while
   RPCA-SC's PCP is an ADMM loop and HQF is an iterative
   factorisation. Differences are small on Prop99-size panels;
   they bite on disaggregated panels with thousands of donors.
 
-**Use RPCA-SC over PCR-SC when:**
+Use RPCA-SC over PCR-SC when:
 
 * The donor matrix has visible sparse outliers (one or two
   donors with a single shock period that would dominate the
   HSVT spectrum). RPCA's :math:`L + S` decomposition is built
   for exactly that pattern.
-* Trajectories are smooth and you want the **donor-pool
-  reduction** that FPCA + :math:`k`-means delivers ahead of
+* Trajectories are smooth and you want the donor-pool
+  reduction that FPCA + :math:`k`-means delivers ahead of
   the weight fit (this is what selects the 11-economy
   West-Germany cluster from the 17-country OECD pool).
-* You want a **non-negative interpretable** weight vector for
+* You want a non-negative interpretable weight vector for
   policy storytelling.
 
-**Do not use either family when:**
+Do not use either family when:
 
-* **The donor matrix has no low-rank structure.** Both PCR-SC
+* The donor matrix has no low-rank structure. Both PCR-SC
   and RPCA-SC depend on this. With high-dimensional donor
   pools where the spectrum decays slowly, switch to a
   balancing-aware estimator (:doc:`microsynth` if you have
   user-level data; :doc:`fma` if a factor-model fit is
   defensible).
-* **The treated unit is structurally outside the donor convex
-  hull** in a way that no linear combination can capture --
+* The treated unit is structurally outside the donor convex
+  hull in a way that no linear combination can capture --
   even with negative weights, the pre-RMSE stays large. Switch
   to :doc:`iscm`, whose A2(b) mechanism identifies the effect
   through donors that use the treated unit as a positive-
   weight donor in their own synthetic controls.
-* **Distributional questions** (Lorenz curves, QTEs, tail
+* Distributional questions (Lorenz curves, QTEs, tail
   changes). PCR-SC and RPCA-SC target the mean ATT. Use
   :doc:`dsc` instead.
-* **Continuous or multi-valued treatment.** The CLUSTERSC
+* Continuous or multi-valued treatment. The CLUSTERSC
   pipeline encodes a single binary treatment indicator.
   Continuous dose belongs in :doc:`ctsc`.
-* **Spillovers / interference across donors.** The low-rank
+* Spillovers / interference across donors. The low-rank
   signal model assumes donors are untreated and independent of
   the treatment of unit 1. Spillovers break this; use
   :doc:`spillsynth` or :doc:`spsydid`.
-* **Tiny donor pool** (:math:`J \le 10`) and a tight canonical-
+* Tiny donor pool (:math:`J \le 10`) and a tight canonical-
   SC pre-fit. The denoising and clustering machinery is
   overkill; both add variance without identification gain.
   Use *canonical SCM*, :doc:`tssc`, or :doc:`fdid`.
-* **Staggered adoption with a long mixed-treatment pre-period.**
+* Staggered adoption with a long mixed-treatment pre-period.
   CLUSTERSC assumes a common pre-period free of treatment.
   Use *FECT* or :doc:`sdid`.
-* **You need the donor weight vector to be a single sparse
-  convex combination** as the headline story (and you're not
+* You need the donor weight vector to be a single sparse
+  convex combination as the headline story (and you're not
   willing to use RPCA-SC's NNLS variant). The PCR-SC
   default is the unrestricted OLS solve; the SIMPLEX
   variant re-imposes the convex hull at the cost of the
@@ -733,15 +733,15 @@ two family fits remain available side by side on ``res.pcr`` / ``res.rpca``.
 Three inference families are wired into :py:class:`CLUSTERSCInference`
 (accessed via ``res.cluster_inference``):
 
-* **Frequentist PCR -- Shen-Ding-Sekhon-Yu (2023) closed-form CIs.**
+* Frequentist PCR -- Shen-Ding-Sekhon-Yu (2023) closed-form CIs.
   Default on for ``estimator="frequentist"`` and
   ``pcr_objective="OLS"``. See the next subsection.
-* **Bayesian PCR -- posterior credible interval.** Computed when
+* Bayesian PCR -- posterior credible interval. Computed when
   ``estimator="bayesian"`` from posterior draws of the counterfactual
   (the Bayesian Robust Synthetic Control of Amjad, Shah & Shen
   [Amjad2018]_).
-* **RPCA-SC -- Cattaneo-Feng-Titiunik (2021) prediction
-  intervals.** Opt-in via ``CLUSTERSCConfig.compute_cft_pi``. See
+* RPCA-SC -- Cattaneo-Feng-Titiunik (2021) prediction
+  intervals. Opt-in via ``CLUSTERSCConfig.compute_cft_pi``. See
   the dedicated subsection below.
 
 Shen-Ding-Sekhon-Yu (2023) frequentist CIs for OLS PCR
@@ -754,7 +754,7 @@ algebraically identical point estimates. The two formulations
 nevertheless quantify uncertainty against *different* generative
 models:
 
-* **HZ model** (Assumption 1). Each donor's post-period outcome is a
+* HZ model (Assumption 1). Each donor's post-period outcome is a
   noisy linear combination of its own pre-period values:
 
   .. math::
@@ -762,9 +762,9 @@ models:
      Y_{i, T} = \sum_{t \le T_0} \alpha^*_t Y_{i, t} + \varepsilon_{i, T},
      \quad i = 1, \dots, N_0.
 
-  The randomness lives in the **cross-sectional** dimension.
+  The randomness lives in the cross-sectional dimension.
 
-* **VT model** (Assumption 2). The treated unit's pre-period outcome
+* VT model (Assumption 2). The treated unit's pre-period outcome
   is a noisy linear combination of the donors' pre-period values:
 
   .. math::
@@ -772,9 +772,9 @@ models:
      Y_{N, t} = \sum_{i \le N_0} \beta^*_i Y_{i, t} + \varepsilon_{N, t},
      \quad t = 1, \dots, T_0.
 
-  The randomness lives in the **time-series** dimension.
+  The randomness lives in the time-series dimension.
 
-* **DR model** (Assumption 3). Both sources of randomness are present.
+* DR model (Assumption 3). Both sources of randomness are present.
 
 Each model yields a distinct estimand and a distinct asymptotic
 variance for the same point estimate
@@ -816,7 +816,7 @@ interaction term. The :math:`(1 - \alpha)` CI under source
 
    \widehat Y_{N, T}(0) \pm z_{\alpha/2}\, \sqrt{\widehat v_s}.
 
-mlsynth also ports the **jackknife** and **HRK (Hartley-Rao-Kish)**
+mlsynth also ports the jackknife and HRK (Hartley-Rao-Kish)
 variance estimators from var.py in the authors' reference repository.
 The HRK estimator is only valid when
 :math:`\max_i (1 - (H_\perp)_{ii}) < 1/2` for both projections;
@@ -872,7 +872,7 @@ denoised donor row :math:`L_t`), :math:`w^*` is the population
 weight, and :math:`\widehat w` is the NNLS estimate. The two
 components are quantified separately:
 
-* **In-sample component** :math:`M_w(t, \alpha/2)`. The paper's
+* In-sample component :math:`M_w(t, \alpha/2)`. The paper's
   reference implementation solves a constrained
   :math:`\sup / \inf` over the "compatible set" of weights via an
   ECOS LP at each post-period. mlsynth replaces that with an
@@ -895,7 +895,7 @@ components are quantified separately:
   under regularity conditions and avoids pulling in ``ecos`` /
   ``dask`` / ``plotnine`` as hard dependencies.
 
-* **Out-of-sample component** :math:`M_e(t, \alpha/2)`. Under
+* Out-of-sample component :math:`M_e(t, \alpha/2)`. Under
   sub-Gaussian post-period shocks with scale parameter
   :math:`\sigma_e`, Hoeffding's inequality gives the tail bound
 
@@ -953,7 +953,7 @@ Both modes run through the one estimator (``clustering=False`` is RSC,
 ``benchmarks/cases/clustersc_subgroups.py``; the authors' own code is
 cross-checked against its paper in ``clustersc_subgroups_ref.py``; the RSC
 pre/post-error and Shen-CI coverage are pinned in ``rsc_synth_error.py`` /
-``rsc_shen_coverage.py``. The **RPCA-SC** family is pinned separately on the
+``rsc_shen_coverage.py``. The RPCA-SC family is pinned separately on the
 West-German-reunification application (``clustersc_rpca_germany.py``: Norway 0.49
 / France 0.35 / pre-RMSE ~89). See the dedicated page
 :doc:`replications/clustersc`.
@@ -1330,7 +1330,7 @@ California Proposition 99 (Abadie et al. 2010). For each panel they
   the spectral energy sits in the top singular value, exactly the
   low-rank regime in which the Theorem 3.1 / 3.2 error bounds bite;
 * randomly obfuscate :math:`5\%`-:math:`20\%` of the donor entries
-  and re-fit PCR (HSVT + OLS) on the **outcome series only**.
+  and re-fit PCR (HSVT + OLS) on the outcome series only.
 
 The finding: PCR tracks the published baseline across all missing-
 data levels, whereas classical convex SC degrades sharply and plain
@@ -1385,11 +1385,11 @@ with periodicities :math:`f_1 = \rho_t \bmod 360`,
 :math:`N = 100`, :math:`T = 2000`, intervention at
 :math:`t = 1600`. Two findings drive the paper:
 
-* **Training error tracks generalization error (Table 1).** The
+* Training error tracks generalization error (Table 1). The
   pre-intervention MSE of the estimated mean closely matches the
   post-intervention MSE at every noise level -- the de-noised fit
   generalizes.
-* **De-noising beats no de-noising (Table 2).** The HSVT step lowers
+* De-noising beats no de-noising (Table 2). The HSVT step lowers
   the generalization error consistently versus regressing on the raw
   donor matrix.
 
@@ -1490,7 +1490,7 @@ leave-one-out placebo test on :math:`30\%` of group :math:`A`
 compares ClusterSC against full-pool SC via the per-target
 improvement :math:`I_i = \mathrm{MSE}_{\text{SC}} -
 \mathrm{MSE}_{\text{ClusterSC}}`. The median improvement is positive
-at every noise level and **grows with** :math:`s`: once noise blurs
+at every noise level and grows with :math:`s`: once noise blurs
 the latent structure, restricting to the treated unit's cluster pays
 off. mlsynth's ``clustering=True`` (the default) is exactly this
 donor-selection step ahead of the PCR weight solve.
@@ -1500,8 +1500,8 @@ own reference implementation (the ``syclib`` library released with
 the paper) on this exact DGP and on the paper's empirical
 house-price-index panel. Running both pipelines -- SVD
 :math:`k`-means clustering, HSVT denoising, then an OLS weight solve
--- on the same targets, the two produce **near-identical
-counterfactuals**: the per-target counterfactual trajectories
+-- on the same targets, the two produce near-identical
+counterfactuals: the per-target counterfactual trajectories
 correlate at :math:`\ge 0.99` on the synthetic sine panel and at
 :math:`\ge 0.999` on the house-price-index panel, with matching
 cluster assignment / donor-pool sizes and pre- and post-intervention
@@ -1589,12 +1589,12 @@ from two deterministic processes plus i.i.d. Gaussian noise
 with the noise variance swept over
 :math:`\sigma^2 \in \{1, 4, 9, 16, 25\}`. The study has two halves:
 
-* **Clustering recovery (Steps 1-2).** FPCA over the pre-period plus
+* Clustering recovery (Steps 1-2). FPCA over the pre-period plus
   :math:`k`-means recovers the two latent processes with :math:`100\%`
   accuracy at every noise level; the first FPC score alone explains
   over :math:`95\%` of the variation and the silhouette statistic
   selects :math:`k = 2`.
-* **Counterfactual accuracy (Steps 3-5).** Treating the noiseless
+* Counterfactual accuracy (Steps 3-5). Treating the noiseless
   mean of :math:`f_1` as the target and its 100 noisy realisations as
   the donor pool, RPCA extracts the low-rank component and projects
   the counterfactual. The estimation RMSPE stays low and pre-/post-

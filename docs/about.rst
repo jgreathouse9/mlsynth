@@ -3,7 +3,7 @@ About mlsynth
 
 .. currentmodule:: mlsynth
 
-**Synthetic control, with batteries included.** mlsynth is a Python
+Synthetic control, with batteries included. mlsynth is a Python
 package that gives applied researchers and data scientists access to
 the modern synthetic-control literature under a single, unified API.
 You provide a long DataFrame and a configuration dictionary; the
@@ -26,7 +26,7 @@ Design philosophy
 
 mlsynth is built around three principles.
 
-**1. Long DataFrame in, ATT out.**
+1. Long DataFrame in, ATT out.
 
 Every estimator consumes the same long-format panel: one row per unit
 per time period, with at minimum a unit identifier, a time index, an
@@ -35,14 +35,14 @@ outcome column, and a binary treatment indicator. There is no
 special-cased input for each method. The same DataFrame that fits a
 :doc:`tssc` will fit :doc:`masc`.
 
-**2. One config dict, one ``.fit()`` call.**
+2. One config dict, one ``.fit()`` call.
 
 Estimators take a single configuration dictionary and expose a single ``.fit()`` method that returns a
 frozen, typed result. There are no separate ``compute_weights`` /
 ``compute_counterfactual`` / ``compute_inference`` steps for the user
 to assemble -- the orchestration is the estimator's job.
 
-**3. Every estimator is verified against its source.**
+3. Every estimator is verified against its source.
 
 Most synthetic-control libraries ship "an implementation"; the user
 trusts it does what the paper says. mlsynth's *Verification campaign*
@@ -99,9 +99,9 @@ The verification campaign
 mlsynth, as much as possible, reproduces against the source
 paper. Each verified estimator's documentation page contains a
 replication section showing that the implementation matches one of
-the paper's headline numbers. We distinguish between **Path A** (empirical replication
+the paper's headline numbers. We distinguish between Path A (empirical replication
 on the original authors' dataset, matching their published
-estimates) and **Path B** (Monte Carlo replication of the paper's
+estimates) and Path B (Monte Carlo replication of the paper's
 simulation section). Where both paths are feasible, both are run;
 where the authors' data is not redistributable/easily accessible, Path B is used.
 
@@ -139,14 +139,14 @@ mlsynth is a general-purpose synthetic-control toolkit. The
 applications below are the ones the library has been used for most
 heavily in practice.
 
-**Observational causal inference.** Estimate the average treatment
+Observational causal inference. Estimate the average treatment
 effect of a policy, a regulatory change, a marketing intervention, or
 a supply shock from a panel of already-observed outcomes. This is
 the canonical comparative-case-study setting that synthetic control
 was built for; mlsynth supplies more than two dozen estimators
 covering low-dim, high-dim, staggered, and instrumental variants.
 
-**Experimental design at the market level.** When randomising
+Experimental design at the market level. When randomising
 individual units is infeasible -- as in geo-marketing experiments,
 cluster-level public-health interventions, or market-level pricing
 studies -- mlsynth supports the design-stage problem of choosing
@@ -156,7 +156,7 @@ which units to treat, before any intervention takes place. See
 `Synthetic Controls for Marketing Experiments
 <https://jgreathouse9.github.io/docs/scexp.html>`_.
 
-**High-dimensional donor pools.** When :math:`N \gg T_0` -- as
+High-dimensional donor pools. When :math:`N \gg T_0` -- as
 arises with commodity-category panels, large product portfolios, or
 fine industry classifications, or we have many covariates to choose from, the classical SC quadratic program
 loses its unique solution. Lasso-style alternatives sometimes over-select.
@@ -164,7 +164,7 @@ loses its unique solution. Lasso-style alternatives sometimes over-select.
 :doc:`sparse_sc`, :doc:`fscm`, and :doc:`pda` each address this
 regime with a different selection strategy.
 
-**Special data structures.** Multiple outcomes (:doc:`scmo`),
+Special data structures. Multiple outcomes (:doc:`scmo`),
 continuous treatments (:doc:`ctsc`), full distributional ATTs
 (:doc:`dsc`), multiple treatment arms (:doc:`si`), individual-level
 units (:doc:`microsynth`), missing outcome cells (:doc:`mcnnm`,
@@ -212,23 +212,23 @@ Roadmap
 
 Current development priorities, in roughly the order they will land:
 
-* **Verification coverage to 100%.** Extend the Path A / Path B
+* Verification coverage to 100%. Extend the Path A / Path B
   campaign to every estimator in the library.
-* **A unified result-object contract.** All estimators currently
+* A unified result-object contract. All estimators currently
   expose an ATT, a counterfactual path, and (where applicable) a CI,
   but the attribute names differ across families. A documented
   minimum contract (``result.att``, ``result.att_ci``,
   ``result.counterfactual``, ``result.weights``, ``result.pre_rmse``)
   is in design.
-* **Staggered-adoption expansion.** Several estimators currently
+* Staggered-adoption expansion. Several estimators currently
   built for a single treated unit (the :math:`\ell_2` relaxation of
   Shi & Wang, the Factor Model Approach of Li & Sonnier) are in
   principle compatible with staggered adoption; exposing those
   extensions in the API is planned.
-* **A comparison matrix.** A single table indexing which estimators
+* A comparison matrix. A single table indexing which estimators
   produce CIs, which handle staggered adoption, which scale to
   large :math:`N`, which require covariates, etc.
-* **Performance work.** Several per-unit synthetic-control fits
+* Performance work. Several per-unit synthetic-control fits
   currently route through cvxpy's compilation tax; replacing with
   closed-form simplex projection where possible.
 

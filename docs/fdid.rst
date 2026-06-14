@@ -7,44 +7,44 @@ When to Use This Estimator
 --------------------------
 
 Difference-in-differences (DiD) is the workhorse of quasi-experimental
-causal inference, but it rests on a **parallel-trends** assumption: the
+causal inference, but it rests on a parallel-trends assumption: the
 treated unit's untreated outcome would have moved in lockstep with the
 average of the controls. With a large, heterogeneous pool of candidate
 controls that assumption is rarely credible for the pool *as a whole* --
 most of the controls are simply the wrong comparison. The usual escape
 hatches each have a catch:
 
-* **Plain DiD** uses *every* control with equal weight. One badly
-  mismatched control contaminates the average, and its bias does **not**
+* Plain DiD uses *every* control with equal weight. One badly
+  mismatched control contaminates the average, and its bias does not
   shrink as the panel grows.
-* **Synthetic control** (SC, [ABADIE2010]_) weights the controls on the
+* Synthetic control (SC, [ABADIE2010]_) weights the controls on the
   simplex, but is justified only as the pre-period grows without bound, and
-  has **no inference theory** when the data are non-stationary of unknown
+  has no inference theory when the data are non-stationary of unknown
   form -- exactly the regime of most marketing and macro panels.
-* **The panel-data approach** of Hsiao, Ching and Wan ([HCW]_) and its
+* The panel-data approach of Hsiao, Ching and Wan ([HCW]_) and its
   forward-selected variant ([fsPDA]_) fit an unrestricted regression on the
   controls. When the number of donors :math:`N_0` exceeds the number of
   pre-treatment periods :math:`T_0` -- common in store/geo studies -- they
-  **overfit** in-sample and predict poorly out-of-sample.
+  overfit in-sample and predict poorly out-of-sample.
 
-Forward DiD (Li [Li2024]_) targets precisely this regime: **many candidate
+Forward DiD (Li [Li2024]_) targets precisely this regime: many candidate
 controls, a short-to-moderate pre-period, and a need for valid inference
-under non-stationarity.** It keeps DiD's transparency -- an equal-weighted
-comparison group plus a single intercept -- but **chooses which controls
-enter the comparison** by a greedy forward search on pre-treatment fit.
+under non-stationarity. It keeps DiD's transparency -- an equal-weighted
+comparison group plus a single intercept -- but chooses which controls
+enter the comparison by a greedy forward search on pre-treatment fit.
 Because only one parameter is ever estimated (the DiD intercept
 :math:`\alpha`), no matter how many controls are selected, overfitting is
 impossible and the textbook DiD standard error applies. Its advantages, in
 Li's own summary:
 
-1. It is a **flexible drop-in for DiD**, usable even when DiD's
+1. It is a flexible drop-in for DiD, usable even when DiD's
    all-controls parallel trend is too restrictive.
-2. It accommodates **any number of controls**, including :math:`N_0 > T_0`.
-3. There are **no overfitting concerns** -- one parameter after selection.
-4. It is **computationally cheap**: a greedy :math:`O(N_0^2)` search rather
+2. It accommodates any number of controls, including :math:`N_0 > T_0`.
+3. There are no overfitting concerns -- one parameter after selection.
+4. It is computationally cheap: a greedy :math:`O(N_0^2)` search rather
    than the :math:`2^{N_0}` subsets of the optimal procedure.
-5. It has **inference theory valid for stationary and non-stationary
-   data**, which SC and HCW lack.
+5. It has inference theory valid for stationary and non-stationary
+   data, which SC and HCW lack.
 
 Forward Selection vs. Matching and Weighting
 --------------------------------------------
@@ -54,8 +54,8 @@ Every synthetic-control-family estimator answers the same question --
 makes a different structural bet about the comparison. Forward DiD's bet is
 distinctive and worth stating plainly:
 
-   **A *subset* of the controls shares the treated unit's trend; find that
-   subset and average it with equal weights.**
+   A *subset* of the controls shares the treated unit's trend; find that
+   subset and average it with equal weights.
 
 It does not try to weight all controls cleverly (SC), nor regress on all of
 them (HCW), nor trust all of them (DiD). It *selects*. The selection is
@@ -70,23 +70,23 @@ fit, trace the fit as the subset grows, and keep the subset that fits best.
      - DiD
      - Synthetic control
      - Forward DiD
-   * - **Comparison**
+   * - Comparison
      - all controls, equal weight
      - all controls, simplex weights
      - a *selected subset*, equal weight
-   * - **Free parameters**
+   * - Free parameters
      - 1 (intercept)
      - :math:`N` weights
      - 1 (intercept) -- after selection
-   * - **Overfitting risk**
+   * - Overfitting risk
      - none
      - controlled by the simplex
      - none -- one parameter
-   * - **Key assumption**
+   * - Key assumption
      - *all* controls are parallel
      - treated is in the convex hull
      - *some subset* is parallel
-   * - **Inference under non-stationarity**
+   * - Inference under non-stationarity
      - standard
      - none available
      - standard (Prop. 2.1)
@@ -94,7 +94,7 @@ fit, trace the fit as the subset grows, and keep the subset that fits best.
 The equal weights are the crux. Because the selected controls enter through
 a single average -- not :math:`|\mathcal{D}|` separate coefficients --
 adding more controls cannot increase the model's degrees of freedom. This
-is an **implicit regularization** that buys both the overfitting immunity
+is an implicit regularization that buys both the overfitting immunity
 and the clean, DiD-style inference theory. Forward DiD is therefore best
 read as *DiD with a principled, data-driven choice of comparison group*,
 not as a new weighting scheme.
@@ -102,11 +102,11 @@ not as a new weighting scheme.
 Notation
 --------
 
-Index the units by :math:`j`. Let :math:`j = 1` be the single **treated**
+Index the units by :math:`j`. Let :math:`j = 1` be the single treated
 unit and :math:`\mathcal{N} \coloneqq \{1, \ldots, N\}` all units; the
-**donor pool** is :math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}`,
+donor pool is :math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}`,
 with :math:`|\mathcal{N}_0| = N_0`. A selected subset
-:math:`\mathcal{D} \subseteq \mathcal{N}_0` is the **comparison group**;
+:math:`\mathcal{D} \subseteq \mathcal{N}_0` is the comparison group;
 write its equal-weighted average outcome as
 
 .. math::
@@ -158,7 +158,7 @@ constant level shift:
 
 with :math:`\alpha` an unknown intercept and :math:`v_t` a zero-mean,
 weakly dependent error. Crucially, :math:`y_{1t}^N` and
-:math:`\bar{y}_{\mathcal{D}, t}` may each be **non-stationary** (trending)
+:math:`\bar{y}_{\mathcal{D}, t}` may each be non-stationary (trending)
 provided their *difference* is stationary -- this is the Forward DiD
 parallel-trends condition. The intercept is estimated by least squares on
 the pre-period,
@@ -210,13 +210,13 @@ Maximizing :math:`R^2_{\mathcal{D}}` is equivalent to minimizing the
 pre-period residual variance :math:`T_0^{-1} \sum_{t \in \mathcal{T}_1}
 \widehat{v}_t^2`. Forward DiD searches over comparison groups greedily:
 
-1. **Step 1.** For each single donor :math:`i \in \mathcal{N}_0`, form the
+1. Step 1. For each single donor :math:`i \in \mathcal{N}_0`, form the
    one-unit comparison group and compute its pre-period :math:`R^2`. Keep
    the best single donor, :math:`\widehat{c}_1`.
-2. **Step 2.** Add to :math:`\{\widehat{c}_1\}` each of the remaining
+2. Step 2. Add to :math:`\{\widehat{c}_1\}` each of the remaining
    :math:`N_0 - 1` donors in turn; keep the two-unit group with the highest
    :math:`R^2`.
-3. **Step 3.** Continue, adding one donor at a time, until all
+3. Step 3. Continue, adding one donor at a time, until all
    :math:`N_0` donors are in. This yields :math:`N_0` nested groups (sizes
    :math:`1, 2, \ldots, N_0`); select the one,
    :math:`\widehat{\mathcal{D}} = \mathcal{N}_{co}`, with the largest
@@ -239,7 +239,7 @@ per-candidate work, repeated :math:`N` times. mlsynth's
 collapses each step into a handful of vectorized NumPy operations through
 three observations.
 
-**1. The comparison average is updated incrementally, never rebuilt.**
+1. The comparison average is updated incrementally, never rebuilt.
 Let :math:`\mathbf{m}^{(k)} \in \mathbb{R}^{T}` be the running average over
 the :math:`k` already-selected controls. Adding control :math:`c` gives the
 :math:`(k+1)`-average by a single rank-one update,
@@ -253,7 +253,7 @@ which is :math:`O(T)` rather than :math:`O(kT)`. This is
 :func:`~mlsynth.utils.fdid_helpers.estimation._update_synthetic_control`
 (``current_mean + (control - current_mean) / (k + 1)``).
 
-**2. All candidate averages for a step are built in one matrix.** At step
+2. All candidate averages for a step are built in one matrix. At step
 :math:`k`, let :math:`\mathbf{Y}_{\mathcal{R}} \in \mathbb{R}^{T_0 \times
 |\mathcal{R}|}` stack the *pre-period* columns of the remaining candidates
 :math:`\mathcal{R}`. Every candidate :math:`(k+1)`-average -- one per
@@ -270,8 +270,8 @@ In code this is the one line ``new_means = (current_mean_pre[:, None] * k +
 candidates) / (k + 1)`` inside
 :func:`~mlsynth.utils.fdid_helpers.estimation._select_best_donor`.
 
-**3. The intercept** :math:`\alpha` **drops out, so scoring is pure inner
-products.** This is the step that removes the per-candidate regression
+3. The intercept :math:`\alpha` drops out, so scoring is pure inner
+products. This is the step that removes the per-candidate regression
 entirely. Profiling out :math:`\alpha` from the DiD loss is exactly
 *centering*: the fitted residual for candidate column :math:`\ell` is
 :math:`\widehat{v}_t = (y_{1t} - \bar y_1) - (M_{t\ell} - \bar M_\ell)`. Writing
@@ -307,21 +307,21 @@ replication Monte Carlo in *Verification* tractable.
 Assumptions
 -----------
 
-**Assumption 1 (Forward DiD parallel trends).** There exists a subset
+Assumption 1 (Forward DiD parallel trends). There exists a subset
 :math:`\mathcal{D} \subseteq \mathcal{N}_0` and a constant :math:`\alpha`
 such that :math:`y_{1t}^N = \alpha + \bar{y}_{\mathcal{D}, t} + v_t` for all
 :math:`t`, where :math:`v_t` is a weakly dependent process with zero mean
 and finite variance.
 
 *Remark.* This says the gap between the treated unit and the selected
-comparison group is **stable** across the pre- and post-periods up to a
+comparison group is stable across the pre- and post-periods up to a
 mean-zero shock. It is strictly weaker than DiD's requirement that *all*
 controls be parallel: it asks only that *some* equal-weighted subset be
 parallel. Both :math:`y_{1t}^N` and :math:`\bar{y}_{\mathcal{D}, t}` may
 trend arbitrarily (even non-linearly), so long as their difference is
 trendless -- which is what makes the method valid under non-stationarity.
 
-**Assumption 2 (no anticipation / no interference).** Controls are
+Assumption 2 (no anticipation / no interference). Controls are
 untreated throughout, and the treated unit's outcome equals its untreated
 potential outcome in the pre-period.
 
@@ -330,18 +330,18 @@ pre-period identify the comparison group: if controls were themselves
 affected by the intervention (spillover), their pre/post relationship to
 the treated unit would shift and selection would be biased.
 
-**Assumption 3 (regularity for inference).** The partial sums of
+Assumption 3 (regularity for inference). The partial sums of
 :math:`v_t` obey a central limit theorem; errors are weakly dependent with
 finite long-run variance.
 
 *Remark.* This is what delivers the asymptotic normality in Proposition
 2.1 below, and it holds for the broad class of stationary,
-weakly-dependent error processes -- it does **not** require :math:`v_t` to
+weakly-dependent error processes -- it does not require :math:`v_t` to
 be i.i.d. or the levels :math:`y_{1t}^N` to be stationary.
 
-.. admonition:: When **not** to use Forward DiD
+.. admonition:: When not to use Forward DiD
 
-   Assumption 1 fails when **no** subset of controls can track the treated
+   Assumption 1 fails when no subset of controls can track the treated
    unit -- most importantly when the treated unit lies *outside the range*
    of the controls (e.g. its outcome trends upward more steeply than every
    control's). Equal weights cannot extrapolate beyond the controls, so no
@@ -356,14 +356,14 @@ Diagnostic: a side-by-side panel where Forward PTA holds vs. fails
 
 The pretreatment :math:`R^2` returned by FDID is the natural empirical
 check on Assumption 1. The script below draws two panels with the same
-underlying common factor and the same true ATT of **zero**, differing
+underlying common factor and the same true ATT of zero, differing
 only in the treated unit's factor loading:
 
-* **Panel A** (``treated_loading = 1``). The treated unit shares the
+* Panel A (``treated_loading = 1``). The treated unit shares the
   controls' single-factor loading. Assumption 1 holds for any subset
   of the donors.
-* **Panel B** (``treated_loading = 3``). The treated unit trends three
-  times faster than any control. **No** subset of the equal-weighted
+* Panel B (``treated_loading = 3``). The treated unit trends three
+  times faster than any control. No subset of the equal-weighted
   donors can extrapolate the steeper trend -- Assumption 1 fails.
 
 .. code-block:: python
@@ -414,7 +414,7 @@ prints::
 
 Two lessons jump out:
 
-1. **The :math:`R^2` is the warning signal.** When Forward PTA holds, FDID hits
+1. The :math:`R^2` is the warning signal. When Forward PTA holds, FDID hits
    :math:`R^2 \approx 0.98` and recovers the true zero ATT to within
    noise. When it fails, the in-sample fit drops to :math:`R^2 \approx
    0.59` -- a much weaker fit on a panel of the same dimensions. Compare
@@ -423,7 +423,7 @@ Two lessons jump out:
    on Atlanta / San Diego / San Jose). When the pre-fit is weak, distrust
    the post-fit ATT.
 
-2. **The bias is large and one-sided.** When Forward PTA fails because
+2. The bias is large and one-sided. When Forward PTA fails because
    the treated unit trends faster than any subset of controls, FDID's
    equal-weighted comparison group flattens the post-period
    counterfactual and the ATT is biased toward zero from above (here:
@@ -457,7 +457,7 @@ variance on the selected group. Li's Proposition 2.1 establishes
    \to 0, \qquad a \in \mathbb{R},
 
 as :math:`T_0, |\mathcal{T}_2| \to \infty`, where :math:`\Phi` is the
-standard-normal CDF. mlsynth reports the **finite-sample** standard error
+standard-normal CDF. mlsynth reports the finite-sample standard error
 that also carries the estimation error in :math:`\widehat{\alpha}`:
 
 .. math::
@@ -529,10 +529,10 @@ convenience accessors (``res.att``, ``res.att_se``, ``res.counterfactual``,
 Verification
 ------------
 
-Forward DiD is validated on two fronts. **Path A** -- mlsynth reproduces the
+Forward DiD is validated on two fronts. Path A -- mlsynth reproduces the
 author's public Hong Kong GDP companion replication cell by cell (FDID ATT
 :math:`0.0254`, :math:`53.84\%`, pre-period :math:`R^2 = 0.843`, 9 of 24
-controls). **Path B** -- the paper's own Monte Carlo (Li 2024, Web Appendix E)
+controls). Path B -- the paper's own Monte Carlo (Li 2024, Web Appendix E)
 reproduces cell by cell (e.g. cell :math:`(48, 24)` yields
 :math:`\mathrm{PMSE} = 0.084` against the paper's :math:`0.082`), confirming
 Forward DiD pays only a small efficiency cost when ordinary DiD is valid and
