@@ -43,32 +43,79 @@ The pipeline has four stages, each in its own helper module:
    :math:`\to` stability :math:`\to` cost) returning a single recommended
    design plus a Pareto frontier.
 
+When to use this estimator
+--------------------------
+
+Reach for LEXSCM before an experiment, not after one. The typical setting is a
+geo-experiment or marketing test: you have a panel of markets, only some of
+which can be treated (a budget, an operational constraint, or a policy makes the
+rest off-limits), and you must decide *which* of the eligible markets to treat.
+Treat too few or the wrong ones and the remaining markets cannot reconstruct the
+treated trajectory, so the effect is biased; treat markets whose gap is too
+noisy and the experiment cannot detect the lift you care about. LEXSCM chooses
+the treated combination so that the untreated markets form a credible synthetic
+control (validity) and the resulting design has the power to detect a
+meaningfully small effect (power), in that strict priority order.
+
+A concrete example: a retailer plans a price promotion and can run it in at most
+three of its forty largest metros. LEXSCM searches the eligible metros, returns
+the three whose combined sales path the rest of the chain can reproduce most
+closely on the pre-period, and reports the minimum lift that design could detect
+over a planned eight-week window -- together with a budget gate, geography
+(spillover) exclusions, and coverage quotas so the chosen markets are
+non-adjacent and spread across regions. Once the promotion runs, the same object
+realizes into a standard effect report.
+
+Notation
+--------
+
+There are :math:`N` units :math:`\mathcal{N} \coloneqq \{1, \dots, N\}`,
+observed over the pre-treatment window
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` of length
+:math:`T_0`, with :math:`\mathcal{T} \coloneqq \{1, \dots, T\}` 1-indexed and the
+intervention taking effect after :math:`T_0` (the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`; the design phase
+uses only :math:`\mathcal{T}_1`). Unit :math:`j`'s outcome at time :math:`t` is
+:math:`y_{jt}`. A subset :math:`\mathcal{E} \subseteq \mathcal{N}` of size
+:math:`M = |\mathcal{E}|` is flagged as treatment-eligible (the
+``candidate_col``); the design must pick :math:`m` of these as the treated set
+:math:`\mathcal{S} \subseteq \mathcal{E}`, :math:`|\mathcal{S}| = m`. Treatment
+weights on the chosen treated set are :math:`\mathbf{w}` and control weights on
+the remainder are :math:`\mathbf{v}`, both on a simplex; an optimiser carries the
+star superscript :math:`\mathbf{w}^\ast`. The per-period gap between the
+synthetic treated and synthetic control is :math:`e_t`; a sustained treatment
+effect is :math:`\tau` (the quantity the power analysis sizes), and :math:`\alpha`
+is the significance level. The interference graph is
+:math:`\mathbf{A}` with conflict-neighbours :math:`\mathcal{A}(\mathcal{S})`
+(below).
+
 Mathematical Formulation
 ------------------------
 
 Setup and notation
 ^^^^^^^^^^^^^^^^^^^
 
-We observe :math:`J` units over a pre-treatment period of length
-:math:`T_0`. Stack the pre-period outcomes as
-:math:`\mathbf{Y} \in \mathbb{R}^{T_0 \times J}` (rows = time, columns = units)
+We observe :math:`N` units :math:`\mathcal{N} \coloneqq \{1, \dots, N\}` over a
+pre-treatment period :math:`\mathcal{T}_1` of length :math:`T_0`. Stack the
+pre-period outcomes as
+:math:`\mathbf{Y} \in \mathbb{R}^{T_0 \times N}` (rows = time, columns = units)
 and, optionally, :math:`K` time-invariant or pre-period covariates as
-:math:`\mathbf{Z} \in \mathbb{R}^{K \times J}`. The two are stacked vertically
+:math:`\mathbf{Z} \in \mathbb{R}^{K \times N}`. The two are stacked vertically
 into the predictor matrix
 
 .. math::
 
    \mathbf{X} = \begin{bmatrix} \mathbf{Y} \\ \mathbf{Z} \end{bmatrix}
-       \in \mathbb{R}^{(T_0 + K) \times J},
+       \in \mathbb{R}^{(T_0 + K) \times N},
 
 so each column :math:`\mathbf{x}_j` is unit :math:`j`'s predictor profile.
-A subset :math:`\mathcal{C} \subseteq \{1, \dots, J\}` of size
-:math:`M = |\mathcal{C}|` is flagged as treatment-eligible (the
+A subset :math:`\mathcal{E} \subseteq \mathcal{N}` of size
+:math:`M = |\mathcal{E}|` is flagged as treatment-eligible (the
 ``candidate_col``); the design must pick :math:`m` of these.
 
-A population weighting vector :math:`\mathbf{f} \in \mathbb{R}^J`,
+A population weighting vector :math:`\mathbf{f} \in \mathbb{R}^N`,
 :math:`\mathbf{f} \ge 0`, :math:`\mathbf{1}^\top \mathbf{f} = 1` (uniform
-:math:`1/J` by default, or a ``weight_col`` such as population or revenue)
+:math:`1/N` by default, or a ``weight_col`` such as population or revenue)
 defines the estimand's target trajectory -- the :math:`\mathbf{f}`-weighted
 average unit
 
@@ -97,7 +144,7 @@ with :math:`\sigma_t` floored away from zero. Centring on
 :math:`\bar{x}_t` puts the population target at the origin; scaling by the
 cross-sectional spread :math:`\sigma_t` makes mixed-scale predictors
 (outcomes in dollars, covariates in percent) commensurable so no single
-predictor dominates the fit. The :math:`J \times J` Gram matrix
+predictor dominates the fit. The :math:`N \times N` Gram matrix
 
 .. math::
 
@@ -115,44 +162,50 @@ LEXSCM inherits the design-based identification of Abadie & Zhao
 
 .. math::
 
-   Y_{j, t}(0) = \delta_t + \theta_t^\top \mu_j + \varepsilon_{j, t},
+   y_{jt}^N = \delta_t + \theta_t^\top \mu_j + \varepsilon_{j, t},
 
 with common time effects :math:`\delta_t`, latent time factors
 :math:`\theta_t`, unit loadings :math:`\mu_j`, and mean-zero transitory
 shocks :math:`\varepsilon_{j, t}`.
 
-*Assumption 1 (approximate balance).* There exist treatment weights
-:math:`\mathbf{w}` on the chosen treated set :math:`\mathcal{S}` and control
-weights :math:`\mathbf{v}` on the remainder such that the synthetic treated and
-synthetic control reproduce the population target on the pre-period predictors,
-:math:`\bar{\mathbf{x}} - \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j \approx 0`.
-*Remark.* This is the design analogue of the SCM convex-hull condition, and it
-is the only substantive requirement. Crucially it is not imposed as an
-axiom: the *achieved* imbalance
-:math:`\lVert \bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j\rVert` is a
-measurable goodness-of-fit quantity, reported for every design, on which
-the validity of the bias bound and the inference is *conditional* (Abadie
-& Zhao, p.13). The analyst checks the :math:`\approx 0` condition rather
-than assuming it.
+1. Approximate balance. There exist treatment weights
+   :math:`\mathbf{w}` on the chosen treated set :math:`\mathcal{S}` and control
+   weights :math:`\mathbf{v}` on the remainder such that the synthetic treated and
+   synthetic control reproduce the population target on the pre-period
+   predictors,
+   :math:`\bar{\mathbf{x}} - \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j \approx 0`.
 
-*Assumption 2 (factor structure controls bias).* Under the linear factor
-model, matching the treated and synthetic-control trajectories on a long
-enough pre-period drives the latent loadings :math:`\mu_j` into alignment,
-so the design-based bias of the average treatment effect on the treated is
-bounded by the achieved imbalance and shrinks as :math:`T_0` grows and the
-fit tightens. *Remark.* This is why Stage 1 minimizes imbalance rather than
-any in-sample treatment contrast: imbalance is the quantity the bias bound
-is written in.
+   *Remark.* This is the design analogue of the SCM convex-hull condition, and it
+   is the only substantive requirement. Crucially it is not imposed as an
+   axiom: the *achieved* imbalance
+   :math:`\lVert \bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j\rVert` is a
+   measurable goodness-of-fit quantity, reported for every design, on which
+   the validity of the bias bound and the inference is *conditional* (Abadie
+   & Zhao, p.13). The analyst checks the :math:`\approx 0` condition rather
+   than assuming it.
 
-*Assumption 3 (placebo exchangeability / weak stationarity).* On the blank
-window :math:`B` no treatment has occurred, so the treated-minus-control
-gap is pure noise; that gap process is weakly stationary and free of
-anticipation, so its serial-dependence structure carries over to the
-post-treatment window. *Remark.* This is what licenses the Stage 3 power
-analysis: the post-treatment null distribution of the test statistic is
-reconstructed by moving-block resampling the blank-window gaps, which
-preserves autocorrelation -- the time-series-robust inference of Abadie &
-Zhao rather than an i.i.d. permutation.
+2. Factor structure controls bias. Under the linear factor
+   model, matching the treated and synthetic-control trajectories on a long
+   enough pre-period drives the latent loadings :math:`\mu_j` into alignment,
+   so the design-based bias of the average treatment effect on the treated is
+   bounded by the achieved imbalance and shrinks as :math:`T_0` grows and the
+   fit tightens.
+
+   *Remark.* This is why Stage 1 minimizes imbalance rather than
+   any in-sample treatment contrast: imbalance is the quantity the bias bound
+   is written in.
+
+3. Placebo exchangeability / weak stationarity. On the blank
+   window :math:`B` no treatment has occurred, so the treated-minus-control
+   gap is pure noise; that gap process is weakly stationary and free of
+   anticipation, so its serial-dependence structure carries over to the
+   post-treatment window.
+
+   *Remark.* This is what licenses the Stage 3 power
+   analysis: the post-treatment null distribution of the test statistic is
+   reconstructed by moving-block resampling the blank-window gaps, which
+   preserves autocorrelation -- the time-series-robust inference of Abadie &
+   Zhao rather than an i.i.d. permutation.
 
 Stage 1 -- Treated-tuple selection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -200,13 +253,13 @@ sharpens in a handful of iterations.
 Write :math:`\mathbf{Q} = \mathbf{G}_{\mathcal{S}\mathcal{S}}`,
 :math:`f(\mathbf{w}) = \mathbf{w}^\top \mathbf{Q} \mathbf{w}`,
 :math:`\nabla f(\mathbf{w}) = 2 \mathbf{Q} \mathbf{w}`. From a vertex start
-:math:`\mathbf{w}^{(0)} = \mathbf{e}_{\arg\min_i Q_{ii}}` (the single donor
+:math:`\mathbf{w}^{(0)} = \mathbf{e}_{\operatorname*{argmin}_i Q_{ii}}` (the single donor
 closest to the target), each iteration (all vectors below are the iterate
 :math:`\mathbf{w}` and its simplex vertices :math:`\mathbf{e}_i`):
 
 #. Pick two vertices. The Frank-Wolfe vertex
-   :math:`s = \arg\min_i [\nabla f(\mathbf{w})]_i` and the away vertex
-   :math:`a = \arg\max_{i \in \operatorname{supp}(\mathbf{w})}
+   :math:`s = \operatorname*{argmin}_i [\nabla f(\mathbf{w})]_i` and the away vertex
+   :math:`a = \operatorname*{argmax}_{i \in \operatorname{supp}(\mathbf{w})}
    [\nabla f(\mathbf{w})]_i` -- the currently active donor the gradient most
    wants to shed.
 #. Choose the direction. Compare the FW direction
@@ -220,15 +273,15 @@ closest to the target), each iteration (all vectors below are the iterate
 
    .. math::
 
-      \gamma^\star = \operatorname{clip}\!\Bigl(
+      \gamma^\ast = \operatorname{clip}\!\Bigl(
         -\frac{\mathbf{w}^\top \mathbf{Q} \mathbf{d}}{\mathbf{d}^\top
         \mathbf{Q} \mathbf{d}},\; 0,\; \gamma_{\max}\Bigr),
 
-   then :math:`\mathbf{w} \leftarrow \mathbf{w} + \gamma^\star \mathbf{d}`,
+   then :math:`\mathbf{w} \leftarrow \mathbf{w} + \gamma^\ast \mathbf{d}`,
    dropping :math:`a` from the active set when a full away step empties it.
 #. Certified lower bound. The Frank-Wolfe gap gives a running lower
    bound :math:`f(\mathbf{w}) + \min_i[\nabla f(\mathbf{w})]_i -
-   \nabla f(\mathbf{w})^\top \mathbf{w} \le f(\mathbf{w}^\star)` on the tuple's
+   \nabla f(\mathbf{w})^\top \mathbf{w} \le f(\mathbf{w}^\ast)` on the tuple's
    true minimal loss; iteration stops once the duality gap
    :math:`\nabla f(\mathbf{w})^\top \mathbf{w} - \min_i[\nabla f(\mathbf{w})]_i`
    drops below ``tol``.
@@ -394,7 +447,7 @@ Spillover / interference exclusions
 When treating a *set* of units, interference is a design concern, and
 Vives-i-Bastida (2022) handles it with two exclusion criteria that LEXSCM
 implements directly. Both read off one conflict graph, encoded by a
-symmetric matrix :math:`\mathbf{A} \in \{0, 1\}^{J \times J}` with
+symmetric matrix :math:`\mathbf{A} \in \{0, 1\}^{N \times N}` with
 :math:`A_{ij} = 1` iff units :math:`i` and :math:`j` interfere (zero diagonal).
 :math:`\mathbf{A}` is supplied either as a ``cluster_col`` (:math:`A_{ij} = 1`
 iff :math:`i, j` share a cluster, e.g. a state or province) or as an
@@ -650,7 +703,7 @@ Worked numeric walkthrough
 
 To make the two core mechanisms concrete, here is a single tuple built and
 powered end to end on a deliberately tiny panel (:math:`T_0 = 6` pre-period
-rows, :math:`J = 5` units, treat :math:`m = 2`). Every number below is the
+rows, :math:`N = 5` units, treat :math:`m = 2`). Every number below is the
 actual helper output, not an illustration.
 
 Building the tuple (Stage 1)
@@ -662,23 +715,23 @@ matrix's diagonal -- each unit's squared distance to the population centroid
 
 .. math::
 
-   \operatorname{diag}(G) = (5.77,\ 3.64,\ 6.08,\ 6.27,\ 8.24).
+   \operatorname{diag}(\mathbf{G}) = (5.77,\ 3.64,\ 6.08,\ 6.27,\ 8.24).
 
 Unit 1 (0-indexed) sits closest to the target, so it seeds the AFW vertex
 start. With :math:`\binom{5}{2} = 10` the search enumerates exactly
 (status ``OPTIMAL``, 10 subsets scored). The winning tuple is
-:math:`S = \{0, 1\}`, and its inner simplex QP returns treatment weights
+:math:`\mathcal{S} = \{0, 1\}`, and its inner simplex QP returns treatment weights
 
 .. math::
 
-   w(S) = (0.4098,\ 0.5902), \qquad
-   L(S) = w^\top G_{SS}\, w = 1.6481, \qquad
-   \sqrt{L(S)} = 1.2838 .
+   \mathbf{w}(\mathcal{S}) = (0.4098,\ 0.5902), \qquad
+   L(\mathcal{S}) = \mathbf{w}^\top \mathbf{G}_{\mathcal{S}\mathcal{S}}\, \mathbf{w} = 1.6481, \qquad
+   \sqrt{L(\mathcal{S})} = 1.2838 .
 
 The standalone high-precision re-solve reproduces this loss with a
 Frank-Wolfe lower bound equal to it to :math:`10^{-6}` -- the QP is at its
 certified optimum. The synthetic treated unit is
-:math:`0.41\,X_0 + 0.59\,X_1`, and :math:`1.2838` is the achieved imbalance
+:math:`0.41\,\mathbf{x}_0 + 0.59\,\mathbf{x}_1`, and :math:`1.2838` is the achieved imbalance
 on which the bias bound (Assumption 1-2) is conditional.
 
 Powering the design (Stage 3)
@@ -769,10 +822,10 @@ diagnostic table can be produced for every family member.
 .. math::
 
    \mathrm{MDE}(T) = \bigl(z_{1-\alpha/2} + z_{1-\beta}\bigr) \cdot
-       \hat\sigma_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \hat\rho)},
+       \widehat{\sigma}_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \widehat{\rho})},
 
-with :math:`\hat\sigma_{\text{placebo}}` the SD of the gap on the B (blank /
-holdout) window, :math:`\hat\rho` the lag-1 autocorrelation of those
+with :math:`\widehat{\sigma}_{\text{placebo}}` the SD of the gap on the B (blank /
+holdout) window, :math:`\widehat{\rho}` the lag-1 autocorrelation of those
 residuals clipped to :math:`(-0.99, 0.99)`, and
 :math:`\mathrm{VIF}(T, \rho) = \tfrac{1}{T}\bigl(1 + 2\sum_{k=1}^{T-1}
 (1-k/T)\rho^k\bigr)` the standard AR(1) variance-inflation factor (textbook

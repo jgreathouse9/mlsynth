@@ -46,13 +46,21 @@ random assignment of which unit is treated (Lemma 1).
 Notation
 --------
 
-We index units by :math:`i = 1, \dots, N` (the paper labels the
-treated unit's identity as a random variable; we condition on it
-being unit :math:`i_*` when reporting the realised ATT). Time runs
-over :math:`t = 1, \dots, T`, with the pre-treatment window
-:math:`\mathcal{T}_1 = \{t < t_*\}` and the post-treatment window
-:math:`\mathcal{T}_2 = \{t \ge t_*\}`. The observed outcome panel is
-:math:`Y \in \mathbb{R}^{T \times N}` with element :math:`Y_{t, j}`.
+Let :math:`j = 1` denote the treated unit, with all units
+:math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of cardinality
+:math:`N_0` (the paper labels the treated unit's identity as a random
+variable; we condition on it being unit :math:`j = 1` when reporting the
+realised ATT). Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
+1-indexed; the intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-treatment window
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` and the
+post-treatment window
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`. The observed
+outcome panel is :math:`\mathbf{Y} \in \mathbb{R}^{T \times N}` with scalar
+element :math:`y_{jt}` (unit :math:`j`, time :math:`t`), and the donor matrix
+:math:`\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j \in \mathcal{N}_0} \in
+\mathbb{R}^{T \times N_0}`.
 
 The Class of Generalised Synthetic-Control Estimators
 -----------------------------------------------------
@@ -60,14 +68,14 @@ The Class of Generalised Synthetic-Control Estimators
 Bottmer et al. write every member of the Generalised Synthetic
 Control (GSC) class as a single linear functional of the outcome
 matrix parametrised by an :math:`N \times (N+1)` weight matrix
-:math:`M`:
+:math:`\mathbf{M}`:
 
 .. math::
 
-   \hat\tau(U, V, Y, M)
+   \widehat{\tau}(\mathbf{U}, \mathbf{V}, \mathbf{Y}, \mathbf{M})
        \;=\; \sum_{i = 1}^{N} \sum_{t = 1}^{T} U_i V_t
-       \left( M_{i, 0} + \sum_{j = 1}^{N} M_{i, j+1} Y_{j, t} \right)
-       \;+\; \sum_{i, t} U_i V_t Y_{i, t},
+       \left( M_{i, 0} + \sum_{j = 1}^{N} M_{i, j+1}\, y_{jt} \right)
+       \;+\; \sum_{i, t} U_i V_t\, y_{it},
 
 where :math:`U_i \in \{0, 1\}` is the treated-unit indicator
 (:math:`\sum_i U_i = 1`), :math:`V_t \in \{0, 1\}` is the treated-
@@ -103,14 +111,14 @@ with one extra linear equality.
 The Quadratic Programme
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Given the pre-treatment outcome matrix :math:`Y_{\text{pre}} \in
+Given the pre-treatment outcome matrix :math:`\mathbf{Y}_{\text{pre}} \in
 \mathbb{R}^{T_0 \times N}`, MUSC solves
 
 .. math::
 
-   \min_M
+   \min_{\mathbf{M}}
        \sum_{i = 1}^{N} \sum_{s \in \mathcal{T}_1}
-       \left( M_{i, 0} + \sum_{j = 1}^{N} M_{i, j+1} Y_{j, s} \right)^2
+       \left( M_{i, 0} + \sum_{j = 1}^{N} M_{i, j+1}\, y_{js} \right)^2
 
 subject to restrictions 1-4. The optimisation is convex (quadratic
 objective, linear constraints) and is implemented through cvxpy with
@@ -155,7 +163,7 @@ GSC estimator is exactly unbiased:
 
 .. math::
 
-   \mathbb{E}_{U} [ \hat\tau \mid V ] - \tau \;=\; 0.
+   \mathbb{E}_{\mathbf{U}} [ \widehat{\tau} \mid \mathbf{V} ] - \tau \;=\; 0.
 
 *Remark.* This is the theoretical justification for MUSC. Adding the
 single column-sums-to-zero restriction to the otherwise standard SC
@@ -174,16 +182,16 @@ estimator with a time-invariant constraint set is
 
 .. math::
 
-   \mathbb{V}(V, M)
-       \;=\; \mathbb{E}_U\!\left[
-           (\hat\tau(U, V, Y, M) - \tau)^2 \mid V
+   \mathbb{V}(\mathbf{V}, \mathbf{M})
+       \;=\; \mathbb{E}_{\mathbf{U}}\!\left[
+           (\widehat{\tau}(\mathbf{U}, \mathbf{V}, \mathbf{Y}, \mathbf{M}) - \tau)^2 \mid \mathbf{V}
        \right]
        \;=\; \frac{1}{N} \sum_{i = 1}^{N}
            V_t \left( M_{i, 0} +
-           \sum_{j = 1}^{N} M_{i, j+1} Y_{j, t} \right)^2,
+           \sum_{j = 1}^{N} M_{i, j+1}\, y_{jt} \right)^2,
 
 and Proposition 1 of the paper gives a closed-form unbiased
-estimator :math:`\hat{\mathbb{V}}` of this variance that depends
+estimator :math:`\widehat{\mathbb{V}}` of this variance that depends
 only on the realised outcomes at the treated period and the weight
 matrix. The expression has four terms (eq. 3.3 of the paper); the
 implementation in
@@ -202,22 +210,22 @@ The unbiased variance gives a natural Normal-approximation CI:
 
 .. math::
 
-   \hat\tau \;\pm\; z_{1-\alpha/2} \sqrt{\,\hat{\mathbb{V}}\,}.
+   \widehat{\tau} \;\pm\; z_{1-\alpha/2} \sqrt{\,\widehat{\mathbb{V}}\,}.
 
 For finite-sample exactness, however, Bottmer et al. propose
 inverting a permutation test on the placebo distribution. For each
 non-treated unit :math:`j`, the leave-one-out estimator is refit
 pretending :math:`j` is treated, giving a placebo ATT
-:math:`\hat\tau_j`. Under random assignment the placebo ATTs are
-draws from the null distribution; the inverted ``(1 - \alpha)``
+:math:`\widehat{\tau}_j`. Under random assignment the placebo ATTs are
+draws from the null distribution; the inverted :math:`(1 - \alpha)`
 interval based on their order statistics is
 
 .. math::
 
-   \tau \in \big[\hat\tau - \hat\beta_{(N(1 - \alpha / 2))},\;
-                   \hat\tau - \hat\beta_{(N \alpha / 2)}\big],
+   \tau \in \big[\widehat{\tau} - \widehat{\beta}_{(N(1 - \alpha / 2))},\;
+                   \widehat{\tau} - \widehat{\beta}_{(N \alpha / 2)}\big],
 
-where :math:`\hat\beta_{(k)}` is the :math:`k`-th order statistic of
+where :math:`\widehat{\beta}_{(k)}` is the :math:`k`-th order statistic of
 the centred placebo distribution. :class:`mlsynth.MUSC` reports both
 the Normal CI (``inference.ci_normal``) and the randomization CI
 (``inference.ci_randomization``); the latter is the default surfaced
@@ -420,7 +428,7 @@ irrespective of the panel. SC's bias varies by panel and reaches a
 maximum of ~0.35 in magnitude.
 
 Unbiased variance estimator validation. Proposition 1 says
-:math:`\mathbb{E}_Y[\hat{\mathbb{V}}] = \mathbb{E}_Y[\mathrm{Var}_U[\hat\tau]]`
+:math:`\mathbb{E}_{\mathbf{Y}}[\widehat{\mathbb{V}}] = \mathbb{E}_{\mathbf{Y}}[\mathrm{Var}_{\mathbf{U}}[\widehat{\tau}]]`
 across DGPs. The test in
 :file:`mlsynth/tests/test_musc.py::TestProposition1Replication` runs
 50 panels and checks that ``mean(V̂) / mean(Var_U)`` lies in

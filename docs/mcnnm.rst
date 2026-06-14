@@ -46,15 +46,20 @@ Do not use MCNNM when
   signal model treats controls as untreated; use :doc:`spsydid` or
   :doc:`spillsynth`.
 * Treatment is endogenous and you have an instrument. MC-NNM imputes
-  :math:`Y(0)` but does not break simultaneity; use :doc:`siv`.
+  :math:`\mathbf{Y}(0)` but does not break simultaneity; use :doc:`siv`.
 * Distributional questions (quantiles, tails) -- MC-NNM targets the mean
   ATT; use :doc:`dsc`.
 
 Notation
 --------
 
-The outcome panel is the :math:`N \times T` matrix :math:`\mathbf{Y} = (Y_{it})`
-for units :math:`i = 1, \ldots, N` over periods :math:`t = 1, \ldots, T`. A
+The outcome panel is the :math:`N \times T` matrix
+:math:`\mathbf{Y} = (y_{jt})` over all units
+:math:`\mathcal{N} \coloneqq \{1, \ldots, N\}` and periods
+:math:`t \in \mathcal{T} \coloneqq \{1, \ldots, T\}`, with the subscript order
+unit-then-time. (Matrix completion treats the whole panel at once, so no single
+treated unit is privileged; where a donor pool is meaningful the untreated units
+form :math:`\mathcal{N}_0` of cardinality :math:`N_0`.) A
 treatment-indicator matrix :math:`\mathbf{D}` marks treated cells; the
 observed (untreated) cells form the index set :math:`\mathcal{O}`, and
 :math:`P_{\mathcal{O}}` is the projection that zeros out the rest
@@ -63,16 +68,19 @@ outcomes follow a low-rank component plus two-way fixed effects,
 
 .. math::
 
-   \mathbf{Y}(0) = \mathbf{L}^{*} + \boldsymbol{\Gamma}\mathbf{1}_T^{\top}
+   \mathbf{Y}(0) = \mathbf{L}^{\ast} + \boldsymbol{\Gamma}\mathbf{1}_T^{\top}
        + \mathbf{1}_N \boldsymbol{\Delta}^{\top} + \boldsymbol{\varepsilon},
 
 with unit effects :math:`\boldsymbol{\Gamma} \in \mathbb{R}^N`, time effects
-:math:`\boldsymbol{\Delta} \in \mathbb{R}^T`, and mean-zero noise. The nuclear
-norm :math:`\|\mathbf{L}\|_{*} = \sum_i \sigma_i(\mathbf{L})` sums the singular
-values. The intervention splits the panel into pre-period
-:math:`\mathcal{T}_1 = \{1, \ldots, T_0\}` and post-period; the treatment effect
-on a treated cell is :math:`\hat\tau_{it} = Y_{it} - \widehat{Y}_{it}(0)` and the
-ATT is its average over treated cells.
+:math:`\boldsymbol{\Delta} \in \mathbb{R}^T` (a fixed-effect vector, not the
+simplex), and mean-zero noise :math:`\boldsymbol{\varepsilon}`. The nuclear
+norm :math:`\|\mathbf{L}\|_{\ast} = \sum_j \sigma_j(\mathbf{L})` sums the
+singular values. The intervention splits the panel into pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` and post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`; the treatment
+effect on a treated cell is
+:math:`\tau_{jt} \coloneqq y_{jt} - \widehat{y}_{jt}(0)` and the ATT
+:math:`\widehat{\tau}` is its average over treated cells.
 
 The estimator
 ~~~~~~~~~~~~~
@@ -82,25 +90,25 @@ Treating the treated cells as missing, MC-NNM solves (paper Eq. 4.3)
 .. math::
 
    (\widehat{\mathbf{L}}, \widehat{\boldsymbol{\Gamma}}, \widehat{\boldsymbol{\Delta}})
-     = \operatorname*{argmin}_{\mathbf{L}, \boldsymbol{\Gamma}, \boldsymbol{\Delta}}
+     \coloneqq \operatorname*{argmin}_{\mathbf{L}, \boldsymbol{\Gamma}, \boldsymbol{\Delta}}
        \frac{1}{|\mathcal{O}|}
        \bigl\| P_{\mathcal{O}}(\mathbf{Y} - \mathbf{L}
          - \boldsymbol{\Gamma}\mathbf{1}_T^{\top}
          - \mathbf{1}_N\boldsymbol{\Delta}^{\top}) \bigr\|_F^2
-       + \lambda \|\mathbf{L}\|_{*}.
+       + \lambda \|\mathbf{L}\|_{\ast}.
 
 Only the low-rank part :math:`\mathbf{L}` is regularized; the unit/time fixed
 effects are estimated explicitly and left unregularized, which markedly
 improves the imputations (paper Section 4). The counterfactual for a treated
 cell is read off the completed matrix,
-:math:`\widehat{Y}_{it}(0) = \widehat{L}_{it} + \widehat\Gamma_i + \widehat\Delta_t`.
+:math:`\widehat{y}_{jt}(0) = \widehat{L}_{jt} + \widehat{\Gamma}_j + \widehat{\Delta}_t`.
 
 Algorithm (SOFT-IMPUTE)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 The problem is solved by singular-value soft-thresholding [Mazumder2010]_
 (paper Eq. 4.4-4.5). With the shrink operator
-:math:`\mathrm{shrink}_\lambda(\mathbf{A}) = \mathbf{S}\,\widetilde{\boldsymbol{\Sigma}}\,\mathbf{R}^{\top}`
+:math:`\mathrm{shrink}_\lambda(\mathbf{A}) \coloneqq \mathbf{S}\,\widetilde{\boldsymbol{\Sigma}}\,\mathbf{R}^{\top}`
 (each singular value replaced by :math:`\max(\sigma - \lambda, 0)`), iterate
 
 .. math::
@@ -146,8 +154,9 @@ Causal use and staggered adoption
 ---------------------------------
 
 ``MCNNM`` marks the treated post-treatment cells as missing, imputes their
-untreated outcomes, and forms :math:`\hat\tau_{it} = Y_{it} - \widehat{Y}_{it}(0)`,
-aggregated to the ATT over treated cells. Adoption times are detected with
+untreated outcomes, and forms
+:math:`\tau_{jt} \coloneqq y_{jt} - \widehat{y}_{jt}(0)`, aggregated to the ATT
+:math:`\widehat{\tau}` over treated cells. Adoption times are detected with
 :func:`mlsynth.utils.datautils.dataprep`, and the result exposes two
 staggered-aware aggregations beyond the overall ATT:
 
@@ -166,8 +175,8 @@ Inference
 Setting ``inference=True`` runs a leave-one-control jackknife for the ATT:
 drop one control unit, refit at the cross-validation-selected :math:`\lambda`,
 recompute the ATT, and form
-:math:`\widehat{\mathrm{se}}^2 = \tfrac{q-1}{q}\sum_{q}(\hat\tau_q - \bar\tau)^2`
-over the ``q`` control-deletions, with a Wald interval at level ``alpha``. This
+:math:`\widehat{\mathrm{se}}^2 = \tfrac{q-1}{q}\sum_{q}(\widehat{\tau}_q - \bar{\tau})^2`
+over the ``q`` control-deletions, with a Wald interval at level :math:`\alpha`. This
 is a standard inference for matrix-completion estimators (no analytic SE
 exists); it captures donor-pool uncertainty. The interval is returned on
 :class:`~mlsynth.utils.mcnnm_helpers.structures.MCNNMInference` (``se``, ``ci``).

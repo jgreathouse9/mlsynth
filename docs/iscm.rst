@@ -25,8 +25,8 @@ ISCM relaxes this with two ideas:
    donor* for control units, and those units' post-treatment residuals
    carry information about the effect (paper eq. 6).
 2. Moment conditions robust to transitory shocks. ISCM relies on
-   conditions of the form :math:`\sum_{j} w_i^j \mathbb{E}[Y_{jt}] =
-   \mathbb{E}[Y_{it}]` that need only hold in expectation, producing
+   conditions of the form :math:`\sum_{j} w_i^j \mathbb{E}[y_{jt}] =
+   \mathbb{E}[y_{it}]` that need only hold in expectation, producing
    asymptotically unbiased estimates as the pre-period grows even when no
    unit fits perfectly in sample.
 
@@ -38,14 +38,14 @@ inference procedure that stays valid with a tiny donor pool.
 The identifying intuition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Suppose the treated unit (call it unit 1) is too extreme to be matched by
+Suppose the treated unit (unit :math:`1`) is too extreme to be matched by
 any convex combination of controls. A control unit :math:`i` whose
-synthetic control *does* place weight :math:`w_i^1 > 0` on unit 1 will,
-after treatment, have its synthetic counterfactual contaminated by the
-effect: its residual picks up :math:`-w_i^1 \alpha`. Since unit :math:`i`
-is itself untreated, regressing its residual on its "treatment exposure"
-:math:`-w_i^1` recovers :math:`\alpha`. ISCM pools this signal across all
-such units.
+synthetic control *does* place weight :math:`w_i^1 > 0` on unit :math:`1`
+will, after treatment, have its synthetic counterfactual contaminated by
+the effect: its residual picks up :math:`-w_i^1 \tau`. Since unit
+:math:`i` is itself untreated, regressing its residual on its "treatment
+exposure" :math:`-w_i^1` recovers :math:`\tau`. ISCM pools this signal
+across all such units.
 
 When to use ISCM
 ^^^^^^^^^^^^^^^^
@@ -60,6 +60,32 @@ When to use ISCM
 * You have a long pre-period (the method's guarantees are asymptotic
   in :math:`T_0`).
 
+Notation
+--------
+
+Let the units be :math:`\mathcal{N} \coloneqq \{1, \dots, N\}`, with the
+treated unit indexed :math:`1`; because ISCM builds a synthetic control for
+*every* unit, a running unit index :math:`i \in \mathcal{N}` denotes the unit
+whose synthetic control is being formed, and :math:`j, k \neq i` index its
+donors. Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
+1-indexed; the intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`.
+
+The scalar outcome is :math:`y_{jt}` (unit, then time), with treatment dummy
+:math:`d_{jt}` and transitory shock :math:`\epsilon_{jt}`; in Abadie's
+potential-outcome notation :math:`y_{jt}^N` is the outcome without the
+intervention and :math:`y_{jt}^I` under it. Unit :math:`i`'s donor weights are
+:math:`\mathbf{w}_i \in \mathbb{R}^{N_0}` (entries :math:`w_i^j`), constrained
+to the unit simplex
+:math:`\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\}`; the optimiser is :math:`\widehat{\mathbf{w}}_i`. The
+per-period, per-unit treatment effect is :math:`\tau_{it}`; the pooled ATT is
+:math:`\widehat{\tau}` and the per-unit estimate :math:`\widehat{\tau}_i`. The
+data-driven fit metric is :math:`a_i` and the contributing set :math:`C`.
+
 Mathematical Formulation
 ------------------------
 
@@ -70,29 +96,29 @@ For :math:`N` units over :math:`T` periods with a latent-factor outcome
 
 .. math::
 
-   Y_{it} = \alpha_{it} D_{it} + L_{it} + \epsilon_{it},
-   \qquad L_{it} = \lambda_t' \mu_i,
+   y_{it} = \tau_{it}\, d_{it} + L_{it} + \epsilon_{it},
+   \qquad L_{it} = \boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i,
 
 ISCM builds, for every unit :math:`i`, a synthetic control from the
 others (paper eq. 5):
 
 .. math::
 
-   \widehat w_i = \arg\min_{w}
-       \sum_{t \le T_0} \Bigl( Y_{it} - \sum_{j \ne i} w_j Y_{jt} \Bigr)^2,
-   \quad w_j \ge 0,\ \sum_{j \ne i} w_j = 1.
+   \widehat{\mathbf{w}}_i = \operatorname*{argmin}_{\mathbf{w}}
+       \sum_{t \le T_0} \Bigl( y_{it} - \sum_{j \ne i} w^j y_{jt} \Bigr)^2,
+   \quad w^j \ge 0,\ \sum_{j \ne i} w^j = 1.
 
 Fit metric (paper eq. 14)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Each unit is weighted by how well its synthetic control satisfies the
 SCM moment conditions in the pre-period. With residual
-:math:`R_{it} = Y_{it} - \sum_j \widehat w_{ij} Y_{jt}` and moment vector
-:math:`M_i^k = \tfrac{1}{T_0}\sum_{t \le T_0} R_{it} Y_{kt}`,
+:math:`R_{it} = y_{it} - \sum_j \widehat{w}_i^{\,j} y_{jt}` and moment vector
+:math:`M_i^k = \tfrac{1}{T_0}\sum_{t \le T_0} R_{it} y_{kt}`,
 
 .. math::
 
-   a_i = \frac{\min_\ell M_\ell' M_\ell}{M_i' M_i} \in (0, 1],
+   a_i = \frac{\min_\ell M_\ell^\top M_\ell}{M_i^\top M_i} \in (0, 1],
 
 so the best-fitting unit gets :math:`a_i = 1` and units without a valid
 synthetic control get :math:`a_i \to 0` -- they are dropped from the
@@ -102,18 +128,18 @@ Treatment effect (paper eq. 8 / 15)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 With treatment exposure
-:math:`E_{it} = D_{it} - \sum_j \widehat w_{ij} D_{jt}`, the ATT is the
+:math:`E_{it} = d_{it} - \sum_j \widehat{w}_i^{\,j} d_{jt}`, the ATT is the
 :math:`a_i`-weighted least-squares slope, pooled over all units and the
 post-period:
 
 .. math::
 
-   \widehat\alpha =
+   \widehat{\tau} =
      \frac{\sum_i a_i \sum_{t > T_0} E_{it} R_{it}}
           {\sum_i a_i \sum_{t > T_0} E_{it}^2}
-     = \sum_{i \in C} v_i\, \widehat\alpha_i,
+     = \sum_{i \in C} v_i\, \widehat{\tau}_i,
    \quad
-   \widehat\alpha_i = \frac{\sum_{t>T_0} E_{it} R_{it}}{\sum_{t>T_0} E_{it}^2},
+   \widehat{\tau}_i = \frac{\sum_{t>T_0} E_{it} R_{it}}{\sum_{t>T_0} E_{it}^2},
 
 where :math:`C` is the contributing set (units with non-zero exposure)
 and :math:`v_i = a_i \sum_t E_{it}^2 / \sum_\ell a_\ell \sum_t E_{\ell t}^2`.
@@ -121,11 +147,11 @@ and :math:`v_i = a_i \sum_t E_{it}^2 / \sum_\ell a_\ell \sum_t E_{\ell t}^2`.
 Inference (paper Section 5, eq. 16)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-ISCM produces one estimate :math:`\widehat\alpha_i` per contributing
+ISCM produces one estimate :math:`\widehat{\tau}_i` per contributing
 unit. The Ibragimov-Muller approach forms a t-statistic from their
 weighted spread and calibrates the p-value with a sign-flip (Rademacher)
 randomization test on the weighted deviations
-:math:`v_i(\widehat\alpha_i - \alpha_0)`. This is conservative but valid
+:math:`v_i(\widehat{\tau}_i - \tau_0)`. This is conservative but valid
 with very few units -- though note the achievable p-value floor is about
 :math:`2/2^{|C|}`, so a handful of contributing units cannot reach
 conventional thresholds (exactly the small-donor-pool limitation Powell
@@ -151,51 +177,65 @@ ISCM trades the canonical SCM's "perfect synthetic control" requirement
 for a substantially weaker set of moment conditions on the transitory
 shocks. The paper's formal assumptions (Section 4.1):
 
-A1 (Outcomes). :math:`Y_{it} = \alpha_{it} D_{it} + L_{it} +
+A1 (Outcomes). :math:`y_{it} = \tau_{it}\, d_{it} + L_{it} +
 \epsilon_{it}` with :math:`L_{it}` a fixed (but possibly latent)
-systematic component, :math:`Y_{it}` continuous, and bounded products
-:math:`\lVert Y_{it} \epsilon_{jt} \rVert < \infty`. The latent
+systematic component, :math:`y_{it}` continuous, and bounded products
+:math:`\lVert y_{it} \epsilon_{jt} \rVert < \infty`. The latent
 component nests interactive fixed effects (:math:`L_{it} =
-\lambda_t' \mu_i`), additive two-way FE (:math:`L_{it} = \alpha_i +
-\gamma_t`), and other workhorse panel structures.
+\boldsymbol{\lambda}_t^\top \boldsymbol{\mu}_i`), additive two-way FE
+(:math:`L_{it} = \theta_i + \gamma_t`), and other workhorse panel
+structures.
+
+*Remark.* The outcome is the standard latent-factor panel: a treatment term
+plus a fixed systematic component plus transitory noise. Because :math:`L_{it}`
+nests both interactive and additive fixed effects, ISCM does not commit to a
+particular panel structure -- it only needs :math:`L_{it}` to be reproducible by
+a synthetic control (A2), which is what the next assumption asserts.
 
 A2 (Existence of Synthetic Controls). For every unit :math:`i`,
-*either* (a) there exist simplex weights :math:`w_i` such that
+*either* (a) there exist simplex weights :math:`\mathbf{w}_i` such that
 :math:`L_{it} = \sum_{k \ne i} w_i^k L_{kt}` for all :math:`t`,
 *or* (b) there exists some other unit :math:`j` with
 :math:`w_j^i > 0` such that :math:`L_{jt} = \sum_{k \ne j} w_j^k
-L_{kt}` for all :math:`t`. In words: every unit either has its own
-convex-hull synthetic control, or appears as a positive-weight
-donor in some other unit's synthetic control. The whole point of
-ISCM is that (b) suffices for the treated unit -- it can be too
-extreme to admit (a) and still be identifiable through (b).
+L_{kt}` for all :math:`t`.
+
+*Remark.* In words: every unit either has its own convex-hull synthetic
+control, or appears as a positive-weight donor in some other unit's synthetic
+control. The whole point of ISCM is that (b) suffices for the treated unit -- it
+can be too extreme to admit (a) and still be identifiable through (b).
 
 A3 (Independence of transitory shocks). (a)
-:math:`\mathbb{E}[\epsilon_{it} \mid D_i, L_i] = 0` (mean-independence
+:math:`\mathbb{E}[\epsilon_{it} \mid \mathbf{d}_i, L_i] = 0` (mean-independence
 of the shocks from treatment and the latent component); (b)
-:math:`\mathbb{E}[\epsilon_{it} \epsilon_{jt} \mid D_i, L_i, D_j,
+:math:`\mathbb{E}[\epsilon_{it} \epsilon_{jt} \mid \mathbf{d}_i, L_i, \mathbf{d}_j,
 L_j] = 0` for all :math:`i \ne j` (no contemporaneous cross-unit
-correlation in the shocks). The moment conditions that drive the
-ISCM estimator rely on cross-sectional shock independence after
-conditioning on the latent component.
+correlation in the shocks).
+
+*Remark.* The moment conditions that drive the ISCM estimator rely on
+cross-sectional shock independence after conditioning on the latent component. A
+common contemporaneous shock across units violates (b) and reintroduces a bias
+term the estimator cannot remove.
 
 A4 (Within-unit serial dependence allowed).
 :math:`\epsilon_{it}` is a strongly mixing sequence in :math:`t` of
 size :math:`-r/(r-1)` for some :math:`r > 1`, with
 :math:`\mathbb{E}|\epsilon_{it}|^{r+\delta} < \infty` for some
-:math:`\delta > 0`. Translation: ISCM permits serially
-correlated shocks within a unit (a meaningful relaxation vs.
-canonical SC's iid assumption) provided they mix at a uniform rate.
+:math:`\delta > 0`.
+
+*Remark.* ISCM permits serially correlated shocks within a unit (a meaningful
+relaxation vs. canonical SC's iid assumption) provided they mix at a uniform
+rate. Unit roots and other persistent (non-mixing) structures are ruled out.
 
 A5 (Regularity of the fit weights). If A2(a) holds for unit
-:math:`i`, then :math:`a_i(w) \xrightarrow{p} \bar a_i > 0`. The
-data-driven fit metric does not collapse for units that actually
-have a valid synthetic control. Convenient (paper footnote 10):
-holds straightforwardly for any unit whose pre-period moment
-distance is bounded away from zero.
+:math:`i`, then :math:`a_i(\mathbf{w}) \xrightarrow{p} \bar a_i > 0`.
+
+*Remark.* The data-driven fit metric does not collapse for units that actually
+have a valid synthetic control. Convenient (paper footnote 10): holds
+straightforwardly for any unit whose pre-period moment distance is bounded away
+from zero.
 
 Theorem 4.1 (asymptotic unbiasedness). Under A1-A5,
-:math:`\widehat\alpha_{1t} \xrightarrow{p} \alpha_{1t} + V_t`
+:math:`\widehat{\tau}_{1t} \xrightarrow{p} \tau_{1t} + V_t`
 with :math:`\mathbb{E}[V_t] = 0` as :math:`T_0 \to \infty`. The
 estimator is *asymptotically unbiased* but not consistent for a
 single post-period -- aggregation across the post-period (eq. 15)
@@ -207,7 +247,7 @@ When the assumptions bind: practical diagnostics
 
 (a) Latent component is fixed and continuous (A1).
     The systematic component :math:`L_{it}` is deterministic
-    conditional on the unit; the outcome is continuous.
+    conditional on the unit; the outcome :math:`y_{it}` is continuous.
 
     *Plausibly violated when* outcomes are binary or low-count
     (handgun-suicide-events per month in a small state can spike
@@ -231,7 +271,7 @@ When the assumptions bind: practical diagnostics
     read ``res.fit_metric``; if every :math:`a_i \approx 0`,
     no unit in the panel has a proper synthetic control and the
     estimator has nothing to anchor on. If only the treated unit
-    has :math:`a_0 \to 0` but a handful of donors have
+    has :math:`a_1 \to 0` but a handful of donors have
     :math:`a_i \gtrsim 0.5` (the Wisconsin pattern: Iowa, Indiana,
     Mississippi all fit well as syntheses *and* place positive
     weight on Wisconsin), A2(b) is still doing its job.
@@ -246,7 +286,7 @@ When the assumptions bind: practical diagnostics
     (paper eq. 10) are no longer zero in expectation because the
     cross-unit residual covariances enter the bias term.
     *Diagnostic*: form the panel of pre-period SCM residuals
-    :math:`R_{it} = Y_{it} - \sum_j \widehat w_{ij} Y_{jt}` and
+    :math:`R_{it} = y_{it} - \sum_j \widehat{w}_i^{\,j} y_{jt}` and
     compute the cross-sectional correlation matrix; large
     off-diagonal entries flag A3b violations. Drop the common
     shock with a unit-time fixed effect *before* fitting ISCM, or
@@ -359,8 +399,8 @@ Do not use ISCM when:
   is near zero, the panel is structurally unsuited and you need
   a different identification strategy.
 * Continuous or multi-valued treatment. ISCM encodes binary
-  on/off treatment with the exposure :math:`E_{it} = D_{it} -
-  \sum_j \widehat w_{ij} D_{jt}`. Continuous dose
+  on/off treatment with the exposure :math:`E_{it} = d_{it} -
+  \sum_j \widehat{w}_i^{\,j} d_{jt}`. Continuous dose
   (minimum wage, ad spend, drug dosage) belongs in :doc:`ctsc`.
 * Staggered adoption with a long mixed-treatment pre-period.
   Section 4.4.3 sketches a multi-treated extension but assumes
@@ -398,13 +438,13 @@ The setup is exactly the case ISCM was built for:
   also runs this) corrects for level but still shows an upward
   pre-period trend, indicating the convex-hull assumption fails
   *in expectation*, not just in sample.
-* The donor pool is small (:math:`J = 8`), so the canonical
+* The donor pool is small (:math:`N_0 = 8`), so the canonical
   permutation test's smallest achievable p-value is roughly
   :math:`1/9 \approx 0.11` -- above any conventional threshold.
 
 ISCM produces:
 
-* Main estimate: :math:`\widehat\alpha = 0.105` deaths per
+* Main estimate: :math:`\widehat{\tau} = 0.105` deaths per
   100,000 (about a 30% increase relative to the pre-repeal
   Wisconsin rate), :math:`p = 0.046` via the Ibragimov-Muller
   sign-flip on the contributing units. The p-value sits at the

@@ -25,7 +25,7 @@ control behind a single estimator.
 * RPCA-SC. Bayani (2021), *Robust PCA Synthetic Control*
   (arXiv:2108.12542; Chapter 1 of Bayani 2022). Functional PCA on
   pre-period trajectories, silhouette-driven :math:`k`-means on the
-  resulting FPC scores, robust :math:`L + S` decomposition of the
+  resulting FPC scores, robust :math:`\mathbf{L} + \mathbf{S}` decomposition of the
   treated unit's cluster via Principal Component Pursuit
   (Candes, Li, Ma & Wright 2011) or half-quadratic non-convex
   regularisation (Wang, Li, So & Liu 2023), then non-negative least
@@ -37,32 +37,91 @@ Either family can be selected via :py:attr:`CLUSTERSCConfig.method`
 convenience aliases (``att``, ``counterfactual``, ``gap``,
 ``donor_weights``) on the result object.
 
+When to use this estimator
+--------------------------
+
+* Your donor pool is large and noisy -- disaggregated panels with
+  hundreds of donor series, missing cells, or measurement error -- and
+  the donor matrix has an approximately low-rank spectrum that a
+  factor model can absorb. The denoising step is what protects the
+  weight fit from the noise the raw donors carry.
+* The treated unit comes from a plausible latent subgroup of the donor
+  pool that you cannot easily isolate by hand. The clustering pre-step
+  formalises the subgroup decision rather than leaving it to manual
+  pre-screening.
+* You want robustness to sparse, heavy-tailed donor outliers (a donor
+  with a one-time policy shock or recording error). The RPCA family's
+  :math:`\mathbf{L} + \mathbf{S}` decomposition absorbs these into the sparse component
+  instead of letting them contaminate the low-rank signal.
+
+A concrete example: a retailer rolls out a loyalty programme in one
+region and wants its effect on weekly sales, with hundreds of
+candidate donor regions whose own sales series are noisy and a few of
+which carry one-off promotional spikes. CLUSTERSC denoises the donor
+matrix, clusters the donor regions so only behaviourally similar ones
+enter the comparison, and reads the programme effect as the
+post-rollout gap between the treated region and its robust synthetic
+counterpart.
+
+Notation
+--------
+
+Let :math:`j = 1` denote the treated unit, with all units
+:math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of
+cardinality :math:`N_0`. Time runs over
+:math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`, 1-indexed; the
+intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of
+length :math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}` (of
+length :math:`T - T_0`).
+
+The treated series is :math:`\mathbf{y}_1 = (y_{11}, \dots,
+y_{1T})^\top \in \mathbb{R}^{T}` with scalar outcomes :math:`y_{1t}`;
+each donor :math:`j \in \mathcal{N}_0` contributes a series
+:math:`\mathbf{y}_j`, stacked into the donor matrix
+:math:`\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j \in \mathcal{N}_0} \in
+\mathbb{R}^{T \times N_0}` (one column per donor). Pre-period slices
+carry a :math:`{}^-` superscript and post-period slices a :math:`{}^+`
+superscript, so :math:`\mathbf{Y}_0^- \in \mathbb{R}^{T_0 \times N_0}`
+and :math:`\mathbf{y}_1^- \in \mathbb{R}^{T_0}` are the pre-period
+donor and treated blocks. The counterfactual / synthetic estimate is
+:math:`\widehat{\mathbf{y}}_1` with entries :math:`\widehat{y}_{1t}`,
+the per-period treatment effect is
+:math:`\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}`, and the ATT is
+:math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}
+\sum_{t \in \mathcal{T}_2} \tau_t`. The significance level is
+:math:`\alpha`.
+
 Mathematical Formulation
 ------------------------
 
 Setup
 ^^^^^
 
-We observe a single treated unit (indexed 1) and :math:`J` controls
-over :math:`T` periods, with treatment starting at :math:`T_0 + 1`.
-Stack the donor outcomes as :math:`Y_0 \in \mathbb{R}^{T \times J}`
-(columns = donors) and write :math:`y_1 \in \mathbb{R}^{T}` for the
-treated series. Pre-period slices are
-:math:`Y_0^- \in \mathbb{R}^{T_0 \times J}` and :math:`y_1^- \in
-\mathbb{R}^{T_0}`; post-period slices carry the ``+`` superscript.
-Treatment-effect targets are the per-period gaps
-:math:`\tau_t = y_{1, t} - \hat y^0_{1, t}` and the average
-treatment effect on the treated,
+We observe a single treated unit :math:`j = 1` and :math:`N_0` donors
+over :math:`T` periods, with the intervention taking effect after
+:math:`T_0`. Stack the donor outcomes as
+:math:`\mathbf{Y}_0 \in \mathbb{R}^{T \times N_0}` (columns = donors)
+and write :math:`\mathbf{y}_1 \in \mathbb{R}^{T}` for the treated
+series. Pre-period slices are
+:math:`\mathbf{Y}_0^- \in \mathbb{R}^{T_0 \times N_0}` and
+:math:`\mathbf{y}_1^- \in \mathbb{R}^{T_0}`; post-period slices carry
+the :math:`{}^+` superscript. Treatment-effect targets are the
+per-period gaps :math:`\tau_t = y_{1t} - \widehat{y}_{1t}` and the
+average treatment effect on the treated,
 
 .. math::
 
-   ATT = \frac{1}{T - T_0} \sum_{t > T_0} \tau_t.
+   \widehat{\tau} = \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2} \tau_t.
 
 Both families assume the untreated potential outcome has an
-approximately low-rank structure :math:`Y^0 = M + E`, where
-:math:`M_{i,t} = g(\theta_i, \rho_t)` is a deterministic latent
-factor signal (Athey et al. 2021) and :math:`E` collects zero-mean
-idiosyncratic noise.
+approximately low-rank structure :math:`\mathbf{Y}^N = \mathbf{M} +
+\mathbf{E}`, where :math:`M_{jt} = g(\boldsymbol{\theta}_j, \boldsymbol{\rho}_t)` is a
+deterministic latent factor signal (Athey et al. 2021) and
+:math:`\mathbf{E}` collects zero-mean idiosyncratic noise.
 
 PCR-SC family (Rho et al. 2025)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -93,59 +152,71 @@ RSC are identical, so the HSVT+OLS path here carries RSC's guarantees.
 
 Model (error-in-variables). In the synthetic-control setting
 [ClusterSC]_ formalizes the donor panel as a noisy, partially observed
-view of a low-rank signal, :math:`Y_0 = M + E`, where :math:`E` collects
-mean-zero idiosyncratic shocks and (optionally) missing cells, and the
-treated series obeys an *approximate* linear synthetic control on the
-signal,
+view of a low-rank signal, :math:`\mathbf{Y}_0 = \mathbf{M} +
+\mathbf{E}`, where :math:`\mathbf{E}` collects mean-zero idiosyncratic
+shocks and (optionally) missing cells, and the treated series obeys an
+*approximate* linear synthetic control on the signal,
 
 .. math::
 
-   y_{1,t} = M_{\cdot,t}^\top f^\star + \varepsilon_t + \phi_t ,
-   \qquad \|f^\star\| \le \mu ,
+   y_{1t} = \mathbf{M}_{\cdot,t}^\top \mathbf{w}^\ast + \varepsilon_t + \phi_t ,
+   \qquad \|\mathbf{w}^\ast\| \le \mu ,
 
 with response noise :math:`\varepsilon_t` (mean zero, variance
 :math:`\le \sigma^2`) and a deterministic model-mismatch term
 :math:`\phi_t`.
 
-Assumptions.
+The PCR-SC family rests on the following structural assumptions
+(Agarwal et al. 2021), each paired with the intuition for why it
+matters in a synthetic-control panel.
 
-*Assumption 1 (low-rank latent-factor signal).* The signal is generated
-by a latent variable model :math:`M_{i,t} = g(\theta_i, \rho_t)` with
-:math:`g` Lipschitz in finite-dimensional unit factors
-:math:`\theta_i` and time factors :math:`\rho_t`, and bounded entries
-(:math:`\|M\|_\infty \le 1`). This forces :math:`M` to be (approximately)
-low rank, :math:`\mathrm{rank}(M) = r = O(\log T) < T`. *Remark.* This is
-the assumption that lets PCR/HSVT work at all -- and it earns the
-synthetic control rather than assuming it: under this model an
-(approximate) linear SC :math:`f^\star` provably *exists* (Agarwal et al.
-2021, Prop. 4.1), so the existence of a synthetic combination need not be
-imposed as an axiom as in classical SC.
+1. Low-rank latent-factor signal. The signal is generated by a latent
+   variable model :math:`M_{jt} = g(\boldsymbol{\theta}_j, \boldsymbol{\rho}_t)` with :math:`g`
+   Lipschitz in finite-dimensional unit factors :math:`\boldsymbol{\theta}_j` and
+   time factors :math:`\boldsymbol{\rho}_t`, and bounded entries
+   (:math:`\|\mathbf{M}\|_\infty \le 1`). This forces :math:`\mathbf{M}`
+   to be (approximately) low rank,
+   :math:`\mathrm{rank}(\mathbf{M}) = r = O(\log T) < T`.
 
-*Assumption 2 (error-in-variables donors).* We observe
-:math:`Z_{jt} = M_{jt} + \eta_{jt}` with each cell present
-independently with probability :math:`\rho` (missing otherwise); the
-covariate noise :math:`\eta` has independent, mean-zero,
-:math:`\psi_\alpha` (sub-exponential-type) rows with bounded variance.
-*Remark.* SC is *inherently* an error-in-variables problem -- donor
-series are noisy proxies for their signal -- which is precisely the
-regime where regressing on the *raw* donors (or Lasso/Ridge) loses
-consistency; the HSVT pre-step is what restores it.
+   *Remark.* This is the assumption that lets PCR/HSVT work at all --
+   and it earns the synthetic control rather than assuming it: under
+   this model an (approximate) linear SC :math:`\mathbf{w}^\ast`
+   provably *exists* (Agarwal et al. 2021, Prop. 4.1), so the existence
+   of a synthetic combination need not be imposed as an axiom as in
+   classical SC.
 
-*Assumption 3 (approximate linear SC).* The treated signal lies
-(approximately) in the span of the donor signals,
-:math:`y_1 = M^\top f^\star + \varepsilon + \phi`, with bounded
-:math:`\|f^\star\|` and deterministic mismatch :math:`\phi`. *Remark.*
-This relaxes the classical convex-hull (non-negative, sum-to-one)
-restriction: the natural solver is unconstrained OLS on the denoised
-donors (no simplex), which is the default below; the SIMPLEX option
-re-imposes the convex hull when interpretability is preferred.
+2. Error-in-variables donors. We observe
+   :math:`Z_{jt} = M_{jt} + \eta_{jt}` with each cell present
+   independently with probability :math:`\rho` (missing otherwise); the
+   covariate noise :math:`\eta` has independent, mean-zero,
+   :math:`\psi_{a}` (sub-exponential-type) rows with bounded
+   variance.
 
-*Assumption 4 (independent noise sources).* The response noise
-:math:`\varepsilon`, covariate noise :math:`\eta`, and the missingness
-pattern are mutually independent (Agarwal et al. 2021, Rmk. 3.2).
-*Remark.* PCR is noise-model-agnostic: unlike the error-in-variables
-literature it needs no knowledge of the noise covariance, which is what
-makes it practical for panels with unknown shock structure.
+   *Remark.* SC is *inherently* an error-in-variables problem -- donor
+   series are noisy proxies for their signal -- which is precisely the
+   regime where regressing on the *raw* donors (or Lasso/Ridge) loses
+   consistency; the HSVT pre-step is what restores it.
+
+3. Approximate linear SC. The treated signal lies (approximately) in
+   the span of the donor signals, :math:`\mathbf{y}_1 = \mathbf{M}^\top
+   \mathbf{w}^\ast + \boldsymbol{\varepsilon} + \boldsymbol{\phi}`,
+   with bounded :math:`\|\mathbf{w}^\ast\|` and deterministic mismatch
+   :math:`\boldsymbol{\phi}`.
+
+   *Remark.* This relaxes the classical convex-hull (non-negative,
+   sum-to-one) restriction: the natural solver is unconstrained OLS on
+   the denoised donors (no simplex), which is the default below; the
+   SIMPLEX option re-imposes the convex hull when interpretability is
+   preferred.
+
+4. Independent noise sources. The response noise
+   :math:`\boldsymbol{\varepsilon}`, covariate noise :math:`\eta`, and
+   the missingness pattern are mutually independent (Agarwal et al.
+   2021, Rmk. 3.2).
+
+   *Remark.* PCR is noise-model-agnostic: unlike the error-in-variables
+   literature it needs no knowledge of the noise covariance, which is
+   what makes it practical for panels with unknown shock structure.
 
 Finite-sample guarantees. Under Assumptions 1-4 the pre-period
 (training) error of the HSVT+OLS estimator decomposes into three
@@ -153,18 +224,18 @@ interpretable pieces (Agarwal et al. 2021, Thm. 3.1):
 
 .. math::
 
-   \mathrm{MSE}_{\mathrm{pre}}(\widehat y_1)
+   \mathrm{MSE}_{\mathrm{pre}}(\widehat{\mathbf{y}}_1)
      \;\lesssim\;
      \underbrace{\frac{\sigma^2 r}{T_0}}_{\text{regression}}
-     + \underbrace{\frac{\|f^\star\|^2}{T_0}\,
-        \mathbb{E}\bigl\|\mathrm{HSVT}_r(Z) - M\bigr\|_{2,\infty}^2}_{\text{donor corruption}}
-     + \underbrace{\frac{\|\phi\|^2}{T_0}}_{\text{mismatch}} ,
+     + \underbrace{\frac{\|\mathbf{w}^\ast\|^2}{T_0}\,
+        \mathbb{E}\bigl\|\mathrm{HSVT}_r(\mathbf{Z}) - \mathbf{M}\bigr\|_{2,\infty}^2}_{\text{donor corruption}}
+     + \underbrace{\frac{\|\boldsymbol{\phi}\|^2}{T_0}}_{\text{mismatch}} ,
 
 where the donor-corruption term is controlled by a novel
 :math:`\ell_{2,\infty}`-norm bound on HSVT (Lemma 3.1, stronger than the
 usual Frobenius bound). With observation fraction :math:`\rho`, the
-overall pre-period rate is :math:`\rho^{-4} r / \min(T_0, J) +
-\|\phi\|^2/T_0` (Cor. 3.1) -- i.e. PCR matches, up to log factors, the
+overall pre-period rate is :math:`\rho^{-4} r / \min(T_0, N_0) +
+\|\boldsymbol{\phi}\|^2/T_0` (Cor. 3.1) -- i.e. PCR matches, up to log factors, the
 minimax OLS rate one would get with *perfectly observed* donors, despite
 seeing only noisy, partially observed ones. The post-period (test) error
 is bounded by the training error plus a generalization penalty scaling as
@@ -176,24 +247,25 @@ penalty.
 HSVT denoising. mlsynth follows the Amjad-Shah-Shen (2018)
 convention and applies HSVT to the *pre-period* donor matrix only.
 The full-matrix variant proposed in Rho et al. (2025) Algorithm 2
-(SVD on the entire :math:`(T, J)` panel, then slice the pre-period
+(SVD on the entire :math:`(T, N_0)` panel, then slice the pre-period
 rows) leaks post-period donor information into the rank-:math:`r`
 reconstruction, which can wash out the very post-period deviations
 the synthetic control is meant to detect. The user can opt into
 the full-matrix variant via :py:attr:`CLUSTERSCConfig.project_denoised`,
-in which case HSVT is also applied to :math:`(Y_0)` for the
+in which case HSVT is also applied to :math:`\mathbf{Y}_0` for the
 projection step.
 
-Let :math:`Y_0^- = U \Sigma V^\top` be the SVD of the pre-period
-donor matrix. The rank-:math:`r` hard truncation
+Let :math:`\mathbf{Y}_0^- = \mathbf{U} \boldsymbol{\Sigma}
+\mathbf{V}^\top` be the SVD of the pre-period donor matrix. The
+rank-:math:`r` hard truncation
 
 .. math::
 
-   \widetilde M^- = \mathrm{HSVT}_r(Y_0^-)
-                  = \sum_{i = 1}^{r} \sigma_i u_i v_i^\top
+   \widetilde{\mathbf{M}}^- = \mathrm{HSVT}_r(\mathbf{Y}_0^-)
+                  = \sum_{i = 1}^{r} \sigma_i \mathbf{u}_i \mathbf{v}_i^\top
 
-isolates the low-rank signal :math:`M^-`. The truncation rank can
-be chosen three ways:
+isolates the low-rank signal :math:`\mathbf{M}^-`. The truncation rank
+can be chosen three ways:
 
 * Cumulative variance (default; paper Section 6.1) -- smallest
   :math:`r` with :math:`\sum_{i \le r} \sigma_i^2 / \sum_i \sigma_i^2
@@ -219,17 +291,18 @@ the rank that a cumvar threshold picks. Centring is *only* used
 for rank picking -- the HSVT step itself still consumes the raw
 matrix so the counterfactual is returned in original units.
 
-The same rank is applied to the full :math:`Y_0` so that the
+The same rank is applied to the full :math:`\mathbf{Y}_0` so that the
 post-period projection (Algorithm 4 Step 5) consumes the denoised
-matrix :math:`\widetilde M = \mathrm{HSVT}_r(Y_0)`.
+matrix :math:`\widetilde{\mathbf{M}} = \mathrm{HSVT}_r(\mathbf{Y}_0)`.
 
 Donor clustering (Algorithm 3). When ``clustering=True`` the
 estimator clusters donors on the rows of
-:math:`\widetilde U = U \Sigma_r`. With :math:`k` chosen by the
-silhouette coefficient (Rousseeuw 1987) over
+:math:`\widetilde{\mathbf{U}} = \mathbf{U} \boldsymbol{\Sigma}_r`. With
+:math:`k` chosen by the silhouette coefficient (Rousseeuw 1987) over
 :math:`k \in [2, k_{\max}]`, run :math:`k`-means and embed the
-treated unit via :math:`\tilde u = V_r^\top y_1^-`; the donor pool
-becomes the cluster minimising :math:`\|c_\ell - \tilde u\|_2`
+treated unit via :math:`\widetilde{\mathbf{u}} = \mathbf{V}_r^\top
+\mathbf{y}_1^-`; the donor pool becomes the cluster minimising
+:math:`\|\mathbf{c}_\ell - \widetilde{\mathbf{u}}\|_2`
 (Algorithm 4 Step 2). The selected donor sub-matrix is denoised
 again at the same rank before the weight step.
 
@@ -238,32 +311,33 @@ of canonical synthetic control and solve
 
 .. math::
 
-   \widehat f = \arg\min_{f \in \mathbb{R}^J}
-                \bigl\| \widetilde M^- f - y_1^- \bigr\|_2^2
-              = (\widetilde M^-)^{+} y_1^-,
+   \widehat{\mathbf{w}} = \operatorname*{argmin}_{\mathbf{w} \in \mathbb{R}^{N_0}}
+                \bigl\| \widetilde{\mathbf{M}}^- \mathbf{w} - \mathbf{y}_1^- \bigr\|_2^2
+              = (\widetilde{\mathbf{M}}^-)^{+} \mathbf{y}_1^-,
 
-with :math:`(\widetilde M^-)^{+}` the Moore-Penrose pseudo-inverse.
-Appendix E of the paper compares this OLS path to ridge / lasso
-variants; mlsynth exposes optional elastic-net knobs
+with :math:`(\widetilde{\mathbf{M}}^-)^{+}` the Moore-Penrose
+pseudo-inverse. Appendix E of the paper compares this OLS path to
+ridge / lasso variants; mlsynth exposes optional elastic-net knobs
 (``lambda_penalty``, ``p``, ``q``) for the same purpose.
 
 The counterfactual is
 
 .. math::
 
-   \widehat y^0_1 = Y_0\, \widehat f,
+   \widehat{\mathbf{y}}_1 = \mathbf{Y}_0\, \widehat{\mathbf{w}},
    \qquad
-   \widehat{ATT} = \frac{1}{T - T_0} \sum_{t > T_0}
-                   \bigl(y_{1, t} - (Y_0\, \widehat f)_t\bigr).
+   \widehat{\tau} = \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2}
+                   \bigl(y_{1t} - (\mathbf{Y}_0\, \widehat{\mathbf{w}})_t\bigr).
 
 Algorithm 4 Step 5 of Rho et al. (2025) writes the projection
-through the *denoised* matrix :math:`\widetilde M`. For the OLS
-solver the two are mathematically identical -- :math:`\widehat f`
-lies in the column space of :math:`V_r`, so the discarded
-high-order components annihilate. They differ for the Bayesian and
-SIMPLEX solvers below, where :math:`\widehat f` is not constrained
-to the rank-:math:`r` subspace. Set ``project_denoised=True`` to
-recover the paper-strict projection.
+through the *denoised* matrix :math:`\widetilde{\mathbf{M}}`. For the
+OLS solver the two are mathematically identical --
+:math:`\widehat{\mathbf{w}}` lies in the column space of
+:math:`\mathbf{V}_r`, so the discarded high-order components
+annihilate. They differ for the Bayesian and SIMPLEX solvers below,
+where :math:`\widehat{\mathbf{w}}` is not constrained to the
+rank-:math:`r` subspace. Set ``project_denoised=True`` to recover the
+paper-strict projection.
 
 mlsynth extensions
 ^^^^^^^^^^^^^^^^^^
@@ -279,17 +353,17 @@ Two paper-extensible weight solvers live alongside the OLS default:
 
   .. math::
 
-     f \mid y_1^-, \widetilde M^- \sim
-       \mathcal N\bigl(\mu_n, \Sigma_n\bigr),
+     \mathbf{w} \mid \mathbf{y}_1^-, \widetilde{\mathbf{M}}^- \sim
+       \mathcal{N}\bigl(\boldsymbol{\mu}_n, \boldsymbol{\Sigma}_n\bigr),
      \quad
-     \Sigma_n = \bigl( \sigma_e^{-2} (\widetilde M^-)^\top
-                       \widetilde M^- + \alpha_0 I \bigr)^{-1},
+     \boldsymbol{\Sigma}_n = \bigl( \sigma_e^{-2} (\widetilde{\mathbf{M}}^-)^\top
+                       \widetilde{\mathbf{M}}^- + \lambda_0 \mathbf{I} \bigr)^{-1},
      \quad
-     \mu_n = \sigma_e^{-2} \Sigma_n (\widetilde M^-)^\top y_1^-,
+     \boldsymbol{\mu}_n = \sigma_e^{-2} \boldsymbol{\Sigma}_n (\widetilde{\mathbf{M}}^-)^\top \mathbf{y}_1^-,
 
-  with :math:`\sigma_e^2 = \mathrm{Var}(y_1^-)` and prior precision
-  :math:`\alpha_0`. ``n_bayes_samples`` posterior draws are
-  propagated through :math:`\widetilde M` to yield per-period
+  with :math:`\sigma_e^2 = \mathrm{Var}(\mathbf{y}_1^-)` and prior precision
+  :math:`\lambda_0`. ``n_bayes_samples`` posterior draws are
+  propagated through :math:`\widetilde{\mathbf{M}}` to yield per-period
   credible bands at level :math:`1 - \alpha`. Aggregated over the
   post period, the implied ATT credible interval is reported on
   :py:class:`CLUSTERSCInference`.
@@ -300,11 +374,11 @@ Two paper-extensible weight solvers live alongside the OLS default:
 
   .. math::
 
-     \widehat f = \arg\min_{f \in \Delta_J}
-                    \bigl\| \widetilde M^- f - y_1^- \bigr\|_2^2,
+     \widehat{\mathbf{w}} = \operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_0}}
+                    \bigl\| \widetilde{\mathbf{M}}^- \mathbf{w} - \mathbf{y}_1^- \bigr\|_2^2,
      \qquad
-     \Delta_J = \bigl\{ f \in \mathbb{R}_{\ge 0}^J :
-                        \mathbf 1^\top f = 1 \bigr\}.
+     \Delta^{N_0} = \bigl\{ \mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+                        \mathbf{1}^\top \mathbf{w} = 1 \bigr\}.
 
   Useful when the user wants non-extrapolation and an interpretable
   convex-combination donor weighting on top of the PCR denoising.
@@ -343,41 +417,41 @@ the silhouette coefficient
 
 where :math:`a(j)` is the mean distance from unit :math:`j` to other
 members of its own cluster and :math:`b(j)` the mean distance to
-the closest neighbouring cluster. The donor pool
-:math:`\mathcal{D} \subseteq \{2, \dots, J + 1\}` is the set of
+the closest neighbouring cluster. The donor sub-pool
+:math:`\mathcal{D} \subseteq \mathcal{N}_0` is the set of
 non-treated units sharing the treated unit's cluster.
 
 Step 3 -- Robust PCA on the donor pool. Stack the cluster donor
-outcomes into :math:`Y_{-1} \in \mathbb{R}^{|\mathcal{D}| \times T}`.
-mlsynth offers two robust decompositions :math:`Y_{-1} = L + S`.
+outcomes into :math:`\mathbf{Y}_{\mathcal{D}} \in \mathbb{R}^{|\mathcal{D}| \times T}`.
+mlsynth offers two robust decompositions :math:`\mathbf{Y}_{\mathcal{D}} = \mathbf{L} + \mathbf{S}`.
 
 *PCP* (Candes et al. 2011) replaces the NP-hard
-:math:`\min_{L, S} \mathrm{rank}(L) + \lambda \|S\|_0` with the
+:math:`\min_{\mathbf{L}, \mathbf{S}} \mathrm{rank}(\mathbf{L}) + \lambda \|\mathbf{S}\|_0` with the
 convex relaxation
 
 .. math::
 
-   \min_{L, S} \; \| L \|_* + \lambda \| S \|_1
-   \quad \text{s.t.} \quad Y_{-1} = L + S,
+   \min_{\mathbf{L}, \mathbf{S}} \; \| \mathbf{L} \|_* + \lambda \| \mathbf{S} \|_1
+   \quad \text{s.t.} \quad \mathbf{Y}_{\mathcal{D}} = \mathbf{L} + \mathbf{S},
 
 solved by ADMM with default penalties
 :math:`\lambda = 1 / \sqrt{\max(|\mathcal D|, T)}` and
-:math:`\mu = |\mathcal D| T / (4 \sum_{i, t} |Y_{-1, it}|)` per
+:math:`\mu = |\mathcal D| T / (4 \sum_{i, t} |Y_{\mathcal{D}, it}|)` per
 Bayani Section 2.4. Each iteration alternates a singular-value
-soft-threshold update on :math:`L`, an entry-wise soft-threshold
-update on :math:`S`, and the standard dual ascent on the multiplier
-:math:`\Lambda`.
+soft-threshold update on :math:`\mathbf{L}`, an entry-wise soft-threshold
+update on :math:`\mathbf{S}`, and the standard dual ascent on the multiplier
+:math:`\boldsymbol{\Lambda}`.
 
-*HQF* (Wang et al. 2023) instead factors :math:`L = UV` directly and
+*HQF* (Wang et al. 2023) instead factors :math:`\mathbf{L} = \mathbf{U}\mathbf{V}` directly and
 alternates two Tikhonov-regularised least-squares updates,
 
 .. math::
 
-   U \leftarrow \bigl((Y_{-1} - S) V^\top + \lambda U_{\text{prev}}\bigr)
-                    (V V^\top + \lambda I)^{-1},
+   \mathbf{U} \leftarrow \bigl((\mathbf{Y}_{\mathcal{D}} - \mathbf{S}) \mathbf{V}^\top + \lambda \mathbf{U}_{\text{prev}}\bigr)
+                    (\mathbf{V} \mathbf{V}^\top + \lambda \mathbf{I})^{-1},
    \quad
-   V \leftarrow (U^\top U + \lambda I)^{-1}
-                    (U^\top (Y_{-1} - S) + \lambda V_{\text{prev}}),
+   \mathbf{V} \leftarrow (\mathbf{U}^\top \mathbf{U} + \lambda \mathbf{I})^{-1}
+                    (\mathbf{U}^\top (\mathbf{Y}_{\mathcal{D}} - \mathbf{S}) + \lambda \mathbf{V}_{\text{prev}}),
 
 with the sparse component updated by a median-absolute-deviation
 threshold on the residual (controlled by ``hqf_ip``). The rank
@@ -385,13 +459,13 @@ defaults to the smallest :math:`r` whose cumulative singular-value
 energy meets ``hqf_cumvar`` (Bayani uses :math:`0.999`).
 
 Step 4 -- Non-negative least squares. Let
-:math:`L^- \in \mathbb{R}^{|\mathcal{D}| \times T_0}` be the
+:math:`\mathbf{L}^- \in \mathbb{R}^{|\mathcal{D}| \times T_0}` be the
 pre-period slice of the low-rank component. The weights solve
 
 .. math::
 
-   \widehat \beta = \arg\min_{\beta \ge 0}
-                    \bigl\| y_1^- - (L^-)^\top \beta \bigr\|_2^2.
+   \widehat{\mathbf{w}} = \operatorname*{argmin}_{\mathbf{w} \ge 0}
+                    \bigl\| \mathbf{y}_1^- - (\mathbf{L}^-)^\top \mathbf{w} \bigr\|_2^2.
 
 The simplex constraint of canonical synthetic control is
 deliberately dropped: the clustering step has already restricted
@@ -404,11 +478,11 @@ denoised donor matrix,
 
 .. math::
 
-   \widehat y^0_1 = L^\top \widehat \beta,
+   \widehat{\mathbf{y}}_1 = \mathbf{L}^\top \widehat{\mathbf{w}},
    \qquad
-   \widehat{ATT} = \frac{1}{T - T_0}
-                    \sum_{t > T_0}
-                    \bigl(y_{1, t} - (L^\top \widehat \beta)_t\bigr).
+   \widehat{\tau} = \frac{1}{T - T_0}
+                    \sum_{t \in \mathcal{T}_2}
+                    \bigl(y_{1t} - (\mathbf{L}^\top \widehat{\mathbf{w}})_t\bigr).
 
 RPCA-SC tuning via leave-one-time-out cross-validation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -427,26 +501,26 @@ mlsynth therefore exposes two opt-in cross-validation tuners
 :py:attr:`CLUSTERSCConfig.cv_hqf_rank` for HQF). The same
 algorithm drives both:
 
-Let :math:`L \in \mathbb{R}^{|\mathcal D| \times T}` be the low-rank
+Let :math:`\mathbf{L} \in \mathbb{R}^{|\mathcal D| \times T}` be the low-rank
 component returned by the robust PCA solver at candidate
 hyperparameter :math:`\theta`. The pre-period slice
-:math:`L^- \in \mathbb{R}^{|\mathcal D| \times T_0}` is the design
+:math:`\mathbf{L}^- \in \mathbb{R}^{|\mathcal D| \times T_0}` is the design
 matrix for the NNLS weight step. Define the leave-one-time-period-out
 mean squared error
 
 .. math::
 
    \mathrm{CV}(\theta) = \frac{1}{T_0} \sum_{t = 1}^{T_0}
-                         \biggl( y_{1, t}
-                                 - (L^-_{:, -t})^\top \widehat \beta^{(-t)}
+                         \biggl( y_{1t}
+                                 - (\mathbf{L}^-_{:, -t})^\top \widehat{\mathbf{w}}^{(-t)}
                          \biggr)^2,
    \quad
-   \widehat \beta^{(-t)} = \arg\min_{\beta \ge 0}
-                           \bigl\| y_{1, -t}^-
-                                  - (L^-_{:, -t})^\top \beta \bigr\|_2^2,
+   \widehat{\mathbf{w}}^{(-t)} = \operatorname*{argmin}_{\mathbf{w} \ge 0}
+                           \bigl\| \mathbf{y}_{1, -t}^-
+                                  - (\mathbf{L}^-_{:, -t})^\top \mathbf{w} \bigr\|_2^2,
 
 where the :math:`-t` subscript drops the :math:`t`-th pre-period
-column. The donor matrix :math:`Y_{-1}` is fully observed at every
+column. The donor matrix :math:`\mathbf{Y}_{\mathcal{D}}` is fully observed at every
 period so the RPCA decomposition is run once per :math:`\theta`,
 not :math:`T_0` times. The chosen :math:`\widehat \theta` minimises
 :math:`\mathrm{CV}(\theta)` over a grid:
@@ -474,7 +548,7 @@ each shows up in real data and what to check in the
 counterfactual.
 
 (a) Low-rank latent-factor signal (A1). The donor pool's
-    untreated mean :math:`M` is approximately low rank. If the
+    untreated mean :math:`\mathbf{M}` is approximately low rank. If the
     panel is genuinely full-rank or the spectrum decays slowly,
     HSVT throws away signal and the OLS step over-fits whatever
     is left.
@@ -484,7 +558,7 @@ counterfactual.
     time series where each firm has its own unrelated business
     cycle. *Diagnostic*: compute the spectral-energy share of the
     top-:math:`r` singular values of the column-centred donor
-    matrix; if you need :math:`r \ge \min(T_0, J) / 2` to capture
+    matrix; if you need :math:`r \ge \min(T_0, N_0) / 2` to capture
     :math:`90\%` of the energy, the low-rank story is failing.
     On the Prop 99 panel the top-1 singular value carries
     :math:`\approx 99\%` of the energy -- the exact regime where
@@ -506,10 +580,10 @@ counterfactual.
     than i.i.d. Gaussian noise. *Diagnostic*: residualise each
     donor against the rank-:math:`r` HSVT reconstruction and
     histogram the residuals; sparse heavy tails are a red flag.
-    The fix is the RPCA-SC family -- robust :math:`L + S`
+    The fix is the RPCA-SC family -- robust :math:`\mathbf{L} + \mathbf{S}`
     decomposition explicitly separates the low-rank signal from
     the sparse outliers, so heavy-tailed donor noise is absorbed
-    into :math:`S` rather than contaminating :math:`L`.
+    into :math:`\mathbf{S}` rather than contaminating :math:`\mathbf{L}`.
 
 (c) Approximate linear SC (A3). The treated signal lies
     (approximately) in the span of the denoised donor signals.
@@ -599,7 +673,7 @@ canonical SC pipeline. The decision logic for picking among them:
 
 Reach for PCR-SC + clustering (the CLUSTERSC default) when:
 
-* The donor pool is large and noisy (:math:`J \gtrsim T_0`,
+* The donor pool is large and noisy (:math:`N_0 \gtrsim T_0`,
   disaggregated panels with hundreds of donors), and the donor
   matrix has a clear low-rank spectrum. This is the Rho et al.
   (2025) regime -- the empirical case studies are individual-
@@ -628,16 +702,16 @@ RSC) when:
   bootstrap; the Bayesian path delivers credible bands.
 * The empirical setting is one of the canonical aggregate SC
   case studies (Prop 99, Basque, etc.) where the donor pool is
-  small (J ≤ 40) and a hand-picked subgroup already exists.
+  small (:math:`N_0 \le 40`) and a hand-picked subgroup already exists.
 
 Reach for RPCA-SC when:
 
 * The donor matrix has sparse heavy-tailed outliers rather
   than uniform Gaussian noise -- a few donors with one-time
   policy shocks, structural breaks, or recording errors. The
-  :math:`L + S` decomposition explicitly absorbs these into
-  :math:`S`, leaving a clean :math:`L` for the weight fit.
-  PCR-SC's HSVT is an :math:`L_2`-based denoiser and is
+  :math:`\mathbf{L} + \mathbf{S}` decomposition explicitly absorbs these into
+  :math:`\mathbf{S}`, leaving a clean :math:`\mathbf{L}` for the weight fit.
+  PCR-SC's HSVT is an :math:`\ell_2`-based denoiser and is
   *less* robust to this exact regime.
 * Pre-period trajectories are smooth functional curves
   (annual GDP, monthly population) where the FPCA basis is a
@@ -668,7 +742,7 @@ Use RPCA-SC over PCR-SC when:
 
 * The donor matrix has visible sparse outliers (one or two
   donors with a single shock period that would dominate the
-  HSVT spectrum). RPCA's :math:`L + S` decomposition is built
+  HSVT spectrum). RPCA's :math:`\mathbf{L} + \mathbf{S}` decomposition is built
   for exactly that pattern.
 * Trajectories are smooth and you want the donor-pool
   reduction that FPCA + :math:`k`-means delivers ahead of
@@ -701,7 +775,7 @@ Do not use either family when:
   signal model assumes donors are untreated and independent of
   the treatment of unit 1. Spillovers break this; use
   :doc:`spillsynth` or :doc:`spsydid`.
-* Tiny donor pool (:math:`J \le 10`) and a tight canonical-
+* Tiny donor pool (:math:`N_0 \le 10`) and a tight canonical-
   SC pre-fit. The denoising and clustering machinery is
   overkill; both add variance without identification gain.
   Use *canonical SCM*, :doc:`tssc`, or :doc:`fdid`.
@@ -759,8 +833,8 @@ models:
 
   .. math::
 
-     Y_{i, T} = \sum_{t \le T_0} \alpha^*_t Y_{i, t} + \varepsilon_{i, T},
-     \quad i = 1, \dots, N_0.
+     y_{jT} = \sum_{t \le T_0} a^*_t\, y_{jt} + \varepsilon_{jT},
+     \quad j \in \mathcal{N}_0.
 
   The randomness lives in the cross-sectional dimension.
 
@@ -769,7 +843,7 @@ models:
 
   .. math::
 
-     Y_{N, t} = \sum_{i \le N_0} \beta^*_i Y_{i, t} + \varepsilon_{N, t},
+     y_{1t} = \sum_{j \in \mathcal{N}_0} \beta^*_j\, y_{jt} + \varepsilon_{1t},
      \quad t = 1, \dots, T_0.
 
   The randomness lives in the time-series dimension.
@@ -778,65 +852,65 @@ models:
 
 Each model yields a distinct estimand and a distinct asymptotic
 variance for the same point estimate
-:math:`\widehat Y_{N, T}(0)` (Theorem 3). With rank-:math:`k` HSVT
-projections :math:`H^u_\perp = I - U_k U_k^\top` (donor-space) and
-:math:`H^v_\perp = I - V_k^\top V_k` (time-space), and the
+:math:`\widehat{y}_{1T}` (Theorem 3). With rank-:math:`k` HSVT
+projections :math:`\mathbf{H}^u_\perp = \mathbf{I} - \mathbf{U}_k \mathbf{U}_k^\top` (donor-space) and
+:math:`\mathbf{H}^v_\perp = \mathbf{I} - \mathbf{V}_k^\top \mathbf{V}_k` (time-space), and the
 homoskedastic variance plug-ins (paper eq 19):
 
 .. math::
 
    \widehat \sigma^2_{\mathrm{hz}} =
-       \frac{\| H^u_\perp y_T \|_2^2}{N_0 - R},
+       \frac{\| \mathbf{H}^u_\perp \mathbf{y}_T \|_2^2}{N_0 - R},
    \qquad
    \widehat \sigma^2_{\mathrm{vt}} =
-       \frac{\| H^v_\perp y_N \|_2^2}{T_0 - R},
+       \frac{\| \mathbf{H}^v_\perp \mathbf{y}_1^- \|_2^2}{T_0 - R},
 
-(where :math:`R = \mathrm{rank}(Y_0)` after truncation), the per-period
+(where :math:`R = \mathrm{rank}(\mathbf{Y}_0)` after truncation), the per-period
 variance estimators are
 
 .. math::
 
    \widehat v_{\mathrm{hz}} = \widehat \sigma^2_{\mathrm{hz}}\,
-                              \| \widehat \beta \|_2^2,
+                              \| \widehat{\boldsymbol{\beta}} \|_2^2,
    \quad
    \widehat v_{\mathrm{vt}} = \widehat \sigma^2_{\mathrm{vt}}\,
-                              \| \widehat \alpha \|_2^2,
+                              \| \widehat{\mathbf{a}} \|_2^2,
    \quad
    \widehat v_{\mathrm{dr}} = \max\!\bigl(0,\,
                               \widehat v_{\mathrm{hz}}
                             + \widehat v_{\mathrm{vt}}
-                            - \mathrm{tr}\widehat A\bigr),
+                            - \mathrm{tr}\,\widehat{\mathbf{A}}\bigr),
 
-with :math:`\widehat A = \widehat \sigma^2_{\mathrm{hz}}
-\widehat \sigma^2_{\mathrm{vt}}\, Y_0^{+} (Y_0^\top)^{+}` the
+with :math:`\widehat{\mathbf{A}} = \widehat \sigma^2_{\mathrm{hz}}
+\widehat \sigma^2_{\mathrm{vt}}\, \mathbf{Y}_0^{+} (\mathbf{Y}_0^\top)^{+}` the
 interaction term. The :math:`(1 - \alpha)` CI under source
 :math:`s \in \{\mathrm{hz}, \mathrm{vt}, \mathrm{dr}\}` is
 
 .. math::
 
-   \widehat Y_{N, T}(0) \pm z_{\alpha/2}\, \sqrt{\widehat v_s}.
+   \widehat{y}_{1T} \pm z_{\alpha/2}\, \sqrt{\widehat v_s}.
 
 mlsynth also ports the jackknife and HRK (Hartley-Rao-Kish)
 variance estimators from var.py in the authors' reference repository.
 The HRK estimator is only valid when
-:math:`\max_i (1 - (H_\perp)_{ii}) < 1/2` for both projections;
+:math:`\max_j (1 - (\mathbf{H}_\perp)_{jj}) < 1/2` for both projections;
 mlsynth checks this and raises if violated.
 
 For multi-period extrapolation the procedure runs per post-period:
 at each :math:`t > T_0` the donor outcomes :math:`y_t` change but
 the projections, weights, and per-period variances are recomputed
 from the same fitted weight pair. The ATT is the mean of per-period
-gaps :math:`\widehat{ATT} = (T - T_0)^{-1} \sum_{t > T_0} \widehat \tau_t`,
+gaps :math:`\widehat{\tau} = (T - T_0)^{-1} \sum_{t \in \mathcal{T}_2} \tau_t`,
 and its variance is aggregated assuming independence across
 post-periods:
 
 .. math::
 
-   \widehat v_s(\widehat{ATT}) =
-       \frac{1}{T_1} \cdot
-       \frac{1}{T_1} \sum_{t > T_0} \widehat v_s(t),
+   \widehat v_s(\widehat{\tau}) =
+       \frac{1}{|\mathcal{T}_2|} \cdot
+       \frac{1}{|\mathcal{T}_2|} \sum_{t \in \mathcal{T}_2} \widehat v_s(t),
    \qquad
-   T_1 = T - T_0.
+   |\mathcal{T}_2| = T - T_0.
 
 The independence assumption is the standard first-pass; serially
 correlated shocks would inflate the true variance.
@@ -862,14 +936,14 @@ The CFT prediction error at post-period :math:`t > T_0` decomposes as
 
 .. math::
 
-   y_t - \widehat y^0_t
-       = \underbrace{\bigl\langle p_t, w^* - \widehat w \bigr\rangle}_{
+   y_{1t} - \widehat{y}_{1t}
+       = \underbrace{\bigl\langle \mathbf{p}_t, \mathbf{w}^\ast - \widehat{\mathbf{w}} \bigr\rangle}_{
               \text{in-sample } u_t}
        + \underbrace{e_t}_{\text{out-of-sample shock}},
 
-where :math:`p_t` is the loading at :math:`t` (for RPCA-SC the
-denoised donor row :math:`L_t`), :math:`w^*` is the population
-weight, and :math:`\widehat w` is the NNLS estimate. The two
+where :math:`\mathbf{p}_t` is the loading at :math:`t` (for RPCA-SC the
+denoised donor row :math:`\mathbf{L}_t`), :math:`\mathbf{w}^\ast` is the population
+weight, and :math:`\widehat{\mathbf{w}}` is the NNLS estimate. The two
 components are quantified separately:
 
 * In-sample component :math:`M_w(t, \alpha/2)`. The paper's
@@ -886,11 +960,11 @@ components are quantified separately:
      \quad \sigma \sim \mathrm{Unif}\{1, \dots, T_0\},
 
   we perturb the treated pre-period outcome
-  :math:`y^*_t = \widehat y^0_t + \widehat u^*_t`, refit the full
+  :math:`y^*_t = \widehat{y}_{1t} + \widehat u^*_t`, refit the full
   RPCA-SC pipeline, and collect the resulting counterfactual
-  :math:`\widehat y^{0, *}` at every period. The asymmetric
+  :math:`\widehat{y}^{\,*}_{1t}` at every period. The asymmetric
   :math:`(\alpha/2, 1 - \alpha/2)` empirical quantiles of
-  :math:`\widehat y^{0, *}_t - \widehat y^0_t` form the in-sample
+  :math:`\widehat{y}^{\,*}_{1t} - \widehat{y}_{1t}` form the in-sample
   band per post-period. This is equivalent to the ECOS-based bound
   under regularity conditions and avoids pulling in ``ecos`` /
   ``dask`` / ``plotnine`` as hard dependencies.
@@ -914,20 +988,20 @@ The combined :math:`(1 - \alpha)` PI on the counterfactual at
 
 .. math::
 
-   \widehat y^0_t \pm \bigl[ M_w(t, \alpha/2) + M_e(t, \alpha/2) \bigr],
+   \widehat{y}_{1t} \pm \bigl[ M_w(t, \alpha/2) + M_e(t, \alpha/2) \bigr],
 
 which inverts to the PI on the per-period treatment effect
-:math:`\widehat \tau_t = y_t - \widehat y^0_t`.
+:math:`\tau_t = y_{1t} - \widehat{y}_{1t}`.
 
 For the ATT, the in-sample component aggregates by storing the
 *post-period mean of the counterfactual* at each bootstrap draw and
 taking quantiles. The out-of-sample component shrinks by
-:math:`\sqrt{T_1}` under post-period shock independence:
+:math:`\sqrt{|\mathcal{T}_2|}` under post-period shock independence:
 
 .. math::
 
    M_e^{\mathrm{ATT}}(\alpha/2)
-       = \frac{\sqrt{-2 \log \alpha} \; \widehat \sigma_e}{\sqrt{T_1}}.
+       = \frac{\sqrt{-2 \log \alpha} \; \widehat \sigma_e}{\sqrt{|\mathcal{T}_2|}}.
 
 Config knobs: :py:attr:`CLUSTERSCConfig.compute_cft_pi` (default
 False -- the bootstrap costs ``cft_sims`` full pipeline refits,

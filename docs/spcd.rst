@@ -47,36 +47,36 @@ experiment runs.
 Notation
 --------
 
-We observe an outcome :math:`Y_{it}` for units :math:`i \in \{1, \dots, N\}`
-over pre-treatment periods :math:`t \in \{1, \dots, T\}`, stacked into the
-pre-treatment matrix :math:`Y \in \mathbb{R}^{N \times T}` (units in rows,
-periods in columns). At :math:`t = T` the experimenter assigns each unit a
-sign :math:`D_i \in \{-1, +1\}`: :math:`D_i = +1` puts unit :math:`i` in
-the treated group, :math:`D_i = -1` in the control group. Each unit also
-carries a non-negative weight :math:`w_i \ge 0`, normalized to sum to one
-on each side. After assignment, outcomes are observed for :math:`S` further
-periods :math:`t = T+1, \dots, T+S`, with potential outcomes
-:math:`Y_{it}(-1) = \mu_{it} + e_{it}` and :math:`Y_{it}(+1) = Y_{it}(-1) +
-\tau`, where :math:`\mu_{it}` is the base (signal) outcome, :math:`e_{it}` is
-mean-zero idiosyncratic noise with variance :math:`\sigma`, and :math:`\tau`
-is the treatment effect to be estimated. The estimand is the weighted average
-treatment effect on the treated (wATET).
+We observe an outcome :math:`y_{it}` for units :math:`i \in \mathcal{N}
+\coloneqq \{1, \dots, N\}` over pre-treatment periods :math:`t \in \mathcal{T}
+\coloneqq \{1, \dots, T\}`, stacked into the pre-treatment donor matrix
+:math:`\mathbf{Y}_0 \in \mathbb{R}^{T \times N}` (one column per unit). At
+:math:`t = T` the experimenter assigns each unit a sign :math:`D_i \in \{-1,
++1\}`: :math:`D_i = +1` puts unit :math:`i` in the treated group, :math:`D_i =
+-1` in the control group. Each unit also carries a non-negative weight
+:math:`w_i \ge 0`, normalized to sum to one on each side. After assignment,
+outcomes are observed for :math:`S` further periods :math:`t = T+1, \dots,
+T+S`, with potential outcomes :math:`y_{it}(-1) = \mu_{it} + e_{it}` and
+:math:`y_{it}(+1) = y_{it}(-1) + \tau`, where :math:`\mu_{it}` is the base
+(signal) outcome, :math:`e_{it}` is mean-zero idiosyncratic noise with variance
+:math:`\sigma`, and :math:`\tau` is the treatment effect to be estimated. The
+estimand is the weighted average treatment effect on the treated (wATET).
 
-Throughout, :math:`\mathbf{1}` is the all-ones vector, :math:`I` the
+Throughout, :math:`\mathbf{1}` is the all-ones vector, :math:`\mathbf{I}` the
 identity, :math:`\operatorname{sgn}(\cdot)` the elementwise sign,
-:math:`\|\cdot\|_1` / :math:`\|\cdot\|_2` the L1 / L2 norms, and
-:math:`(\cdot)^{-1}` the matrix inverse.
+:math:`\|\cdot\|_1` / :math:`\|\cdot\|_2` the :math:`\ell_1` / :math:`\ell_2`
+norms, and :math:`(\cdot)^{-1}` the matrix inverse.
 
 .. note::
 
    Notation bridge. The single-treated-unit synthetic-control canon
-   (treated :math:`j=0`, donors :math:`1, \dots, N`, treatment dummy
+   (treated :math:`j=1`, donor pool :math:`\mathcal{N}_0`, treatment dummy
    :math:`d_{jt} \in \{0,1\}`) does not fit a *design* problem in which the
    assignment is itself the decision variable. Following the paper, the
-   assignment is the signed vector :math:`D \in \{-1,+1\}^N` and the two
-   groups are symmetric (neither is privileged as "the donors"). The
-   implementation stores the pre-treatment matrix transposed, as
-   :math:`Y_{\text{pre}} \in \mathbb{R}^{T \times N}` (time in rows, units in
+   assignment is the signed vector :math:`\mathbf{D} \in \{-1,+1\}^N` and the
+   two groups are symmetric (neither is privileged as "the donors"). The
+   implementation stores the pre-treatment matrix in the canon orientation, as
+   :math:`\mathbf{Y}_0 \in \mathbb{R}^{T \times N}` (time in rows, units in
    columns), so the iteration matrix below is built in code as
    ``Y_pre.T @ Y_pre + alpha I + lambda 1 1.T``.
 
@@ -99,20 +99,21 @@ Before the equations, here is the whole idea in five steps.
 3. One signed number per unit. Pack each unit's *group label* and *weight*
    into a single signed number :math:`W_i = w_i D_i`: its sign says which
    group the unit is in, its magnitude is the weight. "Make the two
-   weighted groups match" then becomes "find a signed vector :math:`W` that is
-   as small as possible against the data," i.e. minimize :math:`W^\top (Y
-   Y^\top) W` subject to the groups balancing out. This is the
-   :math:`\ell_1`-PCA / phase-synchronization problem — a well-studied
-   shape with fast, globally-convergent solvers.
+   weighted groups match" then becomes "find a signed vector :math:`\mathbf{W}`
+   that is as small as possible against the data," i.e. minimize
+   :math:`\mathbf{W}^\top (\mathbf{Y}_0 \mathbf{Y}_0^\top) \mathbf{W}` subject
+   to the groups balancing out. This is the :math:`\ell_1`-PCA /
+   phase-synchronization problem — a well-studied shape with fast,
+   globally-convergent solvers.
 
 4. Solve it with a power method, warm-started by an eigenvector. Start
    from a smart first guess — the sign pattern of the smallest eigenvector of
    the data matrix (the *spectral initialization*). Then repeatedly refine the
-   group labels: multiply the current sign vector by :math:`M^{-1}` and take
-   signs again (the *generalized power method*). Keep going until the labels
-   stop flipping. The normalized variant (the package default) rescales by
-   the diagonal of :math:`M^{-1}` first and is guaranteed to converge to the
-   global optimum at a linear rate.
+   group labels: multiply the current sign vector by :math:`\mathbf{M}^{-1}`
+   and take signs again (the *generalized power method*). Keep going until the
+   labels stop flipping. The normalized variant (the package default) rescales
+   by the diagonal of :math:`\mathbf{M}^{-1}` first and is guaranteed to
+   converge to the global optimum at a linear rate.
 
 5. Read off the design, then estimate. Once the labels are fixed, the
    weights follow in closed form (Eq. (9)) or from a tiny convex program
@@ -139,7 +140,7 @@ treatment-effect estimator decomposes as
 
 .. math::
 
-   \mathbb{E}\!\left[(\hat\tau - \tau)^2 \,\middle|\, \{D_i, w_i\}\right]
+   \mathbb{E}\!\left[(\widehat{\tau} - \tau)^2 \,\middle|\, \{D_i, w_i\}\right]
    \;=\;
    \underbrace{\left(
        \sum_{i: D_i=1} w_i \mu_{i, T+1}
@@ -160,9 +161,9 @@ over the *pre-treatment window* gives the mixed-integer program SPCD solves
    \min_{\{D_i, w_i\}_{i=1}^N} \quad
    & \frac{1}{T} \sum_{t=1}^T
      \left(
-       \sum_{i: D_i=1} w_i Y_{it}
+       \sum_{i: D_i=1} w_i y_{it}
        -
-       \sum_{i: D_i=-1} w_i Y_{it}
+       \sum_{i: D_i=-1} w_i y_{it}
      \right)^2
      + \sigma \sum_{i=1}^N w_i^2 \\
    \text{s.t.} \quad
@@ -175,29 +176,29 @@ Reformulation as :math:`\ell_1`-PCA
 
 The key observation of the paper is that the change of variable
 :math:`W_i = w_i D_i` collapses the assignment and weight variables into a
-single signed vector :math:`W \in \mathbb{R}^N`. Under :math:`W`,
-:math:`D_i = \operatorname{sgn}(W_i)` and :math:`w_i = |W_i|`, the adding-up
-constraints become :math:`\mathbf{1}^\top W = 0`, and the design problem
-becomes
+single signed vector :math:`\mathbf{W} \in \mathbb{R}^N`. Under
+:math:`\mathbf{W}`, :math:`D_i = \operatorname{sgn}(W_i)` and :math:`w_i =
+|W_i|`, the adding-up constraints become :math:`\mathbf{1}^\top \mathbf{W} =
+0`, and the design problem becomes
 
 .. math::
 
-   \min_{W \in \mathbb{R}^N,\ \mathbf{1}^\top W = 0,\ \|W\|_1 = 1}
-       W^\top \left( Y Y^\top + \sigma I \right) W.
+   \min_{\mathbf{W} \in \mathbb{R}^N,\ \mathbf{1}^\top \mathbf{W} = 0,\ \|\mathbf{W}\|_1 = 1}
+       \mathbf{W}^\top \left( \mathbf{Y}_0 \mathbf{Y}_0^\top + \sigma \mathbf{I} \right) \mathbf{W}.
 
-The hard equality :math:`\mathbf{1}^\top W = 0` is absorbed into the
+The hard equality :math:`\mathbf{1}^\top \mathbf{W} = 0` is absorbed into the
 objective via a quadratic penalty:
 
 .. math::
 
-   \min_{W \in \mathbb{R}^N,\ \|W\|_1 = 1}
-       W^\top \left( Y Y^\top + \sigma I + \lambda \mathbf{1}\mathbf{1}^\top \right) W.
+   \min_{\mathbf{W} \in \mathbb{R}^N,\ \|\mathbf{W}\|_1 = 1}
+       \mathbf{W}^\top \left( \mathbf{Y}_0 \mathbf{Y}_0^\top + \sigma \mathbf{I} + \lambda \mathbf{1}\mathbf{1}^\top \right) \mathbf{W}.
 
 Theorem 1 of the paper shows that for :math:`\lambda` large enough, the *sign
-vector* :math:`\operatorname{sgn}(W^*)` of any global minimum coincides with
-the sign vector of an associated phase-synchronization problem. Once the signs
-are recovered, the magnitudes follow from a small convex QP (or, in practice,
-the closed form in Eq. (9)).
+vector* :math:`\operatorname{sgn}(\mathbf{W}^\ast)` of any global minimum
+coincides with the sign vector of an associated phase-synchronization problem.
+Once the signs are recovered, the magnitudes follow from a small convex QP (or,
+in practice, the closed form in Eq. (9)).
 
 The Iteration Matrix
 ^^^^^^^^^^^^^^^^^^^^
@@ -207,7 +208,7 @@ matrix from Eq. (2) of the paper:
 
 .. math::
 
-   M \;=\; Y Y^\top \;+\; \alpha I \;+\; \lambda \mathbf{1} \mathbf{1}^\top,
+   \mathbf{M} \;\coloneqq\; \mathbf{Y}_0 \mathbf{Y}_0^\top \;+\; \alpha \mathbf{I} \;+\; \lambda \mathbf{1} \mathbf{1}^\top,
 
 where :math:`\alpha` plays the role of :math:`\sigma` (noise variance) and
 :math:`\lambda` is the constraint-absorbing penalty. The paper treats both as
@@ -216,11 +217,11 @@ where :math:`\alpha` plays the role of :math:`\sigma` (noise variance) and
 .. note::
 
    Choosing :math:`\alpha`. The paper's appendix sets the perturbation
-   ridge on the noise scale (:math:`\alpha = \lVert\Delta\rVert` with
-   :math:`\alpha \le \lVert\Delta\rVert`), so :math:`\alpha` should track the
+   ridge on the noise scale (:math:`\alpha = \lVert\boldsymbol{\Delta}\rVert` with
+   :math:`\alpha \le \lVert\boldsymbol{\Delta}\rVert`), so :math:`\alpha` should track the
    idiosyncratic noise variance, *not* the dominant (signal/level) eigenvalue
-   of :math:`Y Y^\top`. When :math:`N > T_{\text{pre}}` the matrix
-   :math:`Y Y^\top` is rank-deficient and the post-period RMSE is a
+   of :math:`\mathbf{Y}_0 \mathbf{Y}_0^\top`. When :math:`N > T_{\text{pre}}` the matrix
+   :math:`\mathbf{Y}_0 \mathbf{Y}_0^\top` is rank-deficient and the post-period RMSE is a
    non-monotone, *jumpy* function of :math:`\alpha` (small changes flip the
    discrete sign vector), so no single closed-form estimate is robust. When
    the user does not supply :math:`\alpha`, ``formulation.py`` first fixes its
@@ -229,7 +230,7 @@ where :math:`\alpha` plays the role of :math:`\sigma` (noise variance) and
    and ``orchestration.select_alpha_by_holdout`` then picks the value on a
    noise-scale grid that balances a held-out tail of the pre-period best
    out of sample. :math:`\lambda` and :math:`\beta` still default from the
-   spectrum of :math:`Y Y^\top`. If you know the noise level (e.g. the
+   spectrum of :math:`\mathbf{Y}_0 \mathbf{Y}_0^\top`. If you know the noise level (e.g. the
    simulations below fix :math:`\sigma = 1`), pass ``alpha_ridge`` explicitly
    to skip selection.
 
@@ -240,20 +241,20 @@ By default SPCD balances the two groups on the pre-treatment outcomes
 only. Passing ``covariates`` (a list of column names) additionally balances on
 auxiliary unit characteristics. Each unit's per-covariate pre-period mean
 is taken (time-invariant covariates -- e.g. last year's market share -- collapse
-to their value), the resulting :math:`N \times P` matrix :math:`X` is z-scored
+to their value), the resulting :math:`N \times P` matrix :math:`\mathbf{X}` is z-scored
 across units, and a covariate-balance term is folded into the iteration matrix:
 
 .. math::
 
-   M \;=\; Y Y^\top
-   \;+\; \texttt{covariate\_weight} \cdot s \cdot X X^\top
-   \;+\; \alpha I \;+\; \lambda \mathbf{1}\mathbf{1}^\top,
+   \mathbf{M} \;\coloneqq\; \mathbf{Y}_0 \mathbf{Y}_0^\top
+   \;+\; \texttt{covariate\_weight} \cdot s \cdot \mathbf{X} \mathbf{X}^\top
+   \;+\; \alpha \mathbf{I} \;+\; \lambda \mathbf{1}\mathbf{1}^\top,
 
-where :math:`s` rescales :math:`X X^\top` to match the trace ("energy") of
-:math:`Y Y^\top`, so ``covariate_weight = 1`` weights covariates equally to
+where :math:`s` rescales :math:`\mathbf{X} \mathbf{X}^\top` to match the trace ("energy") of
+:math:`\mathbf{Y}_0 \mathbf{Y}_0^\top`, so ``covariate_weight = 1`` weights covariates equally to
 the outcomes, ``> 1`` upweights them, and ``0`` (or omitting ``covariates``)
 recovers the outcome-only design. Crucially this keeps the iteration matrix a
-quadratic form :math:`W^\top M W` with the *same* phase-synchronization
+quadratic form :math:`\mathbf{W}^\top \mathbf{M} \mathbf{W}` with the *same* phase-synchronization
 structure, so the spectral solver and the global-optimality theory are
 unchanged -- the design now drives the weighted treated and control groups to
 agree on outcomes *and* covariates jointly. (This is the same way classical
@@ -281,34 +282,34 @@ Spectral Initialization
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 Both Algorithm 1 and Algorithm 2 of the paper start from the same warm start:
-the sign of the smallest eigenvector of :math:`M`,
+the sign of the smallest eigenvector of :math:`\mathbf{M}`,
 
 .. math::
 
-   y^{0} \;=\; \operatorname{sgn}(v),
+   \mathbf{y}^{0} \;=\; \operatorname{sgn}(\mathbf{v}),
    \qquad
-   v \;=\; \arg\min_{\|v\|_2 = 1} v^\top M v.
+   \mathbf{v} \;=\; \operatorname*{argmin}_{\|\mathbf{v}\|_2 = 1} \mathbf{v}^\top \mathbf{M} \mathbf{v}.
 
 Appendix 3.2.1 of the paper (Lemma 4) shows that under the linear
 latent-factor model :math:`Y_{it} = \delta_t + \theta_t^\top \mu_i + e_{it}`
 (Assumption 1) together with the realizability assumption (Assumption 2), the
-sign vector :math:`\operatorname{sgn}(v)` already agrees with the global
-optimum :math:`\operatorname{sgn}(W^*)` up to a bounded fraction of entries.
+sign vector :math:`\operatorname{sgn}(\mathbf{v})` already agrees with the global
+optimum :math:`\operatorname{sgn}(\mathbf{w}^\ast)` up to a bounded fraction of entries.
 
 The (Normalized) Generalized Power Method
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To refine the spectral initialization, SPCD performs sign-iterations on
-:math:`M^{-1}`. The two ``variant`` choices correspond to the two update boxes
-of Algorithm 1 / Algorithm 2:
+:math:`\mathbf{M}^{-1}`. The two ``variant`` choices correspond to the two
+update boxes of Algorithm 1 / Algorithm 2:
 
 - ``variant="spcd"`` (Eq. (4)/(7)) — *Generalized Power Iteration*:
 
   .. math::
 
-     y^{t+1} \;=\;
+     \mathbf{y}^{t+1} \;=\;
      \operatorname{sgn}\!\left[\,
-         \left( M^{-1} + \beta I \right) \, y^{t}
+         \left( \mathbf{M}^{-1} + \beta \mathbf{I} \right) \, \mathbf{y}^{t}
      \,\right].
 
 - ``variant="norm_spcd"`` (Eq. (5)/(8)) — *Normalized Generalized Power
@@ -316,16 +317,16 @@ of Algorithm 1 / Algorithm 2:
 
   .. math::
 
-     y^{t+1} \;=\;
+     \mathbf{y}^{t+1} \;=\;
      \operatorname{sgn}\!\left[\,
-         \left( M^{-1} + \beta I \right) \,
-         \big( y^{t} \,/\, d \big)
+         \left( \mathbf{M}^{-1} + \beta \mathbf{I} \right) \,
+         \big( \mathbf{y}^{t} \,/\, \mathbf{d} \big)
      \,\right],
      \quad
-     d \;=\; \sqrt{\operatorname{diag}(M^{-1})}.
+     \mathbf{d} \;=\; \sqrt{\operatorname{diag}(\mathbf{M}^{-1})}.
 
 Here :math:`\beta > 0` is the step parameter (auto-defaulted to
-:math:`1/\lambda_{\max}(M)`), and :math:`/` denotes element-wise division. The
+:math:`1/\lambda_{\max}(\mathbf{M})`), and :math:`/` denotes element-wise division. The
 loop terminates as soon as the sign vector stops changing between successive
 iterations.
 
@@ -342,7 +343,7 @@ This is why the normalized variant is the package default.
 Final Weight Step
 ^^^^^^^^^^^^^^^^^
 
-Once the iteration converges to a sign vector :math:`y^* \in \{-1, +1\}^N`,
+Once the iteration converges to a sign vector :math:`\mathbf{y}^\ast \in \{-1, +1\}^N`,
 the unit weights are produced by one of two procedures:
 
 - ``weights="empirical"`` (Eq. (9), Algorithm 2 — the paper's experimental
@@ -350,12 +351,12 @@ the unit weights are produced by one of two procedures:
 
   .. math::
 
-     w \;=\;
-     \frac{2 \, M^{-1} y^*}{\left\| M^{-1} y^* \right\|_1}.
+     \mathbf{w} \;=\;
+     \frac{2 \, \mathbf{M}^{-1} \mathbf{y}^\ast}{\left\| \mathbf{M}^{-1} \mathbf{y}^\ast \right\|_1}.
 
   The optimality condition of the original QP (Eq. (6)) implies that
-  :math:`\operatorname{sgn}(w) = y^*` whenever the iteration has converged to a
-  fixed point of the closed-form map, so the signed vector :math:`w`
+  :math:`\operatorname{sgn}(\mathbf{w}) = \mathbf{y}^\ast` whenever the iteration has converged to a
+  fixed point of the closed-form map, so the signed vector :math:`\mathbf{w}`
   simultaneously encodes group membership *and* weights.
 
 - ``weights="exact"`` (Eq. (6), Algorithm 1) — solves the convex QP
@@ -363,16 +364,16 @@ the unit weights are produced by one of two procedures:
   .. math::
 
      \begin{aligned}
-     \min_{w \geq 0} \quad
+     \min_{\mathbf{w} \geq 0} \quad
      & \frac{1}{T} \sum_{t=1}^T
        \left(
-         \sum_{i:\, y^*_i = +1} w_i Y_{it}
+         \sum_{i:\, y^\ast_i = +1} w_i Y_{it}
          -
-         \sum_{i:\, y^*_i = -1} w_i Y_{it}
+         \sum_{i:\, y^\ast_i = -1} w_i Y_{it}
        \right)^2
        + \alpha \sum_{i=1}^N w_i^2 \\
      \text{s.t.} \quad
-     & \sum_{i:\, y^*_i = +1} w_i \;=\; \sum_{i:\, y^*_i = -1} w_i \;=\; 1.
+     & \sum_{i:\, y^\ast_i = +1} w_i \;=\; \sum_{i:\, y^\ast_i = -1} w_i \;=\; 1.
      \end{aligned}
 
   via ``cvxpy``. Use this when you need the exact Algorithm-1 weights rather
@@ -386,7 +387,7 @@ Per the bottom of Algorithm 1 (page 7 of the paper), SPCD then applies the
 
 .. math::
 
-   \text{Treat unit } i \iff y^*_i \;=\; -\operatorname{sgn}\!\left(\sum_{j} y^*_j\right),
+   \text{Treat unit } i \iff y^\ast_i \;=\; -\operatorname{sgn}\!\left(\sum_{j} y^\ast_j\right),
 
 which flips the sign vector (if necessary) so that the smaller of the two
 groups is the treated group. The treated unit labels reported by
@@ -400,13 +401,13 @@ treatment-effect estimator at the bottom of Algorithm 1 is
 
 .. math::
 
-   \hat\tau
+   \widehat{\tau}
    \;=\;
    \frac{1}{S} \sum_{t = T+1}^{T+S}
    \left(
-     \sum_{i: y^*_i = +1} w_i \, Y_{i,t}
+     \sum_{i: y^\ast_i = +1} w_i \, Y_{i,t}
      -
-     \sum_{i: y^*_i = -1} w_i \, Y_{i,t}
+     \sum_{i: y^\ast_i = -1} w_i \, Y_{i,t}
    \right),
 
 which is precisely the mean of the post-period synthetic gap reported as
@@ -423,9 +424,9 @@ trajectories,
    \sqrt{
      \frac{1}{T} \sum_{t = 1}^T
      \left(
-       \sum_{i: y^*_i = +1} w_i \, Y_{i,t}
+       \sum_{i: y^\ast_i = +1} w_i \, Y_{i,t}
        -
-       \sum_{i: y^*_i = -1} w_i \, Y_{i,t}
+       \sum_{i: y^\ast_i = -1} w_i \, Y_{i,t}
      \right)^2
    },
 
@@ -440,9 +441,9 @@ The paper's Appendix 3.2 also defines two further numbered algorithms —
 *Algorithm 4* (its normalized counterpart). These are not implemented as
 separate code paths in :mod:`mlsynth`: they are the abstract meta-versions of
 Algorithms 1 and 2 used to prove the global convergence theorem (Theorem 3)
-and operate on a generic matrix :math:`C = z z^\top + \Delta` rather than on
-the SPCD-specific iteration matrix :math:`M`. The two ``variant`` options
-exposed in the API already cover both procedures applied to :math:`M`.
+and operate on a generic matrix :math:`\mathbf{C} = \mathbf{z} \mathbf{z}^\top + \boldsymbol{\Delta}` rather than on
+the SPCD-specific iteration matrix :math:`\mathbf{M}`. The two ``variant`` options
+exposed in the API already cover both procedures applied to :math:`\mathbf{M}`.
 
 Assumptions and Theory
 ----------------------
@@ -455,16 +456,16 @@ Assumption 1 (linear latent-factor model). Outcomes are generated by
 
 .. math::
 
-   Y_{jt} \;=\; \delta_t \;+\; \frac{D_{jt} + 1}{2}\,\tau \;+\; \theta_t^\top \mu_j \;+\; e_{jt},
+   Y_{it} \;=\; \delta_t \;+\; \frac{D_{it} + 1}{2}\,\tau \;+\; \theta_t^\top \mu_i \;+\; e_{it},
    \qquad
-   \mathbb{E}[e_{jt} \mid \delta_t, \mu_j, D_{jt}] = 0,
+   \mathbb{E}[e_{it} \mid \delta_t, \mu_i, D_{it}] = 0,
    \quad
-   \operatorname{Var}[e_{jt} \mid \cdot] = \sigma,
+   \operatorname{Var}[e_{it} \mid \cdot] = \sigma,
 
-where :math:`\delta_t` is a time fixed effect, :math:`\mu_j` are unobserved
+where :math:`\delta_t` is a time fixed effect, :math:`\mu_i` are unobserved
 common factors, :math:`\theta_t` is a vector of unknown factor loadings,
-:math:`e_{jt}` is i.i.d. idiosyncratic noise, and :math:`\tau` is the
-treatment effect. In the pre-treatment period :math:`D_{jt} = -1` for all
+:math:`e_{it}` is i.i.d. idiosyncratic noise, and :math:`\tau` is the
+treatment effect. In the pre-treatment period :math:`D_{it} = -1` for all
 units.
 
 *Remark.* This is the standard interactive-fixed-effects model that underlies
@@ -476,7 +477,7 @@ on pre-period outcomes.
 
 Assumption 2 (realizable design). There exists a *unique* parameter
 :math:`(w_i, D_i)_{i=1}^N` satisfying: (a) :math:`D_i \in \{-1, +1\}`; (b)
-:math:`w_i \ge 0` with :math:`\sum_i D_i w_i = 0`; (c) :math:`\|w\|_2^2 = N`
+:math:`w_i \ge 0` with :math:`\sum_i D_i w_i = 0`; (c) :math:`\|\mathbf{w}\|_2^2 = N`
 and :math:`\epsilon \le |w_i| \le 1/\epsilon` for all :math:`i`; and (d) the
 weights balance the factors, :math:`\sum_i w_i D_i \mu_i = 0`.
 
@@ -488,15 +489,15 @@ donors" condition in retrospective SCM, and is what turns an NP-hard search
 into a problem with a recoverable global optimum.
 
 Theorem 1 (sign recovery). For :math:`\lambda` large enough, the global
-solution :math:`W^*` of the penalized program satisfies
-:math:`\operatorname{sgn}(W^*) = \operatorname{sgn}(\arg\min_{\|W\|_1=1} W^\top
-(YY^\top + \sigma I + \lambda \mathbf{1}\mathbf{1}^\top) W)`. *In words:* the
+solution :math:`\mathbf{w}^\ast` of the penalized program satisfies
+:math:`\operatorname{sgn}(\mathbf{w}^\ast) = \operatorname{sgn}(\operatorname*{argmin}_{\|\mathbf{W}\|_1=1} \mathbf{W}^\top
+(\mathbf{Y}_0\mathbf{Y}_0^\top + \sigma \mathbf{I} + \lambda \mathbf{1}\mathbf{1}^\top) \mathbf{W})`. *In words:* the
 quadratic penalty does not corrupt the *signs* of the optimal design, so
 recovering group membership and recovering the weights can be separated.
 
 Theorem 2 (equivalence to phase synchronization). The design problem is
 symbolically identical to a phase-synchronization problem on the matrix
-:math:`(A^\top A)^{-1}`. *In words:* SPCD inherits the entire fast-solver
+:math:`(\mathbf{A}^\top \mathbf{A})^{-1}`. *In words:* SPCD inherits the entire fast-solver
 toolkit developed for phase synchronization — most importantly the
 spectrally-initialized generalized power method.
 
@@ -519,80 +520,80 @@ calibrate-on-B discipline.
 Estimation / Holdout Split
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Given the pretreatment matrix :math:`Y_{\text{pre}} \in
+Given the pretreatment matrix :math:`\mathbf{Y}_{\text{pre}} \in
 \mathbb{R}^{T_{\text{pre}} \times N}`, SPCD splits the pretreatment window into
 
 .. math::
 
-   Y_{\text{pre}}
+   \mathbf{Y}_{\text{pre}}
    \;=\;
    \begin{bmatrix}
-       Y_{E} \\[3pt]
-       Y_{B}
+       \mathbf{Y}_{E} \\[3pt]
+       \mathbf{Y}_{B}
    \end{bmatrix},
 
-where :math:`Y_E` contains the first ``holdout_frac_E`` of the pretreatment
-periods (default 70 %) and :math:`Y_B` contains the remainder. The SPCD design
-— sign vector, treated/control weights, and the iteration matrix :math:`M` —
-is fit on :math:`Y_E` *only*.
+where :math:`\mathbf{Y}_E` contains the first ``holdout_frac_E`` of the pretreatment
+periods (default 70 %) and :math:`\mathbf{Y}_B` contains the remainder. The SPCD design
+— sign vector, treated/control weights, and the iteration matrix :math:`\mathbf{M}` —
+is fit on :math:`\mathbf{Y}_E` *only*.
 
 Backwards-Compatibility Guarantee
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Because the design is fit on :math:`Y_E` alone, two callers who share the same
-pretreatment data — one in *planning mode* (no :math:`Y_{\text{post}}` yet) and
-one in *retrospective mode* (with :math:`Y_{\text{post}}`) — receive
+Because the design is fit on :math:`\mathbf{Y}_E` alone, two callers who share the same
+pretreatment data — one in *planning mode* (no :math:`\mathbf{Y}_{\text{post}}` yet) and
+one in *retrospective mode* (with :math:`\mathbf{Y}_{\text{post}}`) — receive
 identical designs. The only difference between the two callers is whether a
 post-period ATT and its conformal CI are reported.
 
 Holdout Residuals
 ^^^^^^^^^^^^^^^^^
 
-Applying the design weights to :math:`Y_B` gives an out-of-sample synthetic-gap
+Applying the design weights to :math:`\mathbf{Y}_B` gives an out-of-sample synthetic-gap
 series
 
 .. math::
 
-   r_B \;=\; Y_B \cdot w,
+   \mathbf{r}_B \;=\; \mathbf{Y}_B \cdot \mathbf{w},
 
-where :math:`w` is the signed ``contrast_weights`` vector from the
-:math:`Y_E`-fit design. Under the linear-factor model with no treatment,
-:math:`r_B` is a zero-mean noise series whose empirical distribution
+where :math:`\mathbf{w}` is the signed ``contrast_weights`` vector from the
+:math:`\mathbf{Y}_E`-fit design. Under the linear-factor model with no treatment,
+:math:`\mathbf{r}_B` is a zero-mean noise series whose empirical distribution
 characterizes the noise structure of any synthetic-gap linear functional based
-on the same :math:`w`. This makes :math:`r_B` the natural calibration set for
+on the same :math:`\mathbf{w}`. This makes :math:`\mathbf{r}_B` the natural calibration set for
 inference and the natural noise pool for power simulations.
 
 Moving-Block Conformal CI
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When :math:`Y_{\text{post}}` is supplied, the post-period synthetic gap is
-:math:`g = Y_{\text{post}} \cdot w \in \mathbb{R}^S`, with mean
+When :math:`\mathbf{Y}_{\text{post}}` is supplied, the post-period synthetic gap is
+:math:`\mathbf{g} = \mathbf{Y}_{\text{post}} \cdot \mathbf{w} \in \mathbb{R}^S`, with mean
 
 .. math::
 
-   \hat\tau \;=\; \frac{1}{S} \sum_{t=1}^S g_t.
+   \widehat{\tau} \;=\; \frac{1}{S} \sum_{t=1}^S g_t.
 
-The test statistic is :math:`T(g) = \mathrm{mean}(|g|)`. Conformity scores are
+The test statistic is :math:`T(\mathbf{g}) = \mathrm{mean}(|\mathbf{g}|)`. Conformity scores are
 computed by taking mean-absolute values over all sliding blocks of size
 :math:`b = \max(3, \lfloor\sqrt{S}\rfloor)` (both standard and circular) of
-:math:`r_B`. The conformal p-value vs. :math:`H_0\colon \tau = 0` is
+:math:`\mathbf{r}_B`. The conformal p-value vs. :math:`H_0\colon \tau = 0` is
 
 .. math::
 
    p \;=\; \frac{
-       \#\{\text{blocks with score} \geq T(g)\}
+       \#\{\text{blocks with score} \geq T(\mathbf{g})\}
    }{\text{number of blocks}}.
 
-The :math:`(1 - \alpha)` confidence interval for :math:`\hat\tau` is obtained
+The :math:`(1 - \alpha)` confidence interval for :math:`\widehat{\tau}` is obtained
 by inversion: scan a grid of candidate values :math:`\theta` around
-:math:`\hat\tau`, include :math:`\theta` if the adjusted-residual score
-:math:`T(g - \theta)` is in the in-distribution region of the block-score
+:math:`\widehat{\tau}`, include :math:`\theta` if the adjusted-residual score
+:math:`T(\mathbf{g} - \theta)` is in the in-distribution region of the block-score
 empirical distribution. Pointwise bands at the :math:`(1 - \alpha)` quantile
 :math:`q` of the block scores are reported as :math:`g_t \pm q`.
 
 This is exchangeability-based inference: coverage holds in finite samples under
-the assumption that overlapping blocks of :math:`r_B` are exchangeable with
-overlapping blocks of :math:`g` under the null. This is a stronger assumption
+the assumption that overlapping blocks of :math:`\mathbf{r}_B` are exchangeable with
+overlapping blocks of :math:`\mathbf{g}` under the null. This is a stronger assumption
 than IID noise and weaker than perfect :math:`H_0`. It breaks if the treatment
 introduces variance changes.
 
@@ -606,12 +607,12 @@ constant treatment effect I could detect with power* :math:`\geq \pi`?
 The procedure follows :mod:`mlsynth.utils.fast_scm_helpers.power_helpers`:
 
 1. Build the null distribution of :math:`T` at horizon :math:`S` by resampling
-   :math:`r_B` (padded with Gaussian draws so that resampling of size :math:`S`
+   :math:`\mathbf{r}_B` (padded with Gaussian draws so that resampling of size :math:`S`
    is always feasible). Compute :math:`c_\alpha =
    \text{quantile}(\text{null}, 1 - \alpha)`.
 2. For each candidate :math:`\tau` on a grid of effect sizes, draw
    :math:`n_{\text{trials}}` post-period vectors of the form :math:`\tau +
-   \mathcal{N}(0, \hat\sigma_B^2)` and count the fraction exceeding
+   \mathcal{N}(0, \widehat{\sigma}_B^2)` and count the fraction exceeding
    :math:`c_\alpha`.
 3. The smallest :math:`\tau` whose empirical power reaches the target
    :math:`\pi` is reported as the MDE, both on the absolute scale (``mde``) and
@@ -624,11 +625,11 @@ question: *how long do I need to run the experiment to detect a target effect?*
 Power Analysis Always Runs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The MDE computation depends only on :math:`r_B`, not on
-:math:`Y_{\text{post}}`. So power analysis runs whenever
+The MDE computation depends only on :math:`\mathbf{r}_B`, not on
+:math:`\mathbf{Y}_{\text{post}}`. So power analysis runs whenever
 ``enable_inference=True`` and the holdout window is large enough (at least
 ``min_blank_size`` periods, default 5). The conformal CI only runs when
-:math:`Y_{\text{post}}` is supplied; otherwise the ATT and CI are reported as
+:math:`\mathbf{Y}_{\text{post}}` is supplied; otherwise the ATT and CI are reported as
 ``None`` (honest absence rather than a silent zero).
 
 Opting Out
@@ -732,7 +733,7 @@ gap.
 
 Switch ``variant`` (``"spcd"`` vs. ``"norm_spcd"``) and ``weights``
 (``"empirical"`` vs. ``"exact"``) to compare the four code-paths; all share the
-same iteration matrix :math:`M` and differ only in the refinement and weight
+same iteration matrix :math:`\mathbf{M}` and differ only in the refinement and weight
 steps described above. Enabling inference (the default) additionally returns a
 conformal p-value, CI, and the design-time MDE on each fit.
 
@@ -776,9 +777,9 @@ and at least two arms have a usable holdout window.
 
 It is formed by pooling the arms' time-aligned holdout residuals into one
 contrast, :math:`g_t = \sum_a w_a\, r^{(a)}_{B,t}`, and running the ordinary
-single-series MDE on :math:`g`. Because the arms share calendar time, summing
+single-series MDE on :math:`\mathbf{g}`. Because the arms share calendar time, summing
 the *aligned* series makes the cross-arm correlation enter through
-:math:`\operatorname{Var}(g) = w^\top \Sigma\, w` automatically — which is why
+:math:`\operatorname{Var}(\mathbf{g}) = \mathbf{w}^\top \boldsymbol{\Sigma}\, \mathbf{w}` automatically — which is why
 the residual series must be pooled, never resampled per arm independently
 (that would drop positive correlation and report an over-optimistic MDE). The
 weights :math:`w_a` are set by ``pooled_weights``: ``"size"`` (default) weights

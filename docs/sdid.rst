@@ -18,16 +18,16 @@ Synthetic Difference-in-Differences (SDID), due to Arkhangelsky, Athey,
 Hirshberg, Imbens and Wager (2021, *AER*) [aersdid]_, argues these two
 strategies rest on closely related assumptions and combines the best of
 both. It fits a two-way fixed-effects regression that is doubly
-weighted -- by SC-style unit weights :math:`\omega_i` *and* DiD-style
+weighted -- by SC-style unit weights :math:`w_i` *and* DiD-style
 time weights :math:`\lambda_t`:
 
 .. math::
 
-   (\hat\tau, \hat\mu, \hat\alpha, \hat\beta) =
-   \arg\min_{\tau, \mu, \alpha, \beta}
-   \sum_{i=1}^{N}\sum_{t=1}^{T}
-   \bigl(Y_{it} - \mu - \alpha_i - \beta_t - W_{it}\tau\bigr)^2\,
-   \hat\omega_i\, \hat\lambda_t .
+   (\widehat{\tau}, \widehat{\mu}, \widehat{\alpha}, \widehat{\beta}) =
+   \operatorname*{arg\,min}_{\tau, \mu, \alpha, \beta}
+   \sum_{i \in \mathcal{N}}\sum_{t \in \mathcal{T}}
+   \bigl(y_{it} - \mu - \alpha_i - \beta_t - d_{it}\tau\bigr)^2\,
+   \widehat{w}_i\, \widehat{\lambda}_t .
 
 The weights make the regression local: it leans on control units whose
 *past* resembles the treated unit's, and on pre-periods that resemble the
@@ -35,7 +35,7 @@ post-period. Reach for SDID when:
 
 * DiD is tempting but pre-trends are not parallel. SDID re-weights
   controls so their trend becomes *parallel* (not identical -- the unit
-  fixed effects absorb level gaps) to the treated unit, then runs DiD on
+  fixed effects :math:`\alpha_i` absorb level gaps) to the treated unit, then runs DiD on
   the re-weighted panel. It "automates" the usual practice of hunting for
   comparable units/periods to make parallel trends plausible, *with*
   statistical guarantees -- addressing the pre-testing concerns of Roth.
@@ -112,17 +112,25 @@ past.
 Notation
 --------
 
-Let :math:`Y_{it}` be the outcome of unit :math:`i` in period :math:`t`,
-with :math:`i \in \{1, \dots, N\}` and :math:`t \in \{1, \dots, T\}`, and
-let :math:`W_{it} \in \{0, 1\}` be the treatment indicator. The first
-:math:`N_{co}` units are never-treated controls (donors); the remaining
-:math:`N_{tr} = N - N_{co}` are treated, exposed after their adoption
-period. :math:`T_{pre}` and :math:`T_{post}` count pre- and post-treatment
-periods. The unit weights :math:`\omega_i` are supported on the controls
-and the time weights :math:`\lambda_t` on the pre-period; :math:`\zeta` is
-the unit-weight regularization parameter. The estimand is the average
-treatment effect on the treated, :math:`\tau` (denoted :math:`\widehat{ATT}`
-in aggregate).
+Let :math:`y_{it}` be the outcome of unit :math:`i` in period :math:`t`,
+with units :math:`i \in \mathcal{N} \coloneqq \{1, \dots, N\}` and periods
+:math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`, 1-indexed, and let
+:math:`d_{it} \in \{0, 1\}` be the treatment indicator. Unlike the
+single-treated SC family, SDID admits several treated units, so there is no
+distinguished :math:`i = 1`. The first :math:`N_{co}` units are
+never-treated controls (donors); the remaining :math:`N_{tr} = N - N_{co}`
+are treated, exposed after their adoption period. :math:`T_{pre}` and
+:math:`T_{post}` count pre- and post-treatment periods. The unit weights
+:math:`\mathbf{w} = (w_1, \dots, w_{N_{co}})^\top` are supported on the
+controls and lie on the simplex
+:math:`\Delta^{N_{co}} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_{co}} :
+\|\mathbf{w}\|_1 = 1\}`; the time weights :math:`\boldsymbol{\lambda} =
+(\lambda_1, \dots)^\top` are supported on the pre-period (Arkhangelsky et
+al.'s :math:`\lambda`, kept distinct from the regularization symbols below).
+:math:`\zeta` is the unit-weight regularization parameter. The optimisers
+are written :math:`\mathbf{w}^\ast` and :math:`\boldsymbol{\lambda}^\ast`.
+The estimand is the average treatment effect on the treated, :math:`\tau`
+(denoted :math:`\widehat{ATT}` in aggregate).
 
 .. admonition:: Notation bridge
 
@@ -141,14 +149,14 @@ fixed-effects (latent factor) model for the control potential outcome,
 
 .. math::
 
-   Y_{it} = \boldsymbol{\gamma}_i^\top \boldsymbol{v}_t + \tau W_{it} + \varepsilon_{it},
+   y_{it} = \boldsymbol{\gamma}_i^\top \mathbf{v}_t + \tau d_{it} + \varepsilon_{it},
 
 where :math:`\boldsymbol{\gamma}_i` are latent unit factors and
-:math:`\boldsymbol{v}_t` latent time factors (a generalization of additive
+:math:`\mathbf{v}_t` latent time factors (a generalization of additive
 :math:`\alpha_i + \beta_t` two-way fixed effects).
 
 Assumption 1 (latent factor outcome model). The systematic part of the
-outcome is :math:`\boldsymbol{\gamma}_i^\top \boldsymbol{v}_t`; deviations
+outcome is :math:`\boldsymbol{\gamma}_i^\top \mathbf{v}_t`; deviations
 :math:`\varepsilon_{it}` are mean-zero given the systematic component and
 the treatment assignment.
 
@@ -158,8 +166,8 @@ DiD is already consistent; SDID is designed to also handle the interactive
 case, where DiD is biased.
 
 Assumption 2 (selection on the systematic part only). Treatment
-assignment :math:`W` may depend on the latent factors
-:math:`\boldsymbol{\gamma}_i, \boldsymbol{v}_t` (units are *not* randomized)
+assignment :math:`d_{it}` may depend on the latent factors
+:math:`\boldsymbol{\gamma}_i, \mathbf{v}_t` (units are *not* randomized)
 but not on the idiosyncratic error :math:`\varepsilon`.
 
 *Remark.* This is what lets policies be adopted non-randomly -- California
@@ -195,11 +203,11 @@ Unit weights are chosen so the treated unit's pre-treatment path is
 *parallel* to the weighted-control path. Two differences from classical SC
 (Abadie et al., 2010) make this work inside a fixed-effects regression:
 
-1. an intercept :math:`\omega_0` is allowed, so the weights need only
+1. an intercept :math:`w_0` is allowed, so the weights need only
    make trends *parallel* rather than coincident -- the unit fixed effects
    :math:`\alpha_i` absorb any constant level gap; and
-2. a ridge penalty :math:`\zeta^2 \|\omega\|_2^2` is added (with
-   :math:`\zeta = (N_{tr} T_{post})^{1/4}\hat\sigma`, :math:`\hat\sigma`
+2. a ridge penalty :math:`\zeta^2 \|\mathbf{w}\|_2^2` is added (with
+   :math:`\zeta = (N_{tr} T_{post})^{1/4}\widehat{\sigma}`, :math:`\widehat{\sigma}`
    the SD of first-differenced control outcomes) to disperse and uniquely
    pin down the weights.
 
@@ -224,9 +232,9 @@ Mathematical Formulation
 Setup
 ^^^^^
 
-Let :math:`Y_{i, t}` denote the outcome of unit :math:`i` in period
-:math:`t`, with :math:`i \in \{1, \dots, N\}` and
-:math:`t \in \{1, \dots, T\}`. There are :math:`N_{co}` never-treated
+Let :math:`y_{it}` denote the outcome of unit :math:`i` in period
+:math:`t`, with :math:`i \in \mathcal{N} \coloneqq \{1, \dots, N\}` and
+:math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`. There are :math:`N_{co}` never-treated
 control units, and the treated units are partitioned into cohorts by
 their adoption period: cohort :math:`a` is the set
 :math:`I^a \subseteq \{N_{co} + 1, \dots, N\}` of units that first
@@ -245,57 +253,57 @@ aggregates them in two complementary ways (Ciccia, 2024).
 Cohort-Specific SDID (Equation 2)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For a single cohort :math:`a`, SDID fits weights :math:`\omega_i` over
-:math:`N_{co}` donor units and :math:`\lambda_t` over the cohort's
+For a single cohort :math:`a`, SDID fits unit weights :math:`\mathbf{w}` over
+:math:`N_{co}` donor units and time weights :math:`\boldsymbol{\lambda}` over the cohort's
 pre-treatment window :math:`t < a` by solving two convex programs:
 
 .. math::
 
-   \omega
+   \mathbf{w}^\ast
    \;=\;
-   \arg\min_{\sum \omega_i = 1,\ \omega_i \geq 0}
+   \operatorname*{arg\,min}_{\sum w_i = 1,\ w_i \geq 0}
      \sum_{t = 1}^{a - 1}
        \left(
-         \bar Y_{I^a, t}
+         \bar y_{I^a, t}
          -
-         \omega_0 - \sum_{i = 1}^{N_{co}} \omega_i Y_{i, t}
+         w_0 - \sum_{i = 1}^{N_{co}} w_i\, y_{it}
        \right)^{\!2}
-     + T_0 \zeta^2 \|\omega\|_2^2,
+     + T_0\, \zeta^2 \|\mathbf{w}\|_2^2,
 
 .. math::
 
-   \lambda
+   \boldsymbol{\lambda}^\ast
    \;=\;
-   \arg\min_{\sum \lambda_t = 1,\ \lambda_t \geq 0}
+   \operatorname*{arg\,min}_{\sum \lambda_t = 1,\ \lambda_t \geq 0}
      \sum_{i = 1}^{N_{co}}
        \left(
-         \bar Y_{i, [a, T]}
+         \bar y_{i, [a, T]}
          -
-         \lambda_0 - \sum_{t = 1}^{a - 1} \lambda_t Y_{i, t}
+         \lambda_0 - \sum_{t = 1}^{a - 1} \lambda_t\, y_{it}
        \right)^{\!2},
 
-where :math:`\bar Y_{I^a, t}` is the treated-unit mean at time
-:math:`t`, :math:`\bar Y_{i, [a, T]}` is donor :math:`i`'s mean over
+where :math:`\bar y_{I^a, t}` is the treated-unit mean at time
+:math:`t`, :math:`\bar y_{i, [a, T]}` is donor :math:`i`'s mean over
 the post-treatment window, and :math:`\zeta` is a regularization
 parameter scaled by the standard deviation of first-differenced donor
 outcomes. The cohort-specific SDID estimator is then
 
 .. math::
 
-   \hat\tau_a^{\,sdid}
+   \widehat{\tau}_a^{\,sdid}
    \;=\;
    \frac{1}{T_{tr}^a} \sum_{t = a}^{T}
      \left(
-       \frac{1}{N_{tr}^a} \sum_{i \in I^a} Y_{i, t}
+       \frac{1}{N_{tr}^a} \sum_{i \in I^a} y_{it}
        -
-       \sum_{i = 1}^{N_{co}} \omega_i Y_{i, t}
+       \sum_{i = 1}^{N_{co}} w_i\, y_{it}
      \right)
    -
    \sum_{t = 1}^{a - 1} \lambda_t
      \left(
-       \frac{1}{N_{tr}^a} \sum_{i \in I^a} Y_{i, t}
+       \frac{1}{N_{tr}^a} \sum_{i \in I^a} y_{it}
        -
-       \sum_{i = 1}^{N_{co}} \omega_i Y_{i, t}
+       \sum_{i = 1}^{N_{co}} w_i\, y_{it}
      \right).
 
 This is Equation 2 of Ciccia (2024). Each cohort is fit independently
@@ -310,7 +318,7 @@ per post-treatment offset :math:`\ell \in \{1, \dots, T_{tr}^a\}`:
 
 .. math::
 
-   \hat\tau_{a, \ell}^{\,sdid}
+   \widehat\tau_{a, \ell}^{\,sdid}
    \;=\;
    \frac{1}{N_{tr}^a} \sum_{i \in I^a} Y_{i, a - 1 + \ell}
    \;-\;
@@ -329,9 +337,9 @@ term is the time-weighted *pre-treatment baseline*. By construction,
 
 .. math::
 
-   \hat\tau_a^{\,sdid}
+   \widehat\tau_a^{\,sdid}
    \;=\;
-   \frac{1}{T_{tr}^a} \sum_{\ell = 1}^{T_{tr}^a} \hat\tau_{a, \ell}^{\,sdid},
+   \frac{1}{T_{tr}^a} \sum_{\ell = 1}^{T_{tr}^a} \widehat\tau_{a, \ell}^{\,sdid},
 
 i.e. the cohort ATT is the sample mean of its dynamic effects
 (Equation 4 of Ciccia 2024). These effects are exposed on the result
@@ -347,11 +355,11 @@ corresponding treated-unit count. The pooled event-study estimator is
 
 .. math::
 
-   \hat\tau_\ell^{\,sdid}
+   \widehat\tau_\ell^{\,sdid}
    \;=\;
    \sum_{a \in A_\ell}
      \frac{N_{tr}^a}{N_{tr}^\ell}
-     \hat\tau_{a, \ell}^{\,sdid},
+     \widehat\tau_{a, \ell}^{\,sdid},
 
 a treated-unit-weighted average of the cohort-specific dynamic effects.
 This is the central quantity Ciccia (2024) recommends researchers
@@ -371,7 +379,7 @@ admits the equivalent disaggregated form
    \widehat{ATT}
    \;=\;
    \frac{1}{T_{post}} \sum_{\ell = 1}^{T_{tr}} N_{tr}^\ell \,
-     \hat\tau_\ell^{\,sdid},
+     \widehat\tau_\ell^{\,sdid},
 
 i.e. the average of the pooled event-study effects weighted by the
 number of treated units contributing to each offset. This is
@@ -395,7 +403,7 @@ lives in
 The two-sided placebo p-value reported on
 :py:attr:`SDIDInference.p_value` uses the canonical
 :math:`((k + 1) / (B + 1))` correction, where :math:`k` is the count
-of placebo iterations whose :math:`|\hat\tau^{\,*}_{att}|` is at least
+of placebo iterations whose :math:`|\widehat\tau^{\,*}_{att}|` is at least
 as large as the observed :math:`|\widehat{ATT}|`.
 
 Two-DataFrame and Single-Cohort Convergence

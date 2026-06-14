@@ -314,23 +314,25 @@ confounding is easier to capture.
 Notation
 --------
 
-We index units by :math:`j`, with :math:`j = 0` the sole treated unit
-and :math:`\mathcal{N} = \{1, \ldots, N\}` the control units. A subset
-:math:`\mathcal{D} \subseteq \mathcal{N}` is the donor pool used to
-build the synthetic control; the remaining controls are repurposed as
-proxies. Time runs over :math:`t \in \{1, \ldots, T\}`, split by the
+Let :math:`j = 1` denote the sole treated unit, with all units
+:math:`\mathcal{N} \coloneqq \{1, \ldots, N\}` and donor/control pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of cardinality
+:math:`N_0`. A subset :math:`\mathcal{D} \subseteq \mathcal{N}_0` is the
+donor pool used to build the synthetic control; the remaining controls are
+repurposed as proxies. Time runs over
+:math:`t \in \mathcal{T} \coloneqq \{1, \ldots, T\}`, split by the
 intervention into a pre-treatment window
-:math:`\mathcal{T}_1 = \{1, \ldots, T_0\}` and a post-treatment window
-:math:`\mathcal{T}_2 = \{T_0 + 1, \ldots, T\}`; the post-period has
-:math:`T - T_0` periods (Shi et al.'s :math:`T_1`). Potential outcomes are
-:math:`y^0_{jt}` and :math:`y^1_{jt}`, and we observe
+:math:`\mathcal{T}_1 \coloneqq \{1, \ldots, T_0\}` and a post-treatment
+window :math:`\mathcal{T}_2 \coloneqq \{T_0 + 1, \ldots, T\}`; the
+post-period has :math:`T - T_0` periods (Shi et al.'s :math:`T_1`).
+Potential outcomes are :math:`y^N_{jt}` and :math:`y^I_{jt}`, and we observe
 
 .. math::
 
-   y_{0t} =
+   y_{1t} =
    \begin{cases}
-       y^0_{0t}, & t \in \mathcal{T}_1, \\
-       y^1_{0t}, & t \in \mathcal{T}_2.
+       y^N_{1t}, & t \in \mathcal{T}_1, \\
+       y^I_{1t}, & t \in \mathcal{T}_2.
    \end{cases}
 
 Stacking the donor pool, let :math:`\mathbf{W}_t \in \mathbb{R}^{|\mathcal{D}|}`
@@ -343,8 +345,8 @@ average treatment effect on the treated,
 
 .. math::
 
-   \tau = \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2}
-       \bigl(y^1_{0t} - y^0_{0t}\bigr).
+   \tau \coloneqq \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2}
+       \bigl(y^I_{1t} - y^N_{1t}\bigr).
 
 .. admonition:: Notation bridge
 
@@ -354,7 +356,7 @@ average treatment effect on the treated,
    :math:`\lambda_t`, and the effect's latent factor :math:`\rho_t`. We
    keep :math:`\mathbf{W}, \mathbf{Z}_0, \mathbf{X}, \mathbf{Z}_1,
    \boldsymbol{\lambda}, \boldsymbol{\rho}` and write the treated unit as
-   :math:`j = 0`.
+   :math:`j = 1`.
 
 Why Standard SC Fails Here
 --------------------------
@@ -363,23 +365,23 @@ Assume the interactive fixed-effects model
 
 .. math::
 
-   y^0_{jt} = \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t + \varepsilon_{jt},
+   y^N_{jt} = \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t + \varepsilon_{jt},
 
 where :math:`\boldsymbol{\lambda}_t` is an unobserved common factor and
 :math:`\boldsymbol{\mu}_j` a unit-specific loading. A synthetic control
 exists if the treated loading is a weighted average of the donor loadings,
-:math:`\boldsymbol{\mu}_0 = \sum_{j \in \mathcal{D}} \alpha_j
+:math:`\boldsymbol{\mu}_1 = \sum_{j \in \mathcal{D}} \alpha_j
 \boldsymbol{\mu}_j`. Then in the pre-period
 
 .. math::
 
-   y_{0t} = \sum_{j \in \mathcal{D}} \alpha_j y_{jt}
-       + \Bigl(\varepsilon_{0t} - \sum_{j \in \mathcal{D}} \alpha_j \varepsilon_{jt}\Bigr).
+   y_{1t} = \sum_{j \in \mathcal{D}} \alpha_j y_{jt}
+       + \Bigl(\varepsilon_{1t} - \sum_{j \in \mathcal{D}} \alpha_j \varepsilon_{jt}\Bigr).
 
 The donor outcomes :math:`y_{jt}` are noisy proxies of
 :math:`\boldsymbol{\lambda}_t`: they carry the idiosyncratic errors
 :math:`\varepsilon_{jt}`, which also appear in the residual. Regressing
-:math:`y_{0t}` on them is therefore an errors-in-variables regression, and
+:math:`y_{1t}` on them is therefore an errors-in-variables regression, and
 the OLS/WLS weights are inconsistent even as :math:`T_0 \to \infty`
 (Ferman and Pinto). PROXIMAL breaks this correlation with an instrument.
 
@@ -393,25 +395,25 @@ Suppose we observe proxies :math:`\mathbf{Z}_{0t}` -- e.g. the outcomes of
 controls *excluded* from the donor pool, or contemporaneous covariates --
 that are associated with the units only through :math:`\boldsymbol{\lambda}_t`
 in the pre-period. Then the pre-period residual
-:math:`y_{0t} - \mathbf{W}_t^\top \boldsymbol{\alpha}` is orthogonal to
+:math:`y_{1t} - \mathbf{W}_t^\top \boldsymbol{\alpha}` is orthogonal to
 the proxies, giving the moment condition
 
 .. math::
 
-   \mathbb{E}\!\left[\mathbf{Z}_{0t}\bigl(y_{0t} - \mathbf{W}_t^\top
+   \mathbb{E}\!\left[\mathbf{Z}_{0t}\bigl(y_{1t} - \mathbf{W}_t^\top
    \boldsymbol{\alpha}\bigr)\right] = 0, \qquad t \in \mathcal{T}_1.
 
 Unlike the OLS normal equation
-:math:`\mathbb{E}[\mathbf{W}_t(y_{0t} - \mathbf{W}_t^\top
+:math:`\mathbb{E}[\mathbf{W}_t(y_{1t} - \mathbf{W}_t^\top
 \boldsymbol{\alpha})] = 0`, this estimating function is mean-zero at the
 truth because :math:`\mathbf{Z}_{0t}` is uncorrelated with the
 measurement error. Solving it by GMM yields a consistent
-:math:`\hat{\boldsymbol{\alpha}}`, and the ATT is the mean post-period gap
+:math:`\widehat{\boldsymbol{\alpha}}`, and the ATT is the mean post-period gap
 
 .. math::
 
-   \hat{\tau} = \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2}
-       \bigl(y_{0t} - \mathbf{W}_t^\top \hat{\boldsymbol{\alpha}}\bigr).
+   \widehat{\tau} = \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2}
+       \bigl(y_{1t} - \mathbf{W}_t^\top \widehat{\boldsymbol{\alpha}}\bigr).
 
 Adding Surrogates (PIS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -421,7 +423,7 @@ same latent factors :math:`\boldsymbol{\rho}_t` as the treatment effect:
 
 .. math::
 
-   y^1_{0t} - y^0_{0t} = \boldsymbol{\rho}_t^\top \boldsymbol{\theta} + \delta_t,
+   y^I_{1t} - y^N_{1t} = \boldsymbol{\rho}_t^\top \boldsymbol{\theta} + \delta_t,
    \qquad
    \mathbf{X}_t = \boldsymbol{\Phi}^\top \boldsymbol{\rho}_t + \boldsymbol{\epsilon}_{X,t}.
 
@@ -433,15 +435,15 @@ post-period moment. The stacked conditions are
 
 .. math::
 
-   \mathbb{E}\!\left[\mathbf{Z}_{0t}\bigl(y_{0t} - \mathbf{W}_t^\top
+   \mathbb{E}\!\left[\mathbf{Z}_{0t}\bigl(y_{1t} - \mathbf{W}_t^\top
    \boldsymbol{\alpha}\bigr)\right] = 0,\ t \in \mathcal{T}_1,
    \qquad
-   \mathbb{E}\!\left[\mathbf{Z}_{1t}\bigl(y_{0t} - \mathbf{W}_t^\top
+   \mathbb{E}\!\left[\mathbf{Z}_{1t}\bigl(y_{1t} - \mathbf{W}_t^\top
    \boldsymbol{\alpha} - \mathbf{X}_t^\top \boldsymbol{\gamma}\bigr)\right] = 0,\
    t \in \mathcal{T}_2,
 
-and the ATT is :math:`\hat{\tau} = (T - T_0)^{-1} \sum_{t \in \mathcal{T}_2}
-\mathbf{X}_t^\top \hat{\boldsymbol{\gamma}}`.
+and the ATT is :math:`\widehat{\tau} = (T - T_0)^{-1} \sum_{t \in \mathcal{T}_2}
+\mathbf{X}_t^\top \widehat{\boldsymbol{\gamma}}`.
 
 Post-Treatment-Only (PIPost)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -457,7 +459,7 @@ estimated from a single post-period IV fit, using
 
    \mathbb{E}\!\left[
    \begin{pmatrix} \mathbf{Z}_{0t} \\ \mathbf{Z}_{1t} \end{pmatrix}
-   \bigl(y_{0t} - \mathbf{W}_t^\top \boldsymbol{\alpha}
+   \bigl(y_{1t} - \mathbf{W}_t^\top \boldsymbol{\alpha}
    - \mathbf{X}_t^\top \boldsymbol{\gamma}\bigr)\right] = 0,
    \qquad t \in \mathcal{T}_2.
 
@@ -467,18 +469,18 @@ the least efficient, since it discards pre-treatment information.
 Inference: GMM Sandwich with HAC
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Each method stacks its moment conditions into :math:`U_t(\theta)` for
-parameters :math:`\theta = (\boldsymbol{\alpha}, \boldsymbol{\gamma},
+Each method stacks its moment conditions into :math:`\mathbf{U}_t(\boldsymbol{\theta})` for
+parameters :math:`\boldsymbol{\theta} = (\boldsymbol{\alpha}, \boldsymbol{\gamma},
 \tau)` and solves the GMM problem
-:math:`\hat{\theta} = \arg\min_\theta\, \bar{U}(\theta)^\top \Omega^{-1}
-\bar{U}(\theta)`. Standard errors come from the sandwich variance
+:math:`\widehat{\boldsymbol{\theta}} \coloneqq \operatorname*{argmin}_{\boldsymbol{\theta}}\, \bar{\mathbf{U}}(\boldsymbol{\theta})^\top \boldsymbol{\Omega}^{-1}
+\bar{\mathbf{U}}(\boldsymbol{\theta})`. Standard errors come from the sandwich variance
 
 .. math::
 
    \mathrm{Cov} = \mathbf{G}^{-1} \boldsymbol{\Omega}
        \bigl(\mathbf{G}^{-1}\bigr)^\top,
    \qquad
-   \mathrm{SE}(\hat{\tau}) = \sqrt{\frac{\mathrm{Cov}[-1,-1]}{T}},
+   \mathrm{SE}(\widehat{\tau}) = \sqrt{\frac{\mathrm{Cov}[-1,-1]}{T}},
 
 where :math:`\mathbf{G}` is the Jacobian of the moment conditions and
 :math:`\boldsymbol{\Omega}` is the heteroskedasticity- and
@@ -499,7 +501,7 @@ Assumptions
 -----------
 
 Assumption 1 (interactive fixed effects). The untreated outcome obeys
-:math:`y^0_{jt} = \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t +
+:math:`y^N_{jt} = \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_t +
 \varepsilon_{jt}` with :math:`\mathbb{E}[\varepsilon_{jt} \mid
 \boldsymbol{\lambda}_t] = 0`, and there is no interference (the treated
 unit's status does not affect controls).
@@ -511,7 +513,7 @@ does not need it to be stationary, so trending or non-stationary factors
 are allowed.
 
 Assumption 2 (existence of a synthetic control). There exist weights
-:math:`\boldsymbol{\alpha}` with :math:`\boldsymbol{\mu}_0 = \sum_{j \in
+:math:`\boldsymbol{\alpha}` with :math:`\boldsymbol{\mu}_1 = \sum_{j \in
 \mathcal{D}} \alpha_j \boldsymbol{\mu}_j` (and, for surrogates,
 :math:`\boldsymbol{\gamma}` with :math:`\boldsymbol{\Phi}
 \boldsymbol{\gamma} = \boldsymbol{\theta}`).
@@ -524,7 +526,7 @@ to one -- the simplex is optional, used only for interpretability or to
 avoid extrapolation.
 
 Assumption 3 (valid proxies). The proxies satisfy
-:math:`\mathbf{Z}_{0t} \perp\!\!\!\perp \{y_{0t}, \mathbf{W}_t\} \mid
+:math:`\mathbf{Z}_{0t} \perp\!\!\!\perp \{y_{1t}, \mathbf{W}_t\} \mid
 \boldsymbol{\lambda}_t` for :math:`t \in \mathcal{T}_1` (and analogously
 for :math:`\mathbf{Z}_{1t}` in the post-period).
 
@@ -722,21 +724,21 @@ type -- the donor outcomes alone -- by a clever change of perspective.
 
 Instead of viewing the donors as proxies of a latent factor, SPSC views
 them as error-prone proxies of the treated unit's own treatment-free
-potential outcome :math:`y^0_{0t}`. It posits a *synthetic-control bridge
+potential outcome :math:`y^N_{1t}`. It posits a *synthetic-control bridge
 function* :math:`h^\star` that is conditionally unbiased for that outcome,
-:math:`y^0_{0t} = \mathbb{E}[h^\star(\mathbf{W}_t) \mid y^0_{0t}]`. With a
+:math:`y^N_{1t} = \mathbb{E}[h^\star(\mathbf{W}_t) \mid y^N_{1t}]`. With a
 linear bridge :math:`h^\star(\mathbf{W}_t) = \mathbf{W}_t^\top
 \boldsymbol{\gamma}`, this is the "reverse" measurement-error regression
 
 .. math::
 
-   \mathbf{W}_t^\top \boldsymbol{\gamma} = y^0_{0t} + \bar{\varepsilon}_t,
-   \qquad \mathbb{E}[\bar{\varepsilon}_t \mid y^0_{0t}] = 0,
+   \mathbf{W}_t^\top \boldsymbol{\gamma} = y^N_{1t} + \bar{\varepsilon}_t,
+   \qquad \mathbb{E}[\bar{\varepsilon}_t \mid y^N_{1t}] = 0,
 
 so the treated unit's own pre-treatment outcome is a valid instrument
 for the donors -- no second proxy group is needed. The identifying
 moment (Theorem 3.1 of [SPSC]_) is
-:math:`\mathbb{E}[\,\phi(y_t)\,(y_t - \mathbf{W}_t^\top \boldsymbol{\gamma})\,]
+:math:`\mathbb{E}[\,\phi(y_{1t})\,(y_{1t} - \mathbf{W}_t^\top \boldsymbol{\gamma})\,]
 = 0` over :math:`t \in \mathcal{T}_1`, where :math:`\phi(\cdot)` is a basis
 of the treated outcome (the identity by default).
 
@@ -817,7 +819,7 @@ rich basis of the outcome -- "polynomials, trigonometric functions,
 splines, or wavelets" -- spans a larger space of the latent factor and so
 identifies a bridge that need not be linear. Set ``spsc_basis_degree=p``
 (:math:`p \ge 2`) to replace the instrument with the polynomial sieve
-:math:`[\,y,\,y^2,\,\dots,\,y^p\,]`. This over-identifies the
+:math:`[\,y_{1t},\,y_{1t}^2,\,\dots,\,y_{1t}^p\,]`. This over-identifies the
 ridge-GMM (more moments than donor weights) and is the right choice when
 the synthetic-control relationship is nonlinear in the donor outcomes;
 ``spsc_basis_degree=1`` (the default) is bit-for-bit the linear single
@@ -849,9 +851,9 @@ They give three estimands:
 
 .. math::
 
-   \text{outcome only:}\quad & \tau = \mathbb{E}_{\text{post}}[Y - h(\mathbf{W})], \\
-   \text{weighting only (PIPW):}\quad & \tau = \mathbb{E}_{\text{post}}[Y] - \mathbb{E}_{\text{pre}}[q(\mathbf{Z})\,Y], \\
-   \text{doubly robust (DR):}\quad & \tau = \mathbb{E}_{\text{post}}[Y - h(\mathbf{W})] - \mathbb{E}_{\text{pre}}[q(\mathbf{Z})\{Y - h(\mathbf{W})\}].
+   \text{outcome only:}\quad & \tau = \mathbb{E}_{\text{post}}[y_{1t} - h(\mathbf{W})], \\
+   \text{weighting only (PIPW):}\quad & \tau = \mathbb{E}_{\text{post}}[y_{1t}] - \mathbb{E}_{\text{pre}}[q(\mathbf{Z})\,y_{1t}], \\
+   \text{doubly robust (DR):}\quad & \tau = \mathbb{E}_{\text{post}}[y_{1t} - h(\mathbf{W})] - \mathbb{E}_{\text{pre}}[q(\mathbf{Z})\{y_{1t} - h(\mathbf{W})\}].
 
 The DR form is consistent if either :math:`h` or :math:`q` is
 correctly specified -- not necessarily both. ``PIPW`` exposes the

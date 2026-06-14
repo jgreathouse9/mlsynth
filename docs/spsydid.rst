@@ -214,18 +214,50 @@ Identification assumptions
 A1. No anticipation -- units do not adjust outcomes in advance
 of the treatment.
 
+*Remark.* The pre-period outcomes :math:`y_{it}` for
+:math:`t \in \mathcal{T}_1` must reflect the no-treatment world, since
+they are what the SDID weights are fit on. If units respond before
+:math:`T_0` -- forward-looking firms or households re-optimising ahead of
+a known policy -- the pre-period fit is contaminated and both
+:math:`\widehat{\tau}` and :math:`\widehat{\tau}_s` absorb part of the
+anticipation, as in standard SDID.
+
 A2. Parallel trends -- in the absence of treatment, treated,
 spillover, and control units would have followed similar trends,
 conditional on unit and time fixed effects.
+
+*Remark.* This is the SDID identifying restriction carried over to the
+three-way partition: net of the unit effect :math:`\alpha_i` and the time
+effect :math:`\beta_t`, the pure controls :math:`\mathcal{C}` trace out the
+common trajectory that the directly- and indirectly-treated units would
+have followed absent the policy. The doubly-weighted design relaxes the
+raw parallel-trends requirement to hold only for the SDID-reweighted
+controls, which is why only :math:`\mathcal{C}` enters the weight fit.
 
 A3. Additivity and linearity of spillovers -- the potential
 outcome of a unit depends linearly and additively on its own
 treatment status and the treatment exposure of its neighbours,
 captured by :math:`e_{it}`.
 
+*Remark.* This is what lets a single coefficient :math:`\tau_s`
+summarise the indirect effect: the exposure :math:`e_{it} = \sum_j w_{ij}
+d_{jt}` enters the regression as one extra additive column, scaling
+linearly with how much treated mass a unit's neighbours carry. If the
+spillover were non-linear in exposure (e.g. saturating once a few
+neighbours are treated), :math:`\widehat{\tau}_s` would recover only a
+local linear approximation.
+
 A4. Limited interference -- spillovers operate exclusively
 through the structure defined by the exogenous :math:`\mathbf{W}`. No other
 local or global interference mechanisms are assumed.
+
+*Remark.* The whole identification of :math:`\widehat{\tau}_s` runs
+through :math:`\mathbf{W}`, so the weight matrix must encode the true
+spillover channel and be exogenous to the treatment. Interference that
+flows through an unmodelled network, or general-equilibrium effects that
+hit every unit equally, are not captured by :math:`e_{it}` -- the latter
+are absorbed into the time effects :math:`\beta_t` and cannot be
+separated from the direct effect.
 
 A5. Synthetic-control transferability -- the SDID synthetic
 control built on the pure controls also approximates the
@@ -234,6 +266,15 @@ holds when spillover-affected units are spatially / structurally
 similar to directly-treated units, which is typically the case in
 geographic spillover settings (neighbours of treated states tend to
 resemble treated states).
+
+*Remark.* Because the unit weights are fit on :math:`\mathcal{C}` alone
+(the indirectly-treated units in :math:`\mathcal{I}_{\mathrm{sp}}` are
+held out, then re-entered with uniform weight :math:`1/N_{\mathrm{sp}}`),
+the same synthetic must stand in for the counterfactual of units it was
+not fit to. Serenini & Masek (2024) argue this transfer is credible in
+geographic settings, where a treated unit's exposed neighbours tend to
+resemble the treated unit itself; where spillover-affected units look
+unlike the treated, this is the assumption most at risk.
 
 Connection to existing methods
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

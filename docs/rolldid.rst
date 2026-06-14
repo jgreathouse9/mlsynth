@@ -152,7 +152,7 @@ Mathematical Formulation
 ------------------------
 
 The rolling transformation
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Each unit's outcome is residualised against its own pre-treatment path and
 then averaged over the post window. For cohort :math:`g` (in common timing,
@@ -187,7 +187,7 @@ transformed outcome,
    \quad\text{(demeaning)} .
 
 The collapse equivalence
-^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 The key algebraic fact (Lee & Wooldridge): the panel DiD coefficient equals the
 slope of the cross-sectional regression of :math:`\widetilde{y}_j` on the
@@ -217,7 +217,7 @@ an ordinary cross-section — no clustering, no large-:math:`T` requirement, and
 strong time-series dependence is *absorbed* rather than modelled.
 
 Per-period effects (common timing)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Rather than collapse, regress the transformed value at each post period on
 :math:`d_j` to obtain the event study,
@@ -233,7 +233,7 @@ aggregate is exactly the mean of the per-period effects,
 :math:`\widehat{\tau} = |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t`.
 
 Staggered aggregation
-^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~
 
 With several cohorts, transform each unit relative to every cohort date and
 form, per cohort, :math:`\widetilde{y}_j^{(g)} \coloneqq (T-g+1)^{-1}\sum_{t\ge g}
@@ -271,7 +271,7 @@ per-cohort variants), with residual degrees of freedom :math:`N - 2`.
   .. math::
 
      \frac{\widehat{\tau} - \tau}{\operatorname{se}(\widehat{\tau})}
-     \;\sim\; \mathcal{T}_{N-2},
+     \;\sim\; t_{N-2},
 
   giving exact two-sided tests and exact-coverage intervals
   :math:`\widehat{\tau} \pm t_{1-\alpha/2,\,N-2}\,\operatorname{se}(\widehat{\tau})`,
@@ -294,7 +294,7 @@ same effect-size-level uncertainty: each :math:`\tau_t` (resp.
 the effect path.
 
 Why it improves on SC / SDID
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The synthetic-control family needs the treated unit inside the convex hull of the
 donors and, for inference, large :math:`N_0, T_0, T_1` (SDID additionally assumes

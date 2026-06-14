@@ -31,45 +31,53 @@ choice of treatment assignment and synthetic weights. Use it when:
 Notation
 --------
 
-We observe an outcome :math:`Y_{it}` for units :math:`i = 1, \ldots, N` over
-pre-treatment periods :math:`t = 1, \ldots, T`. At :math:`t = T` the
-experimenter assigns a binary treatment :math:`D_i \in \{0, 1\}` to be applied
-over the :math:`S - T` post-treatment periods, with exactly ``K`` treated
-units (:math:`\sum_i D_i = K`). Each unit has potential outcomes
-:math:`(Y_{it}(0), Y_{it}(1))` and observed outcome
-:math:`Y_{it} = Y_{it}(D_i)`. Synthetic weights :math:`w` live on the simplex
-(non-negative, summing to one on the relevant side). The estimand is the
-weighted average treatment effect on the treated (wATET)
-:math:`\tau = \sum_{i:D_i=1} w_i \tau_i`, where :math:`\tau_i` is unit
+We observe an outcome :math:`y_{it}` for all units
+:math:`\mathcal{N} \coloneqq \{1, \ldots, N\}` over pre-treatment periods
+:math:`t \in \mathcal{T}_1 \coloneqq \{1, \ldots, T_0\}` of length
+:math:`T_0 = T`. After period :math:`T_0` the experimenter assigns a binary
+treatment :math:`D_i \in \{0, 1\}` to be applied over the post-treatment
+periods :math:`\mathcal{T}_2 \coloneqq \{t : t > T_0\}` (of length
+:math:`S - T_0`), with exactly ``K`` treated units
+(:math:`\sum_i D_i = K`). The assignment vector
+:math:`\mathbf{D} \coloneqq (D_1, \ldots, D_N)^\top` is itself a decision variable.
+Each unit has potential outcomes :math:`(y_{it}^N, y_{it}^I)` and observed
+outcome :math:`y_{it} = y_{it}(D_i)`. Synthetic weights :math:`\mathbf{w}` live
+on the simplex (non-negative, summing to one on the relevant side). The estimand
+is the weighted average treatment effect on the treated (wATET)
+:math:`\tau \coloneqq \sum_{i:D_i=1} w_i \tau_i`, where :math:`\tau_i` is unit
 :math:`i`'s additive effect.
 
 .. note::
 
    Notation bridge. The single-treated-unit synthetic-control canon (treated
-   :math:`j=0`, donors :math:`1,\ldots,N`) does not fit a *design* problem with
-   ``K`` chosen treated units, so we follow the paper's convention: units are
-   indexed :math:`i`, the assignment vector :math:`D` is itself a decision
-   variable, and :math:`T` denotes the pre-treatment length.
+   :math:`j=1`, donor pool :math:`\mathcal{N}_0 \coloneqq \mathcal{N}
+   \setminus \{1\}`) takes the treated unit as given, so it does not fit a
+   *design* problem in which ``K`` treated units are themselves chosen. We
+   therefore keep the design index :math:`i` for units, with the assignment
+   vector :math:`\mathbf{D}` a decision variable, and write :math:`T_0` for the
+   pre-treatment length (the page's :math:`T`) and :math:`\mathcal{T}_1` /
+   :math:`\mathcal{T}_2` for the pre/post period sets.
 
 The design problem
 ~~~~~~~~~~~~~~~~~~
 
-Under the outcome model :math:`Y_{it}(0) = \mu_{it} + \varepsilon_{it}` with
+Under the outcome model :math:`y_{it}^N = \mu_{it} + \varepsilon_{it}` with
 mean-zero, homoskedastic noise (:math:`\operatorname{Var}\varepsilon_{it} =
-\sigma^2`) and additive effects :math:`Y_{it} = Y_{it}(0) + D_i \tau_i`, the
+\sigma^2`) and additive effects :math:`y_{it} = y_{it}^N + D_i \tau_i`, the
 conditional MSE of the per-unit synthetic-control estimator
-:math:`\hat\tau_i = Y_{i,T+1} - \sum_{j:D_j=0} w^i_j Y_{j,T+1}` is
+:math:`\widehat{\tau}_i \coloneqq y_{i,T_0+1} - \sum_{j:D_j=0} w^i_j y_{j,T_0+1}` is
 
 .. math::
 
-   \mathbb{E}\bigl[(\hat\tau_i - \tau_i)^2 \mid D, w\bigr]
-   = \Bigl(\mu_{i,T+1} - \textstyle\sum_{j:D_j=0} w^i_j \mu_{j,T+1}\Bigr)^2
+   \mathbb{E}\bigl[(\widehat{\tau}_i - \tau_i)^2 \mid \mathbf{D}, \mathbf{w}\bigr]
+   = \Bigl(\mu_{i,T_0+1} - \textstyle\sum_{j:D_j=0} w^i_j \mu_{j,T_0+1}\Bigr)^2
      + \sigma^2\Bigl(1 + \textstyle\sum_{j:D_j=0} (w^i_j)^2\Bigr).
 
 The first term is a bias from imperfect pre-treatment matching; the second a
 variance that grows with the weight concentration. SYNDES minimizes the
-empirical, pre-period analogue of this MSE jointly over :math:`(D, w)` -- the
-:math:`\sigma^2 \sum w^2` term becomes the ridge penalty :math:`\lambda` below.
+empirical, pre-period analogue of this MSE jointly over
+:math:`(\mathbf{D}, \mathbf{w})` -- the :math:`\sigma^2 \sum w^2` term becomes
+the ridge penalty :math:`\lambda` below.
 Because the choice of treated set makes the estimand itself stochastic, the
 target is the wATET *for the units SYNDES selects*, not a fixed population ATE.
 
@@ -89,9 +97,9 @@ A separate synthetic control for every treated unit:
 
 .. math::
 
-   \min_{D, \{w^i_j\}} \;
-     \frac{1}{KT} \sum_{i} \sum_{t} D_i
-       \Bigl(Y_{it} - \textstyle\sum_j w^i_j (1 - D_j) Y_{jt}\Bigr)^2
+   \operatorname*{argmin}_{\mathbf{D}, \{w^i_j\}} \;
+     \frac{1}{K T_0} \sum_{i} \sum_{t \in \mathcal{T}_1} D_i
+       \Bigl(y_{it} - \textstyle\sum_j w^i_j (1 - D_j) y_{jt}\Bigr)^2
      + \frac{\lambda}{K} \sum_i \sum_j D_i (w^i_j)^2,
 
 subject to :math:`w^i_j \ge 0`, :math:`\sum_i D_i = K`, and
@@ -105,15 +113,15 @@ A single weight vector applied to both sides of one global contrast:
 
 .. math::
 
-   \min_{D, \{w_i\}} \;
-     \frac{1}{T} \sum_t \Bigl(\textstyle\sum_i w_i D_i Y_{it}
-       - \sum_i w_i (1 - D_i) Y_{it}\Bigr)^2 + \lambda \sum_i w_i^2,
+   \operatorname*{argmin}_{\mathbf{D}, \{w_i\}} \;
+     \frac{1}{T_0} \sum_{t \in \mathcal{T}_1} \Bigl(\textstyle\sum_i w_i D_i y_{it}
+       - \sum_i w_i (1 - D_i) y_{it}\Bigr)^2 + \lambda \sum_i w_i^2,
 
 subject to :math:`w_i \ge 0`, :math:`\sum_i D_i = K`,
 :math:`\sum_i w_i D_i = 1` and :math:`\sum_i w_i (1 - D_i) = 1`. ``mlsynth``
-linearizes :math:`q_i = w_i D_i` and enforces the two normalizations with
+linearizes :math:`q_i \coloneqq w_i D_i` and enforces the two normalizations with
 :math:`\sum_i q_i = 1`, :math:`\sum_i w_i = 2`, so the per-period contrast is
-:math:`(2q - w)^\top Y_t`.
+:math:`(2\mathbf{q} - \mathbf{w})^\top \mathbf{y}_t`.
 
 One-way global (``mode="one_way_global"``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -124,9 +132,9 @@ synthetic control:
 
 .. math::
 
-   \min_{D, c} \;
-     \frac{1}{T}\sum_t \Bigl(\tfrac{1}{K}\textstyle\sum_i D_i Y_{it}
-       - \sum_i c_i Y_{it}\Bigr)^2 + \lambda\Bigl(\tfrac{1}{K} + \textstyle\sum_i c_i^2\Bigr),
+   \operatorname*{argmin}_{\mathbf{D}, \mathbf{c}} \;
+     \frac{1}{T_0}\sum_{t \in \mathcal{T}_1} \Bigl(\tfrac{1}{K}\textstyle\sum_i D_i y_{it}
+       - \sum_i c_i y_{it}\Bigr)^2 + \lambda\Bigl(\tfrac{1}{K} + \textstyle\sum_i c_i^2\Bigr),
 
 subject to :math:`c_i \ge 0`, :math:`\sum_i c_i = 1`, :math:`c_i \le 1 - D_i`
 (treated units carry no control weight) and :math:`\sum_i D_i = K`.
@@ -134,15 +142,15 @@ subject to :math:`c_i \ge 0`, :math:`\sum_i c_i = 1`, :math:`c_i \le 1 - D_i`
 .. warning::
 
    One-way global is not difference-in-means. Only the *treated* side is
-   fixed at :math:`1/K`; the control side ``c`` is a free synthetic control to
-   be optimized. Pinning *both* sides (treated :math:`1/K`, control
+   fixed at :math:`1/K`; the control side :math:`\mathbf{c}` is a free synthetic
+   control to be optimized. Pinning *both* sides (treated :math:`1/K`, control
    :math:`1/(N-K)`) would be the randomized difference-in-means baseline, a
    different (and weaker) design.
 
 Assumptions / Remarks.
 
 *Assumption 1 (additive effects, homoskedastic noise).* Outcomes follow
-:math:`Y_{it}(0) = \mu_{it} + \varepsilon_{it}` with
+:math:`y_{it}^N = \mu_{it} + \varepsilon_{it}` with
 :math:`\mathbb{E}\varepsilon_{it}=0`, :math:`\operatorname{Var}\varepsilon_{it}
 = \sigma^2`, and treatment adds :math:`\tau_i`. *Remark.* This is what makes the
 MSE above decompose into the matching-bias and weight-variance terms the MIP
@@ -172,10 +180,11 @@ authors note this requires "rather strong assumptions" in finite samples.
 Inference and minimum detectable effect
 ---------------------------------------
 
-For any mode the fitted design yields a unit-level contrast vector ``c`` such
-that the ATT estimate at period :math:`t` is :math:`Y_t^\top c` (treated weights
-minus control weights; for ``per_unit`` the :math:`K` per-unit estimators are
-averaged). ``SYNDES`` tests the sharp null with the moving-block permutation
+For any mode the fitted design yields a unit-level contrast vector
+:math:`\mathbf{c}` such that the ATT estimate at period :math:`t` is
+:math:`\mathbf{y}_t^\top \mathbf{c}` (treated weights minus control weights; for
+``per_unit`` the :math:`K` per-unit estimators are averaged). ``SYNDES`` tests
+the sharp null with the moving-block permutation
 test of Chernozhukov, Wuethrich and Zhu (2021): the post-period mean contrast is
 compared to the distribution obtained by cyclically shifting the stacked panel.
 
@@ -188,7 +197,7 @@ i.i.d. :math:`\sigma_{\text{perm}}/\sqrt{n_{\text{post}}}`:
 .. math::
 
    \mathrm{MDE}(n_{\text{post}}) = (z_{1-\alpha/2} + z_{1-\beta})\,
-       \frac{\hat\sigma_{\mathrm{LR}}}{\sqrt{n_{\text{post}}}},
+       \frac{\widehat{\sigma}_{\mathrm{LR}}}{\sqrt{n_{\text{post}}}},
 
 reported as ``long_run_sigma``. It reduces to the textbook formula when the
 contrast series is serially uncorrelated.
@@ -223,10 +232,10 @@ same Gaussian + AR(1) construction used across the family:
 .. math::
 
    \mathrm{MDE}(T) = \bigl(z_{1-\alpha/2} + z_{1-\beta}\bigr) \cdot
-       \hat\sigma_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \hat\rho)},
+       \widehat{\sigma}_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \widehat{\rho})},
 
-with :math:`\hat\sigma_{\text{placebo}}` the per-period contrast SD on the
-pre-period (the SYNDES paper's "pre-period imbalance"), :math:`\hat\rho` the
+with :math:`\widehat{\sigma}_{\text{placebo}}` the per-period contrast SD on the
+pre-period (the SYNDES paper's "pre-period imbalance"), :math:`\widehat{\rho}` the
 lag-1 autocorrelation of that contrast clipped to :math:`(-0.99, 0.99)`, and
 :math:`\mathrm{VIF}(T, \rho) = \tfrac{1}{T}\bigl(1 + 2\sum_{k=1}^{T-1}
 (1-k/T)\rho^k\bigr)` the AR(1) variance-inflation factor (textbook
@@ -247,7 +256,7 @@ compute on a non-default horizon grid or significance level call
 :func:`~mlsynth.utils.post_fit.compute_power_analysis` directly.
 
 post_col vs T0
-^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~
 
 ``SYNDES`` accepts either a scalar ``T0`` (count of pre-treatment periods) or
 ``post_col`` (a 0/1 column marking the post-treatment window). Both express
@@ -282,8 +291,8 @@ Solver runtime and the 5%-gap default
 -------------------------------------
 
 The SYNDES MIP is structurally hard. The ``two_way_global`` formulation
-contains a bilinear product :math:`q_i = w_i D_i` between the
-continuous weight ``w_i`` and the binary assignment ``D_i``, encoded
+contains a bilinear product :math:`q_i \coloneqq w_i D_i` between the
+continuous weight :math:`w_i` and the binary assignment :math:`D_i`, encoded
 via the standard McCormick linearisation (``q_i \le D_i``,
 ``q_i \le w_i``, ``q_i \ge w_i - (1 - D_i)``). McCormick is the
 tightest *linear* relaxation of a bilinear term, but it is still loose
@@ -430,7 +439,7 @@ available on install). The same call shape serves all three designs.
    print(mde.to_dataframe())                # minimum detectable effect by horizon
 
 A budget constraint (``costs`` + ``budget``) adds
-:math:`\sum_i \text{cost}_i D_i \le B` to the MIP; ``mode="two_way_global"``
+:math:`\sum_i \mathrm{cost}_i D_i \le B` to the MIP; ``mode="two_way_global"``
 also accepts ``K=None`` to let the program choose the number of treated units.
 
 Verification
@@ -565,7 +574,7 @@ Helper Modules
 --------------
 
 Data preparation -- the only DataFrame touchpoint: pivots to wide pre/post
-matrices and builds the unit/time ``IndexSet``es.
+matrices and builds the unit/time ``IndexSet``\es.
 
 .. automodule:: mlsynth.utils.syndes_helpers.setup
    :members:

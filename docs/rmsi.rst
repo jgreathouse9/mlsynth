@@ -10,17 +10,18 @@ When to Use This Estimator
 Yuan [RMSI]_. It is a causal-panel matrix-completion method -- like
 :doc:`mcnnm`, it imputes the treated units' missing counterfactual cells -- but
 it exploits covariates on both margins of the panel: unit-level (row)
-characteristics :math:`X` and time-level (column) characteristics :math:`Z`.
+characteristics :math:`\mathbf{X}` and time-level (column) characteristics
+:math:`\mathbf{Z}`.
 
 Its robustness comes from decomposing the target matrix into four complementary
 pieces and estimating each separately:
 
 .. math::
 
-   M = \underbrace{G_1(X) Q_1(Z)^\top}_{M_1:\ \text{both margins}}
-     + \underbrace{G_2(X) V_1^\top}_{M_2:\ \text{row-driven}}
-     + \underbrace{W_1 Q_2(Z)^\top}_{M_3:\ \text{column-driven}}
-     + \underbrace{W_2 V_2^\top}_{M_4:\ \text{residual low-rank}} .
+   \mathbf{M} = \underbrace{\mathbf{G}_1(\mathbf{X})\, \mathbf{Q}_1(\mathbf{Z})^\top}_{\mathbf{M}_1:\ \text{both margins}}
+     + \underbrace{\mathbf{G}_2(\mathbf{X})\, \mathbf{V}_1^\top}_{\mathbf{M}_2:\ \text{row-driven}}
+     + \underbrace{\mathbf{W}_1\, \mathbf{Q}_2(\mathbf{Z})^\top}_{\mathbf{M}_3:\ \text{column-driven}}
+     + \underbrace{\mathbf{W}_2\, \mathbf{V}_2^\top}_{\mathbf{M}_4:\ \text{residual low-rank}} .
 
 Unlike inductive matrix completion (which forces an exact low-rank linear
 covariate-interaction term and no genuine noise component), this decomposition
@@ -45,44 +46,106 @@ Do not use RMSI when
 * Spillovers contaminate the controls (SUTVA fails) -- use :doc:`spsydid`
   or :doc:`spillsynth`.
 
+Notation
+~~~~~~~~
+
+The panel has :math:`N` units :math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and
+:math:`T` periods :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`, 1-indexed;
+the intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` and the
+post-period :math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`. A
+block of treated units adopts at the common time :math:`T_0`; the remaining units
+are controls. The outcome of unit :math:`i` at time :math:`t` is :math:`y_{it}`,
+collected into the :math:`T \times N` matrix :math:`\mathbf{Y}` (one column per
+unit). Unit-level covariates are averaged per unit into the row feature matrix
+:math:`\mathbf{X}` and time-level covariates per period into :math:`\mathbf{Z}`;
+:math:`\mathbf{P}_X, \mathbf{P}_Z` are the sieve projectors onto their spans. The
+target counterfactual matrix is :math:`\mathbf{M}` with the no-intervention
+entries :math:`y_{it}^N`; its estimate is :math:`\widehat{\mathbf{M}}`, with
+imputed entries :math:`\widehat{y}_{it}`. The per-cell effect is
+:math:`\tau_{it} \coloneqq y_{it} - \widehat{y}_{it}` (estimating
+:math:`y_{it}^I - y_{it}^N`), and the ATT
+:math:`\widehat{\tau}` averages :math:`\tau_{it}` over the treated cells in
+:math:`\mathcal{T}_2`.
+
+Identifying assumptions
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Block adoption. All treated units adopt at the common time :math:`T_0`, so
+   the missing cells form a single rectangular block (treated units over
+   :math:`\mathcal{T}_2`); the tall submatrix (all units over
+   :math:`\mathcal{T}_1`) and the wide submatrix (controls over
+   :math:`\mathcal{T}`) are fully observed.
+
+   *Remark.* This is what lets Algorithm 1 run on the two observed submatrices
+   and Algorithm 3 recombine their singular subspaces. Staggered adoption breaks
+   the rectangular missingness pattern; use :doc:`mcnnm`, :doc:`ssc`,
+   :doc:`sdid`, or :doc:`ppscm` instead.
+
+2. Side-information structure. The no-intervention matrix decomposes into the
+   four components :math:`\mathbf{M} = \mathbf{M}_1 + \mathbf{M}_2 + \mathbf{M}_3
+   + \mathbf{M}_4` -- explained by both margins, the row margin only, the column
+   margin only, and a residual low-rank part -- with the margin-driven pieces
+   captured by (possibly nonlinear) functions of :math:`\mathbf{X}` and
+   :math:`\mathbf{Z}` realised through the sieve bases.
+
+   *Remark.* When the covariates are uninformative the first three components
+   vanish and the model reduces to a de-meaned low-rank completion, recovering
+   the no-side-information baseline -- the source of RMSI's graceful degradation.
+
+3. No anticipation and SUTVA. Pre-period outcomes reflect the no-intervention
+   path, :math:`y_{it} = y_{it}^N` for :math:`t \in \mathcal{T}_1`, and controls
+   are untreated and uncontaminated over :math:`\mathcal{T}`, so the observed
+   submatrices carry only no-intervention outcomes.
+
+   *Remark.* Spillovers onto the controls or a pre-:math:`T_0` response bias the
+   imputed block. Quarantine contaminated controls before fitting; if spillovers
+   are intrinsic, use :doc:`spsydid` or :doc:`spillsynth`.
+
 The estimator
 ~~~~~~~~~~~~~
 
 *Algorithm 1 (fully observed).* With polynomial sieve bases of the covariates
-and projectors :math:`P_X, P_Z` onto them, the component explained by both
-margins is :math:`\widehat M_1 = P_X Y P_Z`, and the other three are
-singular-value soft-thresholds of the projected residuals (the penalised least
-squares :math:`\arg\min_A \lVert B - A\rVert_F^2 + \nu\lVert A\rVert_*` has the
-closed form :math:`\operatorname{svt}(B, \nu/2)`):
+and projectors :math:`\mathbf{P}_X, \mathbf{P}_Z` onto them, the component
+explained by both margins is
+:math:`\widehat{\mathbf{M}}_1 = \mathbf{P}_X \mathbf{Y} \mathbf{P}_Z`, and the
+other three are singular-value soft-thresholds of the projected residuals (the
+penalised least squares
+:math:`\operatorname*{argmin}_{\mathbf{A}} \lVert \mathbf{B} - \mathbf{A}\rVert_F^2 + \nu\lVert \mathbf{A}\rVert_*`
+has the closed form :math:`\operatorname{svt}(\mathbf{B}, \nu/2)`):
 
 .. math::
 
-   \widehat M_2 = \operatorname{svt}\!\big(P_X Y (I - P_Z),\ \nu_2/2\big),\quad
-   \widehat M_3 = \operatorname{svt}\!\big((I - P_X) Y P_Z,\ \nu_3/2\big),\quad
-   \widehat M_4 = \operatorname{svt}\!\big((I - P_X) Y (I - P_Z),\ \nu_4/2\big),
+   \widehat{\mathbf{M}}_2 = \operatorname{svt}\!\big(\mathbf{P}_X \mathbf{Y} (\mathbf{I} - \mathbf{P}_Z),\ \nu_2/2\big),\quad
+   \widehat{\mathbf{M}}_3 = \operatorname{svt}\!\big((\mathbf{I} - \mathbf{P}_X) \mathbf{Y} \mathbf{P}_Z,\ \nu_3/2\big),\quad
+   \widehat{\mathbf{M}}_4 = \operatorname{svt}\!\big((\mathbf{I} - \mathbf{P}_X) \mathbf{Y} (\mathbf{I} - \mathbf{P}_Z),\ \nu_4/2\big),
 
 with :math:`\nu_2 = C_2\sqrt{T}`, :math:`\nu_3 = C_3\sqrt{N}`,
 :math:`\nu_4 = C_4(\sqrt{N}+\sqrt{T})`. The estimate is
-:math:`\widehat M = \widehat M_1 + \widehat M_2 + \widehat M_3 + \widehat M_4`
+:math:`\widehat{\mathbf{M}} = \widehat{\mathbf{M}}_1 + \widehat{\mathbf{M}}_2 + \widehat{\mathbf{M}}_3 + \widehat{\mathbf{M}}_4`
 -- only projections and SVDs, no iterative solver.
 
 *Algorithm 3 (block-missing causal).* The treated post-treatment cells form a
 missing block. RMSI applies Algorithm 1 to the fully observed tall submatrix
 (all units, pre-treatment periods) and wide submatrix (control units, all
 periods), then recombines their singular subspaces,
-:math:`\widehat M = \widehat U_{\text{tall}}\, \widehat H\, \widehat D_{\text{wide}} \widehat V_{\text{wide}}^\top`,
-where :math:`\widehat H` rotates the wide left-singular vectors onto the tall
-ones over the control rows. The ATT is the observed minus the imputed outcome
-over the treated cells. ``RMSI`` targets the block (common adoption time)
-setting.
+:math:`\widehat{\mathbf{M}} = \widehat{\mathbf{U}}_{\text{tall}}\, \widehat{\mathbf{H}}\, \widehat{\mathbf{D}}_{\text{wide}} \widehat{\mathbf{V}}_{\text{wide}}^\top`,
+where :math:`\widehat{\mathbf{H}}` rotates the wide left-singular vectors onto
+the tall ones over the control rows. The ATT
+:math:`\widehat{\tau}` is the observed minus the imputed outcome averaged over
+the treated post-treatment cells :math:`\mathcal{T}_2`, with per-cell effects
+:math:`\tau_{it} \coloneqq y_{it} - \widehat{y}_{it}`. ``RMSI`` targets the
+block (common adoption time) setting.
 
 Side information
 ~~~~~~~~~~~~~~~~
 
 Pass the covariate columns through the config: ``unit_covariates`` are columns
 (approximately) constant within a unit -- averaged per unit to form the row
-feature matrix :math:`X` -- and ``time_covariates`` are columns constant within
-a period -- averaged per period to form :math:`Z`. Either may be empty.
+feature matrix :math:`\mathbf{X}` -- and ``time_covariates`` are columns constant
+within a period -- averaged per period to form :math:`\mathbf{Z}`. Either may be
+empty.
 
 Example
 -------

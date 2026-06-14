@@ -41,8 +41,8 @@ References
 
 .. [fohlin2021] Caroline Fohlin and Zhikun Lu. 
    "How Contagious Was the Panic of 1907? New Evidence from Trust Company Stocks." 
-   *AEA Papers and Proceedings*, vol. 111, pp. 514-519, 2021. 
-   DOI: `10.1257/pandp.20211097`_.
+   *AEA Papers and Proceedings*, vol. 111, pp. 514-519, 2021.
+   DOI: https://doi.org/10.1257/pandp.20211097
 
 
 
@@ -50,15 +50,14 @@ References
 .. [Li2024] Li, Kathleen T. *"Frontiers: A Simple Forward Difference-in-Differences Method."* Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. `doi:10.1287/mksc.2022.0212 <https://doi.org/10.1287/mksc.2022.0212>`_.
 
 
-.. [LiuTchetgenVar] Jizhou Liu, Eric Tchetgen Tchetgen, and Carlos Varjão. 
-   "Proximal Causal Inference for Synthetic Control with Surrogates." 
-   *Proceedings of The 27th International Conference on Artificial Intelligence and Statistics*, 
-   vol. 238, pp. 730-738, PMLR, May 2024. 
-   Available at: `https://proceedings.mlr.press/v238/liu24a.html`_.
+.. [LiuTchetgenVar] Jizhou Liu, Eric J. Tchetgen Tchetgen, and Carlos Varjão.
+   "Proximal Causal Inference for Synthetic Control with Surrogates."
+   *arXiv Working Paper*, 2308.09527, 2023.
+   URL: https://arxiv.org/abs/2308.09527
 
 
 
-.. [TSSC] Li, K. T., & Shankar, V. (2023). A Two-Step Synthetic Control Approach for Estimating Causal Effects of Marketing Events. *Management Science, 70*(6), 3734-3747. https://doi.org/10.1287/mnsc.2023.4878
+.. (TSSC defined once below, in the multi-line entry)
 
 
 .. [ROTH20232218]
@@ -372,7 +371,43 @@ References
     https://github.com/PanJi-0/scmrelax); the Brexit / UK real-GDP
     empirical application: https://github.com/YapengZheng/Relaxed_SC
 
-.. [LiSCMN]
-    Li.
-    *"Synthetic Control Methods."*
-    Working Paper. (Authors, title, journal, year, and DOI to be completed.)
+.. [BVSS]
+    Xu, Yihong and Zhou, Quan.
+    "Bayesian Synthetic Control with a Soft Simplex Constraint."
+    *arXiv Working Paper*, 2503.06454, 2025.
+    URL: https://arxiv.org/abs/2503.06454
+
+.. [LiSCM2020]
+    Li, Kathleen T.
+    "Statistical Inference for Average Treatment Effects Estimated by Synthetic Control Methods."
+    *Journal of the American Statistical Association*, 115(532): 2068-2083, 2020.
+
+.. [DoudchenkoImbens2017]
+    Doudchenko, Nikolay and Imbens, Guido W.
+    "Balancing, Regression, Difference-In-Differences and Synthetic Control Methods: A Synthesis."
+    *arXiv Working Paper*, 1610.07748, 2017.
+    URL: https://arxiv.org/abs/1610.07748
+
+.. [TianLeePanchenko]
+    Tian, Wei, Lee, Seojeong, and Panchenko, Valentyn.
+    "Synthetic Controls with Multiple Outcomes."
+    *The Econometrics Journal*, utag005, 2026.
+    DOI: https://doi.org/10.1093/ectj/utag005
+
+.. [SunBenMichaelFeller]
+    Sun, Liyang, Ben-Michael, Eli, and Feller, Avi.
+    "Using Multiple Outcomes to Improve the Synthetic Control Method."
+    *The Review of Economics and Statistics*, 2025.
+    DOI: https://doi.org/10.1162/rest_a_01592
+
+.. [SI]
+    Agarwal, Anish, Shah, Devavrat, and Shen, Dennis.
+    "Synthetic Interventions: Extending Synthetic Controls to Multiple Treatments."
+    *Operations Research*, 74(2): 840-859, 2025.
+    DOI: https://doi.org/10.1287/opre.2025.1590
+
+.. [KMPT2021]
+    Kellogg, Maxwell, Mogstad, Magne, Pouliot, Guillaume A., and Torgovitsky, Alexander.
+    "Combining Matching and Synthetic Control to Trade Off Biases From Extrapolation and Interpolation."
+    *Journal of the American Statistical Association*, 116(536): 1804-1816, 2021.
+    DOI: https://doi.org/10.1080/01621459.2021.1979562

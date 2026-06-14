@@ -83,6 +83,10 @@ file, not a rendered doc page; do not copy that style into `docs/`.)
   so `|\mathcal{T}_1| = T_0`.
 * Post-period `\mathcal{T}_2 \coloneqq \{t\in\mathcal{T} : t > T_0\}`,
   so `|\mathcal{T}_2| = T - T_0`.
+* A set and its length are different objects. `\mathcal{T}_2` is the post-period
+  *set*; `T_2 \coloneqq |\mathcal{T}_2|` is its *length* (cardinality). Likewise
+  the pre-period length is `T_0 = |\mathcal{T}_1|`. Use the cardinality bars, or
+  the scalar `T_0` / `T_2`, for counts; never overload a set symbol for a length.
 
   (Do **not** use a `t = 0`-centered axis. `T_0` is the canonical split point.)
 
@@ -105,10 +109,15 @@ file, not a rendered doc page; do not copy that style into `docs/`.)
 * Counterfactual / synthetic estimate
   `\widehat{\mathbf{y}}_1 \coloneqq \mathbf{Y}_0\,\mathbf{w}^\ast`, with entries
   `\widehat{y}_{1t}`.
-* Per-period treatment effect
+* Per-period treatment effect (a scalar)
   `\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}` (it estimates
   `y_{1t}^I - y_{1t}^N`).
-* **ATT** `\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t`.
+* The treatment effect is, by nature, a **vector** — the effect path
+  `\boldsymbol{\tau} \coloneqq (\tau_t)_{t\in\mathcal{T}_2} \in \mathbb{R}^{T_2}`,
+  bold because it is a vector. Name each object as what it is: a path is
+  `\boldsymbol{\tau}`, a per-period effect is the scalar `\tau_t`.
+* **ATT** (a scalar)
+  `\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t`.
 
 > **Docs ↔ code share one vocabulary.** `\tau_t` is exactly the `gap` and
 > `\widehat{\tau}` the `att` computed in `utils/effectutils.py` /
@@ -140,6 +149,88 @@ Write it in this common shape so every weighting page reads alike:
 > always denote the effect. For a relaxation / balance tolerance use
 > `\boldsymbol{\delta}` (or `\varepsilon`), never `\tau` — this is the one clash
 > that recurs across the source posts, so fix it here.
+
+### The linear factor model (the latent-variable DGP)
+
+Most mlsynth estimators are justified by a *linear factor model* — the linear
+special case of a latent-variable model — for the no-intervention outcome. Write
+it following Liao, Shi & Zheng (2025, *A Relaxation Approach to Synthetic
+Control*, arXiv:2508.01793) and Abadie, Diamond & Hainmueller (2010):
+
+```
+y_{jt}^N = \boldsymbol{\lambda}_j^\top \mathbf{f}_t + u_{jt},
+   \qquad j \in \mathcal{N},\ t \in \mathcal{T}.
+```
+
+* `\mathbf{f}_t \in \mathbb{R}^{r}` — latent common factors at time `t` (random);
+  `\boldsymbol{\lambda}_j \in \mathbb{R}^{r}` — unit `j`'s factor loadings
+  (deterministic); `r` — the number of factors; `u_{jt}` — idiosyncratic error.
+* Matrix form over the panel: `\mathbf{Y}^N = \mathbf{F}\boldsymbol{\Lambda}^\top
+  + \mathbf{U}`, with factor matrix `\mathbf{F}\in\mathbb{R}^{T\times r}` (rows
+  `\mathbf{f}_t^\top`) and loading matrix
+  `\boldsymbol{\Lambda}\in\mathbb{R}^{N\times r}` (rows
+  `\boldsymbol{\lambda}_j^\top`). The low-rank term is
+  `\mathbf{L} \coloneqq \mathbf{F}\boldsymbol{\Lambda}^\top`.
+* Two-way fixed effects are the *nested* special case: setting
+  `\boldsymbol{\lambda}_j = (1, \alpha_j, \bar{\boldsymbol{\lambda}}_j^\top)^\top`
+  and `\mathbf{f}_t = (\gamma_t, 1, \bar{\mathbf{f}}_t^\top)^\top` gives
+  `y_{jt}^N = \alpha_j + \gamma_t + \bar{\boldsymbol{\lambda}}_j^\top
+  \bar{\mathbf{f}}_t + u_{jt}` — unit effect `\alpha_j`, time effect `\gamma_t`,
+  interactive remainder. "Additive FE" and "interactive FE" are one model at
+  different ranks; say so rather than treating them as separate worlds.
+* Scalars `r` (factors) and `K` (latent groups in the loadings, when a page uses
+  them); vectors `\boldsymbol{\lambda}_j`, `\mathbf{f}_t`; matrices `\mathbf{F}`,
+  `\boldsymbol{\Lambda}`, `\mathbf{L}`, `\mathbf{U}`. The factor-model error is
+  `u_{jt}`; keep `\varepsilon` for a tolerance only when the page has no
+  factor-model noise already named.
+
+### Staggered adoption (multiple treated units / cohorts)
+
+When treatment turns on at different times, prefer the compact matrix / cohort
+notation of Porreca (2022, *Synthetic difference-in-differences estimation with
+staggered treatment timing*) and Arkhangelsky et al. (2021) — matrix algebra for
+the stacked objects, set notation for the index sets:
+
+* Outcome matrix `\mathbf{Y} = \mathbf{L} + \mathbf{W}\circ\boldsymbol{\tau}
+  + \mathbf{E}` — Hadamard product `\circ`; `\mathbf{W}` the binary
+  treatment-assignment matrix (entries `w_{jt}\in\{0,1\}`); `\mathbf{L}` the
+  factor term above; `\mathbf{E}` the error matrix.
+* Cohorts: index a cohort by `\ell \in \mathcal{L}`, with `\ell = 0` the
+  never-treated; cohort `\ell`'s effect `\widehat{\tau}_\ell` and aggregation
+  weight `\mu_\ell` (e.g. the treated share
+  `\mu_\ell = N_\ell / \sum_{\ell>0} N_\ell`); the aggregate
+  `\widehat{\tau} = \sum_{\ell>0}\mu_\ell\,\widehat{\tau}_\ell`.
+* No single `j = 1` here: index treated units by `i` over a treated set
+  `\mathcal{N}_1` (`N_1` treated, `N_0` controls). Keep SDID's unit weights
+  `\mathbf{w}` / `\boldsymbol{\omega}` and time weights `\boldsymbol{\lambda}`
+  bold.
+
+### Edge-case rulings (recurring gray areas)
+
+The single-treated canon above is binding. These rulings settle the cases it
+does not pin down, so pages agree *across*, not just within:
+
+1. No universal grammar — clarity in context wins. A symbol need not have one
+   global meaning; it must be unambiguous within the estimator's page.
+2. `\alpha` is not reserved. Use it where standard and clear — a significance
+   level, an elastic-net mix, an intercept, a cohort effect `\alpha_j`. Only
+   `\tau` is hard-reserved (the treatment effect). `\delta`, `\lambda` likewise
+   carry their paper-standard meaning; rename only on a genuine `\tau` collision.
+3. `\coloneqq` marks the first appearance of an idea on the page. The defining
+   occurrence uses `\coloneqq` (`c \coloneqq 5`); every later use is an ordinary
+   equality (`7 = c + 2`). Model equations, solved/closed forms, and identities
+   downstream stay `=`.
+4. Optimiser vs. estimate. `\mathbf{w}^\ast` is the program / population
+   optimiser; `\widehat{\mathbf{w}}` is the realized fit from data. A quantity
+   that is both is written `\widehat{\mathbf{w}}` once it is the data estimate.
+5. Name objects as what they are. The treatment effect is a vector
+   (`\boldsymbol{\tau}`, the path); a per-period effect is the scalar `\tau_t`;
+   the ATT is the scalar `\widehat{\tau}`. Bold the vector, not the scalars.
+6. Potential outcomes are always Abadie `y^N` / `y^I` — even on a
+   matrix-completion / Rubin-flavored page (`y_{it}(0)` / `y_{it}(1)` becomes
+   `y_{it}^N` / `y_{it}^I`).
+7. A set and its cardinality are different symbols: `\mathcal{T}_2` vs.
+   `T_2 = |\mathcal{T}_2|`; `\mathcal{N}_1` vs. `N_1`; `\mathcal{N}_0` vs. `N_0`.
 
 ### The bridge rule
 
