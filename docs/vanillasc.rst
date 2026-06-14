@@ -17,50 +17,153 @@ unit and its synthetic counterpart.
 What distinguishes this implementation is how it treats the two regimes
 of the SCM optimisation honestly:
 
-* No covariates -> the donor weights :math:`W` solve the convex
+* No covariates -> the donor weights :math:`\mathbf{w}` solve the convex
   simplex least-squares fit on the pre-treatment outcomes. This is a
   single, well-posed convex program -- deterministic and reproducible
   (unique up to donor collinearity).
-* Covariates -> the predictor weights :math:`V` and donor weights
-  :math:`W` are chosen jointly through a bilevel program. This is
+* Covariates -> the predictor weights :math:`\mathbf{V}` and donor weights
+  :math:`\mathbf{w}` are chosen jointly through a bilevel program. This is
   non-convex, and the predictor weights are generically *non-identified*.
   ``VanillaSC`` solves it with a reliable backend and reports a diagnostic
   (:math:`\text{v\_agreement}`) so that fragility is visible rather than
   silent.
 
+When to use this estimator
+--------------------------
+
+* You want the standard synthetic control done reliably, with the
+  solver choice and identification fragility surfaced.
+* Outcome-only matching when you have a long, informative pre-period
+  -- this is the well-posed, reproducible case.
+* Covariate matching with ``mscmt`` when the donor pool is rich
+  enough that the problem is well-conditioned (see the replications
+  below). When :math:`\text{v\_agreement}` comes back near 1, prefer
+  outcome-only or ``penalized``.
+
+A concrete example: a state passes a tobacco-control law and you want its
+effect on cigarette sales. There is one treated state, a long pre-law
+history, and dozens of untreated states to draw on. ``VanillaSC`` builds a
+synthetic California as a weighted blend of those donor states that matches
+the pre-law sales path, then reads the policy effect as the post-law gap
+between the real and synthetic series.
+
+Notation
+--------
+
+Let :math:`j = 1` denote the treated unit, with all units
+:math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of cardinality
+:math:`N_0`. Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
+1-indexed; the intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`.
+
+The treated series is :math:`\mathbf{y}_1 = (y_{11}, \dots, y_{1T})^\top \in
+\mathbb{R}^{T}` with scalar outcomes :math:`y_{1t}`; each donor
+:math:`j \in \mathcal{N}_0` contributes a series :math:`\mathbf{y}_j`, stacked
+into the donor matrix :math:`\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j \in
+\mathcal{N}_0} \in \mathbb{R}^{T \times N_0}` (one column per donor). Donor
+weights are :math:`\mathbf{w} \in \mathbb{R}^{N_0}`, constrained to the unit
+simplex
+:math:`\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\}` in the canonical SCM; the optimiser is
+:math:`\mathbf{w}^\ast` and the fitted vector :math:`\widehat{\mathbf{w}}`. The
+synthetic counterfactual is :math:`\widehat{\mathbf{y}}_1 \coloneqq
+\mathbf{Y}_0\,\widehat{\mathbf{w}}` with entries :math:`\widehat{y}_{1t}`, the
+per-period effect is :math:`\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}`, and the
+ATT is :math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}
+\sum_{t \in \mathcal{T}_2} \tau_t`. The significance level is :math:`\alpha`.
+
+Identifying assumptions
+------------------------
+
+1. Pre-treatment fit / convex-hull support. There exist weights
+   :math:`\mathbf{w} \in \Delta^{N_0}` under which the treated pre-period path is
+   reproduced by the donors, :math:`y_{1t} \approx (\mathbf{Y}_0\mathbf{w})_t`
+   for :math:`t \in \mathcal{T}_1` -- equivalently, the treated unit lies inside
+   (or near) the convex hull of the donors' lagged outcomes (Abadie, Diamond &
+   Hainmueller 2010).
+
+   *Remark.* This is the workhorse identifying condition: when the simplex fit
+   balances the pre-period exactly the synthetic control is (near) unbiased, and
+   a good pre-fit is the empirical certificate one inspects. When no convex
+   combination fits -- few donors, an outlying treated unit, a long
+   high-dimensional pre-period -- residual imbalance becomes bias, which is
+   exactly the regime the ridge augmentation below targets.
+
+2. No anticipation. Treatment has no effect before :math:`T_0`:
+   :math:`y_{1t} = y_{1t}^N` for all :math:`t \in \mathcal{T}_1`, so the
+   pre-period outcomes reflect the no-intervention path.
+
+   *Remark.* If the treated unit reacts in advance of the formal intervention
+   date, the pre-period fit is contaminated by the effect itself and the gap
+   understates it. The remedy is to date :math:`T_0` at the first plausible
+   response, not the nominal policy date.
+
+3. No interference and untreated donors (SUTVA). The treatment of unit
+   :math:`1` does not change any donor's outcome, and every
+   :math:`j \in \mathcal{N}_0` is untreated over :math:`\mathcal{T}`, so
+   :math:`\mathbf{Y}_0` carries only no-intervention outcomes.
+
+   *Remark.* Donors contaminated by the same shock (spillovers, a co-incident
+   policy) bias the counterfactual. Drop or quarantine such units from the donor
+   pool before fitting.
+
+4. Outcome-model stability. The no-intervention outcomes follow a stable
+   data-generating process across :math:`\mathcal{T}` -- for instance a linear
+   factor structure :math:`y_{jt}^N = \boldsymbol{\lambda}_j^\top \mathbf{f}_t +
+   \varepsilon_{jt}` -- so that weights matching the treated unit's factor
+   loadings on :math:`\mathcal{T}_1` continue to reproduce its
+   no-intervention path on :math:`\mathcal{T}_2` (Abadie, Diamond &
+   Hainmueller 2010).
+
+   *Remark.* This is what licenses extrapolating the pre-period fit forward: the
+   synthetic control tracks the treated unit after :math:`T_0` only if the same
+   latent structure governs both windows. A regime change unrelated to treatment
+   (a structural break in :math:`\mathbf{f}_t`) breaks the counterfactual even
+   with a perfect pre-fit.
+
 Mathematical formulation
 ------------------------
 
-For a treated unit with pre-treatment outcomes :math:`y_1 \in
-\mathbb{R}^{T_0}` and donors :math:`Y_0 \in \mathbb{R}^{T_0 \times J}`:
+For a treated unit with pre-treatment outcomes
+:math:`\mathbf{y}_{1,\mathcal{T}_1} \in \mathbb{R}^{T_0}` and donors
+:math:`\mathbf{Y}_{0,\mathcal{T}_1} \in \mathbb{R}^{T_0 \times N_0}`:
 
 Outcome-only (no covariates).
 
 .. math::
 
-   \widehat W = \arg\min_{W} \; \lVert y_1 - Y_0 W \rVert^2
-   \quad \text{s.t.} \quad W \ge 0,\ \mathbf{1}'W = 1.
+   \widehat{\mathbf{w}} = \operatorname*{argmin}_{\mathbf{w}} \;
+   \bigl\| \mathbf{y}_{1,\mathcal{T}_1} - \mathbf{Y}_{0,\mathcal{T}_1}\mathbf{w}
+   \bigr\|_2^2
+   \quad \text{s.t.} \quad \mathbf{w} \ge 0,\ \mathbf{1}^\top\mathbf{w} = 1.
 
-Covariate matching (bilevel). With predictor matrices :math:`X_1 \in
-\mathbb{R}^{P}` (treated) and :math:`X_0 \in \mathbb{R}^{P \times J}`
+Covariate matching (bilevel). With predictor matrices :math:`\mathbf{X}_1 \in
+\mathbb{R}^{P}` (treated) and :math:`\mathbf{X}_0 \in \mathbb{R}^{P \times N_0}`
 (donors), each predictor averaged over its window and scaled to unit
 variance, the lower level solves, for given diagonal predictor weights
-:math:`V`,
+:math:`\mathbf{V}`,
 
 .. math::
 
-   W^\*(V) = \arg\min_{W \in \Delta} \; (X_1 - X_0 W)' V (X_1 - X_0 W),
+   \mathbf{w}^\ast(\mathbf{V}) = \operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_0}}
+   \; (\mathbf{X}_1 - \mathbf{X}_0 \mathbf{w})^\top \mathbf{V}
+   (\mathbf{X}_1 - \mathbf{X}_0 \mathbf{w}),
 
-and the upper level chooses :math:`V` to minimise the pre-treatment
+and the upper level chooses :math:`\mathbf{V}` to minimise the pre-treatment
 *outcome* fit,
 
 .. math::
 
-   \min_{V} \; \lVert y_1 - Y_0\, W^\*(V) \rVert^2 .
+   \min_{\mathbf{V}} \; \bigl\| \mathbf{y}_{1,\mathcal{T}_1} -
+   \mathbf{Y}_{0,\mathcal{T}_1}\, \mathbf{w}^\ast(\mathbf{V}) \bigr\|_2^2 .
 
-The donor weights :math:`W` and the counterfactual are pinned by this
-program; the predictor weights :math:`V` are generically not (a whole
-polytope of :math:`V` reproduces the same :math:`W`).
+The donor weights :math:`\mathbf{w}` and the counterfactual are pinned by this
+program; the predictor weights :math:`\mathbf{V}` are generically not (a whole
+polytope of :math:`\mathbf{V}` reproduces the same :math:`\mathbf{w}`).
 
 Backends
 --------
@@ -74,9 +177,9 @@ The covariate path exposes three reliable solvers via ``backend=``:
 
 ``"mscmt"``
     Becker & Kloessner (2018): a global differential-evolution search over
-    :math:`\log_{10} V` with the simplex inner solve. The default when
+    :math:`\log_{10} \mathbf{V}` with the simplex inner solve. The default when
     covariates are supplied. Set ``canonical_v="min.loss.w"`` (or
-    ``"max.order"``) to report a canonical, reproducible :math:`V` via the
+    ``"max.order"``) to report a canonical, reproducible :math:`\mathbf{V}` via the
     MSCMT ``determine_v`` step.
 
 ``"malo"``
@@ -89,7 +192,7 @@ The covariate path exposes three reliable solvers via ``backend=``:
 ``"penalized"``
     Abadie & L'Hour (2021): a pairwise-penalized estimator with
     leave-one-out :math:`\lambda` selection, giving a unique, sparse
-    :math:`W`. Works with or without covariates.
+    :math:`\mathbf{w}`. Works with or without covariates.
 
 The identification diagnostic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -97,7 +200,7 @@ The identification diagnostic
 When covariates are used, ``res.weights.summary_stats["v_agreement"]``
 reports the maximum absolute difference between the two MSCMT canonical
 predictor-weight vectors (``min.loss.w`` and ``max.order``). It is small
-when :math:`V` is well identified and large (up to 1) when the predictor
+when :math:`\mathbf{V}` is well identified and large (up to 1) when the predictor
 weights -- and the donor weights they imply -- are fragile. A large value
 is a warning that the covariate-matched solution should not be
 over-interpreted.
@@ -112,7 +215,7 @@ Four inference modes are available via ``inference=``:
     each donor as pseudo-treated, and the treated unit's post/pre RMSPE ratio
     is ranked against the placebo distribution to give a p-value. Simple and
     assumption-light, but the smallest achievable p-value is about
-    :math:`1/(J+1)`.
+    :math:`1/(N_0+1)`.
 
 ``"conformal"`` -- prediction intervals (Chernozhukov, Wüthrich & Zhu 2021)
     The ``augsynth`` default for Augmented SCM, and a *distribution-free* test
@@ -124,12 +227,12 @@ Four inference modes are available via ``inference=``:
 
     .. math::
 
-       p(\tau_0) = \frac{1 + \#\{\,t \le T_0 : |\hat u_t| \ge
-       |\hat u_{\mathrm{post}}(\tau_0)|\,\}}{T_0 + 1}.
+       p(\tau_0) = \frac{1 + \#\{\,t \le T_0 : |\widehat{u}_t| \ge
+       |\widehat{u}_{\mathrm{post}}(\tau_0)|\,\}}{T_0 + 1}.
 
     Inverting the test (the :math:`\tau_0` not rejected at level :math:`\alpha`)
     gives a per-period prediction interval for the random counterfactual
-    :math:`Y_{1T}(0)`; the same machinery returns one joint-null :math:`p`-value
+    :math:`y_{1t}^N`; the same machinery returns one joint-null :math:`p`-value
     for the whole effect path. It is *exactly valid* when the residuals are
     exchangeable, and finite-sample bounded otherwise -- the ridge penalty
     controls the SCM-vs-ASCM weight difference, so validity holds as
@@ -147,7 +250,8 @@ Four inference modes are available via ``inference=``:
 
     .. math::
 
-       \widehat\tau_T - \tau_T = e_T - \mathbf{p}_T'(\widehat\beta - \beta_0),
+       \widehat{\tau}_T - \tau_T = e_T - \mathbf{p}_T^\top(\widehat{\boldsymbol{\beta}}
+       - \boldsymbol{\beta}_0),
 
     an out-of-sample shock :math:`e_T` plus an in-sample weight-estimation
     error. The counterfactual prediction band is assembled period-by-period as
@@ -156,30 +260,33 @@ Four inference modes are available via ``inference=``:
     :math:`[\,Y_{\text{obs}} - \text{cf}_U,\; Y_{\text{obs}} - \text{cf}_L\,]`.
 
     * In-sample (:math:`w_L`/:math:`w_U`): a simulation-based bound. With
-      :math:`Q = Z'Z/T_0` (donor pre-outcomes), :math:`\widehat\Sigma = Z'
-      \mathrm{diag}(\omega)\,Z / T_0^2` where :math:`\omega_t =
-      \tfrac{T_0}{T_0-\mathrm{df}}(u_t - E[u_t])^2` (HC1), and pre-period
-      residuals :math:`u = A - B\widehat w`, draw :math:`G^\star \sim
-      N(0,\widehat\Sigma)`. For each draw and predictor :math:`\mathbf{p}_T`,
-      solve over the *localised* simplex set
+      :math:`\mathbf{Q} = \mathbf{B}^\top\mathbf{B}/T_0` (donor pre-outcomes),
+      :math:`\widehat{\boldsymbol{\Sigma}} = \mathbf{B}^\top
+      \mathrm{diag}(\boldsymbol{\omega})\,\mathbf{B} / T_0^2` where :math:`\omega_t =
+      \tfrac{T_0}{T_0-\mathrm{df}}(u_t - \mathbb{E}[u_t])^2` (HC1), and pre-period
+      residuals :math:`\mathbf{u} = \mathbf{A} - \mathbf{B}\widehat{\mathbf{w}}`,
+      draw :math:`\mathbf{G}^\ast \sim
+      N(\mathbf{0},\widehat{\boldsymbol{\Sigma}})`. For each draw and predictor
+      :math:`\mathbf{p}_T`, solve over the *localised* simplex set
 
       .. math::
 
-         \min/\max\ \mathbf{p}_T'x \quad\text{s.t.}\quad
-         (x-\widehat w)'Q(x-\widehat w) - 2G^{\star\prime}(x-\widehat w) \le 0,\;
-         \textstyle\sum x = 1,\; x \ge \ell,
+         \min/\max\ \mathbf{p}_T^\top\mathbf{x} \quad\text{s.t.}\quad
+         (\mathbf{x}-\widehat{\mathbf{w}})^\top\mathbf{Q}(\mathbf{x}-\widehat{\mathbf{w}})
+         - 2\mathbf{G}^{\ast\top}(\mathbf{x}-\widehat{\mathbf{w}}) \le 0,\;
+         \textstyle\sum \mathbf{x} = 1,\; \mathbf{x} \ge \boldsymbol{\ell},
 
-      with :math:`\ell_j = \widehat w_j` if :math:`\widehat w_j < \rho` else
+      with :math:`\ell_j = \widehat{w}_j` if :math:`\widehat{w}_j < \rho` else
       :math:`0`. The regularisation parameter :math:`\rho` is data-driven and
-      capped at :math:`\rho_{\max} = 0.2`; :math:`Q` is reduced via a
+      capped at :math:`\rho_{\max} = 0.2`; :math:`\mathbf{Q}` is reduced via a
       thresholded eigen-square-root so collinear (near-null) donor directions
       are left unconstrained. :math:`w_L`/:math:`w_U` are the
       :math:`\alpha_1/2` / :math:`1-\alpha_1/2` quantiles of
-      :math:`\mathbf{p}_T'(\widehat w - x)` across draws.
+      :math:`\mathbf{p}_T^\top(\widehat{\mathbf{w}} - \mathbf{x})` across draws.
     * Out-of-sample (:math:`e_L`/:math:`e_U`): a location-scale model,
-      :math:`e_T = E[e] + \sqrt{\mathrm{Var}[e]}\,\varepsilon`. The conditional
+      :math:`e_T = \mathbb{E}[e] + \sqrt{\mathrm{Var}[e]}\,\varepsilon`. The conditional
       mean and a log-variance scale (capped by the residual IQR, Gaussian
-      :math:`\varepsilon`) are estimated by regressing :math:`u` on the
+      :math:`\varepsilon`) are estimated by regressing :math:`\mathbf{u}` on the
       active-donor design; ``"ls"`` and ``"empirical"`` use standardized /
       raw residual quantiles.
 
@@ -214,47 +321,55 @@ How the SCPI machinery works (one fit)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``scpi_intervals(y, Y0, pre, W, ...)`` takes the fitted donor weights
-:math:`\widehat w` (from *any* backend), the donor outcome matrix, and the
-number of pre-treatment periods, and runs the following steps. Let
-:math:`A = y_{1:T_0}` be the treated pre-outcomes, :math:`B = Y_{0,\,1:T_0}`
-the donor pre-outcomes, :math:`P` the donor post-outcomes, and
-:math:`u = A - B\widehat w` the pre-period residuals.
+:math:`\widehat{\mathbf{w}}` (from *any* backend), the donor outcome matrix, and
+the number of pre-treatment periods, and runs the following steps. Let
+:math:`\mathbf{A} = \mathbf{y}_{1,\mathcal{T}_1}` be the treated pre-outcomes,
+:math:`\mathbf{B} = \mathbf{Y}_{0,\mathcal{T}_1}`
+the donor pre-outcomes, :math:`\mathbf{P}` the donor post-outcomes, and
+:math:`\mathbf{u} = \mathbf{A} - \mathbf{B}\widehat{\mathbf{w}}` the pre-period
+residuals.
 
 1. Degrees of freedom. For the simplex, :math:`\mathrm{df} =
-   (\#\{\widehat w_j \neq 0\}) - 1`, giving the HC1 correction
+   (\#\{\widehat{w}_j \neq 0\}) - 1`, giving the HC1 correction
    :math:`\mathrm{vc} = T_0/(T_0-\mathrm{df})`.
 
 2. Regularisation parameter :math:`\rho`. The data-driven ``type-1`` value
-   :math:`\rho = \tfrac{\sigma_u}{\min_j \mathrm{sd}(B_j)}
-   \sqrt{\log(J)\, d_0 \log T_0}/\sqrt{T_0}`, capped at
+   :math:`\rho = \tfrac{\sigma_u}{\min_j \mathrm{sd}(\mathbf{B}_j)}
+   \sqrt{\log(N_0)\, d_0 \log T_0}/\sqrt{T_0}`, capped at
    :math:`\rho_{\max}=0.2` (with a fallback bump if it comes out below
    :math:`0.001`). :math:`\rho` defines the "active" donor set
-   :math:`\{\,j : \widehat w_j > \rho\,\}`.
+   :math:`\{\,j : \widehat{w}_j > \rho\,\}`.
 
-3. Conditional mean & variance. Regress :math:`u` on the active-donor
-   design :math:`[\,B_{\cdot,\text{active}},\,\mathbf{1}\,]` to get
-   :math:`E[u]` (the ``u_missp`` step), then
-   :math:`\omega_t = \mathrm{vc}\,(u_t - E[u_t])^2`. Form
-   :math:`Q = B'B/T_0` and :math:`\widehat\Sigma = B'\mathrm{diag}(\omega)B/T_0^2`,
-   and its matrix square root :math:`\Sigma^{1/2}`.
+3. Conditional mean & variance. Regress :math:`\mathbf{u}` on the active-donor
+   design :math:`[\,\mathbf{B}_{\cdot,\text{active}},\,\mathbf{1}\,]` to get
+   :math:`\mathbb{E}[\mathbf{u}]` (the ``u_missp`` step), then
+   :math:`\omega_t = \mathrm{vc}\,(u_t - \mathbb{E}[u_t])^2`. Form
+   :math:`\mathbf{Q} = \mathbf{B}^\top\mathbf{B}/T_0` and
+   :math:`\widehat{\boldsymbol{\Sigma}} =
+   \mathbf{B}^\top\mathrm{diag}(\boldsymbol{\omega})\mathbf{B}/T_0^2`,
+   and its matrix square root :math:`\boldsymbol{\Sigma}^{1/2}`.
 
 4. Localised feasible set. Lower bounds
-   :math:`\ell_j = \widehat w_j` if :math:`\widehat w_j < \rho` else :math:`0`
+   :math:`\ell_j = \widehat{w}_j` if :math:`\widehat{w}_j < \rho` else :math:`0`
    (near-binding donors are pinned at their tiny weight; active donors may move
-   down to zero). :math:`Q` is reduced by a thresholded eigen-square-root so the
-   near-null (collinear) directions are left unconstrained.
+   down to zero). :math:`\mathbf{Q}` is reduced by a thresholded
+   eigen-square-root so the near-null (collinear) directions are left
+   unconstrained.
 
 5. In-sample simulation. For each of ``scpi_sims`` draws
-   :math:`G^\star = \Sigma^{1/2}\,z`, :math:`z\sim N(0,I)`, and each post
+   :math:`\mathbf{G}^\ast = \boldsymbol{\Sigma}^{1/2}\,\mathbf{z}`,
+   :math:`\mathbf{z}\sim N(\mathbf{0},\mathbf{I})`, and each post
    predictor :math:`\mathbf{p}_T`, solve the small conic program in
-   :math:`x` (donor weights) twice -- minimise and maximise
-   :math:`\mathbf{p}_T'x` subject to
-   :math:`(x-\widehat w)'Q(x-\widehat w) - 2G^{\star\prime}(x-\widehat w)\le 0`,
-   :math:`\sum x = 1`, :math:`x\ge\ell`. Record :math:`\mathbf{p}_T'(\widehat w
-   - x)` for each branch; :math:`w_L`/:math:`w_U` are the
+   :math:`\mathbf{x}` (donor weights) twice -- minimise and maximise
+   :math:`\mathbf{p}_T^\top\mathbf{x}` subject to
+   :math:`(\mathbf{x}-\widehat{\mathbf{w}})^\top\mathbf{Q}(\mathbf{x}-\widehat{\mathbf{w}})
+   - 2\mathbf{G}^{\ast\top}(\mathbf{x}-\widehat{\mathbf{w}})\le 0`,
+   :math:`\sum \mathbf{x} = 1`, :math:`\mathbf{x}\ge\boldsymbol{\ell}`. Record
+   :math:`\mathbf{p}_T^\top(\widehat{\mathbf{w}}
+   - \mathbf{x})` for each branch; :math:`w_L`/:math:`w_U` are the
    :math:`\alpha_1/2` / :math:`1-\alpha_1/2` quantiles across draws.
 
-6. Out-of-sample band. From the location-scale model on :math:`u` get
+6. Out-of-sample band. From the location-scale model on :math:`\mathbf{u}` get
    :math:`e_L`/:math:`e_U` per post period (Section above).
 
 7. Assemble. Counterfactual band
@@ -274,8 +389,9 @@ holding the per-period ``periods``, ``tau``, ``pi_lower``/``pi_upper``,
 Composing SCPI with the backends
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``backend`` (how :math:`W` is estimated) and ``inference`` (how uncertainty is
-quantified) are orthogonal -- any of the four backends pairs with any of
+``backend`` (how :math:`\mathbf{w}` is estimated) and ``inference`` (how
+uncertainty is quantified) are orthogonal -- any of the four backends pairs with
+any of
 the three inference modes:
 
 .. code-block:: python
@@ -286,9 +402,10 @@ the three inference modes:
 The pipeline fits the weights with the chosen backend and hands the resulting
 ``res.W`` to ``scpi_intervals``. Two things to keep in mind:
 
-* The in-sample simulation rebuilds :math:`Q` and :math:`\widehat\Sigma` from
-  the donor pre-outcomes :math:`B`, treating :math:`\widehat w` as simplex
-  weights. With outcome-only this is the exact Cattaneo-Feng-Titiunik
+* The in-sample simulation rebuilds :math:`\mathbf{Q}` and
+  :math:`\widehat{\boldsymbol{\Sigma}}` from
+  the donor pre-outcomes :math:`\mathbf{B}`, treating :math:`\widehat{\mathbf{w}}`
+  as simplex weights. With outcome-only this is the exact Cattaneo-Feng-Titiunik
   interval (the case validated against ``scpi``). With mscmt/malo the
   weights were also shaped by the covariate predictors, so SCPI uses the
   outcome design as a stand-in -- it is approximate for covariate backends.
@@ -326,7 +443,7 @@ not win,
      = \frac{1}{(N-1)(N-2)} \sum_{i \neq j}
        \mathbf{1}\bigl\{R_{i,j,I;I} \le \max(R_{i,j,I;i}, R_{i,j,I;j})\bigr\},
 
-where :math:`R_{i,j,I;k} = \lvert S_{\text{ratio-RMSPE}}(Y_k, \widehat Y_k)\rvert`
+where :math:`R_{i,j,I;k} = \lvert S_{\text{ratio-RMSPE}}(\mathbf{y}_k, \widehat{\mathbf{y}}_k)\rvert`
 is the score of unit :math:`k` when the pool excludes :math:`\{i, j, I\}`.
 Because there are :math:`\binom{N-1}{2}` matches rather than :math:`N`, the
 p-value lives on an :math:`O(N^2)`-fine grid -- the granularity problem
@@ -358,9 +475,9 @@ treated*. Its validity rests on two assumptions.
   -- e.g. natural disasters, where which locality is hit is plausibly close to
   random over a small comparable region.
 * Sharp null. The hypothesis tested is Fisher's sharp null
-  :math:`H_0 : Y_{i,t}(1) = Y_{i,t}(0)` for all :math:`t > T_0` (no effect for
+  :math:`H_0 : y_{it}^I = y_{it}^N` for all :math:`t > T_0` (no effect for
   *any* unit in any post period), or a known-:math:`\tau` additive version
-  :math:`Y_{i,t}(1) = Y_{i,t}(0) + \tau_{i,t}`. Sharpness is what lets the test
+  :math:`y_{it}^I = y_{it}^N + \tau_{it}`. Sharpness is what lets the test
   impute every unit's counterfactual under the null and so run the tournament.
 
 Under these, the test has a finite-sample Type-I error guarantee (no
@@ -451,18 +568,6 @@ Choosing among placebo, LTO, and SCPI
   "is the treated unit special?" by randomization, SCPI quantifies the effect's
   uncertainty.
 
-When to use it
---------------
-
-* You want the standard synthetic control done reliably, with the
-  solver choice and identification fragility surfaced.
-* Outcome-only matching when you have a long, informative pre-period
-  -- this is the well-posed, reproducible case.
-* Covariate matching with ``mscmt`` when the donor pool is rich
-  enough that the problem is well-conditioned (see the replications
-  below). When :math:`\text{v\_agreement}` comes back near 1, prefer
-  outcome-only or ``penalized``.
-
 Empirical replications
 ----------------------
 
@@ -482,17 +587,18 @@ Ridge augmentation (Augmented SCM)
 The ridge-augmented synthetic control of Ben-Michael, Feller & Rothstein
 (2021) -- ``progfunc="Ridge"`` in the ``augsynth`` R package -- is not a
 separate estimator but a bias-correction layer on top of the simplex SCM.
-Given simplex weights :math:`W` and the centered pre-treatment outcomes
-:math:`A = X_1 - \bar X`, :math:`B = X_0 - \bar X`, it adds a ridge correction
+Given simplex weights :math:`\mathbf{w}` and the centered pre-treatment outcomes
+:math:`\mathbf{A} = \mathbf{X}_1 - \bar{\mathbf{X}}`,
+:math:`\mathbf{B} = \mathbf{X}_0 - \bar{\mathbf{X}}`, it adds a ridge correction
 that closes the residual pre-treatment imbalance the simplex cannot,
 
 .. math::
 
-   W_{\text{aug}} = W + (A - B^\top W)^\top
-       \left(B B^\top + \lambda I\right)^{-1} B,
+   \mathbf{w}_{\text{aug}} = \mathbf{w} + (\mathbf{A} - \mathbf{B}^\top\mathbf{w})^\top
+       \left(\mathbf{B}\mathbf{B}^\top + \lambda \mathbf{I}\right)^{-1} \mathbf{B},
 
 at the cost of leaving the simplex (the augmented weights may go negative and
-need not sum to one). Because any base :math:`W` can be augmented, the
+need not sum to one). Because any base :math:`\mathbf{w}` can be augmented, the
 capability lives in the bilevel engine
 (:func:`mlsynth.utils.bilevel.ridge_augment.ridge_augment_weights`) and rides
 along wherever the solver goes. The penalty :math:`\lambda` is chosen by
@@ -505,21 +611,23 @@ When to prefer augmentation
 
 Plain SCM is justified only when the pre-treatment fit is excellent: when
 the treated unit lies inside the convex hull of the donors' lagged outcomes the
-simplex weights balance :math:`X_1` exactly and the estimator is (near) unbiased
-(Abadie, Diamond & Hainmueller 2010). Outside the hull -- few donors, a long or
-high-dimensional pre-period, an outlying treated unit -- no convex combination
-fits, and the residual imbalance :math:`X_1 - X_0^\top\hat\gamma^{\mathrm{scm}}`
+simplex weights balance :math:`\mathbf{X}_1` exactly and the estimator is (near)
+unbiased (Abadie, Diamond & Hainmueller 2010). Outside the hull -- few donors, a
+long or high-dimensional pre-period, an outlying treated unit -- no convex
+combination fits, and the residual imbalance
+:math:`\mathbf{X}_1 - \mathbf{X}_0^\top\widehat{\mathbf{w}}^{\mathrm{scm}}`
 turns into bias. SCM has no way to correct it.
 
-Augmented SCM is the middle ground. With :math:`\hat m` the ridge outcome model,
-the ASCM estimate is the SCM estimate plus an estimate of that bias,
+Augmented SCM is the middle ground. With :math:`\widehat{\mathbf{m}}` the ridge
+outcome model, the ASCM estimate is the SCM estimate plus an estimate of that
+bias,
 
 .. math::
 
-   \hat Y_{1T}^{\mathrm{aug}}(0) = \underbrace{\textstyle\sum_{W_i=0}
-   \hat\gamma_i^{\mathrm{scm}} Y_{iT}}_{\text{SCM}}
-   + \Big( \hat m_T - \textstyle\sum_{W_i=0}\hat\gamma_i^{\mathrm{scm}}
-   \hat m_{iT} \Big),
+   \widehat{y}_{1T}^{\,\mathrm{aug},N} = \underbrace{\textstyle\sum_{j \in \mathcal{N}_0}
+   \widehat{w}_j^{\,\mathrm{scm}} y_{jT}}_{\text{SCM}}
+   + \Big( \widehat{m}_T - \textstyle\sum_{j \in \mathcal{N}_0}\widehat{w}_j^{\,\mathrm{scm}}
+   \widehat{m}_{jT} \Big),
 
 exactly analogous to bias correction for inexact matching (Abadie & Imbens 2011)
 and connected to doubly-robust estimation (Robins, Rotnitzky & Zhao 1994). Ridge
@@ -537,9 +645,9 @@ itself: it is the imbalance term above, in the units of the estimand, and the
 first quantity ASCM computes. If it is large relative to the effect you expect,
 augment; if pre-fit is already excellent the correction is negligible and ASCM
 and SCM coincide. Two diagnostics accompany it: the pre-treatment RMSE
-(:math:`\lVert X_1 - X_0^\top\hat\gamma\rVert/\sqrt{T_0}`, the imbalance that
-remains) and the extrapolation distance
-(:math:`\lVert\hat\gamma^{\mathrm{aug}} - \hat\gamma^{\mathrm{scm}}\rVert
+(:math:`\lVert \mathbf{X}_1 - \mathbf{X}_0^\top\widehat{\mathbf{w}}\rVert/\sqrt{T_0}`,
+the imbalance that remains) and the extrapolation distance
+(:math:`\lVert\widehat{\mathbf{w}}^{\mathrm{aug}} - \widehat{\mathbf{w}}^{\mathrm{scm}}\rVert
 /\sqrt{N_0}`, how far the weights left the simplex). Across the paper's calibrated
 DGPs, ASCM has both lower bias *and* lower RMSE than SCM -- gains largest under
 misspecification and poor fit, modest when SCM already fits well.
@@ -719,7 +827,7 @@ and Germany under ``mscmt`` the predictor weights are non-identified
      - Cataluna .47, Madrid .33
 
 The Basque case is the cleanest: with the special-predictor covariates,
-``malo`` returns a well-identified :math:`V` (``v_agreement`` :math:`\approx 0`)
+``malo`` returns a well-identified :math:`\mathbf{V}` (``v_agreement`` :math:`\approx 0`)
 and ``mscmt`` recovers the published Cataluna/Madrid split, both with tight
 intervals that exclude zero. The early German post-years (1990-1992) are *not*
 significant under either backend -- the interval includes zero -- and only turn
@@ -754,7 +862,7 @@ decisively negative later, exactly as the reunification narrative implies.
    # (swap df/outcome/covariates; everything else is identical.)
 
 The per-period sequence is always in ``res.inference.details``; switching
-backend changes :math:`\widehat w` (and hence the centre and width of the band)
+backend changes :math:`\widehat{\mathbf{w}}` (and hence the centre and width of the band)
 but not the inference code path.
 
 Leave-two-out refined placebo test
@@ -794,7 +902,7 @@ placebo 0.059 does not reject, LTO 0.042 does), is not mechanically smaller
 both reject (Prop 99: 0.024 vs 0.026). The helper constants match the paper
 exactly (``c(39, 0.05) = 0.002``, ``c(17, 0.05) = 0.0125``). See
 :doc:`replications/vanillasc` for the full Table-1 relations and discussion.
-Because the cost is :math:`O(J^2)` engine fits, run the covariate-matched
+Because the cost is :math:`O(N_0^2)` engine fits, run the covariate-matched
 (``mscmt``) version on the smaller studies or cap pairs with ``lto_max_pairs``;
 the 38-donor Prop 99 ``outcome-only`` LTO runs in under two minutes.
 
