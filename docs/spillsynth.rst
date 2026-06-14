@@ -142,13 +142,13 @@ fits and part (d) an identification condition:
 Assumption 1 (regularity and identification).
 
 (a) :math:`\{\mathbf{u}_t\}_{t \geq 1}` is stationary with mean zero, where
-    :math:`\mathbf{u}_t = \mathbf{Y}_t(0) - (\mathbf{a} + \mathbf{B}\,\mathbf{Y}_t(0))`
+    :math:`\mathbf{u}_t = \mathbf{Y}_t^N - (\mathbf{a} + \mathbf{B}\,\mathbf{Y}_t^N)`
     is the per-unit SCM specification error stacked across units.
 (b) The leave-one-out SCM fits are consistent for their population
     counterparts: :math:`\|\widehat{\mathbf{a}} - \mathbf{a}\| = o_p(1)` and
     :math:`\|\widehat{\mathbf{B}} - \mathbf{B}\| = o_p(1)`.
 (c) The post-period extrapolation is stable:
-    :math:`\|(\widehat{\mathbf{B}} - \mathbf{B})\, \mathbf{Y}_{T_0+1}(0)\| = o_p(1)`.
+    :math:`\|(\widehat{\mathbf{B}} - \mathbf{B})\, \mathbf{Y}_{T_0+1}^N\| = o_p(1)`.
 (d) Identification. :math:`\mathbf{A}' \mathbf{M} \mathbf{A}` is non-singular,
     where :math:`\mathbf{M} = (\mathbf{I} - \mathbf{B})'(\mathbf{I} - \mathbf{B})`.
     Equivalently, :math:`(\mathbf{I} - \mathbf{B}) \mathbf{A}`
@@ -169,12 +169,12 @@ under two alternative regularity conditions on the common factors:
 Condition ST (stationary factors).
   :math:`\{(\eta_t, \lambda_t, \varepsilon_t)\}_{t \geq 1}` is
   stationary, ergodic for first and second moments, has a finite
-  :math:`(2 + \delta)`-moment, and :math:`\mathrm{cov}[\mathbf{Y}_t(0)] =
+  :math:`(2 + \delta)`-moment, and :math:`\mathrm{cov}[\mathbf{Y}_t^N] =
   \boldsymbol{\Omega}_y` is positive definite.
 
 Condition CO (cointegrated :math:`\mathcal{I}(1)` factors).
-  Write :math:`y_{i,t}(0) = (\lambda_t^1)' \mu_i^1 + (\lambda_t^0)'
-  \mu_i^0 + \varepsilon_{i,t}` with :math:`\{\lambda_t^1\}` an
+  Write :math:`y_{it}^N = (\lambda_t^1)' \mu_i^1 + (\lambda_t^0)'
+  \mu_i^0 + \varepsilon_{it}` with :math:`\{\lambda_t^1\}` an
   :math:`\mathcal{I}(1)` process and :math:`\{\lambda_t^0\}`
   stationary. Loadings :math:`\{\mu_i^1\}` admit cointegrating vectors:
   for each :math:`i` there exists :math:`w^{(i)} \in W^{(i)}` such that
@@ -1279,14 +1279,14 @@ The inclusive method rests on five conditions.
 
 * (A1) Additive treatment/spillover. For every unit :math:`i` and
   post-period :math:`t`, the observed outcome decomposes as
-  :math:`Y_{it} = Y_{it}^N + \theta_i(t)`, with :math:`Y_{it}^N` the
+  :math:`y_{it} = y_{it}^N + \theta_i(t)`, with :math:`y_{it}^N` the
   untreated potential outcome and :math:`\theta_i(t)` the (treatment or
   spillover) effect, :math:`\theta_j = 0` for clean controls. The effect is
   additive and does not feed back into the donors' untreated paths.
 * (A2) Valid synthetic controls for the whole affected set. Each unit in
   :math:`S` -- the treated unit *and every affected unit* -- admits simplex
   weights over the remaining units that reproduce its untreated potential
-  outcome, :math:`\sum_j w_i^{(j)} Y_{jt}^N = Y_{it}^N` in expectation (the
+  outcome, :math:`\sum_j w_i^{(j)} y_{jt}^N = y_{it}^N` in expectation (the
   usual SCM / factor-model condition). This is the standard SCM assumption,
   now required of every affected unit, not only the treated one.
 * (A3) Correctly specified affected set. :math:`S` is known, and every
@@ -1307,10 +1307,10 @@ Identification and econometric theory
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Write the observed gap for affected unit :math:`i` as
-:math:`\mathrm{gap}_i(t) = Y_{it} - \sum_j w_i^{(j)} Y_{jt}` and split the
+:math:`\mathrm{gap}_i(t) = y_{it} - \sum_j w_i^{(j)} y_{jt}` and split the
 donors into clean controls (:math:`\theta = 0`) and the *other* affected
 units. Under (A1)-(A2) the clean part cancels
-(:math:`\sum_j w_i^{(j)} Y_{jt}^N \approx Y_{it}^N`), leaving precisely
+(:math:`\sum_j w_i^{(j)} y_{jt}^N \approx y_{it}^N`), leaving precisely
 
 .. math::
 
@@ -1633,12 +1633,12 @@ interference, build a penalized synthetic control -- from the clean controls
 *only* -- for the treated unit and for each cluster-mate:
 
 * the treated unit's gap is the direct effect (paper eq. 3.4),
-  :math:`\widehat\tau_{1,t} = Y_{1,t} - \sum_{j \in \text{clean}}
-  \widehat\omega_j^{(1)} Y_{j,t}`;
+  :math:`\widehat\tau_{1t} = y_{1t} - \sum_{j \in \text{clean}}
+  \widehat\omega_j^{(1)} y_{jt}`;
 * each cluster-mate's gap is a spillover effect, averaged into the average
   spillover (eq. 3.5),
   :math:`\widehat\delta_t = \frac{1}{N_1-1}\sum_{i \in \mathcal N_1\setminus\{1\}}
-  \big(Y_{i,t} - \sum_{j} \widehat\omega_j^{(i)} Y_{j,t}\big)`.
+  \big(y_{it} - \sum_{j} \widehat\omega_j^{(i)} y_{jt}\big)`.
 
 The synthetic controls use the penalized SCG estimator (Abadie-L'Hour
 2021, the ``penalized`` backend) -- which is why that backend had to exist
@@ -1757,18 +1757,19 @@ of interest.
 
 .. note::
 
-   Notation bridge. The treated unit is index ``0`` and the ``N`` controls
-   are :math:`\mathcal{N} = \{1, \dots, N\}`; the pre-period is
+   Notation bridge. Let :math:`j = 1` denote the treated unit; the ``N``
+   control units form the donor pool :math:`\mathcal{N}_0`
+   (:math:`|\mathcal{N}_0| = N`), indexed by ``j``. The pre-period is
    :math:`\mathcal{T}_1` (length ``T0``) and the post-period
    :math:`\mathcal{T}_2`. :math:`\mathbf{Y}^c_t \in \mathbb{R}^N` stacks the
-   control outcomes at ``t``; :math:`Y_{0t}` is the treated outcome.
+   donor outcomes at ``t``; :math:`y_{1t}` is the treated outcome.
    :math:`\mathbf{W} \in \mathbb{R}^{N\times N}` is the (row-normalised)
    control-to-control spatial-weight matrix and :math:`\mathbf{w}\in\mathbb{R}^N`
    the treated-to-control weight vector; :math:`\boldsymbol{\alpha}` are the
    synthetic-control weights, :math:`\rho` the spatial-autoregressive
    coefficient, :math:`\mathbf{I}` the identity. The treatment effect on the
-   treated unit is :math:`\xi_{0t}` and the spillover effect on control ``i`` is
-   :math:`\xi_{it}`.
+   treated unit is :math:`\xi_{1t}` and the spillover effect on donor ``j`` is
+   :math:`\xi_{jt}`.
 
 The model
 ^^^^^^^^^
@@ -1777,7 +1778,7 @@ For each period the untreated control outcomes follow a SAR panel,
 
 .. math::
 
-   \mathbf{Y}^c_t = \rho\,\bigl(\mathbf{w}\,Y_{0t} + \mathbf{W}\,\mathbf{Y}^c_t\bigr)
+   \mathbf{Y}^c_t = \rho\,\bigl(\mathbf{w}\,y_{1t} + \mathbf{W}\,\mathbf{Y}^c_t\bigr)
        + \mathbf{X}_t\boldsymbol{\beta} + \mathbf{u}_t,
 
 with ``rho`` the spatial-autoregressive coefficient, ``w`` the
@@ -1790,9 +1791,9 @@ spillover effects on the controls are identified in closed form (paper Theorems
 
 .. math::
 
-   \xi_{0t} = Y_{0t} - \boldsymbol{\alpha}^{\top}
+   \xi_{1t} = y_{1t} - \boldsymbol{\alpha}^{\top}
        \bigl(\mathbf{I} - \rho\,\mathbf{w}\boldsymbol{\alpha}^{\top} - \rho\mathbf{W}\bigr)^{-1}
-       \bigl((\mathbf{I} - \rho\mathbf{W})\mathbf{Y}^c_t - \rho\,\mathbf{w} Y_{0t}\bigr).
+       \bigl((\mathbf{I} - \rho\mathbf{W})\mathbf{Y}^c_t - \rho\,\mathbf{w} y_{1t}\bigr).
 
 When ``rho = 0`` this collapses exactly to Abadie's synthetic control, so
 the SAR method nests standard SCM as its no-spillover special case.
@@ -1800,7 +1801,7 @@ the SAR method nests standard SCM as its no-spillover special case.
 Assumptions
 ^^^^^^^^^^^
 
-Identification of :math:`\xi_{0t}` and :math:`\xi_{it}` rests on four
+Identification of :math:`\xi_{1t}` and :math:`\xi_{jt}` rests on four
 assumptions (the paper's Assumptions 1-3 plus the standard no-anticipation /
 exogeneity conditions inherited from SCM). Each is paired with a remark on what
 it buys and when it is plausible.
@@ -1808,7 +1809,7 @@ it buys and when it is plausible.
 Assumption 1 (Perfect pre-treatment fit). There exist weights
 :math:`\boldsymbol{\alpha}\in\mathbb{R}^N` such that, in the absence of any
 treatment, the treated unit's outcome equals the weighted control average,
-:math:`Y_{0t}(0) = \sum_{i\in\mathcal{N}} \alpha_i\, Y_{it}(0)` almost surely
+:math:`y_{1t}^N = \sum_{j\in\mathcal{N}_0} \alpha_j\, y_{jt}^N` almost surely
 for every ``t``.
 
    *Remark.* This is the usual synthetic-control premise (Abadie et al. 2010):
@@ -1822,7 +1823,7 @@ Assumption 2 (Spillover runs through outcomes, not unobservables). The
 disturbance :math:`\mathbf{u}_t` is unaffected by who is treated: any unit's
 *structural* error depends only on its own (always-zero, for controls)
 treatment status, so all cross-unit transmission flows through the SAR term
-:math:`\rho(\mathbf{w}Y_{0t} + \mathbf{W}\mathbf{Y}^c_t)`.
+:math:`\rho(\mathbf{w}y_{1t} + \mathbf{W}\mathbf{Y}^c_t)`.
 
    *Remark.* This is the substantive identifying restriction. It says
    interference is *mediated by observed outcomes propagating along the spatial
@@ -1837,7 +1838,7 @@ Assumption 3 (Invertibility / no degenerate feedback). The matrix
 has full rank.
 
    *Remark.* This guarantees the spatial system has a unique reduced form, so
-   the counterfactual :math:`\mathbf{Y}^c_t(0)` is well defined. It holds
+   the counterfactual :math:`\mathbf{Y}^{c,N}_t` is well defined. It holds
    automatically for :math:`|\rho|` below the spectral bound
    :math:`1/\max_i|\lambda_i(\mathbf{W})|` (which, for a row-normalised
    :math:`\mathbf{W}`, is 1); the sampler enforces :math:`|\rho| < 0.95` of that
@@ -1854,8 +1855,8 @@ idiosyncratic shocks.
    a pre-announced policy) bias the pre-period fit and hence every downstream
    effect, exactly as in ordinary synthetic control.
 
-Because the post-treatment effects (the displayed :math:`\xi_{0t}` and the
-analogous :math:`\xi_{it}`) depend only on :math:`(\boldsymbol{\alpha}, \rho)`
+Because the post-treatment effects (the displayed :math:`\xi_{1t}` and the
+analogous :math:`\xi_{jt}`) depend only on :math:`(\boldsymbol{\alpha}, \rho)`
 and the observed outcomes, the covariate coefficient
 :math:`\boldsymbol{\beta}` and the latent-factor block need not be estimated for
 the post-period -- they enter only the pre-treatment estimation of
