@@ -78,7 +78,9 @@ Path A — empirical replications
    * - ``pda_ppi``
      - Shi-Wang China PPI L2-relaxation (real-estate policy)
    * - ``rescm_brexit``
-     - SCM-relaxation Brexit/UK GDP
+     - SCM-relaxation Brexit/UK GDP (2016Q3)
+   * - ``rescm_brexit_2020``
+     - SCM-relaxation Brexit robustness (2020Q1)
    * - ``rolldid_lw``
      - Lee-Wooldridge Prop99 + castle
    * - ``sbc_germany``
