@@ -7,22 +7,49 @@ counterfactual out-of-sample.
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
-from sklearn.linear_model import LassoCV
+from sklearn.linear_model import Lasso, LassoCV
 
 
 def fit_lasso(
     y: np.ndarray, X: np.ndarray, T0: int, cv: int = 5, random_state: int = 0,
+    alpha: Optional[float] = None,
 ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray]:
-    """Fit LASSO PDA; return ``(beta, intercept, counterfactual, support_mask)``."""
+    """Fit LASSO PDA; return ``(beta, intercept, counterfactual, support_mask)``.
+
+    ``alpha`` fixes the penalty (skipping cross-validation); ``None`` (default)
+    selects it by :class:`~sklearn.linear_model.LassoCV`. The fixed-penalty path
+    is used by the prediction-interval bootstrap, which reuses ``lambda_{T0}``.
+    """
     y_pre, X_pre = y[:T0], X[:T0]
-    n_splits = min(cv, T0 - 1)
-    model = LassoCV(cv=max(2, n_splits), fit_intercept=True, max_iter=100000, random_state=random_state)
+    if alpha is None:
+        n_splits = min(cv, T0 - 1)
+        model = LassoCV(cv=max(2, n_splits), fit_intercept=True, max_iter=100000,
+                        random_state=random_state)
+    else:
+        model = Lasso(alpha=float(alpha), fit_intercept=True, max_iter=100000)
     model.fit(X_pre, y_pre)
     beta = np.asarray(model.coef_, dtype=float)
     intercept = float(model.intercept_)
     counterfactual = X @ beta + intercept
     support = np.abs(beta) > 1e-10
     return beta, intercept, counterfactual, support
+
+
+def lasso_cv_alpha(
+    y: np.ndarray, X: np.ndarray, T0: int, cv: int = 5, random_state: int = 0,
+) -> float:
+    """The cross-validated LASSO penalty for the pre-period (the ``alpha_`` that
+    :func:`fit_lasso` selects).
+
+    Exposed so the prediction-interval bootstrap can refit at a *fixed* penalty
+    (Jiang et al. 2025 reuse ``lambda_{T0}`` across bootstrap samples rather than
+    re-cross-validating each one)."""
+    y_pre, X_pre = y[:T0], X[:T0]
+    n_splits = min(cv, T0 - 1)
+    model = LassoCV(cv=max(2, n_splits), fit_intercept=True, max_iter=100000,
+                    random_state=random_state)
+    model.fit(X_pre, y_pre)
+    return float(model.alpha_)

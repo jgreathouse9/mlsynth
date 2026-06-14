@@ -97,7 +97,10 @@ class PDA:
         fits = run_pda(inputs, methods, tau=self.config.tau, alpha=self.config.alpha,
                        fs_intercept=self.config.fs_intercept,
                        lrvar_lag=self.config.lrvar_lag,
-                       l2_standardize=self.config.l2_standardize)
+                       l2_standardize=self.config.l2_standardize,
+                       prediction_intervals=self.config.prediction_intervals,
+                       pi_n_boot=self.config.pi_n_boot,
+                       pi_seed=self.config.pi_seed)
         results = assemble_pda_results(inputs, fits, selected_variant=methods[0])
 
         if self.display_graphs:

@@ -760,6 +760,43 @@ coefficients (pre-RMSE 0.013); ``lasso`` keeps 11; ``fs`` keeps a parsimonious
 estimates bracket the Forward-DiD result on the same data (0.025), a useful
 cross-method check.
 
+Prediction intervals
+--------------------
+
+The HAC confidence interval above quantifies uncertainty in the *average*
+treatment effect. For uncertainty in each *period's* effect, set
+``prediction_intervals=True`` to attach the bootstrap prediction intervals of
+Jiang, Li, Shen and Zhou [pdapi]_ to every fitted variant. These bound the
+post-period untreated counterfactual :math:`Y_t` (and hence the effect
+:math:`\Delta_t = y_t - \widehat Y_t`), combining the in-sample estimation error
+with the out-of-sample prediction error that a confidence interval for the mean
+omits. The construction (their Algorithm 2.1) resamples the pre-period
+prediction error with a dependent wild bootstrap and the post-period error with a
+residual bootstrap, refits the chosen estimator on each bootstrap sample at the
+fixed tuning parameter, and reads quantiles of the self-normalized statistic
+:math:`\widehat e_t / \sqrt{\widehat V_t + \widehat\sigma^2}`.
+
+The implementation lives at the shared :func:`mlsynth.utils.inferutils.pda_prediction_intervals`
+so any panel-data estimator can reuse it. Both the equal-tailed (``eq``) and
+symmetric (``sy``) intervals are returned, and each variant reports which
+studentization it used: ``sandwich`` for the post-selection OLS HAC variance
+:math:`\widehat V_t` (``lasso`` and ``fs``, which select then run OLS), or the
+``sigma2`` fallback when that sandwich is undefined -- as for the dense
+L2-relaxation when the controls outnumber the pre-periods.
+
+.. code-block:: python
+
+   res = PDA({"df": df, "outcome": "GDP", "treat": "Integration",
+              "unitid": "Country", "time": "Time", "method": "fs",
+              "prediction_intervals": True, "pi_n_boot": 999,
+              "display_graphs": False}).fit()
+
+   pi = res.fits["fs"].prediction_intervals
+   print(pi["studentization"])          # 'sandwich'
+   eff = pi["effect"]                    # per-post-period effect intervals
+   lo, hi = eff["eq_lower"][0], eff["eq_upper"][0]
+   print(f"Delta_1 = {eff['point'][0]:.4f}  95% PI ({lo:.4f}, {hi:.4f})")
+
 Verification
 ------------
 
@@ -768,6 +805,13 @@ Verification
    Empirical (Path A, Hong Kong). All three variants run on the HCW Hong
    Kong panel (above) and agree on a significant positive integration effect,
    consistent with the literature and the Forward-DiD cross-check (0.025).
+
+   Prediction intervals (Path B, coverage). The bootstrap prediction
+   intervals are validated by ``benchmarks/cases/pda_pi_coverage.py``, which
+   reproduces the coverage geometry of Jiang et al. (2025) Tables 2-5 on their
+   Setup 1: the equal-tailed and symmetric intervals cover near the nominal
+   95%, while the normal-quantile intervals under-cover (to about 77% under
+   exponential errors).
 
 Simulation study (Path B): forward selection vs LASSO
 -----------------------------------------------------

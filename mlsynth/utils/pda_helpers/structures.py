@@ -102,6 +102,7 @@ class PDAMethodFit:
     p_value: float
     donor_weights: Dict[Any, float]
     selected_donors: Optional[List[Any]] = None      # fs / lasso support
+    prediction_intervals: Optional[Dict[str, Any]] = None  # Jiang et al. (2025) PIs
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
