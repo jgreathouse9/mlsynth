@@ -109,41 +109,120 @@ difference-in-differences analysis differences trajectories: two markets with
 identical totals but different seasonal shapes are not interchangeable for
 it, even though scalar matching treats them as equivalent.
 
-Assumptions, and When PANGEO Fails or Stalls
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Setup and notation
+------------------
+
+Let :math:`y_{it}` denote the outcome of geo
+:math:`i \in \mathcal{N} \coloneqq \{1,\dots,N\}` in period
+:math:`t \in \mathcal{T} \coloneqq \{1,\dots,T\}`. The first :math:`T_0`
+periods are the pre-treatment (design) window
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` and the
+remaining :math:`|\mathcal{T}_2| = T - T_0` periods are the experimental window
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`.
+A single categorical column assigns each geo to an arm; arms occupy
+disjoint geo pools :math:`\mathcal{N}_a` and are designed independently, so
+the exposition below fixes one arm and drops the arm subscript.
+
+Throughout we maintain the linear factor model used by both the synthetic-
+control and DiD literatures (Abadie, Diamond & Hainmueller 2010; Li &
+Van den Bulte 2022) for the no-treatment potential outcome,
+
+.. math::
+   :label: factor
+
+   y_{it}^{N} = \delta_t + \boldsymbol{\theta}_t^{\top} \mathbf{z}_i
+                + \boldsymbol{\lambda}_t^{\top}\boldsymbol{\mu}_i
+                + \varepsilon_{it},
+
+where :math:`\delta_t` is a common time effect, :math:`\mathbf{z}_i` are
+observed covariates with time-varying loadings :math:`\boldsymbol{\theta}_t`,
+:math:`\boldsymbol{\mu}_i` are unobserved factor loadings with factors
+:math:`\boldsymbol{\lambda}_t`, and :math:`\varepsilon_{it}` is mean-zero
+idiosyncratic noise.
+
+A supergeo is a set :math:`\mathcal{S}` of same-arm geos with aggregate
+trajectory
+
+.. math::
+
+   \bar y_{\mathcal{S},t}
+   \coloneqq \frac{\sum_{i\in \mathcal{S}}\omega_i\,y_{it}}{\sum_{i\in \mathcal{S}}\omega_i},
+
+where :math:`\omega_i>0` are aggregation weights (the ``weight_col``
+population, or :math:`\omega_i\equiv 1`). A pair
+:math:`p=(\mathcal{A}_p,\mathcal{B}_p)` consists of two disjoint supergeos with
+:math:`|\mathcal{A}_p|,|\mathcal{B}_p|\le Q`; :math:`\mathcal{A}_p` is the
+treatment half and :math:`\mathcal{B}_p` the control half. Its gap is
+
+.. math::
+   :label: gap
+
+   g_{p,t} \coloneqq \bar y_{\mathcal{A}_p,t} - \bar y_{\mathcal{B}_p,t}.
+
+Under :eq:`factor` the common time effect cancels and
+
+.. math::
+   :label: gapdecomp
+
+   g_{p,t}
+       = \boldsymbol{\lambda}_t^{\top}\big(\bar{\boldsymbol{\mu}}_{\mathcal{A}_p}-\bar{\boldsymbol{\mu}}_{\mathcal{B}_p}\big)
+       + \boldsymbol{\theta}_t^{\top}\big(\bar{\mathbf{z}}_{\mathcal{A}_p}-\bar{\mathbf{z}}_{\mathcal{B}_p}\big)
+       + \big(\bar\varepsilon_{\mathcal{A}_p,t}-\bar\varepsilon_{\mathcal{B}_p,t}\big),
+
+with :math:`\bar{\boldsymbol{\mu}}_{\mathcal{S}}, \bar{\mathbf{z}}_{\mathcal{S}}`
+the weighted means over :math:`\mathcal{S}`. The
+pair exhibits parallel trends precisely when the loadings are balanced,
+:math:`\bar{\boldsymbol{\mu}}_{\mathcal{A}_p}=\bar{\boldsymbol{\mu}}_{\mathcal{B}_p}`
+(and :math:`\bar{\mathbf{z}}_{\mathcal{A}_p}=\bar{\mathbf{z}}_{\mathcal{B}_p}`);
+the gap is then constant in expectation and a difference-in-differences
+comparison within the pair is unbiased.
+
+Identifying assumptions
+-----------------------
 
 PANGEO can make a good experiment *likely*, but it cannot manufacture one
 that the data do not support. Three assumptions underpin it, and each
 points at a way the method can fail or stall.
 
 1. Parallel trends (the crux). The design maximises parallelism in the
-pre-period; the validity of the Stage-2 effect estimate rests on that
-parallelism persisting into the post-period absent treatment — i.e.
-the treatment and control supergeos *would have continued to move
-together* had the campaign never launched. This is exactly the
-difference-in-differences parallel-trends assumption, and it is the
-assumption PANGEO is organised around. The crucial honesty: PANGEO
-*optimises* pre-period parallelism (making the assumption as plausible as
-the data allow) but it cannot guarantee the assumption holds
-out-of-sample. If a shock hits the treated markets, a competitor reacts
-only there, or the pre-period co-movement was coincidental, the
-post-period gap diverges on its own and the ATT is biased — the same
-Achilles' heel as any DiD. *Diagnostics that flag the risk:* the achieved
-parallelism :math:`R^2` (low values mean no balanced design exists — see
-below), the reported MDE, and a placebo / blank-window check on the
-held-out pre-period.
+   pre-period; the validity of the Stage-2 effect estimate rests on that
+   parallelism persisting into the post-period absent treatment — i.e.
+   the treatment and control supergeos *would have continued to move
+   together* had the campaign never launched. This is exactly the
+   difference-in-differences parallel-trends assumption, and it is the
+   assumption PANGEO is organised around.
+
+   *Remark.* PANGEO *optimises* pre-period parallelism (making the
+   assumption as plausible as the data allow) but cannot guarantee it holds
+   out-of-sample. If a shock hits the treated markets, a competitor reacts
+   only there, or the pre-period co-movement was coincidental, the
+   post-period gap diverges on its own and the ATT is biased — the same
+   Achilles' heel as any DiD. The achieved parallelism :math:`R^2` (low
+   values mean no balanced design exists), the reported MDE, and a placebo /
+   blank-window check on the held-out pre-period are the diagnostics that
+   flag the risk.
 
 2. A linear factor structure for the no-treatment outcomes
-(Eq. :eq:`factor`). The gap decomposition that makes "match on trajectory"
-equivalent to "balance the factor loadings" relies on this model. It is
-the standard synthetic-control / interactive-fixed-effects assumption and
-is mild for sales-like panels, but a wildly non-factor outcome (e.g. one
-driven by an idiosyncratic, unit-specific regime change) is not balanceable
-by any partition.
+   (Eq. :eq:`factor`). The gap decomposition that makes "match on trajectory"
+   equivalent to "balance the factor loadings" relies on this model. It is
+   the standard synthetic-control / interactive-fixed-effects assumption.
+
+   *Remark.* The model is mild for sales-like panels, but a wildly
+   non-factor outcome (e.g. one driven by an idiosyncratic, unit-specific
+   regime change) is not balanceable by any partition — no split of the geos
+   can render :eq:`gapdecomp` constant in expectation.
 
 3. A modest, designable geo pool. Each arm needs enough geos to form
-at least one supergeo pair, and the geos must be heterogeneous-but-
-matchable.
+   at least one supergeo pair, and the geos must be heterogeneous-but-
+   matchable.
+
+   *Remark.* A pool that cannot form a balanced pair (e.g. two wildly
+   different markets) has no good design to find; with *hundreds* of geos the
+   exact MIP may be intractable, so the scalable OSD relaxation is the better
+   fit there (see *When PANGEO Fails or Stalls* below).
+
+When PANGEO Fails or Stalls
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The concrete failure / stall modes:
 
@@ -169,65 +248,6 @@ construction and *quantifies the residual risk* (parallelism
 than removing it. Treat a low parallelism :math:`R^2` or a large MDE as
 the design telling you the experiment is fragile.
 
-Setup and notation
-------------------
-
-Let :math:`Y_{it}` denote the outcome of geo :math:`i\in\{1,\dots,N\}` in
-period :math:`t\in\{1,\dots,T\}`. The first :math:`T_0` periods are the
-pre-treatment (design) window and the remaining
-:math:`T_{\mathrm{post}} = T - T_0` periods are the experimental window.
-A single categorical column assigns each geo to an arm; arms occupy
-disjoint geo pools :math:`\mathcal N_a` and are designed independently, so
-the exposition below fixes one arm and drops the arm subscript.
-
-Throughout we maintain the linear factor model used by both the synthetic-
-control and DiD literatures (Abadie, Diamond & Hainmueller 2010; Li &
-Van den Bulte 2022) for the no-treatment potential outcome,
-
-.. math::
-   :label: factor
-
-   Y_{it}^{N} = \delta_t + \theta_t^{\top} Z_i + \lambda_t^{\top}\mu_i
-                + \varepsilon_{it},
-
-where :math:`\delta_t` is a common time effect, :math:`Z_i` are observed
-covariates with time-varying loadings :math:`\theta_t`, :math:`\mu_i` are
-unobserved factor loadings with factors :math:`\lambda_t`, and
-:math:`\varepsilon_{it}` is mean-zero idiosyncratic noise.
-
-A supergeo is a set :math:`S` of same-arm geos with aggregate
-trajectory
-
-.. math::
-
-   \bar Y_{S,t} = \frac{\sum_{i\in S}\omega_i\,Y_{it}}{\sum_{i\in S}\omega_i},
-
-where :math:`\omega_i>0` are aggregation weights (the ``weight_col``
-population, or :math:`\omega_i\equiv 1`). A pair
-:math:`p=(A_p,B_p)` consists of two disjoint supergeos with
-:math:`|A_p|,|B_p|\le Q`; :math:`A_p` is the treatment half and
-:math:`B_p` the control half. Its gap is
-
-.. math::
-   :label: gap
-
-   g_{p,t} = \bar Y_{A_p,t} - \bar Y_{B_p,t}.
-
-Under :eq:`factor` the common time effect cancels and
-
-.. math::
-   :label: gapdecomp
-
-   g_{p,t} = \lambda_t^{\top}\big(\bar\mu_{A_p}-\bar\mu_{B_p}\big)
-           + \theta_t^{\top}\big(\bar Z_{A_p}-\bar Z_{B_p}\big)
-           + \big(\bar\varepsilon_{A_p,t}-\bar\varepsilon_{B_p,t}\big),
-
-with :math:`\bar\mu_S, \bar Z_S` the weighted means over :math:`S`. The
-pair exhibits parallel trends precisely when the loadings are balanced,
-:math:`\bar\mu_{A_p}=\bar\mu_{B_p}` (and :math:`\bar Z_{A_p}=\bar Z_{B_p}`);
-the gap is then constant in expectation and a difference-in-differences
-comparison within the pair is unbiased.
-
 Stage 1 --- the supergeo design
 -------------------------------
 
@@ -244,9 +264,9 @@ window,
 .. math::
    :label: score
 
-   c(p) = \sum_{t\in\mathcal E}\big(g_{p,t}-\bar g_p\big)^2,
+   c(p) \coloneqq \sum_{t\in\mathcal E}\big(g_{p,t}-\bar g_p\big)^2,
    \qquad
-   \bar g_p = \frac{1}{|\mathcal E|}\sum_{t\in\mathcal E} g_{p,t},
+   \bar g_p \coloneqq \frac{1}{|\mathcal E|}\sum_{t\in\mathcal E} g_{p,t},
 
 which is exactly the pre-period residual sum of squares of a
 difference-in-differences fit (cf.
@@ -256,16 +276,16 @@ under :eq:`gapdecomp` with balanced covariates,
 .. math::
 
    \mathbb E\,c(p)
-     = \big(\bar\mu_{A_p}-\bar\mu_{B_p}\big)^{\top}
-       \Big[\textstyle\sum_{t\in\mathcal E}(\lambda_t-\bar\lambda)
-            (\lambda_t-\bar\lambda)^{\top}\Big]
-       \big(\bar\mu_{A_p}-\bar\mu_{B_p}\big)
+     = \big(\bar{\boldsymbol{\mu}}_{A_p}-\bar{\boldsymbol{\mu}}_{B_p}\big)^{\top}
+       \Big[\textstyle\sum_{t\in\mathcal E}(\boldsymbol{\lambda}_t-\bar{\boldsymbol{\lambda}})
+            (\boldsymbol{\lambda}_t-\bar{\boldsymbol{\lambda}})^{\top}\Big]
+       \big(\bar{\boldsymbol{\mu}}_{A_p}-\bar{\boldsymbol{\mu}}_{B_p}\big)
      \;+\; \mathbb E\!\sum_{t\in\mathcal E}
        \big(\bar\varepsilon_{A_p,t}-\bar\varepsilon_{B_p,t}-\overline{\cdot}\big)^2 .
 
 The first term is a positive-definite quadratic form in the loading
 imbalance, so minimising :eq:`score` drives
-:math:`\bar\mu_{A_p}\to\bar\mu_{B_p}` --- it balances the *unobserved*
+:math:`\bar{\boldsymbol{\mu}}_{A_p}\to\bar{\boldsymbol{\mu}}_{B_p}` --- it balances the *unobserved*
 factor loadings, which is what parallel-trends DiD requires. The
 time-constant component of the loading difference is absorbed by the level
 shift :math:`\bar g_p` and never penalised: two supergeos may differ
@@ -278,7 +298,7 @@ The set-partitioning program
 Let :math:`\mathcal F` be the family of admissible pairs: every subset
 of the arm's geos of size :math:`2,\dots,2Q` that can be split into two
 halves each of size :math:`\le Q`, each subset scored at its best such split
-by :eq:`score`. Let :math:`M\in\{0,1\}^{N\times|\mathcal F|}` be the geo-by-
+by :eq:`score`. Let :math:`\mathbf{M}\in\{0,1\}^{N\times|\mathcal F|}` be the geo-by-
 pair incidence matrix (:math:`M_{iG}=1` iff geo :math:`i\in G`) and
 :math:`c_G` the score of pair :math:`G`. The design solves the
 set-partitioning program
@@ -286,15 +306,15 @@ set-partitioning program
 .. math::
    :label: mip
 
-   \min_{x\in\{0,1\}^{|\mathcal F|}} \sum_{G\in\mathcal F} c_G\,x_G
+   \min_{\mathbf{x}\in\{0,1\}^{|\mathcal F|}} \sum_{G\in\mathcal F} c_G\,x_G
    \quad\text{s.t.}\quad
-   M x = \mathbf 1 \ \ (\text{exact cover}),\qquad
-   \mathbf 1^{\top} x \ge \kappa_{\min}\ \ (\text{minimum pairs}),
+   \mathbf{M}\mathbf{x} = \mathbf 1 \ \ (\text{exact cover}),\qquad
+   \mathbf 1^{\top} \mathbf{x} \ge \kappa_{\min}\ \ (\text{minimum pairs}),
 
 solved with ``cvxpy`` and the HiGHS mixed-integer backend. The exact-cover
-constraint :math:`Mx=\mathbf 1` assigns every geo to exactly one chosen
+constraint :math:`\mathbf{M}\mathbf{x}=\mathbf 1` assigns every geo to exactly one chosen
 pair (no geo is trimmed). Because each :math:`c_G` is *precomputed* offline,
-the objective is linear in :math:`x` --- the program is a mixed-integer
+the objective is linear in :math:`\mathbf{x}` --- the program is a mixed-integer
 *linear* program regardless of the (possibly nonlinear) per-pair cost,
 which is what keeps it tractable. Within each chosen pair the treatment and
 control halves are the score-minimising split; which half is actually
@@ -374,7 +394,7 @@ achieved per-pair SMDs are reported in ``SupergeoPair.covariate_smd``. Pass
 ``covariates=[...]`` (baseline columns, each reduced to its per-geo mean) to
 enable; with no covariates the design is unchanged. This is also the
 Abadie & Zhao (2026, Thm. 1) prescription --- moving structure from the
-unobserved :math:`\mu_i` into the observed :math:`Z_i` lowers the
+unobserved :math:`\boldsymbol{\mu}_i` into the observed :math:`\mathbf{z}_i` lowers the
 estimator's bias --- and the Stage-2 device for restoring inferential
 validity (below).
 
@@ -407,14 +427,14 @@ model used at evaluation* (:eq:`adid`) --- fit on the estimation window
 
 .. math::
 
-   \hat\sigma_p^2
-     = \frac{1}{|\mathcal B|-1}\sum_{t\in\mathcal B} \hat e_{p,t}^2 .
+   \widehat\sigma_p^2
+     \coloneqq \frac{1}{|\mathcal B|-1}\sum_{t\in\mathcal B} \widehat e_{p,t}^2 .
 
 Using the evaluation model here (the augmented-DiD residual by default,
 or the plain level-removed gap when ``att_augment=False``) rather than a
 fixed recipe keeps the projected MDE and the realised standard error
 (:eq:`adidvar`) coherent. The :math:`X`-period effect for the pair then has
-variance :math:`\hat\sigma_p^2\,[f(X,\rho)+f(T_0,\rho)]`, where
+variance :math:`\widehat\sigma_p^2\,[f(X,\rho)+f(T_0,\rho)]`, where
 
 .. math::
 
@@ -434,11 +454,11 @@ effects, with weights
 
 .. math::
 
-   \widehat{\operatorname{Var}}(\hat\tau_{\mathrm{prog}})
-     = \sum_p w_p^2\,\hat\sigma_p^2\,\big[f(X,\rho)+f(T_0,\rho)\big],
+   \widehat{\operatorname{Var}}(\widehat\tau_{\mathrm{prog}})
+     = \sum_p w_p^2\,\widehat\sigma_p^2\,\big[f(X,\rho)+f(T_0,\rho)\big],
    \qquad
    \mathrm{MDE}(X) = \big(z_{1-\alpha/2}+z_{1-\beta}\big)\,
-       \sqrt{\widehat{\operatorname{Var}}(\hat\tau_{\mathrm{prog}})}.
+       \sqrt{\widehat{\operatorname{Var}}(\widehat\tau_{\mathrm{prog}})}.
 
 The program level is the headline: small arms are individually
 under-powered (with :math:`P` pairs a pure within-pair randomisation test
@@ -491,15 +511,15 @@ counterfactual is the pre-period least-squares projection
 This *augments* plain DiD in two ways: the control scale :math:`\delta_2` is
 estimated rather than fixed at :math:`1`, and a linear time trend
 :math:`\gamma t` is included (``att_augment`` and ``att_trend``, both default
-``True``). With regressor :math:`x_t=(1,\,y^{C}_t,\,t)^{\top}` and OLS
-estimate :math:`\hat\delta`, the per-period effect and the ATT are
+``True``). With regressor :math:`\mathbf{x}_t=(1,\,y^{C}_t,\,t)^{\top}` and OLS
+estimate :math:`\widehat{\boldsymbol{\delta}}`, the per-period effect and the ATT are
 
 .. math::
 
-   \hat u_t = y^{T}_t - x_t^{\top}\hat\delta,
+   \widehat u_t \coloneqq y^{T}_t - \mathbf{x}_t^{\top}\widehat{\boldsymbol{\delta}},
    \qquad
-   \hat\Delta = \frac{1}{T_{\mathrm{post}}}
-       \sum_{t=T_0+1}^{T} \hat u_t .
+   \widehat\tau \coloneqq \frac{1}{T_{\mathrm{post}}}
+       \sum_{t=T_0+1}^{T} \widehat u_t .
 
 The percent ATT is taken relative to the post-period counterfactual
 (cf. :func:`mlsynth.utils.resultutils.effects.calculate`), not the
@@ -507,50 +527,50 @@ pre-treatment baseline:
 
 .. math::
 
-   \hat\Delta_{\%} = 100\times\frac{\hat\Delta}{\bar y^{0}_{\mathrm{post}}},
+   \widehat\tau_{\%} \coloneqq 100\times\frac{\widehat\tau}{\bar y^{0}_{\mathrm{post}}},
    \qquad
    \bar y^{0}_{\mathrm{post}}
-     = \frac{1}{T_{\mathrm{post}}}\sum_{t=T_0+1}^{T} x_t^{\top}\hat\delta
-     = \frac{1}{T_{\mathrm{post}}}\sum_{t=T_0+1}^{T}\big(y^{T}_t-\hat u_t\big).
+     \coloneqq \frac{1}{T_{\mathrm{post}}}\sum_{t=T_0+1}^{T} \mathbf{x}_t^{\top}\widehat{\boldsymbol{\delta}}
+     = \frac{1}{T_{\mathrm{post}}}\sum_{t=T_0+1}^{T}\big(y^{T}_t-\widehat u_t\big).
 
 Inference
 ^^^^^^^^^
 
 Li & Van den Bulte (2022, Prop. 3.1--3.3) show
-:math:`\sqrt{T_{\mathrm{post}}}\,(\hat\Delta-\Delta)\xrightarrow{d}
+:math:`\sqrt{T_{\mathrm{post}}}\,(\widehat\tau-\tau)\xrightarrow{d}
 N(0,\Sigma_1+\Sigma_2)`, where :math:`\Sigma_1` is the variance from
-estimating :math:`\delta` and :math:`\Sigma_2` from averaging the
+estimating :math:`\boldsymbol{\delta}` and :math:`\Sigma_2` from averaging the
 post-period errors. Their Web Appendix C.13 gives the
 prediction-variance estimator
 
 .. math::
    :label: adidvar
 
-   \widehat{\operatorname{Var}}(\hat\Delta)
-     = \hat\omega^2\Big[\,
-         \bar x_{\mathrm{post}}^{\top}
-         \Big(\textstyle\sum_{t=1}^{T_0} x_t x_t^{\top}\Big)^{-1}
-         \bar x_{\mathrm{post}}
+   \widehat{\operatorname{Var}}(\widehat\tau)
+     = \widehat\omega^2\Big[\,
+         \bar{\mathbf{x}}_{\mathrm{post}}^{\top}
+         \Big(\textstyle\sum_{t=1}^{T_0} \mathbf{x}_t \mathbf{x}_t^{\top}\Big)^{-1}
+         \bar{\mathbf{x}}_{\mathrm{post}}
          \;+\; \frac{1}{T_{\mathrm{post}}}\Big],
 
-with :math:`\bar x_{\mathrm{post}}=T_{\mathrm{post}}^{-1}\sum_{t>T_0}x_t`.
+with :math:`\bar{\mathbf{x}}_{\mathrm{post}}=T_{\mathrm{post}}^{-1}\sum_{t>T_0}\mathbf{x}_t`.
 The first bracketed term is :math:`\Sigma_1` (it inflates automatically when
 the post-period control drifts outside its pre-period range, pricing the
 extrapolation uncertainty) and the second is :math:`\Sigma_2`. The residual
-variance :math:`\hat\omega^2` is estimated over the long pre-period as a
+variance :math:`\widehat\omega^2` is estimated over the long pre-period as a
 Newey--West/Bartlett long-run variance with truncation lag
 :math:`\lfloor T_0^{1/4}\rfloor` (Li & Van den Bulte's
 :math:`O(T^{1/4})` rule); lag :math:`0` is the i.i.d. case
-:math:`\hat\omega^2=\hat e^{\top}\hat e/(T_0-k)` for :math:`k` regressors.
+:math:`\widehat\omega^2=\widehat e^{\top}\widehat e/(T_0-k)` for :math:`k` regressors.
 The confidence interval is
-:math:`\hat\Delta \pm z_{1-\alpha/2}\sqrt{\widehat{\operatorname{Var}}(\hat\Delta)}`
-and the p-value is the two-sided normal test of :math:`\Delta=0`.
+:math:`\widehat\tau \pm z_{1-\alpha/2}\sqrt{\widehat{\operatorname{Var}}(\widehat\tau)}`
+and the p-value is the two-sided normal test of :math:`\tau=0`.
 
 Why this estimator suits the supergeo gap
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Li & Van den Bulte's regularity conditions (Assumptions C2--C3) explicitly
-admit trend and unit-root (integrated) common factors :math:`\lambda_t`
+admit trend and unit-root (integrated) common factors :math:`\boldsymbol{\lambda}_t`
 --- the regimes under which naive i.i.d. standard errors collapse. The
 mechanism is the augmentation: regressing the treated aggregate on a
 *scaled* control is a cointegrating regression, and a single
@@ -609,7 +629,7 @@ regressor recover most of the coverage lost to a deterministic trend and
 seasonality; and the adversarial random-walk-plus-seasonality gap, where two
 integrated factors and amplitude-heterogeneous seasonality exceed what a
 single :math:`\delta_2` can cointegrate, marks the honest assumption
-boundary. In practice the fitted :math:`\hat\delta_2` (reported as
+boundary. In practice the fitted :math:`\widehat\delta_2` (reported as
 ``AttEstimate.scale``) and the residual diagnose whether the assumption
 holds; if a single scale cannot flatten the gap, add covariate or seasonal
 regressors before trusting the interval.
