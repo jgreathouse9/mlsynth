@@ -10,9 +10,9 @@ The classic synthetic control method (SCM) of Abadie, Diamond and Hainmueller
 [ABADIE2010]_ builds a counterfactual as a convex combination of donor
 units -- weights on the simplex, no intercept. That convex hull restriction is
 what makes SCM interpretable and robust, but it is also brittle when the donor
-pool is large relative to the pre-period: with :math:`N` donors and only
-:math:`T_1` pre-periods, the least-squares fit underlying SCM is
-under-determined once :math:`N \gtrsim T_1`, the weights become unstable, and
+pool is large relative to the pre-period: with :math:`N_0` donors and only
+:math:`T_0` pre-periods, the least-squares fit underlying SCM is
+under-determined once :math:`N_0 \gtrsim T_0`, the weights become unstable, and
 many "equally good" solutions exist.
 
 ``RESCM`` is a single convex program that nests a whole family of SCM
@@ -21,8 +21,8 @@ continuously from classic SCM all the way to difference-in-differences (equal
 weights), and pick the corner that suits your data. Two branches are exposed,
 each with the estimation/inference theory of its own paper:
 
-* Penalized branch -- :math:`\min \tfrac{1}{2}\|y_0 - \mu - Y\omega\|_2^2 +
-  P(\omega)` with :math:`P` an :math:`\ell_1` / :math:`\ell_2` /
+* Penalized branch -- :math:`\min \tfrac{1}{2}\|\mathbf{y}_1 - \mu - \mathbf{Y}_0\boldsymbol{\omega}\|_2^2 +
+  P(\boldsymbol{\omega})` with :math:`P` an :math:`\ell_1` / :math:`\ell_2` /
   :math:`\ell_\infty` (or mixed) penalty. The :math:`\ell_\infty` member is the
   L-infinity-norm SCM of Wang, Xing and Ye [LinfSC]_, which *spreads*
   weight across donors (capping the largest weight) rather than concentrating
@@ -30,10 +30,10 @@ each with the estimation/inference theory of its own paper:
   and equal-weights/DiD is the heavy-:math:`\ell_\infty` limit
   [DoudchenkoImbens2017]_.
 * Relaxation branch -- the SCM-relaxation of Liao, Shi and Zheng
-  [RelaxSC]_: keep the simplex :math:`\omega \in \Delta_J`, but *relax* the
+  [RelaxSC]_: keep the simplex :math:`\boldsymbol{\omega} \in \Delta^{N_0}`, but *relax* the
   exact balance first-order condition to an :math:`\ell_\infty` tolerance
   :math:`\eta`, then among all weights satisfying the relaxed condition pick the
-  one minimizing an information-theoretic divergence :math:`D(\omega)`
+  one minimizing an information-theoretic divergence :math:`D(\boldsymbol{\omega})`
   (squared :math:`\ell_2`, entropy, or empirical likelihood). The divergence
   picks a unique, stable weight (e.g. closest-to-uniform), and under a latent
   group structure recovers equal-within-group weights.
@@ -60,25 +60,32 @@ panel. Pick estimators by name through ``methods``.
 Notation
 --------
 
-We use the synthetic-control canon. Unit :math:`j=0` is treated and
-:math:`\mathcal{N} = \{1, \ldots, N\}` indexes the donors; :math:`\mathbf{y}_0`
-is the treated outcome and :math:`\mathbf{Y} = (y_{jt})` the
-:math:`T \times N` donor matrix. The intervention occurs after the pre-period
-:math:`\mathcal{T}_1 = \{1, \ldots, T_1\}`; the post-period is
-:math:`\mathcal{T}_2 = \{T_1+1, \ldots, T\}` with :math:`T_2 = |\mathcal{T}_2|`.
-Donor weights :math:`\boldsymbol{\omega} = (\omega_1, \ldots, \omega_N)'` live
-on the simplex :math:`\Delta_N = \{\boldsymbol{\omega} : \omega_j \ge 0,\,
+We use the synthetic-control canon. Let :math:`j = 1` denote the treated unit,
+with all units :math:`\mathcal{N} \coloneqq \{1, \ldots, N\}` and donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of cardinality
+:math:`N_0`; :math:`\mathbf{y}_1` is the treated outcome and
+:math:`\mathbf{Y}_0 = (y_{jt})_{j \in \mathcal{N}_0}` the
+:math:`T \times N_0` donor matrix. Time runs over
+:math:`t \in \mathcal{T} \coloneqq \{1, \ldots, T\}`, 1-indexed; the
+intervention takes effect after period :math:`T_0`, splitting :math:`\mathcal{T}`
+into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`|\mathcal{T}_1| = T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}` (of length
+:math:`|\mathcal{T}_2| = T - T_0`).
+Donor weights :math:`\boldsymbol{\omega} = (\omega_1, \ldots, \omega_{N_0})'` live
+on the simplex :math:`\Delta^{N_0} = \{\boldsymbol{\omega} : \omega_j \ge 0,\,
 \sum_j \omega_j = 1\}` (relaxation branch) or are penalized (penalized branch);
 :math:`\mu` is an optional intercept. The counterfactual is
-:math:`\hat{y}_{0t}^0 = \mu + \mathbf{Y}_{t\cdot}\,\boldsymbol{\omega}`, the
-effect :math:`\hat{\Delta}_t = y_{0t} - \hat{y}_{0t}^0`, and the ATE
-:math:`\bar{\Delta} = T_2^{-1}\sum_{t\in\mathcal{T}_2}\hat{\Delta}_t`.
+:math:`\widehat{y}_{1t}^N = \mu + \mathbf{Y}_{0,t\cdot}\,\boldsymbol{\omega}`, the
+per-period effect :math:`\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}^N`, and the
+ATT :math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t`.
 :math:`\|\mathbf{A}\|_\infty = \max_{ij}|a_{ij}|`. With pre-period donor Gram
-matrix :math:`\hat{\boldsymbol{\Sigma}} = T_1^{-1}\sum_{t\in\mathcal{T}_1}
-\mathbf{Y}_{t\cdot}'\mathbf{Y}_{t\cdot}` and cross-moment
-:math:`\hat{\boldsymbol{\Upsilon}} = T_1^{-1}\sum_{t\in\mathcal{T}_1}
-\mathbf{Y}_{t\cdot}' y_{0t}`, the SCM least-squares first-order condition is
-:math:`\hat{\boldsymbol{\Sigma}}\boldsymbol{\omega} = \hat{\boldsymbol{\Upsilon}}`.
+matrix :math:`\widehat{\boldsymbol{\Sigma}} = T_0^{-1}\sum_{t\in\mathcal{T}_1}
+\mathbf{Y}_{0,t\cdot}'\mathbf{Y}_{0,t\cdot}` and cross-moment
+:math:`\widehat{\boldsymbol{\Upsilon}} = T_0^{-1}\sum_{t\in\mathcal{T}_1}
+\mathbf{Y}_{0,t\cdot}' y_{1t}`, the SCM least-squares first-order condition is
+:math:`\widehat{\boldsymbol{\Sigma}}\boldsymbol{\omega} = \widehat{\boldsymbol{\Upsilon}}`.
 
 The unified convex program
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -90,7 +97,7 @@ penalized form fits the in-sample loss with a regularizer,
 
    \min_{\mu,\,\boldsymbol{\omega}\in\mathcal{C}} \;
      \tfrac{1}{2}\sum_{t\in\mathcal{T}_1}
-       \bigl(y_{0t} - \mu - \mathbf{Y}_{t\cdot}\boldsymbol{\omega}\bigr)^2
+       \bigl(y_{1t} - \mu - \mathbf{Y}_{0,t\cdot}\boldsymbol{\omega}\bigr)^2
      + \lambda\Bigl[\alpha\|\boldsymbol{\omega}\|_1
        + (1-\alpha)\,Q(\boldsymbol{\omega})\Bigr],
    \qquad Q \in \{\tfrac{1}{2}\|\cdot\|_2^2,\; \|\cdot\|_\infty\},
@@ -102,10 +109,10 @@ subject to a relaxed balance condition,
 
 .. math::
 
-   \min_{\boldsymbol{\omega}\in\Delta_N} \; D(\boldsymbol{\omega})
+   \min_{\boldsymbol{\omega}\in\Delta^{N_0}} \; D(\boldsymbol{\omega})
    \quad\text{s.t.}\quad
-   \bigl\|\hat{\boldsymbol{\Sigma}}\boldsymbol{\omega}
-     - \hat{\boldsymbol{\Upsilon}}\bigr\|_\infty \le \eta,
+   \bigl\|\widehat{\boldsymbol{\Sigma}}\boldsymbol{\omega}
+     - \widehat{\boldsymbol{\Upsilon}}\bigr\|_\infty \le \eta,
    \qquad
    D \in \Bigl\{\tfrac{1}{2}\|\boldsymbol{\omega}\|_2^2,\;
      \textstyle\sum_j \omega_j\log\omega_j,\;
@@ -129,7 +136,7 @@ largest weight, so minimizing it (under the simplex) pushes the solution
 toward *spreading* weight across donors -- in the limit, equal weights. The
 mixed :math:`\ell_1 + \ell_\infty` penalty (``L1LINF``) trades sparsity against
 spreading. Both shrink toward a stable, dense counterfactual that tolerates
-:math:`N > T_1`.
+:math:`N_0 > T_0`.
 
 Assumptions (Wang, Xing & Ye [LinfSC]_).
 
@@ -151,38 +158,38 @@ on the pre-period.
 
 *Remark.* The :math:`\ell_\infty` cap is what buys stability in high
 dimensions: by refusing to let any single weight dominate, the estimator's
-prediction variance stays controlled even when :math:`N \gg T_1`, where the
+prediction variance stays controlled even when :math:`N_0 \gg T_0`, where the
 unconstrained least-squares (and concentrated classic SCM) solutions degrade.
 This is the synthetic-control analogue of the L2-relaxation argument for dense
 coefficients.
 
-Inference. Wang, Xing and Ye extend the synthetic-control ATE inference of
+Inference. Wang, Xing and Ye extend the synthetic-control ATT inference of
 Li [LiSCM2020]_ to the dense, weakly dependent setting. With fixed weights the
-post-period gap :math:`\hat{\Delta}_t` has mean :math:`\bar{\Delta}`, and
+post-period gap :math:`\tau_t` has mean :math:`\widehat{\tau}`, and
 
 .. math::
 
-   \hat{Z} = \frac{\bar{\Delta}}
-       {\sqrt{\hat{\rho}^2_{(1)}/T_1 + \hat{\rho}^2_{(2)}/T_2}}
+   \widehat{Z} = \frac{\widehat{\tau}}
+       {\sqrt{\widehat{\rho}^2_{(1)}/T_0 + \widehat{\rho}^2_{(2)}/|\mathcal{T}_2|}}
    \xrightarrow{d} N(0,1),
 
-with :math:`\hat{\rho}^2_{(1)}` the HAC long-run variance of the pre-period
+with :math:`\widehat{\rho}^2_{(1)}` the HAC long-run variance of the pre-period
 prediction residuals (first-stage weight-estimation uncertainty) and
-:math:`\hat{\rho}^2_{(2)}` that of the de-meaned post-period effects. This is
+:math:`\widehat{\rho}^2_{(2)}` that of the de-meaned post-period effects. This is
 the two-term variance ``RESCM`` uses for all corner cases (see *Inference*
 below).
 
 When to use. Dense, factor-driven donor structure; high dimension
-(:math:`N>T_1` permitted); when you want a counterfactual robust to any single
+(:math:`N_0>T_0` permitted); when you want a counterfactual robust to any single
 donor's idiosyncrasies rather than a sparse, concentrated fit.
 
 Relaxation branch: SCM-relaxation (Liao, Shi & Zheng)
 -----------------------------------------------------
 
 Idea. Classic SCM solves a least-squares problem whose first-order
-condition is :math:`\hat{\boldsymbol{\Sigma}}\boldsymbol{\omega} =
-\hat{\boldsymbol{\Upsilon}}` -- exact balance of the donor moments. When
-:math:`N` is large this condition is over-strict: it is satisfied (or nearly
+condition is :math:`\widehat{\boldsymbol{\Sigma}}\boldsymbol{\omega} =
+\widehat{\boldsymbol{\Upsilon}}` -- exact balance of the donor moments. When
+:math:`N_0` is large this condition is over-strict: it is satisfied (or nearly
 so) by a continuum of weights, and the chosen one is arbitrary and unstable.
 SCM-relaxation keeps the simplex but relaxes the balance condition to an
 :math:`\ell_\infty` tolerance :math:`\eta`, then selects, among all admissible
@@ -190,11 +197,11 @@ weights, the one minimizing a divergence :math:`D(\boldsymbol{\omega})`:
 
 .. math::
 
-   \hat{\boldsymbol{\omega}} = \operatorname*{argmin}_{\boldsymbol{\omega}\in\Delta_N}
+   \widehat{\boldsymbol{\omega}} = \operatorname*{argmin}_{\boldsymbol{\omega}\in\Delta^{N_0}}
      D(\boldsymbol{\omega})
    \quad\text{s.t.}\quad
-   \bigl\|\hat{\boldsymbol{\Sigma}}\boldsymbol{\omega}
-     - \hat{\boldsymbol{\Upsilon}}\bigr\|_\infty \le \eta.
+   \bigl\|\widehat{\boldsymbol{\Sigma}}\boldsymbol{\omega}
+     - \widehat{\boldsymbol{\Upsilon}}\bigr\|_\infty \le \eta.
 
 The divergence breaks the tie deterministically: :math:`\ell_2`
 (``RELAX_L2``) picks the minimum-norm weight, entropy (``RELAX_ENTROPY``)
@@ -216,8 +223,8 @@ unique minimizer -- this is what restores well-posedness when the exact balance
 condition does not.
 
 *Assumption 3 (weak dependence and moments).* The errors are weakly dependent
-with bounded moments, so sample moments :math:`\hat{\boldsymbol{\Sigma}},
-\hat{\boldsymbol{\Upsilon}}` converge and a post-period CLT applies.
+with bounded moments, so sample moments :math:`\widehat{\boldsymbol{\Sigma}},
+\widehat{\boldsymbol{\Upsilon}}` converge and a post-period CLT applies.
 
 *Remark.* The key result (oracle prediction) is that the relaxed weight
 predicts the treated counterfactual as well as the infeasible oracle that knows
@@ -226,7 +233,7 @@ selected weight is equal within groups -- a transparent, interpretable
 solution that the arbitrary classic-SCM tie-break does not deliver.
 
 Inference. Liao, Shi and Zheng's main theory concerns *prediction*
-consistency (the oracle property). For an ATE confidence interval ``mlsynth``
+consistency (the oracle property). For an ATT confidence interval ``mlsynth``
 applies the same weak-dependence two-term HAC test as the penalized branch
 (Li [LiSCM2020]_), treating the relaxed weights as the fixed first stage. See
 the caveat under *Verification*.
@@ -289,7 +296,7 @@ untreated outcome obeys
 
    y_{jt}^N \;=\; \boldsymbol\lambda_j' \mathbf f_t
               \;+\; u_{jt},
-   \qquad j \in \{0\} \cup [J], \;\; t \in \mathcal T,
+   \qquad j \in \{1\} \cup \mathcal{N}_0, \;\; t \in \mathcal T,
 
 with :math:`\mathbf f_t` an :math:`r`-vector of latent common
 factors, :math:`\boldsymbol\lambda_j` a unit-specific loading,
@@ -299,7 +306,7 @@ what makes the treated unit's untreated outcome a (dense) linear
 combination of the donors' outcomes plus an orthogonal error.
 
 A2 (Single treated unit, sharp absorbing treatment). Unit
-:math:`j = 0` is the only treated unit; treatment turns on at
+:math:`j = 1` is the only treated unit; treatment turns on at
 :math:`T_0 + 1` and stays on. Donors are untreated throughout
 (no interference). Both papers' main theorems are stated for the
 single-treated case; multi-treated extensions exist
@@ -317,20 +324,20 @@ exponential decay in correlation rates; the Liao-Shi-Zheng
 theory uses an :math:`\alpha`-mixing CLT.
 
 A4 (High-dimensional sample-size regime). :math:`T_0 \to
-\infty` and :math:`N` may grow (potentially :math:`N \gg T_0`),
+\infty` and :math:`N_0` may grow (potentially :math:`N_0 \gg T_0`),
 which is the entire point of regularizing toward a dense
 solution. The classical-SCM least-squares first-order condition
-:math:`\hat{\boldsymbol\Sigma} \boldsymbol\omega =
-\hat{\boldsymbol\Upsilon}` is under-determined once
-:math:`N \gtrsim T_0`; both branches restore well-posedness, but
+:math:`\widehat{\boldsymbol\Sigma} \boldsymbol\omega =
+\widehat{\boldsymbol\Upsilon}` is under-determined once
+:math:`N_0 \gtrsim T_0`; both branches restore well-posedness, but
 do so under the same growth regime.
 
 A5 (Treated unit (approximately) in the convex hull of donor
-loadings). The treated loading :math:`\boldsymbol\lambda_0` is
+loadings). The treated loading :math:`\boldsymbol\lambda_1` is
 spanned by the donor loadings up to an approximation error that
 the regularization tolerance (:math:`\lambda` for penalized,
 :math:`\eta` for relaxation) absorbs. *Remark.* If
-:math:`\boldsymbol\lambda_0` is structurally outside the donor
+:math:`\boldsymbol\lambda_1` is structurally outside the donor
 hull -- even after relaxation -- both branches fail. Use
 :doc:`iscm`.
 
@@ -369,7 +376,7 @@ well-posedness fix that distinguishes RESCM-relaxation from
 classical SCM in the under-determined regime.
 
 When the assumptions bind: practical diagnostics
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (a) Latent factor model (A1). Both branches lean on the
     factor structure. If the panel is not well-described by a
@@ -404,17 +411,17 @@ When the assumptions bind: practical diagnostics
 
 (c) Sample-size regime (A4). Both branches' asymptotics
     require :math:`T_0` large. The Verification section's
-    Monte Carlo documents what happens at :math:`T_0 < N`: the
+    Monte Carlo documents what happens at :math:`T_0 < N_0`: the
     point estimate is unbiased and powerful, but the analytic
     two-term variance over-rejects (the normal approximation
     has not kicked in).
 
-    *Plausibly violated when* :math:`T_0 \le N` or
+    *Plausibly violated when* :math:`T_0 \le N_0` or
     :math:`T_0 < 50`-ish. *Diagnostic*: read ``res.pre_rmse``
     against the donor noise floor (the mean leave-one-out
     pre-RMSE across donors); if treated pre-RMSE is much
     smaller, the estimator is over-fitting and
-    :math:`\hat\rho^2_{(1)}` understates uncertainty. Report
+    :math:`\widehat{\rho}^2_{(1)}` understates uncertainty. Report
     a placebo / conformal CI (e.g. via *canonical SCM* with
     permutation inference) alongside the analytic CI.
 
@@ -477,12 +484,12 @@ When the assumptions bind: practical diagnostics
     Monte-Carlo noise on well-behaved panels.
 
 When to use RESCM -- and when not to
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Reach for RESCM when:
 
 * You have a single treated unit and a large donor pool
-  (:math:`N` comparable to or exceeding :math:`T_0`), and a
+  (:math:`N_0` comparable to or exceeding :math:`T_0`), and a
   factor-driven panel where many donors plausibly carry
   signal. Classical SCM concentrates weight on a few donors;
   the dense-shrinkage variants in RESCM diversify prediction
@@ -499,7 +506,7 @@ Reach for RESCM when:
   ``methods`` argument selects estimators by name; each maps
   to one call of the same convex engine.
 * You want HAC-based, classical-statistics inference
-  (Li 2020 two-term standard errors) on the ATE rather than a
+  (Li 2020 two-term standard errors) on the ATT rather than a
   permutation or conformal procedure. Note the
   finite-sample-inference caveat below.
 
@@ -518,7 +525,7 @@ Do not use RESCM when:
   (identifies the effect through donors that use the treated
   unit as a positive-weight donor in their own synthetic
   controls) or :doc:`nsc` (drops the simplex restriction).
-* Very short pre-period :math:`(T_0 < N)`. The Path-B
+* Very short pre-period :math:`(T_0 < N_0)`. The Path-B
   Monte Carlo in the Verification section above documents
   the over-rejection: the analytic two-term variance has not
   kicked in. Either lengthen the pre-period (aggregate to a
@@ -539,7 +546,7 @@ Do not use RESCM when:
   single binary intervention; continuous dose belongs in
   :doc:`ctsc`.
 * Distributional questions (Lorenz curves, QTEs, tail
-  effects). RESCM targets the mean ATE through a Gaussian-
+  effects). RESCM targets the mean ATT through a Gaussian-
   likelihood linear projection. Use :doc:`dsc` for
   distributional effects.
 * You need Bayesian posterior credible bands. RESCM
@@ -558,8 +565,8 @@ Do not use RESCM when:
   factors) estimated and reported. RESCM is agnostic to
   factor estimation -- the factor model only motivates the
   linear projection and never enters the estimator. For
-  factor-aware estimators that surface :math:`\hat F` and
-  :math:`\hat\Lambda`, use :doc:`fma` or :doc:`clustersc`
+  factor-aware estimators that surface :math:`\widehat{F}` and
+  :math:`\widehat{\Lambda}`, use :doc:`fma` or :doc:`clustersc`
   (which exposes the HSVT rank in its results).
 * Donor selection is the bottleneck, not weight
   shrinkage. If you have a small number of donors and want
@@ -575,24 +582,24 @@ Inference
 ---------
 
 Once the donor weights are fixed by any corner case, the post-period gap
-:math:`\hat{\Delta}_t = y_{0t} - \hat{y}_{0t}^0` is a scalar series whose mean
-is the ATE. ``RESCM`` reports the Li [LiSCM2020]_ two-term long-run variance
+:math:`\tau_t = y_{1t} - \widehat{y}_{1t}^N` is a scalar series whose mean
+is the ATT. ``RESCM`` reports the Li [LiSCM2020]_ two-term long-run variance
 used by the L-infinity paper,
 
 .. math::
 
-   \widehat{\mathrm{se}}(\bar{\Delta}) =
-     \sqrt{\hat{\rho}^2_{(1)}/T_1 + \hat{\rho}^2_{(2)}/T_2},
+   \widehat{\mathrm{se}}(\widehat{\tau}) =
+     \sqrt{\widehat{\rho}^2_{(1)}/T_0 + \widehat{\rho}^2_{(2)}/|\mathcal{T}_2|},
 
-where :math:`\hat{\rho}^2_{(1)}` is the HAC long-run variance of the pre-period
+where :math:`\widehat{\rho}^2_{(1)}` is the HAC long-run variance of the pre-period
 prediction residuals -- carrying the first-stage weight-estimation
-uncertainty -- and :math:`\hat{\rho}^2_{(2)}` is the HAC long-run variance of
+uncertainty -- and :math:`\widehat{\rho}^2_{(2)}` is the HAC long-run variance of
 the de-meaned post-period effects (Bartlett kernel, :math:`\lfloor
-T_2^{1/4}\rfloor` lag). The pre-period term is essential for dense
+|\mathcal{T}_2|^{1/4}\rfloor` lag). The pre-period term is essential for dense
 penalized/relaxed weights: unlike forward-selection PDA -- whose sample
 splitting makes pre/post asymptotically independent and lets a post-only
 variance suffice -- the dense estimators reuse the entire pre-window to fit the
-weights, so dropping :math:`\hat{\rho}^2_{(1)}` understates the standard error.
+weights, so dropping :math:`\widehat{\rho}^2_{(1)}` understates the standard error.
 
 Empirical Illustration: California's Proposition 99
 ---------------------------------------------------
@@ -601,7 +608,7 @@ The canonical synthetic-control application [ABADIE2010]_ studies the effect of
 California's 1988 Proposition 99 tobacco-control program on per-capita cigarette
 sales, with 38 control states over 1970-2000. Running ``RESCM`` with the
 classic ``SC`` corner alongside the two papers' headline estimators reuses the
-same panel and returns each method's counterfactual, ATE, and a HAC confidence
+same panel and returns each method's counterfactual, ATT, and a HAC confidence
 interval.
 
 .. code-block:: python
@@ -651,10 +658,10 @@ Verification
    literature.
 
    Simulation (Path B, high dimension). A size/power Monte Carlo in the
-   regime these methods target -- :math:`N=90` donors, :math:`T_1=36`
-   pre-periods (:math:`N \gg T_1`), :math:`T_2=36`, three-factor AR(1) DGP,
+   regime these methods target -- :math:`N_0=90` donors, :math:`T_0=36`
+   pre-periods (:math:`N_0 \gg T_0`), :math:`|\mathcal{T}_2|=36`, three-factor AR(1) DGP,
    treated loading a convex mix of donors, idiosyncratic :math:`N(0,1)` --
-   rejecting ``H0: ATE = 0`` at 5% (50 replications; :math:`\delta=0` is size,
+   rejecting ``H0: ATT = 0`` at 5% (50 replications; :math:`\delta=0` is size,
    :math:`\delta=1` is power):
 
    .. list-table::
@@ -675,16 +682,16 @@ Verification
         - 0.94
 
    Estimation is unbiased and powerful (mean ATT bias :math:`\approx 0`;
-   power :math:`0.94`-:math:`0.98`), but the analytic ATE test over-rejects
+   power :math:`0.94`-:math:`0.98`), but the analytic ATT test over-rejects
    in this short, high-dimensional panel. A diagnostic isolates two mechanisms:
    ``SC`` genuinely over-fits the 36-period pre-window (pre-RMSE :math:`0.77` vs
-   the true noise sd :math:`1.0`), so :math:`\hat{\rho}^2_{(1)}` understates
-   estimation uncertainty -- it self-corrects as :math:`T_1` grows (pre-RMSE
-   :math:`\to 0.94` at :math:`T_1=250`); ``RELAX_L2`` does *not* over-fit
+   the true noise sd :math:`1.0`), so :math:`\widehat{\rho}^2_{(1)}` understates
+   estimation uncertainty -- it self-corrects as :math:`T_0` grows (pre-RMSE
+   :math:`\to 0.94` at :math:`T_0=250`); ``RELAX_L2`` does *not* over-fit
    (pre-RMSE :math:`\approx 1.0`), so its over-rejection reflects the analytic
    influence function not capturing how strongly-relaxed dense weights feed into
-   the ATE. Both papers' asymptotics require :math:`T_1` large relative to
-   :math:`N`; the normal approximation is unreliable at :math:`T_1 < N`, and
+   the ATT. Both papers' asymptotics require :math:`T_0` large relative to
+   :math:`N_0`; the normal approximation is unreliable at :math:`T_0 < N_0`, and
    the two-term variance (which already cuts the post-only over-rejection by
    :math:`\sim 35\%`) does not fully close the gap here. For honest
    finite-sample inference in this regime, prefer a placebo / conformal
@@ -700,7 +707,7 @@ Verification
    The penalized branch's L-infinity estimators (``LINF`` / ``L1LINF``, Wang,
    Xing & Ye [LinfSC]_) are pinned separately: ``linf_crossval_ref``
    (cross-validation -- mlsynth's L-infinity engine vs the authors'
-   ``LinfinitySC`` code, cell by cell in the unique :math:`T_0>J` regime),
+   ``LinfinitySC`` code, cell by cell in the unique :math:`T_0>N_0` regime),
    ``linf_prop99`` (Path A -- dense weighting vs classic SC on Proposition 99),
    and ``linf_sim`` (Path B -- the Section 5 Monte Carlo ordering). See the
    dedicated page :doc:`replications/linf`.
@@ -727,7 +734,7 @@ Result Containers
 :class:`~mlsynth.utils.laxscm_helpers.structures.RESCMResults`, whose ``fits``
 maps each named corner case to a
 :class:`~mlsynth.utils.laxscm_helpers.structures.RESCMMethodFit` (donor weights,
-intercept, counterfactual, gap, ATE, two-term HAC standard error, CI, p-value,
+intercept, counterfactual, gap, ATT, two-term HAC standard error, CI, p-value,
 nonzero donor weights, fit diagnostics, and the realized hyperparameters).
 Convenience aliases (``att``, ``att_se``, ``counterfactual``,
 ``donor_weights``) forward to the first requested method. The prepared,
@@ -761,13 +768,13 @@ call (branch and keyword arguments).
    :undoc-members:
 
 Data preparation -- the only DataFrame touchpoint: pivots to NumPy, builds the
-unit/time ``IndexSet``es, and splits pre/post.
+unit/time ``IndexSet``\ es, and splits pre/post.
 
 .. automodule:: mlsynth.utils.laxscm_helpers.setup
    :members:
    :undoc-members:
 
-The weak-dependence two-term HAC ATE inference (Li 2020).
+The weak-dependence two-term HAC ATT inference (Li 2020).
 
 .. automodule:: mlsynth.utils.laxscm_helpers.inference
    :members:

@@ -45,27 +45,37 @@ step.
 Notation
 --------
 
-Let :math:`Y_{i,t}` be the observed outcome for unit
-:math:`i \in \{1, \dots, N+1\}` at time :math:`t \in \{1, \dots, T\}`.
-Unit :math:`i = 1` is the treated unit; units :math:`i = 2, \dots,
-N+1` are controls (donors). Treatment begins at :math:`T_0 + 1`, with
-:math:`T_0` pre-treatment periods and a forecast horizon of :math:`h`
+Let :math:`j = 1` denote the treated unit, with all units
+:math:`\mathcal{N} \coloneqq \{1, \dots, N\}` and donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of
+cardinality :math:`N_0`. Write :math:`y_{jt}` for the observed outcome of
+unit :math:`j` at time :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
+1-indexed. The intervention takes effect after period :math:`T_0`,
+splitting :math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of
+length :math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`; SBC
+imputes the counterfactual over a forecast horizon of :math:`h`
 post-treatment periods. The treated unit has potential outcomes
-:math:`Y_{1,t}(1)` and :math:`Y_{1,t}(0)`; we observe :math:`Y_{1,t}(0)`
-for :math:`t \le T_0` and must impute it for :math:`t > T_0`. Each
-untreated outcome decomposes into a trend :math:`\tau_{i,t}` and a
-cycle :math:`c_{i,t}`,
+:math:`y_{1t}^I` under the intervention and :math:`y_{1t}^N` without it;
+we observe :math:`y_{1t}^N` for :math:`t \in \mathcal{T}_1` and must
+impute it for :math:`t \in \mathcal{T}_2`. Each untreated outcome
+decomposes into a trend :math:`g_{jt}` and a cycle :math:`c_{jt}`,
 
 .. math::
 
-   Y_{i,t}(0) \;=\; \tau_{i,t} \;+\; c_{i,t},
+   y_{jt}^N \;=\; g_{jt} \;+\; c_{jt},
 
-where :math:`\tau_{i,t}` is the persistent (possibly nonstationary)
-component and :math:`c_{i,t}` is stationary. The Hamilton filter uses a
+where :math:`g_{jt}` is the persistent (possibly nonstationary)
+component and :math:`c_{jt}` is stationary. (The paper writes the trend
+as :math:`\tau_{i,t}`; here :math:`\tau` is reserved for the treatment
+effect, so the trend is :math:`g_{jt}`.) The Hamilton filter uses a
 forecast horizon :math:`h` and :math:`p` self-lags; the cycle admits a
-factor structure :math:`c_{i,t} = \lambda_i^\top f_t + \varepsilon_{i,t}`
-with :math:`L`-vector of stationary factors :math:`f_t`, loadings
-:math:`\lambda_i`, and idiosyncratic error :math:`\varepsilon_{i,t}`.
+factor structure
+:math:`c_{jt} = \boldsymbol{\lambda}_j^\top \mathbf{f}_t + \varepsilon_{jt}`
+with :math:`L`-vector of stationary factors :math:`\mathbf{f}_t`,
+loadings :math:`\boldsymbol{\lambda}_j`, and idiosyncratic error
+:math:`\varepsilon_{jt}`.
 
 The Spurious Synthetic Control Problem
 --------------------------------------
@@ -74,11 +84,11 @@ The factor-model justification for SCM is "similar units behave
 similarly": when all units load on the same latent factors, a weighted
 combination of donors can stand in for the treated unit. With
 nonstationary outcomes this breaks down. If each untreated outcome
-:math:`Y_{i,t}(0)` follows an independent unit-root process, a vertical
-regression of :math:`Y_{1,t}` on the donor outcomes over the pre-period
+:math:`y_{jt}^N` follows an independent unit-root process, a vertical
+regression of :math:`y_{1t}` on the donor outcomes over the pre-period
 will *still* often produce statistically significant coefficients and a
 tight in-sample fit — an artifact of spurious comovement, not shared
-factors (`Granger and Newbold, 1974<https://doi.org/10.1016/0304-4076(74)90034-7>`_ ; `Phillips, 1986<https://doi.org/10.1016/0304-4076(86)90001-1>`_). Imposing
+factors (`Granger and Newbold, 1974 <https://doi.org/10.1016/0304-4076(74)90034-7>`_ ; `Phillips, 1986 <https://doi.org/10.1016/0304-4076(86)90001-1>`_). Imposing
 non-negativity and adding-up constraints narrows the feasible weights but
 does not eliminate the problem. There is no reason for such a fit to
 persist out of sample, so it cannot be used to impute the treated unit's
@@ -101,23 +111,23 @@ from *different* parts of the panel:
 Step 1: Trend-Cycle Decomposition (Hamilton Filter)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The trend is the linear projection of :math:`Y_{i,t}(0)` onto a constant
+The trend is the linear projection of :math:`y_{jt}^N` onto a constant
 and :math:`p` of its lagged values shifted back by :math:`h` periods
 (Eq. (2) of the paper):
 
 .. math::
 
-   \tau_{i,t}
-   \;\equiv\;
-   \alpha_{i,0}
-   + \alpha_{i,1} \, Y_{i, t-h}
-   + \alpha_{i,2} \, Y_{i, t-h-1}
+   g_{jt}
+   \;\coloneqq\;
+   \alpha_{j,0}
+   + \alpha_{j,1} \, y_{j, t-h}
+   + \alpha_{j,2} \, y_{j, t-h-1}
    + \cdots
-   + \alpha_{i,p} \, Y_{i, t-h-p+1},
+   + \alpha_{j,p} \, y_{j, t-h-p+1},
    \qquad
-   c_{i,t} \;\equiv\; Y_{i,t}(0) - \tau_{i,t}.
+   c_{jt} \;\coloneqq\; y_{jt}^N - g_{jt}.
 
-The coefficients :math:`(\hat\alpha_{i,0}, \dots, \hat\alpha_{i,p})` are
+The coefficients :math:`(\widehat\alpha_{j,0}, \dots, \widehat\alpha_{j,p})` are
 estimated by OLS on pre-treatment data (helper:
 ``hamilton.fit_hamilton_filter``). The first :math:`h + p - 1`
 observations have no defined target and are returned as ``NaN`` in the
@@ -131,19 +141,19 @@ fitted Hamilton coefficients to its observed lags:
 
 .. math::
 
-   \hat\tau_{1,t}
-   \;\equiv\;
-   \hat\alpha_{1,0}
-   + \hat\alpha_{1,1} \, Y_{1, t-h}
+   \widehat g_{1t}
+   \;\coloneqq\;
+   \widehat\alpha_{1,0}
+   + \widehat\alpha_{1,1} \, y_{1, t-h}
    + \cdots
-   + \hat\alpha_{1,p} \, Y_{1, t-h-p+1},
+   + \widehat\alpha_{1,p} \, y_{1, t-h-p+1},
    \qquad
    T_0 + 1 \;\leq\; t \;\leq\; T_0 + h.
 
 Two points deserve emphasis. First, the intercept
-:math:`\hat\alpha_{1,0}` *is* applied — the forecast extrapolates the
+:math:`\widehat\alpha_{1,0}` *is* applied — the forecast extrapolates the
 full estimated trend. (The paper's display equation omits
-:math:`\hat\alpha_{1,0}`, but the authors' replication code includes it,
+:math:`\widehat\alpha_{1,0}`, but the authors' replication code includes it,
 and it is the correct extrapolation of the estimated trend; dropping it
 systematically biases the counterfactual for series whose fitted AR
 slopes do not sum to one, and can flip the sign of the estimated effect.)
@@ -172,24 +182,23 @@ control on the donors' cycles (Eq. (3)):
 
 .. math::
 
-   \hat c_{1,t}
-   \;\equiv\;
-   \sum_{i=2}^{N+1} \hat w_i \, \hat c_{i,t},
-   \qquad t \;\geq\; T_0 + 1,
+   \widehat c_{1t}
+   \;\coloneqq\;
+   \sum_{j \in \mathcal{N}_0} \widehat w_j \, \widehat c_{jt},
+   \qquad t \;\in\; \mathcal{T}_2,
 
 with weights solved on the pre-treatment cycles:
 
 .. math::
 
-   (\hat w_2, \dots, \hat w_{N+1})
+   \mathbf{w}^\ast
    \;=\;
-   \arg\min_{w_2, \dots, w_{N+1}}
-   \sum_{t \leq T_0}
-   \left( \hat c_{1,t} - \sum_{i=2}^{N+1} w_i \, \hat c_{i,t} \right)^2
-   \quad
-   \text{s.t.}
-   \quad
-   w_i \geq 0, \;\; \sum_{i=2}^{N+1} w_i = 1.
+   \operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_0}}
+   \sum_{t \in \mathcal{T}_1}
+   \left( \widehat c_{1t} - \sum_{j \in \mathcal{N}_0} w_j \, \widehat c_{jt} \right)^2 ,
+   \qquad
+   \Delta^{N_0} \coloneqq \Bigl\{ \mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+   \textstyle\sum_{j \in \mathcal{N}_0} w_j = 1 \Bigr\}.
 
 No intercept is needed: the cycles are mean-zero by construction. The
 ``weights_mode`` flag chooses between this simplex form (default;
@@ -205,19 +214,19 @@ Trend and cycle recombine into the SBC counterfactual:
 
 .. math::
 
-   \hat Y_{1,t}(0) \;\equiv\; \hat\tau_{1,t} + \hat c_{1,t},
+   \widehat{y}_{1t}^{\,N} \;\coloneqq\; \widehat g_{1t} + \widehat c_{1t},
    \qquad T_0 + 1 \;\leq\; t \;\leq\; T_0 + h.
 
-The estimated treatment effect at :math:`t > T_0` is
-:math:`\widehat{\mathrm{TE}}_t = Y_{1,t} - \hat Y_{1,t}(0)`, with
+The estimated per-period treatment effect at :math:`t \in \mathcal{T}_2`
+is :math:`\tau_t \coloneqq y_{1t} - \widehat{y}_{1t}^{\,N}`, with ATT
 
 .. math::
 
-   \widehat{\mathrm{ATT}}
+   \widehat{\tau}
    \;=\;
-   \frac{1}{T - T_0}
-   \sum_{t = T_0 + 1}^{T}
-   \left( Y_{1,t} - \hat Y_{1,t}(0) \right).
+   \frac{1}{|\mathcal{T}_2|}
+   \sum_{t \in \mathcal{T}_2}
+   \left( y_{1t} - \widehat{y}_{1t}^{\,N} \right).
 
 Why the Asymmetry?
 ^^^^^^^^^^^^^^^^^^
@@ -241,12 +250,13 @@ The theory is "fixed-:math:`N`, large-:math:`T`" and rests on two
 assumptions — one structural, one high-level.
 
 Assumption 1 (cyclical factor structure). Each unit's cycle is weakly
-stationary with :math:`c_{i,t} = \lambda_i^\top f_t + \varepsilon_{i,t}`,
-where the :math:`L`-vector of stationary factors :math:`f_t` is uniformly
-bounded, the pre-treatment factor second-moment matrix is positive
-definite (eigenvalue bounded away from zero), and :math:`\varepsilon_{i,t}`
-is mean-zero with finite second moment, independent across :math:`i` and
-:math:`t`.
+stationary with
+:math:`c_{jt} = \boldsymbol{\lambda}_j^\top \mathbf{f}_t + \varepsilon_{jt}`,
+where the :math:`L`-vector of stationary factors :math:`\mathbf{f}_t` is
+uniformly bounded, the pre-treatment factor second-moment matrix is
+positive definite (eigenvalue bounded away from zero), and
+:math:`\varepsilon_{jt}` is mean-zero with finite second moment,
+independent across :math:`j` and :math:`t`.
 
 *Remark.* This is the standard SCM factor assumption (Abadie et al.,
 2010) applied to the cycles only — not the levels. SBC asks the
@@ -255,8 +265,8 @@ cycle comovement, which is well documented across economies) and refuses
 to ask it where it plausibly does not (idiosyncratic long-run trends).
 
 Assumption 2 (filter accuracy). The detrending error
-:math:`\hat u_{i,t} \equiv \hat c_{i,t} - c_{i,t}` is :math:`o_p(1)`
-pointwise and :math:`\sum_{t} \hat u_{i,t}^2 = o_p(T_0)`.
+:math:`\widehat u_{jt} \coloneqq \widehat c_{jt} - c_{jt}` is :math:`o_p(1)`
+pointwise and :math:`\sum_{t \in \mathcal{T}_1} \widehat u_{jt}^2 = o_p(T_0)`.
 
 *Remark.* This is a high-level condition on the *filter*, not on a
 particular filter. Any detrending method meeting it inherits the
@@ -269,15 +279,15 @@ trend-cycle specification, for each post-treatment period
 
 .. math::
 
-   \hat Y_{1,t}(0) - Y_{1,t}(0)
+   \widehat{y}_{1t}^{\,N} - y_{1t}^N
    \;=\;
-   \sum_{i=2}^{N+1} \hat w_i \, (\varepsilon_{i,t} - \varepsilon_{1,t})
+   \sum_{j \in \mathcal{N}_0} \widehat w_j \, (\varepsilon_{jt} - \varepsilon_{1t})
    + o_p(1),
 
-so :math:`\hat Y_{1,t}(0)` is asymptotically unbiased. If the cycles
+so :math:`\widehat{y}_{1t}^{\,N}` is asymptotically unbiased. If the cycles
 follow an exact factor structure with no idiosyncratic shocks
-(:math:`c_{i,t} = \lambda_i^\top f_t`), :math:`\hat Y_{1,t}(0)` is
-additionally consistent.
+(:math:`c_{jt} = \boldsymbol{\lambda}_j^\top \mathbf{f}_t`),
+:math:`\widehat{y}_{1t}^{\,N}` is additionally consistent.
 
 *Remark.* The honest claim is unbiasedness, not pointwise consistency:
 the leading error term is a weighted average of post-period idiosyncratic
@@ -316,7 +326,7 @@ Example: A Draw from the Paper's Simulation
 -------------------------------------------
 
 The block below is self-contained — it reproduces Model 2 of Shi, Xi
-and Xie (2025, Section 4): :math:`N+1` units whose levels are
+and Xie (2025, Section 4): :math:`N` units whose levels are
 independent random walks (no cointegration) but whose increments
 share two stationary AR(1) factors. This is the spurious-regression
 regime SBC is built for — the donor pool shares short-run structure but
@@ -383,11 +393,11 @@ Simulation study: MSE ratios across all three models (Path B)
 
 Shi, Xi and Xie (2025, Section 4, Table 1) validate SBC against the
 conventional synthetic control on three nonstationary DGPs, all with
-:math:`N+1 = 12` units, forecast horizon :math:`h = 2`, lags :math:`p = 2`,
+:math:`N = 12` units, forecast horizon :math:`h = 2`, lags :math:`p = 2`,
 and a zero true effect:
 
 * Model 1 -- independent random walks with drift,
-  :math:`Y_{i,t} = Y_{i,t-1} + \mu_i + \varepsilon_{i,t}` (no shared
+  :math:`y_{jt} = y_{j,t-1} + \mu_j + \varepsilon_{jt}` (no shared
   structure: the "spurious regression" regime);
 * Model 2 -- idiosyncratic unit-root trends with two common
   *stationary* AR(:math:`\phi`) factors driving the increments (shared
@@ -397,8 +407,8 @@ and a zero true effect:
   Model 2 -- the regime conventional SC is actually built for.
 
 The reported statistic is the ratio of mean-squared errors
-:math:`\text{MSE}(\widehat{Y}^{\text{SBC}}_1) /
-\text{MSE}(\widehat{Y}^{\text{SC}}_1)` against the treated unit's observed
+:math:`\text{MSE}(\widehat{\mathbf{y}}^{\text{SBC}}_1) /
+\text{MSE}(\widehat{\mathbf{y}}^{\text{SC}}_1)` against the treated unit's observed
 (untreated) path; a ratio below 1 means SBC beats conventional SC.
 Driving the packaged :py:class:`~mlsynth.estimators.sbc.SBC` estimator over
 the three DGPs (300 reps; the paper uses 10,000) reproduces every headline

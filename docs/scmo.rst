@@ -85,30 +85,42 @@ Notation
 --------
 
 We observe :math:`K` related outcomes in a domain
-:math:`\mathbb{K} = \{1, \ldots, K\}` for :math:`N + 1` units over
-:math:`T` periods. Unit :math:`j = 0` is the sole treated unit, and
-:math:`\mathcal{N} = \{1, \ldots, N\}` indexes the donors. Treatment
-begins at :math:`T_0 + 1`, giving a pre-period
-:math:`\mathcal{T}_1 = \{1, \ldots, T_0\}` and a post-period
-:math:`\mathcal{T}_2 = \{T_0 + 1, \ldots, T\}` of length
-:math:`T_2 = T - T_0`. Write :math:`y_{jtk}` for unit :math:`j`'s outcome
-:math:`k` at time :math:`t`, and :math:`\boldsymbol{\gamma} = (\gamma_1,
-\ldots, \gamma_N)` for the common donor weights (a single vector shared
-across all :math:`K` outcomes). The estimand is the per-outcome ATT,
+:math:`\mathcal{K} \coloneqq \{1, \ldots, K\}` for :math:`N` units
+:math:`\mathcal{N} \coloneqq \{1, \ldots, N\}` over :math:`T` periods. Let
+:math:`j = 1` denote the sole treated unit, with donor pool
+:math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus \{1\}` of cardinality
+:math:`N_0`. Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \ldots, T\}`,
+1-indexed; the intervention takes effect after period :math:`T_0`, splitting
+:math:`\mathcal{T}` into the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
+:math:`T_0`) and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}` of length
+:math:`T - T_0`. Write :math:`y_{jtk}` for unit :math:`j`'s outcome
+:math:`k` at time :math:`t` (subscript order: unit, then time, with the
+page-specific outcome index :math:`k` last), and
+:math:`\mathbf{w} \in \mathbb{R}^{N_0}` for the common donor weights -- a
+single vector shared across all :math:`K` outcomes, constrained to the unit
+simplex
+:math:`\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
+\|\mathbf{w}\|_1 = 1\}` -- with optimiser :math:`\mathbf{w}^\ast`. Following
+Abadie's superscripts, :math:`y^N_{jtk}` is the outcome without the
+intervention and :math:`y^I_{jtk}` the outcome under it. The estimand is the
+per-outcome ATT,
 
 .. math::
 
-   \tau_k = \frac{1}{T_2} \sum_{t \in \mathcal{T}_2}
-       \bigl(y^1_{0tk} - y^0_{0tk}\bigr), \qquad k \in \mathbb{K},
+   \tau_k \coloneqq \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2}
+       \bigl(y^I_{1tk} - y^N_{1tk}\bigr), \qquad k \in \mathcal{K},
 
-with the primary outcome's :math:`\tau` the headline estimate.
+with the primary outcome's :math:`\tau` the headline estimate. The conformal
+test below reports at significance level :math:`\alpha`.
 
 .. admonition:: Notation bridge
 
    Both papers write the treated unit :math:`i = 1` and donors
-   :math:`i = 2, \ldots, N+1`; we use :math:`j = 0` for the treated unit and
-   :math:`\mathcal{N}` for donors. Their common weights are
-   :math:`\hat{w}_j` / :math:`\gamma_i`; we use :math:`\boldsymbol{\gamma}`.
+   :math:`i = 2, \ldots, N+1`; we use :math:`j = 1` for the treated unit and
+   :math:`\mathcal{N}_0` for the donor pool. Their common weights are
+   :math:`\widehat{w}_j` / :math:`\gamma_i`; we use :math:`\mathbf{w}`.
    ``mlsynth`` builds matching variables through a spec (which outcomes,
    which period(s), and per-variable transforms ``level``/``log``/
    ``per_capita``/``raw``) rather than a fixed list, so the same engine
@@ -127,7 +139,7 @@ outcomes in a domain:
 
 .. math::
 
-   y^0_{jtk} = \delta_{tk} + \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_{tk}
+   y^N_{jtk} = \delta_{tk} + \boldsymbol{\mu}_j^\top \boldsymbol{\lambda}_{tk}
        + \varepsilon_{jtk},
 
 where :math:`\boldsymbol{\lambda}_{tk}` are time- and outcome-specific
@@ -141,7 +153,7 @@ give :math:`K T_0` matching equations to pin them down.
 The matching matrix and the two weighting schemes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Let :math:`\tilde{y}_{jtk}` denote outcome :math:`k`, standardized in each
+Let :math:`\widetilde{y}_{jtk}` denote outcome :math:`k`, standardized in each
 period by its cross-unit standard deviation (and optionally de-meaned by the
 unit's pre-period mean). The donor weights solve a simplex-constrained
 least-squares problem; the two schemes differ only in what they balance:
@@ -149,32 +161,32 @@ least-squares problem; the two schemes differ only in what they balance:
 .. math::
 
    \text{concatenated:}\quad
-   \hat{\boldsymbol{\gamma}}^{\text{cat}}
-   = \operatorname*{argmin}_{\boldsymbol{\gamma} \in \Delta^{N-1}}
+   \mathbf{w}^{\ast,\text{cat}}
+   = \operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_0}}
      \sum_{k=1}^{K} \sum_{t \in \mathcal{T}_1}
-     \Bigl( \tilde{y}_{0tk} - \sum_{j \in \mathcal{N}} \gamma_j \tilde{y}_{jtk} \Bigr)^2,
+     \Bigl( \widetilde{y}_{1tk} - \sum_{j \in \mathcal{N}_0} w_j \widetilde{y}_{jtk} \Bigr)^2,
 
 .. math::
 
    \text{averaged:}\quad
-   \hat{\boldsymbol{\gamma}}^{\text{avg}}
-   = \operatorname*{argmin}_{\boldsymbol{\gamma} \in \Delta^{N-1}}
+   \mathbf{w}^{\ast,\text{avg}}
+   = \operatorname*{argmin}_{\mathbf{w} \in \Delta^{N_0}}
      \sum_{t \in \mathcal{T}_1}
-     \Bigl( \bar{\tilde{y}}_{0t} - \sum_{j \in \mathcal{N}} \gamma_j \bar{\tilde{y}}_{jt} \Bigr)^2,
-   \quad \bar{\tilde{y}}_{jt} = \tfrac{1}{K} \sum_{k} \tilde{y}_{jtk},
+     \Bigl( \bar{\widetilde{y}}_{1t} - \sum_{j \in \mathcal{N}_0} w_j \bar{\widetilde{y}}_{jt} \Bigr)^2,
+   \quad \bar{\widetilde{y}}_{jt} = \tfrac{1}{K} \sum_{k} \widetilde{y}_{jtk},
 
-where :math:`\Delta^{N-1}` is the simplex. The counterfactual for the primary
+where :math:`\Delta^{N_0}` is the simplex. The counterfactual for the primary
 outcome and its ATT are then
 
 .. math::
 
-   \hat{y}^0_{0tk} = \sum_{j \in \mathcal{N}} \hat{\gamma}_j\, y_{jtk},
+   \widehat{y}^N_{1tk} = \sum_{j \in \mathcal{N}_0} w^\ast_j\, y_{jtk},
    \qquad
-   \hat{\tau}_k = \frac{1}{T_2} \sum_{t \in \mathcal{T}_2}
-       \bigl( y_{0tk} - \hat{y}^0_{0tk} \bigr),
+   \widehat{\tau}_k = \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2}
+       \bigl( y_{1tk} - \widehat{y}^N_{1tk} \bigr),
 
 with a de-meaned (intercept-shifted) variant
-:math:`\hat{y}^0_{0tk} = \bar{y}_{0\cdot k} + \sum_j \hat{\gamma}_j
+:math:`\widehat{y}^N_{1tk} = \bar{y}_{1\cdot k} + \sum_j w^\ast_j
 (y_{jtk} - \bar{y}_{j \cdot k})` when ``demean=True``
 ([DoudchenkoImbens2017]_; Sun-Ben-Michael-Feller Eq. 1).
 
@@ -182,9 +194,9 @@ Why more outcomes help
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 Tian-Lee-Panchenko's Proposition 1 gives the bias rates: for the
-single-outcome SC, :math:`|\mathbb{E}[\hat{\tau}^{\text{sep}}] - \tau| =
+single-outcome SC, :math:`|\mathbb{E}[\widehat{\tau}^{\text{sep}}] - \tau| =
 O(1/\sqrt{T_0})`, while for the multiple-outcome SC,
-:math:`|\mathbb{E}[\hat{\tau}^{\text{cat}}] - \tau| = O(1/\sqrt{K T_0})`.
+:math:`|\mathbb{E}[\widehat{\tau}^{\text{cat}}] - \tau| = O(1/\sqrt{K T_0})`.
 More related outcomes shrink the bias at a faster order. Sun-Ben-Michael-
 Feller sharpen this for the averaged scheme: averaging reduces the bias due
 to overfitting by :math:`1/\sqrt{K}` (like concatenation) and the bias
@@ -197,7 +209,7 @@ Assumptions
 -----------
 
 Assumption 1 (shared-loading factor model). The untreated outcomes obey
-:math:`y^0_{jtk} = \delta_{tk} + \boldsymbol{\mu}_j^\top
+:math:`y^N_{jtk} = \delta_{tk} + \boldsymbol{\mu}_j^\top
 \boldsymbol{\lambda}_{tk} + \varepsilon_{jtk}` with loadings
 :math:`\boldsymbol{\mu}_j` common across outcomes in the domain.
 
@@ -218,10 +230,10 @@ scales/volatilities across outcomes are handled by standardizing each
 outcome per period before matching.
 
 Assumption 3 (feasibility / convex hull). There exist weights
-:math:`\hat{w}_j \ge 0` summing to one such that the treated unit's matching
+:math:`w_j \ge 0` summing to one such that the treated unit's matching
 variables lie (approximately) in the convex hull of the donors':
-:math:`\sum_j \hat{w}_j \boldsymbol{\mu}_j = \boldsymbol{\mu}_0` and
-:math:`\sum_j \hat{w}_j y_{jtk} = y_{0tk}` for :math:`t \le T_0`.
+:math:`\sum_{j \in \mathcal{N}_0} w_j \boldsymbol{\mu}_j = \boldsymbol{\mu}_1` and
+:math:`\sum_{j \in \mathcal{N}_0} w_j y_{jtk} = y_{1tk}` for :math:`t \le T_0`.
 
 *Remark.* This is the multiple-outcome analogue of Abadie et al.'s perfect-fit
 condition. When the treated unit sits outside the donor hull (extreme levels),
@@ -244,13 +256,13 @@ Inference
 the conformal test of Chernozhukov, Wuethrich and Zhu [CWZ2021]_, in the
 multiple-outcome form of Sun-Ben-Michael-Feller (Online Appendix A). Under the
 sharp null :math:`H_0: \tau = \tau_0`, form the adjusted residuals
-:math:`\hat{u}_{tk}` (the gap, with the post-period shifted by
+:math:`\widehat{u}_{tk}` (the gap, with the post-period shifted by
 :math:`\tau_0`) and the per-period statistic
 
 .. math::
 
-   S_q(\hat{u}_t) = \Bigl( \tfrac{1}{\sqrt{K}}
-       \sum_{k=1}^{K} |\hat{u}_{tk}|^q \Bigr)^{1/q},
+   S_q(\widehat{u}_t) = \Bigl( \tfrac{1}{\sqrt{K}}
+       \sum_{k=1}^{K} |\widehat{u}_{tk}|^q \Bigr)^{1/q},
 
 with :math:`q = 1` (the average effect) by default; larger :math:`q` targets
 effects concentrated on a few outcomes. The conformal p-value ranks the
@@ -259,8 +271,8 @@ distribution,
 
 .. math::
 
-   \hat{p}(\boldsymbol{\tau}_0) = \frac{1}{T}
-       \sum_{t \in \mathcal{T}_1} \mathbf{1}\{S_q(\hat{u}_{T}) \le S_q(\hat{u}_t)\}
+   \widehat{p}(\boldsymbol{\tau}_0) = \frac{1}{T}
+       \sum_{t \in \mathcal{T}_1} \mathbf{1}\{S_q(\widehat{u}_{T}) \le S_q(\widehat{u}_t)\}
        + \frac{1}{T},
 
 and inverting the test over a grid of :math:`\tau_0` yields a confidence
@@ -287,6 +299,7 @@ When to Use Concatenated vs Averaged
   in a single outcome. Prefer it when the domain is tightly co-moving and noisy.
 * MA hedges between the two by pre-treatment fit; separate is the
   single-outcome baseline for comparison.
+
 mlsynth's SCMO ships four schemes, three of which are genuinely
 multi-outcome and one a single-outcome baseline. The headline
 trade-off is between the two main multi-outcome variants:
@@ -330,7 +343,7 @@ The mirror-image rule of thumb is:
   reporting (e.g.\\ separate "education" vs "labour" subdomains).
 
 When not to use SCMO at all
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 SCMO is a multi-outcome generalisation; it inherits all of classical
 SC's identification requirements (donor units untreated, treated unit
@@ -371,7 +384,7 @@ and adds one of its own:
   the extra outcomes are mostly book-keeping overhead.
 
 Graphical comparison
-^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~
 
 The Monte Carlo below builds two contrasting data-generating
 processes with the same :math:`K = 8` outcomes, :math:`T_0 = 5`
@@ -596,13 +609,13 @@ units (1 treated, 29 control), one post period, zero true effect, and
 differences :math:`\delta, \theta, \lambda \sim N(\omega_k, 1)`,
 :math:`\omega_k \sim N(0, 10^2)`, and :math:`\varepsilon \sim N(0,1)`. The
 estimand is the effect on outcome 1 at :math:`t = T_0+1`; with a zero true
-effect the average absolute bias and SD of :math:`\hat\tau` approach the
+effect the average absolute bias and SD of :math:`\widehat\tau` approach the
 half-normal floor :math:`\sqrt{2/\pi} \approx 0.80` and :math:`1.00` as the
 fit improves. The ``concatenated`` (de-meaned) scheme reproduces Table 1 at
 :math:`d = 1` -- bias and SD fall monotonically as :math:`K` and :math:`T_0`
 grow toward the floor (800 reps; the paper uses 5000):
 
-.. list-table:: Average absolute bias / SD of :math:`\hat\tau`, :math:`d=1`
+.. list-table:: Average absolute bias / SD of :math:`\widehat\tau`, :math:`d=1`
    :header-rows: 1
    :widths: 8 8 22 22
 
@@ -688,7 +701,7 @@ outcomes denoises the matching target, so it alone shaves the
 *imperfect-fit* bias by :math:`1/\sqrt{K}` while separate and concatenated
 stay :math:`O(1)` there. To see this through the packaged estimator we
 isolate the object the theorem bounds -- the weight bias
-:math:`(\hat\gamma - \gamma^\star)` -- by applying each scheme's estimated
+:math:`(\widehat\gamma - \gamma^\star)` -- by applying each scheme's estimated
 donor weights to the *noiseless* donor structure (the observed-data
 counterfactual is otherwise swamped by the treated unit's irreducible
 post-period noise). On their supplement DGP
@@ -696,7 +709,7 @@ post-period noise). On their supplement DGP
 + \varepsilon_{it,k}` (:math:`\rho = 0.5`, a common rank-one factor plus
 outcome-specific idiosyncratic factors), 200 reps:
 
-.. list-table:: Pure weight bias (RMSE of :math:`\hat\gamma` applied to structure)
+.. list-table:: Pure weight bias (RMSE of :math:`\widehat\gamma` applied to structure)
    :header-rows: 1
    :widths: 8 14 14 14
 
@@ -829,7 +842,7 @@ Helper Modules
 --------------
 
 Data preparation -- the only DataFrame touchpoint: pivots the long panel to
-NumPy, builds the unit/time ``IndexSet``es, and assembles the matching matrix.
+NumPy, builds the unit/time ``IndexSet``\ es, and assembles the matching matrix.
 
 .. automodule:: mlsynth.utils.scmo_helpers.setup
    :members:
