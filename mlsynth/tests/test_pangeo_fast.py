@@ -220,10 +220,11 @@ class TestFastModeWiring:
         assert cfg.fast is True
         assert cfg.fast_candidates == 8
 
-    def test_fast_default_is_false(self, sales_panel):
+    def test_fast_default_is_true(self, sales_panel):
+        # Fast is the default; the exact MIP is the opt-out (fast=False).
         cfg = PANGEOConfig(df=sales_panel, outcome="sales", arm="arm",
                            unitid="unit", time="time", display_graphs=False)
-        assert cfg.fast is False
+        assert cfg.fast is True
 
     def test_fast_fit_exact_cover_respects_Q(self, sales_panel):
         res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
@@ -247,17 +248,43 @@ class TestFastModeWiring:
         solver = res.metadata["solver"].lower()
         assert "fast" in solver or "osd" in solver or "heuristic" in solver
 
-    def test_default_fit_uses_exact_solver(self, sales_panel):
+    def test_default_fit_uses_fast_solver(self, sales_panel):
+        # Default is now the heuristic; metadata records it.
         res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
                       "unitid": "unit", "time": "time", "max_supergeo_size": 2,
                       "compute_power": False, "display_graphs": False}).fit()
+        solver = res.metadata["solver"].lower()
+        assert "fast" in solver or "osd" in solver
+
+    def test_exact_is_opt_out(self, sales_panel):
+        # The exact MIP is reachable via fast=False.
+        res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 2,
+                      "fast": False, "compute_power": False,
+                      "display_graphs": False}).fit()
         assert "mip" in res.metadata["solver"].lower()
+
+    def test_fast_respects_min_pairs(self, sales_panel):
+        # min_pairs forces the fast cover to yield enough supergeo pairs.
+        res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
+                      "unitid": "unit", "time": "time", "max_supergeo_size": 3,
+                      "min_pairs": 2, "fast": True, "compute_power": False,
+                      "display_graphs": False}).fit()
+        for d in res.arm_designs.values():
+            assert len(d.pairs) >= 2
+
+    def test_fast_min_pairs_infeasible_raises(self):
+        # 8 units, demanding 5 pairs needs >= 10 units -> infeasible.
+        Y, _ = _parallel_panel(n_shapes=4, per_shape=2)   # n=8
+        with pytest.raises(Exception):
+            fast_partition(np.arange(8), Y, max_size=3, min_pairs=5)
 
     def test_fast_total_at_least_exact(self, sales_panel):
         # The heuristic total gap variance must be >= the exact MIP optimum
         # (and finite / sensible). Compared on the same inputs and Q.
         inp = prepare_pangeo_inputs(sales_panel, "sales", "arm", "unit", "time")
-        exact = run_pangeo(inp, max_supergeo_size=2, compute_power=False)
+        exact = run_pangeo(inp, max_supergeo_size=2, compute_power=False,
+                           fast=False)
         fast = run_pangeo(inp, max_supergeo_size=2, compute_power=False,
                           fast=True)
         for arm in exact.arm_designs:

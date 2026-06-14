@@ -209,7 +209,8 @@ def run_pangeo(
                 idx, Y[:, e_idx], max_supergeo_size,
                 objective=objective, weights=weights,
                 cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
-                unit_weights=uw, n_candidates=fast_candidates, seed=0,
+                unit_weights=uw, n_candidates=fast_candidates,
+                min_pairs=min_pairs, seed=0,
             )
         else:
             candidates = enumerate_candidate_pairs(

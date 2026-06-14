@@ -78,15 +78,19 @@ class PANGEOConfig(BaseModel):
         default=1, ge=1,
         description="Minimum number of supergeo pairs per arm.")
     fast: bool = Field(
-        default=False,
-        description="Use the OSD-style fast partition (Shaw 2025 analog) "
-                    "instead of the exact enumerate+MIP. Each arm's units are "
+        default=True,
+        description="Partition solver. Default (True) uses the OSD-style fast "
+                    "partition (Shaw 2025 analog): each arm's units are "
                     "level-removed, PCA-embedded, hierarchically clustered into "
                     "size-bounded groups, and split per group -- replacing the "
                     "O(n^{2Q}) candidate enumeration and NP-hard exact-cover "
-                    "MIP. A heuristic (total parallelism cost >= the MIP "
-                    "optimum, tight when the trajectory clusters are clear); "
-                    "use for large arms where the exact solve is intractable.")
+                    "MIP with an O(n log n) heuristic. Under cluster structure "
+                    "it matches the exact optimum (validated against a "
+                    "structure-aware oracle) in sub-second time, and is the "
+                    "only tractable path at large Q. Set False to use the exact "
+                    "enumerate+MIP (the optimum; only feasible for small arms / "
+                    "small Q). Both minimise the same de-meaned (DiD) "
+                    "pre-period gap-variance objective.")
     fast_candidates: int = Field(
         default=5, ge=1,
         description="Number of candidate groupings tried by the fast partition "

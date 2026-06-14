@@ -45,23 +45,28 @@ from .parallelism import best_split
 _LINKAGES = ("ward", "average", "complete")
 
 
-def _size_bounded_chunks(order: np.ndarray, max_size: int) -> List[np.ndarray]:
-    """Chunk an ordering into groups of size ``2..2Q`` (no singletons).
+def _size_bounded_chunks(
+    order: np.ndarray, max_size: int, *, block: Optional[int] = None
+) -> List[np.ndarray]:
+    """Chunk an ordering into groups of size ``2..block`` (no singletons).
 
-    Walks the (similarity) ordering taking blocks of ``g = 2*max_size``; if a
-    block would leave a lone trailing unit (``remaining == g + 1``), it emits a
-    ``(Q+1, Q)`` pair of blocks instead. Every emitted group has size in
-    ``[2, 2Q]`` and is therefore splittable into two halves each ``<= Q``.
+    Walks the (similarity) ordering taking blocks of ``block`` (default
+    ``2*max_size``); if a block would leave a lone trailing unit
+    (``remaining == block + 1``), it emits two near-equal blocks instead.
+    Every emitted group has size ``<= block <= 2*max_size`` and is therefore
+    splittable into two halves each ``<= max_size``. A ``block < 2*max_size``
+    forces more (smaller) groups when ``min_pairs`` requires it.
     """
-    g = 2 * max_size
+    g = 2 * max_size if block is None else block
     n = len(order)
     chunks: List[np.ndarray] = []
     i = 0
     while i < n:
         rem = n - i
         if rem == g + 1:                       # avoid a trailing singleton
-            chunks.append(order[i:i + max_size + 1])   # size Q+1
-            chunks.append(order[i + max_size + 1:])     # size Q
+            head = (g + 1) - (g // 2)          # == Q+1 when block == 2Q
+            chunks.append(order[i:i + head])
+            chunks.append(order[i + head:])
             break
         take = min(g, rem)
         chunks.append(order[i:i + take])
@@ -78,11 +83,14 @@ def group_units(
     linkage: str = "ward",
     perturb: float = 0.0,
     embedding_dim: int = 8,
+    min_groups: int = 1,
 ) -> List[np.ndarray]:
     """Partition ``unit_indices`` into size-bounded, parallel-shape groups.
 
     Returns a list of arrays of unit indices (into ``Ypre``'s rows), each of
     size ``2..2*max_size`` and together covering ``unit_indices`` exactly once.
+    At least ``min_groups`` groups are produced (the chunk block size is capped
+    so the cover yields enough supergeo pairs); raises if that is infeasible.
     """
     unit_indices = np.asarray(unit_indices, dtype=int)
     n = len(unit_indices)
@@ -95,6 +103,16 @@ def group_units(
             f"PANGEO fast partition: an exact cover by size-2 supergeo pairs "
             f"needs an even arm size (got n={n} with max_supergeo_size=1)."
         )
+    # Effective chunk block: <= 2Q, but small enough to yield >= min_groups
+    # groups (each supergeo pair needs >= 2 units, so n >= 2*min_groups).
+    block = 2 * max_size
+    if min_groups > 1:
+        block = min(block, n // min_groups)
+        if block < 2:
+            raise MlsynthEstimationError(
+                f"PANGEO fast partition: cannot form min_pairs={min_groups} "
+                f"supergeo pairs from {n} units (need n >= 2*min_pairs)."
+            )
 
     Y = np.asarray(Ypre, dtype=float)[unit_indices]
     # Level removal: keep the trajectory *shape* (parallel-trends notion).
@@ -116,7 +134,8 @@ def group_units(
     from scipy.cluster.hierarchy import leaves_list, linkage as _linkage
 
     order = leaves_list(_linkage(emb, method=linkage))   # similar units adjacent
-    chunks = _size_bounded_chunks(np.asarray(order, dtype=int), max_size)
+    chunks = _size_bounded_chunks(
+        np.asarray(order, dtype=int), max_size, block=block)
     return [unit_indices[c] for c in chunks]
 
 
@@ -132,6 +151,7 @@ def fast_partition(
     cov_weights: Optional[np.ndarray] = None,
     unit_weights: Optional[np.ndarray] = None,
     n_candidates: int = 5,
+    min_pairs: int = 1,
     seed: int = 0,
 ) -> List[dict]:
     """OSD-style fast supergeo-pair partition (drop-in for the enumerate+MIP path).
@@ -139,7 +159,8 @@ def fast_partition(
     Generates ``n_candidates`` size-bounded groupings (Stage 1), splits each
     group with :func:`parallelism.best_split` (Stage 2), and returns the design
     with the smallest total score -- a list of ``{members, score, side_a,
-    side_b}`` dicts, the same contract as ``solve_partition``.
+    side_b}`` dicts, the same contract as ``solve_partition``. At least
+    ``min_pairs`` supergeo pairs are produced (raises if infeasible).
     """
     unit_indices = np.asarray(unit_indices, dtype=int)
     bs_kwargs = dict(objective=objective, weights=weights, cov=cov,
@@ -151,7 +172,8 @@ def fast_partition(
     for c in range(max(1, n_candidates)):
         groups = group_units(
             Ypre, unit_indices, max_size, seed=seed + c,
-            linkage=_LINKAGES[c % len(_LINKAGES)], perturb=0.0 if c == 0 else 0.05)
+            linkage=_LINKAGES[c % len(_LINKAGES)], perturb=0.0 if c == 0 else 0.05,
+            min_groups=min_pairs)
         design: List[dict] = []
         total = 0.0
         ok = True
