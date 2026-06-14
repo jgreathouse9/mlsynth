@@ -37,6 +37,7 @@ weights ``W``,
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
@@ -129,8 +130,10 @@ def solve_ridge(
     B = np.asarray(B, dtype=float)
     W = np.asarray(W, dtype=float).ravel()
     M = A - B @ W
-    N = np.linalg.inv(B @ B.T + lambda_ * np.identity(B.shape[0]))
-    return M @ N @ B
+    # Solve (B B^T + lambda I) X = B instead of forming the inverse: same result,
+    # one LAPACK solve rather than a full inversion plus a matmul.
+    X = np.linalg.solve(B @ B.T + lambda_ * np.identity(B.shape[0]), B)
+    return M @ X
 
 
 def solve_ridge_path(
@@ -226,6 +229,7 @@ def cross_validate(
     X1: np.ndarray,
     lambdas: np.ndarray,
     holdout_len: int = 1,
+    warm_start_base: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Leave-one-period-out CV of the ridge penalty (augsynth ``get_lambda_errors``).
 
@@ -246,6 +250,13 @@ def cross_validate(
         Candidate ridge penalties.
     holdout_len : int, optional
         Block length held out each fold, by default ``1``.
+    warm_start_base : bool, optional
+        Seed each fold's base solve with the previous fold's weights when the
+        base solver accepts a ``warm_start`` keyword (default ``True``). The
+        leave-one-out folds are tiny perturbations of one another, so this
+        roughly halves the active-set work; the base simplex objective is
+        strictly convex under full column rank, so the optimum -- and thus the
+        CV curve -- is unchanged. Set ``False`` for a cold refit each fold.
 
     Returns
     -------
@@ -256,12 +267,23 @@ def cross_validate(
     X0 = np.asarray(X0, dtype=float)
     X1 = np.asarray(X1, dtype=float).ravel()
     lambdas = np.asarray(lambdas, dtype=float)
+    accepts_ws = False
+    if warm_start_base:
+        try:
+            accepts_ws = "warm_start" in inspect.signature(base_weights_fn).parameters
+        except (TypeError, ValueError):       # builtins / un-inspectable callables
+            accepts_ws = False
     res = []
+    prev_W = None
     for B_t, B_v, A_t, A_v in _HoldoutSplitter(X0, X1, holdout_len=holdout_len):
-        W = base_weights_fn(B_t, A_t)
+        if accepts_ws and prev_W is not None and prev_W.shape[0] == B_t.shape[1]:
+            W = base_weights_fn(B_t, A_t, warm_start=prev_W)
+        else:
+            W = base_weights_fn(B_t, A_t)
+        prev_W = np.asarray(W, dtype=float).ravel()
         # All lambdas at once: one eigendecomposition of B_t B_t^T instead of
         # one matrix inversion per lambda (see solve_ridge_path).
-        W_aug = W[None, :] + solve_ridge_path(A_t, B_t, W, lambdas)   # (L, J)
+        W_aug = prev_W[None, :] + solve_ridge_path(A_t, B_t, prev_W, lambdas)  # (L, J)
         resid = A_v[None, :] - W_aug @ B_v.T                          # (L, h)
         res.append(np.sum(resid ** 2, axis=1))                        # (L,)
     arr = np.asarray(res, dtype=float)

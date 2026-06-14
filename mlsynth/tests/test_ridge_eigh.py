@@ -32,9 +32,19 @@ import pytest
 from mlsynth.utils.bilevel.ridge_augment import (
     _HoldoutSplitter,
     cross_validate,
+    simplex_qp,
     solve_ridge,
     solve_ridge_path,
 )
+
+
+def _inv_solve_ridge(A, B, W, lam):
+    """Reference: the original inv()-based single-lambda ridge correction."""
+    A = np.asarray(A, float).ravel(); B = np.asarray(B, float)
+    W = np.asarray(W, float).ravel()
+    M = A - B @ W
+    N = np.linalg.inv(B @ B.T + lam * np.identity(B.shape[0]))
+    return M @ N @ B
 
 
 def _rng(seed=0):
@@ -128,3 +138,56 @@ class TestCrossValidateParity:
         _, eo, _ = _naive_cross_validate(_simplex_base, X0, X1, lambdas)
         _, en, _ = cross_validate(_simplex_base, X0, X1, lambdas)
         assert int(np.argmin(en)) == int(np.argmin(eo))
+
+
+# ---------------------------------------------------------------------------
+# solve_ridge: np.linalg.solve replaces np.linalg.inv (single-lambda callers)
+# ---------------------------------------------------------------------------
+
+class TestSolveRidgeUsesSolve:
+    @pytest.mark.parametrize("m,J", [(20, 5), (8, 12), (15, 15), (30, 4)])
+    def test_matches_inv_reference(self, m, J):
+        rng = _rng(m * 7 + J)
+        B = rng.standard_normal((m, J)); A = rng.standard_normal(m)
+        W = np.clip(rng.standard_normal(J), 0, None)
+        for lam in (1e-5, 0.3, 12.0, 200.0):
+            np.testing.assert_allclose(
+                solve_ridge(A=A, B=B, W=W, lambda_=lam),
+                _inv_solve_ridge(A, B, W, lam), rtol=1e-8, atol=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# cross_validate: warm-starting the per-fold base QP must not change results
+# (the base simplex objective is strictly convex under full column rank, so the
+# optimum -- and thus the CV curve -- is identical with or without a warm start)
+# ---------------------------------------------------------------------------
+
+class TestWarmStartBase:
+    def test_warm_vs_cold_parity(self):
+        rng = _rng(5)
+        X0 = rng.standard_normal((40, 8)); X1 = rng.standard_normal(40)
+        lambdas = np.geomspace(1e-6, 1e3, 21)
+        _, ew, sw = cross_validate(simplex_qp, X0, X1, lambdas, warm_start_base=True)
+        _, ec, sc = cross_validate(simplex_qp, X0, X1, lambdas, warm_start_base=False)
+        np.testing.assert_allclose(ew, ec, rtol=1e-7, atol=1e-9)
+        np.testing.assert_allclose(sw, sc, rtol=1e-7, atol=1e-9)
+
+    def test_warm_vs_cold_collinear(self):
+        # Adversarial: collinear donors -> the base objective is only weakly
+        # convex; warm-start must still land the same CV curve.
+        rng = _rng(8)
+        base = rng.standard_normal((30, 4))
+        X0 = np.hstack([base, base[:, :2]]); X1 = rng.standard_normal(30)
+        lambdas = np.geomspace(1e-5, 1e2, 15)
+        _, ew, _ = cross_validate(simplex_qp, X0, X1, lambdas, warm_start_base=True)
+        _, ec, _ = cross_validate(simplex_qp, X0, X1, lambdas, warm_start_base=False)
+        np.testing.assert_allclose(ew, ec, rtol=1e-6, atol=1e-8)
+
+    def test_cold_matches_naive_with_simplex(self):
+        rng = _rng(2)
+        X0 = rng.standard_normal((24, 6)); X1 = rng.standard_normal(24)
+        lambdas = np.geomspace(1e-5, 1e2, 12)
+        _, ec, sc = cross_validate(simplex_qp, X0, X1, lambdas, warm_start_base=False)
+        _, en, sn = _naive_cross_validate(simplex_qp, X0, X1, lambdas)
+        np.testing.assert_allclose(ec, en, rtol=1e-7, atol=1e-9)
+        np.testing.assert_allclose(sc, sn, rtol=1e-7, atol=1e-9)
