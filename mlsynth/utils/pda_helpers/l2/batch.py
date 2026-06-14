@@ -72,3 +72,38 @@ def l2_relax_batch(
             if res.x is not None and np.all(np.isfinite(res.x)):
                 out[j, k] = res.x
     return out
+
+
+# Tight OSQP tolerance for the single-treated path: the benchmarks pin
+# value-for-value results, so we solve the unique primal optimum to ~1e-8, which
+# matches an interior-point (cvxpy/CLARABEL) solve. (At this tolerance OSQP's
+# active-set polishing changes nothing, so it stays off -- and silent.)
+_SINGLE_EPS = 1e-9
+_SINGLE_MAX_ITER = 50000
+
+
+def l2_relax_solve(
+    Sigma: np.ndarray, eta: np.ndarray, tau: float,
+) -> np.ndarray:
+    """One L2-relaxation primal solve (standardised scale) via tight OSQP.
+
+    Returns the ``(N,)`` coefficient vector solving
+    ``min ||beta||^2 / 2  s.t.  ||eta - Sigma beta||_inf <= tau``.
+    """
+    eta = np.asarray(eta, dtype=float).ravel()
+    return l2_relax_grid(Sigma, eta, np.asarray([float(tau)]))[0]
+
+
+def l2_relax_grid(
+    Sigma: np.ndarray, eta: np.ndarray, taus: np.ndarray,
+) -> np.ndarray:
+    """L2-relaxation primal for one unit across a ``tau`` grid (shared Sigma).
+
+    Returns ``(K, N)`` coefficients, one row per ``taus[k]``. A single KKT
+    factorization is reused across the grid (the cross-validation hot loop).
+    """
+    eta = np.asarray(eta, dtype=float).ravel()
+    return l2_relax_batch(
+        Sigma, eta[:, None], np.asarray(taus, dtype=float),
+        eps=_SINGLE_EPS, max_iter=_SINGLE_MAX_ITER,
+    )[0]
