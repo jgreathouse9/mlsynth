@@ -144,6 +144,14 @@ class VanillaSCConfig(BaseEstimatorConfig):
         default=None, ge=1,
         description="Cap on donor pairs for the 'lto' test (None -> all pairs).",
     )
+    oracle_weights: Optional[Dict[Any, float]] = Field(
+        default=None,
+        description="User-specified donor weights ``{donor_id: weight}``. When "
+                    "given, the weight optimization is skipped and these weights "
+                    "are used directly (e.g. the 'oracle' known-weights case). "
+                    "Donors omitted from the map get weight 0. Supported with "
+                    "inference=False or inference='ttest'.",
+    )
     ttest_K: Union[int, Literal["auto"]] = Field(
         default=3,
         description="Cross-fitting folds for inference='ttest' (Chernozhukov-"

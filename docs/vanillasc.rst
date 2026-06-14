@@ -331,6 +331,9 @@ Five inference modes are available via ``inference=``:
     :math:`K` from the SC-residual persistence and the RAE formula (their
     Section 3.2); :math:`K = 3` is the small-:math:`T_0` benchmark. Because it
     only needs :math:`\ell_2`-consistent weights it composes with every backend.
+    Supplying ``oracle_weights`` (a ``{donor: weight}`` map) bypasses the weight
+    solve and uses those weights in every fold -- the paper's oracle benchmark,
+    and a way to plug in externally computed weights.
     Reference: :func:`mlsynth.utils.inferutils.debiased_sc_ttest`; reproduces the
     paper's Table 5 carbon-tax estimate (durable case
     ``benchmarks/cases/cwz_ttest.py``).

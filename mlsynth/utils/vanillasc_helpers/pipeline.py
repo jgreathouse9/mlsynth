@@ -17,13 +17,48 @@ from ...config_models import (
     InferenceResults,
     MethodDetailsResults,
 )
-from ...exceptions import MlsynthDataError
+from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..datautils import dataprep
 from ..helperutils import IndexSet
 from ..results_helpers import build_effect_submodels, make_weights_results
 from ..bilevel import BilevelSCM
 
 _EPS = 1e-12
+
+
+class _OracleFit:
+    """Drop-in for the bilevel fit when donor weights are user-specified.
+
+    Exposes the same surface ``run_vanillasc`` reads off a fitted engine
+    (``W``, ``donor_weights``, ``backend``, ``V``, ``v_agreement``,
+    ``predictor_names``, ``counterfactual``) but skips the optimization.
+    """
+
+    def __init__(self, w: np.ndarray, donor_names: List[str]):
+        self.W = np.asarray(w, dtype=float)
+        self.donor_weights = {n: float(v) for n, v in zip(donor_names, self.W)}
+        self.backend = "oracle"
+        self.V = None
+        self.v_agreement = None
+        self.predictor_names: List[str] = []
+        self.diagnostics: Dict[str, Any] = {"backend": "oracle",
+                                            "note": "user-specified weights"}
+
+    def counterfactual(self, Y0: np.ndarray) -> np.ndarray:
+        return np.asarray(Y0, dtype=float) @ self.W
+
+
+def _align_oracle(oracle_weights: Dict[Any, float],
+                  donor_names: List[str]) -> np.ndarray:
+    """Align a ``{donor_id: weight}`` map to the Y0 column order (missing -> 0)."""
+    d = {str(k): float(v) for k, v in oracle_weights.items()}
+    unknown = sorted(set(d) - set(donor_names))
+    if unknown:
+        raise MlsynthDataError(
+            f"oracle_weights references non-donor unit(s) {unknown}; valid "
+            f"donors are {donor_names}."
+        )
+    return np.array([d.get(n, 0.0) for n in donor_names], dtype=float)
 
 
 def _covariate_means(
@@ -169,38 +204,53 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     treated_name = str(treated_label)
     donor_names = [str(lbl) for lbl in donors.labels]   # string labels for reporting
 
-    # Build predictor matrices (treated + donors, donor order matches Y0 columns).
-    X1 = X0 = None
-    Xall = None
+    # Oracle path: user-specified weights, skip the optimization entirely.
+    oracle_w = None
+    X1 = X0 = Xs = None
     pred_names: List[str] = []
-    if covariates:
-        pre_labels = list(time_labels[:pre])
-        Xall = _covariate_means(
-            config.df, list(units.labels), covariates, windows, pre_labels,
-            config.unitid, config.time,
-        )
-        Xs = _scale_unit_variance(Xall)
-        X1, X0 = Xs[:, 0], Xs[:, 1:]
-        pred_names = list(covariates)
+    if config.oracle_weights is not None:
+        infmode = config.inference
+        compatible = (infmode is False) or (
+            isinstance(infmode, str) and infmode.lower() == "ttest")
+        if not compatible:
+            raise MlsynthConfigError(
+                "oracle_weights is supported only with inference=False or "
+                "inference='ttest' (the other inference modes re-estimate the "
+                "weights, which contradicts supplying them)."
+            )
+        oracle_w = _align_oracle(config.oracle_weights, donor_names)
+        engine = None
+        res = _OracleFit(oracle_w, donor_names)
+    else:
+        # Build predictor matrices (treated + donors, donor order matches Y0 cols).
+        if covariates:
+            pre_labels = list(time_labels[:pre])
+            Xall = _covariate_means(
+                config.df, list(units.labels), covariates, windows, pre_labels,
+                config.unitid, config.time,
+            )
+            Xs = _scale_unit_variance(Xall)
+            X1, X0 = Xs[:, 0], Xs[:, 1:]
+            pred_names = list(covariates)
 
-    engine = BilevelSCM(
-        config.backend,
-        canonical_v=config.canonical_v,
-        seed=config.seed,
-        augment=config.augment,
-        ridge_lambda=config.ridge_lambda,
-        residualize=config.residualize,
-        maxiter=config.mscmt_maxiter,
-        popsize=config.mscmt_popsize,
-        prune_shady=config.mscmt_prune_shady,
-        cv=config.penalized_cv,
-    )
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        res = engine.fit(
-            y[:pre], Y0[:pre],
-            X1=X1, X0=X0, donor_names=donor_names, predictor_names=pred_names,
+        engine = BilevelSCM(
+            config.backend,
+            canonical_v=config.canonical_v,
+            seed=config.seed,
+            augment=config.augment,
+            ridge_lambda=config.ridge_lambda,
+            residualize=config.residualize,
+            maxiter=config.mscmt_maxiter,
+            popsize=config.mscmt_popsize,
+            prune_shady=config.mscmt_prune_shady,
+            cv=config.penalized_cv,
         )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res = engine.fit(
+                y[:pre], Y0[:pre],
+                X1=X1, X0=X0, donor_names=donor_names, predictor_names=pred_names,
+            )
 
     counterfactual = res.counterfactual(Y0)
     gap = y - counterfactual
@@ -310,21 +360,26 @@ def run_vanillasc(config) -> BaseEstimatorResults:
 
         from mlsynth.utils.inferutils import debiased_sc_ttest, select_K
 
-        def _ttest_weight_fn(keep_idx):
-            keep_idx = np.asarray(keep_idx)
-            yk, Y0k = y[keep_idx], Y0[keep_idx]
-            X1k = X0k = None
-            if covariates:
-                kept_labels = list(time_labels[keep_idx])
-                Xk = _scale_unit_variance(_covariate_means(
-                    config.df, list(units.labels), covariates, windows,
-                    kept_labels, config.unitid, config.time))
-                X1k, X0k = Xk[:, 0], Xk[:, 1:]
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                rk = engine.fit(yk, Y0k, X1=X1k, X0=X0k,
-                                donor_names=donor_names, predictor_names=pred_names)
-            return np.asarray(rk.W, dtype=float).ravel()
+        if oracle_w is not None:
+            # Oracle case: known weights, no per-fold refit (skip the solve).
+            def _ttest_weight_fn(keep_idx):
+                return oracle_w
+        else:
+            def _ttest_weight_fn(keep_idx):
+                keep_idx = np.asarray(keep_idx)
+                yk, Y0k = y[keep_idx], Y0[keep_idx]
+                X1k = X0k = None
+                if covariates:
+                    kept_labels = list(time_labels[keep_idx])
+                    Xk = _scale_unit_variance(_covariate_means(
+                        config.df, list(units.labels), covariates, windows,
+                        kept_labels, config.unitid, config.time))
+                    X1k, X0k = Xk[:, 0], Xk[:, 1:]
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    rk = engine.fit(yk, Y0k, X1=X1k, X0=X0k,
+                                    donor_names=donor_names, predictor_names=pred_names)
+                return np.asarray(rk.W, dtype=float).ravel()
 
         T1_post = int(len(y) - pre)
         if config.ttest_K == "auto":
