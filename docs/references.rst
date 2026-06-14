@@ -68,6 +68,8 @@ References
 
 .. [l2relax] Zhentao Shi and Yishu Wang. *"L2-relaxation for Economic Prediction."* November 2024. `doi:10.13140/RG.2.2.11670.97609 <https://doi.org/10.13140/RG.2.2.11670.97609>`_.
 
+.. [pdapi] Hongyi Jiang, Xingyu Li, Yan Shen, and Qiankun Zhou. *"Prediction Intervals of Panel Data Approach for Programme Evaluation."* *Journal of Applied Econometrics*, 40(5): 655-668, 2025. `doi:10.1002/jae.3134 <https://doi.org/10.1002/jae.3134>`_.
+
 
 .. [fsPDA]
     Shi, Zhentao and Huang, Jingyi. 

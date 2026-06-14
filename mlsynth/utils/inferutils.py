@@ -6,12 +6,16 @@ any estimator (or backend) that yields ℓ2-consistent weights can reuse them.
 This is why they live at the shared ``utils/`` level rather than inside a single
 estimator's helper package.
 
-Currently provides :func:`debiased_sc_ttest`, the Chernozhukov, Wuthrich & Zhu
-(2025, arXiv:1812.10820) debiased synthetic-control *t*-test for the ATT.
+Provides:
+
+* :func:`debiased_sc_ttest`, the Chernozhukov, Wuthrich & Zhu (2025,
+  arXiv:1812.10820) debiased synthetic-control *t*-test for the ATT;
+* :func:`pda_prediction_intervals`, the Jiang, Li, Shen & Zhou (2025, *J. Appl.
+  Econometrics*) bootstrap prediction intervals for the panel-data approach.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 from scipy.special import gammaln
@@ -25,6 +29,12 @@ from mlsynth.exceptions import (
 )
 
 WeightFn = Callable[[np.ndarray], np.ndarray]
+
+# A refit callback: given a bootstrap treated series (length T), refit the PDA
+# point estimator on its pre-period and return ``(counterfactual, support)`` --
+# the full-length predicted untreated outcome and the active-support column
+# indices used for the studentization sandwich.
+PDARefitFn = Callable[[np.ndarray], Tuple[np.ndarray, np.ndarray]]
 
 
 def _outcome_only_simplex(y: np.ndarray, Y0: np.ndarray) -> np.ndarray:
@@ -263,3 +273,246 @@ def select_K(
         "block_min": block_min, "relaxed": relaxed,
     }
     return int(K), info
+
+
+# ---------------------------------------------------------------------------
+# Jiang, Li, Shen & Zhou (2025) prediction intervals for the panel data approach
+# ---------------------------------------------------------------------------
+
+def _dwb_bandwidth(T0: int) -> int:
+    """Dependent-wild-bootstrap kernel bandwidth ``floor(2 * T0**0.235)`` (Sec 2.3)."""
+    return max(1, int(np.floor(2.0 * T0 ** 0.235)))
+
+
+def _hac_bandwidth(T0: int) -> int:
+    """HAC variance truncation lag ``floor(T0**0.24)`` (Sec 2.3)."""
+    return max(1, int(np.floor(T0 ** 0.24)))
+
+
+def _dwb_factor(T0: int, ell: int) -> np.ndarray:
+    """Cholesky-like factor ``L`` of the Bartlett DWB covariance ``Sigma``.
+
+    ``Sigma[s, t] = a((s - t) / ell)`` with the Bartlett kernel
+    ``a(z) = max(1 - |z|, 0)`` (Condition 2.1). Correlated multipliers are then
+    ``u = L z`` for standard-normal ``z`` -- each unit-variance and
+    ``ell``-dependent. The factor is from an eigen-decomposition (clipping tiny
+    negative eigenvalues), so it is robust even when ``Sigma`` is only PSD.
+    """
+    idx = np.arange(T0)
+    d = np.abs(idx[:, None] - idx[None, :]) / float(ell)
+    Sigma = np.clip(1.0 - d, 0.0, None)
+    w, V = np.linalg.eigh(Sigma)
+    w = np.clip(w, 0.0, None)
+    return V * np.sqrt(w)
+
+
+def _hac_matrix(g: np.ndarray, K: int) -> np.ndarray:
+    """Newey-West (Bartlett) HAC matrix of a mean-zero-able ``(T0, q)`` series."""
+    T0 = g.shape[0]
+    gc = g - g.mean(axis=0, keepdims=True)
+    phi = (gc.T @ gc) / T0
+    for l in range(1, min(K, T0 - 1) + 1):
+        gl = (gc[l:].T @ gc[:-l]) / T0
+        w = 1.0 - l / (K + 1.0)
+        phi += w * (gl + gl.T)
+    return phi
+
+
+def _prediction_variance(
+    X_pre_Q: np.ndarray, resid_pre: np.ndarray, X_post_Q: np.ndarray, K: int,
+) -> Optional[np.ndarray]:
+    """Per-post-period prediction variance ``V_t`` (post-selection OLS HAC sandwich).
+
+    ``V_t = (1/T0) x_{t,Q}' S^{-1} Phi S^{-1} x_{t,Q}`` with
+    ``S = (1/T0) sum_s x_{s,Q} x_{s,Q}'`` and ``Phi`` the HAC matrix of
+    ``x_{s,Q} e_s``. Returns ``None`` when the support is empty or ``S`` is
+    singular (``|Q| >= T0`` or collinear), signalling the ``sigma^2``-only
+    fallback.
+    """
+    T0, q = X_pre_Q.shape
+    if q == 0 or q >= T0:
+        return None
+    S = (X_pre_Q.T @ X_pre_Q) / T0
+    try:
+        Sinv = np.linalg.inv(S)
+    except np.linalg.LinAlgError:  # pragma: no cover - collinear support
+        return None
+    if not np.all(np.isfinite(Sinv)):  # pragma: no cover - near-singular support
+        return None
+    phi = _hac_matrix(X_pre_Q * resid_pre[:, None], K)
+    M = Sinv @ phi @ Sinv
+    return np.einsum("ti,ij,tj->t", X_post_Q, M, X_post_Q) / T0
+
+
+def pda_prediction_intervals(
+    y: np.ndarray,
+    X: np.ndarray,
+    T0: int,
+    *,
+    counterfactual: np.ndarray,
+    support: Sequence[int],
+    refit: PDARefitFn,
+    alpha: float = 0.05,
+    n_boot: int = 999,
+    dependent: bool = True,
+    seed: Optional[int] = None,
+) -> Dict[str, Any]:
+    r"""Bootstrap prediction intervals for the panel data approach (Jiang 2025).
+
+    A faithful, estimator-agnostic implementation of Algorithm 2.1 of Jiang, Li,
+    Shen & Zhou (2025): for each post-treatment period it constructs prediction
+    intervals for the untreated potential outcome :math:`Y_t` and the treatment
+    effect :math:`\Delta_t = y_t - \widehat Y_t`, using a dependent wild
+    bootstrap for the pre-period prediction error and a simple residual bootstrap
+    for the out-of-sample error. The bootstrap statistic is self-normalized by
+    :math:`\sqrt{\widehat V_t + \widehat\sigma^2}`, where :math:`\widehat V_t` is
+    the post-selection OLS HAC sandwich variance of the prediction and
+    :math:`\widehat\sigma^2` the residual variance.
+
+    Both the equal-tailed (``eq``) and symmetric (``sy``) intervals of the paper
+    are returned, and the ``studentization`` field reports whether the sandwich
+    variance was usable (``"sandwich"``) or the method fell back to
+    :math:`\widehat\sigma^2` alone (``"sigma2"``; e.g. an empty or rank-deficient
+    support, as for the dense L2-relaxation in high dimensions).
+
+    Parameters
+    ----------
+    y : ndarray, shape (T,)
+        Treated-unit outcomes, ``T = T0 + T1``.
+    X : ndarray, shape (T, p)
+        Control-unit outcomes / covariates (the donor design).
+    T0 : int
+        Number of pre-treatment periods.
+    counterfactual : ndarray, shape (T,)
+        The point estimator's fitted untreated outcome :math:`\widehat Y` over
+        all ``T`` periods (the interval centre).
+    support : sequence of int
+        Column indices of ``X`` in the estimator's active set, used for the
+        sandwich variance. Empty or rank-deficient triggers the ``sigma^2``
+        fallback.
+    refit : callable
+        ``refit(y_boot) -> (cf_boot, support_boot)`` refits the point estimator
+        on ``y_boot[:T0]`` and returns the full-length counterfactual and the
+        bootstrap support indices.
+    alpha : float, default 0.05
+        Significance level (intervals have nominal coverage ``1 - alpha``).
+    n_boot : int, default 999
+        Number of bootstrap replications (``>= 2``).
+    dependent : bool, default True
+        Use the dependent wild bootstrap for the pre-period error (Bartlett
+        multipliers). ``False`` uses ordinary i.i.d. standard-normal multipliers
+        (Remark 2.2, valid when the errors are independent).
+    seed : int, optional
+        Seed for the bootstrap RNG.
+
+    Returns
+    -------
+    dict
+        ``alpha``, ``n_boot``, ``post_periods`` (``T1``), ``studentization``
+        (``"sandwich"`` | ``"sigma2"``), ``se`` ((T1,) :math:`\sqrt{V_t +
+        \sigma^2}`), and two blocks ``effect`` (for :math:`\Delta_t`) and
+        ``counterfactual`` (for :math:`Y_t`), each a dict of ``point``,
+        ``eq_lower``/``eq_upper`` (equal-tailed) and ``sy_lower``/``sy_upper``
+        (symmetric), all ``(T1,)`` arrays.
+
+    Raises
+    ------
+    MlsynthConfigError
+        If ``n_boot < 2``, ``alpha`` is out of ``(0, 1)``, or ``T1 = T - T0 < 1``.
+    MlsynthDataError
+        If array shapes are inconsistent.
+    """
+    if not isinstance(n_boot, (int, np.integer)) or n_boot < 2:
+        raise MlsynthConfigError(f"n_boot must be an integer >= 2; got {n_boot!r}.")
+    if not (0.0 < alpha < 1.0):
+        raise MlsynthConfigError(f"alpha must be in (0, 1); got {alpha!r}.")
+
+    y = np.asarray(y, dtype=float).ravel()
+    X = np.asarray(X, dtype=float)
+    counterfactual = np.asarray(counterfactual, dtype=float).ravel()
+    if X.ndim != 2:
+        raise MlsynthDataError("X must be a 2-D (T, p) control matrix.")
+    T = y.shape[0]
+    if X.shape[0] != T or counterfactual.shape[0] != T:
+        raise MlsynthDataError(
+            f"y, X, counterfactual must share length T; got {y.shape[0]}, "
+            f"{X.shape[0]}, {counterfactual.shape[0]}."
+        )
+    T1 = T - T0
+    if T1 < 1:
+        raise MlsynthConfigError(f"need at least one post period; T0={T0}, T={T}.")
+
+    support = np.asarray(list(support), dtype=int)
+    rng = np.random.default_rng(seed)
+
+    K = _hac_bandwidth(T0)
+    ell = _dwb_bandwidth(T0)
+    L = _dwb_factor(T0, ell) if dependent else None
+
+    resid_pre = y[:T0] - counterfactual[:T0]
+    sigma2 = float(np.mean(resid_pre ** 2))
+
+    # Original-sample studentization scale.
+    s2 = sigma2
+    Vt = _prediction_variance(
+        X[:T0][:, support], resid_pre, X[T0:][:, support], K
+    ) if support.size else None
+    studentization = "sandwich" if Vt is not None else "sigma2"
+    se = np.sqrt((Vt if Vt is not None else 0.0) + s2)
+
+    # Bootstrap.
+    resid_centered = resid_pre - resid_pre.mean()
+    S = np.empty((n_boot, T1))
+    for b in range(n_boot):
+        if dependent:
+            e_pre = (L @ rng.standard_normal(T0)) * resid_pre
+        else:
+            e_pre = rng.standard_normal(T0) * resid_pre
+        e_post = rng.choice(resid_centered, size=T1, replace=True)
+        y_star = counterfactual.copy()
+        y_star[:T0] += e_pre
+        y_star[T0:] += e_post
+        cf_star, supp_star = refit(y_star)
+        cf_star = np.asarray(cf_star, dtype=float).ravel()
+        supp_star = np.asarray(list(supp_star), dtype=int)
+        resid_star_pre = y_star[:T0] - cf_star[:T0]
+        s2_star = float(np.mean(resid_star_pre ** 2))
+        Vt_star = _prediction_variance(
+            X[:T0][:, supp_star], resid_star_pre, X[T0:][:, supp_star], K
+        ) if supp_star.size else None
+        se_star = np.sqrt((Vt_star if Vt_star is not None else 0.0) + s2_star)
+        e_star_post = y_star[T0:] - cf_star[T0:]
+        S[b] = e_star_post / np.where(se_star > 0, se_star, np.inf)
+
+    # Quantiles per post-period.
+    xi_lo = np.quantile(S, alpha / 2.0, axis=0)
+    xi_hi = np.quantile(S, 1.0 - alpha / 2.0, axis=0)
+    zeta = np.quantile(np.abs(S), 1.0 - alpha, axis=0)
+
+    Y_hat = counterfactual[T0:]
+    delta = y[T0:] - Y_hat
+
+    cf_block = {
+        "point": Y_hat,
+        "eq_lower": Y_hat + xi_lo * se,
+        "eq_upper": Y_hat + xi_hi * se,
+        "sy_lower": Y_hat - zeta * se,
+        "sy_upper": Y_hat + zeta * se,
+    }
+    # Delta_t = y_t - Y_t, so a (lo, hi) band on Y_t maps to (-hi, -lo) on Delta.
+    eff_block = {
+        "point": delta,
+        "eq_lower": delta - xi_hi * se,
+        "eq_upper": delta - xi_lo * se,
+        "sy_lower": delta - zeta * se,
+        "sy_upper": delta + zeta * se,
+    }
+    return {
+        "alpha": float(alpha),
+        "n_boot": int(n_boot),
+        "post_periods": int(T1),
+        "studentization": studentization,
+        "se": se if np.ndim(se) else np.full(T1, float(se)),
+        "effect": eff_block,
+        "counterfactual": cf_block,
+    }
