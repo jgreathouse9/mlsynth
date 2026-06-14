@@ -572,6 +572,127 @@ exact subset until the warm-start path lands.
 
 ---
 
+## 7. rfPDA -- Random-Forest control selection for the Panel Data Approach
+
+**Status: Parked (built test-first; demonstrate-first DONE; the defining
+random-forest selection step does NOT port faithfully via scikit-learn -- it is
+implementation- and seed-unstable. OLS + inference ports are exact.)**
+
+The faithful port (TDD, 100% covered) is preserved, unmerged, on branch
+**``claude/pda-rf``** -- not on ``main``. Take it up from there.
+
+### Source
+
+> Liu, G., Long, W., & Luo, X. (2025). "A Random Forests-Based Panel Data
+> Approach for Program Evaluation." *Journal of Applied Econometrics*, 40(5),
+> 591-607.
+
+Reference package (R; read in full): the JAE replication archive
+(``RF.R`` = the method, ``test.R`` = the MA(1)-West HAC inference,
+``Application_2`` = the China anti-corruption luxury-watch example with
+``china_import.rda`` = ``basedata/china_watches_long.csv``).
+
+### The idea in one line
+
+A fourth PDA control-selection rule (alongside ``l2`` / ``lasso`` / ``fs``):
+rank the candidate controls by random-forest permutation importance on a 70/30
+split of the pre-period, forward-select the prefix of the ranked list that
+minimizes held-out forest MSE, then fit ordinary OLS PDA on the selected
+controls and test the ATE with the West (1997) MA(1) long-run variance.
+
+### What ported cleanly (validated cell-for-cell)
+
+Running the reference ``RF.R`` natively in R reproduces the paper exactly: watch
+ATT = **-0.0266**, R^2 = 0.777, **7** selected commodities, p = **0.0634**.
+
+- **OLS PDA counterfactual + MA(1)-West HAC inference are exact.** Fed the
+  reference's exact 7 selected controls, mlsynth's ``_ols_pda`` +
+  ``rfpda_ate_inference`` returns ATT = -0.0266, p = 0.0636 -- bit-for-bit the
+  reference. The inference HAC formula is pinned against ``test.R`` in a unit
+  test.
+- **The importance ranking is reasonable.** 5 of the reference's 7 controls land
+  in mlsynth's top 8 (ranks 2,4,5,7,8; the other two at 20,26).
+
+### Why it is parked -- the RF selection does not reproduce (KEEP THIS)
+
+Through the public API (``PDA(method="rf")``) the selection is **seed-unstable
+and does not match R**:
+
+| seed | ATT | p | # selected |
+|---|---|---|---|
+| 0 | -7.06% | 0.125 | 41 |
+| 42 | -9.04% | 0.214 | 34 |
+| 372236 (the reference's own seed) | -5.74% | 0.240 | 21 |
+| 7 | -3.57% | 0.020 | 11 |
+| 2024 | -3.18% | 0.049 | 6 |
+| **reference (R)** | **-2.66%** | **0.063** | **7** |
+| ``fs`` (cross-check) | -3.09% | 0.012 | 3 |
+
+The estimate swings from -3.2% to -9% (p 0.02-0.24) with the seed alone.
+
+**Root cause -- two compounding issues:**
+
+1. **scikit-learn's ``RandomForestRegressor`` != R's ``randomForest``.** Different
+   bootstrap RNG, CART split selection, and importance routine (R's ``type=1``
+   is OOB ``%IncMSE``; sklearn's ``permutation_importance`` permutes a supplied
+   set). On the tiny pre-period (T0 = 35 -> ~24 train / 11 test) these diverge
+   materially -- they are simply different forests.
+2. **The forward-sweep criterion is raw ``argmin`` of an 11-point held-out MSE,
+   which is intrinsically unstable.** Diagnosed on the watch panel: the MSE curve
+   drops to ~0.027 by 8 controls then stays *flat and noisy* (MSE 0.0313 at i=7
+   vs a global min 0.0264 that wanders to i=15-41 by seed). With so few test
+   points the ``argmin`` over-selects and jumps around. This fragility is
+   **inherent to the method on short panels**, not specific to sklearn: R's own
+   result is the value its single pinned seed (372236) happens to land on.
+
+So the method's *defining* step is the part that does not port. The OLS +
+inference half (the part that is implementation-independent) is exact.
+
+### The main issue, distilled
+
+rfPDA's contribution is the RF selection, and that selection is governed by an
+``argmin`` over a noisy held-out forest MSE on a short pre-period. It is doubly
+non-deterministic across (a) RF implementation and (b) seed, so there is no
+value-for-value Python reproduction of the paper's headline, and -- worse -- no
+*stable* point estimate to ship. We declined to merge it or pin a benchmark.
+
+### Build path if resumed (and: "would a custom RF be the solution?")
+
+Yes -- a **custom, pure-NumPy random forest that mirrors R's ``randomForest``**
+(same bootstrap draw + RNG, CART splitting, ``mtry = floor(p/3)``,
+``nodesize = 5``, OOB ``%IncMSE`` importance) is the route to a *faithful*
+replication: it would let mlsynth bit-reproduce the reference for a given seed.
+But weigh two things first:
+
+- It is a large undertaking -- effectively re-implementing Breiman's algorithm's
+  numerics in Python (the "torture yourself" route). sklearn cannot be coerced
+  into bit-equality with R here.
+- **It would reproduce the paper's chosen-seed answer, not cure the fragility.**
+  Even R's rfPDA is seed-dependent on T0 = 35 (the flat/noisy MSE curve is the
+  method's, not the implementation's). A faithful custom RF makes
+  *replication* exact; it does **not** make rfPDA a *stable* estimator on short
+  panels. If the goal is a trustworthy tool rather than a literal port, the more
+  productive direction is a **stabilized selection rule** (seed-ensembled MSE
+  curve + a 1-SE "smallest prefix within one SE of the min" rule, which on the
+  watch data should land near the ~7-control / ~-3% region) -- but that is a
+  deliberate *deviation* from the reference, i.e. new methodology, not a port.
+
+What is already done and reusable on ``claude/pda-rf``: the ``pda_helpers/rf/``
+subpackage (``rank_controls_rf``, ``forward_select_rf``, ``rfpda_ate_inference``
+with the exact MA(1)-West HAC), ``method="rf"`` wired through ``PDAConfig`` /
+orchestration (with ``n_jobs`` / ``sweep_n_estimators`` / ``max_support`` /
+``patience`` efficiency knobs), and the full TDD suite. Only the RF *selection*
+needs replacing (custom RF) or *stabilizing* (ensemble + 1-SE) to resume.
+
+### Verdict
+
+Genuine gap, in-lane, top venue -- but the contribution does not port faithfully
+through scikit-learn and is not seed-stable on the short panels PDA targets.
+Parked: keep ``claude/pda-rf`` for a future custom-RF or stabilized-selection
+effort; do not merge or benchmark the sklearn version.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*
