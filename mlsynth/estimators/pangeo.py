@@ -75,6 +75,8 @@ class PANGEO:
         self.weight_col = config.weight_col
         self.max_supergeo_size = config.max_supergeo_size
         self.min_pairs: int = config.min_pairs
+        self.fast: bool = config.fast
+        self.fast_candidates: int = config.fast_candidates
         self.objective: str = config.objective
         self.recency_decay: float = config.recency_decay
         self.frac_E: float = config.frac_E
@@ -120,6 +122,8 @@ class PANGEO:
                 inputs=inputs,
                 max_supergeo_size=self.max_supergeo_size,
                 min_pairs=self.min_pairs,
+                fast=self.fast,
+                fast_candidates=self.fast_candidates,
                 objective=self.objective,
                 recency_decay=self.recency_decay,
                 frac_E=self.frac_E,

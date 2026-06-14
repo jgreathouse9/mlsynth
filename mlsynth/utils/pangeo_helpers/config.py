@@ -77,6 +77,26 @@ class PANGEOConfig(BaseModel):
     min_pairs: int = Field(
         default=1, ge=1,
         description="Minimum number of supergeo pairs per arm.")
+    fast: bool = Field(
+        default=True,
+        description="Partition solver. Default (True) uses the OSD-style fast "
+                    "partition (Shaw 2025 analog): each arm's units are "
+                    "level-removed, PCA-embedded, hierarchically clustered into "
+                    "size-bounded groups, and split per group -- replacing the "
+                    "O(n^{2Q}) candidate enumeration and NP-hard exact-cover "
+                    "MIP with an O(n log n) heuristic. Under cluster structure "
+                    "it matches the exact optimum (validated against a "
+                    "structure-aware oracle) in sub-second time, and is the "
+                    "only tractable path at large Q. Set False to use the exact "
+                    "enumerate+MIP (the optimum; only feasible for small arms / "
+                    "small Q). Both minimise the same de-meaned (DiD) "
+                    "pre-period gap-variance objective.")
+    fast_candidates: int = Field(
+        default=5, ge=1,
+        description="Number of candidate groupings tried by the fast partition "
+                    "(varying linkage / a small embedding perturbation, as in "
+                    "OSD); the lowest-total-cost grouping is kept. Only used "
+                    "when fast=True.")
     objective: Literal["ss_res", "r2", "weighted"] = Field(
         default="ss_res",
         description="Per-pair parallelism cost: 'ss_res' (absolute DiD "
