@@ -208,7 +208,7 @@ over-interpreted.
 Inference
 ---------
 
-Four inference modes are available via ``inference=``:
+Five inference modes are available via ``inference=``:
 
 ``"placebo"`` (default, ``inference=True``)
     Abadie's in-space placebo test: the synthetic control is refit treating
@@ -316,6 +316,143 @@ Four inference modes are available via ``inference=``:
     tallies. It shares the placebo test's assumptions but is far more powerful
     in small donor pools. See *The leave-two-out refined placebo test* and the
     two theory subsections below for the full treatment.
+
+``"ttest"`` -- debiased SC t-test for the ATT (Chernozhukov, Wüthrich & Zhu 2025)
+    A :math:`K`-fold cross-fitting debiasing with a self-normalized statistic
+    that is asymptotically :math:`t_{K-1}`, giving the ATT in the familiar
+    one-number form :math:`\widehat{\tau} \pm t_{K-1}(1-\alpha/2)\,\mathrm{se}`
+    -- robust to misspecification and valid with stationary or non-stationary
+    data, with no long-run-variance estimation. The pre-period is split into
+    ``ttest_K`` blocks; each block's weights are refit (with the configured
+    backend) on its complement, and the held-out block gap removes the SC bias.
+    The debiased ATT, ``se``, ``tstat`` and the two-sided ``p_value`` land in
+    ``res.inference.details`` with the interval in
+    ``res.inference.ci_lower``/``ci_upper``. Set ``ttest_K="auto"`` to choose
+    :math:`K` from the SC-residual persistence and the RAE formula (their
+    Section 3.2); :math:`K = 3` is the small-:math:`T_0` benchmark. Because it
+    only needs :math:`\ell_2`-consistent weights it composes with every backend.
+    Supplying ``oracle_weights`` (a ``{donor: weight}`` map) bypasses the weight
+    solve and uses those weights in every fold -- the paper's oracle benchmark,
+    and a way to plug in externally computed weights.
+    Reference: :func:`mlsynth.utils.inferutils.debiased_sc_ttest`; reproduces the
+    paper's Table 5 carbon-tax estimate (durable case
+    ``benchmarks/cases/cwz_ttest.py``).
+
+The debiased t-test: assumptions and econometric theory
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Setup and estimand. The treated unit :math:`j = 1` is untreated through
+:math:`T_0` and treated over :math:`\mathcal{T}_2`; the target is the ATT
+:math:`\tau \coloneqq |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}(y_{1t}^I -
+y_{1t}^N)`. SC predicts the missing :math:`y_{1t}^N` from the donor outcomes
+:math:`\mathbf{x}_t \coloneqq (y_{jt})_{j\in\mathcal{N}_0}`; write the linear
+prediction model
+
+.. math::
+
+   y_{1t}^N = \mathbf{x}_t^\top \mathbf{w}^\ast + u_t, \qquad
+   \mathbf{w}^\ast \coloneqq \operatorname*{argmin}_{\mathbf{w}\in\Delta^{N_0}}
+   \mathbb{E}\bigl(y_{1t}^N - \mathbf{x}_t^\top\mathbf{w}\bigr)^2 .
+
+This is a predictive, not a structural, model: the pseudo-true weights
+:math:`\mathbf{w}^\ast` need not be "true" SC weights, so the test tolerates
+misspecification (for instance a linear factor model under which SC is biased).
+
+Why cross-fitting debiases. The naive SC ATT is biased because the weights are
+estimated in high dimension relative to :math:`T_0`; under stationarity that
+bias is the same in :math:`\mathcal{T}_1` and :math:`\mathcal{T}_2`. The
+:math:`K`-fold cross-fit estimates it from a held-out pre-period block and
+subtracts it. Splitting :math:`\{1,\dots,T_0\}` into :math:`K` blocks of length
+:math:`r = \min(\lfloor T_0/K\rfloor, T_1)` and refitting
+:math:`\widehat{\mathbf{w}}_{(k)}` on each block's complement keeps the weights
+approximately independent of the held-out block :math:`H_k`, so
+
+.. math::
+
+   \widehat{\tau}_k = |\mathcal{T}_2|^{-1}\!\!\sum_{t\in\mathcal{T}_2}
+   \bigl(y_{1t} - \mathbf{x}_t^\top\widehat{\mathbf{w}}_{(k)}\bigr)
+   - |H_k|^{-1}\!\!\sum_{t\in H_k}
+   \bigl(y_{1t} - \mathbf{x}_t^\top\widehat{\mathbf{w}}_{(k)}\bigr),
+   \qquad \widehat{\tau} = K^{-1}\!\sum_{k=1}^{K} \widehat{\tau}_k ,
+
+where the second (held-out) term estimates the pre-period bias that, under
+stationarity, also contaminates the first (post-period) term.
+
+The identifying assumptions are the following (stationary case; Section 4 of the
+paper relaxes the first to nonstationary data).
+
+1. Covariance-stationary data. :math:`\{(y_{1t}^N, \mathbf{x}_t)\}` is
+   covariance-stationary.
+
+   *Remark.* This is what makes the held-out pre-period gap a valid estimate of
+   the post-period bias -- the load-bearing restriction. It is plausibly
+   violated by a structural break shortly after :math:`T_0`; the placebo test
+   (``inference="placebo"``) can be used to probe it.
+
+2. :math:`\ell_2`-consistent weights.
+   :math:`\max_{k} \|\widehat{\mathbf{w}}_{(k)} - \mathbf{w}^\ast\|_2 = o_p(1)`.
+
+   *Remark.* Mild and generic: it holds for SC even when the number of donors
+   :math:`N_0` grows with :math:`T_0` (no sparsity needed) and for many
+   penalized-regression estimators -- the reason the test rides any backend
+   (outcome-only / mscmt / malo / penalized) and, more broadly, any
+   :math:`\ell_2`-consistent weighting.
+
+3. Weak dependence. :math:`\{(\mathbf{x}_t, u_t)\}` is :math:`\beta`-mixing
+   with sufficient moments and covariance eigenvalues bounded away from zero.
+
+   *Remark.* Satisfied by ARMA, GARCH and many stochastic-volatility processes;
+   it rules out unit-root / near-unit-root prediction errors in the stationary
+   theory (the nonstationary results in Section 4 handle those separately).
+
+Limiting distribution. Under Assumptions 1-3, as :math:`T_0, T_1 \to \infty`,
+the component estimators :math:`(\widehat{\tau}_1,\dots,\widehat{\tau}_K)` are
+jointly asymptotically normal but share a common term :math:`\xi_0` (the
+post-treatment average), so they are not independent. Estimating the long-run
+variance :math:`\sigma^2` is unreliable in small samples, so the test instead
+self-normalizes:
+
+.. math::
+
+   \mathbb{T}_K = \frac{\sqrt{K}\,(\widehat{\tau} - \tau)}
+   {\widehat{\sigma}_{\widehat{\tau}}}, \qquad
+   \widehat{\sigma}_{\widehat{\tau}} = \sqrt{1 + \tfrac{Kr}{T_1}}\,
+   \Bigl(\tfrac{1}{K-1}\textstyle\sum_{k}(\widehat{\tau}_k - \widehat{\tau})^2
+   \Bigr)^{1/2}.
+
+The shared :math:`\xi_0` cancels between numerator and denominator -- this is
+exactly what the :math:`\sqrt{1 + Kr/T_1}` rescale corrects for -- giving an
+asymptotically pivotal :math:`\mathbb{T}_K \xrightarrow{d} t_{K-1}`, a
+Student-:math:`t` law with :math:`K-1` degrees of freedom. No LRV estimate, no
+subsampling, no permutation distribution is needed; self-normalization also
+delivers higher-order refinements that explain the strong small-sample
+performance. Inverting the statistic gives
+:math:`\widehat{\tau} \pm t_{K-1}(1-\alpha/2)\,
+\widehat{\sigma}_{\widehat{\tau}}/\sqrt{K}` with asymptotic coverage
+:math:`1-\alpha` (a confidence interval when :math:`\tau` is fixed, a prediction
+interval when it is random).
+
+Efficiency and nonstationarity. The debiased SC estimator's asymptotic variance
+is no larger than difference-in-differences', whether or not SC is correctly
+specified, and the t-test stays valid when DID's common-trends assumption
+fails. With nonstationary data it is valid when all units share a common
+nonstationarity, or under bounded heterogeneity in the deviations (then SC must
+be correctly specified); its robustness improves as :math:`T_0` grows. Reach for
+it with one treated unit and enough post-periods (the asymptotics send
+:math:`T_1 \to \infty`); when :math:`T_1` is very small or a break hits just
+after :math:`T_0`, prefer the conformal or SCPI modes, which are valid for fixed
+:math:`T_1`.
+
+Choosing :math:`K`. ``ttest_K`` trades interval length against coverage
+accuracy: larger :math:`K` shortens the interval -- its relative asymptotic
+efficiency (the RAE of eq. 14, reproduced in
+:func:`mlsynth.utils.inferutils.rae`) rises from about 64% at :math:`K=3` toward
+92% at :math:`K=10` for :math:`c_0 = T_0/T_1 = 30/16` -- but degrades coverage
+when :math:`T_0` is small or the prediction errors are persistent. ``ttest_K=3``
+is the robust small-:math:`T_0` benchmark; ``ttest_K="auto"`` gauges persistence
+by an AR(1) fit to the SC residuals and selects :math:`K` per Section 3.2 (it
+bumps to :math:`K=4` when persistence is low and climbs further only when
+:math:`T_0` is large enough to keep each block well-sized).
 
 How the SCPI machinery works (one fit)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

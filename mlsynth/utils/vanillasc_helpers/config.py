@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from ...config_models import BaseEstimatorConfig
 
@@ -125,7 +125,8 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "(Cattaneo-Feng-Titiunik prediction intervals), 'conformal' "
                     "(Chernozhukov-Wuthrich-Zhu test-inversion intervals, the "
                     "augsynth default for ASCM), 'lto' (Lei-Sudijono leave-two-"
-                    "out refined placebo), or False.",
+                    "out refined placebo), 'ttest' (Chernozhukov-Wuthrich-Zhu "
+                    "2025 debiased SC t-test for the ATT), or False.",
     )
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
@@ -143,6 +144,31 @@ class VanillaSCConfig(BaseEstimatorConfig):
         default=None, ge=1,
         description="Cap on donor pairs for the 'lto' test (None -> all pairs).",
     )
+    oracle_weights: Optional[Dict[Any, float]] = Field(
+        default=None,
+        description="User-specified donor weights ``{donor_id: weight}``. When "
+                    "given, the weight optimization is skipped and these weights "
+                    "are used directly (e.g. the 'oracle' known-weights case). "
+                    "Donors omitted from the map get weight 0. Supported with "
+                    "inference=False or inference='ttest'.",
+    )
+    ttest_K: Union[int, Literal["auto"]] = Field(
+        default=3,
+        description="Cross-fitting folds for inference='ttest' (Chernozhukov-"
+                    "Wuthrich-Zhu 2025): an int >= 2, or 'auto' to select K from "
+                    "the SC-residual persistence and the RAE formula per their "
+                    "Sec 3.2. K=3 is the small-T0 benchmark; larger K tightens "
+                    "the interval.",
+    )
+
+    @field_validator("ttest_K")
+    @classmethod
+    def _validate_ttest_K(cls, v):
+        if v == "auto":
+            return v
+        if isinstance(v, bool) or not isinstance(v, int) or v < 2:
+            raise ValueError("ttest_K must be an integer >= 2 or 'auto'.")
+        return v
     penalized_cv: Literal["holdout", "loo", "pensynth"] = Field(
         default="holdout",
         description="Lambda selector for backend='penalized'. 'holdout'/'loo' "
