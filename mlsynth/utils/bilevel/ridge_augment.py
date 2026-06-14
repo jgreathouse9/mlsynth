@@ -133,6 +133,51 @@ def solve_ridge(
     return M @ N @ B
 
 
+def solve_ridge_path(
+    A: np.ndarray, B: np.ndarray, W: np.ndarray, lambdas: np.ndarray
+) -> np.ndarray:
+    """Ridge corrections for a whole lambda grid from one eigendecomposition.
+
+    Equivalent to ``np.vstack([solve_ridge(A, B, W, lam) for lam in lambdas])``
+    but evaluates the entire grid from a single symmetric eigendecomposition of
+    ``B B^T`` instead of inverting ``B B^T + lambda I`` once per lambda. With
+
+        B B^T = V diag(d) V^T,    inv(B B^T + lambda I) = V diag(1/(d+lambda)) V^T,
+
+    the correction ``M @ inv(...) @ B`` becomes ``(p / (d + lambda)) @ Q`` where
+    ``M = A - B W``, ``p = M V`` and ``Q = V^T B`` are computed once. The
+    ``+ lambda I`` keeps every shifted system positive-definite, so the result
+    matches :func:`solve_ridge` to numerical tolerance even when ``B B^T`` is
+    rank-deficient (``J < m`` periods, or collinear donors).
+
+    Parameters
+    ----------
+    A : numpy.ndarray, shape (m,)
+        Treated unit's (centered) matching vector.
+    B : numpy.ndarray, shape (m, J)
+        Donor (centered) matching matrix.
+    W : numpy.ndarray, shape (J,)
+        Base (simplex) SCM weights.
+    lambdas : numpy.ndarray, shape (L,)
+        Candidate ridge penalties.
+
+    Returns
+    -------
+    numpy.ndarray, shape (L, J)
+        Row ``i`` is the additive ridge correction for ``lambdas[i]``.
+    """
+    A = np.asarray(A, dtype=float).ravel()
+    B = np.asarray(B, dtype=float)
+    W = np.asarray(W, dtype=float).ravel()
+    lambdas = np.asarray(lambdas, dtype=float).ravel()
+    M = A - B @ W                                   # (m,)
+    d, V = np.linalg.eigh(B @ B.T)                  # (m,), (m, m) symmetric PSD
+    p = M @ V                                       # (m,)
+    Q = V.T @ B                                     # (m, J)
+    scale = p[None, :] / (d[None, :] + lambdas[:, None])   # (L, m)
+    return scale @ Q                                # (L, J)
+
+
 def generate_lambdas(
     X: np.ndarray, lambda_min_ratio: float = 1e-8, n_lambda: int = 20
 ) -> np.ndarray:
@@ -214,11 +259,11 @@ def cross_validate(
     res = []
     for B_t, B_v, A_t, A_v in _HoldoutSplitter(X0, X1, holdout_len=holdout_len):
         W = base_weights_fn(B_t, A_t)
-        fold = []
-        for lam in lambdas:
-            W_aug = W + solve_ridge(A=A_t, B=B_t, W=W, lambda_=lam)
-            fold.append(float(np.sum((A_v - B_v @ W_aug) ** 2)))
-        res.append(fold)
+        # All lambdas at once: one eigendecomposition of B_t B_t^T instead of
+        # one matrix inversion per lambda (see solve_ridge_path).
+        W_aug = W[None, :] + solve_ridge_path(A_t, B_t, W, lambdas)   # (L, J)
+        resid = A_v[None, :] - W_aug @ B_v.T                          # (L, h)
+        res.append(np.sum(resid ** 2, axis=1))                        # (L,)
     arr = np.asarray(res, dtype=float)
     n_folds = arr.shape[0]
     errors_mean = arr.mean(axis=0)
