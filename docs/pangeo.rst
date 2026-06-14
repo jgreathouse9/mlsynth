@@ -34,12 +34,14 @@ post-period gap into a clean read on the campaign.
 
 PANGEO is two stages:
 
-#. Design (pre-period data only). A set-partitioning mixed-integer
-   program groups each arm's geos into composite *supergeos*, forms
-   balanced pairs with no geo trimmed, and selects the partition that
-   maximises pre-period parallelism. A power analysis reports the
-   minimum detectable effect (MDE) implied by the chosen supergeo size
-   :math:`Q`.
+#. Design (pre-period data only). Each arm's geos are grouped into
+   composite *supergeos* and formed into balanced pairs --- with no geo
+   trimmed --- so that pre-period parallelism is maximised. By default this
+   partition is found by a fast clustering heuristic (the OSD analogue of
+   Shaw 2025); an exact set-partitioning mixed-integer program is available
+   as an opt-out (``fast=False``). Both optimise the same parallelism
+   objective. A power analysis reports the minimum detectable effect (MDE)
+   implied by the chosen supergeo size :math:`Q`.
 
 #. Evaluation (after the experiment). The *same* design is scored
    against the realised outcomes with the Augmented
@@ -70,11 +72,11 @@ scalar match.)
 When *not* to use it. If the assignment is already fixed (an
 observational study, or a campaign that already ran in specific markets),
 there is no design to choose — use an estimation-stage method
-(:doc:`tssc`, :doc:`sbc`, :doc:`fdid`). If you have *hundreds* of geos the
-exact MIP may be intractable (see *When PANGEO Fails or Stalls* below) —
-the scalable OSD relaxation is the better fit there. And if the outcome is
-plausibly stationary with no trend or seasonality, scalar matching is
-already adequate and simpler.
+(:doc:`tssc`, :doc:`sbc`, :doc:`fdid`). Large geo pools (hundreds of
+markets) are handled by the default clustering partition (see *Forming the
+supergeos* below); only the exact opt-out program is scale-limited. And if
+the outcome is plausibly stationary with no trend or seasonality, scalar
+matching is already adequate and simpler.
 
 What is a supergeo?
 ^^^^^^^^^^^^^^^^^^^
@@ -217,9 +219,10 @@ points at a way the method can fail or stall.
    matchable.
 
    *Remark.* A pool that cannot form a balanced pair (e.g. two wildly
-   different markets) has no good design to find; with *hundreds* of geos the
-   exact MIP may be intractable, so the scalable OSD relaxation is the better
-   fit there (see *When PANGEO Fails or Stalls* below).
+   different markets) has no good design to find. Scale itself is not a
+   barrier --- the default clustering partition handles large pools (see
+   *Forming the supergeos* below) --- only the exact opt-out program is
+   scale-limited.
 
 When PANGEO Fails or Stalls
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -233,12 +236,13 @@ The concrete failure / stall modes:
   feasible design, but the parallelism :math:`R^2` stays low and the MDE
   blows up — a signal that a geo experiment here is underpowered and the
   read will be noisy regardless of split.
-- The MIP stalls. Set partitioning is NP-hard. With many geos and a
-  large supergeo size :math:`Q`, the exact mixed-integer program can be
-  slow or intractable. Mitigations: cap :math:`Q` (smaller supergeos),
-  use the automatic :math:`Q` selection, raise ``min_pairs``, or — for
-  hundreds of geos — fall back to the scalable OSD relaxation. The
-  examples on this page use a handful of geos, so the solve is instant.
+- The exact program stalls. Set partitioning is NP-hard, so the exact
+  opt-out program (``fast=False``) can be slow or intractable with many geos
+  and a large supergeo size :math:`Q`. The default clustering partition
+  avoids this --- it is :math:`O(n\log n)` and, under cluster structure,
+  matches the exact optimum (see *Forming the supergeos*). If you
+  nonetheless need the exact program, cap :math:`Q` (smaller supergeos), use
+  the automatic :math:`Q` selection, or raise ``min_pairs``.
 - Too few geos / arms. A pool that cannot form a balanced pair (e.g.
   two wildly different markets) has no good design to find.
 
@@ -292,10 +296,66 @@ shift :math:`\bar g_p` and never penalised: two supergeos may differ
 arbitrarily in level yet match perfectly in *shape*. Scalar sum-matching,
 by contrast, collapses the time dimension and is blind to shape.
 
-The set-partitioning program
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Forming the supergeos
+^^^^^^^^^^^^^^^^^^^^^^
 
-Let :math:`\mathcal F` be the family of admissible pairs: every subset
+Given the per-pair cost :eq:`score`, the design must partition each arm's geos
+into supergeo pairs of minimum total non-parallelism. PANGEO offers two solvers
+for this, and they optimise the *same* objective :eq:`score`. The econometric
+content of the design --- balancing the factor loadings of :eq:`gapdecomp`,
+i.e. making the supergeo halves move in parallel --- is therefore identical
+whichever solver runs; they differ only in how they search. Both run
+independently within each arm (arms hold disjoint geos), and both produce an
+exact cover: every geo is assigned to exactly one supergeo pair, with nothing
+trimmed.
+
+Clustering partition (default, ``fast=True``). Geo-experiment panels almost
+always have cluster structure: markets fall into a handful of latent types
+that move together up to a level shift (shared seasonality, regional demand,
+category-level trends). When that structure is present the best supergeos are
+just groups of same-type geos, which can be found by clustering rather than by
+combinatorial search. The default solver --- an analogue of OSD (Shaw 2025)
+for the trajectory objective --- forms the supergeos in five plain steps:
+
+#. Level removal. Each geo's pre-period trajectory has its own time-mean
+   subtracted, leaving the *shape* :math:`y_{it}-\bar y_i`. This is the same
+   demeaning as the score :eq:`score`: two geos moving in parallel at any
+   level become identical, so the grouping targets parallel trends rather
+   than matching levels.
+#. Embedding. The shapes are projected onto their leading principal
+   components (denoising; under the factor model :eq:`factor` the shapes span
+   the factor space, which PCA recovers).
+#. Clustering. Hierarchical (Ward) linkage orders the geos so that
+   parallel-moving markets are adjacent.
+#. Size-bounded grouping. The ordering is cut into contiguous groups of size
+   :math:`2,\dots,2Q` --- each splittable into two halves of size :math:`\le
+   Q` --- giving the exact cover. ``min_pairs`` caps the group size so that at
+   least that many pairs form.
+#. Per-group split. Within each group the treatment and control halves are
+   the split minimising :eq:`score` --- the same best split the exact program
+   uses.
+
+A handful of candidate groupings are generated (varying the linkage rule and a
+small embedding perturbation, as in OSD) and the one with the lowest total
+:eq:`score` is kept; ``fast_candidates`` sets how many. The cost is
+:math:`O(n\log n)`, against the exponential search below.
+
+*Remark.* The clustering partition is a heuristic: its total cost is
+:math:`\ge` the exact optimum, with equality when the trajectory clusters are
+clean. Checked against a structure-aware oracle (group by the true latent
+clusters, then split each exactly), on clustered panels it *matches* the exact
+optimum --- e.g. at :math:`N=60` geos with supergeos up to :math:`Q=6` it
+recovers the oracle design in well under a second, a regime where the exact
+program cannot even begin (it enumerates :math:`O(N^{2Q})` candidate subsets).
+This is why it is the default. On data with no cluster structure the gap to the
+optimum can be large; there the exact program is preferable when affordable.
+
+The exact set-partitioning program (``fast=False``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The exact solver enumerates every admissible pair and selects the optimal
+exact cover by mixed-integer programming. Let :math:`\mathcal F` be the family
+of admissible pairs: every subset
 of the arm's geos of size :math:`2,\dots,2Q` that can be split into two
 halves each of size :math:`\le Q`, each subset scored at its best such split
 by :eq:`score`. Let :math:`\mathbf{M}\in\{0,1\}^{N\times|\mathcal F|}` be the geo-by-
