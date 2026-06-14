@@ -56,7 +56,7 @@ Why panel data is a natural fit
 A fully observed *anchor block* is essential. Under independent MCAR no
 large fully observed submatrix exists, but the block-structured
 missingness of panel data -- a control block observed throughout, with
-treated units missing their post-treatment :math:`y(0)` -- *naturally
+treated units missing their post-treatment :math:`y^N` -- *naturally
 induces* anchor rows (controls) and columns (pre-periods). SNN is
 therefore especially well suited to comparative case studies and
 staggered-adoption designs, exactly the setting this estimator targets.
@@ -70,7 +70,7 @@ completion, and forms the treatment effect as observed minus imputed:
 
 .. math::
 
-   \tau_{it} \coloneqq y_{it} - \widehat{y}_{it}(0), \qquad
+   \tau_{it} \coloneqq y_{it} - \widehat{y}_{it}^N, \qquad
    \widehat{\tau} \coloneqq \frac{1}{|\{(i,t): d_{it}=1\}|}
        \sum_{d_{it}=1} \tau_{it}.
 
@@ -101,7 +101,7 @@ Reach for SNN when
 * The observed cells contain a large fully observed anchor block. Panel
   causal designs supply this naturally: a control block observed
   throughout, with treated units missing only their post-treatment
-  :math:`y(0)`. This block structure is what lets SNN find anchor rows and
+  :math:`y^N`. This block structure is what lets SNN find anchor rows and
   columns per entry.
 * Arbitrary / block-structured missingness, including staggered
   adoption, where different units are missing different post-periods and

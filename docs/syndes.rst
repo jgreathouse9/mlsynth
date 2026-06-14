@@ -40,7 +40,7 @@ periods :math:`\mathcal{T}_2 \coloneqq \{t : t > T_0\}` (of length
 :math:`S - T_0`), with exactly ``K`` treated units
 (:math:`\sum_i D_i = K`). The assignment vector
 :math:`\mathbf{D} \coloneqq (D_1, \ldots, D_N)^\top` is itself a decision variable.
-Each unit has potential outcomes :math:`(y_{it}(0), y_{it}(1))` and observed
+Each unit has potential outcomes :math:`(y_{it}^N, y_{it}^I)` and observed
 outcome :math:`y_{it} = y_{it}(D_i)`. Synthetic weights :math:`\mathbf{w}` live
 on the simplex (non-negative, summing to one on the relevant side). The estimand
 is the weighted average treatment effect on the treated (wATET)
@@ -61,9 +61,9 @@ is the weighted average treatment effect on the treated (wATET)
 The design problem
 ~~~~~~~~~~~~~~~~~~
 
-Under the outcome model :math:`y_{it}(0) = \mu_{it} + \varepsilon_{it}` with
+Under the outcome model :math:`y_{it}^N = \mu_{it} + \varepsilon_{it}` with
 mean-zero, homoskedastic noise (:math:`\operatorname{Var}\varepsilon_{it} =
-\sigma^2`) and additive effects :math:`y_{it} = y_{it}(0) + D_i \tau_i`, the
+\sigma^2`) and additive effects :math:`y_{it} = y_{it}^N + D_i \tau_i`, the
 conditional MSE of the per-unit synthetic-control estimator
 :math:`\widehat{\tau}_i \coloneqq y_{i,T_0+1} - \sum_{j:D_j=0} w^i_j y_{j,T_0+1}` is
 
@@ -150,7 +150,7 @@ subject to :math:`c_i \ge 0`, :math:`\sum_i c_i = 1`, :math:`c_i \le 1 - D_i`
 Assumptions / Remarks.
 
 *Assumption 1 (additive effects, homoskedastic noise).* Outcomes follow
-:math:`y_{it}(0) = \mu_{it} + \varepsilon_{it}` with
+:math:`y_{it}^N = \mu_{it} + \varepsilon_{it}` with
 :math:`\mathbb{E}\varepsilon_{it}=0`, :math:`\operatorname{Var}\varepsilon_{it}
 = \sigma^2`, and treatment adds :math:`\tau_i`. *Remark.* This is what makes the
 MSE above decompose into the matching-bias and weight-variance terms the MIP

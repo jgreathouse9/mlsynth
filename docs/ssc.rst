@@ -23,7 +23,7 @@ on parallel trends (unlike staggered difference-in-differences).
 
 Second, it delivers valid inference for policy-relevant aggregates. All
 individual unit-by-time effects are estimated jointly; the target is any linear
-functional :math:`\gamma = \mathbf{L}\tau` -- the event-time ATT, the overall ATT, or a
+functional :math:`\gamma = \mathbf{L}\boldsymbol{\tau}` -- the event-time ATT, the overall ATT, or a
 contrast between two policies. Inference is Andrews' (2003) end-of-sample
 stability test, whose reference distribution is built from pre-treatment
 residual windows, and which can test both *sharp* and *non-sharp* nulls.
@@ -69,8 +69,8 @@ unit adopts, :math:`|\mathcal{T}_1| = T_0`) and the post-period
 units); treatment is absorbing. The observed outcome is the never-treated
 potential outcome before adoption and the treated one after. The individual
 effect is :math:`\tau_{i,t} \coloneqq y_{i,t}(t_i) - y_{i,t}(\infty)`, and the
-target is a linear functional :math:`\gamma \coloneqq \mathbf{L}\tau` of the stacked
-effect vector :math:`\tau \in \mathbb{R}^K` (:math:`K` = number of treated
+target is a linear functional :math:`\gamma \coloneqq \mathbf{L}\boldsymbol{\tau}` of the stacked
+effect vector :math:`\boldsymbol{\tau} \in \mathbb{R}^K` (:math:`K` = number of treated
 cells).
 
 The estimator
@@ -95,33 +95,33 @@ The prediction error is
 :math:`u_{i,t} \coloneqq y_{i,t}(\infty) - (\widehat a_i + \mathbf{Y}_t(\infty)'\widehat{\mathbf{b}}_i)`.
 
 *Step 2 -- joint effect estimation.* With selector matrices :math:`\mathbf{A}_s`
-mapping :math:`\tau` to the period-:math:`(T_0+s)` effect vector, the GLS
+mapping :math:`\boldsymbol{\tau}` to the period-:math:`(T_0+s)` effect vector, the GLS
 estimator (paper eq. 2.4) is
 
 .. math::
 
-   \widehat\tau \coloneqq \Bigl(\sum_{s=1}^{S} \mathbf{A}_s'\widehat{\mathbf{M}} \mathbf{A}_s\Bigr)^{-1}
+   \widehat{\boldsymbol{\tau}} \coloneqq \Bigl(\sum_{s=1}^{S} \mathbf{A}_s'\widehat{\mathbf{M}} \mathbf{A}_s\Bigr)^{-1}
      \sum_{s=1}^{S} \mathbf{A}_s'(\mathbf{I} - \widehat{\mathbf{B}})'
        \bigl((\mathbf{I} - \widehat{\mathbf{B}}) \mathbf{Y}_{T_0+s} - \widehat{\mathbf{a}}\bigr).
 
 The invertibility of :math:`\sum_s \mathbf{A}_s' \mathbf{M} \mathbf{A}_s`
 (Assumption 2.1) is the key identifying condition; its smallest eigenvalue is a
 useful diagnostic. The event-time ATT at horizon :math:`s` is the average of
-:math:`\widehat\tau` over cells with event time :math:`s`, and the overall ATT
+:math:`\widehat{\boldsymbol{\tau}}` over cells with event time :math:`s`, and the overall ATT
 is the grand mean.
 
 Inference
 ~~~~~~~~~
 
-SSC tests :math:`H_0: \mathbf{C}\tau = \mathbf{d}` (e.g. event-time ATT
+SSC tests :math:`H_0: \mathbf{C}\boldsymbol{\tau} = \mathbf{d}` (e.g. event-time ATT
 :math:`= 0`, or two policies equal) with Andrews' (2003) end-of-sample stability
 test. The test statistic is
-:math:`\widehat P \coloneqq (\mathbf{C}\widehat\tau - \mathbf{d})'(\mathbf{C}\widehat\tau - \mathbf{d})`;
+:math:`\widehat P \coloneqq (\mathbf{C}\widehat{\boldsymbol{\tau}} - \mathbf{d})'(\mathbf{C}\widehat{\boldsymbol{\tau}} - \mathbf{d})`;
 its critical value comes from sliding a length-:math:`S` window across the
 :math:`T_0` pre-treatment residuals to form :math:`T_0 - S` placebo realisations
 of the estimator under the null. Under a stationarity/ergodicity assumption on
 the prediction error the test has asymptotically correct size as
-:math:`T \to \infty` -- crucially without point-identifying :math:`\tau`.
+:math:`T \to \infty` -- crucially without point-identifying :math:`\boldsymbol{\tau}`.
 ``mlsynth`` reports, for the overall ATT and each event-time ATT, a band (the
 point estimate plus the placebo distribution's quantiles) and a two-sided
 p-value, on :class:`~mlsynth.utils.ssc_helpers.structures.SSCBand`.
@@ -132,7 +132,7 @@ Assumptions and econometric theory
 SSC is a large-:math:`T`, fixed-:math:`N`-and-:math:`S` method. The
 individual effects :math:`\tau_{i,t}` are not point-identified (there are
 more unknowns than the data can pin down); the payoff is that any aggregate
-:math:`\gamma = \mathbf{L}\tau` is *asymptotically unbiased* and admits valid inference
+:math:`\gamma = \mathbf{L}\boldsymbol{\tau}` is *asymptotically unbiased* and admits valid inference
 as the pre-period lengthens.
 
 *Setup (SUTVA, no anticipation).* Potential outcomes follow a Rubin model in
@@ -146,7 +146,7 @@ never-treated potential outcome (no anticipation).
 :math:`\mathbf{M} \coloneqq (\mathbf{I}-\mathbf{B})'(\mathbf{I}-\mathbf{B})`. *Remark.*
 This is the key identifying
 condition: it makes the linear map from the post-treatment prediction errors to
-:math:`\tau` full rank, so the estimator (eq. 2.4) is well defined. It fails
+:math:`\boldsymbol{\tau}` full rank, so the estimator (eq. 2.4) is well defined. It fails
 only in degenerate cases -- a "disconnected treated cohort" whose units lie in
 one another's convex hull -- and staggered timing typically *bridges* cohorts
 and restores it. The smallest eigenvalue of the sample
@@ -183,13 +183,13 @@ Theorem 2.1 (asymptotic unbiasedness). Under Assumptions 2.1--2.2, as
    \qquad \mathbb{E}[\mathbf{L} \mathbf{V}_T] = 0,
 
 so :math:`\widehat\gamma` -- and, by Corollary 2.1, the event-time ATT
-:math:`\widehat{\mathrm{ATT}}^e_s \coloneqq \mathbf{l}_s'\widehat\tau` -- is an
+:math:`\widehat{\mathrm{ATT}}^e_s \coloneqq \mathbf{l}_s'\widehat{\boldsymbol{\tau}}` -- is an
 asymptotically unbiased estimator of its target *without* point-identifying the
 individual effects. (The remaining :math:`\mathbf{L} \mathbf{V}_T` term is
 mean-zero estimation noise that the inference procedure quantifies.)
 
 Theorem 2.2 (valid end-of-sample inference). Under Assumptions 2.1--2.3 and
-the null :math:`H_0: \mathbf{C}\tau = \mathbf{d}`, the Andrews test has
+the null :math:`H_0: \mathbf{C}\boldsymbol{\tau} = \mathbf{d}`, the Andrews test has
 asymptotically correct size,
 
 .. math::
