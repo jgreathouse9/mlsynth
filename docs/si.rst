@@ -44,22 +44,29 @@ modelled (the paper only approximates it with a common post-window).
 Notation
 --------
 
-Index time by :math:`t \in [T]`, units by :math:`i \in [N]`, and interventions
-by :math:`d \in \{0, 1, \dots, D\}` (with :math:`d = 0` the status quo). Let
-:math:`Y_{ti}(d)` be the potential outcome of unit :math:`i` at time :math:`t`
-under intervention :math:`d`. The first :math:`T_0` periods are pre-treatment
-(all units under control); the remaining :math:`T_1 = T - T_0` are
-post-treatment. :math:`I(d)` is the set of :math:`N_d` units assigned to
-intervention :math:`d` after :math:`T_0` (the donor pool for :math:`d`).
+Units are indexed by :math:`i \in \mathcal{N} \coloneqq \{1, \dots, N\}` and
+time by :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`, with interventions
+indexed by :math:`d \in \{0, 1, \dots, D\}` (and :math:`d = 0` the status quo).
+Let :math:`y_{it}(d)` be the potential outcome of unit :math:`i` at time
+:math:`t` under intervention :math:`d`. The intervention takes effect after
+period :math:`T_0`: the pre-period
+:math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` has all units
+under control, and the post-period
+:math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}` has length
+:math:`T_1 \coloneqq T - T_0`. Write
+:math:`\mathcal{N}(d) \subseteq \mathcal{N}` for the set of :math:`N_d` units
+assigned to intervention :math:`d` after :math:`T_0` (the donor pool for
+:math:`d`).
 
-For a focal target unit :math:`i`, write :math:`Y_{\text{pre}, i} = [Y_{ti0} :
-t \le T_0] \in \mathbb{R}^{T_0}` for its pre-period (control) outcomes and
-:math:`Y_{\text{pre}, I(d)} \in \mathbb{R}^{T_0 \times N_d}` for the donor pool's
-pre-period (control) outcomes. The estimand is
+For a focal target unit :math:`i`, write
+:math:`\mathbf{y}_{\text{pre}, i} \coloneqq (y_{it}(0))_{t \le T_0}
+\in \mathbb{R}^{T_0}` for its pre-period (control) outcomes and
+:math:`\mathbf{Y}_{\text{pre}, \mathcal{N}(d)} \in \mathbb{R}^{T_0 \times N_d}`
+for the donor pool's pre-period (control) outcomes. The estimand is
 
 .. math::
 
-   \theta_i(d) \;=\; \tfrac{1}{T_1}\textstyle\sum_{t > T_0} Y_{ti}(d),
+   \theta_i(d) \;\coloneqq\; \tfrac{1}{T_1}\textstyle\sum_{t \in \mathcal{T}_2} y_{it}(d),
 
 the focal unit's average post-period outcome had it received intervention
 :math:`d`.
@@ -72,55 +79,58 @@ that does the real work — invariance of unit factors *across interventions*.
 Each is stated with a plain-language remark.
 
 Assumption 1 (SUTVA / observation pattern). Pre-treatment, every unit is
-observed under control (:math:`Y_{ti0} = Y_{ti}(0)` for :math:`t \le T_0`);
+observed under control (:math:`y_{it} = y_{it}(0)` for :math:`t \in \mathcal{T}_1`);
 post-treatment, each unit is observed under its assigned intervention
-(:math:`Y_{tid} = Y_{ti}(d)` for :math:`t > T_0`, :math:`i \in I(d)`).
+(:math:`y_{it} = y_{it}(d)` for :math:`t \in \mathcal{T}_2`, :math:`i \in \mathcal{N}(d)`).
 
 *Remark.* This rules out spillovers between units and, with the static factor
 model below, dynamic (carry-over) treatment effects. Estimating a
 counterfactual is then exactly a tensor-completion problem: imputing the
-unobserved :math:`(t, i, d)` cells of the potential-outcome tensor.
+unobserved :math:`(i, t, d)` cells of the potential-outcome tensor.
 
 Assumption 2 (tensor factor model — the SI assumption). Each potential
 outcome factorises as
 
 .. math::
 
-   Y_{ti}(d) \;=\; \langle u_t(d),\, v_i \rangle + \varepsilon_{ti}(d),
-   \qquad u_t(d), v_i \in \mathbb{R}^r,
+   y_{it}(d) \;=\; \langle \mathbf{u}_t(d),\, \mathbf{v}_i \rangle + \varepsilon_{it}(d),
+   \qquad \mathbf{u}_t(d), \mathbf{v}_i \in \mathbb{R}^r,
 
-where the unit factors :math:`v_i` are invariant across *both* time and
-interventions, and only the time-intervention factors :math:`u_t(d)` depend on
-:math:`d`.
+where the unit factors :math:`\mathbf{v}_i` are invariant across *both* time and
+interventions, and only the time-intervention factors :math:`\mathbf{u}_t(d)`
+depend on :math:`d`.
 
 *Remark.* This is the crux. In single-intervention SC the unit factors are
 invariant across *time*, which lets pre-period weights predict post-period
 control outcomes. SI strengthens this to invariance across *interventions*:
 weights learned from pre-period control data can be applied to post-period
 outcomes under a different intervention :math:`d`. Conceptually, each unit
-has stable intrinsic traits (:math:`v_i`) that any intervention acts on through
-:math:`u_t(d)`.
+has stable intrinsic traits (:math:`\mathbf{v}_i`) that any intervention acts
+on through :math:`\mathbf{u}_t(d)`.
 
-Assumption 3 (low rank). The signal :math:`\mathbb{E}[Y_{\text{pre}, I(d)}
-\mid \mathcal{E}]` is low rank (rank :math:`r_{\text{pre}} \le r`).
+Assumption 3 (low rank). The signal
+:math:`\mathbb{E}[\mathbf{Y}_{\text{pre}, \mathcal{N}(d)} \mid \mathcal{E}]` is
+low rank (rank :math:`r_{\text{pre}} \le r`).
 
 *Remark.* This is what makes the spectral (PCR) denoising step meaningful: the
 large singular values of the noisy donor pre-matrix capture the signal, the
 small ones capture noise.
 
 Assumption 4 (span / linear span condition). The focal unit's factor lies in
-the span of the donor pool's factors, so a weight vector :math:`w^{(i,d)}` exists
-with :math:`v_i = \sum_{j \in I(d)} w^{(i,d)}_j v_j`.
+the span of the donor pool's factors, so a weight vector
+:math:`\mathbf{w}^{(i,d)}` exists with
+:math:`\mathbf{v}_i = \sum_{j \in \mathcal{N}(d)} w^{(i,d)}_j \mathbf{v}_j`.
 
 *Remark.* The multi-intervention analogue of "the treated unit lies in the
 convex hull of the donors." A strong pre-period fit (small
-:math:`\|Y_{\text{pre},i} - Y_{\text{pre},I(d)} w\|`) is the data-driven sanity
-check; a poor fit warns that the span condition or low-rank structure fails.
+:math:`\|\mathbf{y}_{\text{pre},i} - \mathbf{Y}_{\text{pre},\mathcal{N}(d)} \mathbf{w}\|`)
+is the data-driven sanity check; a poor fit warns that the span condition or
+low-rank structure fails.
 
 Assumption 5 (homoskedastic noise). The idiosyncratic noise is mean-zero
 with common variance :math:`\sigma^2`.
 
-*Remark.* Used only for the variance estimate :math:`\hat\sigma^2` (eq. 14)
+*Remark.* Used only for the variance estimate :math:`\widehat\sigma^2` (eq. 14)
 behind the confidence interval; the point estimator does not need it.
 
 Assumptions 6-8 (regularity for normality). Bounded factors / sub-Gaussian
@@ -156,7 +166,7 @@ trusting an arm-level counterfactual.
     :doc:`spsydid`; for dynamics switch to :doc:`tasc`/:doc:`dscar`.
 
 (b) Factor invariance of unit loadings across interventions (A2 -- the
-    SI assumption). Each unit's :math:`v_i` is the same whether observed
+    SI assumption). Each unit's :math:`\mathbf{v}_i` is the same whether observed
     under control or under :math:`d`. SI's transfer step is precisely the
     statement that weights learned on pre-period control data work to
     impute post-period outcomes under :math:`d`.
@@ -164,7 +174,7 @@ trusting an arm-level counterfactual.
     *Plausibly violated when* the intervention *changes who the donors
     are*: a tax raises the price elasticity itself for tax-state
     consumers, a marketing program builds new audience segments inside
-    program states. Once :math:`v_i` shifts after :math:`T_0`, the
+    program states. Once :math:`\mathbf{v}_i` shifts after :math:`T_0`, the
     pre-period weights are stale. *Diagnostic*: this is the silent
     failure -- a pre-fit can look excellent while the counterfactual is
     biased, because the pre-data is all under control. The empirical
@@ -189,20 +199,21 @@ trusting an arm-level counterfactual.
     low-rank story has failed and SI-PCR is essentially OLS on the donor
     columns.
 
-(d) Span condition (A4). The focal unit's :math:`v_i` lies in the
+(d) Span condition (A4). The focal unit's :math:`\mathbf{v}_i` lies in the
     span of the donor pool's loadings under :math:`d`.
 
     *Plausibly violated when* the focal unit is structurally different
     from every donor under intervention :math:`d` -- California (a
     coastal mega-state) against a donor pool that happens to be small
     interior states. *Diagnostic*: inspect the per-arm pre-period RMSE
-    of :math:`Y_{\text{pre}, i}` against :math:`Y_{\text{pre}, I(d)}
-    \hat w`; a visibly poor pre-fit on a particular arm means that
+    of :math:`\mathbf{y}_{\text{pre}, i}` against
+    :math:`\mathbf{Y}_{\text{pre}, \mathcal{N}(d)} \widehat{\mathbf{w}}`; a
+    visibly poor pre-fit on a particular arm means that
     arm's span condition is failing. This is the loud failure mode
     -- it shows up directly in pre-fit residuals.
 
 (e) Homoskedastic noise (A5). Only the variance estimate
-    :math:`\hat\sigma^2` and hence the CI width depend on this; the
+    :math:`\widehat\sigma^2` and hence the CI width depend on this; the
     point estimator is unaffected.
 
     *Plausibly violated when* donor variance is heavily heterogeneous
@@ -318,7 +329,7 @@ The three panels read as follows.
   sits on top of the truth in the post-period; the mean absolute gap is at
   the noise floor.
 * Middle (A2 violated -- silent). The focal unit's loading
-  :math:`v_i` *changes* between the pre-period (under control) and the
+  :math:`\mathbf{v}_i` *changes* between the pre-period (under control) and the
   post-period (under :math:`d`). Pre-fit is just as tight as in
   Regime A (pre RMSE 0.55 vs 0.53) -- the pre-data is all under control,
   so the shift in the focal unit's loading is invisible to it. But the
@@ -412,17 +423,17 @@ Mathematical Formulation
 The SI Estimator (Proposition 1)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Under Assumptions 1-4 there is a weight vector :math:`w^{(i,d)}` such that the
-estimand is recovered from donor-pool outcomes under :math:`d`, and the weights
-are identified from pre-period control data alone. The SI estimator is two
-steps:
+Under Assumptions 1-4 there is a weight vector :math:`\mathbf{w}^{(i,d)}` such
+that the estimand is recovered from donor-pool outcomes under :math:`d`, and the
+weights are identified from pre-period control data alone. The SI estimator is
+two steps:
 
 .. math::
 
-   \hat w^{(i,d)} \in \arg\min_{w \in \mathcal{W}}
-   \; \| Y_{\text{pre}, i} - Y_{\text{pre}, I(d)}\, w \|_2^2,
+   \widehat{\mathbf{w}}^{(i,d)} \in \operatorname*{argmin}_{\mathbf{w} \in \mathcal{W}}
+   \; \| \mathbf{y}_{\text{pre}, i} - \mathbf{Y}_{\text{pre}, \mathcal{N}(d)}\, \mathbf{w} \|_2^2,
    \qquad
-   \hat\theta_i(d) = \tfrac{1}{T_1}\sum_{t > T_0}\sum_{j \in I(d)} \hat w^{(i,d)}_j\, Y_{tjd}.
+   \widehat\theta_i(d) \coloneqq \tfrac{1}{T_1}\sum_{t \in \mathcal{T}_2}\sum_{j \in \mathcal{N}(d)} \widehat w^{(i,d)}_j\, y_{jt}(d).
 
 The choice of constraint set :math:`\mathcal{W}` recovers the usual SC variants
 (simplex, ridge, lasso, OLS). ``mlsynth`` implements the PCR variant.
@@ -430,13 +441,14 @@ The choice of constraint set :math:`\mathcal{W}` recovers the usual SC variants
 SI-PCR (eq. 10)
 ^^^^^^^^^^^^^^^
 
-Let the SVD of the donor pre-matrix be :math:`Y_{\text{pre}, I(d)} = \sum_\ell
-\hat s_\ell \hat u_\ell \hat v_\ell^\top`. Keeping the top :math:`k` components,
+Let the SVD of the donor pre-matrix be
+:math:`\mathbf{Y}_{\text{pre}, \mathcal{N}(d)} = \sum_\ell
+\widehat s_\ell \widehat{\mathbf{u}}_\ell \widehat{\mathbf{v}}_\ell^\top`. Keeping the top :math:`k` components,
 
 .. math::
 
-   \hat w^{(i,d)} \;=\; \Big( \textstyle\sum_{\ell=1}^{k} (1/\hat s_\ell)\,
-   \hat v_\ell \hat u_\ell^\top \Big) Y_{\text{pre}, i}.
+   \widehat{\mathbf{w}}^{(i,d)} \;\coloneqq\; \Big( \textstyle\sum_{\ell=1}^{k} (1/\widehat s_\ell)\,
+   \widehat{\mathbf{v}}_\ell \widehat{\mathbf{u}}_\ell^\top \Big) \mathbf{y}_{\text{pre}, i}.
 
 SI-PCR projects the donor pre-matrix onto its top-:math:`k` principal subspace
 (denoising it under Assumption 3) and regresses the target onto the result. The
@@ -454,33 +466,33 @@ Plain SI-PCR is consistent (Corollary 1) but converges too slowly for
 normality, because spreading weight across many near-collinear donors *dilutes*
 the weight norm and deflates the variance term. The bias-corrected estimator
 fixes this by restricting to a rank-complete donor subset :math:`\Omega
-\subset I(d)` with :math:`|\Omega| = k` columns of full rank, and fitting by
-pseudo-inverse:
+\subset \mathcal{N}(d)` with :math:`|\Omega| = k` columns of full rank, and
+fitting by pseudo-inverse:
 
 .. math::
 
-   \hat w^{(i,d,\Omega)} = (Y^k_{\text{pre}, \Omega})^{\dagger}\, Y_{\text{pre}, i},
+   \widehat{\mathbf{w}}^{(i,d,\Omega)} \coloneqq (\mathbf{Y}^k_{\text{pre}, \Omega})^{+}\, \mathbf{y}_{\text{pre}, i},
 
-where :math:`Y^k` is the rank-:math:`k` approximation. This is a *second* layer
+where :math:`\mathbf{Y}^k` is the rank-:math:`k` approximation. This is a *second* layer
 of (structured) sparsity: contributions outside :math:`\Omega` are zeroed by
 explicit model selection, concentrating weight along independent directions and
 stabilising the weight norm. ``mlsynth`` selects :math:`\Omega` by
 column-pivoted QR on the denoised donor matrix.
 
 The estimator is then asymptotically normal (Theorem 2):
-:math:`\sqrt{T_1}\,(\hat\theta_i^\Omega(d) - \theta_i(d)) / (\sigma
-\|w\|_2) \to \mathcal{N}(0, 1)`, giving the closed-form confidence interval
+:math:`\sqrt{T_1}\,(\widehat\theta_i^\Omega(d) - \theta_i(d)) / (\sigma
+\|\mathbf{w}\|_2) \to \mathcal{N}(0, 1)`, giving the closed-form confidence interval
 
 .. math::
 
-   \text{CI}(\alpha) = \hat\theta_i^\Omega(d) \;\pm\;
-   z_{\alpha/2}\, \hat\sigma\, \frac{\| \hat w^{(i,d,\Omega)} \|_2}{\sqrt{T_1}},
+   \text{CI}(\alpha) \coloneqq \widehat\theta_i^\Omega(d) \;\pm\;
+   z_{\alpha/2}\, \widehat\sigma\, \frac{\| \widehat{\mathbf{w}}^{(i,d,\Omega)} \|_2}{\sqrt{T_1}},
    \qquad
-   \hat\sigma^2 = \frac{\| (I - \hat U_k \hat U_k^\top)\, Y_{\text{pre}, i}\|_2^2}{T_0 - k},
+   \widehat\sigma^2 \coloneqq \frac{\| (\mathbf{I} - \widehat{\mathbf{U}}_k \widehat{\mathbf{U}}_k^\top)\, \mathbf{y}_{\text{pre}, i}\|_2^2}{T_0 - k},
 
-where :math:`\hat U_k` are the left singular vectors of the rank-:math:`k`
-donor approximation (eq. 14) and the noise estimate is the residual of
-regressing the target's pre-period onto the donor subspace.
+where :math:`\widehat{\mathbf{U}}_k` are the left singular vectors of the
+rank-:math:`k` donor approximation (eq. 14) and the noise estimate is the
+residual of regressing the target's pre-period onto the donor subspace.
 
 ``mlsynth`` exposes three noise-variance estimators via ``variance``: the
 main-text ``"units"`` estimator (eq. 14 above), a ``"time_iv"`` estimator from
@@ -488,7 +500,7 @@ the donor post-period residual, and the degrees-of-freedom-weighted ``"double"``
 combination (the default, matching the authors' code). The interval can be the
 eq.-13 confidence interval (``interval="confidence"``) or the wider prediction
 interval (``interval="prediction"``, half-width
-:math:`z_{\alpha/2}\hat\sigma\sqrt{1 + \|\hat w\|_2^2}/\sqrt{T_1}`) the case
+:math:`z_{\alpha/2}\widehat\sigma\sqrt{1 + \|\widehat{\mathbf{w}}\|_2^2}/\sqrt{T_1}`) the case
 study uses for coverage validation.
 
 Monte Carlo: Coverage of the Confidence Interval
@@ -646,7 +658,7 @@ simulation studies, and the case-study tables:
    * - Donoho rank selection
      - 300 random panels
      - ``0`` mismatches
-   * - Consistency sim (Sec 5.1), :math:`|\hat\theta-\theta|`
+   * - Consistency sim (Sec 5.1), :math:`|\widehat\theta-\theta|`
      - :math:`T_0 \in \{40,100,400\}`
      - identical to 4 d.p.
    * - Inference sim (Sec 5.2), 95% coverage
@@ -717,7 +729,7 @@ Result Containers
 :class:`~mlsynth.utils.si_helpers.structures.SIResults`, whose ``arms`` maps each
 intervention to an :class:`~mlsynth.utils.si_helpers.structures.SIArm` (donor
 weights, the counterfactual, the ATT, the selected rank, and -- under bias
-correction -- :math:`\hat\sigma`, the weight norm, and the confidence
+correction -- :math:`\widehat\sigma`, the weight norm, and the confidence
 intervals), alongside the prepared
 :class:`~mlsynth.utils.si_helpers.structures.SIInputs`.
 
