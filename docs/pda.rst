@@ -806,6 +806,13 @@ Verification
    Kong panel (above) and agree on a significant positive integration effect,
    consistent with the literature and the Forward-DiD cross-check (0.025).
 
+   Prediction intervals (Path B, coverage). The bootstrap prediction
+   intervals are validated by ``benchmarks/cases/pda_pi_coverage.py``, which
+   reproduces the coverage geometry of Jiang et al. (2025) Tables 2-5 on their
+   Setup 1: the equal-tailed and symmetric intervals cover near the nominal
+   95%, while the normal-quantile intervals under-cover (to about 77% under
+   exponential errors).
+
 Simulation study (Path B): forward selection vs LASSO
 -----------------------------------------------------
 

@@ -141,6 +141,8 @@ Path B — Monte Carlo / simulation
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
      - Li-Bell Table 2 LASSO-PDA OOS prediction (N>T1)
+   * - ``pda_pi_coverage``
+     - Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
    * - ``pda_table1``
      - Shi-Huang Table 1 fs-vs-LASSO size/power geometry
    * - ``proximal_surrogates_mc``
