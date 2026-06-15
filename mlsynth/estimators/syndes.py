@@ -177,17 +177,18 @@ def _design_control_weights(design, n_units):
     return np.zeros(n_units)
 
 
-def _syndes_power_curve(results, alpha):
-    """Per-horizon MDE table (horizons 1..12) attached to every SYNDES fit.
+def _syndes_power_curve(results, alpha, horizons=range(1, 13)):
+    """Per-horizon MDE table (horizons 1..12 by default) for a SYNDES design.
 
-    Computed by default so the minimum-detectable-effect curve comes back from
-    :meth:`SYNDES.fit` without a separate :func:`mlsynth.power_analysis` call.
+    Attached to every SYNDES fit so the minimum-detectable-effect curve comes
+    back from :meth:`SYNDES.fit` without a separate :func:`mlsynth.power_analysis`
+    call, and reused per pool entry so the whole menu is comparable on power.
     Custom horizon grids, significance levels, or baselines still go through
     :func:`mlsynth.power_analysis`. Never breaks a fit: returns ``None`` on any
     degeneracy (e.g. a too-short pre-period), mirroring ``post_fit.power``.
     """
     try:
-        return power_analysis(results, n_post_periods=range(1, 13), alpha=alpha)
+        return power_analysis(results, n_post_periods=horizons, alpha=alpha)
     except Exception:                # never let power analysis break a fit
         return None
 
@@ -196,28 +197,33 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
     """Re-score a SYNDES solution pool into a manager-facing menu.
 
     The MIP ranks designs by fit alone, so each pooled design is annotated with
-    the dimensions the objective ignored: its MDE% (same permutation-null formula
-    ``power_analysis`` uses -- ``sigma_perm / sqrt(n_post)`` on the design's
-    pre-period contrast, as a percent of the treated baseline) and its cost (when
-    ``costs`` is supplied). Returned as a list of dicts ranked by MSE.
+    the dimensions the objective ignored: its full power curve, the headline MDE%
+    at the realised post horizon, and its cost (when ``costs`` is supplied).
+    Returned as a list of dicts ranked by MSE.
 
     Crucially, every entry is *actionable*, not just rankable: it carries the
     full :class:`SYNDESDesign` under ``"design"`` (treated/control weights and
-    all) and the names of the donor units that form its synthetic control under
-    ``"control_group"`` -- so a manager can pick any entry, not only the rank-1
-    winner kept on ``results.design``, and have everything needed to deploy it.
-    Each entry's keys are:
+    all), the names of the donor units that form its synthetic control under
+    ``"control_group"``, and its own per-horizon power curve under
+    ``"power_curve"`` -- so a manager can pick any entry, not only the rank-1
+    winner kept on ``results.design``, and have everything needed to deploy it
+    and to compare the whole pool on power. Each entry's keys are:
 
     * ``"markets"``       -- labels of the treated units (the design's arms).
     * ``"control_group"`` -- labels of the donor units carrying nonzero control
       weight (the synthetic-control pool backing the treated arms).
     * ``"objective"``     -- the MIP objective (fit) the design was ranked by.
     * ``"pre_fit_rmse"``  -- root-mean-square pre-period contrast.
-    * ``"mde_pct"``       -- minimum detectable effect, % of treated baseline.
+    * ``"mde_pct"``       -- minimum detectable effect at the realised post
+      horizon, % of treated baseline. This is the design's ``power_curve``
+      value at that horizon (the Newey-West HAC MDE), so the headline number and
+      the curve always agree.
     * ``"cost"``          -- summed cost of the treated units (``None`` if no
       ``costs`` supplied).
     * ``"design"``        -- the full :class:`SYNDESDesign` (treated/control/
       contrast weights) for this entry.
+    * ``"power_curve"``   -- the entry's own :class:`SYNDESPower` over horizons
+      ``1..12`` (``None`` if the computation is degenerate).
     """
     from scipy.stats import norm
 
@@ -229,14 +235,32 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
     costs_arr = None if costs is None else np.asarray(costs, dtype=float).reshape(-1)
     menu = []
     for d in pool_designs:
-        contrast = np.asarray(d.contrast_weights, dtype=float).reshape(-1)
-        per_period = Y_pre @ contrast
-        sigma = (float(np.std(per_period, ddof=1)) if per_period.size > 1
-                 else float(np.std(per_period)))
-        mde_abs = z * sigma / np.sqrt(n_post)
         idx = np.asarray(d.selected_unit_indices, dtype=int)
         base = float(np.mean(Y_pre[:, idx])) if idx.size else float("nan")
-        mde_pct = 100.0 * mde_abs / abs(base) if abs(base) > 1e-9 else float("nan")
+
+        # Per-entry power curve (Newey-West, horizons 1..12) so the whole pool is
+        # comparable on power, not just the rank-1 winner on results.power_curve.
+        power_curve = _syndes_power_curve(SYNDESResults(design=d, inputs=inputs),
+                                          alpha)
+        # Headline MDE% is that curve's value at the realised post horizon, so
+        # the menu's summary number and its curve always agree.
+        if power_curve is not None and 1 <= n_post <= 12:
+            mde_pct = float(power_curve.mde_percent[n_post - 1])
+        else:
+            pc_h = _syndes_power_curve(SYNDESResults(design=d, inputs=inputs),
+                                       alpha, horizons=[n_post])
+            mde_pct = (float(pc_h.mde_percent[0]) if pc_h is not None
+                       else float("nan"))
+        if not np.isfinite(mde_pct):
+            # Degenerate curve -> fall back to the i.i.d. realised-window MDE.
+            contrast = np.asarray(d.contrast_weights, dtype=float).reshape(-1)
+            per_period = Y_pre @ contrast
+            sigma = (float(np.std(per_period, ddof=1)) if per_period.size > 1
+                     else float(np.std(per_period)))
+            mde_abs = z * sigma / np.sqrt(n_post)
+            mde_pct = (100.0 * mde_abs / abs(base)
+                       if abs(base) > 1e-9 else float("nan"))
+
         # Donor units backing the synthetic control: nonzero control weight.
         control_w = _design_control_weights(d, n_units)
         control_idx = np.flatnonzero(np.abs(control_w) > 1e-8)
@@ -249,6 +273,7 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
             "mde_pct": float(mde_pct),
             "cost": (None if costs_arr is None else float(costs_arr[idx].sum())),
             "design": d,
+            "power_curve": power_curve,
         })
     return menu
 
