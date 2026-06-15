@@ -173,6 +173,18 @@ class SYNDESConfig(BaseMAREXConfig):
             "Required when ``costs`` is supplied; ignored otherwise."
         ),
     )
+    top_K: int = Field(
+        default=1, ge=1,
+        description=(
+            "Size of the returned solution pool. ``1`` (default) returns only "
+            "the MSE-optimal design. ``>1`` enumerates the top-K distinct "
+            "designs by no-good cuts (forbidding each chosen treated set and "
+            "re-solving for the next-best), ranked by MSE, and attaches them as "
+            "``results.pool`` -- a menu of near-optimal options re-scored on MDE "
+            "and cost, since the MIP optimises fit alone. Fewer than ``top_K`` "
+            "are returned if the feasible region is exhausted."
+        ),
+    )
     arm: Optional[str] = Field(
         default=None,
         description=(

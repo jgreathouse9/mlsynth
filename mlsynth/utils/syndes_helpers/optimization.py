@@ -206,6 +206,7 @@ def solve_synthetic_design(
     budget: Optional[float] = None,
     gap_limit: Optional[float] = None,
     time_limit: Optional[float] = None,
+    forbidden_sets: Optional[list] = None,
 ) -> SYNDESDesign:
     """
     Solve the SYNDES synthetic design optimization problem.
@@ -272,7 +273,16 @@ def solve_synthetic_design(
             raise MlsynthConfigError("budget must be strictly positive.")
         components = components.with_constraints([cost_vec @ D <= float(budget)])
 
-    problem = cp.Problem(cp.Minimize(components.objective), components.constraints)
+    # No-good cuts (solution pool): forbid each previously-chosen treated set
+    # ``S`` via ``sum_{i in S} D_i <= |S|-1``, so re-solving returns the next-best
+    # *distinct* design. Empty by default -> the single-optimum solve, unchanged.
+    prob_constraints = list(components.constraints)
+    for _fs in (forbidden_sets or []):
+        _fs = np.asarray(_fs, dtype=int).reshape(-1)
+        if _fs.size:
+            prob_constraints.append(cp.sum(D[_fs]) <= int(_fs.size) - 1)
+
+    problem = cp.Problem(cp.Minimize(components.objective), prob_constraints)
 
     # Plumb the user-supplied SCIP limits (Abadie & Zhao 2026 p. 13:
     # "we do not strictly require optimality of {w*, v*}, provided
@@ -366,3 +376,58 @@ def solve_synthetic_design(
 
         raw_results=raw_results,
     )
+
+
+def solve_synthetic_design_pool(
+    Y: np.ndarray,
+    K: int,
+    top_K: int = 1,
+    *,
+    mode: str = "global_2way",
+    lam: Optional[float] = None,
+    solver: Any = "SCIP",
+    verbose: bool = False,
+    unit_index: Optional[IndexSet] = None,
+    costs: Optional[np.ndarray] = None,
+    budget: Optional[float] = None,
+    gap_limit: Optional[float] = None,
+    time_limit: Optional[float] = None,
+) -> list:
+    """Top-``top_K`` SYNDES designs, ranked by MSE, via no-good cuts.
+
+    Re-solves the SYNDES MIP ``top_K`` times; after each solve the chosen treated
+    set is forbidden (``sum_{i in S} D_i <= |S|-1``) so the next solve returns the
+    next-best *distinct* design. The returned list is ranked by objective value
+    (non-decreasing), and ``solve_synthetic_design_pool(..., top_K=1)`` returns
+    ``[solve_synthetic_design(...)]`` -- the single optimum unchanged. Stops early
+    (returning fewer than ``top_K``) once the feasible region is exhausted.
+
+    Parameters
+    ----------
+    top_K : int
+        Number of distinct designs to enumerate (``>= 1``).
+    (all other parameters as in :func:`solve_synthetic_design`).
+
+    Returns
+    -------
+    list of SYNDESDesign
+        Distinct designs ordered by ascending MSE; ``[0]`` is the global optimum.
+    """
+    if not isinstance(top_K, (int, np.integer)) or top_K < 1:
+        raise MlsynthConfigError(f"top_K must be a positive integer; got {top_K!r}.")
+
+    designs: list = []
+    forbidden: list = []
+    for _ in range(int(top_K)):
+        try:
+            d = solve_synthetic_design(
+                Y=Y, K=K, mode=mode, lam=lam, solver=solver, verbose=verbose,
+                unit_index=unit_index, costs=costs, budget=budget,
+                gap_limit=gap_limit, time_limit=time_limit,
+                forbidden_sets=forbidden,
+            )
+        except MlsynthEstimationError:
+            break  # feasible region exhausted (no further distinct design)
+        designs.append(d)
+        forbidden.append(np.asarray(d.selected_unit_indices, dtype=int))
+    return designs

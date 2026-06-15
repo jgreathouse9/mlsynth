@@ -63,7 +63,10 @@ from ..utils.syndes_helpers.inference import (
     permutation_test_global,
     permutation_test_relaxed_global,
 )
-from ..utils.syndes_helpers.optimization import solve_synthetic_design
+from ..utils.syndes_helpers.optimization import (
+    solve_synthetic_design,
+    solve_synthetic_design_pool,
+)
 from ..utils.syndes_helpers.plotter import plot_syndes_design
 from ..utils.syndes_helpers.relaxed_solver import solve_two_way_relaxed
 from ..utils.syndes_helpers.relaxed_structures import RelaxedSolverResults
@@ -155,6 +158,41 @@ def _syndes_post_fit(inputs, design, inference, alpha):
     return pf
 
 
+def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8):
+    """Re-score a SYNDES solution pool into a manager-facing menu.
+
+    The MIP ranks designs by fit alone, so each pooled design is annotated with
+    the dimensions the objective ignored: its MDE% (same permutation-null formula
+    ``power_analysis`` uses -- ``sigma_perm / sqrt(n_post)`` on the design's
+    pre-period contrast, as a percent of the treated baseline) and its cost (when
+    ``costs`` is supplied). Returned as a list of dicts ranked by MSE.
+    """
+    from scipy.stats import norm
+
+    Y_pre = np.asarray(inputs.Y_pre, dtype=float)
+    n_post = int(inputs.Y_post.shape[0]) if inputs.Y_post is not None else 4
+    z = float(norm.ppf(1.0 - alpha / 2.0) + norm.ppf(power_target))
+    costs_arr = None if costs is None else np.asarray(costs, dtype=float).reshape(-1)
+    menu = []
+    for d in pool_designs:
+        contrast = np.asarray(d.contrast_weights, dtype=float).reshape(-1)
+        per_period = Y_pre @ contrast
+        sigma = (float(np.std(per_period, ddof=1)) if per_period.size > 1
+                 else float(np.std(per_period)))
+        mde_abs = z * sigma / np.sqrt(n_post)
+        idx = np.asarray(d.selected_unit_indices, dtype=int)
+        base = float(np.mean(Y_pre[:, idx])) if idx.size else float("nan")
+        mde_pct = 100.0 * mde_abs / abs(base) if abs(base) > 1e-9 else float("nan")
+        menu.append({
+            "markets": [x for x in np.asarray(d.selected_unit_labels).tolist()],
+            "objective": float(d.objective_value),
+            "pre_fit_rmse": (None if d.pre_fit_rmse is None else float(d.pre_fit_rmse)),
+            "mde_pct": float(mde_pct),
+            "cost": (None if costs_arr is None else float(costs_arr[idx].sum())),
+        })
+    return menu
+
+
 class SYNDES:
     """Synthetic Design (Doudchenko et al. 2021) estimator.
 
@@ -203,6 +241,7 @@ class SYNDES:
         self.verbose: bool = config.verbose
         self.costs = config.costs
         self.budget = config.budget
+        self.top_K: int = config.top_K
         self.arm: Optional[str] = config.arm
 
     # ------------------------------------------------------------------
@@ -278,19 +317,21 @@ class SYNDES:
     def _fit_mip(self, inputs) -> SYNDESResults:
         mode_internal = _MODE_TO_INTERNAL[self.mode_public]
 
-        design = solve_synthetic_design(
-            Y=inputs.Y_pre,
-            K=self.K,
-            mode=mode_internal,
-            lam=self.lam,
-            solver=self.solver,
-            verbose=self.verbose,
-            unit_index=inputs.unit_index,
-            costs=self.costs,
-            budget=self.budget,
-            gap_limit=self.gap_limit,
-            time_limit=self.time_limit,
+        solve_kw = dict(
+            Y=inputs.Y_pre, K=self.K, mode=mode_internal, lam=self.lam,
+            solver=self.solver, verbose=self.verbose,
+            unit_index=inputs.unit_index, costs=self.costs, budget=self.budget,
+            gap_limit=self.gap_limit, time_limit=self.time_limit,
         )
+        pool = None
+        if self.top_K and self.top_K > 1:
+            # Solution pool: top-K distinct designs by no-good cuts. The rank-1
+            # design IS the single-solve optimum, so reuse it (no double solve).
+            pool_designs = solve_synthetic_design_pool(top_K=self.top_K, **solve_kw)
+            design = pool_designs[0]
+            pool = _syndes_pool_menu(pool_designs, inputs, self.costs, self.alpha)
+        else:
+            design = solve_synthetic_design(**solve_kw)
 
         # Re-tag with the paper-aligned mode label so the design surface
         # the user sees uses SYNDES vocabulary.
@@ -312,7 +353,7 @@ class SYNDES:
 
         results = SYNDESResults(
             design=design, inputs=inputs, inference=inference,
-            post_fit=post_fit,
+            post_fit=post_fit, pool=pool,
         )
 
         if self.display_graph:
