@@ -99,6 +99,24 @@ class TestPareto:
         assert out.groupby("method")["pareto"].any().all()
         assert (out["fit_rmse"] >= 0).all()
 
+    def test_zero_baseline_yields_infinite_mde(self):
+        # a treated unit whose pre-period level is ~0 -> percent MDE is undefined,
+        # reported as +inf rather than dividing by zero.
+        Ywide = self._panel()
+        Ywide["z"] = 0.0
+        specs = [DesignSpec("SYNDES", "S1", {"a": 1.0, "b": -1.0}, ["z"])]
+        out = compare_pareto(specs, Ywide, n_pre=15, horizon=5)
+        assert out["mde_pct"].iloc[0] == float("inf")
+
+    def test_plot_uses_supplied_axis(self):
+        Ywide = self._panel()
+        specs = [DesignSpec("SYNDES", "S1", {"a": 1.0, "b": -1.0}, ["a"]),
+                 DesignSpec("GEOLIFT", "G1", {"b": 1.0, "d": -1.0}, ["b"])]
+        out = compare_pareto(specs, Ywide, n_pre=15, horizon=5)
+        fig, ax = plt.subplots()
+        returned = plot_compare_pareto(out, ax=ax)
+        assert returned is ax
+
 
 # ----------------------------------------------------------------------
 # Adapters + cross-method integration (small real fits)
@@ -134,6 +152,19 @@ class TestAdaptersIntegration:
         for s in specs:
             assert set(s.contrast) <= set(f"u{j}" for j in range(8))
             assert sum(v for v in s.contrast.values() if v > 0) == pytest.approx(1.0, abs=1e-6)
+
+    def test_from_syndes_single_design_fallback(self):
+        # top_K=1 (the default) leaves res.pool empty -> from_syndes returns the
+        # single recommended design tagged "S1".
+        from mlsynth import SYNDES
+        df, T, n_post = _shared_panel()
+        res = SYNDES({"df": df, "outcome": "Y", "unitid": "unit", "time": "time",
+                      "K": 2, "mode": "two_way_global", "post_col": "post",
+                      "run_inference": False}).fit()
+        assert not getattr(res, "pool", None)            # no solution pool
+        specs = from_syndes(res)
+        assert len(specs) == 1
+        assert specs[0].label == "S1" and specs[0].method == "SYNDES"
 
     def test_from_geolift_specs(self):
         from mlsynth import GEOLIFT
@@ -228,3 +259,16 @@ class TestCompareMethods:
         with pytest.raises(ValueError, match="Unknown method"):
             compare_methods(df, outcome="Y", unitid="unit", time="time",
                             treated_size=2, n_post=n_post, methods=("FOO",))
+
+    def test_rejects_empty_methods(self):
+        df, T, n_post = _shared_panel()
+        with pytest.raises(ValueError, match="at least one"):
+            compare_methods(df, outcome="Y", unitid="unit", time="time",
+                            treated_size=2, n_post=n_post, methods=())
+
+    def test_rejects_post_col_not_in_df(self):
+        df, T, n_post = _shared_panel()
+        with pytest.raises(ValueError, match="not a column"):
+            compare_methods(df, outcome="Y", unitid="unit", time="time",
+                            treated_size=2, post_col="nope", methods=("SYNDES",),
+                            syndes_options=self._SYN)
