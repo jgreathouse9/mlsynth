@@ -168,3 +168,37 @@ class TestEstimatorPool:
             ctrl = e["control_group"]
             assert isinstance(ctrl, list) and len(ctrl) > 0
             assert set(ctrl).isdisjoint(set(e["markets"]))
+
+    # ------------------------------------------------------------------
+    # Each menu entry should carry its own per-horizon power curve, so the
+    # whole pool can be compared on power -- not just the rank-1 winner --
+    # and the entry's headline mde_pct should agree with that curve.
+    # ------------------------------------------------------------------
+
+    def test_pool_entry_exposes_power_curve(self):
+        from mlsynth.utils.syndes_helpers.power import SYNDESPower
+
+        res = SYNDES(self._cfg(top_K=4)).fit()
+        for e in res.pool:
+            assert "power_curve" in e
+            pc = e["power_curve"]
+            assert isinstance(pc, SYNDESPower)
+            assert pc.n_post_periods.tolist() == list(range(1, 13))
+
+    def test_pool_mde_pct_matches_power_curve_at_realised_horizon(self):
+        # Realised post window in _panel() is 4 periods -> mde_pct must equal
+        # the curve's value at horizon 4 (index 3), not an i.i.d. number.
+        res = SYNDES(self._cfg(top_K=4)).fit()
+        for e in res.pool:
+            assert e["mde_pct"] == pytest.approx(
+                float(e["power_curve"].mde_percent[3])
+            )
+
+    def test_pool_rank1_power_curve_matches_results_power_curve(self):
+        # The rank-1 menu entry is res.design, so its per-entry curve must
+        # coincide with the top-level res.power_curve.
+        res = SYNDES(self._cfg(top_K=4)).fit()
+        np.testing.assert_allclose(
+            res.pool[0]["power_curve"].mde_absolute,
+            res.power_curve.mde_absolute,
+        )

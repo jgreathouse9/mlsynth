@@ -662,11 +662,16 @@ kept on ``results.design``. Its keys are:
   weight (the synthetic-control pool backing the treated arms).
 * ``objective`` -- the MIP objective (fit) the design was ranked by.
 * ``pre_fit_rmse`` -- root-mean-square pre-period contrast.
-* ``mde_pct`` -- minimum detectable effect, as a percent of the treated
-  baseline (the same permutation-null MDE :func:`~mlsynth.power_analysis` uses).
+* ``mde_pct`` -- minimum detectable effect at the realised post horizon, as a
+  percent of the treated baseline. This is the entry's ``power_curve`` value at
+  that horizon (the Newey-West HAC MDE), so the headline number and the curve
+  always agree.
 * ``cost`` -- summed cost of the treated units (``None`` when no ``costs`` given).
 * ``design`` -- the full :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESDesign`
   for the entry, with its treated, control, and contrast weights.
+* ``power_curve`` -- the entry's own :class:`~mlsynth.SYNDESPower` over horizons
+  ``1..12`` (``None`` if the computation is degenerate), so every candidate is
+  comparable on power, not just the rank-1 winner on ``results.power_curve``.
 
 Because the objective only ranks fit, the value is precisely the re-scoring on
 the dimensions it ignored: a manager can trade a small fit increase for lower
@@ -719,20 +724,20 @@ the optimiser happens to minimise.
 Ranking the menu by power
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Each menu entry carries its full ``design``, so the per-horizon MDE machinery of
-the previous section applies to every candidate, not just the rank-1 winner:
-wrap an entry's design with the shared ``inputs`` and call
-:func:`~mlsynth.power_analysis` at the horizon you plan to run. The example below
-takes a 20-market GeoLift subset, scores every menu design's MDE at horizon
-:math:`h = 3`, and plots them sorted most-detectable first -- turning the menu
-into a power ranking the MSE objective never sees:
+Each menu entry carries its own per-horizon ``power_curve`` (a
+:class:`~mlsynth.SYNDESPower` over horizons ``1..12``), computed with the same
+Newey-West machinery as the previous section, so the whole pool is comparable on
+power -- not just the rank-1 winner on ``res.power_curve``. Reading an entry's
+MDE at the horizon you plan to run is a single array lookup. The example below
+takes a 20-market GeoLift subset and plots every menu design's MDE at horizon
+:math:`h = 3`, sorted most-detectable first -- turning the menu into a power
+ranking the MSE objective never sees:
 
 .. code-block:: python
 
    import matplotlib.pyplot as plt
    import pandas as pd
-   from mlsynth import SYNDES, power_analysis
-   from mlsynth.utils.syndes_helpers.structures import SYNDESResults
+   from mlsynth import SYNDES
 
    df = pd.read_csv(                                      # GeoLift_PreTest panel
        "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
@@ -751,12 +756,9 @@ into a power ranking the MSE objective never sees:
    }).fit()
 
    H = 3                                                  # horizon to plan for
-   scored = []
-   for d in res.pool:
-       p = power_analysis(SYNDESResults(design=d["design"], inputs=res.inputs),
-                          n_post_periods=[H])
-       scored.append(("+".join(map(str, sorted(d["markets"]))),
-                      float(p.mde_percent[0])))
+   scored = [("+".join(map(str, sorted(d["markets"]))),
+              float(d["power_curve"].mde_percent[H - 1]))   # 1-indexed horizon
+             for d in res.pool]
    scored.sort(key=lambda r: r[1])                        # smallest MDE -> left
 
    labels = [s[0] for s in scored]
