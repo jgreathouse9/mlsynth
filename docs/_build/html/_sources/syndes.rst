@@ -788,12 +788,14 @@ recommendation to ``res.recommendation`` (a
 :class:`~mlsynth.SYNDESRecommendation`), mirroring the LEXSCM recommender. It has
 two parts.
 
-First, a Pareto frontier on fit (the MIP objective, downwards) versus power
-(``mde_pct`` at the realised horizon, downwards): the designs for which neither
-can be improved without worsening the other. Dominated designs -- including, very
-often, the rank-1 best-fitting design, which buys its fit at the cost of power --
-are set aside. The frontier is always exposed in ``res.recommendation.pareto_ids``
-for transparency, with cost as a tie-break rather than a third axis.
+First, a Pareto frontier on fit versus power, where fit is the pre-period RMSE
+between the treated group and the weighted average of the controls (downwards)
+and power is ``mde_pct`` at the realised horizon (downwards): the designs for
+which neither can be improved without worsening the other. Dominated designs --
+including, very often, the rank-1 best-fitting design, which buys its fit at the
+cost of power -- are set aside. The frontier is always exposed in
+``res.recommendation.pareto_ids`` for transparency, with cost as a tie-break
+rather than a third axis.
 
 Second, a single recommended design picked by a GeoLift-style composite score:
 each design is dense-ranked on fit and on power (best metric ranks first, exactly
@@ -834,15 +836,83 @@ pool, ``status="EMPTY"``.
    print(rec.pareto_ids)                                 # fit-power Pareto frontier
    print(pd.DataFrame(rec.table))                        # every design, scored + flagged
 
-The recommended design is generally not the rank-1 fit optimum: on this subset
-the fit-optimal design is dominated on power, and the score lands on a frontier
-design with a materially smaller MDE.
+Designs are numbered by fit: ``D1`` is always the best-fitting design (smallest
+pre-period RMSE), ``D2`` the next, and so on. The recommended design need not be
+``D1`` -- when power outweighs fit it is a higher-numbered design with a smaller
+MDE, which is exactly the trade-off the recommendation surfaces.
 
-When ``display_graph=True`` and a pool exists, the design plot becomes
-two panels -- the recommended design's synthetic treated/control trajectory on
-top, and this fit-versus-power frontier (recommended design starred) on the
-bottom. The frontier panel can also be drawn on its own with
-:func:`~mlsynth.utils.syndes_helpers.plotter.plot_syndes_pareto`.
+When ``display_graph=True`` and a pool exists, two figures are drawn: Panel A,
+the normal SYNDES design plot (synthetic treated vs synthetic control), and
+Panel B, this fit-versus-power Pareto frontier with the recommended design
+starred (x-axis: the pre-period RMSE). Panel B can also be drawn on its own with
+:func:`~mlsynth.utils.syndes_helpers.plotter.plot_syndes_pareto`. Both render in
+the in-house mlsynth plot style.
+
+Comparing designs across methods (GEOLIFT vs SYNDES)
+----------------------------------------------------
+
+SYNDES and :doc:`GEOLIFT <geolift>` use different optimisers but share a grammar:
+each emits a design that reduces to a unit-level contrast
+:math:`\mathbf{c} = \mathbf{w}_{\text{treated}} - \mathbf{w}_{\text{control}}`
+(both sides summing to one) over the same panel. From :math:`\mathbf{c}` two
+comparable numbers follow -- the pre-period fit RMSE
+:math:`\sqrt{\operatorname{mean}((\mathbf{Y}_{\text{pre}}\mathbf{c})^2)}` and,
+by injecting a known effect at a fixed horizon, a minimum detectable effect. So
+the two methods' designs can be placed on one fit-versus-power plane and their
+Pareto frontiers overlaid.
+
+The one rule that keeps the comparison honest is that the MDE must be computed by
+a single shared harness for both methods -- same horizon, same effect grid, same
+moving-block permutation null, same baseline -- so the frontier gap reflects the
+designs, not two different power methodologies.
+:mod:`mlsynth.utils.design_compare` does exactly this. It rests on the fact that
+adding an effect :math:`\tau` to the treated units shifts the contrast mean
+:math:`\mathbf{y}_t^\top\mathbf{c}` by exactly :math:`\tau` (the treated weights
+sum to one), so the length-:math:`h` block-mean null shifted by :math:`\tau` is
+the alternative, and the power at :math:`\tau` is the share of that shifted null
+clearing the two-sided critical value.
+
+The example fixes the horizon at five post-periods and overlays both frontiers on
+a 20-market GeoLift subset:
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import (SYNDES, GEOLIFT, from_syndes, from_geolift,
+                        compare_pareto, plot_compare_pareto)
+
+   df = pd.read_csv(
+       "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+       "refs/heads/main/basedata/geolift_market_data.csv"
+   )
+   markets = sorted(df["location"].unique())[:20]
+   df = df[df["location"].isin(markets)].copy()
+   dates = sorted(df["date"].unique())
+   n_post = 5                                              # only five post-periods
+   df["post"] = df["date"].isin(set(dates[-n_post:])).astype(int)
+
+   syn = SYNDES({"df": df, "outcome": "Y", "unitid": "location", "time": "date",
+                 "K": 3, "mode": "two_way_global", "post_col": "post",
+                 "top_K": 6, "gap_limit": 0.2, "time_limit": 10.0}).fit()
+   gl = GEOLIFT({"df": df, "outcome": "Y", "unitid": "location", "time": "date",
+                 "treatment_size": 3, "durations": [n_post],
+                 "effect_sizes": [0.0, 0.1], "lookback_window": 1,
+                 "post_col": "post", "how": "mean", "fixed_effects": True,
+                 "alpha": 0.1, "ns": 200, "seed": 0,
+                 "display_graphs": False}).fit()
+
+   # Both methods' designs -> the common (contrast) currency, scored together.
+   specs = from_syndes(syn) + from_geolift(gl)
+   Ywide = df.pivot(index="date", columns="location", values="Y").sort_index()
+   out = compare_pareto(specs, Ywide, n_pre=len(dates) - n_post, horizon=5)
+   print(out[["method", "label", "fit_rmse", "mde_pct", "pareto"]])
+
+   plot_compare_pareto(out)                                # overlaid frontiers
+
+Each row of ``out`` is a design scored on the shared plane (``fit_rmse``,
+``mde_pct`` at horizon five), with a per-method ``pareto`` flag; the plot overlays
+the two frontiers so you can read directly which method's designs dominate, and
+where.
 
 Verification
 ------------
@@ -1011,6 +1081,13 @@ Pareto recommendation -- the composite-score selector that builds
 ``res.recommendation`` from the solution pool:
 
 .. automodule:: mlsynth.utils.syndes_helpers.select
+   :members:
+   :undoc-members:
+
+Cross-method comparison -- score GEOLIFT and SYNDES designs on one shared
+fit-vs-power plane:
+
+.. automodule:: mlsynth.utils.design_compare
    :members:
    :undoc-members:
 
