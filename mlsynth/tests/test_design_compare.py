@@ -16,8 +16,10 @@ import pandas as pd
 import pytest
 
 from mlsynth.utils.design_compare import (
+    DesignComparison,
     DesignSpec,
     _pareto_mask,
+    compare_methods,
     compare_pareto,
     from_geolift,
     from_syndes,
@@ -170,3 +172,59 @@ class TestAdaptersIntegration:
         assert np.isfinite(out["mde_pct"]).any()
         ax = plot_compare_pareto(out)
         assert ax is not None
+
+
+# ----------------------------------------------------------------------
+# One-call orchestrator: compare_methods
+# ----------------------------------------------------------------------
+
+class TestCompareMethods:
+    _SYN = {"time_limit": 3.0, "gap_limit": 0.2}    # keep the MIP quick in tests
+    _GL = {"ns": 120}
+
+    def test_runs_both_methods_npost(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=4,
+            syndes_options=self._SYN, geolift_options=self._GL,
+        )
+        assert isinstance(cmp, DesignComparison)
+        assert set(cmp.table["method"]) == {"SYNDES", "GEOLIFT"}
+        assert {"fit_rmse", "mde_pct", "pareto"} <= set(cmp.table.columns)
+        assert cmp.syndes is not None and cmp.geolift is not None
+        assert cmp.table.groupby("method")["pareto"].any().all()
+        ax = cmp.plot()
+        assert ax is not None
+
+    def test_accepts_existing_post_col(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, post_col="post", top_K=4,
+            syndes_options=self._SYN, geolift_options=self._GL,
+        )
+        assert len(cmp.table) > 0
+
+    def test_single_method(self):
+        df, T, n_post = _shared_panel()
+        cmp = compare_methods(
+            df, outcome="Y", unitid="unit", time="time", treated_size=2,
+            horizon=5, n_post=n_post, top_K=4, methods=("SYNDES",),
+            syndes_options=self._SYN,
+        )
+        assert set(cmp.table["method"]) == {"SYNDES"}
+        assert cmp.geolift is None and cmp.syndes is not None
+
+    def test_requires_post_or_npost(self):
+        df, T, n_post = _shared_panel()
+        with pytest.raises(ValueError, match="post_col or n_post"):
+            compare_methods(df, outcome="Y", unitid="unit", time="time",
+                            treated_size=2, methods=("SYNDES",),
+                            syndes_options=self._SYN)
+
+    def test_rejects_unknown_method(self):
+        df, T, n_post = _shared_panel()
+        with pytest.raises(ValueError, match="Unknown method"):
+            compare_methods(df, outcome="Y", unitid="unit", time="time",
+                            treated_size=2, n_post=n_post, methods=("FOO",))

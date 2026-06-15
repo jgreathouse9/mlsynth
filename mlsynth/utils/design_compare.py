@@ -22,8 +22,8 @@ moving-block) null whose shifted magnitude clears the two-sided critical value.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -229,6 +229,154 @@ def from_geolift(res) -> List[DesignSpec]:
             "GEOLIFT", f"G:{'+'.join(map(str, treated))}", contrast, treated,
         ))
     return specs
+
+
+_SYNDES_DEFAULTS: Dict[str, Any] = dict(
+    mode="two_way_global", gap_limit=0.05, time_limit=20.0, run_inference=False,
+)
+_GEOLIFT_DEFAULTS: Dict[str, Any] = dict(
+    effect_sizes=[0.0, 0.1], lookback_window=1, how="mean",
+    fixed_effects=True, ns=200, seed=0, display_graphs=False,
+)
+
+
+@dataclass(frozen=True)
+class DesignComparison:
+    """Result of :func:`compare_methods`.
+
+    Parameters
+    ----------
+    table : pd.DataFrame
+        One row per design across all requested methods, with ``method``,
+        ``label``, ``treated``, ``fit_rmse``, ``mde_pct`` (at ``horizon``), and a
+        per-method ``pareto`` flag -- the dataframe form of the comparison.
+    syndes, geolift : optional
+        The underlying fitted results (``None`` for any method not requested),
+        kept for inspection.
+    specs : list of DesignSpec
+        The common-currency designs that were scored.
+    horizon : int
+        The post-period horizon the MDE was simulated at.
+    """
+
+    table: pd.DataFrame
+    syndes: Any = None
+    geolift: Any = None
+    specs: List[DesignSpec] = field(default_factory=list)
+    horizon: int = 5
+
+    def plot(self, ax=None):
+        """Overlay the per-method Pareto frontiers (the plot form)."""
+        return plot_compare_pareto(self.table, ax=ax)
+
+
+def compare_methods(
+    df: pd.DataFrame,
+    *,
+    outcome: str,
+    unitid: str,
+    time: str,
+    treated_size: int,
+    horizon: int = 5,
+    post_col: Optional[str] = None,
+    n_post: Optional[int] = None,
+    top_K: int = 6,
+    alpha: float = 0.10,
+    power_target: float = 0.80,
+    effects_pct: Optional[Sequence[float]] = None,
+    methods: Sequence[str] = ("SYNDES", "GEOLIFT"),
+    syndes_options: Optional[Dict[str, Any]] = None,
+    geolift_options: Optional[Dict[str, Any]] = None,
+) -> DesignComparison:
+    """Fit GEOLIFT and SYNDES on one panel and compare them on the shared plane.
+
+    A one-call wrapper around the adapters + :func:`compare_pareto`: it fits each
+    requested method on the same data with the same treated-set size and post
+    window, then scores every design through the one shared MDE harness so the
+    frontiers are comparable.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Long panel.
+    outcome, unitid, time : str
+        Column names.
+    treated_size : int
+        Number of treated units (SYNDES ``K`` and GEOLIFT ``treatment_size``).
+    horizon : int, default 5
+        Post-period horizon for the simulated MDE.
+    post_col : str, optional
+        0/1 post-treatment column. Provide this or ``n_post``.
+    n_post : int, optional
+        If ``post_col`` is not given, mark the last ``n_post`` periods as post.
+    top_K : int, default 6
+        SYNDES solution-pool size (number of candidate SYNDES designs).
+    alpha, power_target : float
+        Significance level and target power for the MDE.
+    effects_pct : sequence of float, optional
+        Common effect grid (percent of baseline) for the MDE simulation.
+    methods : sequence of str, default ``("SYNDES", "GEOLIFT")``
+        Which methods to fit and compare.
+    syndes_options, geolift_options : dict, optional
+        Per-method overrides merged over the defaults (e.g.
+        ``{"time_limit": 20.0}`` to give SYNDES a larger budget).
+
+    Returns
+    -------
+    DesignComparison
+        ``.table`` (dataframe form) and ``.plot()`` (plot form).
+    """
+    methods = tuple(methods)
+    unknown = set(methods) - {"SYNDES", "GEOLIFT"}
+    if unknown:
+        raise ValueError(f"Unknown method(s): {sorted(unknown)}; "
+                         "expected 'SYNDES' and/or 'GEOLIFT'.")
+    if not methods:
+        raise ValueError("methods must name at least one estimator.")
+
+    times = sorted(df[time].unique())
+    df = df.copy()
+    if post_col is None:
+        if n_post is None:
+            raise ValueError("Provide either post_col or n_post.")
+        post_col = "__compare_post__"
+        df[post_col] = df[time].isin(set(times[-int(n_post):])).astype(int)
+        n_post_resolved = int(n_post)
+    else:
+        if post_col not in df.columns:
+            raise ValueError(f"post_col {post_col!r} is not a column of df.")
+        post_by_time = (df[[time, post_col]].drop_duplicates(subset=[time])
+                        .set_index(time)[post_col])
+        n_post_resolved = int(post_by_time.astype(bool).sum())
+    n_pre = len(times) - n_post_resolved
+
+    Ywide = df.pivot(index=time, columns=unitid, values=outcome).sort_index()
+
+    common = dict(df=df, outcome=outcome, unitid=unitid, time=time,
+                  post_col=post_col)
+    syn = gl = None
+    specs: List[DesignSpec] = []
+
+    if "SYNDES" in methods:
+        from ..estimators.syndes import SYNDES
+        sk = {**_SYNDES_DEFAULTS, **common, "K": treated_size, "top_K": top_K,
+              "alpha": alpha, **(syndes_options or {})}
+        syn = SYNDES(sk).fit()
+        specs += from_syndes(syn)
+
+    if "GEOLIFT" in methods:
+        from ..estimators.geolift import GEOLIFT
+        gk = {**_GEOLIFT_DEFAULTS, **common, "treatment_size": treated_size,
+              "durations": [n_post_resolved], "alpha": alpha,
+              **(geolift_options or {})}
+        gl = GEOLIFT(gk).fit()
+        specs += from_geolift(gl)
+
+    table = compare_pareto(specs, Ywide, n_pre, horizon=horizon,
+                           effects_pct=effects_pct, alpha=alpha,
+                           power_target=power_target)
+    return DesignComparison(table=table, syndes=syn, geolift=gl, specs=specs,
+                            horizon=horizon)
 
 
 def plot_compare_pareto(frame: pd.DataFrame, ax=None):

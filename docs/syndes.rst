@@ -875,42 +875,36 @@ clearing the two-sided critical value.
 The example fixes the horizon at five post-periods and overlays both frontiers on
 the full native GeoLift ``GeoLift_Test`` panel (all 40 markets):
 
+:func:`~mlsynth.compare_methods` is the one-call wrapper: feed it the common
+options (panel, treated-set size, horizon, post window) plus any per-method
+overrides, and it fits both estimators and scores them on the shared plane,
+returning the comparison in dataframe (``.table``) and plot (``.plot()``) form.
+
 .. code-block:: python
 
    import pandas as pd
-   from mlsynth import (SYNDES, GEOLIFT, from_syndes, from_geolift,
-                        compare_pareto, plot_compare_pareto)
+   from mlsynth import compare_methods
 
    df = pd.read_csv(                                       # full native GeoLift_Test panel
        "https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
        "refs/heads/main/basedata/geolift_test_data.csv"
    )                                                       # all 40 markets
-   dates = sorted(df["date"].unique())
-   n_post = 5                                              # only five post-periods
-   df["post"] = df["date"].isin(set(dates[-n_post:])).astype(int)
 
-   syn = SYNDES({"df": df, "outcome": "Y", "unitid": "location", "time": "date",
-                 "K": 3, "mode": "two_way_global", "post_col": "post",
-                 "top_K": 6, "gap_limit": 0.05, "time_limit": 20.0}).fit()  # ~2 min
-   gl = GEOLIFT({"df": df, "outcome": "Y", "unitid": "location", "time": "date",
-                 "treatment_size": 3, "durations": [n_post],
-                 "effect_sizes": [0.0, 0.1], "lookback_window": 1,
-                 "post_col": "post", "how": "mean", "fixed_effects": True,
-                 "alpha": 0.1, "ns": 200, "seed": 0,
-                 "display_graphs": False}).fit()
+   cmp = compare_methods(
+       df, outcome="Y", unitid="location", time="date",
+       treated_size=3, horizon=5, n_post=5, top_K=6,       # only five post-periods
+       syndes_options={"gap_limit": 0.05, "time_limit": 20.0},  # ~2 min for SYNDES
+   )
+   print(cmp.table[["method", "label", "fit_rmse", "mde_pct", "pareto"]])
+   cmp.plot()                                              # overlaid frontiers
 
-   # Both methods' designs -> the common (contrast) currency, scored together.
-   specs = from_syndes(syn) + from_geolift(gl)
-   Ywide = df.pivot(index="date", columns="location", values="Y").sort_index()
-   out = compare_pareto(specs, Ywide, n_pre=len(dates) - n_post, horizon=5)
-   print(out[["method", "label", "fit_rmse", "mde_pct", "pareto"]])
-
-   plot_compare_pareto(out)                                # overlaid frontiers
-
-Each row of ``out`` is a design scored on the shared plane (``fit_rmse``,
-``mde_pct`` at horizon five), with a per-method ``pareto`` flag; the plot overlays
-the two frontiers so you can read directly which method's designs dominate, and
-where.
+``cmp.table`` has one row per design scored on the shared plane (``fit_rmse``,
+``mde_pct`` at horizon five) with a per-method ``pareto`` flag, and ``cmp.plot()``
+overlays the two frontiers so you can read directly which method's designs
+dominate, and where. ``cmp.syndes`` and ``cmp.geolift`` keep the underlying fits
+for further inspection. To do it by hand instead -- fit each method yourself and
+pass the designs through :func:`~mlsynth.from_syndes` / :func:`~mlsynth.from_geolift`
+into :func:`~mlsynth.compare_pareto` -- see those functions.
 
 Verification
 ------------

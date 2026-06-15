@@ -23,7 +23,9 @@ from .estimators.syndes import SYNDES
 from .utils.syndes_helpers.power import SYNDESPower, power_analysis
 from .utils.syndes_helpers.select import SYNDESRecommendation, recommend_syndes
 from .utils.design_compare import (
+    DesignComparison,
     DesignSpec,
+    compare_methods,
     compare_pareto,
     from_geolift,
     from_syndes,
@@ -105,6 +107,8 @@ __all__ = [
     "SYNDESRecommendation",
     "recommend_syndes",
     "DesignSpec",
+    "DesignComparison",
+    "compare_methods",
     "compare_pareto",
     "from_syndes",
     "from_geolift",
